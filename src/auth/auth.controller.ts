@@ -6,11 +6,13 @@ import {
   Post,
   Request,
   Res,
+  SerializeOptions,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 
+@SerializeOptions({ excludePrefixes: ['_'] })
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
@@ -30,8 +32,9 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   async logout(@Request() req, @Res() res) {
-    req.logout(); // Clear the user data stored in the request object by Passport
-    res.clearCookie('jwt'); // Clear the JWT cookie in token storage
-    return res.sendStatus(HttpStatus.OK);
+    req.logout(() => {
+      res.clearCookie('jwt'); // Clear the JWT cookie in token storage
+      return res.status(HttpStatus.OK).json({ message: 'OK' });
+    });
   }
 }
