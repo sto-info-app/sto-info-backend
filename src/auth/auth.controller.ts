@@ -6,7 +6,6 @@ import { AuthService } from './auth.service';
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  @UseGuards(AuthGuard('local'))
   @Post('register')
   async register(@Body() user: { email: string; password: string }) {
     return this.authService.register(user);
