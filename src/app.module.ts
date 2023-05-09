@@ -23,7 +23,7 @@ import { UserModule } from './user/user.module';
       schema: process.env.DB_SCHEMA,
       synchronize: process.env.TYPEORM_SYNCHRONIZE === 'true',
       logging: process.env.TYPEORM_LOGGING === 'true',
-      entities: [join(__dirname, process.env.TYPEORM_ENTITIES)],
+      entities: [join(__dirname, '**/*.entity.{ts,js}')],
       migrations: [join(__dirname, process.env.TYPEORM_MIGRATIONS)],
     }),
     UserModule,
