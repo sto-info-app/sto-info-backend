@@ -25,6 +25,21 @@ export class User {
   @Column({ length: 255, nullable: false, unique: true })
   email: string;
 
+  @IsString()
+  @Column({ length: 255, nullable: true })
+  firstName: string;
+
+  @IsString()
+  @Column({ length: 255, nullable: true })
+  lastName: string;
+
+  @IsString()
+  @Column({ length: 255, default: 'user' }) // adjust length and default as necessary
+  role: string;
+
+  @Column({ nullable: true })
+  profilePicture: string;
+
   @Exclude()
   @IsString()
   @Column({ length: 255, nullable: false })
@@ -32,6 +47,33 @@ export class User {
 
   @Column({ default: false })
   emailVerified: boolean;
+
+  @Column({ nullable: true })
+  emailVerificationToken: string;
+
+  @Column({ nullable: true })
+  emailVerificationTokenExpiry: Date;
+
+  @Column({ nullable: true })
+  lastLogin: Date;
+
+  @Column({ nullable: true })
+  lastPasswordReset: Date;
+
+  @Column({ nullable: true })
+  passwordResetToken: string;
+
+  @Column({ nullable: true })
+  passwordResetTokenExpiry: Date;
+
+  @Column({ default: false })
+  isAccountDisabled: boolean;
+
+  @Column({ nullable: true })
+  provider: string;
+
+  @Column({ nullable: true })
+  providerId: string;
 
   @CreateDateColumn()
   createdAt: Date;
