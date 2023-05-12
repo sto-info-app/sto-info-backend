@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
@@ -16,6 +16,14 @@ export class AuthService {
   ) {}
 
   async register(user: Partial<User>): Promise<User> {
+    if (await this.doesEmailExist(user.email)) {
+      throw new ConflictException('Email already in use');
+    }
+
+    if (await this.doesUsernameExist(user.username)) {
+      throw new ConflictException('Username already in use');
+    }
+
     const hashedPassword = await bcrypt.hash(user.password, 8);
     const newUser = this.userRepository.create({
       email: user.email,
@@ -56,5 +64,15 @@ export class AuthService {
     return {
       access_token: this.jwtService.sign(payload),
     };
+  }
+
+  async doesUsernameExist(username: string): Promise<boolean> {
+    const count = await this.userRepository.count({ where: { username } });
+    return count > 0;
+  }
+
+  async doesEmailExist(email: string): Promise<boolean> {
+    const count = await this.userRepository.count({ where: { email } });
+    return count > 0;
   }
 }
