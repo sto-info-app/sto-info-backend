@@ -1,7 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
+import * as ejs from 'ejs';
+import { convert as htmlToText } from 'html-to-text';
+import * as path from 'path';
+import { MailService } from 'src/mail/mail.service';
 import { User } from 'src/user/entities/user.entity';
 import { UserService } from 'src/user/user.service';
 import { Repository } from 'typeorm';
@@ -13,15 +24,124 @@ export class AuthService {
     private userRepository: Repository<User>,
     private jwtService: JwtService,
     private userService: UserService,
+    private mailService: MailService,
   ) {}
 
   async register(user: Partial<User>): Promise<User> {
+    if (await this.doesEmailExist(user.email)) {
+      throw new ConflictException('Email already in use');
+    }
+
+    if (await this.doesUsernameExist(user.username)) {
+      throw new ConflictException('Username already in use');
+    }
+
     const hashedPassword = await bcrypt.hash(user.password, 8);
     const newUser = this.userRepository.create({
       email: user.email,
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
       password: hashedPassword,
     });
-    return this.userRepository.save(newUser);
+
+    const verificationToken = this.generateEmailVerificationToken();
+    newUser.emailVerificationToken = verificationToken;
+    newUser.emailVerificationTokenExpiry =
+      this.generateEmailVerificationExpiryDate();
+
+    const savedUser = await this.userRepository.save(newUser);
+
+    if (savedUser) {
+      const verificationToken = crypto.randomBytes(32).toString('hex');
+      savedUser.emailVerificationToken = verificationToken;
+      await this.userRepository.save(savedUser);
+
+      this.mailService.sendVerificationEmail(
+        savedUser.email,
+        verificationToken,
+      );
+
+      return savedUser;
+    } else {
+      throw new Error('User could not be saved');
+    }
+  }
+
+  async verifyEmail(token: string): Promise<User> {
+    if (!token) {
+      throw new BadRequestException('Token missing');
+    }
+
+    const user = await this.userRepository.findOne({
+      where: { emailVerificationToken: token },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Invalid token');
+    }
+
+    if (new Date() > user.emailVerificationTokenExpiry) {
+      throw new BadRequestException('Token expired');
+    }
+
+    user.emailVerified = true;
+    user.emailVerificationToken = null;
+    user.emailVerificationTokenExpiry = null;
+
+    const updatedUser = await this.userRepository.save(user);
+
+    // Send welcome email
+    const emailSubject = `Welcome to the ${process.env.APP_TITLE}`;
+    const emailHtmlContent = await ejs.renderFile(
+      path.join(
+        __dirname,
+        '../..',
+        'email-templates',
+        'registration-welcome-email.ejs',
+      ),
+      {
+        user,
+        appTitle: process.env.APP_TITLE,
+        loginUrl: process.env.APP_FRONTEND_URL + '/login',
+        termsOfUseUrl: process.env.APP_FRONTEND_URL + '/terms-of-use',
+      },
+    );
+    const emailTextContent = htmlToText(emailHtmlContent, {
+      wordwrap: 130,
+    });
+
+    await this.mailService.sendEmailToUser(
+      user.email,
+      emailSubject,
+      emailTextContent,
+      emailHtmlContent,
+    );
+
+    return updatedUser;
+  }
+
+  async resendVerificationEmail(token: string): Promise<void> {
+    const user = await this.userRepository.findOne({
+      where: { emailVerificationToken: token },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User token not found');
+    }
+
+    if (user.emailVerified) {
+      throw new BadRequestException('Email is already verified');
+    }
+
+    const verificationToken = this.generateEmailVerificationToken();
+    user.emailVerificationToken = verificationToken;
+    user.emailVerificationTokenExpiry =
+      this.generateEmailVerificationExpiryDate();
+
+    await this.userRepository.save(user);
+
+    await this.mailService.sendVerificationEmail(user.email, verificationToken);
   }
 
   async validateUser(email: string, password: string): Promise<any> {
@@ -49,9 +169,32 @@ export class AuthService {
   }
 
   async login(user: User): Promise<{ access_token: string }> {
+    // Check if the user's email is verified
+    if (!user.emailVerified) {
+      throw new UnauthorizedException('Email not verified');
+    }
+
     const payload = { email: user.email, sub: user.id };
     return {
       access_token: this.jwtService.sign(payload),
     };
+  }
+
+  async doesUsernameExist(username: string): Promise<boolean> {
+    const count = await this.userRepository.count({ where: { username } });
+    return count > 0;
+  }
+
+  async doesEmailExist(email: string): Promise<boolean> {
+    const count = await this.userRepository.count({ where: { email } });
+    return count > 0;
+  }
+
+  generateEmailVerificationToken(): string {
+    return crypto.randomBytes(32).toString('hex');
+  }
+
+  generateEmailVerificationExpiryDate(): Date {
+    return new Date(Date.now() + 3600000); // Token expires in 1 hour
   }
 }

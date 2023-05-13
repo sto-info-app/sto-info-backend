@@ -1,0 +1,81 @@
+import { Injectable } from '@nestjs/common';
+import * as sgMail from '@sendgrid/mail';
+import * as ejs from 'ejs';
+import { convert as htmlToText } from 'html-to-text';
+import * as path from 'path';
+
+@Injectable()
+export class MailService {
+  noReplyEmailFromSender: { name: string; email: string } = {
+    name: process.env.APP_TITLE,
+    email: process.env.SENDGRID_NOREPLY_SENDER,
+  };
+
+  constructor() {
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+  }
+
+  async sendVerificationEmail(email: string, token: string) {
+    const emailHtmlContent = await ejs.renderFile(
+      path.join(
+        __dirname,
+        '../..',
+        'email-templates',
+        'registration-verify-email.ejs',
+      ),
+      {
+        appTitle: process.env.APP_TITLE,
+        verifyUrl:
+          process.env.APP_FRONTEND_URL + '/verify-email?token=' + token,
+      },
+    );
+    const emailTextContent = htmlToText(emailHtmlContent, {
+      wordwrap: 130,
+    });
+
+    const msg = {
+      to: email,
+      from: this.noReplyEmailFromSender,
+      subject: 'Please verify your email',
+      text: emailTextContent,
+      html: emailHtmlContent,
+    };
+
+    try {
+      await sgMail.send(msg);
+      // console.log('Email sent');
+    } catch (error) {
+      if (error.response) {
+        console.error(error.response.body.errors);
+      } else {
+        console.error(error);
+      }
+    }
+  }
+
+  async sendEmailToUser(
+    toEmail: string,
+    subject: string,
+    textContent: string,
+    htmlContent: string,
+  ) {
+    const msg = {
+      to: toEmail,
+      from: this.noReplyEmailFromSender,
+      subject: subject,
+      text: textContent,
+      html: htmlContent,
+    };
+
+    try {
+      await sgMail.send(msg);
+      // console.log('Email sent');
+    } catch (error) {
+      if (error.response) {
+        console.error(error.response.body.errors);
+      } else {
+        console.error(error);
+      }
+    }
+  }
+}

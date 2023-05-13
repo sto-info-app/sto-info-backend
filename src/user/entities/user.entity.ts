@@ -14,7 +14,7 @@ import {
 import { v4 as uuid } from 'uuid';
 
 @Entity()
-@Unique(['email'])
+@Unique(['email', 'username'])
 export class User {
   @PrimaryColumn('uuid')
   @IsNotEmpty()
@@ -26,6 +26,10 @@ export class User {
   email: string;
 
   @IsString()
+  @Column({ length: 255, nullable: true, unique: true })
+  username: string;
+
+  @IsString()
   @Column({ length: 255, nullable: true })
   firstName: string;
 
@@ -34,7 +38,7 @@ export class User {
   lastName: string;
 
   @IsString()
-  @Column({ length: 255, default: 'user' }) // adjust length and default as necessary
+  @Column({ length: 255, default: 'user' }) //TODO: adjust length and default as necessary - roles as table?
   role: string;
 
   @Column({ nullable: true })
