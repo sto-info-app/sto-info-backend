@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -168,6 +169,11 @@ export class AuthService {
   }
 
   async login(user: User): Promise<{ access_token: string }> {
+    // Check if the user's email is verified
+    if (!user.emailVerified) {
+      throw new UnauthorizedException('Email not verified');
+    }
+
     const payload = { email: user.email, sub: user.id };
     return {
       access_token: this.jwtService.sign(payload),
