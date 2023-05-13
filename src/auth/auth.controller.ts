@@ -10,12 +10,18 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { ApiTags } from '@nestjs/swagger';
+import { UserService } from 'src/user/user.service';
 import { AuthService } from './auth.service';
 
 @SerializeOptions({ excludePrefixes: ['_'] })
+@ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private userService: UserService,
+  ) {}
 
   @Post('register')
   async register(@Body() user: { email: string; password: string }) {
@@ -28,6 +34,7 @@ export class AuthController {
     return this.authService.login(req.user);
   }
 
+  //TODO: Delete?
   @UseGuards(AuthGuard('jwt'))
   @Post('logout')
   @HttpCode(HttpStatus.OK)
@@ -36,5 +43,17 @@ export class AuthController {
       res.clearCookie('jwt'); // Clear the JWT cookie in token storage
       return res.status(HttpStatus.OK).json({ message: 'OK' });
     });
+  }
+
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  async verifyEmail(@Body('token') token: string) {
+    return this.authService.verifyEmail(token);
+  }
+
+  @Post('resend-verification-email')
+  @HttpCode(HttpStatus.OK)
+  async resendVerificationEmail(@Body('token') token: string) {
+    return this.authService.resendVerificationEmail(token);
   }
 }

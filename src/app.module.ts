@@ -5,6 +5,8 @@ import { join } from 'path';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { MailModule } from './mail/mail.module';
+import { MailService } from './mail/mail.service';
 import { UserModule } from './user/user.module';
 
 @Module({
@@ -28,8 +30,9 @@ import { UserModule } from './user/user.module';
     }),
     UserModule,
     AuthModule,
+    MailModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, MailService],
 })
 export class AppModule {}
