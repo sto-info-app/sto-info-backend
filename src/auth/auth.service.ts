@@ -8,7 +8,9 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import * as ejs from 'ejs';
 import { convert as htmlToText } from 'html-to-text';
+import * as path from 'path';
 import { MailService } from 'src/mail/mail.service';
 import { User } from 'src/user/entities/user.entity';
 import { UserService } from 'src/user/user.service';
@@ -89,28 +91,25 @@ export class AuthService {
     const updatedUser = await this.userRepository.save(user);
 
     // Send welcome email
-    const loginUrl = process.env.APP_FRONTEND_URL + '/login';
-    const termsOfUseUrl = process.env.APP_FRONTEND_URL + '/terms-of-use';
     const emailSubject = `Welcome to the ${process.env.APP_TITLE}`;
-    const emailHtmlContent = `Jolan tru ${user.firstName},
+    const emailHtmlContent = await ejs.renderFile(
+      path.join(
+        __dirname,
+        '../..',
+        'email-templates',
+        'registration-welcome-email.ejs',
+      ),
+      {
+        user,
+        appTitle: process.env.APP_TITLE,
+        loginUrl: process.env.APP_FRONTEND_URL + '/login',
+        termsOfUseUrl: process.env.APP_FRONTEND_URL + '/terms-of-use',
+      },
+    );
+    const emailTextContent = htmlToText(emailHtmlContent, {
+      wordwrap: 130,
+    });
 
-    <p>Welcome to the ${process.env.APP_TITLE}.</p>
-    
-    <p>The ${process.env.APP_TITLE} is a fan site of Star Trek Online and, of course, Star Trek.</p>
-    
-    <p>Hopefully, you will find this portal helpful in tracking the status of your Star Trek Online accounts, characters, fleets and more.</p>
-    
-    <p>You can access the ${process.env.APP_TITLE} via: <a href="${loginUrl}" target="_blank">${loginUrl}</a>.</p>
-
-    
-    <p>The portal gets provided to users as a free resource to the Star Trek Online community, and by using this portal, you agree to the terms of use that can be found at: <a href="${termsOfUseUrl}" target="_blank">${termsOfUseUrl}</a>.</p>
-
-    <p>CBS Studios Inc. owns STAR TREK, and Cryptic Studios Inc owns STAR TREK ONLINE with all their related marks, logos and characters.<br/>
-    The creators of this portal have no connection with CBS Studios Inc., Cryptic Studios Inc., or any other copyright holders.<br/>
-    The ${process.env.APP_TITLE} is made by fans, for fans.</p>
-    
-    <p><em>This is an automated email, and replies will not get received.</em></p>`;
-    const emailTextContent = htmlToText(emailHtmlContent);
     await this.mailService.sendEmailToUser(
       user.email,
       emailSubject,
