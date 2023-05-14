@@ -53,6 +53,88 @@ export class MailService {
     }
   }
 
+  async sendPasswordResetEmail(
+    email: string,
+    token: string,
+    firstName: string,
+  ) {
+    const emailHtmlContent = await ejs.renderFile(
+      path.join(
+        __dirname,
+        '../..',
+        'email-templates',
+        'password-reset-email.ejs',
+      ),
+      {
+        appTitle: process.env.APP_TITLE,
+        passwordResetUrl:
+          process.env.APP_FRONTEND_URL + '/change-password?token=' + token,
+        firstName: firstName,
+      },
+    );
+    const emailTextContent = htmlToText(emailHtmlContent, {
+      wordwrap: 130,
+    });
+
+    const msg = {
+      to: email,
+      from: this.noReplyEmailFromSender,
+      subject: 'Password reset for the ' + process.env.APP_TITLE,
+      text: emailTextContent,
+      html: emailHtmlContent,
+    };
+
+    try {
+      await sgMail.send(msg);
+      // console.log('Email sent');
+    } catch (error) {
+      if (error.response) {
+        console.error(error.response.body.errors);
+      } else {
+        console.error(error);
+      }
+    }
+  }
+
+  async sendPasswordChangedEmail(email: string, firstName: string) {
+    const emailHtmlContent = await ejs.renderFile(
+      path.join(
+        __dirname,
+        '../..',
+        'email-templates',
+        'password-changed-email.ejs',
+      ),
+      {
+        appTitle: process.env.APP_TITLE,
+        firstName: firstName,
+        passwordResetUrl: process.env.APP_FRONTEND_URL + '/reset-password',
+        contactUsUrl: process.env.APP_FRONTEND_URL + '/contact',
+      },
+    );
+    const emailTextContent = htmlToText(emailHtmlContent, {
+      wordwrap: 130,
+    });
+
+    const msg = {
+      to: email,
+      from: this.noReplyEmailFromSender,
+      subject: 'Password changed for the ' + process.env.APP_TITLE,
+      text: emailTextContent,
+      html: emailHtmlContent,
+    };
+
+    try {
+      await sgMail.send(msg);
+      // console.log('Email sent');
+    } catch (error) {
+      if (error.response) {
+        console.error(error.response.body.errors);
+      } else {
+        console.error(error);
+      }
+    }
+  }
+
   async sendEmailToUser(
     toEmail: string,
     subject: string,
