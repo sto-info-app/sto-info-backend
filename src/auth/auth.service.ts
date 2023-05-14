@@ -239,5 +239,7 @@ export class AuthService {
     user.lastPasswordReset = new Date();
 
     await this.userRepository.save(user);
+
+    await this.mailService.sendPasswordChangedEmail(user.email, user.firstName);
   }
 }
