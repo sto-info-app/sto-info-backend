@@ -220,6 +220,10 @@ export class AuthService {
       throw new BadRequestException('Token missing');
     }
 
+    if (!newPassword) {
+      throw new BadRequestException('Password missing from request');
+    }
+
     const user = await this.userRepository.findOne({
       where: { passwordResetToken: token },
     });
