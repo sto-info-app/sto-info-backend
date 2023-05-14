@@ -67,8 +67,8 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async resetPassword(
     @Body('token') token: string,
-    @Body('newPassword') newPassword: string,
+    @Body('password') password: string,
   ): Promise<void> {
-    return this.authService.resetPassword(token, newPassword);
+    return this.authService.resetPassword(token, password);
   }
 }
