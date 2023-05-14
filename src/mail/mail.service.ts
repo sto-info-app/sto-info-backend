@@ -68,7 +68,7 @@ export class MailService {
       {
         appTitle: process.env.APP_TITLE,
         passwordResetUrl:
-          process.env.APP_FRONTEND_URL + '/pasword-reset?token=' + token,
+          process.env.APP_FRONTEND_URL + '/change-password?token=' + token,
         firstName: firstName,
       },
     );
