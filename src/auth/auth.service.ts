@@ -45,10 +45,9 @@ export class AuthService {
       password: hashedPassword,
     });
 
-    const verificationToken = this.generateEmailVerificationToken();
+    const verificationToken = this.generateToken();
     newUser.emailVerificationToken = verificationToken;
-    newUser.emailVerificationTokenExpiry =
-      this.generateEmailVerificationExpiryDate();
+    newUser.emailVerificationTokenExpiry = this.generateTokenExpiryDate();
 
     const savedUser = await this.userRepository.save(newUser);
 
@@ -134,10 +133,9 @@ export class AuthService {
       throw new BadRequestException('Email is already verified');
     }
 
-    const verificationToken = this.generateEmailVerificationToken();
+    const verificationToken = this.generateToken();
     user.emailVerificationToken = verificationToken;
-    user.emailVerificationTokenExpiry =
-      this.generateEmailVerificationExpiryDate();
+    user.emailVerificationTokenExpiry = this.generateTokenExpiryDate();
 
     await this.userRepository.save(user);
 
@@ -190,11 +188,56 @@ export class AuthService {
     return count > 0;
   }
 
-  generateEmailVerificationToken(): string {
+  generateToken(): string {
     return crypto.randomBytes(32).toString('hex');
   }
 
-  generateEmailVerificationExpiryDate(): Date {
+  generateTokenExpiryDate(): Date {
     return new Date(Date.now() + 3600000); // Token expires in 1 hour
+  }
+
+  async requestPasswordReset(email: string): Promise<void> {
+    const user = await this.userService.findByEmail(email);
+    if (!user) {
+      throw new NotFoundException('Invalid email');
+    }
+
+    const passwordResetToken = this.generateToken();
+    user.passwordResetToken = passwordResetToken;
+    user.passwordResetTokenExpiry = this.generateTokenExpiryDate();
+
+    await this.userRepository.save(user);
+
+    await this.mailService.sendPasswordResetEmail(
+      user.email,
+      passwordResetToken,
+      user.firstName,
+    );
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    if (!token) {
+      throw new BadRequestException('Token missing');
+    }
+
+    const user = await this.userRepository.findOne({
+      where: { passwordResetToken: token },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Invalid token');
+    }
+
+    if (new Date() > user.passwordResetTokenExpiry) {
+      throw new BadRequestException('Token expired');
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 8);
+    user.password = hashedPassword;
+    user.passwordResetToken = null;
+    user.passwordResetTokenExpiry = null;
+    user.lastPasswordReset = new Date();
+
+    await this.userRepository.save(user);
   }
 }
