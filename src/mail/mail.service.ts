@@ -3,6 +3,7 @@ import * as sgMail from '@sendgrid/mail';
 import * as ejs from 'ejs';
 import { convert as htmlToText } from 'html-to-text';
 import * as path from 'path';
+import { SecretsService } from 'src/shared/secrets/secrets.service';
 
 @Injectable()
 export class MailService {
@@ -11,8 +12,16 @@ export class MailService {
     email: process.env.SENDGRID_NOREPLY_SENDER,
   };
 
-  constructor() {
-    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+  constructor(private secretsService: SecretsService) {
+    this.init();
+  }
+
+  async init() {
+    const secretObject = await this.secretsService.getSecret(
+      process.env.AWS_SECRET_NAME,
+    );
+
+    sgMail.setApiKey(secretObject.sendGridApiKey);
   }
 
   async sendVerificationEmail(email: string, token: string) {

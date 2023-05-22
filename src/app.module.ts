@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { join } from 'path';
 import { AppController } from './app.controller';
@@ -7,6 +7,8 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { MailModule } from './mail/mail.module';
 import { MailService } from './mail/mail.service';
+import { SecretsModule } from './shared/secrets/secrets.module';
+import { SecretsService } from './shared/secrets/secrets.service';
 import { UserModule } from './user/user.module';
 
 @Module({
@@ -15,24 +17,39 @@ import { UserModule } from './user/user.module';
       isGlobal: true,
       envFilePath: `config/environments/${process.env.NODE_ENV || ''}.env`,
     }),
-    TypeOrmModule.forRoot({
-      type: process.env.DB_TYPE as any,
-      host: process.env.DB_HOST,
-      port: parseInt(process.env.DB_PORT, 10),
-      username: process.env.DB_USERNAME,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_NAME,
-      schema: process.env.DB_SCHEMA,
-      synchronize: process.env.TYPEORM_SYNCHRONIZE === 'true',
-      logging: process.env.TYPEORM_LOGGING === 'true',
-      entities: [join(__dirname, '**/*.entity.{ts,js}')],
-      migrations: [join(__dirname, process.env.TYPEORM_MIGRATIONS)],
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule, SecretsModule],
+      inject: [ConfigService, SecretsService],
+      useFactory: async (
+        configService: ConfigService,
+        secretsService: SecretsService,
+      ) => {
+        const secretObject = await secretsService.getSecret(
+          configService.get('AWS_SECRET_NAME'),
+        );
+        return {
+          type: configService.get('DB_TYPE') as any,
+          host: configService.get('DB_HOST'),
+          port: parseInt(configService.get('DB_PORT'), 10),
+          username: configService.get('DB_USERNAME'),
+          password: secretObject.dbPassword, // Use the dbPassword from AWS Secrets Manager
+          database: configService.get('DB_NAME') as string,
+          schema: configService.get('DB_SCHEMA'),
+          synchronize: configService.get('TYPEORM_SYNCHRONIZE') === 'true',
+          logging: configService.get('TYPEORM_LOGGING') === 'true',
+          entities: [join(__dirname, '**/*.entity.{ts,js}')],
+          migrations: [
+            join(__dirname, configService.get('TYPEORM_MIGRATIONS')),
+          ],
+        };
+      },
     }),
     UserModule,
     AuthModule,
     MailModule,
+    SecretsModule,
   ],
   controllers: [AppController],
-  providers: [AppService, MailService],
+  providers: [AppService, MailService, SecretsService],
 })
 export class AppModule {}
