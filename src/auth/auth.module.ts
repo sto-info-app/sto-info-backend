@@ -4,6 +4,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { MailModule } from 'src/mail/mail.module';
 import { MailService } from 'src/mail/mail.service';
+import { SecretsModule } from 'src/shared/secrets/secrets.module';
+import { SecretsService } from 'src/shared/secrets/secrets.service';
 import { UserModule } from '../user/user.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -14,13 +16,22 @@ import { LocalStrategy } from './local.strategy';
   imports: [
     UserModule,
     PassportModule,
+    SecretsModule,
     JwtModule.registerAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => ({
-        secret: configService.get('JWT_SECRET'),
-        signOptions: { expiresIn: '1h' },
-      }),
+      imports: [ConfigModule, SecretsModule],
+      inject: [ConfigService, SecretsService],
+      useFactory: async (
+        configService: ConfigService,
+        secretsService: SecretsService,
+      ) => {
+        const secretObject = await secretsService.getSecret(
+          configService.get('AWS_SECRET_NAME'),
+        );
+        return {
+          secret: secretObject.jwtSecret,
+          signOptions: { expiresIn: '1h' },
+        };
+      },
     }),
     MailModule,
   ],
