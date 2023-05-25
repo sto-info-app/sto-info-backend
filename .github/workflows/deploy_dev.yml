@@ -63,6 +63,4 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
       - name: Deploy to AWS Elastic Beanstalk
-        run: |
-          cd sto-info-backend
-          eb deploy STOInfoBackendDev-env
+        run: eb deploy STOInfoBackendDev-env
