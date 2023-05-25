@@ -36,11 +36,15 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-west-2
 
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+
       - name: Install and configure Elastic Beanstalk CLI
         run: |
           git clone https://github.com/aws/aws-elastic-beanstalk-cli-setup.git
-          chmod +x ./aws-elastic-beanstalk-cli-setup/scripts/ebcli_installer.py
-          ./aws-elastic-beanstalk-cli-setup/scripts/ebcli_installer.py
+          python ./aws-elastic-beanstalk-cli-setup/scripts/ebcli_installer.py
           echo "$HOME/.ebcli-virtual-env/executables" >> $GITHUB_PATH
           eb init 'STO Info Backend (Dev)' --region eu-west-2 --platform Node.js
         env:
