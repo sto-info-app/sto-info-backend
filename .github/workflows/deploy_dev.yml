@@ -38,11 +38,15 @@ jobs:
 
       - name: Install and configure Elastic Beanstalk CLI
         run: |
-          curl -Lo aws-elastic-beanstalk-cli.zip https://github.com/aws/aws-elastic-beanstalk-cli-setup/archive/refs/tags/v0.2.0.zip
-          unzip aws-elastic-beanstalk-cli.zip
-          ./aws-elastic-beanstalk-cli-installer/install
+          git clone https://github.com/aws/aws-elastic-beanstalk-cli-setup.git
+          ./aws-elastic-beanstalk-cli-setup/scripts/ebcli_installer.py
           echo "$HOME/.ebcli-virtual-env/executables" >> $GITHUB_PATH
           eb init 'STO Info Backend (Dev)' --region eu-west-2 --platform Node.js
+        env:
+          AWS_DEFAULT_REGION: eu-west-2
+          AWS_REGION: eu-west-2
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
       - name: Deploy to AWS Elastic Beanstalk
         run: eb deploy STOInfoBackendDev-env
