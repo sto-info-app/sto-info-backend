@@ -5,14 +5,14 @@ on:
 
   pull_request:
     # types: [closed]
-    types: [opened, edited, closed]
+    # types: [opened, edited, closed]
     branches:
       - development
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true
+    # if: github.event.pull_request.merged == true
 
     steps:
       - name: Checkout code
