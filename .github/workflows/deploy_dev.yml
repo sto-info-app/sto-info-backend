@@ -41,6 +41,11 @@ jobs:
         with:
           python-version: '3.x'
 
+      - name: Install virtualenv
+        run: |
+          python -m pip install --upgrade pip
+          pip install virtualenv
+
       - name: Install and configure Elastic Beanstalk CLI
         run: |
           git clone https://github.com/aws/aws-elastic-beanstalk-cli-setup.git
