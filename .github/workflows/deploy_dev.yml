@@ -54,7 +54,8 @@ jobs:
 
       - name: Configure Elastic Beanstalk CLI
         run: |
-          eb --version
+          cd sto-info-backend
+          eb init 'sto-info-backend' --region eu-west-2 --platform Node.js
         env:
           AWS_DEFAULT_REGION: eu-west-2
           AWS_REGION: eu-west-2
@@ -62,4 +63,6 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
       - name: Deploy to AWS Elastic Beanstalk
-        run: eb deploy STOInfoBackendDev-env
+        run: |
+          cd sto-info-backend
+          eb deploy STOInfoBackendDev-env
