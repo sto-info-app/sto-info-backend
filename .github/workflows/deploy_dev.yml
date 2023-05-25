@@ -38,7 +38,7 @@ jobs:
 
       - name: Install and configure Elastic Beanstalk CLI
         run: |
-          curl -Lo aws-elastic-beanstalk-cli.zip https://github.com/aws/aws-elastic-beanstalk-cli-setup/releases/latest/download/aws-elastic-beanstalk-cli.zip
+          curl -Lo aws-elastic-beanstalk-cli.zip https://github.com/aws/aws-elastic-beanstalk-cli-setup/archive/refs/tags/v0.2.0.zip
           unzip aws-elastic-beanstalk-cli.zip
           ./aws-elastic-beanstalk-cli-installer/install
           echo "$HOME/.ebcli-virtual-env/executables" >> $GITHUB_PATH
