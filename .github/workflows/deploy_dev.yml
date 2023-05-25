@@ -46,11 +46,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install virtualenv
 
-      - name: Install and configure Elastic Beanstalk CLI
+      - name: Install Elastic Beanstalk CLI
         run: |
           git clone https://github.com/aws/aws-elastic-beanstalk-cli-setup.git
           python ./aws-elastic-beanstalk-cli-setup/scripts/ebcli_installer.py
           echo "PATH=$HOME/.ebcli-virtual-env/executables:$PATH" >> $GITHUB_ENV
+
+      - name: Configure Elastic Beanstalk CLI
+        run: |
           eb --version
         env:
           AWS_DEFAULT_REGION: eu-west-2
