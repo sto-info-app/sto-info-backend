@@ -50,7 +50,6 @@ jobs:
         run: |
           git clone https://github.com/aws/aws-elastic-beanstalk-cli-setup.git
           python ./aws-elastic-beanstalk-cli-setup/scripts/ebcli_installer.py
-          echo "$HOME/.ebcli-virtual-env/executables" >> $GITHUB_PATH
           echo "export PATH=$HOME/.ebcli-virtual-env/executables:$PATH" >> $GITHUB_ENV
           eb init 'STO Info Backend (Dev)' --region eu-west-2 --platform Node.js
         env:
