@@ -52,14 +52,13 @@ jobs:
           python ./aws-elastic-beanstalk-cli-setup/scripts/ebcli_installer.py
           echo "PATH=$HOME/.ebcli-virtual-env/executables:$PATH" >> $GITHUB_ENV
 
-      - name: Print working directory
-        run: |
-          pwd
-          ls
+      # - name: Print working directory
+      #   run: |
+      #     pwd
+      #     ls
 
       - name: Configure Elastic Beanstalk CLI
         run: |
-          cd sto-info-backend
           eb init 'sto-info-backend' --region eu-west-2 --platform Node.js
         env:
           AWS_DEFAULT_REGION: eu-west-2
