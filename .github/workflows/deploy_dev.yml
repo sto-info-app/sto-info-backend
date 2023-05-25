@@ -39,6 +39,7 @@ jobs:
       - name: Install and configure Elastic Beanstalk CLI
         run: |
           git clone https://github.com/aws/aws-elastic-beanstalk-cli-setup.git
+          chmod +x ./aws-elastic-beanstalk-cli-setup/scripts/ebcli_installer.py
           ./aws-elastic-beanstalk-cli-setup/scripts/ebcli_installer.py
           echo "$HOME/.ebcli-virtual-env/executables" >> $GITHUB_PATH
           eb init 'STO Info Backend (Dev)' --region eu-west-2 --platform Node.js
