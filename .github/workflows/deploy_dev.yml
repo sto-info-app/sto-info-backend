@@ -1,4 +1,4 @@
-name: AWS Elastic Beanstalk Deploy
+name: AWS EC2 Deploy
 
 on:
   workflow_dispatch:
@@ -16,10 +16,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Setup Node.js
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v3
         with:
           node-version: 18
 
@@ -29,42 +29,12 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Set up AWS CLI
-        uses: aws-actions/configure-aws-credentials@v1
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.5.0
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-west-2
+          ssh-private-key: ${{ secrets.AWS_EC2_SSH_PRIVATE_KEY }}
 
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.x'
-
-      - name: Install virtualenv
+      - name: Deploy to AWS EC2
         run: |
-          python -m pip install --upgrade pip
-          pip install virtualenv
-
-      - name: Install Elastic Beanstalk CLI
-        run: |
-          git clone https://github.com/aws/aws-elastic-beanstalk-cli-setup.git
-          python ./aws-elastic-beanstalk-cli-setup/scripts/ebcli_installer.py
-          echo "PATH=$HOME/.ebcli-virtual-env/executables:$PATH" >> $GITHUB_ENV
-
-      # - name: Print working directory
-      #   run: |
-      #     pwd
-      #     ls
-
-      - name: Configure Elastic Beanstalk CLI
-        run: |
-          eb init 'sto-info-backend' --region eu-west-2 --platform Node.js
-        env:
-          AWS_DEFAULT_REGION: eu-west-2
-          AWS_REGION: eu-west-2
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
-      - name: Deploy to AWS Elastic Beanstalk
-        run: eb deploy STOInfoBackendDev-env
+          scp -o StrictHostKeyChecking=no -r ./dist ec2-user@ec2-35-178-243-30.eu-west-2.compute.amazonaws.com:/home/ec2-user/sto-info-backend
+          ssh ec2-user@ec2-35-178-243-30.eu-west-2.compute.amazonaws.com 'cd /home/ec2-user/sto-info-backend && npm install --production'
