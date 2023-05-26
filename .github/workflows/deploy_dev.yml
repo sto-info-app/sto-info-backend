@@ -29,6 +29,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Diagnose network
+        run: traceroute ec2-35-178-243-30.eu-west-2.compute.amazonaws.com
+
       - name: Set up SSH
         uses: webfactory/ssh-agent@v0.5.0
         with:
