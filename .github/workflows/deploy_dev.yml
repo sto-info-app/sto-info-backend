@@ -36,5 +36,5 @@ jobs:
 
       - name: Deploy to AWS EC2
         run: |
-          scp -o StrictHostKeyChecking=no -r ./dist ec2-user@ec2-35-178-243-30.eu-west-2.compute.amazonaws.com:/home/ec2-user/sto-info-backend
-          ssh ec2-user@ec2-35-178-243-30.eu-west-2.compute.amazonaws.com 'cd /home/ec2-user/sto-info-backend && npm install --production'
+          scp -o StrictHostKeyChecking=no -r ./dist ec2-user@35.178.243.30:/home/ec2-user/sto-info-backend
+          ssh ec2-user@35.178.243.30 'cd /home/ec2-user/sto-info-backend && npm install --production'
