@@ -52,4 +52,6 @@ jobs:
           sleep 20  # wait for 20 seconds to give the app time to start
           RESULT=$(curl -s https://dev-api.startrekonline.info)
           echo "Curl output: $RESULT"
-          echo $RESULT | grep -q '.status' | grep -q 'Hello dev!' || exit 1
+          if [[ "$RESULT" != "Hello dev!" ]]; then
+            exit 1
+          fi
