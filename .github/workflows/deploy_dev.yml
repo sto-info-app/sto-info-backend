@@ -45,7 +45,7 @@ jobs:
 
       - name: Check application status
         run: |
-          ssh ec2-user@35.178.243.30 pm2 status sto-info-backend'
+          ssh ec2-user@35.178.243.30 'pm2 status sto-info-backend'
 
       - name: Install jq
         run: sudo apt-get install -y jq
