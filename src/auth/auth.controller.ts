@@ -4,6 +4,7 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Req,
   Request,
   Res,
   SerializeOptions,
@@ -70,5 +71,18 @@ export class AuthController {
     @Body('password') password: string,
   ): Promise<void> {
     return this.authService.resetPassword(token, password);
+  }
+
+  @Post('refresh')
+  async refresh(@Body('refresh_token') refreshToken: string) {
+    return this.authService.refresh(refreshToken);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('revoke')
+  async revoke(@Req() req): Promise<void> {
+    const userId = req.user.userId;
+    const tokenId = req.user.tokenId;
+    await this.authService.revokeToken(userId, tokenId);
   }
 }

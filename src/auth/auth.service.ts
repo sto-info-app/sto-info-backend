@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -166,9 +168,11 @@ export class AuthService {
     return null;
   }
 
-  async login(
-    user: User,
-  ): Promise<{ access_token: string; expires_in: number }> {
+  async login(user: User): Promise<{
+    access_token: string;
+    refresh_token: string;
+    expires_in: number;
+  }> {
     // Check if the user's email is verified
     if (!user.emailVerified) {
       throw new UnauthorizedException('Email not verified');
@@ -177,6 +181,7 @@ export class AuthService {
     const payload = { email: user.email, sub: user.id };
     return {
       access_token: this.jwtService.sign(payload),
+      refresh_token: this.jwtService.sign(payload, { expiresIn: '7d' }), // refresh token with longer expiry
       expires_in: +process.env.AUTH_TOKEN_EXPIRES_IN,
     };
   }
@@ -248,5 +253,39 @@ export class AuthService {
     await this.userRepository.save(user);
 
     await this.mailService.sendPasswordChangedEmail(user.email, user.firstName);
+  }
+
+  async refresh(
+    refreshToken: string,
+  ): Promise<{ access_token: string; expires_in: number }> {
+    try {
+      const payload = this.jwtService.verify(refreshToken); // verify the refresh token
+      const user = await this.userService.findById(payload.sub); // get the user with the id in payload
+
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
+
+      const newPayload = { email: user.email, sub: user.id };
+      return {
+        access_token: this.jwtService.sign(newPayload), // return new access token
+        expires_in: +process.env.AUTH_TOKEN_EXPIRES_IN,
+      };
+    } catch (e) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+  }
+
+  async revokeToken(id: string, tokenId: string): Promise<void> {
+    const user = await this.userRepository.findOne({ where: { id: id } });
+    if (!user) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    user.refreshTokens = user.refreshTokens.filter(
+      token => token.tokenId !== tokenId,
+    );
+
+    await this.userRepository.save(user);
   }
 }

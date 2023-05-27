@@ -7,11 +7,13 @@ import {
   CreateDateColumn,
   DeleteDateColumn,
   Entity,
+  OneToMany,
   PrimaryColumn,
   Unique,
   UpdateDateColumn,
 } from 'typeorm';
 import { v4 as uuid } from 'uuid';
+import { RefreshToken } from './refresh-token.entity';
 
 @Entity()
 @Unique(['email', 'username'])
@@ -92,6 +94,12 @@ export class User {
   generateUuid() {
     this.id = uuid();
   }
+
+  @OneToMany(() => RefreshToken, refreshToken => refreshToken.user, {
+    cascade: true,
+    eager: true,
+  })
+  refreshTokens: RefreshToken[];
 
   async comparePassword(password: string): Promise<boolean> {
     return bcrypt.compare(password, this.password);
