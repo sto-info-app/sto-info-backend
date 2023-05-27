@@ -53,5 +53,6 @@ jobs:
       - name: Check application health
         run: |
           sleep 20  # wait for 20 seconds to give the app time to start
-          RESULT=$(curl -f https://dev-api.startrekonline.info)
+          RESULT=$(curl -s https://dev-api.startrekonline.info)
+          echo "Curl output: $RESULT"
           echo $RESULT | jq '.status' | grep -q 'Hello dev!' || exit 1
