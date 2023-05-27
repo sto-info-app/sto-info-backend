@@ -255,9 +255,11 @@ export class AuthService {
     await this.mailService.sendPasswordChangedEmail(user.email, user.firstName);
   }
 
-  async refresh(
-    refreshToken: string,
-  ): Promise<{ access_token: string; expires_in: number }> {
+  async refresh(refreshToken: string): Promise<{
+    access_token: string;
+    expires_in: number;
+    refresh_token: string;
+  }> {
     try {
       const payload = this.jwtService.verify(refreshToken); // verify the refresh token
       const user = await this.userService.findById(payload.sub); // get the user with the id in payload
@@ -267,8 +269,12 @@ export class AuthService {
       }
 
       const newPayload = { email: user.email, sub: user.id };
+      const newRefreshToken = this.jwtService.sign(newPayload, {
+        expiresIn: '7d',
+      }); // generate new refresh token
       return {
         access_token: this.jwtService.sign(newPayload), // return new access token
+        refresh_token: newRefreshToken,
         expires_in: +process.env.AUTH_TOKEN_EXPIRES_IN,
       };
     } catch (e) {
