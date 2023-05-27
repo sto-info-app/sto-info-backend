@@ -9,24 +9,24 @@ import {
   Res,
   SerializeOptions,
   UseGuards,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags } from '@nestjs/swagger';
-import { UserService } from 'src/user/user.service';
+import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { AuthService } from './auth.service';
 
 @SerializeOptions({ excludePrefixes: ['_'] })
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(
-    private authService: AuthService,
-    private userService: UserService,
-  ) {}
+  constructor(private authService: AuthService) {}
 
   @Post('register')
-  async register(@Body() user: { email: string; password: string }) {
-    return this.authService.register(user);
+  @UsePipes(new ValidationPipe())
+  async register(@Body() createUserDto: CreateUserDto) {
+    return this.authService.register(createUserDto);
   }
 
   @UseGuards(AuthGuard('local'))
@@ -35,7 +35,6 @@ export class AuthController {
     return this.authService.login(req.user);
   }
 
-  //TODO: Delete?
   @UseGuards(AuthGuard('jwt'))
   @Post('logout')
   @HttpCode(HttpStatus.OK)
