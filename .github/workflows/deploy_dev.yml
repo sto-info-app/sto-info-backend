@@ -1,0 +1,57 @@
+name: AWS EC2 Deploy
+
+on:
+  workflow_dispatch:
+
+  pull_request:
+    # types: [closed]
+    # types: [opened, edited, closed]
+    branches:
+      - development
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # if: github.event.pull_request.merged == true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.5.0
+        with:
+          ssh-private-key: ${{ secrets.AWS_EC2_SSH_PRIVATE_KEY }}
+
+      - name: Deploy to AWS EC2
+        run: |
+          scp -o StrictHostKeyChecking=no -r ./dist ec2-user@35.178.243.30:/home/ec2-user/sto-info-backend
+          ssh ec2-user@35.178.243.30 'cd /home/ec2-user/sto-info-backend && npm install'
+
+      - name: Restart/Start application
+        run: |
+          ssh ec2-user@35.178.243.30 'cd /home/ec2-user/sto-info-backend && pm2 restart sto-info-backend || pm2 start npm --name sto-info-backend -- start'
+
+      - name: Check application status
+        run: |
+          ssh ec2-user@35.178.243.30 'pm2 status sto-info-backend'
+
+      - name: Check application health
+        run: |
+          sleep 20  # wait for 20 seconds to give the app time to start
+          RESULT=$(curl -s https://dev-api.startrekonline.info)
+          echo "Curl output: $RESULT"
+          if [[ "$RESULT" != "Hello dev!" ]]; then
+            exit 1
+          fi
