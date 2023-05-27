@@ -15,6 +15,11 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags } from '@nestjs/swagger';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
+import { RefreshTokenDto } from 'src/user/dto/refresh-token.dto';
+import { RequestPasswordResetDto } from 'src/user/dto/request-password-reset.dto';
+import { ResendVerificationEmailDto } from 'src/user/dto/resend-verification-email.dto';
+import { ResetPasswordDto } from 'src/user/dto/reset-password.dto';
+import { VerifyEmailDto } from 'src/user/dto/verify-email.dto';
 import { AuthService } from './auth.service';
 
 @SerializeOptions({ excludePrefixes: ['_'] })
@@ -47,38 +52,48 @@ export class AuthController {
 
   @Post('verify-email')
   @HttpCode(HttpStatus.OK)
-  async verifyEmail(@Body('token') token: string) {
-    return this.authService.verifyEmail(token);
+  async verifyEmail(@Body() verifyEmailDto: VerifyEmailDto) {
+    return this.authService.verifyEmail(verifyEmailDto.token);
   }
 
   @Post('resend-verification-email')
   @HttpCode(HttpStatus.OK)
-  async resendVerificationEmail(@Body('token') token: string) {
-    return this.authService.resendVerificationEmail(token);
+  async resendVerificationEmail(
+    @Body() resendVerificationEmailDto: ResendVerificationEmailDto,
+  ) {
+    return this.authService.resendVerificationEmail(
+      resendVerificationEmailDto.token,
+    );
   }
 
   @Post('request-password-reset')
   @HttpCode(HttpStatus.OK)
-  async requestPasswordReset(@Body('email') email: string): Promise<void> {
-    return this.authService.requestPasswordReset(email);
+  async requestPasswordReset(
+    @Body() requestPasswordResetDto: RequestPasswordResetDto,
+  ): Promise<void> {
+    return this.authService.requestPasswordReset(requestPasswordResetDto.email);
   }
 
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
   async resetPassword(
-    @Body('token') token: string,
-    @Body('password') password: string,
+    @Body() resetPasswordDto: ResetPasswordDto,
   ): Promise<void> {
-    return this.authService.resetPassword(token, password);
+    return this.authService.resetPassword(
+      resetPasswordDto.token,
+      resetPasswordDto.password,
+    );
   }
 
   @Post('refresh')
-  async refresh(@Body('refresh_token') refreshToken: string) {
-    return this.authService.refresh(refreshToken);
+  @HttpCode(HttpStatus.OK)
+  async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
+    return this.authService.refresh(refreshTokenDto.refresh_token);
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Post('revoke')
+  @HttpCode(HttpStatus.OK)
   async revoke(@Req() req): Promise<void> {
     const userId = req.user.userId;
     const tokenId = req.user.tokenId;
