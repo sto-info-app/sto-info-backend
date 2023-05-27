@@ -41,4 +41,17 @@ jobs:
 
       - name: Restart/Start application
         run: |
-          ssh ec2-user@35.178.243.30 'cd /home/ec2-user/sto-info-backend && pm2 restart sto-info-backend || pm2 start npm --name myApp -- start'
+          ssh ec2-user@35.178.243.30 'cd /home/ec2-user/sto-info-backend && pm2 restart sto-info-backend || pm2 start npm --name sto-info-backend -- start'
+
+      - name: Check application status
+        run: |
+          ssh ec2-user@35.178.243.30 pm2 status sto-info-backend'
+
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      - name: Check application health
+        run: |
+          sleep 20  # wait for 20 seconds to give the app time to start
+          RESULT=$(curl -f https://dev-api.startrekonline.info)
+          echo $RESULT | jq '.status' | grep -q 'Hello dev!' || exit 1
