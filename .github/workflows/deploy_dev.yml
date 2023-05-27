@@ -47,12 +47,9 @@ jobs:
         run: |
           ssh ec2-user@35.178.243.30 'pm2 status sto-info-backend'
 
-      - name: Install jq
-        run: sudo apt-get install -y jq
-
       - name: Check application health
         run: |
           sleep 20  # wait for 20 seconds to give the app time to start
           RESULT=$(curl -s https://dev-api.startrekonline.info)
           echo "Curl output: $RESULT"
-          echo $RESULT | jq '.status' | grep -q 'Hello dev!' || exit 1
+          echo $RESULT | grep -q '.status' | grep -q 'Hello dev!' || exit 1
