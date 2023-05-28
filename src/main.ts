@@ -20,7 +20,14 @@ async function bootstrap() {
   // Use environment vars
   const configService = app.get(ConfigService);
 
-  app.useGlobalPipes(new ValidationPipe({ transform: true })); // Enable data validation with transform option
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true, // Strips non-whitelisted properties (those without validation decorators in the DTO)
+      forbidNonWhitelisted: true, // Throws an error when non-whitelisted properties are present
+      transform: true, // Transforms the plain JavaScript request body object into an instance of the corresponding DTO class
+      validationError: { target: false }, // Controls the detail level in validation error messages, if set to false it prevents leaking internal details to the client
+    }),
+  ); // Enable data validation with transform option
   app.enableCors(); // Enable CORS (Cross-Origin Resource Sharing)
   app.use(helmet()); // Enable Helmet, a collection of 11 smaller middleware functions that set security-related HTTP headers
   app.use('/', apiLimiter); // Apply rate limiting to all routes
