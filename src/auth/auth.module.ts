@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { MailModule } from 'src/mail/mail.module';
 import { MailService } from 'src/mail/mail.service';
+import { RefreshTokenModule } from 'src/refresh-token/refresh-token.module';
 import { SecretsModule } from 'src/shared/secrets/secrets.module';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
 import { UserModule } from '../user/user.module';
@@ -18,7 +19,7 @@ import { LocalStrategy } from './local.strategy';
     PassportModule,
     SecretsModule,
     JwtModule.registerAsync({
-      imports: [ConfigModule, SecretsModule],
+      imports: [ConfigModule, SecretsModule, RefreshTokenModule],
       inject: [ConfigService, SecretsService],
       useFactory: async (
         configService: ConfigService,
@@ -34,6 +35,7 @@ import { LocalStrategy } from './local.strategy';
       },
     }),
     MailModule,
+    RefreshTokenModule,
   ],
   providers: [AuthService, LocalStrategy, JwtStrategy, MailService],
   controllers: [AuthController],

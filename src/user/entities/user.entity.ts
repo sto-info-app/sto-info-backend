@@ -13,7 +13,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { v4 as uuid } from 'uuid';
-import { RefreshToken } from './refresh-token.entity';
+import { RefreshToken } from '../../refresh-token/entities/refresh-token.entity';
 
 @Entity()
 @Unique(['email', 'username'])
@@ -95,10 +95,7 @@ export class User {
     this.id = uuid();
   }
 
-  @OneToMany(() => RefreshToken, refreshToken => refreshToken.user, {
-    cascade: true,
-    eager: true,
-  })
+  @OneToMany(() => RefreshToken, refreshToken => refreshToken.user)
   refreshTokens: RefreshToken[];
 
   async comparePassword(password: string): Promise<boolean> {

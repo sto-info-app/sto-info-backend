@@ -15,6 +15,7 @@ import * as ejs from 'ejs';
 import { convert as htmlToText } from 'html-to-text';
 import * as path from 'path';
 import { MailService } from 'src/mail/mail.service';
+import { RefreshTokenService } from 'src/refresh-token/refresh-token.service';
 import { User } from 'src/user/entities/user.entity';
 import { UserService } from 'src/user/user.service';
 import { Repository } from 'typeorm';
@@ -27,6 +28,7 @@ export class AuthService {
     private jwtService: JwtService,
     private userService: UserService,
     private mailService: MailService,
+    private refreshTokenService: RefreshTokenService,
   ) {}
 
   async register(user: Partial<User>): Promise<User> {
@@ -54,7 +56,7 @@ export class AuthService {
     const savedUser = await this.userRepository.save(newUser);
 
     if (savedUser) {
-      const verificationToken = crypto.randomBytes(32).toString('hex');
+      const verificationToken = this.generateToken();
       savedUser.emailVerificationToken = verificationToken;
       await this.userRepository.save(savedUser);
 
@@ -178,10 +180,28 @@ export class AuthService {
       throw new UnauthorizedException('Email not verified');
     }
 
-    const payload = { email: user.email, sub: user.id };
+    const payload = {
+      email: user.email,
+      sub: user.id,
+    };
+
+    const jwtId = this.generateToken();
+    const newRefreshToken = this.jwtService.sign(payload, {
+      expiresIn: '7d',
+      jwtid: jwtId,
+    });
+
+    await this.refreshTokenService.create({
+      user,
+      tokenId: newRefreshToken,
+      jwtId: jwtId,
+      isRevoked: false,
+      expiresAt: this.calculateExpiryTime(7),
+    });
+
     return {
       access_token: this.jwtService.sign(payload),
-      refresh_token: this.jwtService.sign(payload, { expiresIn: '7d' }), // refresh token with longer expiry
+      refresh_token: newRefreshToken,
       expires_in: +process.env.AUTH_TOKEN_EXPIRES_IN,
     };
   }
@@ -255,25 +275,49 @@ export class AuthService {
     await this.mailService.sendPasswordChangedEmail(user.email, user.firstName);
   }
 
-  async refresh(refreshToken: string): Promise<{
+  async refreshToken(refreshToken: string): Promise<{
     access_token: string;
     expires_in: number;
     refresh_token: string;
   }> {
     try {
-      const payload = this.jwtService.verify(refreshToken); // verify the refresh token
-      const user = await this.userService.findById(payload.sub); // get the user with the id in payload
+      const payload = this.jwtService.verify(refreshToken);
+      const user = await this.userService.findByRefreshToken(refreshToken);
 
       if (!user) {
         throw new UnauthorizedException('User not found');
       }
 
+      // Check if the refresh token exists in the user's tokens
+      const tokenExists = user.refreshTokens.some(
+        token => token.jwtId === payload.jti,
+      );
+
+      if (!tokenExists) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+
+      const jwtId = this.generateToken();
       const newPayload = { email: user.email, sub: user.id };
       const newRefreshToken = this.jwtService.sign(newPayload, {
         expiresIn: '7d',
-      }); // generate new refresh token
+        jwtid: jwtId,
+      });
+
+      // Save the new refresh token
+      await this.refreshTokenService.create({
+        user,
+        tokenId: newRefreshToken,
+        jwtId: jwtId,
+        isRevoked: false,
+        expiresAt: this.calculateExpiryTime(7), // add 7 as an argument here
+      });
+
+      // Revoke the old refresh token
+      await this.refreshTokenService.revokeToken(user.id, refreshToken);
+
       return {
-        access_token: this.jwtService.sign(newPayload), // return new access token
+        access_token: this.jwtService.sign(newPayload),
         refresh_token: newRefreshToken,
         expires_in: +process.env.AUTH_TOKEN_EXPIRES_IN,
       };
@@ -293,5 +337,11 @@ export class AuthService {
     );
 
     await this.userRepository.save(user);
+  }
+
+  calculateExpiryTime(days: number): Date {
+    const expiry = new Date();
+    expiry.setDate(expiry.getDate() + days);
+    return expiry;
   }
 }

@@ -6,7 +6,6 @@ import {
   Post,
   Req,
   Request,
-  Res,
   SerializeOptions,
   UseGuards,
   UsePipes,
@@ -14,19 +13,24 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags } from '@nestjs/swagger';
+import { RefreshTokenService } from 'src/refresh-token/refresh-token.service';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { RefreshTokenDto } from 'src/user/dto/refresh-token.dto';
 import { RequestPasswordResetDto } from 'src/user/dto/request-password-reset.dto';
 import { ResendVerificationEmailDto } from 'src/user/dto/resend-verification-email.dto';
 import { ResetPasswordDto } from 'src/user/dto/reset-password.dto';
 import { VerifyEmailDto } from 'src/user/dto/verify-email.dto';
+import { User } from 'src/user/entities/user.entity';
 import { AuthService } from './auth.service';
 
 @SerializeOptions({ excludePrefixes: ['_'] })
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private refreshTokenService: RefreshTokenService,
+  ) {}
 
   @Post('register')
   @UsePipes(new ValidationPipe())
@@ -43,11 +47,11 @@ export class AuthController {
   @UseGuards(AuthGuard('jwt'))
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  async logout(@Request() req, @Res() res) {
-    req.logout(() => {
-      res.clearCookie('jwt'); // Clear the JWT cookie in token storage
-      return res.status(HttpStatus.OK).json({ message: 'OK' });
-    });
+  async logout(
+    @Request() req: { user: User },
+    @Body() body: { refreshToken: string },
+  ): Promise<void> {
+    await this.refreshTokenService.deleteRefreshToken(body.refreshToken);
   }
 
   @Post('verify-email')
@@ -88,7 +92,7 @@ export class AuthController {
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
-    return this.authService.refresh(refreshTokenDto.refresh_token);
+    return this.authService.refreshToken(refreshTokenDto.refresh_token);
   }
 
   @UseGuards(AuthGuard('jwt'))
