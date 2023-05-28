@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -14,7 +16,6 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { Validate } from 'class-validator';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entities/user.entity';
@@ -28,7 +29,7 @@ export class UserController {
   @Post()
   @ApiBody({ type: CreateUserDto })
   @ApiResponse({ status: 201, type: User })
-  @Validate(CreateUserDto)
+  @HttpCode(HttpStatus.OK)
   async create(@Body() createUserDto: CreateUserDto) {
     return await this.userService.create(createUserDto);
   }
@@ -36,16 +37,19 @@ export class UserController {
   @ApiOkResponse({ description: 'Successfully found the user.' })
   @ApiBadRequestResponse({ description: 'The user cannot be found.' })
   @Get(':id')
+  @HttpCode(HttpStatus.OK)
   findById(@Param('id') id: string) {
     return this.userService.findById(id);
   }
 
   @Patch(':id')
+  @HttpCode(HttpStatus.OK)
   update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
     return this.userService.update(id, updateUserDto);
   }
 
   @Delete(':id')
+  @HttpCode(HttpStatus.OK)
   remove(@Param('id') id: string) {
     return this.userService.delete(id);
   }
