@@ -13,9 +13,9 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags } from '@nestjs/swagger';
-import { RefreshTokenService } from 'src/refresh-token/refresh-token.service';
+import { UserRefreshTokenDto } from 'src/user-refresh-token/dto/user-refresh-token.dto';
+import { UserRefreshTokenService } from 'src/user-refresh-token/user-refresh-token.service';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
-import { RefreshTokenDto } from 'src/user/dto/refresh-token.dto';
 import { RequestPasswordResetDto } from 'src/user/dto/request-password-reset.dto';
 import { ResendVerificationEmailDto } from 'src/user/dto/resend-verification-email.dto';
 import { ResetPasswordDto } from 'src/user/dto/reset-password.dto';
@@ -29,7 +29,7 @@ import { AuthService } from './auth.service';
 export class AuthController {
   constructor(
     private authService: AuthService,
-    private refreshTokenService: RefreshTokenService,
+    private refreshTokenService: UserRefreshTokenService,
   ) {}
 
   @Post('register')
@@ -51,7 +51,7 @@ export class AuthController {
     @Request() req: { user: User },
     @Body() body: { refreshToken: string },
   ): Promise<void> {
-    await this.refreshTokenService.deleteRefreshToken(body.refreshToken);
+    await this.refreshTokenService.deleteUserRefreshToken(body.refreshToken);
   }
 
   @Post('verify-email')
@@ -91,7 +91,7 @@ export class AuthController {
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
+  async refresh(@Body() refreshTokenDto: UserRefreshTokenDto) {
     return this.authService.refreshToken(refreshTokenDto.refresh_token);
   }
 

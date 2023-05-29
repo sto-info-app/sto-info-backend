@@ -9,8 +9,8 @@ import { MailModule } from './mail/mail.module';
 import { MailService } from './mail/mail.service';
 import { SecretsModule } from './shared/secrets/secrets.module';
 import { SecretsService } from './shared/secrets/secrets.service';
+import { UserRefreshTokenModule } from './user-refresh-token/user-refresh-token.module';
 import { UserModule } from './user/user.module';
-import { RefreshTokenModule } from './refresh-token/refresh-token.module';
 
 @Module({
   imports: [
@@ -49,7 +49,7 @@ import { RefreshTokenModule } from './refresh-token/refresh-token.module';
     AuthModule,
     MailModule,
     SecretsModule,
-    RefreshTokenModule,
+    UserRefreshTokenModule,
   ],
   controllers: [AppController],
   providers: [AppService, MailService, SecretsService],

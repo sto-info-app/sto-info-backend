@@ -15,7 +15,7 @@ import * as ejs from 'ejs';
 import { convert as htmlToText } from 'html-to-text';
 import * as path from 'path';
 import { MailService } from 'src/mail/mail.service';
-import { RefreshTokenService } from 'src/refresh-token/refresh-token.service';
+import { UserRefreshTokenService } from 'src/user-refresh-token/user-refresh-token.service';
 import { User } from 'src/user/entities/user.entity';
 import { UserService } from 'src/user/user.service';
 import { Repository } from 'typeorm';
@@ -28,7 +28,7 @@ export class AuthService {
     private jwtService: JwtService,
     private userService: UserService,
     private mailService: MailService,
-    private refreshTokenService: RefreshTokenService,
+    private refreshTokenService: UserRefreshTokenService,
   ) {}
 
   async register(user: Partial<User>): Promise<User> {
@@ -186,14 +186,14 @@ export class AuthService {
     };
 
     const jwtId = this.generateToken();
-    const newRefreshToken = this.jwtService.sign(payload, {
+    const newUserRefreshToken = this.jwtService.sign(payload, {
       expiresIn: '7d',
       jwtid: jwtId,
     });
 
     await this.refreshTokenService.create({
       user,
-      tokenId: newRefreshToken,
+      tokenId: newUserRefreshToken,
       jwtId: jwtId,
       isRevoked: false,
       expiresAt: this.calculateExpiryTime(7),
@@ -201,7 +201,7 @@ export class AuthService {
 
     return {
       access_token: this.jwtService.sign(payload),
-      refresh_token: newRefreshToken,
+      refresh_token: newUserRefreshToken,
       expires_in: +process.env.AUTH_TOKEN_EXPIRES_IN,
     };
   }
@@ -282,7 +282,7 @@ export class AuthService {
   }> {
     try {
       const payload = this.jwtService.verify(refreshToken);
-      const user = await this.userService.findByRefreshToken(refreshToken);
+      const user = await this.userService.findByUserRefreshToken(refreshToken);
 
       if (!user) {
         throw new UnauthorizedException('User not found');
@@ -299,7 +299,7 @@ export class AuthService {
 
       const jwtId = this.generateToken();
       const newPayload = { email: user.email, sub: user.id };
-      const newRefreshToken = this.jwtService.sign(newPayload, {
+      const newUserRefreshToken = this.jwtService.sign(newPayload, {
         expiresIn: '7d',
         jwtid: jwtId,
       });
@@ -307,7 +307,7 @@ export class AuthService {
       // Save the new refresh token
       await this.refreshTokenService.create({
         user,
-        tokenId: newRefreshToken,
+        tokenId: newUserRefreshToken,
         jwtId: jwtId,
         isRevoked: false,
         expiresAt: this.calculateExpiryTime(7), // add 7 as an argument here
@@ -318,7 +318,7 @@ export class AuthService {
 
       return {
         access_token: this.jwtService.sign(newPayload),
-        refresh_token: newRefreshToken,
+        refresh_token: newUserRefreshToken,
         expires_in: +process.env.AUTH_TOKEN_EXPIRES_IN,
       };
     } catch (e) {

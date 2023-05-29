@@ -86,7 +86,7 @@ export class UserService {
     await this.userRepository.save(user);
   }
 
-  async findByRefreshToken(token: string): Promise<User> {
+  async findByUserRefreshToken(token: string): Promise<User> {
     const user = await this.userRepository
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.refreshTokens', 'refreshToken')
