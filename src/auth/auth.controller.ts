@@ -4,14 +4,23 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Req,
   Request,
-  Res,
   SerializeOptions,
   UseGuards,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags } from '@nestjs/swagger';
-import { UserService } from 'src/user/user.service';
+import { UserRefreshTokenDto } from 'src/user-refresh-token/dto/user-refresh-token.dto';
+import { UserRefreshTokenService } from 'src/user-refresh-token/user-refresh-token.service';
+import { CreateUserDto } from 'src/user/dto/create-user.dto';
+import { RequestPasswordResetDto } from 'src/user/dto/request-password-reset.dto';
+import { ResendVerificationEmailDto } from 'src/user/dto/resend-verification-email.dto';
+import { ResetPasswordDto } from 'src/user/dto/reset-password.dto';
+import { VerifyEmailDto } from 'src/user/dto/verify-email.dto';
+import { User } from 'src/user/entities/user.entity';
 import { AuthService } from './auth.service';
 
 @SerializeOptions({ excludePrefixes: ['_'] })
@@ -20,12 +29,13 @@ import { AuthService } from './auth.service';
 export class AuthController {
   constructor(
     private authService: AuthService,
-    private userService: UserService,
+    private refreshTokenService: UserRefreshTokenService,
   ) {}
 
   @Post('register')
-  async register(@Body() user: { email: string; password: string }) {
-    return this.authService.register(user);
+  @UsePipes(new ValidationPipe())
+  async register(@Body() createUserDto: CreateUserDto) {
+    return this.authService.register(createUserDto);
   }
 
   @UseGuards(AuthGuard('local'))
@@ -34,41 +44,63 @@ export class AuthController {
     return this.authService.login(req.user);
   }
 
-  //TODO: Delete?
   @UseGuards(AuthGuard('jwt'))
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  async logout(@Request() req, @Res() res) {
-    req.logout(() => {
-      res.clearCookie('jwt'); // Clear the JWT cookie in token storage
-      return res.status(HttpStatus.OK).json({ message: 'OK' });
-    });
+  async logout(
+    @Request() req: { user: User },
+    @Body() body: { refreshToken: string },
+  ): Promise<void> {
+    await this.refreshTokenService.deleteUserRefreshToken(body.refreshToken);
   }
 
   @Post('verify-email')
   @HttpCode(HttpStatus.OK)
-  async verifyEmail(@Body('token') token: string) {
-    return this.authService.verifyEmail(token);
+  async verifyEmail(@Body() verifyEmailDto: VerifyEmailDto) {
+    return this.authService.verifyEmail(verifyEmailDto.token);
   }
 
   @Post('resend-verification-email')
   @HttpCode(HttpStatus.OK)
-  async resendVerificationEmail(@Body('token') token: string) {
-    return this.authService.resendVerificationEmail(token);
+  async resendVerificationEmail(
+    @Body() resendVerificationEmailDto: ResendVerificationEmailDto,
+  ) {
+    return this.authService.resendVerificationEmail(
+      resendVerificationEmailDto.token,
+    );
   }
 
   @Post('request-password-reset')
   @HttpCode(HttpStatus.OK)
-  async requestPasswordReset(@Body('email') email: string): Promise<void> {
-    return this.authService.requestPasswordReset(email);
+  async requestPasswordReset(
+    @Body() requestPasswordResetDto: RequestPasswordResetDto,
+  ): Promise<void> {
+    return this.authService.requestPasswordReset(requestPasswordResetDto.email);
   }
 
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
   async resetPassword(
-    @Body('token') token: string,
-    @Body('password') password: string,
+    @Body() resetPasswordDto: ResetPasswordDto,
   ): Promise<void> {
-    return this.authService.resetPassword(token, password);
+    return this.authService.resetPassword(
+      resetPasswordDto.token,
+      resetPasswordDto.password,
+    );
+  }
+
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  async refresh(@Body() refreshTokenDto: UserRefreshTokenDto) {
+    return this.authService.refreshToken(refreshTokenDto.refresh_token);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('revoke')
+  @HttpCode(HttpStatus.OK)
+  async revoke(@Req() req): Promise<void> {
+    const userId = req.user.userId;
+    const tokenId = req.user.tokenId;
+    await this.authService.revokeToken(userId, tokenId);
   }
 }

@@ -85,4 +85,22 @@ export class UserService {
     user.emailVerified = verified;
     await this.userRepository.save(user);
   }
+
+  async findByUserRefreshToken(token: string): Promise<User> {
+    const user = await this.userRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.refreshTokens', 'refreshToken')
+      .where('refreshToken.tokenId = :token', { token })
+      .getOne();
+
+    if (!user) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    return user;
+  }
+
+  async findByPayload(payload: any): Promise<User | null> {
+    return await this.userRepository.findOne({ where: { id: payload.sub } });
+  }
 }

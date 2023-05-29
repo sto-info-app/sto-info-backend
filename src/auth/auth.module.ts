@@ -6,6 +6,7 @@ import { MailModule } from 'src/mail/mail.module';
 import { MailService } from 'src/mail/mail.service';
 import { SecretsModule } from 'src/shared/secrets/secrets.module';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
+import { UserRefreshTokenModule } from 'src/user-refresh-token/user-refresh-token.module';
 import { UserModule } from '../user/user.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -18,7 +19,7 @@ import { LocalStrategy } from './local.strategy';
     PassportModule,
     SecretsModule,
     JwtModule.registerAsync({
-      imports: [ConfigModule, SecretsModule],
+      imports: [ConfigModule, SecretsModule, UserRefreshTokenModule],
       inject: [ConfigService, SecretsService],
       useFactory: async (
         configService: ConfigService,
@@ -34,6 +35,7 @@ import { LocalStrategy } from './local.strategy';
       },
     }),
     MailModule,
+    UserRefreshTokenModule,
   ],
   providers: [AuthService, LocalStrategy, JwtStrategy, MailService],
   controllers: [AuthController],
