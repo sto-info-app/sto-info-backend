@@ -4,6 +4,7 @@ import { NestFactory, Reflector } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { getAppVersion } from './shared/utilities/version.utility';
 
 async function bootstrap() {
   const rateLimit = require('express-rate-limit'); // Import rate limiting module
@@ -20,6 +21,9 @@ async function bootstrap() {
   // Use environment vars
   const configService = app.get(ConfigService);
 
+  const appEnv = configService.get('NODE_ENV');
+  const inProduction = appEnv === 'prod' ? true : false;
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true, // Strips non-whitelisted properties (those without validation decorators in the DTO)
@@ -33,17 +37,19 @@ async function bootstrap() {
   app.use('/', apiLimiter); // Apply rate limiting to all routes
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector))); // Enable class serializer interceptor for managing response data
 
-  // Set up Swagger for API documentation
-  const config = new DocumentBuilder()
-    .setTitle('STO Info API')
-    .setDescription('The STO Info API documentation')
-    .setVersion('1.0')
-    .addBearerAuth() // Enable JWT authentication in Swagger UI
-    .build();
+  if (!inProduction) {
+    // Set up Swagger for API documentation
+    const config = new DocumentBuilder()
+      .setTitle('STO Info API')
+      .setDescription('The STO Info API documentation')
+      .setVersion(getAppVersion())
+      .addBearerAuth() // Enable JWT authentication in Swagger UI
+      .build();
 
-  // Set up Swagger UI endpoint
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('swagger', app, document);
+    // Set up Swagger UI endpoint
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('swagger', app, document);
+  }
 
   // Start listening for requests on the specified port
   await app.listen(parseInt(process.env.APP_PORT) || 3000);
