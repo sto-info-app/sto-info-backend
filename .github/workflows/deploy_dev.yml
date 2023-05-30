@@ -37,6 +37,7 @@ jobs:
       - name: Deploy to AWS EC2
         run: |
           scp -v -o StrictHostKeyChecking=no -r ./dist ec2-user@35.178.243.30:/home/ec2-user/sto-info-backend
+          scp -v -o StrictHostKeyChecking=no ./package*.json ec2-user@35.178.243.30:/home/ec2-user/sto-info-backend
           ssh ec2-user@35.178.243.30 'cd /home/ec2-user/sto-info-backend && npm install'
 
       - name: Restart/Start application
