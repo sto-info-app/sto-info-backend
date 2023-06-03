@@ -20,7 +20,6 @@ import { RequestPasswordResetDto } from 'src/user/dto/request-password-reset.dto
 import { ResendVerificationEmailDto } from 'src/user/dto/resend-verification-email.dto';
 import { ResetPasswordDto } from 'src/user/dto/reset-password.dto';
 import { VerifyEmailDto } from 'src/user/dto/verify-email.dto';
-import { User } from 'src/user/entities/user.entity';
 import { AuthService } from './auth.service';
 
 @SerializeOptions({ excludePrefixes: ['_'] })
@@ -49,11 +48,8 @@ export class AuthController {
   @UseGuards(AuthGuard('jwt'))
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  async logout(
-    @Request() req: { user: User },
-    @Body() body: { refreshToken: string },
-  ): Promise<void> {
-    await this.refreshTokenService.deleteUserRefreshToken(body.refreshToken);
+  async logout(@Body() body: { tokenId: string }): Promise<void> {
+    await this.refreshTokenService.deleteUserRefreshToken(body.tokenId);
   }
 
   @Post('verify-email')
