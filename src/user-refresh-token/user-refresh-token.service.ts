@@ -54,13 +54,14 @@ export class UserRefreshTokenService {
     return await this.refreshTokenRepository.save(refreshTokenEntity);
   }
 
-  async deleteUserRefreshToken(tokenId: string): Promise<void> {
+  async revokeUserRefreshToken(tokenId: string): Promise<void> {
     const tokenRecord = await this.refreshTokenRepository.findOne({
       where: { tokenId: tokenId },
     });
 
     if (tokenRecord) {
-      await this.refreshTokenRepository.delete(tokenRecord.id);
+      tokenRecord.isRevoked = true;
+      await this.refreshTokenRepository.save(tokenRecord);
     }
   }
 

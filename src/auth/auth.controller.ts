@@ -49,7 +49,7 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   async logout(@Body() body: { tokenId: string }): Promise<void> {
-    await this.refreshTokenService.deleteUserRefreshToken(body.tokenId);
+    await this.refreshTokenService.revokeUserRefreshToken(body.tokenId);
   }
 
   @Post('verify-email')
