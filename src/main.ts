@@ -2,13 +2,14 @@ import { ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+
+import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
+
 import { AppModule } from './app.module';
 import { getAppVersion } from './shared/utilities/version.utility';
 
 async function bootstrap() {
-  const rateLimit = require('express-rate-limit'); // Import rate limiting module
-
   // Define rate limiting rules
   const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // Rate limiting window set to 15 minutes
