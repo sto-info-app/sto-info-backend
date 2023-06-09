@@ -185,9 +185,11 @@ export class AuthService {
       sub: user.id,
     };
 
+    const expiryHours = this.getRefreshTokenExpiryHours();
+
     const jwtId = this.generateToken();
     const newUserRefreshToken = this.jwtService.sign(payload, {
-      expiresIn: '7d',
+      expiresIn: `${expiryHours}h`,
       jwtid: jwtId,
     });
 
@@ -196,7 +198,7 @@ export class AuthService {
       tokenId: newUserRefreshToken,
       jwtId: jwtId,
       isRevoked: false,
-      expiresAt: this.calculateExpiryTime(7),
+      expiresAt: this.calculateExpiryTime(expiryHours),
     });
 
     return {
@@ -297,10 +299,12 @@ export class AuthService {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
+      const expiryHours = this.getRefreshTokenExpiryHours();
+
       const jwtId = this.generateToken();
       const newPayload = { email: user.email, sub: user.id };
       const newUserRefreshToken = this.jwtService.sign(newPayload, {
-        expiresIn: '7d',
+        expiresIn: `${expiryHours}h`,
         jwtid: jwtId,
       });
 
@@ -310,7 +314,7 @@ export class AuthService {
         tokenId: newUserRefreshToken,
         jwtId: jwtId,
         isRevoked: false,
-        expiresAt: this.calculateExpiryTime(7), // add 7 as an argument here
+        expiresAt: this.calculateExpiryTime(expiryHours),
       });
 
       // Revoke the old refresh token
@@ -339,9 +343,13 @@ export class AuthService {
     await this.userRepository.save(user);
   }
 
-  calculateExpiryTime(days: number): Date {
+  calculateExpiryTime(hours: number): Date {
     const expiry = new Date();
-    expiry.setDate(expiry.getDate() + days);
+    expiry.setDate(expiry.getHours() + hours);
     return expiry;
+  }
+
+  getRefreshTokenExpiryHours(): number {
+    return +process.env.AUTH_TOKEN_EXPIRES_IN / 60 / 60;
   }
 }
