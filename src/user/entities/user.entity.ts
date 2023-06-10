@@ -54,9 +54,11 @@ export class User {
   @Column({ default: false })
   emailVerified: boolean;
 
+  @Exclude()
   @Column({ nullable: true })
   emailVerificationToken: string;
 
+  @Exclude()
   @Column({ nullable: true })
   emailVerificationTokenExpiry: Date;
 
@@ -66,18 +68,22 @@ export class User {
   @Column({ nullable: true })
   lastPasswordReset: Date;
 
+  @Exclude()
   @Column({ nullable: true })
   passwordResetToken: string;
 
+  @Exclude()
   @Column({ nullable: true })
   passwordResetTokenExpiry: Date;
 
   @Column({ default: false })
   isAccountDisabled: boolean;
 
+  @Exclude()
   @Column({ nullable: true })
   provider: string;
 
+  @Exclude()
   @Column({ nullable: true })
   providerId: string;
 
