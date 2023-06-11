@@ -1,3 +1,4 @@
+import { Platform } from 'src/sto/platform/entities/platform.entity';
 import { User } from 'src/user/entities/user.entity';
 import {
   Column,
@@ -9,7 +10,6 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-// import { Platform } from '../platform/entities/platform.entity';
 // import { Launcher } from '../launcher/entities/launcher.entity';
 
 @Entity()
@@ -26,9 +26,9 @@ export class Account {
   @Column({ length: 255, nullable: false, unique: true })
   email: string;
 
-  // @ManyToOne(() => Platform)
-  // @JoinColumn({ name: 'platformId' })
-  // platform: Platform;
+  @ManyToOne(() => Platform)
+  @JoinColumn({ name: 'platformId' })
+  platform: Platform;
 
   // @ManyToOne(() => Launcher)
   // @JoinColumn({ name: 'launcherId' })

@@ -13,6 +13,7 @@ import { UserRefreshTokenModule } from './user-refresh-token/user-refresh-token.
 import { UserModule } from './user/user.module';
 import { ConfigCheckService } from './config-check/config-check.service';
 import { AccountModule } from './sto/account/account.module';
+import { PlatformModule } from './sto/platform/platform.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { AccountModule } from './sto/account/account.module';
     SecretsModule,
     UserRefreshTokenModule,
     AccountModule,
+    PlatformModule,
   ],
   controllers: [AppController],
   providers: [AppService, MailService, SecretsService, ConfigCheckService],
