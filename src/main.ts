@@ -7,9 +7,12 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 
 import { AppModule } from './app.module';
+import { ConfigCheckService } from './config-check/config-check.service';
 import { getAppVersion } from './shared/utilities/version.utility';
 
 async function bootstrap() {
+  new ConfigCheckService(); // This will validate the environment variables
+
   // Define rate limiting rules
   const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // Rate limiting window set to 15 minutes

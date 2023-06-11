@@ -11,6 +11,7 @@ import { SecretsModule } from './shared/secrets/secrets.module';
 import { SecretsService } from './shared/secrets/secrets.service';
 import { UserRefreshTokenModule } from './user-refresh-token/user-refresh-token.module';
 import { UserModule } from './user/user.module';
+import { ConfigCheckService } from './config-check/config-check.service';
 
 @Module({
   imports: [
@@ -52,6 +53,6 @@ import { UserModule } from './user/user.module';
     UserRefreshTokenModule,
   ],
   controllers: [AppController],
-  providers: [AppService, MailService, SecretsService],
+  providers: [AppService, MailService, SecretsService, ConfigCheckService],
 })
 export class AppModule {}
