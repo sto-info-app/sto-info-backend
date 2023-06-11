@@ -345,7 +345,7 @@ export class AuthService {
 
   calculateExpiryTime(hours: number): Date {
     const expiry = new Date();
-    expiry.setDate(expiry.getHours() + hours);
+    expiry.setHours(expiry.getHours() + hours);
     return expiry;
   }
 
