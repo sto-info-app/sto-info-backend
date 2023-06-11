@@ -17,13 +17,13 @@ export class Account {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ length: 255, nullable: false, unique: true })
+  @Column({ length: 255, nullable: false })
   handle: string;
 
-  @Column({ length: 255, nullable: false, unique: true })
+  @Column({ length: 255, nullable: true })
   username: string;
 
-  @Column({ length: 255, nullable: false, unique: true })
+  @Column({ length: 255, nullable: true })
   email: string;
 
   @ManyToOne(() => Platform)
@@ -34,7 +34,7 @@ export class Account {
   @JoinColumn({ name: 'launcherId' })
   launcher: Launcher;
 
-  @Column({ length: 500, nullable: true })
+  @Column({ type: 'text', nullable: true })
   notes: string;
 
   @Column()
