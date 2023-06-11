@@ -22,9 +22,11 @@ export class UserController {
   // @UseGuards(AuthGuard('jwt'))
   @Get()
   @HttpCode(HttpStatus.OK)
-  findUser(@Req() req) {
-    const user: User = req.user; //NOTE: Force typing!
-    return user;
+  async findUser(@Req() req): Promise<User> {
+    // const user: User = req.user; //NOTE: Force typing!
+    // return user;
+
+    return await this.userService.findById(req.user.id);
   }
 
   // @Post()
