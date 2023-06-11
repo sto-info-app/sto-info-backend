@@ -14,6 +14,7 @@ import { UserModule } from './user/user.module';
 import { ConfigCheckService } from './config-check/config-check.service';
 import { AccountModule } from './sto/account/account.module';
 import { PlatformModule } from './sto/platform/platform.module';
+import { LauncherModule } from './sto/launcher/launcher.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { PlatformModule } from './sto/platform/platform.module';
     UserRefreshTokenModule,
     AccountModule,
     PlatformModule,
+    LauncherModule,
   ],
   controllers: [AppController],
   providers: [AppService, MailService, SecretsService, ConfigCheckService],

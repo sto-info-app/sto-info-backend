@@ -1,3 +1,4 @@
+import { Launcher } from 'src/sto/launcher/entities/launcher.entity';
 import { Platform } from 'src/sto/platform/entities/platform.entity';
 import { User } from 'src/user/entities/user.entity';
 import {
@@ -10,7 +11,6 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-// import { Launcher } from '../launcher/entities/launcher.entity';
 
 @Entity()
 export class Account {
@@ -30,9 +30,9 @@ export class Account {
   @JoinColumn({ name: 'platformId' })
   platform: Platform;
 
-  // @ManyToOne(() => Launcher)
-  // @JoinColumn({ name: 'launcherId' })
-  // launcher: Launcher;
+  @ManyToOne(() => Launcher)
+  @JoinColumn({ name: 'launcherId' })
+  launcher: Launcher;
 
   @Column({ length: 500, nullable: true })
   notes: string;
