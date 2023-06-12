@@ -16,7 +16,10 @@ export class UserService {
   async create(createUserDto: CreateUserDto): Promise<User> {
     const user = new User();
     user.email = createUserDto.email;
-    user.password = await bcrypt.hash(createUserDto.password, 10);
+    user.password = await bcrypt.hash(
+      createUserDto.password,
+      +process.env.AUTH_SALT_ROUNDS,
+    );
     user.emailVerified = false;
 
     const newUser = await this.userRepository.save(user);

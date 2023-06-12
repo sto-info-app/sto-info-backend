@@ -40,7 +40,10 @@ export class AuthService {
       throw new ConflictException('Username already in use');
     }
 
-    const hashedPassword = await bcrypt.hash(user.password, 8);
+    const hashedPassword = await bcrypt.hash(
+      user.password,
+      +process.env.AUTH_SALT_ROUNDS,
+    );
     const newUser = this.userRepository.create({
       email: user.email,
       username: user.username,
@@ -266,7 +269,10 @@ export class AuthService {
       throw new BadRequestException('Token expired');
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 8);
+    const hashedPassword = await bcrypt.hash(
+      newPassword,
+      +process.env.AUTH_SALT_ROUNDS,
+    );
     user.password = hashedPassword;
     user.passwordResetToken = null;
     user.passwordResetTokenExpiry = null;
