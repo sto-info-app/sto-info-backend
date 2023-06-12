@@ -36,5 +36,6 @@ export class DatabaseModule implements OnModuleInit {
 
   async onModuleInit() {
     await this.accountSeederService.seed();
+    //TODO: Add other seeder function calls here
   }
 }
