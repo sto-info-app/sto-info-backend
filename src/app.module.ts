@@ -5,17 +5,18 @@ import { join } from 'path';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { ConfigCheckService } from './config-check/config-check.service';
+import { DatabaseModule } from './database/database.module';
 import { MailModule } from './mail/mail.module';
 import { MailService } from './mail/mail.service';
 import { SecretsModule } from './shared/secrets/secrets.module';
 import { SecretsService } from './shared/secrets/secrets.service';
-import { UserRefreshTokenModule } from './user-refresh-token/user-refresh-token.module';
-import { UserModule } from './user/user.module';
-import { ConfigCheckService } from './config-check/config-check.service';
 import { AccountModule } from './sto/account/account.module';
-import { PlatformModule } from './sto/platform/platform.module';
 import { LauncherModule } from './sto/launcher/launcher.module';
 import { PlatformLauncherModule } from './sto/platform-launcher/platform-launcher.module';
+import { PlatformModule } from './sto/platform/platform.module';
+import { UserRefreshTokenModule } from './user-refresh-token/user-refresh-token.module';
+import { UserModule } from './user/user.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { PlatformLauncherModule } from './sto/platform-launcher/platform-launche
     PlatformModule,
     LauncherModule,
     PlatformLauncherModule,
+    DatabaseModule,
   ],
   controllers: [AppController],
   providers: [AppService, MailService, SecretsService, ConfigCheckService],

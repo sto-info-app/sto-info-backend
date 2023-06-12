@@ -1,15 +1,24 @@
 import { Launcher } from 'src/sto/launcher/entities/launcher.entity';
 import { Platform } from 'src/sto/platform/entities/platform.entity';
-import { Entity, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Entity, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
 
 @Entity()
 export class PlatformLauncher {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryColumn()
+  platformId: string;
 
-  @ManyToOne(() => Platform, platform => platform.platformLaunchers)
+  @PrimaryColumn()
+  launcherId: string;
+
+  @ManyToOne(() => Platform, platform => platform.platformLaunchers, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'platformId' })
   platform: Platform;
 
-  @ManyToOne(() => Launcher, launcher => launcher.platformLaunchers)
+  @ManyToOne(() => Launcher, launcher => launcher.platformLaunchers, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'launcherId' })
   launcher: Launcher;
 }
