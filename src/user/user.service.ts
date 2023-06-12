@@ -27,6 +27,10 @@ export class UserService {
     return newUser;
   }
 
+  async seedUser(user: User): Promise<User> {
+    return await this.userRepository.save(user);
+  }
+
   async update(id: string, post: UpdateUserDto): Promise<User> {
     await this.userRepository.update(id, post);
     const updatedUser = await this.userRepository.findOne({
@@ -53,7 +57,7 @@ export class UserService {
   }
 
   async findById(id: string): Promise<User> {
-    const user = await this.userRepository.findOne({
+    return await this.userRepository.findOne({
       where: {
         id: id,
       },
@@ -63,27 +67,10 @@ export class UserService {
       //   'accounts.launcher',
       // ],
     });
-
-    if (user) {
-      return user;
-    }
-
-    throw new HttpException(
-      'Invalid username and password',
-      HttpStatus.NOT_FOUND,
-    );
   }
 
   async findByEmail(email: string): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { email: email } });
-    if (user) {
-      return user;
-    }
-
-    throw new HttpException(
-      'Invalid username and password',
-      HttpStatus.NOT_FOUND,
-    );
+    return await this.userRepository.findOne({ where: { email: email } });
   }
 
   async updateUserEmailVerifiedStatus(
