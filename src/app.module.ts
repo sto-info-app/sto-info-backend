@@ -48,6 +48,7 @@ import { UserModule } from './user/user.module';
           migrations: [
             join(__dirname, configService.get('TYPEORM_MIGRATIONS')),
           ],
+          timezone: 'utc',
         };
       },
     }),
