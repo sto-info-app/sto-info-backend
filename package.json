@@ -18,7 +18,8 @@
     "test:cov": "set TZ=UTC&& jest --coverage",
     "test:debug": "set TZ=UTC&& node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "set TZ=UTC&& jest --config ./test/jest-e2e.json",
-    "typeorm": "typeorm-ts-node-commonjs"
+    "typeorm": "typeorm",
+    "migration:run": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:run -d ./config/typeorm.ts"
   },
   "dependencies": {
     "@nestjs/common": "^9.0.0",
