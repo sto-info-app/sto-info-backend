@@ -6,8 +6,10 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 
+import { getTypeOrmConfig } from 'config/typeorm';
 import { AppModule } from './app.module';
 import { ConfigCheckService } from './config-check/config-check.service';
+import { SecretsService } from './shared/secrets/secrets.service';
 import { getAppVersion } from './shared/utilities/version.utility';
 
 async function bootstrap() {
@@ -24,6 +26,15 @@ async function bootstrap() {
 
   // Use environment vars
   const configService = app.get(ConfigService);
+
+  // Create an instance of SecretsService
+  const secretsService = new SecretsService();
+
+  // Get TypeORM configuration using SecretsService
+  const { typeOrm, connectionSource } = await getTypeOrmConfig(secretsService);
+
+  // Initialize the DataSource
+  await connectionSource.initialize();
 
   const appEnv = configService.get('NODE_ENV');
   const inProduction = appEnv === 'prod' ? true : false;
