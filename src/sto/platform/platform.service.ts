@@ -1,0 +1,118 @@
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { CreatePlatformDto } from './dto/create-platform.dto';
+import { UpdatePlatformDto } from './dto/update-platform.dto';
+import { Platform } from './entities/platform.entity';
+
+@Injectable()
+export class PlatformService {
+  constructor(
+    @InjectRepository(Platform)
+    private platformRepository: Repository<Platform>,
+  ) {}
+
+  async findAll() {
+    return await this.platformRepository.find();
+  }
+
+  async findOne(id: string): Promise<Platform> {
+    const platform = await this.platformRepository.findOne({
+      where: {
+        id: id,
+      },
+    });
+    return platform;
+  }
+
+  async findOneByName(name: string): Promise<Platform> {
+    const platform = await this.platformRepository.findOne({
+      where: { name: name },
+    });
+    return platform;
+  }
+
+  async findAllSoftDeletedOlderThanOneWeek(): Promise<Platform[]> {
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+    return this.platformRepository
+      .createQueryBuilder('platform')
+      .where('platform.deletedAt IS NOT NULL')
+      .andWhere('platform.deletedAt < :oneWeekAgo', { oneWeekAgo })
+      .getMany();
+  }
+
+  async create(createPlatformDto: CreatePlatformDto): Promise<Platform> {
+    const newPlatform = this.platformRepository.create(createPlatformDto);
+    try {
+      await this.platformRepository.save(newPlatform);
+      return newPlatform;
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Failed to save a new platform',
+        error,
+      );
+    }
+  }
+
+  async update(
+    id: string,
+    updatePlatformDto: UpdatePlatformDto,
+  ): Promise<Platform> {
+    const platform = await this.findOne(id);
+    const updatedPlatform = this.platformRepository.merge(
+      platform,
+      updatePlatformDto,
+    );
+    try {
+      await this.platformRepository.save(updatedPlatform);
+      return updatedPlatform;
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Failed to update platform',
+        error,
+      );
+    }
+  }
+
+  async remove(id: string): Promise<void> {
+    const platform = await this.findOne(id);
+    try {
+      await this.platformRepository.remove(platform);
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Failed to delete platform',
+        error,
+      );
+    }
+  }
+
+  async softRemove(id: string): Promise<void> {
+    const platform = await this.findOne(id);
+    try {
+      await this.platformRepository.softDelete(platform.id);
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Failed to soft delete platform',
+        error,
+      );
+    }
+  }
+
+  @Cron(CronExpression.EVERY_DAY_AT_6AM)
+  async handleCron() {
+    const platforms = await this.findAllSoftDeletedOlderThanOneWeek();
+    for (const platform of platforms) {
+      try {
+        await this.remove(platform.id);
+      } catch (error) {
+        throw new InternalServerErrorException(
+          `Failed to hard delete platform #${platform.id}`,
+          error,
+        );
+      }
+    }
+  }
+}

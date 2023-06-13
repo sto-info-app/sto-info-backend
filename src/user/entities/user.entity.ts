@@ -13,6 +13,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { v4 as uuid } from 'uuid';
+import { Account } from '../../sto/account/entities/account.entity';
 import { UserRefreshToken } from '../../user-refresh-token/entities/user-refresh-token.entity';
 
 @Entity()
@@ -103,6 +104,9 @@ export class User {
 
   @OneToMany(() => UserRefreshToken, refreshToken => refreshToken.user)
   refreshTokens: UserRefreshToken[];
+
+  @OneToMany(() => Account, account => account.user)
+  accounts: Account[];
 
   async comparePassword(password: string): Promise<boolean> {
     return bcrypt.compare(password, this.password);

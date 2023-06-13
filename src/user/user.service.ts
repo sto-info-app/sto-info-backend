@@ -16,12 +16,19 @@ export class UserService {
   async create(createUserDto: CreateUserDto): Promise<User> {
     const user = new User();
     user.email = createUserDto.email;
-    user.password = await bcrypt.hash(createUserDto.password, 10);
+    user.password = await bcrypt.hash(
+      createUserDto.password,
+      +process.env.AUTH_SALT_ROUNDS,
+    );
     user.emailVerified = false;
 
     const newUser = await this.userRepository.save(user);
 
     return newUser;
+  }
+
+  async seedUser(user: User): Promise<User> {
+    return await this.userRepository.save(user);
   }
 
   async update(id: string, post: UpdateUserDto): Promise<User> {
@@ -50,27 +57,20 @@ export class UserService {
   }
 
   async findById(id: string): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { id: id } });
-    if (user) {
-      return user;
-    }
-
-    throw new HttpException(
-      'Invalid username and password',
-      HttpStatus.NOT_FOUND,
-    );
+    return await this.userRepository.findOne({
+      where: {
+        id: id,
+      },
+      // relations: [
+      //   'accounts',
+      //   'accounts.platform',
+      //   'accounts.launcher',
+      // ],
+    });
   }
 
   async findByEmail(email: string): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { email: email } });
-    if (user) {
-      return user;
-    }
-
-    throw new HttpException(
-      'Invalid username and password',
-      HttpStatus.NOT_FOUND,
-    );
+    return await this.userRepository.findOne({ where: { email: email } });
   }
 
   async updateUserEmailVerifiedStatus(

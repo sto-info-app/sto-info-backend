@@ -12,7 +12,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UserRefreshTokenDto } from 'src/user-refresh-token/dto/user-refresh-token.dto';
 import { UserRefreshTokenService } from 'src/user-refresh-token/user-refresh-token.service';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
@@ -24,6 +24,7 @@ import { AuthService } from './auth.service';
 
 @SerializeOptions({ excludePrefixes: ['_'] })
 @ApiTags('Authentication')
+@ApiBearerAuth()
 @Controller('auth')
 export class AuthController {
   constructor(

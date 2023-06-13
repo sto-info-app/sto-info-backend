@@ -6,25 +6,32 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBadRequestResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { User } from './entities/user.entity';
 import { UserService } from './user.service';
 
 @ApiTags('App User')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('user')
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @ApiOkResponse({ description: 'Successfully found the user.' })
   @ApiBadRequestResponse({ description: 'The user cannot be found.' })
-  @UseGuards(JwtAuthGuard)
-  // @UseGuards(AuthGuard('jwt'))
   @Get()
   @HttpCode(HttpStatus.OK)
-  findUser(@Req() req) {
-    const user: User = req.user; //NOTE: Force typing!
-    return user;
+  async findUser(@Req() req): Promise<User> {
+    // const user: User = req.user; //NOTE: Force typing!
+    // return user;
+
+    return await this.userService.findById(req.user.id);
   }
 
   // @Post()
