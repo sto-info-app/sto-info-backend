@@ -37,7 +37,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",
     "crypto": "^1.0.1",
-    "ejs": "^3.1.9",
+    "ejs": "^3.1.10",
     "express": "^4.19.2",
     "express-rate-limit": "^6.7.0",
     "helmet": "^7.0.0",
