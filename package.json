@@ -23,6 +23,8 @@
   },
   "dependencies": {
     "@aws-sdk/client-secrets-manager": "^3.609.0",
+    "@eslint/config-array": "^0.17.0",
+    "@eslint/object-schema": "^2.1.4",
     "@nestjs/common": "^10.3.10",
     "@nestjs/config": "^3.2.3",
     "@nestjs/core": "^10.3.10",
@@ -46,6 +48,7 @@
     "express": "^4.19.2",
     "express-rate-limit": "^7.3.1",
     "fast-glob": "^3.3.2",
+    "glob": "^10.4.3",
     "helmet": "^7.1.0",
     "html-to-text": "^9.0.5",
     "jsonwebtoken": "^9.0.2",
