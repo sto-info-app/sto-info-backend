@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { join } from 'path';
+import { getTypeOrmConfig } from 'config/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -25,32 +25,13 @@ import { UserModule } from './user/user.module';
       envFilePath: `config/environments/${process.env.NODE_ENV || ''}.env`,
     }),
     TypeOrmModule.forRootAsync({
-      imports: [ConfigModule, SecretsModule],
-      inject: [ConfigService, SecretsService],
-      useFactory: async (
-        configService: ConfigService,
-        secretsService: SecretsService,
-      ) => {
-        const secretObject = await secretsService.getSecret(
-          configService.get('AWS_SECRET_NAME'),
-        );
-        return {
-          type: configService.get('DB_TYPE') as any,
-          host: configService.get('DB_HOST'),
-          port: parseInt(configService.get('DB_PORT'), 10),
-          username: configService.get('DB_USERNAME'),
-          password: secretObject.dbPassword, // Use the dbPassword from AWS Secrets Manager
-          database: configService.get('DB_NAME') as string,
-          schema: configService.get('DB_SCHEMA'),
-          synchronize: configService.get('TYPEORM_SYNCHRONIZE') === 'true',
-          logging: configService.get('TYPEORM_LOGGING') === 'true',
-          entities: [join(__dirname, '**/*.entity.{ts,js}')],
-          migrations: [
-            join(__dirname, configService.get('TYPEORM_MIGRATIONS')),
-          ],
-          timezone: 'utc',
-        };
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => {
+        const secretsService = new SecretsService();
+        const { typeOrm } = await getTypeOrmConfig(secretsService);
+        return typeOrm;
       },
+      inject: [ConfigService],
     }),
     UserModule,
     AuthModule,
