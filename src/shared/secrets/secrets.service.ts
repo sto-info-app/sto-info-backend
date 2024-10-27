@@ -1,14 +1,17 @@
+import {
+  GetSecretValueCommand,
+  SecretsManagerClient,
+} from '@aws-sdk/client-secrets-manager';
 import { Injectable, Logger } from '@nestjs/common';
-import * as AWS from 'aws-sdk';
 
 @Injectable()
 export class SecretsService {
-  private secretsManager: AWS.SecretsManager;
+  private secretsManager: SecretsManagerClient;
   private cache: { [key: string]: any } = {};
   private readonly logger = new Logger(SecretsService.name);
 
   constructor() {
-    this.secretsManager = new AWS.SecretsManager({
+    this.secretsManager = new SecretsManagerClient({
       region: process.env.AWS_REGION,
     });
   }
@@ -21,9 +24,8 @@ export class SecretsService {
       }
 
       // If it's not in the cache, retrieve it
-      const data = await this.secretsManager
-        .getSecretValue({ SecretId: secretName })
-        .promise();
+      const command = new GetSecretValueCommand({ SecretId: secretName });
+      const data = await this.secretsManager.send(command);
 
       if ('SecretString' in data) {
         // Parse the secret from JSON into an object
