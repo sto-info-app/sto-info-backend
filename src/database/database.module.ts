@@ -51,21 +51,21 @@ export class DatabaseModule implements OnModuleInit {
   async onModuleInit() {
     try {
       await this.databaseService.setDatabaseTimezone();
-      console.info('Database timezone set successfully.');
+      console.info('Database timezone set successfully.'); //TODO: Disable
     } catch (error) {
       console.error('Failed to set database timezone:', error);
     }
 
     try {
       await this.userSeederService.seed();
-      console.info('User seeding completed successfully.');
+      console.info('User seeding completed successfully.'); //TODO: Disable
     } catch (error) {
       console.error('Failed to seed users:', error);
     }
 
     try {
       await this.accountSeederService.seed();
-      console.info('Account seeding completed successfully.');
+      console.info('Account seeding completed successfully.'); //TODO: Disable
     } catch (error) {
       console.error('Failed to seed accounts:', error);
     }
