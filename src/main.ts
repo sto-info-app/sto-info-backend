@@ -6,6 +6,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { getTypeOrmConfig } from 'config/typeorm';
 import { AppModule } from './app.module';
 import { ConfigCheckService } from './config-check/config-check.service';
@@ -22,7 +23,7 @@ async function bootstrap() {
   });
 
   // Create NestJS application
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   // Use environment vars
   const configService = app.get(ConfigService);
@@ -50,6 +51,7 @@ async function bootstrap() {
   app.enableCors(); // Enable CORS (Cross-Origin Resource Sharing)
   app.use(helmet()); // Enable Helmet, a collection of 11 smaller middleware functions that set security-related HTTP headers
   app.use('/', apiLimiter); // Apply rate limiting to all routes
+  app.set('trust proxy', true); // Trust Cloudflare as a proxy (needed for rate limiting)
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector))); // Enable class serializer interceptor for managing response data
 
   if (!inProduction) {
