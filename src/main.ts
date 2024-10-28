@@ -70,6 +70,5 @@ async function bootstrap() {
 
   // Start listening for requests on the specified port
   await app.listen(parseInt(process.env.APP_PORT) || 3000);
-  console.log(`Application is running on: ${await app.getUrl()}`);
 }
 bootstrap();
