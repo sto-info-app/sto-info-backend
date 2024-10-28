@@ -49,9 +49,27 @@ export class DatabaseModule implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    await this.databaseService.setDatabaseTimezone();
-    await this.userSeederService.seed();
-    await this.accountSeederService.seed();
+    try {
+      await this.databaseService.setDatabaseTimezone();
+      console.info('Database timezone set successfully.'); //TODO: Disable
+    } catch (error) {
+      console.error('Failed to set database timezone:', error);
+    }
+
+    try {
+      await this.userSeederService.seed();
+      console.info('User seeding completed successfully.'); //TODO: Disable
+    } catch (error) {
+      console.error('Failed to seed users:', error);
+    }
+
+    try {
+      await this.accountSeederService.seed();
+      console.info('Account seeding completed successfully.'); //TODO: Disable
+    } catch (error) {
+      console.error('Failed to seed accounts:', error);
+    }
+
     //TODO: Add other seeder function calls here
   }
 }
