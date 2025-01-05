@@ -22,6 +22,9 @@ export async function getTypeOrmConfig(secretsService: SecretsService) {
     migrations: [join(__dirname, process.env.TYPEORM_MIGRATIONS)],
     synchronize: process.env.TYPEORM_SYNCHRONIZE === 'true',
     logging: process.env.TYPEORM_LOGGING === 'true',
+    ssl: {
+      rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED === 'true',
+    },
   };
 
   return {
