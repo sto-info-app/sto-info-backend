@@ -38,7 +38,7 @@ async function bootstrap() {
   await connectionSource.initialize();
 
   const appEnv = configService.get('NODE_ENV');
-  const inProduction = appEnv === 'prod' ? true : false;
+  const inProduction = appEnv === 'prod';
 
   app.useGlobalPipes(
     new ValidationPipe({
