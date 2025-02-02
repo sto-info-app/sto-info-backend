@@ -32,7 +32,8 @@ async function bootstrap() {
   const secretsService = new SecretsService();
 
   // Get TypeORM configuration using SecretsService
-  const { typeOrm, connectionSource } = await getTypeOrmConfig(secretsService);
+  //NOTE: Can use: const { typeOrm, connectionSource } = await getTypeOrmConfig(secretsService);
+  const { connectionSource } = await getTypeOrmConfig(secretsService);
 
   // Initialize the DataSource
   await connectionSource.initialize();
