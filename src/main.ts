@@ -49,7 +49,21 @@ async function bootstrap() {
       validationError: { target: false }, // Controls the detail level in validation error messages, if set to false it prevents leaking internal details to the client
     }),
   ); // Enable data validation with transform option
-  app.enableCors(); // Enable CORS (Cross-Origin Resource Sharing)
+
+  // Enable CORS (Cross-Origin Resource Sharing)
+  //TODO: Add the production domain to the list of allowed origins
+  if (appEnv === 'dev') {
+    app.enableCors({
+      origin: [
+        'https://dev.startrekonline.info',
+        'https://sto-info-frontend.onrender.com/',
+      ],
+      credentials: true,
+    });
+  } else {
+    app.enableCors(); // Enable CORS for all domains
+  }
+
   app.use(helmet()); // Enable Helmet, a collection of 11 smaller middleware functions that set security-related HTTP headers
   app.use('/', apiLimiter); // Apply rate limiting to all routes
   app.set('trust proxy', true); // Trust Cloudflare as a proxy (needed for rate limiting)
