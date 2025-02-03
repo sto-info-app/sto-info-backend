@@ -54,12 +54,15 @@ async function bootstrap() {
   ); // Enable data validation with transform option
 
   // Enable CORS (Cross-Origin Resource Sharing) based on the environment
+  console.log('Environment:', { inLocal, inDevelopment, inProduction });
   if (inLocal) {
+    console.log('Enabling CORS for localhost');
     app.enableCors({
       origin: ['http://localhost:4200'],
       credentials: true,
     }); // Enable CORS for localhost
   } else if (inDevelopment) {
+    console.log('Enabling CORS for Development environments');
     app.enableCors({
       origin: [
         'https://dev.startrekonline.info',
@@ -68,6 +71,7 @@ async function bootstrap() {
       credentials: true,
     }); // Enable CORS for Development environments
   } else {
+    console.log('Enabling CORS for Production');
     app.enableCors({
       origin: ['https://startrekonline.info'],
       credentials: true,
