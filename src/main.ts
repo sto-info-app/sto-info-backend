@@ -14,7 +14,8 @@ import { SecretsService } from './shared/secrets/secrets.service';
 import { getAppVersion } from './shared/utilities/version.utility';
 
 async function bootstrap() {
-  new ConfigCheckService(); // This will validate the environment variables
+  const configCheckService = new ConfigCheckService();
+  configCheckService.validateInput(process.env); // Vvalidate the environment variables
 
   // Define rate limiting rules
   const apiLimiter = rateLimit({

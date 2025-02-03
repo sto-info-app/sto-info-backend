@@ -110,9 +110,7 @@ class EnvironmentVariables {
 
 @Injectable()
 export class ConfigCheckService {
-  constructor() {
-    this.validateInput(process.env);
-  }
+  constructor() {}
 
   validateInput(envConfig: Record<string, string>) {
     const config = plainToClass(EnvironmentVariables, envConfig, {
