@@ -16,6 +16,7 @@ import { convert as htmlToText } from 'html-to-text';
 import * as path from 'path';
 import { MailService } from 'src/mail/mail.service';
 import { UserRefreshTokenService } from 'src/user-refresh-token/user-refresh-token.service';
+import { UserLoginDto } from 'src/user/dto/user-login.dto';
 import { User } from 'src/user/entities/user.entity';
 import { UserService } from 'src/user/user.service';
 import { Repository } from 'typeorm';
@@ -24,11 +25,11 @@ import { Repository } from 'typeorm';
 export class AuthService {
   constructor(
     @InjectRepository(User)
-    private userRepository: Repository<User>,
-    private jwtService: JwtService,
-    private userService: UserService,
-    private mailService: MailService,
-    private refreshTokenService: UserRefreshTokenService,
+    private readonly userRepository: Repository<User>,
+    private readonly jwtService: JwtService,
+    private readonly userService: UserService,
+    private readonly mailService: MailService,
+    private readonly refreshTokenService: UserRefreshTokenService,
   ) {}
 
   async register(user: Partial<User>): Promise<User> {
@@ -40,10 +41,7 @@ export class AuthService {
       throw new ConflictException('Username already in use');
     }
 
-    const hashedPassword = await bcrypt.hash(
-      user.password,
-      +process.env.AUTH_SALT_ROUNDS,
-    );
+    const hashedPassword = await this.getHashedPassword(user.password);
     const newUser = this.userRepository.create({
       email: user.email,
       username: user.username,
@@ -173,14 +171,30 @@ export class AuthService {
     return null;
   }
 
-  async login(user: User): Promise<{
+  async login(userLogin: UserLoginDto): Promise<{
     access_token: string;
     refresh_token: string;
     expires_in: number;
   }> {
-    // Check if the user's email is verified
+    const user = await this.userService.findByEmail(userLogin.email);
+
+    if (!user || !(await user.comparePassword(userLogin.password))) {
+      throw new HttpException(
+        'Invalid username and password',
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+
+    if (user.isAccountDisabled) {
+      throw new HttpException('Account disabled', HttpStatus.FORBIDDEN);
+    }
+
+    if (user.deletedAt) {
+      throw new HttpException('Account deleted', HttpStatus.FORBIDDEN);
+    }
+
     if (!user.emailVerified) {
-      throw new UnauthorizedException('Email not verified');
+      throw new HttpException('Email not verified', HttpStatus.UNAUTHORIZED);
     }
 
     const payload = {
@@ -269,10 +283,7 @@ export class AuthService {
       throw new BadRequestException('Token expired');
     }
 
-    const hashedPassword = await bcrypt.hash(
-      newPassword,
-      +process.env.AUTH_SALT_ROUNDS,
-    );
+    const hashedPassword = await this.getHashedPassword(newPassword);
     user.password = hashedPassword;
     user.passwordResetToken = null;
     user.passwordResetTokenExpiry = null;
@@ -357,5 +368,9 @@ export class AuthService {
 
   getRefreshTokenExpiryHours(): number {
     return +process.env.AUTH_TOKEN_EXPIRES_IN / 60 / 60;
+  }
+
+  async getHashedPassword(password: string): Promise<string> {
+    return await bcrypt.hash(password, +process.env.AUTH_SALT_ROUNDS);
   }
 }
