@@ -40,6 +40,8 @@ async function bootstrap() {
 
   const appEnv = configService.get('NODE_ENV');
   const inProduction = appEnv === 'prod';
+  const inDevelopment = appEnv === 'dev';
+  const inLocal = appEnv === 'local';
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -50,18 +52,25 @@ async function bootstrap() {
     }),
   ); // Enable data validation with transform option
 
-  // Enable CORS (Cross-Origin Resource Sharing)
-  //TODO: Add the production domain to the list of allowed origins
-  if (appEnv === 'dev') {
+  // Enable CORS (Cross-Origin Resource Sharing) based on the environment
+  if (inLocal) {
+    app.enableCors({
+      origin: ['http://localhost:4200'],
+      credentials: true,
+    }); // Enable CORS for localhost
+  } else if (inDevelopment) {
     app.enableCors({
       origin: [
         'https://dev.startrekonline.info',
         'https://sto-info-frontend.onrender.com/',
       ],
       credentials: true,
-    });
+    }); // Enable CORS for Development environments
   } else {
-    app.enableCors(); // Enable CORS for all domains
+    app.enableCors({
+      origin: ['https://startrekonline.info'],
+      credentials: true,
+    }); // Enable CORS for Production
   }
 
   app.use(helmet()); // Enable Helmet, a collection of 11 smaller middleware functions that set security-related HTTP headers
