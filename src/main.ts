@@ -44,6 +44,13 @@ async function bootstrap() {
   const inDevelopment = appEnv === 'dev';
   const inLocal = appEnv === 'local';
 
+  const localAllowedOrigins = ['http://localhost:4200'];
+  const devAllowedOrigins = [
+    'https://dev.startrekonline.info',
+    'https://sto-info-frontend.onrender.com/',
+  ];
+  const prodAllowedOrigins = ['https://startrekonline.info'];
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true, // Strips non-whitelisted properties (those without validation decorators in the DTO)
@@ -54,26 +61,58 @@ async function bootstrap() {
   ); // Enable data validation with transform option
 
   // Enable CORS (Cross-Origin Resource Sharing) based on the environment
-  console.log('Environment:', { inLocal, inDevelopment, inProduction });
   if (inLocal) {
-    console.log('Enabling CORS for localhost');
+    app.use((req, res, next) => {
+      const origin = req.headers.origin as string;
+      if (localAllowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+      }
+      res.header('Access-Control-Allow-Credentials', 'true');
+      res.header('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT');
+      res.header(
+        'Access-Control-Allow-Headers',
+        'Origin, X-Requested-With, Content-Type, Accept, Authorization',
+      );
+      next();
+    });
     app.enableCors({
-      origin: ['http://localhost:4200'],
+      origin: localAllowedOrigins,
       credentials: true,
     }); // Enable CORS for localhost
   } else if (inDevelopment) {
-    console.log('Enabling CORS for Development environments');
+    app.use((req, res, next) => {
+      const origin = req.headers.origin as string;
+      if (devAllowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+      }
+      res.header('Access-Control-Allow-Credentials', 'true');
+      res.header('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT');
+      res.header(
+        'Access-Control-Allow-Headers',
+        'Origin, X-Requested-With, Content-Type, Accept, Authorization',
+      );
+      next();
+    });
     app.enableCors({
-      origin: [
-        'https://dev.startrekonline.info',
-        'https://sto-info-frontend.onrender.com/',
-      ],
+      origin: devAllowedOrigins,
       credentials: true,
     }); // Enable CORS for Development environments
   } else {
-    console.log('Enabling CORS for Production');
+    app.use((req, res, next) => {
+      const origin = req.headers.origin as string;
+      if (prodAllowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+      }
+      res.header('Access-Control-Allow-Credentials', 'true');
+      res.header('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT');
+      res.header(
+        'Access-Control-Allow-Headers',
+        'Origin, X-Requested-With, Content-Type, Accept, Authorization',
+      );
+      next();
+    });
     app.enableCors({
-      origin: ['https://startrekonline.info'],
+      origin: prodAllowedOrigins,
       credentials: true,
     }); // Enable CORS for Production
   }
