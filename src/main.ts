@@ -121,7 +121,7 @@ async function bootstrap() {
   app.use('/', apiLimiter); // Apply rate limiting to all routes
 
   if (!inLocal) {
-    app.set('trust proxy', true); // Trust Cloudflare as a proxy (needed for rate limiting)
+    app.set('trust proxy', 1); // Trust only the first proxy (Cloudflare used as a proxy) - needed for rate limiting
   }
 
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector))); // Enable class serializer interceptor for managing response data
