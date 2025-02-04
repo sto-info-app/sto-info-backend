@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import * as sgMail from '@sendgrid/mail';
 import * as ejs from 'ejs';
 import { convert as htmlToText } from 'html-to-text';
@@ -7,16 +7,32 @@ import { SecretsService } from 'src/shared/secrets/secrets.service';
 
 @Injectable()
 export class MailService {
-  noReplyEmailFromSender: { name: string; email: string } = {
+  private readonly logger = new Logger('MailService');
+
+  private readonly noReplyEmailFromSender: { name: string; email: string } = {
     name: process.env.APP_TITLE,
     email: process.env.SENDGRID_NOREPLY_SENDER,
   };
 
-  constructor(private secretsService: SecretsService) {
-    this.init();
+  private readonly emailTemplatePath = path.join(
+    __dirname,
+    '../..',
+    'email-templates',
+  );
+
+  constructor(private readonly secretsService: SecretsService) {}
+
+  /**
+   * Initialise the mail service when the module is initialized.
+   */
+  async onModuleInit() {
+    await this.init();
   }
 
-  async init() {
+  /**
+   * Initialise the mail service.
+   */
+  private async init() {
     const secretObject = await this.secretsService.getSecret(
       process.env.AWS_SECRET_NAME,
     );
@@ -24,14 +40,14 @@ export class MailService {
     sgMail.setApiKey(secretObject.sendGridApiKey);
   }
 
+  /**
+   * Send an email to the user to verify their email address.
+   * @param email
+   * @param token
+   */
   async sendVerificationEmail(email: string, token: string) {
     const emailHtmlContent = await ejs.renderFile(
-      path.join(
-        __dirname,
-        '../..',
-        'email-templates',
-        'registration-verify-email.ejs',
-      ),
+      path.join(this.emailTemplatePath, 'registration-verify-email.ejs'),
       {
         appTitle: process.env.APP_TITLE,
         verifyUrl:
@@ -52,28 +68,28 @@ export class MailService {
 
     try {
       await sgMail.send(msg);
-      // console.log('Email sent');
     } catch (error) {
       if (error.response) {
-        console.error(error.response.body.errors);
+        this.logger.error(error.response.body.errors);
       } else {
-        console.error(error);
+        this.logger.error(error);
       }
     }
   }
 
+  /**
+   * Send an email to the user when the password reset has been requested.
+   * @param email
+   * @param token
+   * @param firstName
+   */
   async sendPasswordResetEmail(
     email: string,
     token: string,
     firstName: string,
   ) {
     const emailHtmlContent = await ejs.renderFile(
-      path.join(
-        __dirname,
-        '../..',
-        'email-templates',
-        'password-reset-email.ejs',
-      ),
+      path.join(this.emailTemplatePath, 'password-reset-email.ejs'),
       {
         appTitle: process.env.APP_TITLE,
         passwordResetUrl:
@@ -95,24 +111,23 @@ export class MailService {
 
     try {
       await sgMail.send(msg);
-      // console.log('Email sent');
     } catch (error) {
       if (error.response) {
-        console.error(error.response.body.errors);
+        this.logger.error(error.response.body.errors);
       } else {
-        console.error(error);
+        this.logger.error(error);
       }
     }
   }
 
+  /**
+   * Send an email to the user when the password has been changed.
+   * @param email
+   * @param firstName
+   */
   async sendPasswordChangedEmail(email: string, firstName: string) {
     const emailHtmlContent = await ejs.renderFile(
-      path.join(
-        __dirname,
-        '../..',
-        'email-templates',
-        'password-changed-email.ejs',
-      ),
+      path.join(this.emailTemplatePath, 'password-changed-email.ejs'),
       {
         appTitle: process.env.APP_TITLE,
         firstName: firstName,
@@ -134,16 +149,22 @@ export class MailService {
 
     try {
       await sgMail.send(msg);
-      // console.log('Email sent');
     } catch (error) {
       if (error.response) {
-        console.error(error.response.body.errors);
+        this.logger.error(error.response.body.errors);
       } else {
-        console.error(error);
+        this.logger.error(error);
       }
     }
   }
 
+  /**
+   * Send an email to the user.
+   * @param toEmail
+   * @param subject
+   * @param textContent
+   * @param htmlContent
+   */
   async sendEmailToUser(
     toEmail: string,
     subject: string,
@@ -160,12 +181,11 @@ export class MailService {
 
     try {
       await sgMail.send(msg);
-      // console.log('Email sent');
     } catch (error) {
       if (error.response) {
-        console.error(error.response.body.errors);
+        this.logger.error(error.response.body.errors);
       } else {
-        console.error(error);
+        this.logger.error(error);
       }
     }
   }
