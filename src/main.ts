@@ -119,7 +119,11 @@ async function bootstrap() {
 
   app.use(helmet()); // Enable Helmet, a collection of 11 smaller middleware functions that set security-related HTTP headers
   app.use('/', apiLimiter); // Apply rate limiting to all routes
-  app.set('trust proxy', true); // Trust Cloudflare as a proxy (needed for rate limiting)
+
+  if (!inLocal) {
+    app.set('trust proxy', true); // Trust Cloudflare as a proxy (needed for rate limiting)
+  }
+
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector))); // Enable class serializer interceptor for managing response data
 
   if (!inProduction) {
