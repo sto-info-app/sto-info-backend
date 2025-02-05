@@ -1,24 +1,41 @@
-import { Launcher } from 'src/sto/launcher/entities/launcher.entity';
-import { Platform } from 'src/sto/platform/entities/platform.entity';
-import { Entity, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
+import { LauncherEntity } from 'src/sto/launcher/entities/launcher.entity';
+import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
+import {
+  CreateDateColumn,
+  DeleteDateColumn,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
-@Entity()
-export class PlatformLauncher {
+@Entity({ name: 'platform_launcher' })
+export class PlatformLauncherEntity {
   @PrimaryColumn()
   platformId: string;
 
   @PrimaryColumn()
   launcherId: string;
 
-  @ManyToOne(() => Platform, platform => platform.platformLaunchers, {
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+
+  @DeleteDateColumn()
+  deletedAt: Date;
+
+  @ManyToOne(() => PlatformEntity, platform => platform.platformLaunchers, {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'platformId' })
-  platform: Platform;
+  platform: PlatformEntity;
 
-  @ManyToOne(() => Launcher, launcher => launcher.platformLaunchers, {
+  @ManyToOne(() => LauncherEntity, launcher => launcher.platformLaunchers, {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'launcherId' })
-  launcher: Launcher;
+  launcher: LauncherEntity;
 }

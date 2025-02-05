@@ -5,17 +5,17 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { PlatformLauncher } from './entities/platform-launcher.entity';
+import { PlatformLauncherEntity } from './entities/platform-launcher.entity';
 
 @Injectable()
 export class PlatformLauncherService {
   constructor(
-    @InjectRepository(PlatformLauncher)
-    private platformLauncherRepository: Repository<PlatformLauncher>,
+    @InjectRepository(PlatformLauncherEntity)
+    private readonly platformLauncherRepository: Repository<PlatformLauncherEntity>,
   ) {}
 
   async addPlatformLauncherRelation(platformId: string, launcherId: string) {
-    const platformLauncher = new PlatformLauncher();
+    const platformLauncher = new PlatformLauncherEntity();
     platformLauncher.platformId = platformId;
     platformLauncher.launcherId = launcherId;
     try {
@@ -34,7 +34,7 @@ export class PlatformLauncherService {
       where: { platformId: platformId, launcherId: launcherId },
     });
     if (!platformLauncher) {
-      throw new NotFoundException(`PlatformLauncher relation not found`);
+      throw new NotFoundException(`PlatformLauncherEntity relation not found`);
     }
     try {
       await this.platformLauncherRepository.remove(platformLauncher);
@@ -46,7 +46,7 @@ export class PlatformLauncherService {
     }
   }
 
-  async findAll(): Promise<PlatformLauncher[]> {
+  async findAll(): Promise<PlatformLauncherEntity[]> {
     return await this.platformLauncherRepository.find({
       relations: ['platform', 'launcher'],
     });
@@ -54,7 +54,7 @@ export class PlatformLauncherService {
 
   async findAllLaunchersForPlatform(
     platformId: string,
-  ): Promise<PlatformLauncher[]> {
+  ): Promise<PlatformLauncherEntity[]> {
     const launchers = await this.platformLauncherRepository.find({
       where: { platformId: platformId },
     });
@@ -64,7 +64,7 @@ export class PlatformLauncherService {
   async findOne(
     platformId: string,
     launcherId: string,
-  ): Promise<PlatformLauncher> {
+  ): Promise<PlatformLauncherEntity> {
     const platformLauncher = await this.platformLauncherRepository.findOne({
       where: { platformId: platformId, launcherId: launcherId },
     });

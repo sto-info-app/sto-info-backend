@@ -8,17 +8,16 @@ import { LessThan, Repository } from 'typeorm';
 
 import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
-
-import { Account } from './entities/account.entity';
+import { AccountEntity } from './entities/account.entity';
 
 @Injectable()
 export class AccountService {
   constructor(
-    @InjectRepository(Account)
-    private accountRepository: Repository<Account>,
+    @InjectRepository(AccountEntity)
+    private readonly accountRepository: Repository<AccountEntity>,
   ) {}
 
-  async create(createAccountDto: CreateAccountDto): Promise<Account> {
+  async create(createAccountDto: CreateAccountDto): Promise<AccountEntity> {
     const newAccount = this.accountRepository.create(createAccountDto);
 
     try {
@@ -32,7 +31,7 @@ export class AccountService {
     }
   }
 
-  async findAllUsersAccounts(userId: string): Promise<Account[]> {
+  async findAllUsersAccounts(userId: string): Promise<AccountEntity[]> {
     return this.accountRepository.find({
       where: {
         user: {
@@ -42,7 +41,7 @@ export class AccountService {
     });
   }
 
-  async findOne(id: string): Promise<Account> {
+  async findOne(id: string): Promise<AccountEntity> {
     const account = await this.accountRepository.findOne({
       where: {
         id: id,
@@ -54,7 +53,7 @@ export class AccountService {
   async update(
     id: string,
     updateAccountDto: UpdateAccountDto,
-  ): Promise<Account> {
+  ): Promise<AccountEntity> {
     await this.accountRepository.update(id, updateAccountDto);
     const updatedAccount = await this.accountRepository.findOne({
       where: {
@@ -74,7 +73,7 @@ export class AccountService {
     }
   }
 
-  async findAllSoftDeleted(): Promise<Account[]> {
+  async findAllSoftDeleted(): Promise<AccountEntity[]> {
     return this.accountRepository.find({ withDeleted: true });
   }
 

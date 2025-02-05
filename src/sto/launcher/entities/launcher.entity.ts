@@ -1,21 +1,38 @@
-import { Account } from 'src/sto/account/entities/account.entity';
-import { PlatformLauncher } from 'src/sto/platform-launcher/entities/platform-launcher.entity';
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { AccountEntity } from 'src/sto/account/entities/account.entity';
+import { PlatformLauncherEntity } from 'src/sto/platform-launcher/entities/platform-launcher.entity';
+import {
+  Column,
+  CreateDateColumn,
+  DeleteDateColumn,
+  Entity,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
-@Entity()
-export class Launcher {
+@Entity({ name: 'launcher' })
+export class LauncherEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Column({ length: 50, nullable: false, unique: true })
   name: string;
 
-  @OneToMany(() => Account, account => account.launcher)
-  accounts: Account[];
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+
+  @DeleteDateColumn()
+  deletedAt: Date;
+
+  @OneToMany(() => AccountEntity, account => account.launcher)
+  accounts: AccountEntity[];
 
   @OneToMany(
-    () => PlatformLauncher,
-    platformLauncher => platformLauncher.launcher,
+    () => PlatformLauncherEntity,
+    PlatformLauncherEntity => PlatformLauncherEntity.launcher,
   )
-  platformLaunchers: PlatformLauncher[];
+  platformLaunchers: PlatformLauncherEntity[];
 }

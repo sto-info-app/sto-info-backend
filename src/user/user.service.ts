@@ -4,17 +4,17 @@ import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { User } from './entities/user.entity';
+import { UserEntity } from './entities/user.entity';
 
 @Injectable()
 export class UserService {
   constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    @InjectRepository(UserEntity)
+    private readonly userRepository: Repository<UserEntity>,
   ) {}
 
-  async create(createUserDto: CreateUserDto): Promise<User> {
-    const user = new User();
+  async create(createUserDto: CreateUserDto): Promise<UserEntity> {
+    const user = new UserEntity();
     user.email = createUserDto.email;
     user.password = await bcrypt.hash(
       createUserDto.password,
@@ -27,11 +27,11 @@ export class UserService {
     return newUser;
   }
 
-  async seedUser(user: User): Promise<User> {
+  async seedUser(user: UserEntity): Promise<UserEntity> {
     return await this.userRepository.save(user);
   }
 
-  async update(id: string, post: UpdateUserDto): Promise<User> {
+  async update(id: string, post: UpdateUserDto): Promise<UserEntity> {
     await this.userRepository.update(id, post);
     const updatedUser = await this.userRepository.findOne({
       where: { id: id },
@@ -56,7 +56,7 @@ export class UserService {
     }
   }
 
-  async findById(id: string): Promise<User> {
+  async findById(id: string): Promise<UserEntity> {
     return await this.userRepository.findOne({
       where: {
         id: id,
@@ -69,7 +69,7 @@ export class UserService {
     });
   }
 
-  async findByEmail(email: string): Promise<User> {
+  async findByEmail(email: string): Promise<UserEntity> {
     return await this.userRepository.findOne({ where: { email: email } });
   }
 
@@ -86,7 +86,7 @@ export class UserService {
     await this.userRepository.save(user);
   }
 
-  async findByUserRefreshToken(token: string): Promise<User> {
+  async findByUserRefreshToken(token: string): Promise<UserEntity> {
     const user = await this.userRepository
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.refreshTokens', 'refreshToken')
@@ -100,7 +100,7 @@ export class UserService {
     return user;
   }
 
-  async findByPayload(payload: any): Promise<User | null> {
+  async findByPayload(payload: any): Promise<UserEntity | null> {
     return await this.userRepository.findOne({ where: { id: payload.sub } });
   }
 }

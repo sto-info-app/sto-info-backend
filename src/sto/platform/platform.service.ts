@@ -4,20 +4,20 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreatePlatformDto } from './dto/create-platform.dto';
 import { UpdatePlatformDto } from './dto/update-platform.dto';
-import { Platform } from './entities/platform.entity';
+import { PlatformEntity } from './entities/platform.entity';
 
 @Injectable()
 export class PlatformService {
   constructor(
-    @InjectRepository(Platform)
-    private platformRepository: Repository<Platform>,
+    @InjectRepository(PlatformEntity)
+    private readonly platformRepository: Repository<PlatformEntity>,
   ) {}
 
   async findAll() {
     return await this.platformRepository.find();
   }
 
-  async findOne(id: string): Promise<Platform> {
+  async findOne(id: string): Promise<PlatformEntity> {
     const platform = await this.platformRepository.findOne({
       where: {
         id: id,
@@ -26,14 +26,14 @@ export class PlatformService {
     return platform;
   }
 
-  async findOneByName(name: string): Promise<Platform> {
+  async findOneByName(name: string): Promise<PlatformEntity> {
     const platform = await this.platformRepository.findOne({
       where: { name: name },
     });
     return platform;
   }
 
-  async findAllSoftDeletedOlderThanOneWeek(): Promise<Platform[]> {
+  async findAllSoftDeletedOlderThanOneWeek(): Promise<PlatformEntity[]> {
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
@@ -44,7 +44,7 @@ export class PlatformService {
       .getMany();
   }
 
-  async create(createPlatformDto: CreatePlatformDto): Promise<Platform> {
+  async create(createPlatformDto: CreatePlatformDto): Promise<PlatformEntity> {
     const newPlatform = this.platformRepository.create(createPlatformDto);
     try {
       await this.platformRepository.save(newPlatform);
@@ -60,7 +60,7 @@ export class PlatformService {
   async update(
     id: string,
     updatePlatformDto: UpdatePlatformDto,
-  ): Promise<Platform> {
+  ): Promise<PlatformEntity> {
     const platform = await this.findOne(id);
     const updatedPlatform = this.platformRepository.merge(
       platform,

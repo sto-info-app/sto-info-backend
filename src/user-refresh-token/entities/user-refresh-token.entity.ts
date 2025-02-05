@@ -1,8 +1,16 @@
-import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
-import { User } from '../../user/entities/user.entity';
+import {
+  Column,
+  CreateDateColumn,
+  DeleteDateColumn,
+  Entity,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
+import { UserEntity } from '../../user/entities/user.entity';
 
-@Entity()
-export class UserRefreshToken {
+@Entity({ name: 'user_refresh_token' })
+export class UserRefreshTokenEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -18,6 +26,15 @@ export class UserRefreshToken {
   @Column({ default: false })
   isRevoked: boolean;
 
-  @ManyToOne(() => User, user => user.refreshTokens)
-  user: User;
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+
+  @DeleteDateColumn()
+  deletedAt: Date;
+
+  @ManyToOne(() => UserEntity, user => user.refreshTokens)
+  user: UserEntity;
 }

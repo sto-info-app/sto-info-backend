@@ -4,20 +4,20 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateLauncherDto } from './dto/create-launcher.dto';
 import { UpdateLauncherDto } from './dto/update-launcher.dto';
-import { Launcher } from './entities/launcher.entity';
+import { LauncherEntity } from './entities/launcher.entity';
 
 @Injectable()
 export class LauncherService {
   constructor(
-    @InjectRepository(Launcher)
-    private launcherRepository: Repository<Launcher>,
+    @InjectRepository(LauncherEntity)
+    private readonly launcherRepository: Repository<LauncherEntity>,
   ) {}
 
   async findAll() {
     return await this.launcherRepository.find();
   }
 
-  async findOne(id: string): Promise<Launcher> {
+  async findOne(id: string): Promise<LauncherEntity> {
     const launcher = await this.launcherRepository.findOne({
       where: {
         id: id,
@@ -26,14 +26,14 @@ export class LauncherService {
     return launcher;
   }
 
-  async findOneByName(name: string): Promise<Launcher> {
+  async findOneByName(name: string): Promise<LauncherEntity> {
     const launcher = await this.launcherRepository.findOne({
       where: { name: name },
     });
     return launcher;
   }
 
-  async findAllSoftDeletedOlderThanOneWeek(): Promise<Launcher[]> {
+  async findAllSoftDeletedOlderThanOneWeek(): Promise<LauncherEntity[]> {
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
@@ -44,7 +44,7 @@ export class LauncherService {
       .getMany();
   }
 
-  async create(createLauncherDto: CreateLauncherDto): Promise<Launcher> {
+  async create(createLauncherDto: CreateLauncherDto): Promise<LauncherEntity> {
     const newLauncher = this.launcherRepository.create(createLauncherDto);
     try {
       await this.launcherRepository.save(newLauncher);
@@ -60,7 +60,7 @@ export class LauncherService {
   async update(
     id: string,
     updateLauncherDto: UpdateLauncherDto,
-  ): Promise<Launcher> {
+  ): Promise<LauncherEntity> {
     const launcher = await this.findOne(id);
     const updatedLauncher = this.launcherRepository.merge(
       launcher,

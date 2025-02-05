@@ -6,9 +6,9 @@ import { PlatformService } from 'src/sto/platform/platform.service';
 @Injectable()
 export class AccountSeederService {
   constructor(
-    private platformService: PlatformService,
-    private launcherService: LauncherService,
-    private platformLauncherService: PlatformLauncherService,
+    private readonly platformService: PlatformService,
+    private readonly launcherService: LauncherService,
+    private readonly platformLauncherService: PlatformLauncherService,
   ) {}
 
   async seed() {
@@ -20,9 +20,8 @@ export class AccountSeederService {
   private async seedPlatforms() {
     const platforms = ['Windows', 'PlayStation', 'Xbox'];
     for (const platform of platforms) {
-      const existingPlatform = await this.platformService.findOneByName(
-        platform,
-      );
+      const existingPlatform =
+        await this.platformService.findOneByName(platform);
       if (!existingPlatform) {
         await this.platformService.create({ name: platform });
       }
@@ -32,9 +31,8 @@ export class AccountSeederService {
   private async seedLaunchers() {
     const launchers = ['Arc', 'Epic', 'Steam', 'N/A'];
     for (const launcher of launchers) {
-      const existingLauncher = await this.launcherService.findOneByName(
-        launcher,
-      );
+      const existingLauncher =
+        await this.launcherService.findOneByName(launcher);
       if (!existingLauncher) {
         await this.launcherService.create({ name: launcher });
       }

@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Launcher } from '../launcher/entities/launcher.entity';
+import { LauncherEntity } from '../launcher/entities/launcher.entity';
 import { AccountController } from './account.controller';
 import { AccountService } from './account.service';
-import { Account } from './entities/account.entity';
+import { AccountEntity } from './entities/account.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Account, Launcher])],
+  imports: [TypeOrmModule.forFeature([AccountEntity, LauncherEntity])],
   controllers: [AccountController],
   providers: [AccountService],
   exports: [AccountService],
