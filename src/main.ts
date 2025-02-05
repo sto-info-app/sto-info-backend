@@ -14,7 +14,8 @@ import { SecretsService } from './shared/secrets/secrets.service';
 import { getAppVersion } from './shared/utilities/version.utility';
 
 async function bootstrap() {
-  new ConfigCheckService(); // This will validate the environment variables
+  const configCheckService = new ConfigCheckService();
+  configCheckService.validateInput(process.env); // Vvalidate the environment variables
 
   // Define rate limiting rules
   const apiLimiter = rateLimit({
@@ -40,6 +41,15 @@ async function bootstrap() {
 
   const appEnv = configService.get('NODE_ENV');
   const inProduction = appEnv === 'prod';
+  const inDevelopment = appEnv === 'dev';
+  const inLocal = appEnv === 'local';
+
+  const localAllowedOrigins = ['http://localhost:4200'];
+  const devAllowedOrigins = [
+    'https://dev.startrekonline.info',
+    'https://sto-info-frontend.onrender.com/',
+  ];
+  const prodAllowedOrigins = ['https://startrekonline.info'];
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -50,23 +60,70 @@ async function bootstrap() {
     }),
   ); // Enable data validation with transform option
 
-  // Enable CORS (Cross-Origin Resource Sharing)
-  //TODO: Add the production domain to the list of allowed origins
-  if (appEnv === 'dev') {
-    app.enableCors({
-      origin: [
-        'https://dev.startrekonline.info',
-        'https://sto-info-frontend.onrender.com/',
-      ],
-      credentials: true,
+  // Enable CORS (Cross-Origin Resource Sharing) based on the environment
+  if (inLocal) {
+    app.use((req, res, next) => {
+      const origin = req.headers.origin as string;
+      if (localAllowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+      }
+      res.header('Access-Control-Allow-Credentials', 'true');
+      res.header('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT');
+      res.header(
+        'Access-Control-Allow-Headers',
+        'Origin, X-Requested-With, Content-Type, Accept, Authorization',
+      );
+      next();
     });
+    app.enableCors({
+      origin: localAllowedOrigins,
+      credentials: true,
+    }); // Enable CORS for localhost
+  } else if (inDevelopment) {
+    app.use((req, res, next) => {
+      const origin = req.headers.origin as string;
+      if (devAllowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+      }
+      res.header('Access-Control-Allow-Credentials', 'true');
+      res.header('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT');
+      res.header(
+        'Access-Control-Allow-Headers',
+        'Origin, X-Requested-With, Content-Type, Accept, Authorization',
+      );
+      next();
+    });
+    app.enableCors({
+      origin: devAllowedOrigins,
+      credentials: true,
+    }); // Enable CORS for Development environments
   } else {
-    app.enableCors(); // Enable CORS for all domains
+    app.use((req, res, next) => {
+      const origin = req.headers.origin as string;
+      if (prodAllowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+      }
+      res.header('Access-Control-Allow-Credentials', 'true');
+      res.header('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT');
+      res.header(
+        'Access-Control-Allow-Headers',
+        'Origin, X-Requested-With, Content-Type, Accept, Authorization',
+      );
+      next();
+    });
+    app.enableCors({
+      origin: prodAllowedOrigins,
+      credentials: true,
+    }); // Enable CORS for Production
   }
 
   app.use(helmet()); // Enable Helmet, a collection of 11 smaller middleware functions that set security-related HTTP headers
   app.use('/', apiLimiter); // Apply rate limiting to all routes
-  app.set('trust proxy', true); // Trust Cloudflare as a proxy (needed for rate limiting)
+
+  if (!inLocal) {
+    app.set('trust proxy', 1); // Trust only the first proxy (Cloudflare used as a proxy) - needed for rate limiting
+  }
+
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector))); // Enable class serializer interceptor for managing response data
 
   if (!inProduction) {

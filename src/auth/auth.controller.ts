@@ -5,14 +5,13 @@ import {
   HttpStatus,
   Post,
   Req,
-  Request,
   SerializeOptions,
   UseGuards,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiTags } from '@nestjs/swagger';
 import { UserRefreshTokenDto } from 'src/user-refresh-token/dto/user-refresh-token.dto';
 import { UserRefreshTokenService } from 'src/user-refresh-token/user-refresh-token.service';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
@@ -28,8 +27,8 @@ import { AuthService } from './auth.service';
 @Controller('auth')
 export class AuthController {
   constructor(
-    private authService: AuthService,
-    private refreshTokenService: UserRefreshTokenService,
+    private readonly authService: AuthService,
+    private readonly refreshTokenService: UserRefreshTokenService,
   ) {}
 
   @Post('register')
@@ -39,11 +38,23 @@ export class AuthController {
     return this.authService.register(createUserDto);
   }
 
-  @UseGuards(AuthGuard('local'))
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Request() req) {
-    return this.authService.login(req.user);
+  @ApiTags('Login')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { email: { type: 'string' }, password: { type: 'string' } },
+    },
+  })
+  /**
+   * Handles user login.
+   *
+   * @param UserLoginDto - The login credentials containing email and password.
+   * @returns A promise that resolves with the authentication result.
+   */
+  async login(@Body() UserLoginDto: { email: string; password: string }) {
+    return this.authService.login(UserLoginDto);
   }
 
   @UseGuards(AuthGuard('jwt'))

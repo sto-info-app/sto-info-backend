@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Logger, Module, OnModuleInit } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Launcher } from 'src/sto/launcher/entities/launcher.entity';
 import { LauncherModule } from 'src/sto/launcher/launcher.module';
@@ -19,26 +19,26 @@ import { UserSeederService } from './user-seeder/user-seeder.service';
       Launcher,
       PlatformLauncher,
       User,
-      //TODO: Add other entities used in seeder services
+      //NOTE: Add other entities used in seeder services
     ]),
 
     PlatformModule,
     LauncherModule,
     PlatformLauncherModule,
     UserModule,
-    //TODO: Add other modules used in seeder services
+    //NOTE: Add other modules used in seeder services
   ],
   providers: [
     AccountSeederService,
     UserSeederService,
     DatabaseService,
-    //TODO: Add other seeder services here
+    //NOTE: Add other seeder services here
   ],
   exports: [
     AccountSeederService,
     UserSeederService,
     DatabaseService,
-    //TODO: Add other seeder services here
+    //NOTE: Add other seeder services here
   ],
 })
 export class DatabaseModule implements OnModuleInit {
@@ -51,25 +51,25 @@ export class DatabaseModule implements OnModuleInit {
   async onModuleInit() {
     try {
       await this.databaseService.setDatabaseTimezone();
-      console.info('Database timezone set successfully.'); //TODO: Disable
+      Logger.log('Database timezone set successfully.', 'DatabaseModule');
     } catch (error) {
-      console.error('Failed to set database timezone:', error);
+      Logger.error('Failed to set database timezone:', error, 'DatabaseModule');
     }
 
     try {
       await this.userSeederService.seed();
-      console.info('User seeding completed successfully.'); //TODO: Disable
+      Logger.log('User seeding completed successfully.', 'DatabaseModule');
     } catch (error) {
-      console.error('Failed to seed users:', error);
+      Logger.error('Failed to seed users:', error, 'DatabaseModule');
     }
 
     try {
       await this.accountSeederService.seed();
-      console.info('Account seeding completed successfully.'); //TODO: Disable
+      Logger.log('Account seeding completed successfully.', 'DatabaseModule');
     } catch (error) {
-      console.error('Failed to seed accounts:', error);
+      Logger.error('Failed to seed accounts:', error, 'DatabaseModule');
     }
 
-    //TODO: Add other seeder function calls here
+    //NOTE: Add other seeder function calls here
   }
 }
