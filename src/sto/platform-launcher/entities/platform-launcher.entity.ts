@@ -1,6 +1,14 @@
 import { Launcher } from 'src/sto/launcher/entities/launcher.entity';
 import { Platform } from 'src/sto/platform/entities/platform.entity';
-import { Entity, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
+import {
+  CreateDateColumn,
+  DeleteDateColumn,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
 @Entity()
 export class PlatformLauncher {
@@ -9,6 +17,15 @@ export class PlatformLauncher {
 
   @PrimaryColumn()
   launcherId: string;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+
+  @DeleteDateColumn()
+  deletedAt: Date;
 
   @ManyToOne(() => Platform, platform => platform.platformLaunchers, {
     onDelete: 'CASCADE',
