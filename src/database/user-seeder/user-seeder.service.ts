@@ -7,14 +7,14 @@ import { UserService } from 'src/user/user.service';
 
 @Injectable()
 export class UserSeederService {
-  constructor(private userService: UserService) {}
+  constructor(private readonly userService: UserService) {}
 
   async seed() {
     await this.seedUsers();
   }
 
   private async seedUsers() {
-    const inProduction = process.env.NODE_ENV === 'prod' ? true : false;
+    const inProduction = process.env.NODE_ENV === 'prod';
     if (inProduction) return;
 
     if (

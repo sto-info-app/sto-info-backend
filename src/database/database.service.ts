@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { Connection } from 'typeorm';
+import { DataSource } from 'typeorm';
 
 @Injectable()
 export class DatabaseService {
-  constructor(private connection: Connection) {}
+  constructor(private readonly dataSource: DataSource) {}
 
   async setDatabaseTimezone(): Promise<void> {
     // Set the timezone to UTC
-    await this.connection.query("SET TIME ZONE 'UTC'");
+    await this.dataSource.query("SET TIME ZONE 'UTC'");
   }
 }
