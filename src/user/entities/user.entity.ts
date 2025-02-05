@@ -40,10 +40,6 @@ export class User {
   @Column({ length: 255, nullable: true })
   lastName: string;
 
-  @IsString()
-  @Column({ length: 255, default: 'user' }) //TODO: adjust length and default as necessary - roles as table?
-  role: string;
-
   @Column({ nullable: true })
   profilePicture: string;
 
