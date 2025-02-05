@@ -40,7 +40,7 @@ export class Account {
   @Column()
   accountCreatedDate: Date;
 
-  @Column({ default: true })
+  @Column({ default: false })
   publiclyVisible: boolean;
 
   @CreateDateColumn()
