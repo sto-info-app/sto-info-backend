@@ -6,7 +6,7 @@ import { Injectable, Logger } from '@nestjs/common';
 
 @Injectable()
 export class SecretsService {
-  private secretsManager: SecretsManagerClient;
+  private readonly secretsManager: SecretsManagerClient;
   private cache: { [key: string]: any } = {};
   private readonly logger = new Logger(SecretsService.name);
 

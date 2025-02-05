@@ -13,12 +13,12 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { v4 as uuid } from 'uuid';
-import { Account } from '../../sto/account/entities/account.entity';
-import { UserRefreshToken } from '../../user-refresh-token/entities/user-refresh-token.entity';
+import { AccountEntity } from '../../sto/account/entities/account.entity';
+import { UserRefreshTokenEntity } from '../../user-refresh-token/entities/user-refresh-token.entity';
 
-@Entity()
+@Entity({ name: 'user' })
 @Unique(['email', 'username'])
-export class User {
+export class UserEntity {
   @PrimaryColumn('uuid')
   @IsNotEmpty()
   @IsString()
@@ -98,11 +98,11 @@ export class User {
     this.id = uuid();
   }
 
-  @OneToMany(() => UserRefreshToken, refreshToken => refreshToken.user)
-  refreshTokens: UserRefreshToken[];
+  @OneToMany(() => UserRefreshTokenEntity, refreshToken => refreshToken.user)
+  refreshTokens: UserRefreshTokenEntity[];
 
-  @OneToMany(() => Account, account => account.user)
-  accounts: Account[];
+  @OneToMany(() => AccountEntity, account => account.user)
+  accounts: AccountEntity[];
 
   async comparePassword(password: string): Promise<boolean> {
     return bcrypt.compare(password, this.password);

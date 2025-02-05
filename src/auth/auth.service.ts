@@ -17,22 +17,22 @@ import * as path from 'path';
 import { MailService } from 'src/mail/mail.service';
 import { UserRefreshTokenService } from 'src/user-refresh-token/user-refresh-token.service';
 import { UserLoginDto } from 'src/user/dto/user-login.dto';
-import { User } from 'src/user/entities/user.entity';
+import { UserEntity } from 'src/user/entities/user.entity';
 import { UserService } from 'src/user/user.service';
 import { Repository } from 'typeorm';
 
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    @InjectRepository(UserEntity)
+    private readonly userRepository: Repository<UserEntity>,
     private readonly jwtService: JwtService,
     private readonly userService: UserService,
     private readonly mailService: MailService,
     private readonly refreshTokenService: UserRefreshTokenService,
   ) {}
 
-  async register(user: Partial<User>): Promise<User> {
+  async register(user: Partial<UserEntity>): Promise<UserEntity> {
     if (await this.doesEmailExist(user.email)) {
       throw new ConflictException('Email already in use');
     }
@@ -72,7 +72,7 @@ export class AuthService {
     }
   }
 
-  async verifyEmail(token: string): Promise<User> {
+  async verifyEmail(token: string): Promise<UserEntity> {
     if (!token) {
       throw new BadRequestException('Token missing');
     }
@@ -161,7 +161,7 @@ export class AuthService {
     return null;
   }
 
-  async validateUserFromPayload(payload: any): Promise<User | null> {
+  async validateUserFromPayload(payload: any): Promise<UserEntity | null> {
     const user = await this.userRepository.findOne({
       where: { id: payload.sub },
     });

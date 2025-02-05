@@ -4,20 +4,20 @@ import { InjectRepository } from '@nestjs/typeorm';
 import * as jwt from 'jsonwebtoken';
 import { Repository } from 'typeorm';
 
-import { User } from 'src/user/entities/user.entity';
+import { UserEntity } from 'src/user/entities/user.entity';
 import { CreateUserRefreshTokenDto } from './dto/create-user-refresh-token.dto';
-import { UserRefreshToken } from './entities/user-refresh-token.entity';
+import { UserRefreshTokenEntity } from './entities/user-refresh-token.entity';
 
 @Injectable()
 export class UserRefreshTokenService {
   constructor(
-    @InjectRepository(UserRefreshToken)
-    private refreshTokenRepository: Repository<UserRefreshToken>,
+    @InjectRepository(UserRefreshTokenEntity)
+    private readonly refreshTokenRepository: Repository<UserRefreshTokenEntity>,
   ) {}
 
   async create(
     refreshTokenDto: CreateUserRefreshTokenDto,
-  ): Promise<UserRefreshToken> {
+  ): Promise<UserRefreshTokenEntity> {
     const refreshToken = this.refreshTokenRepository.create(refreshTokenDto);
 
     // Set the expiresAt value to AUTH_REFRESH_TOKEN_EXPIRES_IN seconds from now
@@ -32,17 +32,17 @@ export class UserRefreshTokenService {
     return this.refreshTokenRepository.save(refreshToken);
   }
 
-  async findByTokenId(tokenId: string): Promise<UserRefreshToken | null> {
+  async findByTokenId(tokenId: string): Promise<UserRefreshTokenEntity | null> {
     return await this.refreshTokenRepository.findOne({
       where: { tokenId: tokenId },
     });
   }
 
   async createUserRefreshToken(
-    user: User,
+    user: UserEntity,
     refreshToken: string,
-  ): Promise<UserRefreshToken> {
-    const refreshTokenEntity = new UserRefreshToken();
+  ): Promise<UserRefreshTokenEntity> {
+    const refreshTokenEntity = new UserRefreshTokenEntity();
     refreshTokenEntity.user = user;
 
     // Parse the JWT to extract the jti claim

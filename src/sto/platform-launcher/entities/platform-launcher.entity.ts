@@ -1,5 +1,5 @@
-import { Launcher } from 'src/sto/launcher/entities/launcher.entity';
-import { Platform } from 'src/sto/platform/entities/platform.entity';
+import { LauncherEntity } from 'src/sto/launcher/entities/launcher.entity';
+import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
 import {
   CreateDateColumn,
   DeleteDateColumn,
@@ -10,8 +10,8 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-@Entity()
-export class PlatformLauncher {
+@Entity({ name: 'platform_launcher' })
+export class PlatformLauncherEntity {
   @PrimaryColumn()
   platformId: string;
 
@@ -27,15 +27,15 @@ export class PlatformLauncher {
   @DeleteDateColumn()
   deletedAt: Date;
 
-  @ManyToOne(() => Platform, platform => platform.platformLaunchers, {
+  @ManyToOne(() => PlatformEntity, platform => platform.platformLaunchers, {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'platformId' })
-  platform: Platform;
+  platform: PlatformEntity;
 
-  @ManyToOne(() => Launcher, launcher => launcher.platformLaunchers, {
+  @ManyToOne(() => LauncherEntity, launcher => launcher.platformLaunchers, {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'launcherId' })
-  launcher: Launcher;
+  launcher: LauncherEntity;
 }

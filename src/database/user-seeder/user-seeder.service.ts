@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 
 import * as bcrypt from 'bcrypt';
+import { UserEntity } from 'src/user/entities/user.entity';
 
-import { User } from 'src/user/entities/user.entity';
 import { UserService } from 'src/user/user.service';
 
 @Injectable()
@@ -29,7 +29,7 @@ export class UserSeederService {
       );
 
       if (!existingUser) {
-        const user = new User();
+        const user = new UserEntity();
         user.email = process.env.DATASEED_USER_EMAIL;
         user.username = process.env.DATASEED_USER_USERNAME;
         user.firstName = process.env.DATASEED_USER_FIRSTNAME;

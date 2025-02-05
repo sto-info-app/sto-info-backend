@@ -1,5 +1,5 @@
-import { Account } from 'src/sto/account/entities/account.entity';
-import { PlatformLauncher } from 'src/sto/platform-launcher/entities/platform-launcher.entity';
+import { AccountEntity } from 'src/sto/account/entities/account.entity';
+import { PlatformLauncherEntity } from 'src/sto/platform-launcher/entities/platform-launcher.entity';
 import {
   Column,
   CreateDateColumn,
@@ -10,8 +10,8 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-@Entity()
-export class Launcher {
+@Entity({ name: 'launcher' })
+export class LauncherEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -27,12 +27,12 @@ export class Launcher {
   @DeleteDateColumn()
   deletedAt: Date;
 
-  @OneToMany(() => Account, account => account.launcher)
-  accounts: Account[];
+  @OneToMany(() => AccountEntity, account => account.launcher)
+  accounts: AccountEntity[];
 
   @OneToMany(
-    () => PlatformLauncher,
-    platformLauncher => platformLauncher.launcher,
+    () => PlatformLauncherEntity,
+    PlatformLauncherEntity => PlatformLauncherEntity.launcher,
   )
-  platformLaunchers: PlatformLauncher[];
+  platformLaunchers: PlatformLauncherEntity[];
 }

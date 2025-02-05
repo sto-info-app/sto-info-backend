@@ -7,10 +7,10 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { User } from '../../user/entities/user.entity';
+import { UserEntity } from '../../user/entities/user.entity';
 
-@Entity()
-export class UserRefreshToken {
+@Entity({ name: 'user_refresh_token' })
+export class UserRefreshTokenEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -35,6 +35,6 @@ export class UserRefreshToken {
   @DeleteDateColumn()
   deletedAt: Date;
 
-  @ManyToOne(() => User, user => user.refreshTokens)
-  user: User;
+  @ManyToOne(() => UserEntity, user => user.refreshTokens)
+  user: UserEntity;
 }

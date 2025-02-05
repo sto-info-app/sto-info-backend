@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { PlatformLauncher } from './entities/platform-launcher.entity';
+import { PlatformLauncherEntity } from './entities/platform-launcher.entity';
 import { PlatformLauncherController } from './platform-launcher.controller';
 import { PlatformLauncherService } from './platform-launcher.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([PlatformLauncher])],
+  imports: [TypeOrmModule.forFeature([PlatformLauncherEntity])],
   controllers: [PlatformLauncherController],
   providers: [PlatformLauncherService],
   exports: [PlatformLauncherService],

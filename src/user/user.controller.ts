@@ -13,7 +13,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
-import { User } from './entities/user.entity';
+import { UserEntity } from './entities/user.entity';
 import { UserService } from './user.service';
 
 @ApiTags('App User')
@@ -27,10 +27,7 @@ export class UserController {
   @ApiBadRequestResponse({ description: 'The user cannot be found.' })
   @Get()
   @HttpCode(HttpStatus.OK)
-  async findUser(@Req() req): Promise<User> {
-    // const user: User = req.user; //NOTE: Force typing!
-    // return user;
-
+  async findUser(@Req() req): Promise<UserEntity> {
     return await this.userService.findById(req.user.id);
   }
 

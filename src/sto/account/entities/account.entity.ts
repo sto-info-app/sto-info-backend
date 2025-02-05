@@ -1,6 +1,6 @@
-import { Launcher } from 'src/sto/launcher/entities/launcher.entity';
-import { Platform } from 'src/sto/platform/entities/platform.entity';
-import { User } from 'src/user/entities/user.entity';
+import { LauncherEntity } from 'src/sto/launcher/entities/launcher.entity';
+import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
+import { UserEntity } from 'src/user/entities/user.entity';
 import {
   Column,
   CreateDateColumn,
@@ -12,8 +12,8 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-@Entity()
-export class Account {
+@Entity({ name: 'account' })
+export class AccountEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -26,13 +26,13 @@ export class Account {
   @Column({ length: 255, nullable: true })
   email: string;
 
-  @ManyToOne(() => Platform)
+  @ManyToOne(() => PlatformEntity)
   @JoinColumn({ name: 'platformId' })
-  platform: Platform;
+  platform: PlatformEntity;
 
-  @ManyToOne(() => Launcher)
+  @ManyToOne(() => LauncherEntity)
   @JoinColumn({ name: 'launcherId' })
-  launcher: Launcher;
+  launcher: LauncherEntity;
 
   @Column({ type: 'text', nullable: true })
   notes: string;
@@ -52,7 +52,7 @@ export class Account {
   @DeleteDateColumn()
   deletedAt: Date;
 
-  @ManyToOne(() => User, user => user.accounts, { onDelete: 'CASCADE' })
+  @ManyToOne(() => UserEntity, user => user.accounts, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userId' })
-  user: User;
+  user: UserEntity;
 }
