@@ -12,8 +12,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     if (!canActivate) {
       throw new UnauthorizedException();
     }
-    const request = context.switchToHttp().getRequest();
-    //console.log('decoded user', request.user); // This should be populated by the base guard
+    context.switchToHttp().getRequest();
     return true;
   }
 }

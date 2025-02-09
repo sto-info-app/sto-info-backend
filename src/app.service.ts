@@ -7,7 +7,7 @@ import { SecretsService } from './shared/secrets/secrets.service';
 export class AppService {
   private readonly logger = new Logger(AppService.name);
 
-  constructor(private secretsService: SecretsService) {}
+  constructor(private readonly secretsService: SecretsService) {}
 
   async getJwtSecret(): Promise<string> {
     try {
