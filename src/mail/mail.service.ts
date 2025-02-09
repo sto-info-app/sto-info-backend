@@ -3,6 +3,7 @@ import * as sgMail from '@sendgrid/mail';
 import * as ejs from 'ejs';
 import { convert as htmlToText } from 'html-to-text';
 import * as path from 'path';
+import { EMAIL_PATTERN } from 'src/shared/constants/regex-patterns.constants';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
 
 @Injectable()
@@ -246,7 +247,7 @@ export class MailService {
    * @returns True if the email format is valid, false otherwise.
    */
   validateEmailFormat(email: string): boolean {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailRegex = EMAIL_PATTERN;
     return emailRegex.test(email);
   }
 }
