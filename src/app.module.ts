@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { getTypeOrmConfig } from 'config/typeorm';
+import { getTypeOrmConfig } from 'config/typeorm.config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -27,9 +27,8 @@ import { UserModule } from './user/user.module';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => {
-        const secretsService = new SecretsService();
-        const { typeOrm } = await getTypeOrmConfig(secretsService);
-        return typeOrm;
+        const typeOrmConfig = await getTypeOrmConfig();
+        return typeOrmConfig;
       },
       inject: [ConfigService],
     }),

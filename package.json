@@ -22,8 +22,11 @@
     "test:cov": "set TZ=UTC&& jest --coverage",
     "test:debug": "set TZ=UTC&& node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "set TZ=UTC&& jest --config ./test/jest-e2e.json",
-    "typeorm": "ts-node ./run-typeorm.ts",
-    "migration:generate": "npm run typeorm"
+    "typeorm": "ts-node -r tsconfig-paths/register ./run-typeorm.ts",
+    "migration:generate": "npm run typeorm -- migration:generate",
+    "migration:run": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:run -d ./config/typeorm.datasource.ts",
+    "migration:revert": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:revert -d ./config/typeorm.datasource.ts",
+    "migration:show": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:show -d ./config/typeorm.datasource.ts"
   },
   "dependencies": {
     "@aws-sdk/client-secrets-manager": "^3.679.0",

@@ -7,15 +7,14 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { getTypeOrmConfig } from 'config/typeorm';
+import { connectionSourcePromise } from 'config/typeorm.datasource';
 import { AppModule } from './app.module';
 import { ConfigCheckService } from './config-check/config-check.service';
-import { SecretsService } from './shared/secrets/secrets.service';
 import { getAppVersion } from './shared/utilities/version.utility';
 
 async function bootstrap() {
   const configCheckService = new ConfigCheckService();
-  configCheckService.validateInput(process.env); // Vvalidate the environment variables
+  configCheckService.validateInput(process.env); // Validate the environment variables
 
   // Define rate limiting rules
   const apiLimiter = rateLimit({
@@ -29,14 +28,8 @@ async function bootstrap() {
   // Use environment vars
   const configService = app.get(ConfigService);
 
-  // Create an instance of SecretsService
-  const secretsService = new SecretsService();
-
-  // Get TypeORM configuration using SecretsService
-  //NOTE: Can use: const { typeOrm, connectionSource } = await getTypeOrmConfig(secretsService);
-  const { connectionSource } = await getTypeOrmConfig(secretsService);
-
   // Initialize the DataSource
+  const connectionSource = await connectionSourcePromise;
   await connectionSource.initialize();
 
   const appEnv = configService.get('NODE_ENV');
