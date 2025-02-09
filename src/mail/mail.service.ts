@@ -20,10 +20,30 @@ export class MailService {
     'email-templates',
   );
 
-  constructor(private readonly secretsService: SecretsService) {}
+  constructor(private readonly secretsService: SecretsService) {
+    this.validateEnvironmentVariables();
+  }
 
   /**
-   * Initialise the mail service when the module is initialized.
+   * Validate required environment variables.
+   * @throws Error if any required environment variable is not set.
+   */
+  private validateEnvironmentVariables() {
+    const requiredEnvVars = [
+      'APP_TITLE',
+      'SENDGRID_NOREPLY_SENDER',
+      'APP_FRONTEND_URL',
+      'AWS_SECRET_NAME',
+    ];
+    requiredEnvVars.forEach(envVar => {
+      if (!process.env[envVar]) {
+        throw new Error(`Environment variable ${envVar} is not set`);
+      }
+    });
+  }
+
+  /**
+   * Initialize the mail service by setting the SendGrid API key.
    */
   async onModuleInit() {
     await this.init();
@@ -41,24 +61,40 @@ export class MailService {
   }
 
   /**
-   * Send an email to the user to verify their email address.
-   * @param email
-   * @param token
+   * Generate email content from an EJS template.
+   * @param templateName The name of the EJS template file.
+   * @param templateData The data to be passed to the template.
+   * @returns An object containing the HTML and text content of the email.
    */
-  async sendVerificationEmail(email: string, token: string) {
+  private async generateEmailContent(templateName: string, templateData: any) {
     const emailHtmlContent = await ejs.renderFile(
-      path.join(this.emailTemplatePath, 'registration-verify-email.ejs'),
-      {
-        appTitle: process.env.APP_TITLE,
-        verifyUrl:
-          process.env.APP_FRONTEND_URL + '/verify-email?token=' + token,
-      },
+      path.join(this.emailTemplatePath, templateName),
+      templateData,
     );
     const emailTextContent = htmlToText(emailHtmlContent, {
       wordwrap: 130,
     });
 
-    const msg = {
+    return { emailHtmlContent, emailTextContent };
+  }
+
+  /**
+   * Send a verification email to the user.
+   * @param email The recipient's email address.
+   * @param token The verification token.
+   */
+  async sendVerificationEmail(email: string, token: string) {
+    if (!this.validateEmailFormat(email)) {
+      throw new Error('Invalid email format');
+    }
+
+    const { emailHtmlContent, emailTextContent } =
+      await this.generateEmailContent('registration-verify-email.ejs', {
+        appTitle: process.env.APP_TITLE,
+        verifyUrl: `${process.env.APP_FRONTEND_URL}/verify-email?token=${token}`,
+      });
+
+    const msg: sgMail.MailDataRequired = {
       to: email,
       from: this.noReplyEmailFromSender,
       subject: 'Please verify your email',
@@ -66,104 +102,106 @@ export class MailService {
       html: emailHtmlContent,
     };
 
-    try {
-      await sgMail.send(msg);
-    } catch (error) {
-      if (error.response) {
-        this.logger.error(error.response.body.errors);
-      } else {
-        this.logger.error(error);
-      }
-    }
+    await this.sendEmailViaSendGrid(msg);
   }
 
   /**
-   * Send an email to the user when the password reset has been requested.
-   * @param email
-   * @param token
-   * @param firstName
+   * Send a password reset email to the user.
+   * @param email The recipient's email address.
+   * @param token The password reset token.
+   * @param firstName The recipient's first name.
    */
   async sendPasswordResetEmail(
     email: string,
     token: string,
     firstName: string,
   ) {
-    const emailHtmlContent = await ejs.renderFile(
-      path.join(this.emailTemplatePath, 'password-reset-email.ejs'),
-      {
-        appTitle: process.env.APP_TITLE,
-        passwordResetUrl:
-          process.env.APP_FRONTEND_URL + '/change-password?token=' + token,
-        firstName: firstName,
-      },
-    );
-    const emailTextContent = htmlToText(emailHtmlContent, {
-      wordwrap: 130,
-    });
+    if (!this.validateEmailFormat(email)) {
+      throw new Error('Invalid email format');
+    }
 
-    const msg = {
+    const { emailHtmlContent, emailTextContent } =
+      await this.generateEmailContent('password-reset-email.ejs', {
+        appTitle: process.env.APP_TITLE,
+        passwordResetUrl: `${process.env.APP_FRONTEND_URL}/change-password?token=${token}`,
+        firstName: firstName,
+      });
+
+    const msg: sgMail.MailDataRequired = {
       to: email,
       from: this.noReplyEmailFromSender,
-      subject: 'Password reset for the ' + process.env.APP_TITLE,
+      subject: `Password reset for the ${process.env.APP_TITLE}`,
       text: emailTextContent,
       html: emailHtmlContent,
     };
 
-    try {
-      await sgMail.send(msg);
-    } catch (error) {
-      if (error.response) {
-        this.logger.error(error.response.body.errors);
-      } else {
-        this.logger.error(error);
-      }
-    }
+    await this.sendEmailViaSendGrid(msg);
   }
 
   /**
-   * Send an email to the user when the password has been changed.
-   * @param email
-   * @param firstName
+   * Send a password changed notification email to the user.
+   * @param email The recipient's email address.
+   * @param firstName The recipient's first name.
    */
   async sendPasswordChangedEmail(email: string, firstName: string) {
-    const emailHtmlContent = await ejs.renderFile(
-      path.join(this.emailTemplatePath, 'password-changed-email.ejs'),
-      {
+    if (!this.validateEmailFormat(email)) {
+      throw new Error('Invalid email format');
+    }
+
+    const { emailHtmlContent, emailTextContent } =
+      await this.generateEmailContent('password-changed-email.ejs', {
         appTitle: process.env.APP_TITLE,
         firstName: firstName,
-        passwordResetUrl: process.env.APP_FRONTEND_URL + '/reset-password',
-        contactUsUrl: process.env.APP_FRONTEND_URL + '/contact',
-      },
-    );
-    const emailTextContent = htmlToText(emailHtmlContent, {
-      wordwrap: 130,
-    });
+        passwordResetUrl: `${process.env.APP_FRONTEND_URL}/reset-password`,
+        contactUsUrl: `${process.env.APP_FRONTEND_URL}/contact`,
+      });
 
-    const msg = {
+    const msg: sgMail.MailDataRequired = {
       to: email,
       from: this.noReplyEmailFromSender,
-      subject: 'Password changed for the ' + process.env.APP_TITLE,
+      subject: `Password changed for the ${process.env.APP_TITLE}`,
       text: emailTextContent,
       html: emailHtmlContent,
     };
 
-    try {
-      await sgMail.send(msg);
-    } catch (error) {
-      if (error.response) {
-        this.logger.error(error.response.body.errors);
-      } else {
-        this.logger.error(error);
-      }
-    }
+    await this.sendEmailViaSendGrid(msg);
   }
 
   /**
-   * Send an email to the user.
-   * @param toEmail
-   * @param subject
-   * @param textContent
-   * @param htmlContent
+   * Send a password changed notification email to the user.
+   * @param email The recipient's email address.
+   * @param firstName The recipient's first name.
+   */
+  async sendUserLoggedInNotification(email: string, firstName: string) {
+    if (!this.validateEmailFormat(email)) {
+      throw new Error('Invalid email format');
+    }
+
+    const { emailHtmlContent, emailTextContent } =
+      await this.generateEmailContent('user-logged-in.ejs', {
+        appTitle: process.env.APP_TITLE,
+        firstName: firstName,
+        passwordResetUrl: `${process.env.APP_FRONTEND_URL}/reset-password`,
+        contactUsUrl: `${process.env.APP_FRONTEND_URL}/contact`,
+      });
+
+    const msg: sgMail.MailDataRequired = {
+      to: email,
+      from: this.noReplyEmailFromSender,
+      subject: `User logged in to ${process.env.APP_TITLE}`,
+      text: emailTextContent,
+      html: emailHtmlContent,
+    };
+
+    await this.sendEmailViaSendGrid(msg);
+  }
+
+  /**
+   * Send a generic email to a user.
+   * @param toEmail The recipient's email address.
+   * @param subject The subject of the email.
+   * @param textContent The plain text content of the email.
+   * @param htmlContent The HTML content of the email.
    */
   async sendEmailToUser(
     toEmail: string,
@@ -171,7 +209,11 @@ export class MailService {
     textContent: string,
     htmlContent: string,
   ) {
-    const msg = {
+    if (!this.validateEmailFormat(toEmail)) {
+      throw new Error('Invalid email format');
+    }
+
+    const msg: sgMail.MailDataRequired = {
       to: toEmail,
       from: this.noReplyEmailFromSender,
       subject: subject,
@@ -179,14 +221,32 @@ export class MailService {
       html: htmlContent,
     };
 
+    await this.sendEmailViaSendGrid(msg);
+  }
+
+  /**
+   * Send an email via SendGrid.
+   * @param msg The email message to send.
+   */
+  async sendEmailViaSendGrid(message: sgMail.MailDataRequired) {
     try {
-      await sgMail.send(msg);
+      await sgMail.send(message);
     } catch (error) {
-      if (error.response) {
+      if (error?.response?.body?.errors) {
         this.logger.error(error.response.body.errors);
       } else {
         this.logger.error(error);
       }
     }
+  }
+
+  /**
+   * Validate email format.
+   * @param email The email address to validate.
+   * @returns True if the email format is valid, false otherwise.
+   */
+  validateEmailFormat(email: string): boolean {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
   }
 }

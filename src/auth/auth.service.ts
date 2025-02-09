@@ -218,6 +218,11 @@ export class AuthService {
       expiresAt: this.calculateExpiryTime(expiryHours),
     });
 
+    await this.mailService.sendUserLoggedInNotification(
+      user.email,
+      user.firstName,
+    );
+
     return {
       access_token: this.jwtService.sign(payload),
       refresh_token: newUserRefreshToken,
