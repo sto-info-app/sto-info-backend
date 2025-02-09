@@ -3,6 +3,7 @@ import * as sgMail from '@sendgrid/mail';
 import * as ejs from 'ejs';
 import { convert as htmlToText } from 'html-to-text';
 import * as path from 'path';
+import { EMAIL_PATTERN } from 'src/shared/constants/regex-patterns.constants';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
 
 @Injectable()
@@ -94,13 +95,12 @@ export class MailService {
         verifyUrl: `${process.env.APP_FRONTEND_URL}/verify-email?token=${token}`,
       });
 
-    const msg: sgMail.MailDataRequired = {
-      to: email,
-      from: this.noReplyEmailFromSender,
-      subject: 'Please verify your email',
-      text: emailTextContent,
-      html: emailHtmlContent,
-    };
+    const msg = this.generateEmailMessageObject(
+      email,
+      'Please verify your email',
+      emailTextContent,
+      emailHtmlContent,
+    );
 
     await this.sendEmailViaSendGrid(msg);
   }
@@ -127,13 +127,12 @@ export class MailService {
         firstName: firstName,
       });
 
-    const msg: sgMail.MailDataRequired = {
-      to: email,
-      from: this.noReplyEmailFromSender,
-      subject: `Password reset for the ${process.env.APP_TITLE}`,
-      text: emailTextContent,
-      html: emailHtmlContent,
-    };
+    const msg = this.generateEmailMessageObject(
+      email,
+      `Password reset for the ${process.env.APP_TITLE}`,
+      emailTextContent,
+      emailHtmlContent,
+    );
 
     await this.sendEmailViaSendGrid(msg);
   }
@@ -144,10 +143,6 @@ export class MailService {
    * @param firstName The recipient's first name.
    */
   async sendPasswordChangedEmail(email: string, firstName: string) {
-    if (!this.validateEmailFormat(email)) {
-      throw new Error('Invalid email format');
-    }
-
     const { emailHtmlContent, emailTextContent } =
       await this.generateEmailContent('password-changed-email.ejs', {
         appTitle: process.env.APP_TITLE,
@@ -156,13 +151,12 @@ export class MailService {
         contactUsUrl: `${process.env.APP_FRONTEND_URL}/contact`,
       });
 
-    const msg: sgMail.MailDataRequired = {
-      to: email,
-      from: this.noReplyEmailFromSender,
-      subject: `Password changed for the ${process.env.APP_TITLE}`,
-      text: emailTextContent,
-      html: emailHtmlContent,
-    };
+    const msg = this.generateEmailMessageObject(
+      email,
+      `Password changed for the ${process.env.APP_TITLE}`,
+      emailTextContent,
+      emailHtmlContent,
+    );
 
     await this.sendEmailViaSendGrid(msg);
   }
@@ -173,10 +167,6 @@ export class MailService {
    * @param firstName The recipient's first name.
    */
   async sendUserLoggedInNotification(email: string, firstName: string) {
-    if (!this.validateEmailFormat(email)) {
-      throw new Error('Invalid email format');
-    }
-
     const { emailHtmlContent, emailTextContent } =
       await this.generateEmailContent('user-logged-in.ejs', {
         appTitle: process.env.APP_TITLE,
@@ -185,13 +175,12 @@ export class MailService {
         contactUsUrl: `${process.env.APP_FRONTEND_URL}/contact`,
       });
 
-    const msg: sgMail.MailDataRequired = {
-      to: email,
-      from: this.noReplyEmailFromSender,
-      subject: `User logged in to ${process.env.APP_TITLE}`,
-      text: emailTextContent,
-      html: emailHtmlContent,
-    };
+    const msg = this.generateEmailMessageObject(
+      email,
+      `User logged in to ${process.env.APP_TITLE}`,
+      emailTextContent,
+      emailHtmlContent,
+    );
 
     await this.sendEmailViaSendGrid(msg);
   }
@@ -209,17 +198,12 @@ export class MailService {
     textContent: string,
     htmlContent: string,
   ) {
-    if (!this.validateEmailFormat(toEmail)) {
-      throw new Error('Invalid email format');
-    }
-
-    const msg: sgMail.MailDataRequired = {
-      to: toEmail,
-      from: this.noReplyEmailFromSender,
-      subject: subject,
-      text: textContent,
-      html: htmlContent,
-    };
+    const msg = this.generateEmailMessageObject(
+      toEmail,
+      subject,
+      textContent,
+      htmlContent,
+    );
 
     await this.sendEmailViaSendGrid(msg);
   }
@@ -246,7 +230,35 @@ export class MailService {
    * @returns True if the email format is valid, false otherwise.
    */
   validateEmailFormat(email: string): boolean {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailRegex = EMAIL_PATTERN;
     return emailRegex.test(email);
+  }
+
+  /**
+   * Generate an email message object.
+   * @param to The recipient's email address.
+   * @param subject The subject of the email.
+   * @param text The plain text content of the email.
+   * @param html The HTML content of the email.
+   * @returns The email message object
+   * @see https://sendgrid.com/docs/API_Reference/Web_API_v3/Mail/index.html
+   */
+  generateEmailMessageObject(
+    to: string,
+    subject: string,
+    text: string,
+    html: string,
+  ): sgMail.MailDataRequired {
+    if (!this.validateEmailFormat(to)) {
+      throw new Error('Invalid email format');
+    }
+
+    return {
+      to,
+      from: this.noReplyEmailFromSender,
+      subject,
+      text,
+      html,
+    };
   }
 }
