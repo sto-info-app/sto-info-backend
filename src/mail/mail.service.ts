@@ -168,6 +168,35 @@ export class MailService {
   }
 
   /**
+   * Send a password changed notification email to the user.
+   * @param email The recipient's email address.
+   * @param firstName The recipient's first name.
+   */
+  async sendUserLoggedInNotification(email: string, firstName: string) {
+    if (!this.validateEmailFormat(email)) {
+      throw new Error('Invalid email format');
+    }
+
+    const { emailHtmlContent, emailTextContent } =
+      await this.generateEmailContent('user-logged-in.ejs', {
+        appTitle: process.env.APP_TITLE,
+        firstName: firstName,
+        passwordResetUrl: `${process.env.APP_FRONTEND_URL}/reset-password`,
+        contactUsUrl: `${process.env.APP_FRONTEND_URL}/contact`,
+      });
+
+    const msg: sgMail.MailDataRequired = {
+      to: email,
+      from: this.noReplyEmailFromSender,
+      subject: `User logged in to ${process.env.APP_TITLE}`,
+      text: emailTextContent,
+      html: emailHtmlContent,
+    };
+
+    await this.sendEmailViaSendGrid(msg);
+  }
+
+  /**
    * Send a generic email to a user.
    * @param toEmail The recipient's email address.
    * @param subject The subject of the email.
