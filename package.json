@@ -10,9 +10,9 @@
     "build": "nest build",
     "postbuild": "node src/views/copy-email-templates-to-dist.js",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "prestart": "rimraf dist && node src/views/copy-email-templates-to-dist.js",
+    "prestart": "rimraf dist && node src/views/copy-email-templates-to-dist.js && npm run migration:run",
     "start": "set TZ=UTC && npx nest start",
-    "prestart:dev": "node src/views/copy-email-templates-to-dist.js",
+    "prestart:dev": "rimraf dist && node src/views/copy-email-templates-to-dist.js && npm run migration:run",
     "start:dev": "set TZ=UTC&& nest start --watch",
     "start:debug": "set TZ=UTC&& nest start --debug --watch",
     "start:prod": "set TZ=UTC&& node dist/main",
@@ -22,8 +22,11 @@
     "test:cov": "set TZ=UTC&& jest --coverage",
     "test:debug": "set TZ=UTC&& node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "set TZ=UTC&& jest --config ./test/jest-e2e.json",
-    "typeorm": "ts-node ./run-typeorm.ts",
-    "migration:generate": "npm run typeorm"
+    "typeorm": "ts-node -r tsconfig-paths/register ./config/run-typeorm.ts",
+    "migration:generate": "npm run typeorm -- migration:generate",
+    "migration:run": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:run -d ./config/typeorm.datasource.ts",
+    "migration:revert": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:revert -d ./config/typeorm.datasource.ts",
+    "migration:show": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:show -d ./config/typeorm.datasource.ts"
   },
   "dependencies": {
     "@aws-sdk/client-secrets-manager": "^3.679.0",
@@ -91,7 +94,7 @@
     "supertest": "^7.0.0",
     "ts-jest": "^29.1.5",
     "ts-loader": "^9.5.1",
-    "tsconfig-paths": "4.2.0",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.5.3"
   },
   "jest": {

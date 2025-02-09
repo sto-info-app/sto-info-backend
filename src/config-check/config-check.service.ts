@@ -81,11 +81,11 @@ class EnvironmentVariables {
 
   @IsNotEmpty()
   @IsString()
-  TYPEORM_MIGRATIONS: string;
+  TYPEORM_ENTITIES: string;
 
   @IsNotEmpty()
   @IsString()
-  TYPEORM_MIGRATIONS_DIR: string;
+  TYPEORM_MIGRATIONS: string;
 
   @IsNotEmpty()
   @IsEmail()
