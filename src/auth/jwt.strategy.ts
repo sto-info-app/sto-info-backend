@@ -16,10 +16,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKeyProvider: async (request, rawJwtToken, done) => {
-        const secretObject = await this.secretsService.getSecret(
-          this.configService.get('AWS_SECRET_NAME'),
-        );
-        done(null, secretObject.jwtSecret);
+        try {
+          const secretObject = await this.secretsService.getSecret(
+            this.configService.get('AWS_SECRET_NAME'),
+          );
+          done(null, secretObject.jwtSecret);
+        } catch (error) {
+          done(error, null);
+        }
       },
     });
   }
