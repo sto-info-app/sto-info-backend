@@ -2,7 +2,7 @@ import { exec } from 'child_process';
 import { config as dotenvConfig } from 'dotenv';
 import 'tsconfig-paths/register';
 import { promisify } from 'util';
-import { connectionSourcePromise } from './config/typeorm.datasource';
+import { connectionSourcePromise } from './typeorm.datasource';
 
 const execAsync = promisify(exec);
 
