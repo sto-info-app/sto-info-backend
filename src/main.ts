@@ -53,61 +53,33 @@ async function bootstrap() {
     }),
   ); // Enable data validation with transform option
 
-  // Enable CORS (Cross-Origin Resource Sharing) based on the environment
   if (inLocal) {
-    app.use((req, res, next) => {
-      const origin = req.headers.origin as string;
-      if (localAllowedOrigins.includes(origin)) {
-        res.header('Access-Control-Allow-Origin', origin);
-      }
-      res.header('Access-Control-Allow-Credentials', 'true');
-      res.header('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT');
-      res.header(
-        'Access-Control-Allow-Headers',
-        'Origin, X-Requested-With, Content-Type, Accept, Authorization',
-      );
-      next();
-    });
+    // Local Dev CORS
     app.enableCors({
       origin: localAllowedOrigins,
       credentials: true,
-    }); // Enable CORS for localhost
-  } else if (inDevelopment) {
-    app.use((req, res, next) => {
-      const origin = req.headers.origin as string;
-      if (devAllowedOrigins.includes(origin)) {
-        res.header('Access-Control-Allow-Origin', origin);
-      }
-      res.header('Access-Control-Allow-Credentials', 'true');
-      res.header('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT');
-      res.header(
-        'Access-Control-Allow-Headers',
+      methods: 'GET,HEAD,OPTIONS,POST,PUT',
+      allowedHeaders:
         'Origin, X-Requested-With, Content-Type, Accept, Authorization',
-      );
-      next();
     });
+  } else if (inDevelopment) {
+    // Development CORS
     app.enableCors({
       origin: devAllowedOrigins,
       credentials: true,
-    }); // Enable CORS for Development environments
-  } else {
-    app.use((req, res, next) => {
-      const origin = req.headers.origin as string;
-      if (prodAllowedOrigins.includes(origin)) {
-        res.header('Access-Control-Allow-Origin', origin);
-      }
-      res.header('Access-Control-Allow-Credentials', 'true');
-      res.header('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT');
-      res.header(
-        'Access-Control-Allow-Headers',
+      methods: 'GET,HEAD,OPTIONS,POST,PUT',
+      allowedHeaders:
         'Origin, X-Requested-With, Content-Type, Accept, Authorization',
-      );
-      next();
     });
+  } else {
+    // Production CORS
     app.enableCors({
       origin: prodAllowedOrigins,
       credentials: true,
-    }); // Enable CORS for Production
+      methods: 'GET,HEAD,OPTIONS,POST,PUT',
+      allowedHeaders:
+        'Origin, X-Requested-With, Content-Type, Accept, Authorization',
+    });
   }
 
   app.use(helmet()); // Enable Helmet, a collection of 11 smaller middleware functions that set security-related HTTP headers
