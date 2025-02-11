@@ -85,6 +85,27 @@ async function bootstrap() {
   app.use(helmet()); // Enable Helmet, a collection of 11 smaller middleware functions that set security-related HTTP headers
   app.use('/', apiLimiter); // Apply rate limiting to all routes
 
+  // Add HTTP headers
+  app.use((req, res, next) => {
+    res.header(
+      'Cache-Control',
+      'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+    );
+    res.header('Pragma', 'no-cache');
+    res.header('Expires', '0');
+    res.header('Surrogate-Control', 'no-store');
+    res.header('Vary', '*');
+    res.header('X-Content-Type-Options', 'nosniff');
+    res.header('X-Frame-Options', 'DENY');
+    res.header('X-XSS-Protection', '1; mode=block');
+    res.header('Referrer-Policy', 'same-origin');
+    res.header(
+      'Content-Security-Policy',
+      "default-src 'self' *.startrekonline.info; script-src 'self' 'unsafe-inline' 'unsafe-eval' *.startrekonline.info; style-src 'self' 'unsafe-inline' *.startrekonline.info; img-src 'self' data: *.startrekonline.info; font-src 'self' data: *.startrekonline.info; connect-src 'self' *.startrekonline.info; frame-src 'self' *.startrekonline.info; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; manifest-src 'self'; worker-src 'self'; block-all-mixed-content;",
+    );
+    next();
+  });
+
   if (!inLocal) {
     app.set('trust proxy', 1); // Trust only the first proxy (Cloudflare used as a proxy) - needed for rate limiting
   }
