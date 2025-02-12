@@ -5,6 +5,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
+import { v4 as uuidv4 } from 'uuid';
 
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { connectionSourcePromise } from 'config/typeorm.datasource';
@@ -43,6 +44,15 @@ async function bootstrap() {
     'https://sto-info-frontend.onrender.com/',
   ];
   const prodAllowedOrigins = ['https://startrekonline.info'];
+
+  let allowedOrigins;
+  if (inLocal) {
+    allowedOrigins = localAllowedOrigins;
+  } else if (inDevelopment) {
+    allowedOrigins = devAllowedOrigins;
+  } else {
+    allowedOrigins = prodAllowedOrigins;
+  }
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -87,6 +97,23 @@ async function bootstrap() {
 
   // Add HTTP headers
   app.use((req, res, next) => {
+    // Nonce
+    const nonce = uuidv4(); // Generate a unique nonce for each request
+    res.locals.nonce = nonce; // Store nonce in response locals for use in templates
+
+    // Access-Control
+    const origin = req.headers.origin as string;
+    if (allowedOrigins.includes(origin)) {
+      res.header('Access-Control-Allow-Origin', origin);
+    }
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT');
+    res.header(
+      'Access-Control-Allow-Headers',
+      'Origin, X-Requested-With, Content-Type, Accept, Authorization',
+    );
+
+    // Security headers
     res.header(
       'Cache-Control',
       'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
@@ -101,8 +128,9 @@ async function bootstrap() {
     res.header('Referrer-Policy', 'same-origin');
     res.header(
       'Content-Security-Policy',
-      "default-src 'self' *.startrekonline.info; script-src 'self' 'unsafe-inline' 'unsafe-eval' *.startrekonline.info; style-src 'self' 'unsafe-inline' *.startrekonline.info; img-src 'self' data: *.startrekonline.info; font-src 'self' data: *.startrekonline.info; connect-src 'self' *.startrekonline.info; frame-src 'self' *.startrekonline.info; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; manifest-src 'self'; worker-src 'self'; block-all-mixed-content;",
+      "default-src 'self' *.startrekonline.info; script-src 'self' 'strict-dynamic' 'nonce-${res.locals.nonce}' 'unsafe-inline' *.startrekonline.info; style-src 'self' 'unsafe-inline' *.startrekonline.info; img-src 'self' data: *.startrekonline.info; font-src 'self' data: *.startrekonline.info; connect-src 'self' *.startrekonline.info; frame-src 'self' *.startrekonline.info; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; manifest-src 'self'; worker-src 'self'; block-all-mixed-content;",
     );
+
     next();
   });
 
