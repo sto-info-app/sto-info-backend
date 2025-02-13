@@ -5,11 +5,11 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
-import { v4 as uuidv4 } from 'uuid';
 
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { connectionSourcePromise } from 'config/typeorm.datasource';
 import { AppModule } from './app.module';
+import { NonceMiddleware } from './auth/nonce.middleware';
 import { ConfigCheckService } from './config-check/config-check.service';
 import { getAppVersion } from './shared/utilities/version.utility';
 
@@ -25,6 +25,9 @@ async function bootstrap() {
 
   // Create NestJS application
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Use the nonce middleware first
+  app.use(new NonceMiddleware().use);
 
   // Use environment vars
   const configService = app.get(ConfigService);
@@ -92,14 +95,10 @@ async function bootstrap() {
     });
   }
 
-  app.use(helmet()); // Enable Helmet, a collection of 11 smaller middleware functions that set security-related HTTP headers
-  app.use('/', apiLimiter); // Apply rate limiting to all routes
-
   // Add HTTP headers
   app.use((req, res, next) => {
-    // Nonce
-    const nonce = uuidv4(); // Generate a unique nonce for each request
-    res.locals.nonce = nonce; // Store nonce in response locals for use in templates
+    // Use the random nonce generated in the middleware
+    const nonce = res.locals.nonce;
 
     // Access-Control
     const origin = req.headers.origin as string;
@@ -130,11 +129,18 @@ async function bootstrap() {
     res.header('Referrer-Policy', 'same-origin'); // sets the Referrer-Policy to same-origin to prevent leaking of the referrer to external sites
     res.header(
       'Content-Security-Policy',
-      "default-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self' 'unsafe-inline';",
+      `default-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self' 'nonce-${nonce}' 'unsafe-inline';`,
     ); // sets the Content-Security-Policy to prevent various types of attacks
 
     next();
   });
+
+  app.use(
+    helmet({
+      contentSecurityPolicy: false, // Disable Helmet's default CSP middleware (allows us to set our own CSP as above including the nonce)
+    }),
+  ); // Enable Helmet, a collection of 11 smaller middleware functions that set security-related HTTP headers
+  app.use('/', apiLimiter); // Apply rate limiting to all routes
 
   if (!inLocal) {
     app.set('trust proxy', 1); // Trust only the first proxy (Cloudflare used as a proxy) - needed for rate limiting
