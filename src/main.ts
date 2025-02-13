@@ -5,6 +5,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
+import { v4 as uuidv4 } from 'uuid';
 
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { connectionSourcePromise } from 'config/typeorm.datasource';
@@ -44,6 +45,15 @@ async function bootstrap() {
   ];
   const prodAllowedOrigins = ['https://startrekonline.info'];
 
+  let allowedOrigins;
+  if (inLocal) {
+    allowedOrigins = localAllowedOrigins;
+  } else if (inDevelopment) {
+    allowedOrigins = devAllowedOrigins;
+  } else {
+    allowedOrigins = prodAllowedOrigins;
+  }
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true, // Strips non-whitelisted properties (those without validation decorators in the DTO)
@@ -53,65 +63,78 @@ async function bootstrap() {
     }),
   ); // Enable data validation with transform option
 
-  // Enable CORS (Cross-Origin Resource Sharing) based on the environment
   if (inLocal) {
-    app.use((req, res, next) => {
-      const origin = req.headers.origin as string;
-      if (localAllowedOrigins.includes(origin)) {
-        res.header('Access-Control-Allow-Origin', origin);
-      }
-      res.header('Access-Control-Allow-Credentials', 'true');
-      res.header('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT');
-      res.header(
-        'Access-Control-Allow-Headers',
-        'Origin, X-Requested-With, Content-Type, Accept, Authorization',
-      );
-      next();
-    });
+    // Local Dev CORS
     app.enableCors({
       origin: localAllowedOrigins,
       credentials: true,
-    }); // Enable CORS for localhost
-  } else if (inDevelopment) {
-    app.use((req, res, next) => {
-      const origin = req.headers.origin as string;
-      if (devAllowedOrigins.includes(origin)) {
-        res.header('Access-Control-Allow-Origin', origin);
-      }
-      res.header('Access-Control-Allow-Credentials', 'true');
-      res.header('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT');
-      res.header(
-        'Access-Control-Allow-Headers',
+      methods: 'GET,HEAD,OPTIONS,POST,PUT',
+      allowedHeaders:
         'Origin, X-Requested-With, Content-Type, Accept, Authorization',
-      );
-      next();
     });
+  } else if (inDevelopment) {
+    // Development CORS
     app.enableCors({
       origin: devAllowedOrigins,
       credentials: true,
-    }); // Enable CORS for Development environments
-  } else {
-    app.use((req, res, next) => {
-      const origin = req.headers.origin as string;
-      if (prodAllowedOrigins.includes(origin)) {
-        res.header('Access-Control-Allow-Origin', origin);
-      }
-      res.header('Access-Control-Allow-Credentials', 'true');
-      res.header('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT');
-      res.header(
-        'Access-Control-Allow-Headers',
+      methods: 'GET,HEAD,OPTIONS,POST,PUT',
+      allowedHeaders:
         'Origin, X-Requested-With, Content-Type, Accept, Authorization',
-      );
-      next();
     });
+  } else {
+    // Production CORS
     app.enableCors({
       origin: prodAllowedOrigins,
       credentials: true,
-    }); // Enable CORS for Production
+      methods: 'GET,HEAD,OPTIONS,POST,PUT',
+      allowedHeaders:
+        'Origin, X-Requested-With, Content-Type, Accept, Authorization',
+    });
   }
 
   app.use(helmet()); // Enable Helmet, a collection of 11 smaller middleware functions that set security-related HTTP headers
   app.use('/', apiLimiter); // Apply rate limiting to all routes
+
+  // Add HTTP headers
+  app.use((req, res, next) => {
+    // Nonce
+    const nonce = uuidv4(); // Generate a unique nonce for each request
+    res.locals.nonce = nonce; // Store nonce in response locals for use in templates
+
+    // Access-Control
+    const origin = req.headers.origin as string;
+    if (allowedOrigins.includes(origin)) {
+      res.header('Access-Control-Allow-Origin', origin);
+    }
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT');
+    res.header(
+      'Access-Control-Allow-Headers',
+      'Origin, X-Requested-With, Content-Type, Accept, Authorization',
+    );
+
+    // Caching headers
+    res.header(
+      'Cache-Control',
+      'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+    ); // sets Cache-Control HTTP header to no-store to prevent caching of the response
+    res.header('Pragma', 'no-cache'); // sets Pragma HTTP header to no-cache to prevent caching of the response
+    res.header('Expires', '0'); // sets Expires HTTP header to 0 to prevent caching of the response
+    res.header('Surrogate-Control', 'no-store'); // sets Surrogate-Control HTTP header to no-store to prevent caching of the response
+    res.header('Vary', '*'); // sets Vary HTTP header to * to prevent caching of the response
+
+    // Security headers
+    res.header('X-Content-Type-Options', 'nosniff'); // sets X-Content-Type-Options HTTP header to nosniff to prevent MIME type sniffing
+    res.header('X-Frame-Options', 'DENY'); // sets X-Frame-Options HTTP header to DENY to prevent clickjacking
+    res.header('X-XSS-Protection', '1; mode=block'); // enables XSS protection
+    res.header('Referrer-Policy', 'same-origin'); // sets the Referrer-Policy to same-origin to prevent leaking of the referrer to external sites
+    res.header(
+      'Content-Security-Policy',
+      "default-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self' 'unsafe-inline';",
+    ); // sets the Content-Security-Policy to prevent various types of attacks
+
+    next();
+  });
 
   if (!inLocal) {
     app.set('trust proxy', 1); // Trust only the first proxy (Cloudflare used as a proxy) - needed for rate limiting
