@@ -113,23 +113,25 @@ async function bootstrap() {
       'Origin, X-Requested-With, Content-Type, Accept, Authorization',
     );
 
-    // Security headers
+    // Caching headers
     res.header(
       'Cache-Control',
       'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
-    );
-    res.header('Pragma', 'no-cache');
-    res.header('Expires', '0');
-    res.header('Surrogate-Control', 'no-store');
-    res.header('Vary', '*');
-    res.header('X-Content-Type-Options', 'nosniff');
-    res.header('X-Frame-Options', 'DENY');
-    res.header('X-XSS-Protection', '1; mode=block');
-    res.header('Referrer-Policy', 'same-origin');
+    ); // sets Cache-Control HTTP header to no-store to prevent caching of the response
+    res.header('Pragma', 'no-cache'); // sets Pragma HTTP header to no-cache to prevent caching of the response
+    res.header('Expires', '0'); // sets Expires HTTP header to 0 to prevent caching of the response
+    res.header('Surrogate-Control', 'no-store'); // sets Surrogate-Control HTTP header to no-store to prevent caching of the response
+    res.header('Vary', '*'); // sets Vary HTTP header to * to prevent caching of the response
+
+    // Security headers
+    res.header('X-Content-Type-Options', 'nosniff'); // sets X-Content-Type-Options HTTP header to nosniff to prevent MIME type sniffing
+    res.header('X-Frame-Options', 'DENY'); // sets X-Frame-Options HTTP header to DENY to prevent clickjacking
+    res.header('X-XSS-Protection', '1; mode=block'); // enables XSS protection
+    res.header('Referrer-Policy', 'same-origin'); // sets the Referrer-Policy to same-origin to prevent leaking of the referrer to external sites
     res.header(
       'Content-Security-Policy',
-      "default-src 'self' *.startrekonline.info; script-src 'self' 'strict-dynamic' 'nonce-${res.locals.nonce}' 'unsafe-inline' *.startrekonline.info; style-src 'self' 'unsafe-inline' *.startrekonline.info; img-src 'self' data: *.startrekonline.info; font-src 'self' data: *.startrekonline.info; connect-src 'self' *.startrekonline.info; frame-src 'self' *.startrekonline.info; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; manifest-src 'self'; worker-src 'self'; block-all-mixed-content;",
-    );
+      "default-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self' 'unsafe-inline';",
+    ); // sets the Content-Security-Policy to prevent various types of attacks
 
     next();
   });
