@@ -130,7 +130,7 @@ async function bootstrap() {
     res.header('Referrer-Policy', 'same-origin'); // sets the Referrer-Policy to same-origin to prevent leaking of the referrer to external sites
     res.header(
       'Content-Security-Policy',
-      `default-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self' 'nonce-${nonce}' 'unsafe-inline';`,
+      `default-src 'none'; frame-ancestors 'none'; content-type-options nosniff; style-src 'self'; img-src 'self'; script-src 'self' 'nonce-${nonce}';`,
     ); // sets the Content-Security-Policy to prevent various types of attacks
 
     next();
