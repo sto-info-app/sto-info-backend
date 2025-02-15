@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
+import { NextFunction, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 
@@ -96,13 +97,13 @@ async function bootstrap() {
   }
 
   // Add HTTP headers
-  app.use((req, res, next) => {
+  app.use((req: Request, res: Response, next: NextFunction) => {
     // Use the random nonce generated in the middleware
-    const nonce = res.locals.nonce;
+    const nonce: string = res.locals.nonce;
 
     // Access-Control
-    const origin = req.headers.origin as string;
-    if (allowedOrigins.includes(origin)) {
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
       res.header('Access-Control-Allow-Origin', origin);
     }
     res.header('Access-Control-Allow-Credentials', 'true');
@@ -129,7 +130,7 @@ async function bootstrap() {
     res.header('Referrer-Policy', 'same-origin'); // sets the Referrer-Policy to same-origin to prevent leaking of the referrer to external sites
     res.header(
       'Content-Security-Policy',
-      `default-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self' 'nonce-${nonce}' 'unsafe-inline';`,
+      `default-src 'none'; frame-ancestors 'none'; content-type-options nosniff; style-src 'self'; img-src 'self'; script-src 'self' 'nonce-${nonce}';`,
     ); // sets the Content-Security-Policy to prevent various types of attacks
 
     next();
