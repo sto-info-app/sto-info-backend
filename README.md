@@ -129,6 +129,10 @@ The analysis results will be available on the SonarQube dashboard.
 
 This project is licensed under the MIT Licence. See the [LICENCE](LICENCE) file for more information.
 
+## Intellectual Property Rights
+
+This app respects the copyright and intellectual property rights of Star Trek Online and Star Trek. CBS Studios Inc. owns STAR TREK, and Cryptic Studios Inc owns STAR TREK ONLINE with all their related marks, logos and characters.
+
 ## Contact
 
 For any enquiries, please contact us at [support@startrekonline.info](mailto:support@startrekonline.info).
