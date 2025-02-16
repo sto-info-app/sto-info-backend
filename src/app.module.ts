@@ -11,6 +11,7 @@ import { MailModule } from './mail/mail.module';
 import { MailService } from './mail/mail.service';
 import { SecretsModule } from './shared/secrets/secrets.module';
 import { SecretsService } from './shared/secrets/secrets.service';
+import { ValidatorsService } from './shared/utilities/validators.service';
 import { AccountModule } from './sto/account/account.module';
 import { LauncherModule } from './sto/launcher/launcher.module';
 import { PlatformLauncherModule } from './sto/platform-launcher/platform-launcher.module';
@@ -44,6 +45,12 @@ import { UserModule } from './user/user.module';
     DatabaseModule,
   ],
   controllers: [AppController],
-  providers: [AppService, MailService, SecretsService, ConfigCheckService],
+  providers: [
+    AppService,
+    MailService,
+    SecretsService,
+    ConfigCheckService,
+    ValidatorsService,
+  ],
 })
 export class AppModule {}
