@@ -1,3 +1,4 @@
+import { IsUUID } from 'class-validator';
 import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { PlatformLauncherEntity } from 'src/sto/platform-launcher/entities/platform-launcher.entity';
 import {
@@ -13,6 +14,7 @@ import {
 @Entity({ name: 'launcher' })
 export class LauncherEntity {
   @PrimaryGeneratedColumn('uuid')
+  @IsUUID()
   id: string;
 
   @Column({ length: 50, nullable: false, unique: true })

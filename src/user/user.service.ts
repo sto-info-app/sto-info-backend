@@ -1,6 +1,7 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
+import { ValidatorsService } from 'src/shared/utilities/validators.service';
 import { Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -11,9 +12,27 @@ export class UserService {
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
+
+    private readonly validatorsService: ValidatorsService,
   ) {}
 
   async create(createUserDto: CreateUserDto): Promise<UserEntity> {
+    if (!this.validateEmailUsername(createUserDto.email)) {
+      throw new HttpException('Invalid email', HttpStatus.BAD_REQUEST);
+    }
+
+    if (!createUserDto.password) {
+      throw new HttpException('Invalid password', HttpStatus.BAD_REQUEST);
+    }
+
+    if (
+      await this.userRepository.findOne({
+        where: { email: createUserDto.email },
+      })
+    ) {
+      throw new HttpException('Email already in use', HttpStatus.BAD_REQUEST);
+    }
+
     const user = new UserEntity();
     user.email = createUserDto.email;
     user.password = await bcrypt.hash(
@@ -27,11 +46,14 @@ export class UserService {
     return newUser;
   }
 
-  async seedUser(user: UserEntity): Promise<UserEntity> {
-    return await this.userRepository.save(user);
-  }
-
   async update(id: string, post: UpdateUserDto): Promise<UserEntity> {
+    if (!id || !this.validatorsService.validateUuid(id)) {
+      throw new HttpException(
+        'Invalid username and password',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
     await this.userRepository.update(id, post);
     const updatedUser = await this.userRepository.findOne({
       where: { id: id },
@@ -47,6 +69,13 @@ export class UserService {
   }
 
   async delete(id: string) {
+    if (!id || !this.validatorsService.validateUuid(id)) {
+      throw new HttpException(
+        'Invalid username and password',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
     const deletedUser = await this.userRepository.softDelete(id);
     if (!deletedUser.affected) {
       throw new HttpException(
@@ -57,20 +86,31 @@ export class UserService {
   }
 
   async findById(id: string): Promise<UserEntity> {
+    if (!id || !this.validatorsService.validateUuid(id)) {
+      throw new HttpException(
+        'Invalid username and password',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
     return await this.userRepository.findOne({
       where: {
         id: id,
       },
-      // relations: [
-      //   'accounts',
-      //   'accounts.platform',
-      //   'accounts.launcher',
-      // ],
+      relations: [
+        'profile',
+        // 'accounts',
+        // 'accounts.platform',
+        // 'accounts.launcher',
+      ],
     });
   }
 
   async findByEmail(email: string): Promise<UserEntity> {
-    return await this.userRepository.findOne({ where: { email: email } });
+    return await this.userRepository.findOne({
+      where: { email: email },
+      relations: ['profile'],
+    });
   }
 
   async updateUserEmailVerifiedStatus(
@@ -102,5 +142,12 @@ export class UserService {
 
   async findByPayload(payload: any): Promise<UserEntity | null> {
     return await this.userRepository.findOne({ where: { id: payload.sub } });
+  }
+
+  validateEmailUsername(email: string): boolean {
+    if (!email) {
+      return false;
+    }
+    return this.validatorsService.validateEmail(email);
   }
 }

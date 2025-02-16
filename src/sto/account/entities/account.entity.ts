@@ -1,3 +1,4 @@
+import { IsUUID } from 'class-validator';
 import { LauncherEntity } from 'src/sto/launcher/entities/launcher.entity';
 import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
@@ -15,6 +16,7 @@ import {
 @Entity({ name: 'account' })
 export class AccountEntity {
   @PrimaryGeneratedColumn('uuid')
+  @IsUUID()
   id: string;
 
   @Column({ length: 255, nullable: false })
@@ -40,7 +42,7 @@ export class AccountEntity {
   @Column()
   accountCreatedDate: Date;
 
-  @Column({ default: false })
+  @Column({ default: true })
   publiclyVisible: boolean;
 
   @CreateDateColumn()

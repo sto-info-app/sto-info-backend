@@ -3,8 +3,8 @@ import * as sgMail from '@sendgrid/mail';
 import * as ejs from 'ejs';
 import { convert as htmlToText } from 'html-to-text';
 import * as path from 'path';
-import { EMAIL_PATTERN } from 'src/shared/constants/regex-patterns.constants';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
+import { ValidatorsService } from 'src/shared/utilities/validators.service';
 
 @Injectable()
 export class MailService {
@@ -21,7 +21,10 @@ export class MailService {
     'email-templates',
   );
 
-  constructor(private readonly secretsService: SecretsService) {
+  constructor(
+    private readonly secretsService: SecretsService,
+    private readonly validatorsService: ValidatorsService,
+  ) {
     this.validateEnvironmentVariables();
   }
 
@@ -230,8 +233,10 @@ export class MailService {
    * @returns True if the email format is valid, false otherwise.
    */
   validateEmailFormat(email: string): boolean {
-    const emailRegex = EMAIL_PATTERN;
-    return emailRegex.test(email);
+    if (!email) {
+      return false;
+    }
+    return this.validatorsService.validateEmail(email);
   }
 
   /**
