@@ -218,6 +218,9 @@ export class AuthService {
       expiresAt: this.calculateExpiryTime(expiryHours),
     });
 
+    user.lastLogin = new Date();
+    await this.userRepository.save(user);
+
     await this.mailService.sendUserLoggedInNotification(
       user.email,
       user.firstName,
