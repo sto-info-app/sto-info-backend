@@ -56,6 +56,19 @@ You need to create a secret in AWS Secrets Manager with the following JSON:
 }
 ```
 
+### Database
+
+This application uses PostreSQL. Create the database and schema, everything will be set up using TypeORM migrations and data seeding when the app is started.
+
+Migration commands are as follows:
+
+```sh
+npm run migration:generate -- -n <NameOfMigration>
+npm run migration:run
+npm run migration:revert
+npm run migration:show
+```
+
 ### Running the Application
 
 Start the development server:
