@@ -3,6 +3,7 @@ node_modules/
 
 # Environment files
 *.env
+!config/environments/template.env
 
 # Logs
 logs/
