@@ -1,6 +1,6 @@
 import * as bcrypt from 'bcrypt';
 import { Exclude } from 'class-transformer';
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsNotEmpty, IsString, IsUUID } from 'class-validator';
 import {
   BeforeInsert,
   Column,
@@ -8,6 +8,7 @@ import {
   DeleteDateColumn,
   Entity,
   OneToMany,
+  OneToOne,
   PrimaryColumn,
   Unique,
   UpdateDateColumn,
@@ -15,36 +16,24 @@ import {
 import { v4 as uuid } from 'uuid';
 import { AccountEntity } from '../../sto/account/entities/account.entity';
 import { UserRefreshTokenEntity } from '../../user-refresh-token/entities/user-refresh-token.entity';
+import { UserProfileEntity } from './user-profile.entity';
 
 @Entity({ name: 'user' })
-@Unique(['email', 'username'])
+@Unique(['email'])
 export class UserEntity {
   @PrimaryColumn('uuid')
   @IsNotEmpty()
-  @IsString()
+  @IsUUID()
   id: string;
 
   @IsString()
+  @IsNotEmpty()
   @Column({ length: 255, nullable: false, unique: true })
   email: string;
 
-  @IsString()
-  @Column({ length: 255, nullable: true, unique: true })
-  username: string;
-
-  @IsString()
-  @Column({ length: 255, nullable: true })
-  firstName: string;
-
-  @IsString()
-  @Column({ length: 255, nullable: true })
-  lastName: string;
-
-  @Column({ nullable: true })
-  profilePicture: string;
-
   @Exclude()
   @IsString()
+  @IsNotEmpty()
   @Column({ length: 255, nullable: false })
   password: string;
 
@@ -60,7 +49,7 @@ export class UserEntity {
   emailVerificationTokenExpiry: Date;
 
   @Column({ nullable: true })
-  lastLogin: Date;
+  lastLoginAt: Date;
 
   @Column({ nullable: true })
   lastPasswordReset: Date;
@@ -103,6 +92,9 @@ export class UserEntity {
 
   @OneToMany(() => AccountEntity, account => account.user)
   accounts: AccountEntity[];
+
+  @OneToOne(() => UserProfileEntity, profile => profile.user, { cascade: true })
+  profile: UserProfileEntity;
 
   async comparePassword(password: string): Promise<boolean> {
     return bcrypt.compare(password, this.password);

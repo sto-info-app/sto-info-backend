@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   HttpCode,
+  HttpException,
   HttpStatus,
   Req,
   UseGuards,
@@ -28,6 +29,9 @@ export class UserController {
   @Get()
   @HttpCode(HttpStatus.OK)
   async findUser(@Req() req): Promise<UserEntity> {
+    if (!req.user?.id) {
+      throw new HttpException('User not found', HttpStatus.BAD_REQUEST);
+    }
     return await this.userService.findById(req.user.id);
   }
 
