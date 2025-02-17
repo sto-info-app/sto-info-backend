@@ -13,9 +13,16 @@ npm-debug.log*
 # Build files
 dist/
 
-# Editor directories and files
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.history/*
+
+# Other editor directories and files
 .idea/
-.vscode/
 *.suo
 *.ntvs*
 *.njsproj

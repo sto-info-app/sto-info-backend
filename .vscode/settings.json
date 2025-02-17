@@ -1,0 +1,17 @@
+{
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "Prettier-SQL.SQLFlavourOverride": "postgresql",
+  "editor.formatOnSave": true,
+  "[sql]": {
+    "editor.defaultFormatter": "inferrinizzard.prettier-sql-vscode"
+  },
+  "typescript.suggest.paths": false,
+  "javascript.suggest.paths": false,
+  "cSpell.language": "en-GB",
+  "cSpell.words": ["nosniff", "vars"],
+  "sonarlint.connectedMode.project": {
+    "connectionId": "steverobertsuk",
+    "projectKey": "steverobertsuk_sto-info-backend"
+  }
+}
