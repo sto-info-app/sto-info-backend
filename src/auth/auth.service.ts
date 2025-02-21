@@ -11,6 +11,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
+import { instanceToPlain } from 'class-transformer';
 import * as crypto from 'crypto';
 import * as ejs from 'ejs';
 import { convert as htmlToText } from 'html-to-text';
@@ -53,11 +54,11 @@ export class AuthService {
    * @throws InternalServerErrorException if an unexpected error occurs.
    */
   async register(userRegistration: CreateUserDto): Promise<UserEntity> {
-    if (await this.doesEmailExist(userRegistration.email)) {
+    if (await this.userService.doesEmailExist(userRegistration.email)) {
       throw new ConflictException('Email already in use');
     }
 
-    if (await this.doesUsernameExist(userRegistration.username)) {
+    if (await this.userService.doesUsernameExist(userRegistration.username)) {
       throw new ConflictException('Username already in use');
     }
 
@@ -220,13 +221,9 @@ export class AuthService {
   async validateUser(email: string, password: string): Promise<any> {
     const user = await this.userService.findByEmail(email);
     if (user && (await user.comparePassword(password))) {
-      // Update last login time
-      user.lastLoginAt = new Date();
+      user.lastLoginAt = new Date(); // Update last login time
       await this.userService.update(user.id, user);
-
-      // Remove password from user object before returning it
-      const { password, ...result } = user;
-      return result;
+      return instanceToPlain(user);
     }
     return null;
   }
@@ -315,34 +312,6 @@ export class AuthService {
       refresh_token: newUserRefreshToken,
       expires_in: +process.env.AUTH_TOKEN_EXPIRES_IN,
     };
-  }
-
-  /**
-   * Checks if a username already exists in the user profile repository.
-   *
-   * @param username - The username to check for existence.
-   * @returns A promise that resolves to a boolean indicating whether the username exists.
-   */
-  async doesUsernameExist(username: string): Promise<boolean> {
-    const count = await this.userProfileRepository
-      .createQueryBuilder('user_profile')
-      .where('LOWER(user_profile.username) = LOWER(:username)', { username })
-      .getCount();
-    return count > 0;
-  }
-
-  /**
-   * Checks if an email already exists in the user repository.
-   *
-   * @param email - The email to check for existence.
-   * @returns A promise that resolves to a boolean indicating whether the email exists.
-   */
-  async doesEmailExist(email: string): Promise<boolean> {
-    const count = await this.userRepository
-      .createQueryBuilder('user')
-      .where('LOWER(user.email) = LOWER(:email)', { email })
-      .getCount();
-    return count > 0;
   }
 
   /**

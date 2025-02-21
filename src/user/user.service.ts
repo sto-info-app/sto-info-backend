@@ -4,7 +4,9 @@ import * as bcrypt from 'bcrypt';
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
 import { Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UserProfileEntity } from './entities/user-profile.entity';
 import { UserEntity } from './entities/user.entity';
 
 @Injectable()
@@ -12,6 +14,9 @@ export class UserService {
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
+
+    @InjectRepository(UserProfileEntity)
+    private readonly userProfileRepository: Repository<UserProfileEntity>,
 
     private readonly validatorsService: ValidatorsService,
   ) {}
@@ -149,5 +154,99 @@ export class UserService {
       return false;
     }
     return this.validatorsService.validateEmail(email);
+  }
+
+  async updateUserProfile(
+    userId: string,
+    userProfileData: UpdateUserProfileDto,
+  ): Promise<{ affected: number; updatedProfile: UserProfileEntity }> {
+    if (!userId || !this.validatorsService.validateUuid(userId)) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['profile'],
+    });
+
+    if (!user) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    if (!user.profile?.userId || user.profile.userId !== userId) {
+      throw new HttpException('User data not found', HttpStatus.NOT_FOUND);
+    }
+
+    const isProfileUnchanged = Object.keys(userProfileData).every(
+      key => user.profile[key] === userProfileData[key],
+    );
+
+    if (isProfileUnchanged) {
+      return { affected: 0, updatedProfile: user.profile };
+    }
+
+    if (userProfileData.username !== user.profile.username) {
+      const usernameExists = await this.doesUsernameExist(
+        userProfileData.username,
+      );
+      if (usernameExists) {
+        throw new HttpException('Username already exists', HttpStatus.CONFLICT);
+      }
+    }
+
+    const updateResult = await this.userProfileRepository.update(
+      userId,
+      userProfileData,
+    );
+    if (updateResult.affected === 0) {
+      throw new HttpException(
+        'User profile update failed',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    const updatedProfile = await this.userProfileRepository.findOne({
+      where: { userId: userId },
+    });
+
+    if (!updatedProfile) {
+      throw new HttpException(
+        'Updated profile not found',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    return {
+      affected: updateResult.affected,
+      updatedProfile: updatedProfile,
+    };
+  }
+
+  /**
+   * Checks if a username already exists in the user profile repository.
+   *
+   * @param username - The username to check for existence.
+   * @returns A promise that resolves to a boolean indicating whether the username exists.
+   */
+  async doesUsernameExist(username: string): Promise<boolean> {
+    const count = await this.userProfileRepository
+      .createQueryBuilder('user_profile')
+      .where('LOWER(user_profile.username) = LOWER(:username)', { username })
+      .getCount();
+    return count > 0;
+  }
+
+  /**
+   * Checks if an email already exists in the user repository.
+   *
+   * @param email - The email to check for existence.
+   * @returns A promise that resolves to a boolean indicating whether the email exists.
+   */
+  async doesEmailExist(email: string): Promise<boolean> {
+    const count = await this.userRepository
+      .createQueryBuilder('user')
+      .where('LOWER(user.email) = LOWER(:email)', { email })
+      .getCount();
+    return count > 0;
   }
 }
