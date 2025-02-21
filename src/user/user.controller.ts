@@ -4,6 +4,7 @@ import {
   HttpCode,
   HttpException,
   HttpStatus,
+  Post,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -13,7 +14,10 @@ import {
   ApiOkResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { instanceToPlain } from 'class-transformer';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
+import { UpdatedUserProfileResultDto } from './dto/updated-user-profile-result.dto';
 import { UserEntity } from './entities/user.entity';
 import { UserService } from './user.service';
 
@@ -35,31 +39,23 @@ export class UserController {
     return await this.userService.findById(req.user.id);
   }
 
-  // @Post()
-  // @ApiBody({ type: CreateUserDto })
-  // @ApiResponse({ status: 201, type: User })
-  // @HttpCode(HttpStatus.OK)
-  // async create(@Body() createUserDto: CreateUserDto) {
-  //   return await this.userService.create(createUserDto);
-  // }
+  @ApiOkResponse({ description: 'Successfully updated the user profile.' })
+  @ApiBadRequestResponse({ description: 'Invalid user data provided.' })
+  @Post('update-profile')
+  @HttpCode(HttpStatus.OK)
+  async updateUserProfile(@Req() req): Promise<UpdatedUserProfileResultDto> {
+    const userProfileData: UpdateUserProfileDto = req.body;
+    if (!userProfileData) {
+      throw new HttpException('User data is required', HttpStatus.BAD_REQUEST);
+    }
+    const result = await this.userService.updateUserProfile(
+      req.user.id,
+      userProfileData,
+    );
 
-  // @ApiOkResponse({ description: 'Successfully found the user.' })
-  // @ApiBadRequestResponse({ description: 'The user cannot be found.' })
-  // @Get(':id')
-  // @HttpCode(HttpStatus.OK)
-  // findById(@Param('id') id: string) {
-  //   return this.userService.findById(id);
-  // }
-
-  // @Patch(':id')
-  // @HttpCode(HttpStatus.OK)
-  // update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-  //   return this.userService.update(id, updateUserDto);
-  // }
-
-  // @Delete(':id')
-  // @HttpCode(HttpStatus.OK)
-  // remove(@Param('id') id: string) {
-  //   return this.userService.delete(id);
-  // }
+    return new UpdatedUserProfileResultDto(
+      result.affected,
+      instanceToPlain(result.updatedProfile),
+    );
+  }
 }
