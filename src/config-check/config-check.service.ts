@@ -106,6 +106,24 @@ class EnvironmentVariables {
   @IsNotEmpty()
   @IsString()
   AWS_SECRET_NAME: string;
+
+  @IsNotEmpty()
+  @ValidateIf(o => !o.CLOUDFLARE_R2_ENDPOINT.startsWith('https://'))
+  @IsUrl()
+  CLOUDFLARE_R2_ENDPOINT: string;
+
+  @IsNotEmpty()
+  @IsString()
+  CLOUDFLARE_R2_BUCKET_NAME: string;
+
+  @IsNotEmpty()
+  @ValidateIf(o => !o.CLOUDFLARE_CDN_ROOT_URL.startsWith('https://'))
+  @IsUrl()
+  CLOUDFLARE_CDN_ROOT_URL: string;
+
+  @IsNotEmpty()
+  @IsNumber()
+  MAX_IMAGE_SIZE_IN_BYTES: number;
 }
 
 @Injectable()

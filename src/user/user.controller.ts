@@ -6,8 +6,12 @@ import {
   HttpStatus,
   Post,
   Req,
+  UploadedFile,
+  UseFilters,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -15,7 +19,10 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { instanceToPlain } from 'class-transformer';
+import { diskStorage, Multer } from 'multer';
+import { extname } from 'path';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 import { UpdatedUserProfileResultDto } from './dto/updated-user-profile-result.dto';
 import { UserEntity } from './entities/user.entity';
@@ -56,6 +63,64 @@ export class UserController {
     return new UpdatedUserProfileResultDto(
       result.affected,
       instanceToPlain(result.updatedProfile),
+    );
+  }
+
+  @ApiOkResponse({
+    description: 'Successfully updated the user profile picture.',
+  })
+  @ApiBadRequestResponse({ description: 'Invalid image provided.' })
+  @Post('update-profile-pic')
+  @HttpCode(HttpStatus.OK)
+  @UseFilters(FileSizeExceptionFilter)
+  @UseInterceptors(
+    FileInterceptor('profilePicture', {
+      storage: diskStorage({
+        destination: './uploads/profile-pics',
+        filename: (_req, file, cb) => {
+          const uniqueSuffix =
+            Date.now() + '-' + Math.round(Math.random() * 1e9);
+          cb(
+            null,
+            `${file.fieldname}-${uniqueSuffix}${extname(file.originalname)}`,
+          );
+        },
+      }),
+      fileFilter: (_req, file, cb) => {
+        const allowedMimeTypes = ['image/png', 'image/jpg', 'image/jpeg'];
+        if (allowedMimeTypes.includes(file.mimetype)) {
+          cb(null, true);
+        } else {
+          cb(
+            new HttpException(
+              'Invalid file type. Only PNG, JPG, or JPEGs are allowed.',
+              HttpStatus.BAD_REQUEST,
+            ),
+            false,
+          );
+        }
+      },
+      limits: {
+        fileSize: +process.env.MAX_IMAGE_SIZE_IN_BYTES,
+      },
+    }),
+  )
+  async updateUserProfilePic(
+    @Req() req,
+    @UploadedFile() file: Multer.File,
+  ): Promise<UpdatedUserProfileResultDto> {
+    if (!file) {
+      throw new HttpException('Image file is required', HttpStatus.BAD_REQUEST);
+    }
+
+    const result = await this.userService.uploadProfilePicture(
+      req.user.id,
+      file,
+    );
+
+    return new UpdatedUserProfileResultDto(
+      result.affected,
+      instanceToPlain(result),
     );
   }
 }

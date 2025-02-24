@@ -1,11 +1,14 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
+import { Multer } from 'multer';
+import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
 import { Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdatedUserProfileResultDto } from './dto/updated-user-profile-result.dto';
 import { UserProfileEntity } from './entities/user-profile.entity';
 import { UserEntity } from './entities/user.entity';
 
@@ -19,6 +22,7 @@ export class UserService {
     private readonly userProfileRepository: Repository<UserProfileEntity>,
 
     private readonly validatorsService: ValidatorsService,
+    private readonly imageUploadsService: ImageUploadsService,
   ) {}
 
   async create(createUserDto: CreateUserDto): Promise<UserEntity> {
@@ -248,5 +252,59 @@ export class UserService {
       .where('LOWER(user.email) = LOWER(:email)', { email })
       .getCount();
     return count > 0;
+  }
+
+  /**
+   * Uploads a profile picture for a user.
+   * @param userId - The ID of the user.
+   * @param file - The file to be uploaded.
+   * @returns An object containing the result of the upload.
+   */
+  async uploadProfilePicture(
+    userId: string,
+    file: Multer.File,
+  ): Promise<UpdatedUserProfileResultDto> {
+    if (!userId || !this.validatorsService.validateUuid(userId)) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['profile'],
+    });
+
+    if (!user) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    const cdnImageUrl = await this.imageUploadsService.uploadImage(
+      userId,
+      file,
+    );
+
+    user.profile.profilePicture = cdnImageUrl;
+
+    if (!user.profile.profilePicture) {
+      throw new HttpException(
+        'Profile picture upload failed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+
+    const updatedUserProfile = await this.userProfileRepository.save(
+      user.profile,
+    );
+
+    if (!updatedUserProfile.profilePicture) {
+      throw new HttpException(
+        'Profile picture upload failed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+
+    return {
+      affected: updatedUserProfile ? 1 : 0,
+      userProfileData: updatedUserProfile,
+    };
   }
 }
