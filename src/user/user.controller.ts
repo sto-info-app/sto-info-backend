@@ -19,7 +19,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { instanceToPlain } from 'class-transformer';
-import { diskStorage, Multer } from 'multer';
+import { memoryStorage, Multer } from 'multer';
 import { extname } from 'path';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
@@ -75,17 +75,7 @@ export class UserController {
   @UseFilters(FileSizeExceptionFilter)
   @UseInterceptors(
     FileInterceptor('profilePicture', {
-      storage: diskStorage({
-        destination: './uploads/profile-pics',
-        filename: (_req, file, cb) => {
-          const uniqueSuffix =
-            Date.now() + '-' + Math.round(Math.random() * 1e9);
-          cb(
-            null,
-            `${file.fieldname}-${uniqueSuffix}${extname(file.originalname)}`,
-          );
-        },
-      }),
+      storage: memoryStorage(),
       fileFilter: (_req, file, cb) => {
         const allowedMimeTypes = ['image/png', 'image/jpg', 'image/jpeg'];
         if (allowedMimeTypes.includes(file.mimetype)) {
@@ -112,6 +102,9 @@ export class UserController {
     if (!file) {
       throw new HttpException('Image file is required', HttpStatus.BAD_REQUEST);
     }
+
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    file.filename = `${file.fieldname}-${uniqueSuffix}${extname(file.originalname)}`;
 
     const result = await this.userService.uploadProfilePicture(
       req.user.id,

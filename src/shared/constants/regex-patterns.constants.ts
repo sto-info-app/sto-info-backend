@@ -19,3 +19,6 @@ export const USERNAME_PATTERN = new RegExp(
 export const PASSWORD_PATTERN = new RegExp(
   `^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[^a-zA-Z0-9\n\r\t]).{${MIN_CHARS_PASSWORD},${MAX_CHARS_PASSWORD}}$`,
 );
+
+export const SAFE_FILENAME_PATTERN = /^[a-zA-Z0-9._-]+$/;
+export const UNSAFE_FILENAME_PATTERN = /[^a-zA-Z0-9._-]/g;

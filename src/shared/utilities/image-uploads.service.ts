@@ -1,9 +1,11 @@
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { BadRequestException, Injectable, UploadedFile } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { promises as fs } from 'fs';
 import { File as MulterFile } from 'multer';
-import * as path from 'path';
+import {
+  SAFE_FILENAME_PATTERN,
+  UNSAFE_FILENAME_PATTERN,
+} from '../constants/regex-patterns.constants';
 import { SecretsService } from '../secrets/secrets.service';
 
 @Injectable()
@@ -83,47 +85,31 @@ export class ImageUploadsService {
       throw new BadRequestException('File too large');
     }
 
-    if (!file?.path) {
-      throw new BadRequestException('File path is missing');
+    if (!file?.buffer) {
+      throw new BadRequestException('File buffer is missing');
     }
 
-    if (!file?.filename) {
+    if (!file?.filename && !file?.originalname) {
       throw new BadRequestException('File name is missing');
     }
 
-    const imagePath = path.join(process.cwd(), file.path);
-    try {
-      await fs.access(imagePath);
-    } catch (error) {
-      throw new BadRequestException(
-        'File does not exist at the specified path',
-      );
-    }
-
-    let fileBuffer: Buffer;
-
-    try {
-      const fullPath = path.resolve(imagePath);
-
-      try {
-        await fs.access(fullPath);
-      } catch (error) {
-        console.error(`File does not exist at path: ${fullPath}`);
-        throw new BadRequestException('File not found or could not be read');
-      }
-
-      fileBuffer = await fs.readFile(fullPath);
-    } catch (error) {
-      console.error(`Error reading file: ${error.message}`);
-      throw new BadRequestException('File not found or could not be read');
-    }
+    const fileBuffer = file.buffer;
 
     if (!fileBuffer || fileBuffer.length === 0) {
       throw new BadRequestException('No image data provided');
     }
 
+    // Sanitize the filename using the SAFE_FILENAME_PATTERN
+    const safeFileName = (file.filename || file.originalname).replace(
+      UNSAFE_FILENAME_PATTERN,
+      '_',
+    );
+    if (!SAFE_FILENAME_PATTERN.test(safeFileName)) {
+      throw new BadRequestException('Invalid characters in file name');
+    }
+
     // Prepare the Cloudflare key (path and filename within the bucket)
-    const fileKey = `${this.environment}/${userId}/${file.filename}`;
+    const fileKey = `${this.environment}/${userId}/${safeFileName}`;
 
     // Prepare the command to upload the file to R2
     const command = new PutObjectCommand({
