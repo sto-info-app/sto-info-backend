@@ -1,4 +1,8 @@
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { BadRequestException, Injectable, UploadedFile } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { File as MulterFile } from 'multer';
@@ -63,7 +67,7 @@ export class ImageUploadsService {
    * Upload a image to Cloudflare R2.
    * @param userId The user ID
    * @param file The image to upload
-   * @returns The key of the uploaded image
+   * @returns The URL of the uploaded image
    */
   async uploadImage(userId: string, @UploadedFile() file: MulterFile) {
     if (!userId) {
@@ -124,5 +128,35 @@ export class ImageUploadsService {
 
     const imageUrl = `${process.env.CLOUDFLARE_CDN_ROOT_URL}/${fileKey}`;
     return imageUrl;
+  }
+
+  /**
+   * Delete an image from Cloudflare R2.
+   * @param userId The user ID
+   * @param profileUrl The URL of the image to delete
+   * @returns The key of the deleted image
+   */
+  async deleteImage(userId: string, profileUrl: string) {
+    if (!userId) {
+      throw new BadRequestException('User ID is missing');
+    }
+
+    if (!profileUrl) {
+      throw new BadRequestException('Profile URL is missing');
+    }
+
+    const fileKey = profileUrl.replace(
+      `${process.env.CLOUDFLARE_CDN_ROOT_URL}/`,
+      '',
+    );
+
+    const command = new DeleteObjectCommand({
+      Bucket: this.bucketName,
+      Key: fileKey,
+    });
+
+    await this.s3Client.send(command);
+
+    return fileKey;
   }
 }

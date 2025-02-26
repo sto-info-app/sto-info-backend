@@ -277,6 +277,8 @@ export class UserService {
       throw new HttpException('User not found', HttpStatus.NOT_FOUND);
     }
 
+    const existingProfilePictureUrl = user.profile.profilePicture;
+
     const cdnImageUrl = await this.imageUploadsService.uploadImage(
       userId,
       file,
@@ -299,6 +301,13 @@ export class UserService {
       throw new HttpException(
         'Profile picture upload failed',
         HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+
+    if (existingProfilePictureUrl) {
+      await this.imageUploadsService.deleteImage(
+        userId,
+        existingProfilePictureUrl,
       );
     }
 
