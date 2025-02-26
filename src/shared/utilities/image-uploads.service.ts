@@ -9,6 +9,7 @@ import { SecretsService } from '../secrets/secrets.service';
 @Injectable()
 export class ImageUploadsService {
   private readonly bucketName: string;
+  private readonly environment: string;
 
   constructor(
     private readonly secretsService: SecretsService,
@@ -18,6 +19,7 @@ export class ImageUploadsService {
     this.bucketName = this.configService.get<string>(
       'CLOUDFLARE_R2_BUCKET_NAME',
     );
+    this.environment = this.configService.get<string>('NODE_ENV');
   }
 
   /**
@@ -121,7 +123,7 @@ export class ImageUploadsService {
     }
 
     // Prepare the Cloudflare key (path and filename within the bucket)
-    const fileKey = `${userId}/${file.filename}`;
+    const fileKey = `${this.environment}/${userId}/${file.filename}`;
 
     // Prepare the command to upload the file to R2
     const command = new PutObjectCommand({
