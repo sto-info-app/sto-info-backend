@@ -136,7 +136,7 @@ export class ImageUploadsService {
     // Upload to Cloudflare R2
     await this.s3Client.send(command);
 
-    const imageUrl = `${process.env.CLOUDFLARE_CDN_ROOT_URL}/${this.bucketName}/${fileKey}`;
+    const imageUrl = `${process.env.CLOUDFLARE_CDN_ROOT_URL}/${fileKey}`;
     return imageUrl;
   }
 }
