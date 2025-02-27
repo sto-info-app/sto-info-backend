@@ -5,6 +5,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { BadRequestException, Injectable, UploadedFile } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as cloudmersiveVirusApiClient from 'cloudmersive-virus-api-client';
 import { File as MulterFile } from 'multer';
 import {
   SAFE_FILENAME_PATTERN,
@@ -16,6 +17,7 @@ import { SecretsService } from '../secrets/secrets.service';
 export class ImageUploadsService {
   private readonly bucketName: string;
   private readonly environment: string;
+  private cloudmersiveApiKey: string;
 
   constructor(
     private readonly secretsService: SecretsService,
@@ -37,6 +39,8 @@ export class ImageUploadsService {
 
   /**
    * Initialise the mail service.
+   * @throws BadRequestException if the Cloudflare R2 access key or secret is missing
+   * @throws BadRequestException if the Cloudmersive API key is missing
    */
   private async init() {
     const secretObject = await this.secretsService.getSecret(
@@ -52,6 +56,10 @@ export class ImageUploadsService {
       );
     }
 
+    if (!secretObject?.cloudmersiveApiKey) {
+      throw new BadRequestException('Missing Cloudmersive API key');
+    }
+
     // Initialise the S3 client with Cloudflare R2 endpoint and credentials
     this.s3Client = new S3Client({
       region: 'auto',
@@ -61,10 +69,43 @@ export class ImageUploadsService {
         secretAccessKey: secretObject.cloudflareR2Secret,
       },
     });
+
+    this.cloudmersiveApiKey = secretObject.cloudmersiveApiKey;
   }
 
   /**
-   * Upload a image to Cloudflare R2.
+   * Scan the file for viruses using Cloudmersive.
+   * @param fileBuffer The buffer of the file to scan
+   * @throws BadRequestException if the file is infected
+   */
+  private async scanFileForViruses(fileBuffer: Buffer): Promise<void> {
+    const apiClient = cloudmersiveVirusApiClient.ApiClient.instance;
+    const apiKey = apiClient.authentications['Apikey'];
+    apiKey.apiKey = this.cloudmersiveApiKey;
+
+    const virusApi = new cloudmersiveVirusApiClient.ScanApi();
+
+    const scanResult: { FoundViruses: string[] } = await new Promise(
+      (resolve, reject) => {
+        virusApi.scanFile(fileBuffer, (error, data) => {
+          if (error) {
+            reject(new Error(error));
+          } else {
+            resolve(data);
+          }
+        });
+      },
+    );
+
+    if (scanResult.FoundViruses && scanResult.FoundViruses.length > 0) {
+      throw new BadRequestException(
+        `File is infected with viruses: ${scanResult.FoundViruses.join(', ')}`,
+      );
+    }
+  }
+
+  /**
+   * Upload an image to Cloudflare R2.
    * @param userId The user ID
    * @param file The image to upload
    * @returns The URL of the uploaded image
@@ -102,6 +143,9 @@ export class ImageUploadsService {
     if (!fileBuffer || fileBuffer.length === 0) {
       throw new BadRequestException('No image data provided');
     }
+
+    // Scan the file for viruses
+    await this.scanFileForViruses(fileBuffer);
 
     // Sanitize the filename using the SAFE_FILENAME_PATTERN
     const safeFileName = (file.filename || file.originalname).replace(
