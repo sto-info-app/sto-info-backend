@@ -104,8 +104,7 @@ export class UserController {
       throw new HttpException('Image file is required', HttpStatus.BAD_REQUEST);
     }
 
-    const uniqueSuffix =
-      Date.now().toString() + '-' + Math.random().toString(36).substring(2, 15);
+    const uniqueSuffix = Date.now().toString() + '-' + crypto.randomUUID();
     file.filename = `${file.fieldname}-${uniqueSuffix}${extname(file.originalname)}`;
 
     const result = await this.userService.uploadProfilePicture(
