@@ -92,6 +92,7 @@ export class UserController {
       },
       limits: {
         fileSize: +process.env.MAX_IMAGE_SIZE_IN_BYTES,
+        files: 1,
       },
     }),
   )
