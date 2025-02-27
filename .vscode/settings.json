@@ -9,7 +9,16 @@
   "typescript.suggest.paths": false,
   "javascript.suggest.paths": false,
   "cSpell.language": "en-GB",
-  "cSpell.words": ["nosniff", "vars"],
+  "cSpell.words": [
+    "Apikey",
+    "Cloudmersive",
+    "jwtid",
+    "nosniff",
+    "sendgrid",
+    "throttler",
+    "uuidv4",
+    "vars"
+  ],
   "sonarlint.connectedMode.project": {
     "connectionId": "steverobertsuk",
     "projectKey": "steverobertsuk_sto-info-backend"

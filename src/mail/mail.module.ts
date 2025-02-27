@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
-import { SecretsModule } from 'src/shared/secrets/secrets.module';
+import { SharedModule } from 'src/shared/shared.module';
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
 import { MailService } from './mail.service';
 
 @Module({
-  imports: [SecretsModule],
+  imports: [SharedModule],
   providers: [MailService, ValidatorsService],
   exports: [MailService, ValidatorsService],
 })

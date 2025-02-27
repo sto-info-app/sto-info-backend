@@ -33,3 +33,6 @@ dist/
 # Miscellaneous
 .DS_Store
 Thumbs.db
+
+# Uploads
+uploads/

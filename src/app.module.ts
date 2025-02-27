@@ -1,3 +1,4 @@
+import { S3Client } from '@aws-sdk/client-s3';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -9,8 +10,9 @@ import { ConfigCheckService } from './config-check/config-check.service';
 import { DatabaseModule } from './database/database.module';
 import { MailModule } from './mail/mail.module';
 import { MailService } from './mail/mail.service';
-import { SecretsModule } from './shared/secrets/secrets.module';
 import { SecretsService } from './shared/secrets/secrets.service';
+import { SharedModule } from './shared/shared.module';
+import { ImageUploadsService } from './shared/utilities/image-uploads.service';
 import { ValidatorsService } from './shared/utilities/validators.service';
 import { AccountModule } from './sto/account/account.module';
 import { LauncherModule } from './sto/launcher/launcher.module';
@@ -27,7 +29,7 @@ import { UserModule } from './user/user.module';
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => {
+      useFactory: async () => {
         const typeOrmConfig = await getTypeOrmConfig();
         return typeOrmConfig;
       },
@@ -36,7 +38,7 @@ import { UserModule } from './user/user.module';
     UserModule,
     AuthModule,
     MailModule,
-    SecretsModule,
+    SharedModule,
     UserRefreshTokenModule,
     AccountModule,
     PlatformModule,
@@ -46,11 +48,13 @@ import { UserModule } from './user/user.module';
   ],
   controllers: [AppController],
   providers: [
+    S3Client,
     AppService,
     MailService,
     SecretsService,
     ConfigCheckService,
     ValidatorsService,
+    ImageUploadsService,
   ],
 })
 export class AppModule {}

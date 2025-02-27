@@ -4,8 +4,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { MailModule } from 'src/mail/mail.module';
 import { MailService } from 'src/mail/mail.service';
-import { SecretsModule } from 'src/shared/secrets/secrets.module';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
+import { SharedModule } from 'src/shared/shared.module';
 import { UserRefreshTokenModule } from 'src/user-refresh-token/user-refresh-token.module';
 import { UserModule } from '../user/user.module';
 import { AuthController } from './auth.controller';
@@ -18,9 +18,9 @@ import { LocalStrategy } from './local.strategy';
   imports: [
     UserModule,
     PassportModule,
-    SecretsModule,
+    SharedModule,
     JwtModule.registerAsync({
-      imports: [ConfigModule, SecretsModule, UserRefreshTokenModule],
+      imports: [ConfigModule, SharedModule, UserRefreshTokenModule],
       inject: [ConfigService, SecretsService],
       useFactory: async (
         configService: ConfigService,
