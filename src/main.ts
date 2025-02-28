@@ -19,9 +19,24 @@ async function bootstrap() {
   configCheckService.validateInput(process.env); // Validate the environment variables
 
   // Define rate limiting rules
+  const rateLimitWindowMins = 5; // Rate limiting window set to 5 minutes
+  const rateLimitMaxRequests = 50; // Maximum number of requests per IP within the window
+  const rateLimitMessage = `Too many requests from this IP, please try again after ${rateLimitWindowMins} minutes`;
+
   const apiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // Rate limiting window set to 15 minutes
-    max: 100, // Maximum number of requests per IP within the window
+    windowMs: rateLimitWindowMins * 60 * 1000, // Rate limiting window set to milliseconds
+    max: rateLimitMaxRequests, // Maximum number of requests per IP within the window
+    message: rateLimitMessage,
+    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+    handler: (_req, res) => {
+      res.status(429).json({
+        status: 429,
+        error: 'Too many requests',
+        message: rateLimitMessage,
+      });
+    },
+    skipSuccessfulRequests: false, // Count all requests, including successful ones
   });
 
   // Create NestJS application
@@ -128,10 +143,41 @@ async function bootstrap() {
     res.header('X-Frame-Options', 'DENY'); // sets X-Frame-Options HTTP header to DENY to prevent clickjacking
     res.header('X-XSS-Protection', '1; mode=block'); // enables XSS protection
     res.header('Referrer-Policy', 'same-origin'); // sets the Referrer-Policy to same-origin to prevent leaking of the referrer to external sites
-    res.header(
-      'Content-Security-Policy',
-      `default-src 'none'; frame-ancestors 'none'; content-type-options nosniff; style-src 'self'; img-src 'self'; script-src 'self' 'nonce-${nonce}';`,
-    ); // sets the Content-Security-Policy to prevent various types of attacks
+
+    // Use a more relaxed CSP for Swagger, otherwise use the strict one
+
+    const isSwagger = req.originalUrl.startsWith('/swagger');
+    if (isSwagger) {
+      // Allow inline styles and external fonts for swagger
+      let fontsProtocol = 'https';
+      let connectSrcUrl =
+        'https://sto-info-backend.onrender.com https://dev-api.startrekonline.info';
+      if (inLocal) {
+        fontsProtocol = 'http';
+        connectSrcUrl = 'http://localhost:3000';
+      }
+
+      res.header(
+        'Content-Security-Policy',
+        `default-src 'none'; ` +
+          `frame-ancestors 'none'; ` +
+          `style-src 'self' 'unsafe-inline' ${fontsProtocol}://fonts.googleapis.com; ` +
+          `font-src 'self' ${fontsProtocol}://fonts.gstatic.com; ` +
+          `img-src 'self' data: blob:; ` +
+          `script-src 'self' 'unsafe-inline'; ` +
+          `connect-src 'self' ${connectSrcUrl};`,
+      );
+    } else {
+      // Sets the Content-Security-Policy to prevent various types of attacks
+      res.header(
+        'Content-Security-Policy',
+        `default-src 'none'; ` +
+          `frame-ancestors 'none'; ` +
+          `style-src 'self'; ` +
+          `img-src 'self'; ` +
+          `script-src 'self' 'nonce-${nonce}';`,
+      );
+    }
 
     next();
   });
