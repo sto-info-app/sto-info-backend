@@ -38,7 +38,7 @@ export class ImageUploadsService {
   }
 
   /**
-   * Initialise the mail service.
+   * Initialise the image uploads service.
    * @throws BadRequestException if the Cloudflare R2 access key or secret is missing
    * @throws BadRequestException if the Cloudmersive API key is missing
    */
