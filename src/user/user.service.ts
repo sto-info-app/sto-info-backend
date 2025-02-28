@@ -277,12 +277,16 @@ export class UserService {
       throw new HttpException('User not found', HttpStatus.NOT_FOUND);
     }
 
-    const existingProfilePictureUrl = user.profile.profilePicture;
+    const existingProfilePictureId = user.profile.profilePictureId;
 
-    const cdnImageUrl =
-      await this.imageUploadsService.uploadImageToCloudflareR2(userId, file);
+    const { customImageUrl, imageId } =
+      await this.imageUploadsService.uploadImageToCloudflareImages(
+        userId,
+        file,
+      );
 
-    user.profile.profilePicture = cdnImageUrl;
+    user.profile.profilePicture = customImageUrl;
+    user.profile.profilePictureId = imageId;
 
     if (!user.profile.profilePicture) {
       throw new HttpException(
@@ -302,10 +306,9 @@ export class UserService {
       );
     }
 
-    if (existingProfilePictureUrl) {
-      await this.imageUploadsService.deleteImageFromCloudflareR2(
-        userId,
-        existingProfilePictureUrl,
+    if (existingProfilePictureId) {
+      await this.imageUploadsService.deleteImageFromCloudflareImages(
+        existingProfilePictureId,
       );
     }
 

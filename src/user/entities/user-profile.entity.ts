@@ -36,6 +36,10 @@ export class UserProfileEntity {
   @Column({ nullable: true, default: null })
   profilePicture: string;
 
+  @IsOptional()
+  @Column({ nullable: true, default: null })
+  profilePictureId: string;
+
   @Column({ default: false })
   publiclyVisible: boolean;
 
