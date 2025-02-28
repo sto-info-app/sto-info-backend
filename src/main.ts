@@ -19,9 +19,24 @@ async function bootstrap() {
   configCheckService.validateInput(process.env); // Validate the environment variables
 
   // Define rate limiting rules
+  const rateLimitWindowMins = 5; // Rate limiting window set to 5 minutes
+  const rateLimitMaxRequests = 50; // Maximum number of requests per IP within the window
+  const rateLimitMessage = `Too many requests from this IP, please try again after ${rateLimitWindowMins} minutes`;
+
   const apiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // Rate limiting window set to 15 minutes
-    max: 100, // Maximum number of requests per IP within the window
+    windowMs: rateLimitWindowMins * 60 * 1000, // Rate limiting window set to milliseconds
+    max: rateLimitMaxRequests, // Maximum number of requests per IP within the window
+    message: rateLimitMessage,
+    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+    handler: (_req, res) => {
+      res.status(429).json({
+        status: 429,
+        error: 'Too many requests',
+        message: rateLimitMessage,
+      });
+    },
+    skipSuccessfulRequests: false, // Count all requests, including successful ones
   });
 
   // Create NestJS application
