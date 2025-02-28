@@ -279,10 +279,8 @@ export class UserService {
 
     const existingProfilePictureUrl = user.profile.profilePicture;
 
-    const cdnImageUrl = await this.imageUploadsService.uploadImage(
-      userId,
-      file,
-    );
+    const cdnImageUrl =
+      await this.imageUploadsService.uploadImageToCloudflareR2(userId, file);
 
     user.profile.profilePicture = cdnImageUrl;
 
@@ -305,7 +303,7 @@ export class UserService {
     }
 
     if (existingProfilePictureUrl) {
-      await this.imageUploadsService.deleteImage(
+      await this.imageUploadsService.deleteImageFromCloudflareR2(
         userId,
         existingProfilePictureUrl,
       );

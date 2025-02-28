@@ -110,7 +110,10 @@ export class ImageUploadsService {
    * @param file The image to upload
    * @returns The URL of the uploaded image
    */
-  async uploadImage(userId: string, @UploadedFile() file: MulterFile) {
+  async uploadImageToCloudflareR2(
+    userId: string,
+    @UploadedFile() file: MulterFile,
+  ) {
     if (!userId) {
       throw new BadRequestException('User ID is missing');
     }
@@ -175,21 +178,21 @@ export class ImageUploadsService {
   }
 
   /**
-   * Delete an image from Cloudflare R2.
+   * Delete an image from the Cloudflare R2 bucket.
    * @param userId The user ID
-   * @param profileUrl The URL of the image to delete
+   * @param imageUrl The URL of the image to delete
    * @returns The key of the deleted image
    */
-  async deleteImage(userId: string, profileUrl: string) {
+  async deleteImageFromCloudflareR2(userId: string, imageUrl: string) {
     if (!userId) {
       throw new BadRequestException('User ID is missing');
     }
 
-    if (!profileUrl) {
-      throw new BadRequestException('Profile URL is missing');
+    if (!imageUrl) {
+      throw new BadRequestException('Image URL is missing');
     }
 
-    const fileKey = profileUrl.replace(
+    const fileKey = imageUrl.replace(
       `${process.env.CLOUDFLARE_CDN_ROOT_URL}/`,
       '',
     );
