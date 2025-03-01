@@ -335,7 +335,8 @@ export class AuthService {
    * Requests a password reset for the user with the provided email.
    * @param email - The user's email.
    * @returns A promise that resolves when the password reset email has been sent.
-   * @throws BadRequestException if the email is invalid.
+   * @throws BadRequestException if the email is invalid or is not found.
+   * @throws BadRequestException if a password reset has already been requested.
    */
   async requestPasswordReset(email: string): Promise<void> {
     const emailPattern = EMAIL_PATTERN;
@@ -345,6 +346,7 @@ export class AuthService {
 
     const user = await this.userService.findByEmail(email);
     if (!user) {
+      throw new BadRequestException('Invalid request'); //NOTE: Changed from NotFoundException to not show if email exists
     }
 
     if (user.passwordResetToken && new Date() < user.passwordResetTokenExpiry) {
