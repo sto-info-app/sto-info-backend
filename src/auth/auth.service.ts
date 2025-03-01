@@ -17,6 +17,7 @@ import * as ejs from 'ejs';
 import { convert as htmlToText } from 'html-to-text';
 import * as path from 'path';
 import { MailService } from 'src/mail/mail.service';
+import { EMAIL_PATTERN } from 'src/shared/constants/regex-patterns.constants';
 import { UserRefreshTokenService } from 'src/user-refresh-token/user-refresh-token.service';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { UserLoginDto } from 'src/user/dto/user-login.dto';
@@ -334,9 +335,14 @@ export class AuthService {
    * Requests a password reset for the user with the provided email.
    * @param email - The user's email.
    * @returns A promise that resolves when the password reset email has been sent.
-   * @throws NotFoundException if the email is invalid.
+   * @throws BadRequestException if the email is invalid.
    */
   async requestPasswordReset(email: string): Promise<void> {
+    const emailPattern = EMAIL_PATTERN;
+    if (!emailPattern.test(email)) {
+      throw new BadRequestException('Invalid request');
+    }
+
     const user = await this.userService.findByEmail(email);
     if (!user) {
     }
