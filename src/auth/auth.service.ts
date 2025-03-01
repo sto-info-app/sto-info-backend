@@ -339,7 +339,10 @@ export class AuthService {
   async requestPasswordReset(email: string): Promise<void> {
     const user = await this.userService.findByEmail(email);
     if (!user) {
-      throw new NotFoundException('Invalid email');
+    }
+
+    if (user.passwordResetToken && new Date() < user.passwordResetTokenExpiry) {
+      throw new BadRequestException('Password reset already requested');
     }
 
     const passwordResetToken = this.generateToken();
