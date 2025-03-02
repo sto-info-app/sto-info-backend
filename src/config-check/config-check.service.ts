@@ -122,6 +122,10 @@ class EnvironmentVariables {
   CLOUDFLARE_CDN_ROOT_URL: string;
 
   @IsNotEmpty()
+  @IsString()
+  CLOUDFLARE_IMAGES_HASH: string;
+
+  @IsNotEmpty()
   @IsNumber()
   MAX_IMAGE_SIZE_IN_BYTES: number;
 }
