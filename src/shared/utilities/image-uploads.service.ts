@@ -74,6 +74,7 @@ export class ImageUploadsService {
       },
     });
 
+    // Set the variables from the AWS Secrets object
     this.cloudmersiveApiKey = secretObject.cloudmersiveApiKey;
     this.cloudflareImagesAccountId = secretObject.cloudflareImagesAccountId;
     this.cloudflareImagesApiKey = secretObject.cloudflareImagesApiKey;
@@ -139,8 +140,7 @@ export class ImageUploadsService {
     // Upload to Cloudflare R2
     await this.s3Client.send(command);
 
-    const imageUrl = `${process.env.CLOUDFLARE_CDN_ROOT_URL}/${fileKey}`;
-    return imageUrl;
+    return fileKey;
   }
 
   /**
@@ -198,7 +198,11 @@ export class ImageUploadsService {
     // Append metadata as a JSON string
     formData.append(
       'metadata',
-      JSON.stringify({ userId, originalFileName: safeFileName }),
+      JSON.stringify({
+        userId,
+        originalFileName: safeFileName,
+        env: this.environment,
+      }),
     );
 
     try {
@@ -220,20 +224,13 @@ export class ImageUploadsService {
         },
       );
 
-      if (response.status !== 200) {
+      if (response?.status !== 200 || !response?.data?.result?.id) {
         throw new BadRequestException(
           'Failed to upload image to Cloudflare Images',
         );
       }
 
-      const imageUrl = response.data.result.variants[0]; // Get the URL of the uploaded image
-      const imageId = response.data.result.id; // Get the ID of the uploaded image
-      const customImageUrl = imageUrl.replace(
-        'https://imagedelivery.net',
-        `${process.env.CLOUDFLARE_CDN_ROOT_URL}/cdn-cgi/imagedelivery`,
-      );
-
-      return { customImageUrl, imageId };
+      return response.data.result.id as string; // Get the ID of the uploaded image
     } catch (error) {
       console.error(
         'Error uploading image to Cloudflare Images:',

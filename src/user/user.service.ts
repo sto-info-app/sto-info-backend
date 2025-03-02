@@ -279,16 +279,13 @@ export class UserService {
 
     const existingProfilePictureId = user.profile.profilePictureId;
 
-    const { customImageUrl, imageId } =
+    user.profile.profilePictureId =
       await this.imageUploadsService.uploadImageToCloudflareImages(
         userId,
         file,
       );
 
-    user.profile.profilePicture = customImageUrl;
-    user.profile.profilePictureId = imageId;
-
-    if (!user.profile.profilePicture) {
+    if (!user.profile.profilePictureId) {
       throw new HttpException(
         'Profile picture upload failed',
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -299,7 +296,7 @@ export class UserService {
       user.profile,
     );
 
-    if (!updatedUserProfile.profilePicture) {
+    if (!updatedUserProfile.profilePictureId) {
       throw new HttpException(
         'Profile picture upload failed',
         HttpStatus.INTERNAL_SERVER_ERROR,
