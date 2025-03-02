@@ -73,6 +73,10 @@ async function bootstrap() {
     allowedOrigins = prodAllowedOrigins;
   }
 
+  const allowedMethods = 'GET,HEAD,OPTIONS,POST,PUT';
+  const allowedHeaders =
+    'Origin, X-Requested-With, Content-Type, Accept, Authorization';
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true, // Strips non-whitelisted properties (those without validation decorators in the DTO)
@@ -82,51 +86,30 @@ async function bootstrap() {
     }),
   ); // Enable data validation with transform option
 
-  if (inLocal) {
-    // Local Dev CORS
-    app.enableCors({
-      origin: localAllowedOrigins,
-      credentials: true,
-      methods: 'GET,HEAD,OPTIONS,POST,PUT',
-      allowedHeaders:
-        'Origin, X-Requested-With, Content-Type, Accept, Authorization',
-    });
-  } else if (inDevelopment) {
-    // Development CORS
-    app.enableCors({
-      origin: devAllowedOrigins,
-      credentials: true,
-      methods: 'GET,HEAD,OPTIONS,POST,PUT',
-      allowedHeaders:
-        'Origin, X-Requested-With, Content-Type, Accept, Authorization',
-    });
-  } else {
-    // Production CORS
-    app.enableCors({
-      origin: prodAllowedOrigins,
-      credentials: true,
-      methods: 'GET,HEAD,OPTIONS,POST,PUT',
-      allowedHeaders:
-        'Origin, X-Requested-With, Content-Type, Accept, Authorization',
-    });
-  }
+  // Enable CORS with the allowed origins, methods, and headers
+  app.enableCors({
+    origin: allowedOrigins,
+    credentials: true,
+    methods: allowedMethods,
+    allowedHeaders: allowedHeaders,
+  });
 
   // Add HTTP headers
   app.use((req: Request, res: Response, next: NextFunction) => {
     // Use the random nonce generated in the middleware
     const nonce: string = res.locals.nonce;
 
-    // Access-Control
     const origin = req.headers.origin;
-    if (origin && allowedOrigins.includes(origin)) {
-      res.header('Access-Control-Allow-Origin', origin);
+
+    if (!allowedOrigins.includes(origin)) {
+      return res.status(403).send('Access Forbidden');
     }
+
+    // Access-Control headers
+    res.header('Access-Control-Allow-Origin', origin);
     res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT');
-    res.header(
-      'Access-Control-Allow-Headers',
-      'Origin, X-Requested-With, Content-Type, Accept, Authorization',
-    );
+    res.header('Access-Control-Allow-Methods', allowedMethods);
+    res.header('Access-Control-Allow-Headers', allowedHeaders);
 
     // Caching headers
     res.header(
@@ -145,7 +128,6 @@ async function bootstrap() {
     res.header('Referrer-Policy', 'same-origin'); // sets the Referrer-Policy to same-origin to prevent leaking of the referrer to external sites
 
     // Use a more relaxed CSP for Swagger, otherwise use the strict one
-
     const isSwagger = req.originalUrl.startsWith('/swagger');
     if (isSwagger) {
       // Allow inline styles and external fonts for swagger
