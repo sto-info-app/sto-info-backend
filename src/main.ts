@@ -57,10 +57,13 @@ async function bootstrap() {
   const inDevelopment = appEnv === 'dev';
   const inLocal = appEnv === 'local';
 
-  const localAllowedOrigins = ['http://localhost:4200'];
+  const localAllowedOrigins = [
+    'http://localhost:4200',
+    'http://localhost:3000',
+  ];
   const devAllowedOrigins = [
     'https://dev.startrekonline.info',
-    'https://sto-info-frontend.onrender.com/',
+    'https://dev-api.startrekonline.info',
   ];
   const prodAllowedOrigins = ['https://startrekonline.info'];
 
@@ -100,13 +103,16 @@ async function bootstrap() {
     const nonce: string = res.locals.nonce;
 
     const origin = req.headers.origin;
-
-    if (!allowedOrigins.includes(origin)) {
+    if (origin && !allowedOrigins.includes(origin)) {
       return res.status(403).send('Access Forbidden');
     }
 
     // Access-Control headers
+    if (origin) {
     res.header('Access-Control-Allow-Origin', origin);
+    } else {
+      res.header('Access-Control-Allow-Origin', 'null');
+    }
     res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Allow-Methods', allowedMethods);
     res.header('Access-Control-Allow-Headers', allowedHeaders);
@@ -132,8 +138,7 @@ async function bootstrap() {
     if (isSwagger) {
       // Allow inline styles and external fonts for swagger
       let fontsProtocol = 'https';
-      let connectSrcUrl =
-        'https://sto-info-backend.onrender.com https://dev-api.startrekonline.info';
+      let connectSrcUrl = 'https://dev-api.startrekonline.info';
       if (inLocal) {
         fontsProtocol = 'http';
         connectSrcUrl = 'http://localhost:3000';
