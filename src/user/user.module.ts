@@ -1,13 +1,21 @@
+import { S3Client } from '@aws-sdk/client-s3';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { User } from './entities/user.entity';
+import { SharedModule } from 'src/shared/shared.module';
+import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
+import { ValidatorsService } from 'src/shared/utilities/validators.service';
+import { UserProfileEntity } from './entities/user-profile.entity';
+import { UserEntity } from './entities/user.entity';
 import { UserController } from './user.controller';
 import { UserService } from './user.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User])],
+  imports: [
+    SharedModule,
+    TypeOrmModule.forFeature([UserEntity, UserProfileEntity]),
+  ],
   controllers: [UserController],
-  providers: [UserService],
+  providers: [UserService, ValidatorsService, ImageUploadsService, S3Client],
   exports: [UserService, TypeOrmModule],
 })
 export class UserModule {}

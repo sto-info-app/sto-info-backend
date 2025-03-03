@@ -1,37 +1,77 @@
 import * as bcrypt from 'bcrypt';
 import { Exclude } from 'class-transformer';
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsNotEmpty, IsString, IsUUID } from 'class-validator';
 import {
   BeforeInsert,
   Column,
   CreateDateColumn,
   DeleteDateColumn,
   Entity,
+  OneToMany,
+  OneToOne,
   PrimaryColumn,
   Unique,
   UpdateDateColumn,
 } from 'typeorm';
 import { v4 as uuid } from 'uuid';
+import { AccountEntity } from '../../sto/account/entities/account.entity';
+import { UserRefreshTokenEntity } from '../../user-refresh-token/entities/user-refresh-token.entity';
+import { UserProfileEntity } from './user-profile.entity';
 
-@Entity()
+@Entity({ name: 'user' })
 @Unique(['email'])
-export class User {
+export class UserEntity {
   @PrimaryColumn('uuid')
   @IsNotEmpty()
-  @IsString()
+  @IsUUID()
   id: string;
 
   @IsString()
+  @IsNotEmpty()
   @Column({ length: 255, nullable: false, unique: true })
   email: string;
 
   @Exclude()
   @IsString()
+  @IsNotEmpty()
   @Column({ length: 255, nullable: false })
   password: string;
 
   @Column({ default: false })
   emailVerified: boolean;
+
+  @Exclude()
+  @Column({ nullable: true })
+  emailVerificationToken: string;
+
+  @Exclude()
+  @Column({ nullable: true })
+  emailVerificationTokenExpiry: Date;
+
+  @Column({ nullable: true })
+  lastLoginAt: Date;
+
+  @Column({ nullable: true })
+  lastPasswordReset: Date;
+
+  @Exclude()
+  @Column({ nullable: true })
+  passwordResetToken: string;
+
+  @Exclude()
+  @Column({ nullable: true })
+  passwordResetTokenExpiry: Date;
+
+  @Column({ default: false })
+  isAccountDisabled: boolean;
+
+  @Exclude()
+  @Column({ nullable: true })
+  provider: string;
+
+  @Exclude()
+  @Column({ nullable: true })
+  providerId: string;
 
   @CreateDateColumn()
   createdAt: Date;
@@ -46,6 +86,15 @@ export class User {
   generateUuid() {
     this.id = uuid();
   }
+
+  @OneToMany(() => UserRefreshTokenEntity, refreshToken => refreshToken.user)
+  refreshTokens: UserRefreshTokenEntity[];
+
+  @OneToMany(() => AccountEntity, account => account.user)
+  accounts: AccountEntity[];
+
+  @OneToOne(() => UserProfileEntity, profile => profile.user, { cascade: true })
+  profile: UserProfileEntity;
 
   async comparePassword(password: string): Promise<boolean> {
     return bcrypt.compare(password, this.password);

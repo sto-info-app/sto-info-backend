@@ -1,10 +1,24 @@
+import { S3Client } from '@aws-sdk/client-s3';
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { join } from 'path';
+import { getTypeOrmConfig } from 'config/typeorm.config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { ConfigCheckService } from './config-check/config-check.service';
+import { DatabaseModule } from './database/database.module';
+import { MailModule } from './mail/mail.module';
+import { MailService } from './mail/mail.service';
+import { SecretsService } from './shared/secrets/secrets.service';
+import { SharedModule } from './shared/shared.module';
+import { ImageUploadsService } from './shared/utilities/image-uploads.service';
+import { ValidatorsService } from './shared/utilities/validators.service';
+import { AccountModule } from './sto/account/account.module';
+import { LauncherModule } from './sto/launcher/launcher.module';
+import { PlatformLauncherModule } from './sto/platform-launcher/platform-launcher.module';
+import { PlatformModule } from './sto/platform/platform.module';
+import { UserRefreshTokenModule } from './user-refresh-token/user-refresh-token.module';
 import { UserModule } from './user/user.module';
 
 @Module({
@@ -13,23 +27,34 @@ import { UserModule } from './user/user.module';
       isGlobal: true,
       envFilePath: `config/environments/${process.env.NODE_ENV || ''}.env`,
     }),
-    TypeOrmModule.forRoot({
-      type: process.env.DB_TYPE as any,
-      host: process.env.DB_HOST,
-      port: parseInt(process.env.DB_PORT, 10),
-      username: process.env.DB_USERNAME,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_NAME,
-      schema: process.env.DB_SCHEMA,
-      synchronize: process.env.TYPEORM_SYNCHRONIZE === 'true',
-      logging: process.env.TYPEORM_LOGGING === 'true',
-      entities: [join(__dirname, '**/*.entity.{ts,js}')],
-      migrations: [join(__dirname, process.env.TYPEORM_MIGRATIONS)],
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async () => {
+        const typeOrmConfig = await getTypeOrmConfig();
+        return typeOrmConfig;
+      },
+      inject: [ConfigService],
     }),
     UserModule,
     AuthModule,
+    MailModule,
+    SharedModule,
+    UserRefreshTokenModule,
+    AccountModule,
+    PlatformModule,
+    LauncherModule,
+    PlatformLauncherModule,
+    DatabaseModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    S3Client,
+    AppService,
+    MailService,
+    SecretsService,
+    ConfigCheckService,
+    ValidatorsService,
+    ImageUploadsService,
+  ],
 })
 export class AppModule {}

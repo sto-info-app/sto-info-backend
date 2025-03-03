@@ -2,9 +2,8 @@
 node_modules/
 
 # Environment files
-# But, do not ignore the local .env file!
 *.env
-!/.env 
+!config/environments/template.env
 
 # Logs
 logs/
@@ -14,9 +13,16 @@ npm-debug.log*
 # Build files
 dist/
 
-# Editor directories and files
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.history/*
+
+# Other editor directories and files
 .idea/
-.vscode/
 *.suo
 *.ntvs*
 *.njsproj
@@ -27,3 +33,6 @@ dist/
 # Miscellaneous
 .DS_Store
 Thumbs.db
+
+# Uploads
+uploads/
