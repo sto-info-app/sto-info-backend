@@ -25,6 +25,7 @@ import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
 import { UserService } from 'src/user/user.service';
 import { QueryFailedError, Repository } from 'typeorm';
+import { JwtPayloadInterface } from './entities/jwt-payload.entity';
 
 /**
  * AuthService provides methods for user authentication and management.
@@ -234,7 +235,9 @@ export class AuthService {
    * @param payload - The JWT payload containing the user's email.
    * @returns The user object if the email is valid, otherwise null.
    */
-  async validateUserFromPayload(payload: any): Promise<UserEntity | null> {
+  async validateUserFromPayload(
+    payload: JwtPayloadInterface,
+  ): Promise<UserEntity | null> {
     const user = await this.userRepository.findOne({
       where: { id: payload.sub },
     });
