@@ -149,10 +149,6 @@ export class UserService {
     return user;
   }
 
-  async findByPayload(payload: any): Promise<UserEntity | null> {
-    return await this.userRepository.findOne({ where: { id: payload.sub } });
-  }
-
   validateEmailUsername(email: string): boolean {
     if (!email) {
       return false;
