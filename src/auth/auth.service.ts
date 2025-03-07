@@ -18,7 +18,7 @@ import * as ejs from 'ejs';
 import { convert as htmlToText } from 'html-to-text';
 import { RequestContext } from 'nestjs-request-context';
 import * as path from 'path';
-import { AuditLoginAttemptEntity } from 'src/audit/entities/audit-login-attempts.entity';
+import { AuditLoginAttemptEntity } from 'src/audit/entities/audit-login-attempt.entity';
 import { MailService } from 'src/mail/mail.service';
 import { EMAIL_PATTERN } from 'src/shared/constants/regex-patterns.constants';
 import { UserRefreshTokenService } from 'src/user-refresh-token/user-refresh-token.service';

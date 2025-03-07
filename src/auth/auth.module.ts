@@ -3,7 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AuditLoginAttemptEntity } from 'src/audit/entities/audit-login-attempts.entity';
+import { AuditLoginAttemptEntity } from 'src/audit/entities/audit-login-attempt.entity';
 import { MailModule } from 'src/mail/mail.module';
 import { MailService } from 'src/mail/mail.service';
 import { SecretsService } from 'src/shared/secrets/secrets.service';

@@ -6,7 +6,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 
-@Entity({ name: '_audit_login_attempts' })
+@Entity({ name: '_audit_login_attempt' })
 export class AuditLoginAttemptEntity {
   @PrimaryGeneratedColumn()
   id: number;

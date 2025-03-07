@@ -8,7 +8,7 @@ import {
   RemoveEvent,
   UpdateEvent,
 } from 'typeorm';
-import { AuditLoginAttemptEntity } from '../entities/audit-login-attempts.entity';
+import { AuditLoginAttemptEntity } from '../entities/audit-login-attempt.entity';
 import { AuditEntity } from '../entities/audit.entity';
 
 // Define the type alias
