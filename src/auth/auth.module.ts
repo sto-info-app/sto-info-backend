@@ -1,7 +1,9 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuditLoginAttemptEntity } from 'src/audit/entities/audit-login-attempts.entity';
 import { MailModule } from 'src/mail/mail.module';
 import { MailService } from 'src/mail/mail.service';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
@@ -16,7 +18,7 @@ import { LocalStrategy } from './local.strategy';
 
 @Module({
   imports: [
-    UserModule,
+    TypeOrmModule.forFeature([AuditLoginAttemptEntity]),
     PassportModule,
     SharedModule,
     JwtModule.registerAsync({
@@ -35,6 +37,7 @@ import { LocalStrategy } from './local.strategy';
         };
       },
     }),
+    forwardRef(() => UserModule), // Use forwardRef to handle circular dependency
     MailModule,
     UserRefreshTokenModule,
   ],
@@ -44,8 +47,9 @@ import { LocalStrategy } from './local.strategy';
     JwtStrategy,
     JwtAuthGuard,
     MailService,
+    SecretsService,
   ],
   controllers: [AuthController],
-  exports: [AuthService],
+  exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

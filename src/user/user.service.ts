@@ -178,7 +178,7 @@ export class UserService {
     }
 
     const isProfileUnchanged = Object.keys(userProfileData).every(
-      key => user.profile[key] === userProfileData[key],
+      key => userProfileData[key] === user.profile[key],
     );
 
     if (isProfileUnchanged) {
@@ -194,11 +194,13 @@ export class UserService {
       }
     }
 
-    const updateResult = await this.userProfileRepository.update(
-      userId,
-      userProfileData,
-    );
-    if (updateResult.affected === 0) {
+    //NOTE: Use the original user profile data to save the non-updated data as the audit subscriber will not detect old values in an update(), so save() is used instead
+    userProfileData.userId = userId;
+    userProfileData.profilePictureId = user.profile.profilePictureId;
+    userProfileData.publiclyVisible = user.profile.publiclyVisible;
+
+    const updateResult = await this.userProfileRepository.save(userProfileData);
+    if (!updateResult) {
       throw new HttpException(
         'User profile update failed',
         HttpStatus.NOT_FOUND,
@@ -217,7 +219,7 @@ export class UserService {
     }
 
     return {
-      affected: updateResult.affected,
+      affected: 1,
       updatedProfile: updatedProfile,
     };
   }

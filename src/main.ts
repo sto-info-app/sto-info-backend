@@ -1,17 +1,23 @@
+import { config } from 'dotenv';
+config({ path: 'config/environments/.env' });
+
 import { ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { NextFunction, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 
-import { NestExpressApplication } from '@nestjs/platform-express';
 import { connectionSourcePromise } from 'config/typeorm.datasource';
+import { RequestContextMiddleware } from 'nestjs-request-context';
 import { AppModule } from './app.module';
 import { NonceMiddleware } from './auth/nonce.middleware';
+import { UserIdMiddleware } from './auth/user-id.middleware';
 import { ConfigCheckService } from './config-check/config-check.service';
+import { SecretsService } from './shared/secrets/secrets.service';
 import { getAppVersion } from './shared/utilities/version.utility';
 
 async function bootstrap() {
@@ -42,11 +48,19 @@ async function bootstrap() {
   // Create NestJS application
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  // Use the nonce middleware first
-  app.use(new NonceMiddleware().use);
+  // Initialise RequestContext
+  app.use(new RequestContextMiddleware().use);
 
-  // Use environment vars
-  const configService = app.get(ConfigService);
+  const configService = app.get(ConfigService); // Use environment vars
+  const secretsService = app.get(SecretsService); // Use secrets service
+
+  // Apply the UserIdMiddleware globally
+  app.use((req, res, next) =>
+    new UserIdMiddleware(configService, secretsService).use(req, res, next),
+  );
+
+  // Use the nonce middleware
+  app.use(new NonceMiddleware().use);
 
   // Initialize the DataSource
   const connectionSource = await connectionSourcePromise;
@@ -109,7 +123,7 @@ async function bootstrap() {
 
     // Access-Control headers
     if (origin) {
-    res.header('Access-Control-Allow-Origin', origin);
+      res.header('Access-Control-Allow-Origin', origin);
     } else {
       res.header('Access-Control-Allow-Origin', 'null');
     }
