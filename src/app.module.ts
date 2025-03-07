@@ -12,6 +12,7 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { UserIdMiddleware } from './auth/user-id.middleware';
 import { ConfigCheckService } from './config-check/config-check.service';
+import { CronModule } from './cron/cron.module';
 import { DatabaseModule } from './database/database.module';
 import { MailModule } from './mail/mail.module';
 import { MailService } from './mail/mail.service';
@@ -51,6 +52,7 @@ import { UserModule } from './user/user.module';
     PlatformLauncherModule,
     DatabaseModule,
     RequestContextModule,
+    CronModule,
   ],
   controllers: [AppController],
   providers: [
