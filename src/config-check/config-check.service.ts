@@ -131,7 +131,11 @@ class EnvironmentVariables {
 
   @IsNotEmpty()
   @IsNumber()
-  AUDIT_NUKE_THRESHOLD_DAYS: number;
+  AUDIT_DATA_NUKE_THRESHOLD_DAYS: number;
+
+  @IsNotEmpty()
+  @IsNumber()
+  AUDIT_IP_NUKE_THRESHOLD_DAYS: number;
 }
 
 @Injectable()
