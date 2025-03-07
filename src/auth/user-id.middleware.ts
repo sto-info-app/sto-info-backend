@@ -1,4 +1,4 @@
-import { Injectable, NestMiddleware } from '@nestjs/common';
+import { Injectable, Logger, NestMiddleware } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NextFunction, Request, Response } from 'express';
 import * as jwt from 'jsonwebtoken';
@@ -54,10 +54,13 @@ export class UserIdMiddleware implements NestMiddleware {
             // Set the user ID in the request context - this will be used by the RequestContextMiddleware for audit logging
             RequestContext.currentContext.req.userUuid = decoded.sub;
           } else {
-            console.error('Secret object or jwtSecret is undefined');
+            Logger.error(
+              'Secret object or jwtSecret is undefined',
+              'UserIdMiddleware',
+            );
           }
         } catch (err) {
-          console.error('Invalid token:', err);
+          Logger.error('Invalid token:', err, 'UserIdMiddleware');
         }
       }
     }
