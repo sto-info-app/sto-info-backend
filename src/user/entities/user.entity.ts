@@ -1,6 +1,6 @@
 import * as bcrypt from 'bcrypt';
 import { Exclude } from 'class-transformer';
-import { IsNotEmpty, IsString, IsUUID } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, IsUUID } from 'class-validator';
 import {
   BeforeInsert,
   Column,
@@ -26,7 +26,7 @@ export class UserEntity {
   @IsUUID()
   id: string;
 
-  @IsString()
+  @IsEmail()
   @IsNotEmpty()
   @Column({ length: 255, nullable: false, unique: true })
   email: string;

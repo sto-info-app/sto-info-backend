@@ -12,10 +12,13 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { instanceToPlain } from 'class-transformer';
+import { validateOrReject } from 'class-validator';
 import * as crypto from 'crypto';
 import * as ejs from 'ejs';
 import { convert as htmlToText } from 'html-to-text';
+import { RequestContext } from 'nestjs-request-context';
 import * as path from 'path';
+import { AuditLoginAttemptEntity } from 'src/audit/entities/audit-login-attempt.entity';
 import { MailService } from 'src/mail/mail.service';
 import { EMAIL_PATTERN } from 'src/shared/constants/regex-patterns.constants';
 import { UserRefreshTokenService } from 'src/user-refresh-token/user-refresh-token.service';
@@ -25,6 +28,7 @@ import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
 import { UserService } from 'src/user/user.service';
 import { QueryFailedError, Repository } from 'typeorm';
+import { JwtPayloadInterface } from './entities/jwt-payload.entity';
 
 /**
  * AuthService provides methods for user authentication and management.
@@ -37,6 +41,9 @@ export class AuthService {
 
     @InjectRepository(UserProfileEntity)
     private readonly userProfileRepository: Repository<UserProfileEntity>,
+
+    @InjectRepository(AuditLoginAttemptEntity)
+    private readonly loginAttemptRepository: Repository<AuditLoginAttemptEntity>,
 
     private readonly jwtService: JwtService,
     private readonly userService: UserService,
@@ -222,8 +229,10 @@ export class AuthService {
   async validateUser(email: string, password: string): Promise<any> {
     const user = await this.userService.findByEmail(email);
     if (user && (await user.comparePassword(password))) {
-      user.lastLoginAt = new Date(); // Update last login time
-      await this.userService.update(user.id, user);
+      if (!RequestContext?.currentContext?.req?.userUuid) {
+        // Set the user ID on the request object that is used by the RequestContextMiddleware for audit logging
+        RequestContext.currentContext.req.userUuid = user.id;
+      }
       return instanceToPlain(user);
     }
     return null;
@@ -234,11 +243,21 @@ export class AuthService {
    * @param payload - The JWT payload containing the user's email.
    * @returns The user object if the email is valid, otherwise null.
    */
-  async validateUserFromPayload(payload: any): Promise<UserEntity | null> {
+  async validateUserFromPayload(
+    payload: JwtPayloadInterface,
+  ): Promise<UserEntity | null> {
     const user = await this.userRepository.findOne({
-      where: { id: payload.sub },
+      where: {
+        id: payload.sub,
+        email: payload.email,
+      },
     });
     if (user) {
+      if (!RequestContext?.currentContext?.req?.userUuid) {
+        // Set the user ID on the request object that is used by the RequestContextMiddleware for audit logging
+        RequestContext.currentContext.req.userUuid = user.id;
+      }
+
       return user;
     }
     return null;
@@ -258,26 +277,41 @@ export class AuthService {
     refresh_token: string;
     expires_in: number;
   }> {
-    const user = await this.userService.findByEmail(userLogin.email);
+    const userIpAddress: string | null =
+      RequestContext?.currentContext?.req?.ip || null;
 
-    if (!user || !(await user.comparePassword(userLogin.password))) {
+    if (!userLogin.email || !userLogin.password) {
       throw new HttpException(
         'Invalid username and password',
         HttpStatus.UNAUTHORIZED,
       );
     }
+    const user = await this.validateUser(userLogin.email, userLogin.password);
+
+    if (!user) {
+      await this.logLoginAttempt(userLogin.email, userIpAddress, false);
+      throw new HttpException(
+        'Invalid login credentials',
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
 
     if (user.isAccountDisabled) {
+      await this.logLoginAttempt(userLogin.email, userIpAddress, false);
       throw new HttpException('Account disabled', HttpStatus.FORBIDDEN);
     }
 
     if (user.deletedAt) {
+      await this.logLoginAttempt(userLogin.email, userIpAddress, false);
       throw new HttpException('Account deleted', HttpStatus.FORBIDDEN);
     }
 
     if (!user.emailVerified) {
+      await this.logLoginAttempt(userLogin.email, userIpAddress, false);
       throw new HttpException('Email not verified', HttpStatus.UNAUTHORIZED);
     }
+
+    await this.logLoginAttempt(userLogin.email, userIpAddress, true);
 
     const payload = {
       email: user.email,
@@ -292,6 +326,7 @@ export class AuthService {
       jwtid: jwtId,
     });
 
+    // Save the new refresh token
     await this.refreshTokenService.create({
       user,
       tokenId: newUserRefreshToken,
@@ -300,9 +335,11 @@ export class AuthService {
       expiresAt: this.calculateExpiryTime(expiryHours),
     });
 
+    // Update last login time
     user.lastLoginAt = new Date();
     await this.userRepository.save(user);
 
+    // Send user logged in notification
     await this.mailService.sendUserLoggedInNotification(
       user.email,
       user.profile?.firstName || 'Captain!',
@@ -518,5 +555,26 @@ export class AuthService {
    */
   async getHashedPassword(password: string): Promise<string> {
     return await bcrypt.hash(password, +process.env.AUTH_SALT_ROUNDS);
+  }
+
+  /**
+   * Logs a login attempt.
+   * @param email - The user's email.
+   * @param ipAddress - The user's IP address.
+   * @param success - Whether the login attempt was successful.
+   * @returns A promise that resolves when the login attempt has been logged.
+   */
+  async logLoginAttempt(
+    email: string,
+    ipAddress: string | null,
+    success: boolean,
+  ): Promise<void> {
+    const loginAttemptRecord = new AuditLoginAttemptEntity();
+    loginAttemptRecord.email = email;
+    loginAttemptRecord.ipAddress = ipAddress;
+    loginAttemptRecord.success = success;
+
+    await validateOrReject(loginAttemptRecord);
+    await this.loginAttemptRepository.save(loginAttemptRecord);
   }
 }

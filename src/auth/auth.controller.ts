@@ -18,6 +18,7 @@ import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { RequestPasswordResetDto } from 'src/user/dto/request-password-reset.dto';
 import { ResendVerificationEmailDto } from 'src/user/dto/resend-verification-email.dto';
 import { ResetPasswordDto } from 'src/user/dto/reset-password.dto';
+import { UserLoginDto } from 'src/user/dto/user-login.dto';
 import { VerifyEmailDto } from 'src/user/dto/verify-email.dto';
 import { AuthService } from './auth.service';
 
@@ -53,8 +54,8 @@ export class AuthController {
    * @param UserLoginDto - The login credentials containing email and password.
    * @returns A promise that resolves with the authentication result.
    */
-  async login(@Body() UserLoginDto: { email: string; password: string }) {
-    return this.authService.login(UserLoginDto);
+  async login(@Body() userLoginDto: UserLoginDto) {
+    return this.authService.login(userLoginDto);
   }
 
   @UseGuards(AuthGuard('jwt'))

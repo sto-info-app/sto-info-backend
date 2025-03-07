@@ -1,17 +1,23 @@
+import { config } from 'dotenv';
+config({ path: 'config/environments/.env' });
+
 import { ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { NextFunction, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 
-import { NestExpressApplication } from '@nestjs/platform-express';
 import { connectionSourcePromise } from 'config/typeorm.datasource';
+import { RequestContextMiddleware } from 'nestjs-request-context';
 import { AppModule } from './app.module';
 import { NonceMiddleware } from './auth/nonce.middleware';
+import { UserIdMiddleware } from './auth/user-id.middleware';
 import { ConfigCheckService } from './config-check/config-check.service';
+import { SecretsService } from './shared/secrets/secrets.service';
 import { getAppVersion } from './shared/utilities/version.utility';
 
 async function bootstrap() {
@@ -42,11 +48,19 @@ async function bootstrap() {
   // Create NestJS application
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  // Use the nonce middleware first
-  app.use(new NonceMiddleware().use);
+  // Initialise RequestContext
+  app.use(new RequestContextMiddleware().use);
 
-  // Use environment vars
-  const configService = app.get(ConfigService);
+  const configService = app.get(ConfigService); // Use environment vars
+  const secretsService = app.get(SecretsService); // Use secrets service
+
+  // Apply the UserIdMiddleware globally
+  app.use((req, res, next) =>
+    new UserIdMiddleware(configService, secretsService).use(req, res, next),
+  );
+
+  // Use the nonce middleware
+  app.use(new NonceMiddleware().use);
 
   // Initialize the DataSource
   const connectionSource = await connectionSourcePromise;
@@ -57,10 +71,13 @@ async function bootstrap() {
   const inDevelopment = appEnv === 'dev';
   const inLocal = appEnv === 'local';
 
-  const localAllowedOrigins = ['http://localhost:4200'];
+  const localAllowedOrigins = [
+    'http://localhost:4200',
+    'http://localhost:3000',
+  ];
   const devAllowedOrigins = [
     'https://dev.startrekonline.info',
-    'https://sto-info-frontend.onrender.com/',
+    'https://dev-api.startrekonline.info',
   ];
   const prodAllowedOrigins = ['https://startrekonline.info'];
 
@@ -100,13 +117,16 @@ async function bootstrap() {
     const nonce: string = res.locals.nonce;
 
     const origin = req.headers.origin;
-
-    if (!allowedOrigins.includes(origin)) {
+    if (origin && !allowedOrigins.includes(origin)) {
       return res.status(403).send('Access Forbidden');
     }
 
     // Access-Control headers
-    res.header('Access-Control-Allow-Origin', origin);
+    if (origin) {
+      res.header('Access-Control-Allow-Origin', origin);
+    } else {
+      res.header('Access-Control-Allow-Origin', 'null');
+    }
     res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Allow-Methods', allowedMethods);
     res.header('Access-Control-Allow-Headers', allowedHeaders);
@@ -132,8 +152,7 @@ async function bootstrap() {
     if (isSwagger) {
       // Allow inline styles and external fonts for swagger
       let fontsProtocol = 'https';
-      let connectSrcUrl =
-        'https://sto-info-backend.onrender.com https://dev-api.startrekonline.info';
+      let connectSrcUrl = 'https://dev-api.startrekonline.info';
       if (inLocal) {
         fontsProtocol = 'http';
         connectSrcUrl = 'http://localhost:3000';

@@ -1,0 +1,2 @@
+export const CRON_TIMEZONE = 'UTC';
+export const AUDIT_NUKE_THRESHOLD_DAYS = +process.env.AUDIT_NUKE_THRESHOLD_DAYS;

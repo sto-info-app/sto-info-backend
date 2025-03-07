@@ -3,7 +3,12 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
-import { BadRequestException, Injectable, UploadedFile } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  UploadedFile,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import * as cloudmersiveVirusApiClient from 'cloudmersive-virus-api-client';
@@ -232,9 +237,10 @@ export class ImageUploadsService {
 
       return response.data.result.id as string; // Get the ID of the uploaded image
     } catch (error) {
-      console.error(
+      Logger.error(
         'Error uploading image to Cloudflare Images:',
         error.response?.data || error.message,
+        'ImageUploadsService',
       );
       throw new BadRequestException(
         'Failed to upload image to Cloudflare Images',
