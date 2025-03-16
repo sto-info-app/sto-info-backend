@@ -60,7 +60,11 @@ export class UserIdMiddleware implements NestMiddleware {
             );
           }
         } catch (err) {
-          Logger.error('Invalid token:', err, 'UserIdMiddleware');
+          if (err.name === 'TokenExpiredError') {
+            Logger.error('Token has expired:', err, 'UserIdMiddleware');
+          } else {
+            Logger.error('Invalid token:', err, 'UserIdMiddleware');
+          }
         }
       }
     }
