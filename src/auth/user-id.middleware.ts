@@ -29,41 +29,68 @@ export class UserIdMiddleware implements NestMiddleware {
    * @param next - The next middleware function in the stack.
    */
   async use(req: Request, _res: Response, next: NextFunction) {
-    // Check if userUuid is already set in the request context
-    if (!RequestContext?.currentContext?.req?.userUuid) {
-      const authHeader = req.headers?.authorization;
-      // Check if the authorization header starts with 'Bearer '
-      if (authHeader?.startsWith('Bearer ')) {
-        const token = authHeader.split(' ')[1];
-        if (!token) {
-          return next();
-        }
-
-        try {
-          // Retrieve the JWT secret from the secrets service
-          const secretObject = await this.secretsService.getSecret(
-            this.configService.get('AWS_SECRET_NAME'),
-          );
-          if (secretObject?.jwtSecret) {
-            // Verify the token using the JWT secret
-            const decoded = jwt.verify(
-              token,
-              secretObject.jwtSecret,
-            ) as JwtPayload;
-
-            // Set the user ID in the request context - this will be used by the RequestContextMiddleware for audit logging
-            RequestContext.currentContext.req.userUuid = decoded.sub;
-          } else {
-            Logger.error(
-              'Secret object or jwtSecret is undefined',
-              'UserIdMiddleware',
-            );
-          }
-        } catch (err) {
-          Logger.error('Invalid token:', err, 'UserIdMiddleware');
-        }
+    if (!this.isUserUuidSet()) {
+      const token = this.extractToken(req);
+      if (token) {
+        await this.verifyAndSetUserUuid(token);
       }
     }
     next();
+  }
+
+  /**
+   * Checks if the user UUID is already set in the request context.
+   * @returns True if the user UUID is already set in the request context, false otherwise.
+   */
+  private isUserUuidSet(): boolean {
+    return !!RequestContext?.currentContext?.req?.userUuid;
+  }
+
+  /**
+   * Extracts the JWT token from the authorization header.
+   * @param req - The incoming request object.
+   * @returns The JWT token if present, null otherwise.
+   */
+  private extractToken(req: Request): string | null {
+    const authHeader = req.headers?.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      return authHeader.split(' ')[1] || null;
+    }
+    return null;
+  }
+
+  /**
+   * Verifies the JWT token and sets the user UUID in the request context.
+   * @param token - The JWT token to verify.
+   */
+  private async verifyAndSetUserUuid(token: string): Promise<void> {
+    try {
+      const secretObject = await this.secretsService.getSecret(
+        this.configService.get('AWS_SECRET_NAME'),
+      );
+      if (secretObject?.jwtSecret) {
+        const decoded = jwt.verify(token, secretObject.jwtSecret) as JwtPayload;
+        RequestContext.currentContext.req.userUuid = decoded.sub;
+      } else {
+        Logger.error(
+          'Secret object or jwtSecret is undefined',
+          'UserIdMiddleware',
+        );
+      }
+    } catch (err) {
+      this.handleTokenError(err);
+    }
+  }
+
+  /**
+   * Handles token verification errors.
+   * @param err - The error object thrown during token verification.
+   */
+  private handleTokenError(err: any): void {
+    if (err.name === 'TokenExpiredError') {
+      Logger.error('Token has expired:', err, 'UserIdMiddleware');
+    } else {
+      Logger.error('Invalid token:', err, 'UserIdMiddleware');
+    }
   }
 }

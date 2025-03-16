@@ -266,7 +266,7 @@ export class AuthService {
   /**
    * Logs in a user with the given credentials.
    * @param userLogin - The user's login credentials.
-   * @returns An object containing the access token, refresh token, and expiry time.
+   * @returns An object containing the access token, refresh token, expiry time and user ID.
    * @throws HttpException if the username or password is invalid.
    * @throws HttpException if the account is disabled.
    * @throws HttpException if the account is deleted.
@@ -276,6 +276,7 @@ export class AuthService {
     access_token: string;
     refresh_token: string;
     expires_in: number;
+    user_id: string;
   }> {
     const userIpAddress: string | null =
       RequestContext?.currentContext?.req?.ip || null;
@@ -349,6 +350,7 @@ export class AuthService {
       access_token: this.jwtService.sign(payload),
       refresh_token: newUserRefreshToken,
       expires_in: +process.env.AUTH_TOKEN_EXPIRES_IN,
+      user_id: user.id,
     };
   }
 
