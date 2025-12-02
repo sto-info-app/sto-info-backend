@@ -9,6 +9,9 @@
     "type": "git",
     "url": "https://github.com/steverobertsuk/sto-info-backend.git"
   },
+  "engines": {
+    "node": ">=20 <25"
+  },
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "nest build",
