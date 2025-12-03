@@ -8,6 +8,7 @@ import { ClsModule } from 'nestjs-cls';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { UserIdMiddleware } from './auth/user-id.middleware';
 import { ConfigCheckService } from './config-check/config-check.service';
 import { CronModule } from './cron/cron.module';
 import { DatabaseModule } from './database/database.module';
@@ -19,11 +20,10 @@ import { ImageUploadsService } from './shared/utilities/image-uploads.service';
 import { ValidatorsService } from './shared/utilities/validators.service';
 import { AccountModule } from './sto/account/account.module';
 import { LauncherModule } from './sto/launcher/launcher.module';
-import { PlatformModule } from './sto/platform/platform.module';
 import { PlatformLauncherModule } from './sto/platform-launcher/platform-launcher.module';
-import { UserModule } from './user/user.module';
+import { PlatformModule } from './sto/platform/platform.module';
 import { UserRefreshTokenModule } from './user-refresh-token/user-refresh-token.module';
-import { UserIdMiddleware } from './auth/user-id.middleware';
+import { UserModule } from './user/user.module';
 
 @Module({
   imports: [
