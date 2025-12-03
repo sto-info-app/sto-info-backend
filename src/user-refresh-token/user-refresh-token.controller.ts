@@ -1,9 +1,10 @@
 import { Controller } from '@nestjs/common';
-import { UserRefreshTokenService } from './user-refresh-token.service';
+// import { UserRefreshTokenService } from './user-refresh-token.service';
 
 @Controller('refresh-token')
 export class UserRefreshTokenController {
-  constructor(private readonly refreshTokenService: UserRefreshTokenService) {}
+  // constructor(private readonly refreshTokenService: UserRefreshTokenService) {}
+  constructor() {}
 
   // @Post()
   // create(@Body() createUserRefreshTokenDto: CreateUserRefreshTokenDto) {

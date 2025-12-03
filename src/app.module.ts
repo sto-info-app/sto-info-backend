@@ -3,10 +3,8 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { getTypeOrmConfig } from 'config/typeorm.config';
-import {
-  RequestContextMiddleware,
-  RequestContextModule,
-} from 'nestjs-request-context';
+import { ClsModule } from 'nestjs-cls';
+
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -41,6 +39,10 @@ import { UserModule } from './user/user.module';
       },
       inject: [ConfigService],
     }),
+    ClsModule.forRoot({
+      global: true,
+      middleware: { mount: true },
+    }),
     UserModule,
     AuthModule,
     MailModule,
@@ -51,7 +53,6 @@ import { UserModule } from './user/user.module';
     LauncherModule,
     PlatformLauncherModule,
     DatabaseModule,
-    RequestContextModule,
     CronModule,
   ],
   controllers: [AppController],
@@ -67,6 +68,6 @@ import { UserModule } from './user/user.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(RequestContextMiddleware, UserIdMiddleware).forRoutes('*');
+    consumer.apply(UserIdMiddleware).forRoutes('*');
   }
 }

@@ -16,18 +16,19 @@ import { validateOrReject } from 'class-validator';
 import * as crypto from 'crypto';
 import * as ejs from 'ejs';
 import { convert as htmlToText } from 'html-to-text';
-import { RequestContext } from 'nestjs-request-context';
 import * as path from 'path';
 import { AuditLoginAttemptEntity } from 'src/audit/entities/audit-login-attempt.entity';
 import { MailService } from 'src/mail/mail.service';
 import { EMAIL_PATTERN } from 'src/shared/constants/regex-patterns.constants';
-import { UserRefreshTokenService } from 'src/user-refresh-token/user-refresh-token.service';
+import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { UserLoginDto } from 'src/user/dto/user-login.dto';
-import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
+import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 import { UserService } from 'src/user/user.service';
+import { UserRefreshTokenService } from 'src/user-refresh-token/user-refresh-token.service';
 import { QueryFailedError, Repository } from 'typeorm';
+
 import { JwtPayloadInterface } from './entities/jwt-payload.entity';
 
 /**
@@ -229,9 +230,9 @@ export class AuthService {
   async validateUser(email: string, password: string): Promise<any> {
     const user = await this.userService.findByEmail(email);
     if (user && (await user.comparePassword(password))) {
-      if (!RequestContext?.currentContext?.req?.userUuid) {
-        // Set the user ID on the request object that is used by the RequestContextMiddleware for audit logging
-        RequestContext.currentContext.req.userUuid = user.id;
+      if (!CurrentContextHelper.userUuid) {
+        // Store the user ID for audit logging
+        CurrentContextHelper.userUuid = user.id;
       }
       return instanceToPlain(user);
     }
@@ -253,13 +254,14 @@ export class AuthService {
       },
     });
     if (user) {
-      if (!RequestContext?.currentContext?.req?.userUuid) {
-        // Set the user ID on the request object that is used by the RequestContextMiddleware for audit logging
-        RequestContext.currentContext.req.userUuid = user.id;
+      if (!CurrentContextHelper.userUuid) {
+        // Store the user ID for audit logging
+        CurrentContextHelper.userUuid = user.id;
       }
 
       return user;
     }
+
     return null;
   }
 
@@ -278,8 +280,7 @@ export class AuthService {
     expires_in: number;
     user_id: string;
   }> {
-    const userIpAddress: string | null =
-      RequestContext?.currentContext?.req?.ip || null;
+    const userIpAddress: string | null = CurrentContextHelper.ip;
 
     if (!userLogin.email || !userLogin.password) {
       throw new HttpException(

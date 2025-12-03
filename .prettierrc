@@ -10,5 +10,15 @@
   "tabWidth": 2,
   "trailingComma": "all",
   "useTabs": false,
-  "arrayBracketSpacing": true
+  "arrayBracketSpacing": true,
+
+  "importOrder": [
+    "^node:",
+    "^@nestjs/(.*)$",
+    "^@sto/(.*)$",
+    "^@/(.*)$",
+    "^[./]"
+  ],
+  "importOrderSeparation": true,
+  "importOrderSortSpecifiers": true
 }
