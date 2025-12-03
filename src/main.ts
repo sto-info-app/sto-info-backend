@@ -13,9 +13,7 @@ import helmet from 'helmet';
 
 import { AppModule } from './app.module';
 import { NonceMiddleware } from './auth/nonce.middleware';
-import { UserIdMiddleware } from './auth/user-id.middleware';
 import { ConfigCheckService } from './config-check/config-check.service';
-import { SecretsService } from './shared/secrets/secrets.service';
 import { getAppVersion } from './shared/utilities/version.utility';
 
 async function bootstrap() {
