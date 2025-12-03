@@ -3,14 +3,11 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { getTypeOrmConfig } from 'config/typeorm.config';
-import {
-  RequestContextMiddleware,
-  RequestContextModule,
-} from 'nestjs-request-context';
+import { ClsModule } from 'nestjs-cls';
+
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
-import { UserIdMiddleware } from './auth/user-id.middleware';
 import { ConfigCheckService } from './config-check/config-check.service';
 import { CronModule } from './cron/cron.module';
 import { DatabaseModule } from './database/database.module';
@@ -22,10 +19,11 @@ import { ImageUploadsService } from './shared/utilities/image-uploads.service';
 import { ValidatorsService } from './shared/utilities/validators.service';
 import { AccountModule } from './sto/account/account.module';
 import { LauncherModule } from './sto/launcher/launcher.module';
-import { PlatformLauncherModule } from './sto/platform-launcher/platform-launcher.module';
 import { PlatformModule } from './sto/platform/platform.module';
-import { UserRefreshTokenModule } from './user-refresh-token/user-refresh-token.module';
+import { PlatformLauncherModule } from './sto/platform-launcher/platform-launcher.module';
 import { UserModule } from './user/user.module';
+import { UserRefreshTokenModule } from './user-refresh-token/user-refresh-token.module';
+import { UserIdMiddleware } from './auth/user-id.middleware';
 
 @Module({
   imports: [
@@ -41,6 +39,10 @@ import { UserModule } from './user/user.module';
       },
       inject: [ConfigService],
     }),
+    ClsModule.forRoot({
+      global: true,
+      middleware: { mount: true },
+    }),
     UserModule,
     AuthModule,
     MailModule,
@@ -51,7 +53,6 @@ import { UserModule } from './user/user.module';
     LauncherModule,
     PlatformLauncherModule,
     DatabaseModule,
-    RequestContextModule,
     CronModule,
   ],
   controllers: [AppController],
@@ -67,6 +68,6 @@ import { UserModule } from './user/user.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(RequestContextMiddleware, UserIdMiddleware).forRoutes('*');
+    consumer.apply(UserIdMiddleware).forRoutes('*');
   }
 }

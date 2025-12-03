@@ -2,7 +2,7 @@ import { Injectable, Logger, NestMiddleware } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NextFunction, Request, Response } from 'express';
 import * as jwt from 'jsonwebtoken';
-import { RequestContext } from 'nestjs-request-context';
+import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
 
 interface JwtPayload {
@@ -29,12 +29,16 @@ export class UserIdMiddleware implements NestMiddleware {
    * @param next - The next middleware function in the stack.
    */
   async use(req: Request, _res: Response, next: NextFunction) {
+    // Always capture IP for audit logging
+    CurrentContextHelper.ip = req.ip || null;
+
     if (!this.isUserUuidSet()) {
       const token = this.extractToken(req);
       if (token) {
-        await this.verifyAndSetUserUuid(token);
+        await this.verifyAndSetUserUuid(token, req);
       }
     }
+
     next();
   }
 
@@ -43,7 +47,7 @@ export class UserIdMiddleware implements NestMiddleware {
    * @returns True if the user UUID is already set in the request context, false otherwise.
    */
   private isUserUuidSet(): boolean {
-    return !!RequestContext?.currentContext?.req?.userUuid;
+    return !!CurrentContextHelper.userUuid;
   }
 
   /**
@@ -63,14 +67,23 @@ export class UserIdMiddleware implements NestMiddleware {
    * Verifies the JWT token and sets the user UUID in the request context.
    * @param token - The JWT token to verify.
    */
-  private async verifyAndSetUserUuid(token: string): Promise<void> {
+  private async verifyAndSetUserUuid(
+    token: string,
+    req: Request,
+  ): Promise<void> {
     try {
       const secretObject = await this.secretsService.getSecret(
         this.configService.get('AWS_SECRET_NAME'),
       );
       if (secretObject?.jwtSecret) {
         const decoded = jwt.verify(token, secretObject.jwtSecret) as JwtPayload;
-        RequestContext.currentContext.req.userUuid = decoded.sub;
+        const userUuid = decoded.sub;
+
+        // Store in CLS
+        CurrentContextHelper.userUuid = userUuid;
+
+        // Also attach to the request for any code that still reads from req
+        (req as any).userUuid = userUuid;
       } else {
         Logger.error(
           'Secret object or jwtSecret is undefined',

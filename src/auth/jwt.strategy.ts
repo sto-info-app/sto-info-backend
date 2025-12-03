@@ -2,9 +2,10 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { instanceToPlain } from 'class-transformer';
-import { RequestContext } from 'nestjs-request-context';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
+
 import { AuthService } from './auth.service';
 import { JwtPayloadInterface } from './entities/jwt-payload.entity';
 
@@ -42,9 +43,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException();
     }
 
-    if (!RequestContext?.currentContext?.req?.userUuid) {
-      // Set the user ID in the request context - this will be used by the RequestContextMiddleware for audit logging
-      RequestContext.currentContext.req.userUuid = payload.sub;
+    if (!CurrentContextHelper.userUuid) {
+      // Store user UUID for audit logging and downstream usage
+      CurrentContextHelper.userUuid = payload.sub;
     }
 
     return instanceToPlain(user);

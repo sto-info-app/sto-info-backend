@@ -6,13 +6,11 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-
+import { connectionSourcePromise } from 'config/typeorm.datasource';
 import { NextFunction, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 
-import { connectionSourcePromise } from 'config/typeorm.datasource';
-import { RequestContextMiddleware } from 'nestjs-request-context';
 import { AppModule } from './app.module';
 import { NonceMiddleware } from './auth/nonce.middleware';
 import { UserIdMiddleware } from './auth/user-id.middleware';
@@ -48,16 +46,8 @@ async function bootstrap() {
   // Create NestJS application
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  // Initialise RequestContext
-  app.use(new RequestContextMiddleware().use);
-
-  const configService = app.get(ConfigService); // Use environment vars
-  const secretsService = app.get(SecretsService); // Use secrets service
-
-  // Apply the UserIdMiddleware globally
-  app.use((req, res, next) =>
-    new UserIdMiddleware(configService, secretsService).use(req, res, next),
-  );
+  // Use environment vars
+  const configService = app.get(ConfigService);
 
   // Use the nonce middleware
   app.use(new NonceMiddleware().use);
@@ -81,7 +71,7 @@ async function bootstrap() {
   ];
   const prodAllowedOrigins = ['https://startrekonline.info'];
 
-  let allowedOrigins;
+  let allowedOrigins: string[];
   if (inLocal) {
     allowedOrigins = localAllowedOrigins;
   } else if (inDevelopment) {
@@ -211,6 +201,6 @@ async function bootstrap() {
   }
 
   // Start listening for requests on the specified port
-  await app.listen(parseInt(process.env.APP_PORT) || 3000);
+  await app.listen(Number.parseInt(process.env.APP_PORT) || 3000);
 }
 bootstrap();
