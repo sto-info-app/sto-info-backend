@@ -59,18 +59,9 @@ async function bootstrap() {
   const inDevelopment = appEnv === 'dev';
   const inLocal = appEnv === 'local';
 
-  const localAllowedOrigins = [
-    'http://localhost:4200',
-    'http://localhost:3000',
-  ];
-  const devAllowedOrigins = [
-    'https://dev.startrekonline.info',
-    'https://dev-api.startrekonline.info',
-  ];
-  const prodAllowedOrigins = [
-    'https://startrekonline.info',
-    'https://api.startrekonline.info',
-  ];
+  const localAllowedOrigins = ['http://localhost:4200'];
+  const devAllowedOrigins = ['https://dev.startrekonline.info'];
+  const prodAllowedOrigins = ['https://startrekonline.info'];
 
   let allowedOrigins: string[];
   if (inLocal) {
