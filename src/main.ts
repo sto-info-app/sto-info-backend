@@ -67,7 +67,10 @@ async function bootstrap() {
     'https://dev.startrekonline.info',
     'https://dev-api.startrekonline.info',
   ];
-  const prodAllowedOrigins = ['https://startrekonline.info'];
+  const prodAllowedOrigins = [
+    'https://startrekonline.info',
+    'https://api.startrekonline.info',
+  ];
 
   let allowedOrigins: string[];
   if (inLocal) {
@@ -78,7 +81,7 @@ async function bootstrap() {
     allowedOrigins = prodAllowedOrigins;
   }
 
-  const allowedMethods = 'GET,HEAD,OPTIONS,POST,PUT';
+  const allowedMethods = 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS';
   const allowedHeaders =
     'Origin, X-Requested-With, Content-Type, Accept, Authorization';
 
