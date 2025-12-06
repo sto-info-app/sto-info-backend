@@ -21,12 +21,12 @@ import { AuditLoginAttemptEntity } from 'src/audit/entities/audit-login-attempt.
 import { MailService } from 'src/mail/mail.service';
 import { EMAIL_PATTERN } from 'src/shared/constants/regex-patterns.constants';
 import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
+import { UserRefreshTokenService } from 'src/user-refresh-token/user-refresh-token.service';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { UserLoginDto } from 'src/user/dto/user-login.dto';
-import { UserEntity } from 'src/user/entities/user.entity';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
+import { UserEntity } from 'src/user/entities/user.entity';
 import { UserService } from 'src/user/user.service';
-import { UserRefreshTokenService } from 'src/user-refresh-token/user-refresh-token.service';
 import { QueryFailedError, Repository } from 'typeorm';
 
 import { JwtPayloadInterface } from './entities/jwt-payload.entity';
@@ -507,7 +507,9 @@ export class AuthService {
         refresh_token: newUserRefreshToken,
         expires_in: +process.env.AUTH_TOKEN_EXPIRES_IN,
       };
-    } catch (e) {
+    } catch (error) {
+      // Log the error for debugging purposes
+      console.error('Refresh token validation failed:', error.message);
       throw new UnauthorizedException('Invalid refresh token');
     }
   }
