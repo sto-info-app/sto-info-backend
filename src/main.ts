@@ -8,7 +8,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { connectionSourcePromise } from 'config/typeorm.datasource';
 import { NextFunction, Request, Response } from 'express';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { RateLimitRequestHandler } from 'express-rate-limit';
 import helmet from 'helmet';
 
 import { AppModule } from './app.module';
@@ -16,29 +16,56 @@ import { NonceMiddleware } from './auth/nonce.middleware';
 import { ConfigCheckService } from './config-check/config-check.service';
 import { getAppVersion } from './shared/utilities/version.utility';
 
+function createRateLimiter(options: {
+  windowMins: number;
+  max: number;
+  useCfConnectingIp?: boolean;
+}): RateLimitRequestHandler {
+  const { windowMins, max, useCfConnectingIp = false } = options;
+
+  const errorMessage = `Too many requests`;
+  const fullErrorMessage = `${errorMessage}, please try again after ${windowMins} minutes`;
+
+  return rateLimit({
+    windowMs: windowMins * 60 * 1000,
+    max,
+    message: fullErrorMessage,
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (_req: Request, res: Response) => {
+      res.status(429).json({
+        status: 429,
+        error: errorMessage,
+        message: fullErrorMessage,
+      });
+    },
+    skipSuccessfulRequests: false,
+    keyGenerator: (req: Request) => {
+      if (!useCfConnectingIp) {
+        return req.ip;
+      }
+
+      const cfIpHeader = (req.headers['cf-connecting-ip'] || '') as string;
+      return cfIpHeader || req.ip;
+    },
+  });
+}
+
 async function bootstrap() {
   const configCheckService = new ConfigCheckService();
   configCheckService.validateInput(process.env); // Validate the environment variables
 
-  // Define rate limiting rules
-  const rateLimitWindowMins = 5; // Rate limiting window set to 5 minutes
-  const rateLimitMaxRequests = 50; // Maximum number of requests per IP within the window
-  const rateLimitMessage = `Too many requests from this IP, please try again after ${rateLimitWindowMins} minutes`;
+  // Define global rate limiting rules (baseline protection)
+  const globalApiLimiter = createRateLimiter({
+    windowMins: 5,
+    max: 50,
+  });
 
-  const apiLimiter = rateLimit({
-    windowMs: rateLimitWindowMins * 60 * 1000, // Rate limiting window set to milliseconds
-    max: rateLimitMaxRequests, // Maximum number of requests per IP within the window
-    message: rateLimitMessage,
-    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-    handler: (_req, res) => {
-      res.status(429).json({
-        status: 429,
-        error: 'Too many requests',
-        message: rateLimitMessage,
-      });
-    },
-    skipSuccessfulRequests: false, // Count all requests, including successful ones
+  // Stricter rate limiting for authentication-related routes
+  const strictAuthLimiter = createRateLimiter({
+    windowMins: 15,
+    max: 10,
+    useCfConnectingIp: true,
   });
 
   // Create NestJS application
@@ -167,7 +194,23 @@ async function bootstrap() {
       contentSecurityPolicy: false, // Disable Helmet's default CSP middleware (allows us to set our own CSP as above including the nonce)
     }),
   ); // Enable Helmet, a collection of 11 smaller middleware functions that set security-related HTTP headers
-  app.use('/', apiLimiter); // Apply rate limiting to all routes
+
+  // Apply global baseline rate limiting to all routes
+  app.use('/', globalApiLimiter);
+
+  // Apply stricter rate limits for sensitive authentication endpoints
+  app.use(
+    [
+      '/auth/login',
+      '/auth/refresh',
+      '/auth/register',
+      '/auth/verify-email',
+      '/auth/resend-verification-email',
+      '/auth/request-password-reset',
+      '/auth/reset-password',
+    ],
+    strictAuthLimiter,
+  );
 
   if (!inLocal) {
     app.set('trust proxy', 1); // Trust only the first proxy (Cloudflare used as a proxy) - needed for rate limiting
