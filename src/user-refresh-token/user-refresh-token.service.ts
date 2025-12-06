@@ -120,6 +120,22 @@ export class UserRefreshTokenService {
     throw new UnauthorizedException('Refresh token does not exist');
   }
 
+  /**
+   * Revokes all refresh tokens for a given user by
+   * marking their records as revoked in the database.
+   *
+   * This is useful when we want to perform a full
+   * logout across all devices/sessions for security
+   * reasons (for example after a password reset
+   * or suspicious activity).
+   */
+  async revokeAllTokensForUser(userId: string): Promise<void> {
+    await this.refreshTokenRepository.update(
+      { user: { id: userId }, isRevoked: false },
+      { isRevoked: true },
+    );
+  }
+
   @Cron(CronExpression.EVERY_DAY_AT_3AM)
   async cleanupExpiredAndRevokedTokens(): Promise<void> {
     const now = new Date();

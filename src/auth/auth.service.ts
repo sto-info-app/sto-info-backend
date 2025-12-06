@@ -449,6 +449,8 @@ export class AuthService {
       user.email,
       user.profile?.firstName || 'Captain!',
     );
+
+    await this.refreshTokenService.revokeAllTokensForUser(user.id);
   }
 
   /**
@@ -544,11 +546,8 @@ export class AuthService {
       throw new HttpException('User not found', HttpStatus.NOT_FOUND);
     }
 
-    user.refreshTokens = user.refreshTokens.filter(
-      token => token.tokenId !== tokenId,
-    );
-
-    await this.userRepository.save(user);
+    // Revoke the matching refresh token for this user
+    await this.refreshTokenService.revokeToken(id, tokenId);
   }
 
   /**
