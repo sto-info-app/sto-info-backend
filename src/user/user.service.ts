@@ -135,20 +135,6 @@ export class UserService {
     await this.userRepository.save(user);
   }
 
-  async findByUserRefreshToken(token: string): Promise<UserEntity> {
-    const user = await this.userRepository
-      .createQueryBuilder('user')
-      .leftJoinAndSelect('user.refreshTokens', 'refreshToken')
-      .where('refreshToken.tokenId = :token', { token })
-      .getOne();
-
-    if (!user) {
-      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
-    }
-
-    return user;
-  }
-
   validateEmailUsername(email: string): boolean {
     if (!email) {
       return false;

@@ -328,7 +328,7 @@ export class AuthService {
       jwtid: jwtId,
     });
 
-    // Save the new refresh token
+    // Save the new refresh token (hashed)
     await this.refreshTokenService.create({
       user,
       tokenId: newUserRefreshToken,
@@ -466,18 +466,35 @@ export class AuthService {
   }> {
     try {
       const payload = this.jwtService.verify(refreshToken);
-      const user = await this.userService.findByUserRefreshToken(refreshToken);
+
+      // Load the user with their refresh tokens using the user ID
+      const user = await this.userRepository.findOne({
+        where: { id: payload.sub },
+        relations: ['refreshTokens'],
+      });
 
       if (!user) {
         throw new UnauthorizedException('User not found');
       }
 
-      // Check if the refresh token exists in the user's tokens
-      const tokenExists = user.refreshTokens.some(
-        token => token.jwtId === payload.jti,
-      );
+      // Find a non-revoked refresh token that matches both the JWT ID
+      // and the raw refresh token value using bcrypt comparison.
+      const matchingToken = await (async () => {
+        for (const token of user.refreshTokens) {
+          if (token.isRevoked || token.jwtId !== payload.jti) {
+            continue;
+          }
 
-      if (!tokenExists) {
+          const matches = await bcrypt.compare(refreshToken, token.tokenId);
+          if (matches) {
+            return token;
+          }
+        }
+
+        return null;
+      })();
+
+      if (!matchingToken) {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
@@ -490,7 +507,7 @@ export class AuthService {
         jwtid: jwtId,
       });
 
-      // Save the new refresh token
+      // Save the new refresh token (hashed in the service layer)
       await this.refreshTokenService.create({
         user,
         tokenId: newUserRefreshToken,
