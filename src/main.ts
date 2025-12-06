@@ -85,14 +85,6 @@ async function bootstrap() {
     }),
   ); // Enable data validation with transform option
 
-  // Enable CORS with the allowed origins, methods, and headers
-  app.enableCors({
-    origin: allowedOrigins,
-    credentials: true,
-    methods: allowedMethods,
-    allowedHeaders: allowedHeaders,
-  });
-
   // Add HTTP headers
   app.use((req: Request, res: Response, next: NextFunction) => {
     // Use the random nonce generated in the middleware
@@ -101,6 +93,11 @@ async function bootstrap() {
     const origin = req.headers.origin;
     if (origin && !allowedOrigins.includes(origin)) {
       return res.status(403).send('Access Forbidden');
+    }
+
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(204);
     }
 
     // Access-Control headers
