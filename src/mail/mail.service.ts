@@ -39,11 +39,11 @@ export class MailService {
       'APP_FRONTEND_URL',
       'AWS_SECRET_NAME',
     ];
-    requiredEnvVars.forEach(envVar => {
+    for (const envVar of requiredEnvVars) {
       if (!process.env[envVar]) {
         throw new Error(`Environment variable ${envVar} is not set`);
       }
-    });
+    }
   }
 
   /**
