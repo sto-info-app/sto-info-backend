@@ -70,12 +70,15 @@ export class MailService {
    * @param templateData The data to be passed to the template.
    * @returns An object containing the HTML and text content of the email.
    */
-  private async generateEmailContent(templateName: string, templateData: any) {
-    const emailHtmlContent = await ejs.renderFile(
+  private async generateEmailContent(
+    templateName: string,
+    templateData: any,
+  ): Promise<{ emailHtmlContent: string; emailTextContent: string }> {
+    const emailHtmlContent: string = await ejs.renderFile(
       path.join(this.emailTemplatePath, templateName),
       templateData,
     );
-    const emailTextContent = htmlToText(emailHtmlContent, {
+    const emailTextContent: string = htmlToText(emailHtmlContent, {
       wordwrap: 130,
     });
 
