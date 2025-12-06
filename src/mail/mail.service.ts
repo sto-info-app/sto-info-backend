@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as sgMail from '@sendgrid/mail';
 import * as ejs from 'ejs';
 import { convert as htmlToText } from 'html-to-text';
-import * as path from 'path';
+import * as path from 'node:path';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
 
