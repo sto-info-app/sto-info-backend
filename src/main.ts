@@ -147,12 +147,6 @@ async function bootstrap() {
     res.header('Surrogate-Control', 'no-store'); // sets Surrogate-Control HTTP header to no-store to prevent caching of the response
     res.header('Vary', '*'); // sets Vary HTTP header to * to prevent caching of the response
 
-    // Security headers
-    res.header('X-Content-Type-Options', 'nosniff'); // sets X-Content-Type-Options HTTP header to nosniff to prevent MIME type sniffing
-    res.header('X-Frame-Options', 'DENY'); // sets X-Frame-Options HTTP header to DENY to prevent clickjacking
-    res.header('X-XSS-Protection', '1; mode=block'); // enables XSS protection
-    res.header('Referrer-Policy', 'same-origin'); // sets the Referrer-Policy to same-origin to prevent leaking of the referrer to external sites
-
     // Use a more relaxed CSP for Swagger, otherwise use the strict one
     const isSwagger = req.originalUrl.startsWith('/swagger');
     if (isSwagger) {
@@ -189,11 +183,14 @@ async function bootstrap() {
     next();
   });
 
+  // Enable Helmet, a collection of 11 smaller middleware functions that set security-related HTTP headers
   app.use(
     helmet({
       contentSecurityPolicy: false, // Disable Helmet's default CSP middleware (allows us to set our own CSP as above including the nonce)
+      frameguard: { action: 'deny' }, // Sets X-Frame-Options HTTP header to DENY to prevent clickjacking
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' }, // Sets the Referrer-Policy to strict-origin-when-cross-origin to prevent leaking of the referrer to external sites
     }),
-  ); // Enable Helmet, a collection of 11 smaller middleware functions that set security-related HTTP headers
+  );
 
   // Apply global baseline rate limiting to all routes
   app.use('/', globalApiLimiter);
