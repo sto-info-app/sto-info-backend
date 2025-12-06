@@ -128,14 +128,12 @@ async function bootstrap() {
     }
 
     // Access-Control headers
-    if (origin) {
-      res.header('Access-Control-Allow-Origin', origin);
-    } else {
-      res.header('Access-Control-Allow-Origin', 'null');
-    }
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', allowedMethods);
-    res.header('Access-Control-Allow-Headers', allowedHeaders);
+    app.enableCors({
+      origin: allowedOrigins,
+      credentials: true,
+      methods: allowedMethods,
+      allowedHeaders: allowedHeaders,
+    });
 
     // Caching headers
     res.header(
