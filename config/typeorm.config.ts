@@ -1,5 +1,7 @@
 import { config as dotenvConfig } from 'dotenv';
 import { join } from 'path';
+import { AuditEntity } from 'src/audit/entities/audit.entity';
+import { AuditSubscriber } from 'src/audit/subscribers/audit.subscriber';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
 import { DataSourceOptions } from 'typeorm';
 
@@ -26,7 +28,8 @@ export async function getTypeOrmConfig(): Promise<DataSourceOptions> {
     password: secretObject.dbPassword, // Use the dbPassword from AWS Secrets Manager
     database: process.env.DB_NAME,
     schema: process.env.DB_SCHEMA,
-    entities: [entitiesDir],
+    entities: [entitiesDir, AuditEntity],
+    subscribers: [AuditSubscriber],
     migrations: [migrationDir],
     migrationsTableName: '_migrations',
     synchronize: process.env.TYPEORM_SYNCHRONIZE === 'true',

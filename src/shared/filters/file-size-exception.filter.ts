@@ -8,7 +8,7 @@ import { MulterError } from 'multer';
 
 @Catch(MulterError)
 export class FileSizeExceptionFilter implements ExceptionFilter {
-  catch(exception: MulterError, host: ArgumentsHost) {
+  catch(_exception: MulterError, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse();
     const status = HttpStatus.PAYLOAD_TOO_LARGE;

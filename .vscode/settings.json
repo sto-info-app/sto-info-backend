@@ -3,8 +3,21 @@
   "files.insertFinalNewline": true,
   "Prettier-SQL.SQLFlavourOverride": "postgresql",
   "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
   "[sql]": {
     "editor.defaultFormatter": "inferrinizzard.prettier-sql-vscode"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "typescript.suggest.paths": false,
   "javascript.suggest.paths": false,
@@ -24,5 +37,9 @@
   "sonarlint.connectedMode.project": {
     "connectionId": "steverobertsuk",
     "projectKey": "steverobertsuk_sto-info-backend"
+  },
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit",
+    "source.organizeImports": "explicit"
   }
 }

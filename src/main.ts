@@ -1,14 +1,16 @@
+import { config } from 'dotenv';
+config({ path: 'config/environments/.env' });
+
 import { ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-
+import { connectionSourcePromise } from 'config/typeorm.datasource';
 import { NextFunction, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 
-import { NestExpressApplication } from '@nestjs/platform-express';
-import { connectionSourcePromise } from 'config/typeorm.datasource';
 import { AppModule } from './app.module';
 import { NonceMiddleware } from './auth/nonce.middleware';
 import { ConfigCheckService } from './config-check/config-check.service';
@@ -42,11 +44,11 @@ async function bootstrap() {
   // Create NestJS application
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  // Use the nonce middleware first
-  app.use(new NonceMiddleware().use);
-
   // Use environment vars
   const configService = app.get(ConfigService);
+
+  // Use the nonce middleware
+  app.use(new NonceMiddleware().use);
 
   // Initialize the DataSource
   const connectionSource = await connectionSourcePromise;
@@ -57,14 +59,17 @@ async function bootstrap() {
   const inDevelopment = appEnv === 'dev';
   const inLocal = appEnv === 'local';
 
-  const localAllowedOrigins = ['http://localhost:4200'];
+  const localAllowedOrigins = [
+    'http://localhost:4200',
+    'http://localhost:3000',
+  ];
   const devAllowedOrigins = [
     'https://dev.startrekonline.info',
-    'https://sto-info-frontend.onrender.com/',
+    'https://dev-api.startrekonline.info',
   ];
   const prodAllowedOrigins = ['https://startrekonline.info'];
 
-  let allowedOrigins;
+  let allowedOrigins: string[];
   if (inLocal) {
     allowedOrigins = localAllowedOrigins;
   } else if (inDevelopment) {
@@ -100,13 +105,16 @@ async function bootstrap() {
     const nonce: string = res.locals.nonce;
 
     const origin = req.headers.origin;
-
-    if (!allowedOrigins.includes(origin)) {
+    if (origin && !allowedOrigins.includes(origin)) {
       return res.status(403).send('Access Forbidden');
     }
 
     // Access-Control headers
-    res.header('Access-Control-Allow-Origin', origin);
+    if (origin) {
+      res.header('Access-Control-Allow-Origin', origin);
+    } else {
+      res.header('Access-Control-Allow-Origin', 'null');
+    }
     res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Allow-Methods', allowedMethods);
     res.header('Access-Control-Allow-Headers', allowedHeaders);
@@ -132,8 +140,7 @@ async function bootstrap() {
     if (isSwagger) {
       // Allow inline styles and external fonts for swagger
       let fontsProtocol = 'https';
-      let connectSrcUrl =
-        'https://sto-info-backend.onrender.com https://dev-api.startrekonline.info';
+      let connectSrcUrl = 'https://dev-api.startrekonline.info';
       if (inLocal) {
         fontsProtocol = 'http';
         connectSrcUrl = 'http://localhost:3000';
@@ -192,6 +199,6 @@ async function bootstrap() {
   }
 
   // Start listening for requests on the specified port
-  await app.listen(parseInt(process.env.APP_PORT) || 3000);
+  await app.listen(Number.parseInt(process.env.APP_PORT) || 3000);
 }
 bootstrap();

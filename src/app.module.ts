@@ -1,12 +1,16 @@
 import { S3Client } from '@aws-sdk/client-s3';
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { getTypeOrmConfig } from 'config/typeorm.config';
+import { ClsModule } from 'nestjs-cls';
+
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { UserIdMiddleware } from './auth/user-id.middleware';
 import { ConfigCheckService } from './config-check/config-check.service';
+import { CronModule } from './cron/cron.module';
 import { DatabaseModule } from './database/database.module';
 import { MailModule } from './mail/mail.module';
 import { MailService } from './mail/mail.service';
@@ -35,6 +39,10 @@ import { UserModule } from './user/user.module';
       },
       inject: [ConfigService],
     }),
+    ClsModule.forRoot({
+      global: true,
+      middleware: { mount: true },
+    }),
     UserModule,
     AuthModule,
     MailModule,
@@ -45,6 +53,7 @@ import { UserModule } from './user/user.module';
     LauncherModule,
     PlatformLauncherModule,
     DatabaseModule,
+    CronModule,
   ],
   controllers: [AppController],
   providers: [
@@ -57,4 +66,8 @@ import { UserModule } from './user/user.module';
     ImageUploadsService,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(UserIdMiddleware).forRoutes('*');
+  }
+}

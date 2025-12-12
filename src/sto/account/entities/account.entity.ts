@@ -1,4 +1,12 @@
-import { IsUUID } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+} from 'class-validator';
 import { LauncherEntity } from 'src/sto/launcher/entities/launcher.entity';
 import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
@@ -19,12 +27,18 @@ export class AccountEntity {
   @IsUUID()
   id: string;
 
+  @IsNotEmpty()
+  @IsString()
   @Column({ length: 255, nullable: false })
   handle: string;
 
+  @IsOptional()
+  @IsString()
   @Column({ length: 255, nullable: true })
   username: string;
 
+  @IsOptional()
+  @IsEmail()
   @Column({ length: 255, nullable: true })
   email: string;
 
@@ -36,12 +50,17 @@ export class AccountEntity {
   @JoinColumn({ name: 'launcherId' })
   launcher: LauncherEntity;
 
+  @IsOptional()
+  @IsString()
   @Column({ type: 'text', nullable: true })
   notes: string;
 
+  @IsOptional()
+  @IsDateString()
   @Column()
   accountCreatedDate: Date;
 
+  @IsBoolean()
   @Column({ default: true })
   publiclyVisible: boolean;
 

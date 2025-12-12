@@ -3,8 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { instanceToPlain } from 'class-transformer';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
+
 import { AuthService } from './auth.service';
+import { JwtPayloadInterface } from './entities/jwt-payload.entity';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -29,11 +32,22 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: any) {
+  /**
+   * Validate the JWT payload.
+   * @param payload - The JWT payload to validate.
+   * @returns The user object if the payload is valid.
+   */
+  async validate(payload: JwtPayloadInterface) {
     const user = await this.authService.validateUserFromPayload(payload);
     if (!user) {
       throw new UnauthorizedException();
     }
+
+    if (!CurrentContextHelper.userUuid) {
+      // Store user UUID for audit logging and downstream usage
+      CurrentContextHelper.userUuid = payload.sub;
+    }
+
     return instanceToPlain(user);
   }
 }

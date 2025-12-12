@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { exec } from 'child_process';
 import { config as dotenvConfig } from 'dotenv';
 import 'tsconfig-paths/register';
@@ -20,7 +21,10 @@ async function runTypeORMCommand() {
   switch (command) {
     case 'migration:generate':
       if (!migrationName) {
-        console.error('Migration name is required for migration:generate');
+        Logger.error(
+          'Migration name is required for migration:generate',
+          'runTypeORMCommand Function',
+        );
         process.exit(1);
       }
       await execAsync(
@@ -43,13 +47,17 @@ async function runTypeORMCommand() {
       );
       break;
     default:
-      console.log(`Unknown command: ${command}`);
+      Logger.log(`Unknown command: ${command}`, 'runTypeORMCommand Function');
   }
 
   await connectionSource.destroy();
 }
 
 runTypeORMCommand().catch(error => {
-  console.error('Error running TypeORM command:', error);
+  Logger.error(
+    'Error running TypeORM command:',
+    error,
+    'runTypeORMCommand Function',
+  );
   process.exit(1);
 });

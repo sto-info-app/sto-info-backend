@@ -128,6 +128,14 @@ class EnvironmentVariables {
   @IsNotEmpty()
   @IsNumber()
   MAX_IMAGE_SIZE_IN_BYTES: number;
+
+  @IsNotEmpty()
+  @IsNumber()
+  AUDIT_DATA_NUKE_THRESHOLD_DAYS: number;
+
+  @IsNotEmpty()
+  @IsNumber()
+  AUDIT_IP_NUKE_THRESHOLD_DAYS: number;
 }
 
 @Injectable()

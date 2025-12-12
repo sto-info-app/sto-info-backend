@@ -1,6 +1,17 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MinLength,
+} from 'class-validator';
 
 export class UpdateUserProfileDto {
+  @IsNotEmpty()
+  @IsUUID()
+  userId: string;
+
   @IsNotEmpty()
   @IsString()
   readonly firstName: string;
@@ -14,7 +25,11 @@ export class UpdateUserProfileDto {
   @MinLength(5)
   readonly username: string;
 
-  @IsNotEmpty()
-  @IsEmail()
-  readonly email: string;
+  @IsOptional()
+  @IsString()
+  profilePictureId: string;
+
+  @IsOptional()
+  @IsBoolean()
+  publiclyVisible: boolean;
 }
