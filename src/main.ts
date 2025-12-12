@@ -54,27 +54,23 @@ async function bootstrap() {
   const connectionSource = await connectionSourcePromise;
   await connectionSource.initialize();
 
-  const appEnv = configService.get('NODE_ENV');
+  const appEnv = configService.get('NODE_ENV') ?? 'dev';
   const inProduction = appEnv === 'prod';
   const inDevelopment = appEnv === 'dev';
   const inLocal = appEnv === 'local';
 
-  const localAllowedOrigins = [
-    'http://localhost:4200',
-    'http://localhost:3000',
-  ];
   const devAllowedOrigins = [
+    'http://localhost:4200',
     'https://dev.startrekonline.info',
-    'https://dev-api.startrekonline.info',
   ];
-  const prodAllowedOrigins = ['https://startrekonline.info'];
 
-  let allowedOrigins: string[];
-  if (inLocal) {
-    allowedOrigins = localAllowedOrigins;
-  } else if (inDevelopment) {
-    allowedOrigins = devAllowedOrigins;
-  } else {
+  const prodAllowedOrigins = [
+    'https://startrekonline.info',
+    'https://www.startrekonline.info',
+  ];
+
+  let allowedOrigins = devAllowedOrigins;
+  if (inProduction) {
     allowedOrigins = prodAllowedOrigins;
   }
 
@@ -93,10 +89,21 @@ async function bootstrap() {
 
   // Enable CORS with the allowed origins, methods, and headers
   app.enableCors({
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      // Allow requests with no Origin header (curl, health checks, etc.)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`Origin ${origin} not allowed by CORS`));
+    },
     credentials: true,
     methods: allowedMethods,
-    allowedHeaders: allowedHeaders,
+    allowedHeaders,
   });
 
   // Add HTTP headers
@@ -108,16 +115,6 @@ async function bootstrap() {
     if (origin && !allowedOrigins.includes(origin)) {
       return res.status(403).send('Access Forbidden');
     }
-
-    // Access-Control headers
-    if (origin) {
-      res.header('Access-Control-Allow-Origin', origin);
-    } else {
-      res.header('Access-Control-Allow-Origin', 'null');
-    }
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', allowedMethods);
-    res.header('Access-Control-Allow-Headers', allowedHeaders);
 
     // Caching headers
     res.header(
@@ -137,7 +134,7 @@ async function bootstrap() {
 
     // Use a more relaxed CSP for Swagger, otherwise use the strict one
     const isSwagger = req.originalUrl.startsWith('/swagger');
-    if (isSwagger) {
+    if (isSwagger && (inDevelopment || inLocal)) {
       // Allow inline styles and external fonts for swagger
       let fontsProtocol = 'https';
       let connectSrcUrl = 'https://dev-api.startrekonline.info';
