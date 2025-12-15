@@ -101,8 +101,8 @@ export class MailService {
     const msg = this.generateEmailMessageObject(
       email,
       'Please verify your email',
-      emailTextContent,
-      emailHtmlContent,
+      emailTextContent as string,
+      emailHtmlContent as string,
     );
 
     await this.sendEmailViaSendGrid(msg);
@@ -133,8 +133,8 @@ export class MailService {
     const msg = this.generateEmailMessageObject(
       email,
       `Password reset for the ${process.env.APP_TITLE}`,
-      emailTextContent,
-      emailHtmlContent,
+      emailTextContent as string,
+      emailHtmlContent as string,
     );
 
     await this.sendEmailViaSendGrid(msg);
@@ -157,8 +157,8 @@ export class MailService {
     const msg = this.generateEmailMessageObject(
       email,
       `Password changed for the ${process.env.APP_TITLE}`,
-      emailTextContent,
-      emailHtmlContent,
+      emailTextContent as string,
+      emailHtmlContent as string,
     );
 
     await this.sendEmailViaSendGrid(msg);
@@ -181,8 +181,8 @@ export class MailService {
     const msg = this.generateEmailMessageObject(
       email,
       `User logged in to ${process.env.APP_TITLE}`,
-      emailTextContent,
-      emailHtmlContent,
+      emailTextContent as string,
+      emailHtmlContent as string,
     );
 
     await this.sendEmailViaSendGrid(msg);
