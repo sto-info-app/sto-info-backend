@@ -81,6 +81,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          npm version patch --no-git-tag-version -m "chore: bump version to %s"
+          NEW_VERSION=$(npm version patch --no-git-tag-version)
+
+          # Stage updated version files
+          git add package.json package-lock.json
+
+          # Commit the version bump so it can be pushed
+          git commit -m "chore: bump version to ${NEW_VERSION#v}"
 
           git push origin "HEAD:$PR_BRANCH"
