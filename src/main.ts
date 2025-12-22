@@ -233,4 +233,4 @@ async function bootstrap() {
   // Start listening for requests on the specified port
   await app.listen(Number.parseInt(process.env.APP_PORT) || 3000);
 }
-bootstrap();
+bootstrap(); // NOSONAR - ignore Sonar warning S7785
