@@ -56,7 +56,7 @@
     "cloudmersive-virus-api-client": "^1.4.0",
     "cross-env": "^10.1.0",
     "crypto": "^1.0.1",
-    "dotenv": "^16.4.5",
+    "dotenv": "^17.2.3",
     "ejs": "^3.1.10",
     "express": "^4.21.1",
     "express-rate-limit": "^7.3.1",
