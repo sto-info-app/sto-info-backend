@@ -81,7 +81,7 @@ async function bootstrap() {
   const connectionSource = await connectionSourcePromise;
   await connectionSource.initialize();
 
-  const appEnv = configService.get('NODE_ENV');
+  const appEnv = configService.get('NODE_ENV') ?? 'dev';
   const inProduction = appEnv === 'prod';
   const inDevelopment = appEnv === 'dev';
   const inLocal = appEnv === 'local';
@@ -90,12 +90,13 @@ async function bootstrap() {
   const devAllowedOrigins = ['https://dev.startrekonline.info'];
   const prodAllowedOrigins = ['https://startrekonline.info'];
 
-  let allowedOrigins: string[];
-  if (inLocal) {
-    allowedOrigins = localAllowedOrigins;
-  } else if (inDevelopment) {
-    allowedOrigins = devAllowedOrigins;
-  } else {
+  const prodAllowedOrigins = [
+    'https://startrekonline.info',
+    'https://www.startrekonline.info',
+  ];
+
+  let allowedOrigins = devAllowedOrigins;
+  if (inProduction) {
     allowedOrigins = prodAllowedOrigins;
   }
 
@@ -147,7 +148,7 @@ async function bootstrap() {
 
     // Use a more relaxed CSP for Swagger, otherwise use the strict one
     const isSwagger = req.originalUrl.startsWith('/swagger');
-    if (isSwagger) {
+    if (isSwagger && (inDevelopment || inLocal)) {
       // Allow inline styles and external fonts for swagger
       let fontsProtocol = 'https';
       let connectSrcUrl = 'https://dev-api.startrekonline.info';
