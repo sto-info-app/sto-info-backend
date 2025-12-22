@@ -1,0 +1,26 @@
+name: Cached dependencies
+description: Restore and cache node_modules, then install dependencies
+
+inputs:
+  use-cache:
+    description: 'Whether to use node_modules cache'
+    required: true
+  node-version:
+    description: 'Node.js major version (used in cache key)'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Restore node_modules cache
+      if: inputs.use-cache == 'true'
+      uses: actions/cache@v4
+      with:
+        path: node_modules
+        key: ${{ runner.os }}-node${{ inputs.node-version }}-node-modules-${{ hashFiles('package-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-node${{ inputs.node-version }}-node-modules-
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
