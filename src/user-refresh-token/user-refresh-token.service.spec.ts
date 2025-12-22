@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { UserRefreshTokenEntity } from './entities/user-refresh-token.entity';
 import { UserRefreshTokenService } from './user-refresh-token.service';
 
@@ -13,7 +14,9 @@ describe('UserRefreshTokenService', () => {
         UserRefreshTokenService,
         {
           provide: getRepositoryToken(UserRefreshTokenEntity),
-          useValue: {},
+          useValue: {
+            update: jest.fn(),
+          },
         },
       ],
     }).compile();
