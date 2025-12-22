@@ -1,6 +1,6 @@
 {
   "name": "sto-info-backend",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Star Trek Online Information APIs",
   "author": "Steve Roberts",
   "private": true,
@@ -129,10 +129,7 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node",
-    "moduleNameMapper": {
-      "^src/(.*)$": "<rootDir>/$1"
-    }
+    "testEnvironment": "node"
   },
   "eslintConfig": {
     "root": true,
