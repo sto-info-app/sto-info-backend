@@ -106,6 +106,15 @@ async function bootstrap() {
   const allowedHeaders =
     'Origin, X-Requested-With, Content-Type, Accept, Authorization';
 
+  // Enable CORS globally so that all requests, including
+  // preflight (OPTIONS), receive the appropriate CORS headers
+  app.enableCors({
+    origin: allowedOrigins,
+    credentials: true,
+    methods: allowedMethods,
+    allowedHeaders: allowedHeaders,
+  });
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true, // Strips non-whitelisted properties (those without validation decorators in the DTO)
@@ -119,24 +128,6 @@ async function bootstrap() {
   app.use((req: Request, res: Response, next: NextFunction) => {
     // Use the random nonce generated in the middleware
     const nonce: string = res.locals.nonce;
-
-    const origin = req.headers.origin;
-    if (origin && !allowedOrigins.includes(origin)) {
-      return res.status(403).send('Access Forbidden');
-    }
-
-    // Handle preflight requests
-    if (req.method === 'OPTIONS') {
-      return res.sendStatus(204);
-    }
-
-    // Access-Control headers
-    app.enableCors({
-      origin: allowedOrigins,
-      credentials: true,
-      methods: allowedMethods,
-      allowedHeaders: allowedHeaders,
-    });
 
     // Caching headers
     res.header(
