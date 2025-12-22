@@ -1,4 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { AuditEntity } from 'src/audit/entities/audit.entity';
 import { AuditCleanupService } from './audit-cleanup.service';
 
 describe('AuditCleanupService', () => {
@@ -6,7 +8,13 @@ describe('AuditCleanupService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [AuditCleanupService],
+      providers: [
+        AuditCleanupService,
+        {
+          provide: getRepositoryToken(AuditEntity),
+          useValue: {},
+        },
+      ],
     }).compile();
 
     service = module.get<AuditCleanupService>(AuditCleanupService);

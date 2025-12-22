@@ -1,0 +1,86 @@
+name: Version bump on PR open (to development branch)
+
+on:
+  pull_request:
+    branches: [development]
+    types: [opened, reopened]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+env:
+  NODE_VERSION: 24
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  bump_version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Detect fork PR
+        id: fork-check
+        run: |
+          if [ "${{ github.event.pull_request.head.repo.fork }}" = "true" ]; then
+            echo "is_fork=true" >> "$GITHUB_OUTPUT"
+            echo "PR is from a fork. Skipping version bump."
+          else
+            echo "is_fork=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Capture and validate PR branch info
+        if: steps.fork-check.outputs.is_fork != 'true'
+        id: pr-info
+        env:
+          PR_BRANCH_RAW: ${{ github.event.pull_request.head.ref }}
+          PR_REPO_RAW: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          # Allow only safe branch characters
+          if ! [[ "$PR_BRANCH_RAW" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+            echo "Unsafe branch name detected. Aborting."
+            exit 1
+          fi
+
+          echo "pr_branch=$PR_BRANCH_RAW" >> "$GITHUB_OUTPUT"
+          echo "pr_repo=$PR_REPO_RAW" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout PR head branch
+        if: steps.fork-check.outputs.is_fork != 'true'
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.pr-info.outputs.pr_branch }}
+          repository: ${{ steps.pr-info.outputs.pr_repo }}
+          fetch-depth: 0
+
+      - name: Set up Node
+        if: steps.fork-check.outputs.is_fork != 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Stop if already bumped on this branch
+        if: steps.fork-check.outputs.is_fork != 'true'
+        run: |
+          if git log -50 --pretty=%s | grep -qi "^chore: bump version to"; then
+            echo "Version bump commit already present. Exiting."
+            exit 0
+          fi
+
+      - name: Show current version
+        if: steps.fork-check.outputs.is_fork != 'true'
+        run: node -p "require('./package.json').version"
+
+      - name: Bump patch version (commit to PR branch)
+        if: steps.fork-check.outputs.is_fork != 'true'
+        env:
+          PR_BRANCH: ${{ steps.pr-info.outputs.pr_branch }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          npm version patch --no-git-tag-version -m "chore: bump version to %s"
+
+          git push origin "HEAD:$PR_BRANCH"
