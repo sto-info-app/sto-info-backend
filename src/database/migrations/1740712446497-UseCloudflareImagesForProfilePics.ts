@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class UseCloudflareImagesForProfilePics1740712446497
-  implements MigrationInterface
-{
+export class UseCloudflareImagesForProfilePics1740712446497 implements MigrationInterface {
   name = 'UseCloudflareImagesForProfilePics1740712446497';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

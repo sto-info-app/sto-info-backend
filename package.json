@@ -13,13 +13,13 @@
     "node": ">=20 <25"
   },
   "scripts": {
-    "prebuild": "rimraf dist",
+    "prebuild": "npx rimraf dist",
     "build": "nest build",
     "postbuild": "node src/views/copy-email-templates-to-dist.js",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "prestart": "rimraf dist && node src/views/copy-email-templates-to-dist.js && npm run migration:run",
+    "prestart": "npx rimraf dist && node src/views/copy-email-templates-to-dist.js && npm run migration:run",
     "start": "set TZ=UTC && npx nest start",
-    "prestart:dev": "rimraf dist && node src/views/copy-email-templates-to-dist.js && npm run migration:run",
+    "prestart:dev": "npx rimraf dist && node src/views/copy-email-templates-to-dist.js && npm run migration:run",
     "start:dev": "set TZ=UTC&& nest start --watch",
     "start:debug": "set TZ=UTC&& nest start --debug --watch",
     "start:prod": "set TZ=UTC&& node dist/main",
@@ -93,12 +93,13 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^25.0.3",
     "@types/supertest": "^6.0.2",
-    "@typescript-eslint/eslint-plugin": "^7.15.0",
-    "@typescript-eslint/parser": "^8.50.0",
+    "@typescript-eslint/eslint-plugin": "^8.49.0",
+    "@typescript-eslint/parser": "^8.49.0",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.1.3",
     "eslint-plugin-simple-import-sort": "^12.1.1",
+    "globals": "^15.13.0",
     "glob": "^13.0.0",
     "jest": "^30.2.0",
     "prettier": "^3.7.4",
@@ -128,7 +129,10 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "moduleNameMapper": {
+      "^src/(.*)$": "<rootDir>/$1"
+    }
   },
   "eslintConfig": {
     "root": true,

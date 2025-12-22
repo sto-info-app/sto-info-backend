@@ -13,20 +13,20 @@ import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { instanceToPlain } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
-import * as crypto from 'crypto';
 import * as ejs from 'ejs';
 import { convert as htmlToText } from 'html-to-text';
-import * as path from 'path';
+import * as crypto from 'node:crypto';
+import * as path from 'node:path';
 import { AuditLoginAttemptEntity } from 'src/audit/entities/audit-login-attempt.entity';
 import { MailService } from 'src/mail/mail.service';
 import { EMAIL_PATTERN } from 'src/shared/constants/regex-patterns.constants';
 import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
+import { UserRefreshTokenService } from 'src/user-refresh-token/user-refresh-token.service';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { UserLoginDto } from 'src/user/dto/user-login.dto';
-import { UserEntity } from 'src/user/entities/user.entity';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
+import { UserEntity } from 'src/user/entities/user.entity';
 import { UserService } from 'src/user/user.service';
-import { UserRefreshTokenService } from 'src/user-refresh-token/user-refresh-token.service';
 import { QueryFailedError, Repository } from 'typeorm';
 
 import { JwtPayloadInterface } from './entities/jwt-payload.entity';
@@ -328,7 +328,7 @@ export class AuthService {
       jwtid: jwtId,
     });
 
-    // Save the new refresh token
+    // Save the new refresh token (hashed)
     await this.refreshTokenService.create({
       user,
       tokenId: newUserRefreshToken,
@@ -449,6 +449,8 @@ export class AuthService {
       user.email,
       user.profile?.firstName || 'Captain!',
     );
+
+    await this.refreshTokenService.revokeAllTokensForUser(user.id);
   }
 
   /**
@@ -466,18 +468,35 @@ export class AuthService {
   }> {
     try {
       const payload = this.jwtService.verify(refreshToken);
-      const user = await this.userService.findByUserRefreshToken(refreshToken);
+
+      // Load the user with their refresh tokens using the user ID
+      const user = await this.userRepository.findOne({
+        where: { id: payload.sub },
+        relations: ['refreshTokens'],
+      });
 
       if (!user) {
         throw new UnauthorizedException('User not found');
       }
 
-      // Check if the refresh token exists in the user's tokens
-      const tokenExists = user.refreshTokens.some(
-        token => token.jwtId === payload.jti,
-      );
+      // Find a non-revoked refresh token that matches both the JWT ID
+      // and the raw refresh token value using bcrypt comparison.
+      const matchingToken = await (async () => {
+        for (const token of user.refreshTokens) {
+          if (token.isRevoked || token.jwtId !== payload.jti) {
+            continue;
+          }
 
-      if (!tokenExists) {
+          const matches = await bcrypt.compare(refreshToken, token.tokenId);
+          if (matches) {
+            return token;
+          }
+        }
+
+        return null;
+      })();
+
+      if (!matchingToken) {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
@@ -490,7 +509,7 @@ export class AuthService {
         jwtid: jwtId,
       });
 
-      // Save the new refresh token
+      // Save the new refresh token (hashed in the service layer)
       await this.refreshTokenService.create({
         user,
         tokenId: newUserRefreshToken,
@@ -507,7 +526,9 @@ export class AuthService {
         refresh_token: newUserRefreshToken,
         expires_in: +process.env.AUTH_TOKEN_EXPIRES_IN,
       };
-    } catch (e) {
+    } catch (error) {
+      // Log the error for debugging purposes
+      console.error('Refresh token validation failed:', error.message);
       throw new UnauthorizedException('Invalid refresh token');
     }
   }
@@ -525,11 +546,8 @@ export class AuthService {
       throw new HttpException('User not found', HttpStatus.NOT_FOUND);
     }
 
-    user.refreshTokens = user.refreshTokens.filter(
-      token => token.tokenId !== tokenId,
-    );
-
-    await this.userRepository.save(user);
+    // Revoke the matching refresh token for this user
+    await this.refreshTokenService.revokeToken(id, tokenId);
   }
 
   /**
