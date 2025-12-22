@@ -43,7 +43,7 @@ function createRateLimiter(options: {
       });
     },
     skipSuccessfulRequests: false,
-    keyGenerator: (req: Request, _res: Response) => {
+    keyGenerator: (req: Request) => {
       if (useCfConnectingIp) {
         const cfIpHeader = req.headers['cf-connecting-ip'];
         if (typeof cfIpHeader === 'string' && cfIpHeader.trim().length > 0) {
