@@ -8,7 +8,10 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { connectionSourcePromise } from 'config/typeorm.datasource';
 import { NextFunction, Request, Response } from 'express';
-import rateLimit, { RateLimitRequestHandler } from 'express-rate-limit';
+import rateLimit, {
+  RateLimitRequestHandler,
+  ipKeyGenerator,
+} from 'express-rate-limit';
 import helmet from 'helmet';
 
 import { AppModule } from './app.module';
@@ -40,13 +43,15 @@ function createRateLimiter(options: {
       });
     },
     skipSuccessfulRequests: false,
-    keyGenerator: (req: Request) => {
-      if (!useCfConnectingIp) {
-        return req.ip;
+    keyGenerator: (req: Request, _res: Response) => {
+      if (useCfConnectingIp) {
+        const cfIpHeader = req.headers['cf-connecting-ip'];
+        if (typeof cfIpHeader === 'string' && cfIpHeader.trim().length > 0) {
+          return cfIpHeader.trim();
+        }
       }
 
-      const cfIpHeader = (req.headers['cf-connecting-ip'] || '') as string;
-      return cfIpHeader || req.ip;
+      return ipKeyGenerator(req.ip);
     },
   });
 }
@@ -86,14 +91,11 @@ async function bootstrap() {
   const inDevelopment = appEnv === 'dev';
   const inLocal = appEnv === 'local';
 
-  const localAllowedOrigins = ['http://localhost:4200'];
-  const devAllowedOrigins = ['https://dev.startrekonline.info'];
-  const prodAllowedOrigins = ['https://startrekonline.info'];
-
-  const prodAllowedOrigins = [
-    'https://startrekonline.info',
-    'https://www.startrekonline.info',
+  const devAllowedOrigins = [
+    'http://localhost:4200',
+    'https://dev.startrekonline.info',
   ];
+  const prodAllowedOrigins = ['https://startrekonline.info'];
 
   let allowedOrigins = devAllowedOrigins;
   if (inProduction) {
