@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class RemoveStoringProfileUrl1740935894035
-  implements MigrationInterface
-{
+export class RemoveStoringProfileUrl1740935894035 implements MigrationInterface {
   name = 'RemoveStoringProfileUrl1740935894035';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
