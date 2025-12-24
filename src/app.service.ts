@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { readFileSync } from 'fs';
-import { join } from 'path';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { SecretsService } from './shared/secrets/secrets.service';
 
 @Injectable()
