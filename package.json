@@ -126,7 +126,14 @@
       "^src/(.*)$": "<rootDir>/$1"
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "**/*.(t|j)s",
+      "!**/*.module.(t|j)s",
+      "!**/main.(t|j)s",
+      "!**/*.d.ts",
+      "!**/*.dto.(t|j)s",
+      "!**/*.entity.(t|j)s",
+      "!**/*.interface.(t|j)s",
+      "!**/*.enum.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
