@@ -14,9 +14,12 @@ import rateLimit, {
 } from 'express-rate-limit';
 import helmet from 'helmet';
 
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { AppModule } from './app.module';
 import { NonceMiddleware } from './auth/nonce.middleware';
 import { ConfigCheckService } from './config-check/config-check.service';
+import { SWAGGER_UI_DARK_THEME_CSS } from './shared/constants/swagger.constants';
 import { getAppVersion } from './shared/utilities/version.utility';
 
 function createRateLimiter(options: {
@@ -208,6 +211,13 @@ async function bootstrap() {
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector))); // Enable class serializer interceptor for managing response data
 
   if (!inProduction) {
+    const require = createRequire(__filename);
+
+    // swagger-ui-themes is CSS-only; resolve the CSS file directly
+    const themeCssPath =
+      require.resolve('swagger-ui-themes/themes/3.x/theme-monokai.css');
+    const themeCss = readFileSync(themeCssPath, 'utf8');
+
     // Set up Swagger for API documentation
     const config = new DocumentBuilder()
       .setTitle('STO Info API')
@@ -218,7 +228,9 @@ async function bootstrap() {
 
     // Set up Swagger UI endpoint
     const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('swagger', app, document);
+    SwaggerModule.setup('swagger', app, document, {
+      customCss: themeCss + SWAGGER_UI_DARK_THEME_CSS,
+    });
   }
 
   // Start listening for requests on the specified port
