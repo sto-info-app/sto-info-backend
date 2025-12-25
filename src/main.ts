@@ -20,6 +20,7 @@ import { AppModule } from './app.module';
 import { NonceMiddleware } from './auth/nonce.middleware';
 import { ConfigCheckService } from './config-check/config-check.service';
 import { SWAGGER_UI_DARK_THEME_CSS } from './shared/constants/swagger.constants';
+import { TypeOrmExceptionFilter } from './shared/filters/typeorm-exception.filter';
 import { getAppVersion } from './shared/utilities/version.utility';
 
 function createRateLimiter(options: {
@@ -78,6 +79,9 @@ async function bootstrap() {
 
   // Create NestJS application
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Use global exception filter for TypeORM exceptions
+  app.useGlobalFilters(new TypeOrmExceptionFilter());
 
   // Use environment vars
   const configService = app.get(ConfigService);
@@ -187,8 +191,13 @@ async function bootstrap() {
     }),
   );
 
-  // Apply global baseline rate limiting to all routes
-  app.use('/', globalApiLimiter);
+  // Apply global baseline rate limiting to all routes except health checks
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path.startsWith('/health')) {
+      return next();
+    }
+    return globalApiLimiter(req, res, next);
+  });
 
   // Apply stricter rate limits for sensitive authentication endpoints
   app.use(
