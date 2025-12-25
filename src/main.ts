@@ -6,18 +6,17 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+
 import { connectionSourcePromise } from 'config/typeorm.datasource';
 import { NextFunction, Request, Response } from 'express';
-import rateLimit, {
-  RateLimitRequestHandler,
-  ipKeyGenerator,
-} from 'express-rate-limit';
+import rateLimit, { RateLimitRequestHandler } from 'express-rate-limit';
 import helmet from 'helmet';
-
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+
 import { AppModule } from './app.module';
 import { NonceMiddleware } from './auth/nonce.middleware';
+import { clientIpMiddleware } from './common/http/client-ip.middleware';
 import { ConfigCheckService } from './config-check/config-check.service';
 import { SWAGGER_UI_DARK_THEME_CSS } from './shared/constants/swagger.constants';
 import { TypeOrmExceptionFilter } from './shared/filters/typeorm-exception.filter';
@@ -26,9 +25,8 @@ import { getAppVersion } from './shared/utilities/version.utility';
 function createRateLimiter(options: {
   windowMins: number;
   max: number;
-  useCfConnectingIp?: boolean;
 }): RateLimitRequestHandler {
-  const { windowMins, max, useCfConnectingIp = false } = options;
+  const { windowMins, max } = options;
 
   const errorMessage = `Too many requests`;
   const fullErrorMessage = `${errorMessage}, please try again after ${windowMins} minutes`;
@@ -47,16 +45,7 @@ function createRateLimiter(options: {
       });
     },
     skipSuccessfulRequests: false,
-    keyGenerator: (req: Request) => {
-      if (useCfConnectingIp) {
-        const cfIpHeader = req.headers['cf-connecting-ip'];
-        if (typeof cfIpHeader === 'string' && cfIpHeader.trim().length > 0) {
-          return cfIpHeader.trim();
-        }
-      }
-
-      return ipKeyGenerator(req.ip);
-    },
+    keyGenerator: (req: Request) => req.clientIp ?? req.ip,
   });
 }
 
@@ -74,7 +63,6 @@ async function bootstrap() {
   const strictAuthLimiter = createRateLimiter({
     windowMins: 15,
     max: 10,
-    useCfConnectingIp: true,
   });
 
   // Create NestJS application
@@ -85,6 +73,9 @@ async function bootstrap() {
 
   // Use environment vars
   const configService = app.get(ConfigService);
+
+  // Use the client IP middleware
+  app.use(clientIpMiddleware);
 
   // Use the nonce middleware
   app.use(new NonceMiddleware().use);
