@@ -134,8 +134,12 @@
       "!**/*.d.ts",
       "!**/*.dto.(t|j)s",
       "!**/*.entity.(t|j)s",
+      "!**/*.entities.(t|j)s",
       "!**/*.interface.(t|j)s",
-      "!**/*.enum.(t|j)s"
+      "!**/*.interfaces.(t|j)s",
+      "!**/*.enum.(t|j)s",
+      "!**/*.constant.(t|j)s",
+      "!**/*.constants.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
