@@ -30,4 +30,13 @@ describe('AppController', () => {
       expect(appController.getHello()).toBe('Hello test!');
     });
   });
+
+  describe('version', () => {
+    it('should return the app version string', () => {
+      const version = appController.getVersion();
+
+      expect(typeof version).toBe('string');
+      expect(version.length).toBeGreaterThan(0);
+    });
+  });
 });

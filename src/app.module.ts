@@ -24,6 +24,7 @@ import { PlatformLauncherModule } from './sto/platform-launcher/platform-launche
 import { PlatformModule } from './sto/platform/platform.module';
 import { UserRefreshTokenModule } from './user-refresh-token/user-refresh-token.module';
 import { UserModule } from './user/user.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { UserModule } from './user/user.module';
     PlatformLauncherModule,
     DatabaseModule,
     CronModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [

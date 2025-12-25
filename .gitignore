@@ -21,6 +21,9 @@ dist/
 !.vscode/extensions.json
 .history/*
 
+# Test directories and files
+coverage/
+
 # Other editor directories and files
 .idea/
 *.suo

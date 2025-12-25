@@ -36,4 +36,22 @@ describe('MailService', () => {
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
+
+  it('should throw if a required environment variable is missing', () => {
+    const originalAppTitle = process.env.APP_TITLE;
+    delete process.env.APP_TITLE;
+
+    const secretsMock = {
+      getSecret: jest.fn(),
+    } as unknown as SecretsService;
+    const validatorsMock = {
+      validateEmail: jest.fn(),
+    } as unknown as ValidatorsService;
+
+    expect(() => new MailService(secretsMock, validatorsMock)).toThrow(
+      'Environment variable APP_TITLE is not set',
+    );
+
+    process.env.APP_TITLE = originalAppTitle;
+  });
 });
