@@ -193,13 +193,6 @@ async function bootstrap() {
 
   // Apply global baseline rate limiting to all routes except health checks
   app.use((req: Request, res: Response, next: NextFunction) => {
-    console.log('ip-check', {
-      ip: req.ip,
-      cf: req.headers['cf-connecting-ip'],
-      xff: req.headers['x-forwarded-for'],
-      host: req.headers.host,
-    }); //TODO: Delete me!
-
     if (req.path.startsWith('/health/')) {
       return next();
     }
