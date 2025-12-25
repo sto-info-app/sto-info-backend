@@ -5,6 +5,7 @@ import {
   IsEmail,
   IsNotEmpty,
   IsNumber,
+  IsOptional,
   IsString,
   IsUrl,
   ValidateIf,
@@ -136,6 +137,10 @@ class EnvironmentVariables {
   @IsNotEmpty()
   @IsNumber()
   AUDIT_IP_NUKE_THRESHOLD_DAYS: number;
+
+  @IsOptional()
+  @IsNumber()
+  TRUST_PROXY_HOPS: number;
 }
 
 @Injectable()

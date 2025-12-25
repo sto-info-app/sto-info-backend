@@ -25,9 +25,12 @@
   "cSpell.words": [
     "Apikey",
     "Cloudmersive",
+    "DATASEED",
+    "FIRSTNAME",
     "gstatic",
     "imagedelivery",
     "jwtid",
+    "LASTNAME",
     "monokai",
     "njsproj",
     "nosniff",
@@ -35,6 +38,7 @@
     "psess",
     "sendgrid",
     "throttler",
+    "TYPEORM",
     "uuidv4",
     "vars"
   ],
