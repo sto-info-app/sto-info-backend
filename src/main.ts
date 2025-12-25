@@ -213,11 +213,16 @@ async function bootstrap() {
     strictAuthLimiter,
   );
 
+  // Trust only the first proxy (Cloudflare used as a proxy) - needed for rate limiting
+  const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 1);
+
+  // Set trust proxy if not in local environment
   if (!inLocal) {
-    app.set('trust proxy', 1); // Trust only the first proxy (Cloudflare used as a proxy) - needed for rate limiting
+    app.set('trust proxy', trustProxyHops);
   }
 
-  app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector))); // Enable class serializer interceptor for managing response data
+  // Enable class serializer interceptor for managing response data
+  app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
 
   if (!inProduction) {
     const require = createRequire(__filename);
