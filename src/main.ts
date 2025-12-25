@@ -187,8 +187,13 @@ async function bootstrap() {
     }),
   );
 
-  // Apply global baseline rate limiting to all routes
-  app.use('/', globalApiLimiter);
+  // Apply global baseline rate limiting to all routes except health checks
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path.startsWith('/health')) {
+      return next();
+    }
+    return globalApiLimiter(req, res, next);
+  });
 
   // Apply stricter rate limits for sensitive authentication endpoints
   app.use(
