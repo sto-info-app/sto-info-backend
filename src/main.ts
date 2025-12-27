@@ -6,25 +6,27 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+
 import { connectionSourcePromise } from 'config/typeorm.datasource';
 import { NextFunction, Request, Response } from 'express';
-import rateLimit, {
-  RateLimitRequestHandler,
-  ipKeyGenerator,
-} from 'express-rate-limit';
+import rateLimit, { RateLimitRequestHandler } from 'express-rate-limit';
 import helmet from 'helmet';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 
 import { AppModule } from './app.module';
 import { NonceMiddleware } from './auth/nonce.middleware';
+import { clientIpMiddleware } from './common/http/client-ip.middleware';
 import { ConfigCheckService } from './config-check/config-check.service';
+import { SWAGGER_UI_DARK_THEME_CSS } from './shared/constants/swagger.constants';
+import { TypeOrmExceptionFilter } from './shared/filters/typeorm-exception.filter';
 import { getAppVersion } from './shared/utilities/version.utility';
 
 function createRateLimiter(options: {
   windowMins: number;
   max: number;
-  useCfConnectingIp?: boolean;
 }): RateLimitRequestHandler {
-  const { windowMins, max, useCfConnectingIp = false } = options;
+  const { windowMins, max } = options;
 
   const errorMessage = `Too many requests`;
   const fullErrorMessage = `${errorMessage}, please try again after ${windowMins} minutes`;
@@ -43,16 +45,7 @@ function createRateLimiter(options: {
       });
     },
     skipSuccessfulRequests: false,
-    keyGenerator: (req: Request) => {
-      if (useCfConnectingIp) {
-        const cfIpHeader = req.headers['cf-connecting-ip'];
-        if (typeof cfIpHeader === 'string' && cfIpHeader.trim().length > 0) {
-          return cfIpHeader.trim();
-        }
-      }
-
-      return ipKeyGenerator(req.ip);
-    },
+    keyGenerator: (req: Request) => req.clientIp ?? req.ip,
   });
 }
 
@@ -70,14 +63,19 @@ async function bootstrap() {
   const strictAuthLimiter = createRateLimiter({
     windowMins: 15,
     max: 10,
-    useCfConnectingIp: true,
   });
 
   // Create NestJS application
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
+  // Use global exception filter for TypeORM exceptions
+  app.useGlobalFilters(new TypeOrmExceptionFilter());
+
   // Use environment vars
   const configService = app.get(ConfigService);
+
+  // Use the client IP middleware
+  app.use(clientIpMiddleware);
 
   // Use the nonce middleware
   app.use(new NonceMiddleware().use);
@@ -184,8 +182,13 @@ async function bootstrap() {
     }),
   );
 
-  // Apply global baseline rate limiting to all routes
-  app.use('/', globalApiLimiter);
+  // Apply global baseline rate limiting to all routes except health checks
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path.startsWith('/health/')) {
+      return next();
+    }
+    return globalApiLimiter(req, res, next);
+  });
 
   // Apply stricter rate limits for sensitive authentication endpoints
   app.use(
@@ -201,13 +204,25 @@ async function bootstrap() {
     strictAuthLimiter,
   );
 
+  // Trust only the first proxy (Cloudflare used as a proxy) - needed for rate limiting
+  const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 1);
+
+  // Set trust proxy if not in local environment
   if (!inLocal) {
-    app.set('trust proxy', 1); // Trust only the first proxy (Cloudflare used as a proxy) - needed for rate limiting
+    app.set('trust proxy', trustProxyHops);
   }
 
-  app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector))); // Enable class serializer interceptor for managing response data
+  // Enable class serializer interceptor for managing response data
+  app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
 
   if (!inProduction) {
+    const require = createRequire(__filename);
+
+    // swagger-ui-themes is CSS-only; resolve the CSS file directly
+    const themeCssPath =
+      require.resolve('swagger-ui-themes/themes/3.x/theme-monokai.css');
+    const themeCss = readFileSync(themeCssPath, 'utf8');
+
     // Set up Swagger for API documentation
     const config = new DocumentBuilder()
       .setTitle('STO Info API')
@@ -218,7 +233,9 @@ async function bootstrap() {
 
     // Set up Swagger UI endpoint
     const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('swagger', app, document);
+    SwaggerModule.setup('swagger', app, document, {
+      customCss: themeCss + SWAGGER_UI_DARK_THEME_CSS,
+    });
   }
 
   // Start listening for requests on the specified port
