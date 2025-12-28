@@ -20,7 +20,7 @@ import {
 } from '@nestjs/swagger';
 import { instanceToPlain } from 'class-transformer';
 import { memoryStorage, Multer } from 'multer';
-import { extname } from 'path';
+import { extname } from 'node:path';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';

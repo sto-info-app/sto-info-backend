@@ -1,5 +1,5 @@
 import { config as dotenvConfig } from 'dotenv';
-import { join } from 'path';
+import { join } from 'node:path';
 import { AuditEntity } from 'src/audit/entities/audit.entity';
 import { AuditSubscriber } from 'src/audit/subscribers/audit.subscriber';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
@@ -23,7 +23,7 @@ export async function getTypeOrmConfig(): Promise<DataSourceOptions> {
   return {
     type: 'postgres',
     host: process.env.DB_HOST,
-    port: parseInt(process.env.DB_PORT, 10) || 5432,
+    port: Number.parseInt(process.env.DB_PORT, 10) || 5432,
     username: process.env.DB_USERNAME,
     password: secretObject.dbPassword, // Use the dbPassword from AWS Secrets Manager
     database: process.env.DB_NAME,
