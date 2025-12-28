@@ -1,6 +1,6 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
-import * as crypto from 'crypto';
 import { NextFunction, Request, Response } from 'express';
+import * as crypto from 'node:crypto';
 
 @Injectable()
 export class NonceMiddleware implements NestMiddleware {
