@@ -65,17 +65,18 @@ jobs:
       - name: Run Tests (with coverage)
         run: npm run test:cov
 
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@ba3875ecf642b2129de2b589510c81a8b53dbf4e
+      - name: SonarQube Cloud Scan
+        uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7.0.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
-        # Skip analysis for draft PRs and PRs from forks where secrets are unavailable
-        if: >-
-          github.event_name == 'push' ||
-          (github.event_name == 'pull_request' &&
-           github.event.pull_request.draft == false &&
-           github.event.pull_request.head.repo.full_name == github.repository)
+        with:
+          args: >
+            -Dsonar.issue.ignore.multicriteria=e1,e2
+            -Dsonar.issue.ignore.multicriteria.e1.ruleKey=typescript:S1313
+            -Dsonar.issue.ignore.multicriteria.e1.resourceKey=**/*.spec.ts,**/*.test.ts,**/__tests__/**,**/test/**,**/tests/**
+            -Dsonar.issue.ignore.multicriteria.e2.ruleKey=secrets:S6684
+            -Dsonar.issue.ignore.multicriteria.e2.resourceKey=**/*.spec.ts,**/*.test.ts,**/__tests__/**,**/test/**,**/tests/**
 
       - name: Build (push only)
         if: github.event_name == 'push'

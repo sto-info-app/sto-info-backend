@@ -294,7 +294,7 @@ export class UserService {
     }
 
     return {
-      affected: updatedUserProfile ? 1 : 0,
+      affected: 1,
       userProfileData: updatedUserProfile,
     };
   }

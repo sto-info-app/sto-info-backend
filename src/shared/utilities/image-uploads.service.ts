@@ -3,12 +3,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  UploadedFile,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import * as cloudmersiveVirusApiClient from 'cloudmersive-virus-api-client';
@@ -56,17 +51,24 @@ export class ImageUploadsService {
       process.env.AWS_SECRET_NAME,
     );
 
-    if (
-      !secretObject?.cloudflareR2AccessKey ||
-      !secretObject?.cloudflareR2Secret
-    ) {
-      throw new BadRequestException(
-        'Missing Cloudflare R2 access key or secret',
-      );
+    const errorMsgMissingCloudflareR2 =
+      'Missing Cloudflare R2 access key or secret';
+    const errorMsgMissingCloudmersiveApiKey = 'Missing Cloudmersive API key';
+
+    if (!secretObject) {
+      throw new BadRequestException(errorMsgMissingCloudflareR2);
     }
 
-    if (!secretObject?.cloudmersiveApiKey) {
-      throw new BadRequestException('Missing Cloudmersive API key');
+    if (!secretObject.cloudflareR2AccessKey) {
+      throw new BadRequestException(errorMsgMissingCloudflareR2);
+    }
+
+    if (!secretObject.cloudflareR2Secret) {
+      throw new BadRequestException(errorMsgMissingCloudflareR2);
+    }
+
+    if (!secretObject.cloudmersiveApiKey) {
+      throw new BadRequestException(errorMsgMissingCloudmersiveApiKey);
     }
 
     // Initialise the S3 client with Cloudflare R2 endpoint and credentials
@@ -122,10 +124,7 @@ export class ImageUploadsService {
    * @param file The image to upload
    * @returns The URL of the uploaded image
    */
-  async uploadImageToCloudflareR2(
-    userId: string,
-    @UploadedFile() file: MulterFile,
-  ) {
+  async uploadImageToCloudflareR2(userId: string, file: MulterFile) {
     const { fileBuffer, safeFileName } = await this.validateAndSanitiseFile(
       userId,
       file,
@@ -184,10 +183,8 @@ export class ImageUploadsService {
    * @param file The image to upload
    * @returns The URL of the uploaded image
    */
-  async uploadImageToCloudflareImages(
-    userId: string,
-    @UploadedFile() file: MulterFile,
-  ) {
+  async uploadImageToCloudflareImages(userId: string, file: MulterFile) {
+    const errorMsgFailedUpload = 'Failed to upload image to Cloudflare Images';
     const { fileBuffer, safeFileName } = await this.validateAndSanitiseFile(
       userId,
       file,
@@ -229,10 +226,20 @@ export class ImageUploadsService {
         },
       );
 
-      if (response?.status !== 200 || !response?.data?.result?.id) {
-        throw new BadRequestException(
-          'Failed to upload image to Cloudflare Images',
-        );
+      if (response?.status !== 200) {
+        throw new BadRequestException(errorMsgFailedUpload);
+      }
+
+      if (!response.data) {
+        throw new BadRequestException(errorMsgFailedUpload);
+      }
+
+      if (!response.data.result) {
+        throw new BadRequestException(errorMsgFailedUpload);
+      }
+
+      if (!response.data.result.id) {
+        throw new BadRequestException(errorMsgFailedUpload);
       }
 
       return response.data.result.id as string; // Get the ID of the uploaded image
@@ -242,9 +249,7 @@ export class ImageUploadsService {
         error.response?.data || error.message,
         'ImageUploadsService',
       );
-      throw new BadRequestException(
-        'Failed to upload image to Cloudflare Images',
-      );
+      throw new BadRequestException(errorMsgFailedUpload);
     }
   }
 
@@ -290,7 +295,11 @@ export class ImageUploadsService {
       throw new BadRequestException('User ID is missing');
     }
 
-    if (!file?.mimetype) {
+    if (!file) {
+      throw new BadRequestException('File is missing');
+    }
+
+    if (!file.mimetype) {
       throw new BadRequestException('File mimetype is missing');
     }
 
@@ -305,11 +314,11 @@ export class ImageUploadsService {
       throw new BadRequestException('File too large');
     }
 
-    if (!file?.buffer) {
+    if (!file.buffer) {
       throw new BadRequestException('File buffer is missing');
     }
 
-    if (!file?.filename && !file?.originalname) {
+    if (!file.filename && !file.originalname) {
       throw new BadRequestException('File name is missing');
     }
 
@@ -323,10 +332,8 @@ export class ImageUploadsService {
     await this.scanFileForViruses(fileBuffer);
 
     // Sanitize the filename using the SAFE_FILENAME_PATTERN
-    const safeFileName = (file.filename || file.originalname).replace(
-      UNSAFE_FILENAME_PATTERN,
-      '_',
-    );
+    const originalFileName = file.filename ? file.filename : file.originalname;
+    const safeFileName = originalFileName.replace(UNSAFE_FILENAME_PATTERN, '_');
     if (!SAFE_FILENAME_PATTERN.test(safeFileName)) {
       throw new BadRequestException('Invalid characters in file name');
     }

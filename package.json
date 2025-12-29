@@ -1,6 +1,6 @@
 {
   "name": "sto-info-backend",
-  "version": "0.1.18",
+  "version": "0.1.19",
   "description": "Star Trek Online Information APIs",
   "author": "Steve Roberts",
   "private": true,
@@ -112,37 +112,6 @@
     "ts-loader": "^9.5.1",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.5.3"
-  },
-  "jest": {
-    "moduleFileExtensions": [
-      "js",
-      "json",
-      "ts"
-    ],
-    "rootDir": "src",
-    "testRegex": ".*\\.spec\\.ts$",
-    "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
-    },
-    "moduleNameMapper": {
-      "^src/(.*)$": "<rootDir>/$1"
-    },
-    "collectCoverageFrom": [
-      "**/*.(t|j)s",
-      "!**/*.module.(t|j)s",
-      "!**/main.(t|j)s",
-      "!**/*.d.ts",
-      "!**/*.dto.(t|j)s",
-      "!**/*.entity.(t|j)s",
-      "!**/*.entities.(t|j)s",
-      "!**/*.interface.(t|j)s",
-      "!**/*.interfaces.(t|j)s",
-      "!**/*.enum.(t|j)s",
-      "!**/*.constant.(t|j)s",
-      "!**/*.constants.(t|j)s"
-    ],
-    "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
   },
   "eslintConfig": {
     "root": true,
