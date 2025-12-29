@@ -376,7 +376,7 @@ describe('ImageUploadsService', () => {
           'user-1',
           undefined as unknown as UploadR2FileParam,
         ),
-      ).rejects.toThrow('File mimetype is missing');
+      ).rejects.toThrow('File is missing');
     });
 
     it('should prefer file.filename over file.originalname when present', async () => {
