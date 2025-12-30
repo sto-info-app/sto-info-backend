@@ -78,6 +78,10 @@ jobs:
             -Dsonar.issue.ignore.multicriteria.e2.ruleKey=secrets:S6684
             -Dsonar.issue.ignore.multicriteria.e2.resourceKey=**/*.spec.ts,**/*.test.ts,**/__tests__/**,**/test/**,**/tests/**
 
+      - name: Debug coverage presence - lcov search
+        run: |
+          find . -maxdepth 3 -name lcov.info -print
+
       - name: Debug coverage presence
         run: |
           pwd
