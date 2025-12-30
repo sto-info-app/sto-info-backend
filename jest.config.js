@@ -8,6 +8,8 @@ module.exports = {
   moduleNameMapper: {
     '^src/(.*)$': '<rootDir>/$1',
   },
+  collectCoverage: true,
+  coverageReporters: ['text-summary', 'text', 'lcov', 'cobertura'],
   collectCoverageFrom: [
     '**/*.(t|j)s',
     // Exclude test files
