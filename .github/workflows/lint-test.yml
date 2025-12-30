@@ -78,6 +78,14 @@ jobs:
             -Dsonar.issue.ignore.multicriteria.e2.ruleKey=secrets:S6684
             -Dsonar.issue.ignore.multicriteria.e2.resourceKey=**/*.spec.ts,**/*.test.ts,**/__tests__/**,**/test/**,**/tests/**
 
+      - name: Debug coverage presence
+        run: |
+          pwd
+          ls -la
+          ls -la coverage || true
+          test -f coverage/lcov.info && echo "lcov exists" || echo "lcov missing"
+          head -n 20 coverage/lcov.info || true
+
       - name: Build (push only)
         if: github.event_name == 'push'
         run: npm run build
