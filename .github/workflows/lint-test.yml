@@ -86,9 +86,9 @@ jobs:
         run: |
           pwd
           ls -la
-          ls -la coverage || true
-          test -f coverage/lcov.info && echo "lcov exists" || echo "lcov missing"
-          head -n 20 coverage/lcov.info || true
+          ls -la src/coverage || true
+          test -f src/coverage/lcov.info && echo "lcov exists" || echo "lcov missing"
+          head -n 20 src/coverage/lcov.info || true
 
       - name: Build (push only)
         if: github.event_name == 'push'
