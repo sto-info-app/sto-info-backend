@@ -73,24 +73,12 @@ jobs:
         with:
           args: >
             -Dproject.settings=sonar-project.properties
-            -Dsonar.verbose=true
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
             -Dsonar.issue.ignore.multicriteria=e1,e2
             -Dsonar.issue.ignore.multicriteria.e1.ruleKey=typescript:S1313
             -Dsonar.issue.ignore.multicriteria.e1.resourceKey=**/*.spec.ts,**/*.test.ts,**/__tests__/**,**/test/**,**/tests/**
             -Dsonar.issue.ignore.multicriteria.e2.ruleKey=secrets:S6684
             -Dsonar.issue.ignore.multicriteria.e2.resourceKey=**/*.spec.ts,**/*.test.ts,**/__tests__/**,**/test/**,**/tests/**
-
-      - name: Show analysed file candidates
-        run: |
-          echo "src file count:"; find src -type f -name "*.ts" | wc -l
-          echo "test file count:"; find test -type f -name "*.ts" | wc -l
-
-      - name: Debug coverage presence
-        run: |
-          find . -maxdepth 3 -name lcov.info -print
-          test -f coverage/lcov.info && echo "lcov exists" || echo "lcov missing"
-          grep -m 10 "^SF:" coverage/lcov.info || true
 
       - name: Build (push only)
         if: github.event_name == 'push'
