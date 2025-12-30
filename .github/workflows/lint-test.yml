@@ -90,6 +90,11 @@ jobs:
           test -f src/coverage/lcov.info && echo "lcov exists" || echo "lcov missing"
           head -n 20 src/coverage/lcov.info || true
 
+      - name: Show first SF entries
+        run: |
+          grep -m 10 "^SF:" src/coverage/lcov.info || true
+          ls -la src | head
+
       - name: Build (push only)
         if: github.event_name == 'push'
         run: npm run build
