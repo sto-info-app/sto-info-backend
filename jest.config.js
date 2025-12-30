@@ -50,5 +50,5 @@ module.exports = {
       lines: 100,
     },
   },
-  coverageDirectory: '<rootDir>/coverage',
+  coverageDirectory: 'coverage',
 };
