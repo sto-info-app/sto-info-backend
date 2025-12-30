@@ -72,28 +72,19 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         with:
           args: >
+            -Dproject.settings=sonar-project.properties
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
             -Dsonar.issue.ignore.multicriteria=e1,e2
             -Dsonar.issue.ignore.multicriteria.e1.ruleKey=typescript:S1313
             -Dsonar.issue.ignore.multicriteria.e1.resourceKey=**/*.spec.ts,**/*.test.ts,**/__tests__/**,**/test/**,**/tests/**
             -Dsonar.issue.ignore.multicriteria.e2.ruleKey=secrets:S6684
             -Dsonar.issue.ignore.multicriteria.e2.resourceKey=**/*.spec.ts,**/*.test.ts,**/__tests__/**,**/test/**,**/tests/**
 
-      - name: Debug coverage presence - lcov search
-        run: |
-          find . -maxdepth 3 -name lcov.info -print
-
       - name: Debug coverage presence
         run: |
-          pwd
-          ls -la
-          ls -la src/coverage || true
-          test -f src/coverage/lcov.info && echo "lcov exists" || echo "lcov missing"
-          head -n 20 src/coverage/lcov.info || true
-
-      - name: Show first SF entries
-        run: |
-          grep -m 10 "^SF:" src/coverage/lcov.info || true
-          ls -la src | head
+          find . -maxdepth 3 -name lcov.info -print
+          test -f coverage/lcov.info && echo "lcov exists" || echo "lcov missing"
+          grep -m 10 "^SF:" coverage/lcov.info || true
 
       - name: Build (push only)
         if: github.event_name == 'push'
