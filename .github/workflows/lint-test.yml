@@ -72,6 +72,8 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         with:
           args: >
+            -Dproject.settings=sonar-project.properties
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
             -Dsonar.issue.ignore.multicriteria=e1,e2
             -Dsonar.issue.ignore.multicriteria.e1.ruleKey=typescript:S1313
             -Dsonar.issue.ignore.multicriteria.e1.resourceKey=**/*.spec.ts,**/*.test.ts,**/__tests__/**,**/test/**,**/tests/**

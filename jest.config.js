@@ -1,15 +1,16 @@
 module.exports = {
   moduleFileExtensions: ['js', 'json', 'ts'],
-  rootDir: 'src',
   testRegex: String.raw`.*\.spec\.ts$`,
   transform: {
     [String.raw`^.+\.(t|j)s$`]: 'ts-jest',
   },
   moduleNameMapper: {
-    '^src/(.*)$': '<rootDir>/$1',
+    '^src/(.*)$': '<rootDir>/src/$1',
   },
+  collectCoverage: true,
+  coverageReporters: ['text-summary', 'text', 'lcov', 'cobertura'],
   collectCoverageFrom: [
-    '**/*.(t|j)s',
+    'src/**/*.(t|j)s',
     // Exclude test files
     '!**/*.spec.(t|j)s',
     // Exclude NestJS module files
@@ -39,6 +40,7 @@ module.exports = {
     // Exclude Jest coverage directory
     '!**/coverage/**',
   ],
+  coveragePathIgnorePatterns: ['/node_modules/', '/dist/'],
   testEnvironment: 'node',
   coverageThreshold: {
     global: {
@@ -48,5 +50,5 @@ module.exports = {
       lines: 100,
     },
   },
-  coverageDirectory: '<rootDir>/coverage',
+  coverageDirectory: 'coverage',
 };
