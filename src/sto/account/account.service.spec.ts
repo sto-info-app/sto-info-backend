@@ -1,10 +1,16 @@
+import {
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { AccountService } from './account.service';
 import { AccountEntity } from './entities/account.entity';
 
 describe('AccountService', () => {
   let service: AccountService;
+  let repository: Repository<AccountEntity>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -12,15 +18,153 @@ describe('AccountService', () => {
         AccountService,
         {
           provide: getRepositoryToken(AccountEntity),
-          useValue: {},
+          useValue: {
+            create: jest.fn(),
+            save: jest.fn(),
+            find: jest.fn(),
+            findOne: jest.fn(),
+            update: jest.fn(),
+            softDelete: jest.fn(),
+            delete: jest.fn(),
+          },
         },
       ],
     }).compile();
 
     service = module.get<AccountService>(AccountService);
+    repository = module.get<Repository<AccountEntity>>(
+      getRepositoryToken(AccountEntity),
+    );
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('create', () => {
+    it('should create and save a new account', async () => {
+      const dto = { userId: 'user-1', platformLauncherId: 'pl-1' };
+      const account = { id: '1', userId: 'user-1' };
+      (repository.create as jest.Mock).mockReturnValue(account);
+      (repository.save as jest.Mock).mockResolvedValue(account);
+
+      const result = await service.create(dto as any);
+
+      expect(result).toEqual(account);
+      expect(repository.create).toHaveBeenCalledWith(dto);
+      expect(repository.save).toHaveBeenCalledWith(account);
+    });
+
+    it('should throw InternalServerErrorException on save failure', async () => {
+      const dto = { userId: 'user-1' };
+      const account = { id: '1' };
+      (repository.create as jest.Mock).mockReturnValue(account);
+      (repository.save as jest.Mock).mockRejectedValue(new Error('DB Error'));
+
+      await expect(service.create(dto as any)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+    });
+  });
+
+  describe('findAllUsersAccounts', () => {
+    it('should return all accounts for a user', async () => {
+      const accounts = [
+        { id: '1', userId: 'user-1' },
+        { id: '2', userId: 'user-1' },
+      ];
+      (repository.find as jest.Mock).mockResolvedValue(accounts);
+
+      const result = await service.findAllUsersAccounts('user-1');
+
+      expect(result).toEqual(accounts);
+      expect(repository.find).toHaveBeenCalledWith({
+        where: { user: { id: 'user-1' } },
+      });
+    });
+  });
+
+  describe('findOne', () => {
+    it('should return an account by id', async () => {
+      const account = { id: '1', userId: 'user-1' };
+      (repository.findOne as jest.Mock).mockResolvedValue(account);
+
+      const result = await service.findOne('1');
+
+      expect(result).toEqual(account);
+      expect(repository.findOne).toHaveBeenCalledWith({ where: { id: '1' } });
+    });
+  });
+
+  describe('update', () => {
+    it('should update an account', async () => {
+      const dto = { accountName: 'Updated Name' };
+      const updated = { id: '1', accountName: 'Updated Name' };
+      (repository.update as jest.Mock).mockResolvedValue({ affected: 1 });
+      (repository.findOne as jest.Mock).mockResolvedValue(updated);
+
+      const result = await service.update('1', dto as any);
+
+      expect(result).toEqual(updated);
+      expect(repository.update).toHaveBeenCalledWith('1', dto);
+      expect(repository.findOne).toHaveBeenCalledWith({ where: { id: '1' } });
+    });
+
+    it('should throw NotFoundException if account not found after update', async () => {
+      const dto = { accountName: 'Updated' };
+      (repository.update as jest.Mock).mockResolvedValue({ affected: 1 });
+      (repository.findOne as jest.Mock).mockResolvedValue(null);
+
+      await expect(service.update('1', dto as any)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('remove', () => {
+    it('should soft delete an account', async () => {
+      (repository.softDelete as jest.Mock).mockResolvedValue({ affected: 1 });
+
+      await service.remove('1');
+
+      expect(repository.softDelete).toHaveBeenCalledWith('1');
+    });
+
+    it('should throw NotFoundException if account not found', async () => {
+      (repository.softDelete as jest.Mock).mockResolvedValue({ affected: 0 });
+
+      await expect(service.remove('1')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('findAllSoftDeleted', () => {
+    it('should return all soft deleted accounts', async () => {
+      const accounts = [
+        { id: '1', deletedAt: new Date() },
+        { id: '2', deletedAt: new Date() },
+      ];
+      (repository.find as jest.Mock).mockResolvedValue(accounts);
+
+      const result = await service.findAllSoftDeleted();
+
+      expect(result).toEqual(accounts);
+      expect(repository.find).toHaveBeenCalledWith({ withDeleted: true });
+    });
+  });
+
+  describe('hardDeleteOlderThanOneWeek', () => {
+    it('should hard delete accounts older than one week', async () => {
+      (repository.delete as jest.Mock).mockResolvedValue({ affected: 3 });
+
+      await service.hardDeleteOlderThanOneWeek();
+
+      expect(repository.delete).toHaveBeenCalled();
+      const deleteCall = (repository.delete as jest.Mock).mock.calls[0][0];
+      expect(deleteCall.deletedAt).toBeDefined();
+    });
   });
 });

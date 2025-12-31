@@ -23,6 +23,8 @@ dist/
 
 # Test directories and files
 coverage/
+.stryker-tmp
+reports/
 
 # Other editor directories and files
 .idea/

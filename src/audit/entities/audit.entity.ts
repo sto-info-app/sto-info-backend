@@ -28,9 +28,12 @@ export class AuditEntity {
 
   @Column()
   @IsString()
-  @Validate((value: any) => isUUID(value, '4') || !isNaN(Number(value)), {
-    message: 'entityId must be a valid UUID or a number',
-  })
+  @Validate(
+    (value: any) => isUUID(value, '4') || !Number.isNaN(Number(value)),
+    {
+      message: 'entityId must be a valid UUID or a number',
+    },
+  )
   entityId: string;
 
   @IsOptional()

@@ -3,6 +3,7 @@ import { CurrentContextHelper } from 'src/shared/context/current-context.helper'
 import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
 import {
   EntitySubscriberInterface,
+  EntityTarget,
   EventSubscriber,
   InsertEvent,
   RemoveEvent,
@@ -65,14 +66,14 @@ export class AuditSubscriber implements EntitySubscriberInterface {
     oldEntity?: any,
   ) {
     // Exclude the specific entities from being audited
-    const excludedEntitiesFromAuditing = [
+    const excludedEntitiesFromAuditing: EntityTarget<any>[] = [
       AuditEntity,
       AuditLoginAttemptEntity,
       UserRefreshTokenEntity,
     ];
     if (
-      excludedEntitiesFromAuditing.some(
-        entity => event.metadata.target === entity,
+      excludedEntitiesFromAuditing.includes(
+        event.metadata.target as EntityTarget<any>,
       )
     ) {
       return;

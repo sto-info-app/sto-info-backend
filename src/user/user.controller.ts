@@ -6,7 +6,6 @@ import {
   HttpStatus,
   Post,
   Req,
-  UploadedFile,
   UseFilters,
   UseGuards,
   UseInterceptors,
@@ -20,7 +19,8 @@ import {
 } from '@nestjs/swagger';
 import { instanceToPlain } from 'class-transformer';
 import { memoryStorage, Multer } from 'multer';
-import { extname } from 'path';
+import * as crypto from 'node:crypto';
+import { extname } from 'node:path';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
@@ -34,6 +34,25 @@ import { UserService } from './user.service';
 @Controller('user')
 export class UserController {
   constructor(private readonly userService: UserService) {}
+
+  public static readonly imageFileFilter = (
+    _req: any,
+    file: Multer.File,
+    cb: (error: Error | null, acceptFile: boolean) => void,
+  ) => {
+    const allowedMimeTypes = ['image/png', 'image/jpg', 'image/jpeg'];
+    if (allowedMimeTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(
+        new HttpException(
+          'Invalid file type. Only PNG, JPG, or JPEGs are allowed.',
+          HttpStatus.BAD_REQUEST,
+        ),
+        false,
+      );
+    }
+  };
 
   @ApiOkResponse({ description: 'Successfully found the user.' })
   @ApiBadRequestResponse({ description: 'The user cannot be found.' })
@@ -76,30 +95,15 @@ export class UserController {
   @UseInterceptors(
     FileInterceptor('profilePicture', {
       storage: memoryStorage(),
-      fileFilter: (_req, file, cb) => {
-        const allowedMimeTypes = ['image/png', 'image/jpg', 'image/jpeg'];
-        if (allowedMimeTypes.includes(file.mimetype)) {
-          cb(null, true);
-        } else {
-          cb(
-            new HttpException(
-              'Invalid file type. Only PNG, JPG, or JPEGs are allowed.',
-              HttpStatus.BAD_REQUEST,
-            ),
-            false,
-          );
-        }
-      },
+      fileFilter: UserController.imageFileFilter,
       limits: {
         fileSize: +process.env.MAX_IMAGE_SIZE_IN_BYTES,
         files: 1,
       },
     }),
   )
-  async updateUserProfilePic(
-    @Req() req,
-    @UploadedFile() file: Multer.File,
-  ): Promise<UpdatedUserProfileResultDto> {
+  async updateUserProfilePic(@Req() req) {
+    const file = req?.file as Multer.File | undefined;
     if (!file) {
       throw new HttpException('Image file is required', HttpStatus.BAD_REQUEST);
     }
@@ -114,7 +118,7 @@ export class UserController {
 
     return new UpdatedUserProfileResultDto(
       result.affected,
-      instanceToPlain(result),
+      instanceToPlain(result.userProfileData),
     );
   }
 }
