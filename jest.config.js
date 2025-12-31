@@ -38,9 +38,15 @@ module.exports = {
     // Exclude express type augmentation
     '!**/express.d.ts',
     // Exclude Jest coverage directory
-    '!**/coverage/**',
+    '!**/reports/**',
   ],
-  coveragePathIgnorePatterns: ['/node_modules/', '/dist/'],
+  coveragePathIgnorePatterns: [
+    '/node_modules/',
+    '/dist/',
+    '/reports/',
+    '/config/environments/',
+    '/src/main.ts',
+  ],
   testEnvironment: 'node',
   coverageThreshold: {
     global: {
@@ -50,5 +56,5 @@ module.exports = {
       lines: 100,
     },
   },
-  coverageDirectory: 'coverage',
+  coverageDirectory: '<rootDir>/reports/coverage',
 };

@@ -65,6 +65,9 @@ jobs:
       - name: Run Tests (with coverage)
         run: npm run test:cov
 
+      - name: Verify coverage exists
+        run: test -f reports/coverage/lcov.info
+
       - name: SonarQube Cloud Scan
         uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7.0.0
         env:
@@ -73,12 +76,49 @@ jobs:
         with:
           args: >
             -Dproject.settings=sonar-project.properties
-            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.javascript.lcov.reportPaths=reports/coverage/lcov.info
+            -Dsonar.sources=src
+            -Dsonar.tests=src
+            -Dsonar.test.inclusions=**/*.spec.ts
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/reports/**,**/*.spec.ts,**/test/**
+            -Dsonar.coverage.exclusions=src/main.ts,src/environments/**,src/**/index.ts,src/**/index.js
             -Dsonar.issue.ignore.multicriteria=e1,e2
             -Dsonar.issue.ignore.multicriteria.e1.ruleKey=typescript:S1313
             -Dsonar.issue.ignore.multicriteria.e1.resourceKey=**/*.spec.ts,**/*.test.ts,**/__tests__/**,**/test/**,**/tests/**
             -Dsonar.issue.ignore.multicriteria.e2.ruleKey=secrets:S6684
             -Dsonar.issue.ignore.multicriteria.e2.resourceKey=**/*.spec.ts,**/*.test.ts,**/__tests__/**,**/test/**,**/tests/**
+
+      - name: Run Incremental Mutation Testing
+        # Only run on PRs
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          # Fetch the base branch to compare against
+          git fetch origin ${{ github.base_ref }} --depth=1
+
+          # Get changed files in src/ that match mutation criteria (exclude specs, modules, static pages, etc.)
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | \
+            grep '^src/.*\.ts$' | \
+            grep -v '\.d\.ts$' | \
+            grep -v '\.spec\.ts$' | \
+            grep -v '\.module\.ts$' | \
+            grep -v 'environments/' | \
+            grep -v '\.model\.ts$' | \
+            grep -v '\.models\.ts$' | \
+            grep -v '\.interface\.ts$' | \
+            grep -v '\.interfaces\.ts$' | \
+            grep -v '\.enum\.ts$' | \
+            grep -v '\.constant\.ts$' | \
+            grep -v '\.constants\.ts$' | \
+            grep -v 'main.ts' | \
+            tr '\n' ',' | sed 's/,$//' || true)
+
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No relevant source files changed. Skipping mutation testing."
+          else
+            echo "Mutating files: $CHANGED_FILES"
+            npx stryker run --mutate "$CHANGED_FILES"
+          fi
 
       - name: Build (push only)
         if: github.event_name == 'push'
