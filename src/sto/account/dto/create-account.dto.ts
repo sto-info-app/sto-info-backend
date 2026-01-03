@@ -20,36 +20,40 @@ export class CreateAccountDto {
   @IsOptional()
   @Transform(emptyStringToUndefined)
   @IsString()
-  readonly username: string;
+  readonly username?: string;
 
   @IsOptional()
   @Transform(emptyStringToUndefined)
   @IsEmail()
-  readonly email: string;
+  readonly email?: string;
 
   @IsOptional()
   @Transform(emptyStringToUndefined)
   @IsString()
-  readonly notes: string;
+  readonly notes?: string;
 
   @IsOptional()
   @Transform(emptyStringToUndefined)
   @IsDateString()
-  readonly accountCreatedDate: string;
+  readonly accountCreatedDate?: string;
 
   @IsOptional()
   @IsBoolean()
-  readonly publiclyVisible: boolean;
+  readonly publiclyVisible?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  readonly lifetimeSubscription?: boolean;
 
   @IsOptional()
   @Transform(emptyStringToUndefined)
   @IsUUID()
-  readonly platformId: string;
+  readonly platformId?: string;
 
   @IsOptional()
   @Transform(emptyStringToUndefined)
   @IsUUID()
-  readonly launcherId: string;
+  readonly launcherId?: string;
 
   @IsNotEmpty()
   @IsUUID()
