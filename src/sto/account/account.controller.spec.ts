@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { AccountController } from './account.controller';
 import { AccountService } from './account.service';
+import { CreateAccountRequestDto } from './dto/create-account-request.dto';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
 import { AccountEntity } from './entities/account.entity';
@@ -19,9 +20,9 @@ describe('AccountController', () => {
           useValue: {
             create: jest.fn(),
             findAllUsersAccounts: jest.fn(),
-            findOne: jest.fn(),
-            update: jest.fn(),
-            remove: jest.fn(),
+            findOneForUser: jest.fn(),
+            updateForUser: jest.fn(),
+            removeForUser: jest.fn(),
           },
         },
         {
@@ -41,7 +42,8 @@ describe('AccountController', () => {
 
   describe('create', () => {
     it('should create an account', async () => {
-      const dto: CreateAccountDto = {
+      const userId = 'user-uuid';
+      const dto: CreateAccountRequestDto = {
         handle: 'test-handle',
         username: 'testuser',
         email: 'test@example.com',
@@ -50,26 +52,25 @@ describe('AccountController', () => {
         publiclyVisible: true,
         platformId: 'platform-uuid',
         launcherId: 'launcher-uuid',
-        userId: 'user-uuid',
       };
-      const expected = { id: '1', ...dto };
+      const expectedCreate: CreateAccountDto = { ...dto, userId };
+      const expected = { id: '1', ...expectedCreate };
       (service.create as jest.Mock).mockResolvedValue(expected);
 
-      const result = await controller.create(dto);
+      const result = await controller.create(userId, dto);
 
       expect(result).toEqual(expected);
-      expect(service.create).toHaveBeenCalledWith(dto);
+      expect(service.create).toHaveBeenCalledWith(expectedCreate);
     });
   });
 
   describe('findAllUsersAccounts', () => {
     it("should find all user's accounts", async () => {
       const userId = 'user-123';
-      const req = { user: { id: userId } };
       const expected = [{ id: '1' }, { id: '2' }];
       (service.findAllUsersAccounts as jest.Mock).mockResolvedValue(expected);
 
-      const result = await controller.findAllUsersAccounts(req);
+      const result = await controller.findAllUsersAccounts(userId);
 
       expect(result).toEqual(expected);
       expect(service.findAllUsersAccounts).toHaveBeenCalledWith(userId);
@@ -79,43 +80,46 @@ describe('AccountController', () => {
   describe('findOne', () => {
     it('should find one account by id', async () => {
       const id = 'account-123';
+      const userId = 'user-123';
       const expected = { id, handle: 'test-handle' };
-      (service.findOne as jest.Mock).mockResolvedValue(expected);
+      (service.findOneForUser as jest.Mock).mockResolvedValue(expected);
 
-      const result = await controller.findOne(id);
+      const result = await controller.findOne(userId, id);
 
       expect(result).toEqual(expected);
-      expect(service.findOne).toHaveBeenCalledWith(id);
+      expect(service.findOneForUser).toHaveBeenCalledWith(id, userId);
     });
   });
 
   describe('update', () => {
     it('should update an account', async () => {
       const id = 'account-123';
+      const userId = 'user-123';
       const dto: UpdateAccountDto = {
         handle: 'updated-handle',
         notes: 'updated notes',
       };
       const expected = { id, ...dto };
-      (service.update as jest.Mock).mockResolvedValue(expected);
+      (service.updateForUser as jest.Mock).mockResolvedValue(expected);
 
-      const result = await controller.update(id, dto);
+      const result = await controller.update(userId, id, dto);
 
       expect(result).toEqual(expected);
-      expect(service.update).toHaveBeenCalledWith(id, dto);
+      expect(service.updateForUser).toHaveBeenCalledWith(id, userId, dto);
     });
   });
 
   describe('remove', () => {
     it('should remove an account', async () => {
       const id = 'account-123';
+      const userId = 'user-123';
       const expected = { id };
-      (service.remove as jest.Mock).mockResolvedValue(expected);
+      (service.removeForUser as jest.Mock).mockResolvedValue(expected);
 
-      const result = await controller.remove(id);
+      const result = await controller.remove(userId, id);
 
       expect(result).toEqual(expected);
-      expect(service.remove).toHaveBeenCalledWith(id);
+      expect(service.removeForUser).toHaveBeenCalledWith(id, userId);
     });
   });
 });
