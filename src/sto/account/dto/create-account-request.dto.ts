@@ -12,7 +12,7 @@ import {
 const emptyStringToUndefined = ({ value }: { value: unknown }) =>
   value === '' ? undefined : value;
 
-export class CreateAccountDto {
+export class CreateAccountRequestDto {
   @IsNotEmpty()
   @IsString()
   readonly handle: string;
@@ -50,8 +50,4 @@ export class CreateAccountDto {
   @Transform(emptyStringToUndefined)
   @IsUUID()
   readonly launcherId: string;
-
-  @IsNotEmpty()
-  @IsUUID()
-  readonly userId: string;
 }
