@@ -15,6 +15,7 @@ import {
   CreateDateColumn,
   DeleteDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
@@ -22,6 +23,10 @@ import {
 } from 'typeorm';
 
 @Entity({ name: 'account' })
+@Index('UX_account_user_handle_normalized', ['userId', 'handleNormalized'], {
+  unique: true,
+  where: '"deletedAt" IS NULL',
+})
 export class AccountEntity {
   @PrimaryGeneratedColumn('uuid')
   @IsUUID()
@@ -83,6 +88,10 @@ export class AccountEntity {
   @IsBoolean()
   @Column({ default: true })
   publiclyVisible: boolean;
+
+  @IsBoolean()
+  @Column({ default: false })
+  lifetimeSubscription: boolean;
 
   @CreateDateColumn()
   createdAt: Date;
