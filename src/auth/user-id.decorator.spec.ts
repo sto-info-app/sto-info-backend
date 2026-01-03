@@ -1,7 +1,11 @@
 import { BadRequestException, ExecutionContext } from '@nestjs/common';
-import { getUserIdFromContext } from './user-id.decorator';
+import { getUserIdFromContext, UserId } from './user-id.decorator';
 
 describe('UserId Decorator', () => {
+  it('should be defined', () => {
+    expect(UserId).toBeDefined();
+  });
+
   it('should return userId from req.user.id', () => {
     const mockContext = {
       switchToHttp: () => ({
