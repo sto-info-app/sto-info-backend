@@ -18,9 +18,11 @@ import {
   Index,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { CharacterEntity } from '../../character/entities/character.entity';
 
 @Entity({ name: 'account' })
 @Index('UX_account_user_handle_normalized', ['userId', 'handleNormalized'], {
@@ -105,4 +107,7 @@ export class AccountEntity {
   @ManyToOne(() => UserEntity, user => user.accounts, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userId' })
   user: UserEntity;
+
+  @OneToMany(() => CharacterEntity, character => character.account)
+  characters: CharacterEntity[];
 }
