@@ -8,7 +8,6 @@ import {
   Param,
   Post,
   Put,
-  Req,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -18,7 +17,9 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import { UserId } from 'src/auth/user-id.decorator';
 import { AccountService } from './account.service';
+import { CreateAccountRequestDto } from './dto/create-account-request.dto';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
 
@@ -29,41 +30,87 @@ import { UpdateAccountDto } from './dto/update-account.dto';
 export class AccountController {
   constructor(private readonly accountService: AccountService) {}
 
+  /**
+   * Creates a new STO account for the authenticated user.
+   *
+   * @param userId Authenticated user ID (injected).
+   * @param createAccountDto Request payload.
+   * @returns The created account.
+   */
   @Post()
   @ApiOkResponse({ description: 'Successfully created the account.' })
   @ApiBadRequestResponse({ description: 'Failed to create the account.' })
-  create(@Body() createAccountDto: CreateAccountDto) {
-    return this.accountService.create(createAccountDto);
+  create(
+    @UserId() userId: string,
+    @Body() createAccountDto: CreateAccountRequestDto,
+  ) {
+    const account: CreateAccountDto = {
+      ...createAccountDto,
+      userId,
+    };
+
+    return this.accountService.create(account);
   }
 
+  /**
+   * Lists all STO accounts for the authenticated user.
+   *
+   * @param userId Authenticated user ID (injected).
+   * @returns The user's accounts.
+   */
   @Get()
   @ApiOkResponse({ description: "Successfully found the user's STO accounts." })
   @ApiBadRequestResponse({
     description: "The user's accounts cannot be found.",
   })
   @HttpCode(HttpStatus.OK)
-  findAllUsersAccounts(@Req() req) {
-    return this.accountService.findAllUsersAccounts(req.user.id);
+  findAllUsersAccounts(@UserId() userId: string) {
+    return this.accountService.findAllUsersAccounts(userId);
   }
 
+  /**
+   * Retrieves a single STO account by ID for the authenticated user.
+   *
+   * @param userId Authenticated user ID (injected).
+   * @param id Account ID.
+   * @returns The requested account.
+   */
   @Get(':id')
   @ApiOkResponse({ description: 'Successfully found the account.' })
   @ApiBadRequestResponse({ description: 'Failed to find the account.' })
-  findOne(@Param('id') id: string) {
-    return this.accountService.findOne(id);
+  findOne(@UserId() userId: string, @Param('id') id: string) {
+    return this.accountService.findOneForUser(id, userId);
   }
 
+  /**
+   * Updates a STO account for the authenticated user.
+   *
+   * @param userId Authenticated user ID (injected).
+   * @param id Account ID.
+   * @param updateAccountDto Partial update payload.
+   * @returns The updated account.
+   */
   @Put(':id')
   @ApiOkResponse({ description: 'Successfully updated the account.' })
   @ApiBadRequestResponse({ description: 'Failed to update the account.' })
-  update(@Param('id') id: string, @Body() updateAccountDto: UpdateAccountDto) {
-    return this.accountService.update(id, updateAccountDto);
+  update(
+    @UserId() userId: string,
+    @Param('id') id: string,
+    @Body() updateAccountDto: UpdateAccountDto,
+  ) {
+    return this.accountService.updateForUser(id, userId, updateAccountDto);
   }
 
+  /**
+   * Removes (soft-deletes) a STO account for the authenticated user.
+   *
+   * @param userId Authenticated user ID (injected).
+   * @param id Account ID.
+   */
   @Delete(':id')
   @ApiOkResponse({ description: 'Successfully removed the account.' })
   @ApiBadRequestResponse({ description: 'Failed to remove the account.' })
-  remove(@Param('id') id: string) {
-    return this.accountService.remove(id);
+  remove(@UserId() userId: string, @Param('id') id: string) {
+    return this.accountService.removeForUser(id, userId);
   }
 }

@@ -21,6 +21,7 @@ import { ResetPasswordDto } from 'src/user/dto/reset-password.dto';
 import { UserLoginDto } from 'src/user/dto/user-login.dto';
 import { VerifyEmailDto } from 'src/user/dto/verify-email.dto';
 import { AuthService } from './auth.service';
+import { UserId } from './user-id.decorator';
 
 @SerializeOptions({ excludePrefixes: ['_'] })
 @ApiTags('Authentication')
@@ -109,8 +110,7 @@ export class AuthController {
   @UseGuards(AuthGuard('jwt'))
   @Post('revoke')
   @HttpCode(HttpStatus.OK)
-  async revoke(@Req() req): Promise<void> {
-    const userId = req.user.userId;
+  async revoke(@UserId() userId: string, @Req() req): Promise<void> {
     const tokenId = req.user.tokenId;
     await this.authService.revokeToken(userId, tokenId);
   }

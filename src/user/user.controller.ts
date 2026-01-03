@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   HttpCode,
@@ -22,6 +23,7 @@ import { memoryStorage, Multer } from 'multer';
 import * as crypto from 'node:crypto';
 import { extname } from 'node:path';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import { UserId } from 'src/auth/user-id.decorator';
 import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 import { UpdatedUserProfileResultDto } from './dto/updated-user-profile-result.dto';
@@ -58,24 +60,23 @@ export class UserController {
   @ApiBadRequestResponse({ description: 'The user cannot be found.' })
   @Get()
   @HttpCode(HttpStatus.OK)
-  async findUser(@Req() req): Promise<UserEntity> {
-    if (!req.user?.id) {
-      throw new HttpException('User not found', HttpStatus.BAD_REQUEST);
-    }
-    return await this.userService.findById(req.user.id);
+  async findUser(@UserId() userId: string): Promise<UserEntity> {
+    return await this.userService.findById(userId);
   }
 
   @ApiOkResponse({ description: 'Successfully updated the user profile.' })
   @ApiBadRequestResponse({ description: 'Invalid user data provided.' })
   @Post('update-profile')
   @HttpCode(HttpStatus.OK)
-  async updateUserProfile(@Req() req): Promise<UpdatedUserProfileResultDto> {
-    const userProfileData: UpdateUserProfileDto = req.body;
+  async updateUserProfile(
+    @UserId() userId: string,
+    @Body() userProfileData: UpdateUserProfileDto,
+  ): Promise<UpdatedUserProfileResultDto> {
     if (!userProfileData) {
       throw new HttpException('User data is required', HttpStatus.BAD_REQUEST);
     }
     const result = await this.userService.updateUserProfile(
-      req.user.id,
+      userId,
       userProfileData,
     );
 
@@ -102,7 +103,7 @@ export class UserController {
       },
     }),
   )
-  async updateUserProfilePic(@Req() req) {
+  async updateUserProfilePic(@UserId() userId: string, @Req() req) {
     const file = req?.file as Multer.File | undefined;
     if (!file) {
       throw new HttpException('Image file is required', HttpStatus.BAD_REQUEST);
@@ -111,10 +112,7 @@ export class UserController {
     const uniqueSuffix = Date.now().toString() + '-' + crypto.randomUUID();
     file.filename = `${file.fieldname}-${uniqueSuffix}${extname(file.originalname)}`;
 
-    const result = await this.userService.uploadProfilePicture(
-      req.user.id,
-      file,
-    );
+    const result = await this.userService.uploadProfilePicture(userId, file);
 
     return new UpdatedUserProfileResultDto(
       result.affected,
