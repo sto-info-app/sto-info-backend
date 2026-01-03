@@ -92,7 +92,7 @@ describe('AuthController', () => {
 
   it('should call authService.revokeToken on revoke', async () => {
     const req = { user: { userId: '1', tokenId: '2' } };
-    await controller.revoke(req);
+    await controller.revoke('1', req as any);
     expect(authService.revokeToken).toHaveBeenCalledWith('1', '2');
   });
 });

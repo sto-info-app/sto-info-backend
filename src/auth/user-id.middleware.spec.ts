@@ -15,6 +15,7 @@ describe('UserIdMiddleware', () => {
   let middleware: UserIdMiddleware;
   let secretsService: SecretsService;
   let loggerErrorSpy: jest.SpyInstance;
+  let loggerWarnSpy: jest.SpyInstance;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -43,11 +44,15 @@ describe('UserIdMiddleware', () => {
     loggerErrorSpy = jest
       .spyOn(Logger, 'error')
       .mockImplementation(() => undefined);
+    loggerWarnSpy = jest
+      .spyOn(Logger, 'warn')
+      .mockImplementation(() => undefined);
   });
 
   afterEach(() => {
     jest.clearAllMocks();
     loggerErrorSpy.mockRestore();
+    loggerWarnSpy.mockRestore();
   });
 
   it('should be defined', () => {
@@ -195,7 +200,7 @@ describe('UserIdMiddleware', () => {
         .spyOn(CurrentContextHelper, 'userUuid', 'get')
         .mockReturnValue(null);
       req.headers.authorization = 'Bearer expired-token';
-      const error = new Error('Expired') as Error & { name: string };
+      const error = new Error('jwt expired') as Error & { name: string };
       error.name = 'TokenExpiredError';
       (jwt.verify as jest.Mock).mockImplementation(() => {
         throw error;
@@ -203,9 +208,8 @@ describe('UserIdMiddleware', () => {
 
       await middleware.use(req as unknown as Request, res, next);
 
-      expect(loggerErrorSpy).toHaveBeenCalledWith(
-        'Token has expired:',
-        error,
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
+        'Token has expired: jwt expired',
         'UserIdMiddleware',
       );
       expect(next).toHaveBeenCalled();
