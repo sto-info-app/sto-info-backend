@@ -99,6 +99,7 @@ export class UserController {
       fileFilter: UserController.imageFileFilter,
       limits: {
         fileSize: +process.env.MAX_IMAGE_SIZE_IN_BYTES,
+        fieldSize: +process.env.MAX_IMAGE_SIZE_IN_BYTES,
         files: 1,
         fields: 0,
         headerPairs: 50,
