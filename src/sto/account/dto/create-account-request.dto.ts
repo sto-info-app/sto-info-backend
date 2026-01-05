@@ -7,7 +7,9 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
 } from 'class-validator';
+import { STO_HANDLE_PATTERN } from 'src/shared/constants/regex-patterns.constants';
 
 const emptyStringToUndefined = ({ value }: { value: unknown }) =>
   value === '' ? undefined : value;
@@ -15,6 +17,10 @@ const emptyStringToUndefined = ({ value }: { value: unknown }) =>
 export class CreateAccountRequestDto {
   @IsNotEmpty()
   @IsString()
+  @Matches(STO_HANDLE_PATTERN, {
+    message:
+      'Account handle must be 3-16 characters long, start with a letter, and contain only letters, numbers, full stops, underscores, or hyphens. It may optionally end with a hash and 4+ digits.',
+  })
   readonly handle: string;
 
   @IsOptional()

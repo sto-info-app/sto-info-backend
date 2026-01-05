@@ -24,6 +24,7 @@ describe('CharacterController', () => {
             getClasses: jest.fn(),
             getRecruitTypes: jest.fn(),
             getSpecies: jest.fn(),
+            uploadProfileImage: jest.fn(),
           },
         },
       ],
@@ -39,7 +40,7 @@ describe('CharacterController', () => {
 
   describe('create', () => {
     it('should call service.create', async () => {
-      const dto = { name: 'Char1' };
+      const dto = { handle: 'Char1' };
       await controller.create('user-1', dto as any);
       expect(service.create).toHaveBeenCalledWith(dto, 'user-1');
     });
@@ -61,7 +62,7 @@ describe('CharacterController', () => {
 
   describe('update', () => {
     it('should call service.updateForUser', async () => {
-      const dto = { name: 'New' };
+      const dto = { handle: 'New' };
       await controller.update('user-1', 'char-1', dto as any);
       expect(service.updateForUser).toHaveBeenCalledWith(
         'char-1',
@@ -107,6 +108,18 @@ describe('CharacterController', () => {
     it('should call getSpecies with query params', async () => {
       await controller.getSpecies('fac-1', 'rec-1');
       expect(service.getSpecies).toHaveBeenCalledWith('fac-1', 'rec-1');
+    });
+  });
+
+  describe('uploadProfileImage', () => {
+    it('should call service.uploadProfileImage', async () => {
+      const file = { buffer: Buffer.from('test') } as any;
+      await controller.uploadProfileImage('user-1', 'char-1', file);
+      expect(service.uploadProfileImage).toHaveBeenCalledWith(
+        'char-1',
+        'user-1',
+        file,
+      );
     });
   });
 });

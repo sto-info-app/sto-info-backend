@@ -29,6 +29,10 @@ import { CharacterEntity } from '../../character/entities/character.entity';
   unique: true,
   where: '"deletedAt" IS NULL',
 })
+@Index('UX_account_handle_slug', ['handleSlug'], {
+  unique: true,
+  where: '"deletedAt" IS NULL',
+})
 export class AccountEntity {
   @PrimaryGeneratedColumn('uuid')
   @IsUUID()
@@ -49,6 +53,11 @@ export class AccountEntity {
   @Column({ length: 255, nullable: false })
   handleNormalized: string;
 
+  @IsNotEmpty()
+  @IsString()
+  @Column({ length: 255, nullable: false })
+  handleSlug: string;
+
   @IsOptional()
   @IsString()
   @Column({ length: 255, nullable: true })
@@ -64,7 +73,7 @@ export class AccountEntity {
   @Column({ type: 'uuid', nullable: true })
   platformId: string;
 
-  @ManyToOne(() => PlatformEntity)
+  @ManyToOne('PlatformEntity')
   @JoinColumn({ name: 'platformId' })
   platform: PlatformEntity;
 
@@ -73,7 +82,7 @@ export class AccountEntity {
   @Column({ type: 'uuid', nullable: true })
   launcherId: string;
 
-  @ManyToOne(() => LauncherEntity)
+  @ManyToOne('LauncherEntity')
   @JoinColumn({ name: 'launcherId' })
   launcher: LauncherEntity;
 
@@ -104,10 +113,10 @@ export class AccountEntity {
   @DeleteDateColumn()
   deletedAt: Date;
 
-  @ManyToOne(() => UserEntity, user => user.accounts, { onDelete: 'CASCADE' })
+  @ManyToOne('UserEntity', 'accounts', { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userId' })
   user: UserEntity;
 
-  @OneToMany(() => CharacterEntity, character => character.account)
+  @OneToMany('CharacterEntity', 'account')
   characters: CharacterEntity[];
 }
