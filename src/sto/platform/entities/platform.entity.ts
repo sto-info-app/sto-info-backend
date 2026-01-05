@@ -29,12 +29,9 @@ export class PlatformEntity {
   @DeleteDateColumn()
   deletedAt: Date;
 
-  @OneToMany(() => AccountEntity, account => account.platform)
+  @OneToMany('AccountEntity', 'platform')
   accounts: AccountEntity[];
 
-  @OneToMany(
-    () => PlatformLauncherEntity,
-    PlatformLauncherEntity => PlatformLauncherEntity.platform,
-  )
+  @OneToMany('PlatformLauncherEntity', 'platform')
   platformLaunchers: PlatformLauncherEntity[];
 }
