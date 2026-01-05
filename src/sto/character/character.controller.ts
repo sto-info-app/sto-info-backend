@@ -39,6 +39,31 @@ export class CharacterController {
   constructor(private readonly characterService: CharacterService) {}
 
   /**
+   * Filter for image file uploads.
+   *
+   * @param _req Request object.
+   * @param file File to be validated.
+   * @param callback Callback function.
+   */
+  public static readonly imageFileFilter = (
+    _req: Request,
+    file: MulterFile,
+    callback: (error: Error | null, acceptFile: boolean) => void,
+  ) => {
+    const allowedMimeTypes = ['image/png', 'image/jpg', 'image/jpeg'];
+    if (allowedMimeTypes.includes(file.mimetype)) {
+      callback(null, true);
+    } else {
+      callback(
+        new BadRequestException(
+          'Invalid file type. Only PNG, JPG, or JPEGs are allowed.',
+        ),
+        false,
+      );
+    }
+  };
+
+  /**
    * Uploads a profile image for a character.
    *
    * @param userId Authenticated user ID (injected).
@@ -63,23 +88,7 @@ export class CharacterController {
   @UseInterceptors(
     FileInterceptor('profilePicture', {
       storage: memoryStorage(),
-      fileFilter: (
-        _req: Request,
-        file: MulterFile,
-        callback: (error: Error | null, acceptFile: boolean) => void,
-      ) => {
-        const allowedMimeTypes = ['image/png', 'image/jpg', 'image/jpeg'];
-        if (allowedMimeTypes.includes(file.mimetype)) {
-          callback(null, true);
-        } else {
-          callback(
-            new BadRequestException(
-              'Invalid file type. Only PNG, JPG, or JPEGs are allowed.',
-            ),
-            false,
-          );
-        }
-      },
+      fileFilter: CharacterController.imageFileFilter,
       limits: {
         fileSize: +process.env.MAX_IMAGE_SIZE_IN_BYTES || 10485760,
         fieldSize: +process.env.MAX_IMAGE_SIZE_IN_BYTES || 10485760,
@@ -92,11 +101,14 @@ export class CharacterController {
   )
   @ApiOkResponse({ description: 'Successfully uploaded the profile image.' })
   @ApiBadRequestResponse({ description: 'Failed to upload the profile image.' })
-  uploadProfileImage(
+  async uploadProfileImage(
     @UserId() userId: string,
     @Param('id') id: string,
     @UploadedFile() file: MulterFile,
   ) {
+    if (!file) {
+      throw new BadRequestException('Image file is required');
+    }
     return this.characterService.uploadProfileImage(id, userId, file);
   }
 

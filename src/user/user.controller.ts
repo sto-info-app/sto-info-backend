@@ -40,6 +40,31 @@ export class UserController {
   constructor(private readonly userService: UserService) {}
 
   /**
+   * Filter for image file uploads.
+   *
+   * @param _req Request object.
+   * @param file File to be validated.
+   * @param callback Callback function.
+   */
+  public static readonly imageFileFilter = (
+    _req: Request,
+    file: MulterFile,
+    callback: (error: Error | null, acceptFile: boolean) => void,
+  ) => {
+    const allowedMimeTypes = ['image/png', 'image/jpg', 'image/jpeg'];
+    if (allowedMimeTypes.includes(file.mimetype)) {
+      callback(null, true);
+    } else {
+      callback(
+        new BadRequestException(
+          'Invalid file type. Only PNG, JPG, or JPEGs are allowed.',
+        ),
+        false,
+      );
+    }
+  };
+
+  /**
    * Retrieves the authenticated user's details.
    *
    * @param userId Authenticated user ID (injected).
@@ -99,26 +124,10 @@ export class UserController {
   @UseInterceptors(
     FileInterceptor('profilePicture', {
       storage: memoryStorage(),
-      fileFilter: (
-        _req: Request,
-        file: MulterFile,
-        callback: (error: Error | null, acceptFile: boolean) => void,
-      ) => {
-        const allowedMimeTypes = ['image/png', 'image/jpg', 'image/jpeg'];
-        if (allowedMimeTypes.includes(file.mimetype)) {
-          callback(null, true);
-        } else {
-          callback(
-            new BadRequestException(
-              'Invalid file type. Only PNG, JPG, or JPEGs are allowed.',
-            ),
-            false,
-          );
-        }
-      },
+      fileFilter: UserController.imageFileFilter,
       limits: {
-        fileSize: +process.env.MAX_IMAGE_SIZE_IN_BYTES,
-        fieldSize: +process.env.MAX_IMAGE_SIZE_IN_BYTES,
+        fileSize: +process.env.MAX_IMAGE_SIZE_IN_BYTES || 10485760,
+        fieldSize: +process.env.MAX_IMAGE_SIZE_IN_BYTES || 10485760,
         files: 1,
         fields: 0,
         parts: 1,
