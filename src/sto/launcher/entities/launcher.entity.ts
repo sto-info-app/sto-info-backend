@@ -29,12 +29,9 @@ export class LauncherEntity {
   @DeleteDateColumn()
   deletedAt: Date;
 
-  @OneToMany(() => AccountEntity, account => account.launcher)
+  @OneToMany('AccountEntity', 'launcher')
   accounts: AccountEntity[];
 
-  @OneToMany(
-    () => PlatformLauncherEntity,
-    PlatformLauncherEntity => PlatformLauncherEntity.launcher,
-  )
+  @OneToMany('PlatformLauncherEntity', 'launcher')
   platformLaunchers: PlatformLauncherEntity[];
 }
