@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CharacterController } from './character.controller';
 import { CharacterService } from './character.service';
@@ -120,6 +121,54 @@ describe('CharacterController', () => {
         'user-1',
         file,
       );
+    });
+
+    it('should throw if file is missing', async () => {
+      await expect(
+        controller.uploadProfileImage('user-1', 'char-1', undefined as any),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('imageFileFilter', () => {
+    it('should allow valid mime types', () => {
+      const cb = jest.fn();
+      CharacterController.imageFileFilter(
+        {} as any,
+        { mimetype: 'image/png' } as any,
+        cb,
+      );
+      expect(cb).toHaveBeenCalledWith(null, true);
+    });
+
+    it('should reject invalid mime types', () => {
+      const cb = jest.fn();
+      CharacterController.imageFileFilter(
+        {} as any,
+        { mimetype: 'text/plain' } as any,
+        cb,
+      );
+      expect(cb).toHaveBeenCalledWith(expect.any(BadRequestException), false);
+    });
+  });
+
+  describe('Static branches', () => {
+    it('should evaluate limits when env is set', async () => {
+      await jest.isolateModulesAsync(async () => {
+        process.env.MAX_IMAGE_SIZE_IN_BYTES = '1048576';
+
+        await import('./character.controller');
+      });
+    });
+
+    it('should evaluate limits when env is not set', async () => {
+      await jest.isolateModulesAsync(async () => {
+        const originalEnv = process.env.MAX_IMAGE_SIZE_IN_BYTES;
+        delete process.env.MAX_IMAGE_SIZE_IN_BYTES;
+
+        await import('./character.controller');
+        process.env.MAX_IMAGE_SIZE_IN_BYTES = originalEnv;
+      });
     });
   });
 });
