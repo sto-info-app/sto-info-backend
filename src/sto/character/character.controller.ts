@@ -7,16 +7,24 @@ import {
   Post,
   Put,
   Query,
+  UploadedFile,
+  UseFilters,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
   ApiOkResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { memoryStorage, File as MulterFile } from 'multer';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
+import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
 import { CharacterService } from './character.service';
 import { CreateCharacterRequestDto } from './dto/create-character-request.dto';
 import { UpdateCharacterDto } from './dto/update-character.dto';
@@ -27,6 +35,47 @@ import { UpdateCharacterDto } from './dto/update-character.dto';
 @Controller('character')
 export class CharacterController {
   constructor(private readonly characterService: CharacterService) {}
+
+  /**
+   * Uploads a profile image for a character.
+   *
+   * @param userId Authenticated user ID (injected).
+   * @param id Character ID.
+   * @param file The image file.
+   * @returns The updated character.
+   */
+  @Post(':id/profile-image')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        profilePicture: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @UseFilters(FileSizeExceptionFilter)
+  @UseInterceptors(
+    FileInterceptor('profilePicture', {
+      storage: memoryStorage(),
+      limits: {
+        fileSize: +process.env.MAX_IMAGE_SIZE_IN_BYTES,
+        files: 1,
+      },
+    }),
+  )
+  @ApiOkResponse({ description: 'Successfully uploaded the profile image.' })
+  @ApiBadRequestResponse({ description: 'Failed to upload the profile image.' })
+  uploadProfileImage(
+    @UserId() userId: string,
+    @Param('id') id: string,
+    @UploadedFile() file: MulterFile,
+  ) {
+    return this.characterService.uploadProfileImage(id, userId, file);
+  }
 
   /**
    * Creates a new STO character for an account owned by the authenticated user.

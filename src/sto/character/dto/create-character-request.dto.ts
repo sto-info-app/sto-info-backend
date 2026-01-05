@@ -2,10 +2,14 @@ import { Transform } from 'class-transformer';
 import {
   IsDateString,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
+  Min,
 } from 'class-validator';
+import { CHARACTER_NAME_PATTERN } from 'src/shared/constants/regex-patterns.constants';
 
 export const emptyStringToUndefined = ({ value }: { value: unknown }) =>
   value === '' ? undefined : value;
@@ -17,7 +21,21 @@ export class CreateCharacterRequestDto {
 
   @IsNotEmpty()
   @IsString()
-  readonly name: string;
+  @Matches(CHARACTER_NAME_PATTERN, {
+    message:
+      'Character handle can only consist of letters, single quotes, spaces, full stops, and hyphens, and cannot end with a space.',
+  })
+  readonly handle: string;
+
+  @IsOptional()
+  @Transform(emptyStringToUndefined)
+  @IsString()
+  readonly profilePictureId?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  readonly level?: number;
 
   @IsNotEmpty()
   @IsUUID()

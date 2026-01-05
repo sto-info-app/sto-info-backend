@@ -1,10 +1,12 @@
 import {
   ConflictException,
   ForbiddenException,
+  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
 import { Repository } from 'typeorm';
 import { AccountEntity } from '../account/entities/account.entity';
 import { CharacterService } from './character.service';
@@ -26,6 +28,7 @@ describe('CharacterService', () => {
   let classRepository: Repository<CharacterClassEntity>;
   let recruitTypeRepository: Repository<RecruitTypeEntity>;
   let speciesRepository: Repository<SpeciesEntity>;
+  let imageUploadsService: ImageUploadsService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -84,6 +87,13 @@ describe('CharacterService', () => {
             createQueryBuilder: jest.fn(),
           },
         },
+        {
+          provide: ImageUploadsService,
+          useValue: {
+            uploadImageToCloudflareR2: jest.fn(),
+            deleteImageFromCloudflareR2: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -112,6 +122,7 @@ describe('CharacterService', () => {
     speciesRepository = module.get<Repository<SpeciesEntity>>(
       getRepositoryToken(SpeciesEntity),
     );
+    imageUploadsService = module.get<ImageUploadsService>(ImageUploadsService);
   });
 
   it('should be defined', () => {
@@ -121,7 +132,7 @@ describe('CharacterService', () => {
   describe('create', () => {
     const createDto = {
       accountId: 'account-1',
-      name: 'Char1',
+      handle: 'Char1',
       generalFactionId: 'gen-1',
       factionId: 'fac-1',
       sexId: 'sex-1',
@@ -131,7 +142,11 @@ describe('CharacterService', () => {
 
     it('should create and save a new character', async () => {
       const account = { id: 'account-1', userId: 'user-1', handle: 'Handle' };
-      const character = { id: 'char-1', ...createDto, handle: 'Char1@Handle' };
+      const character = {
+        id: 'char-1',
+        ...createDto,
+        fullHandle: 'Char1@Handle',
+      };
 
       (accountRepository.findOne as jest.Mock).mockResolvedValue(account);
       (characterRepository.findOne as jest.Mock).mockResolvedValue(null);
@@ -143,8 +158,9 @@ describe('CharacterService', () => {
       expect(result).toEqual(character);
       expect(characterRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          handle: 'Char1@Handle',
-          nameNormalized: 'char1',
+          fullHandle: 'Char1@Handle',
+          fullHandleNormalized: 'char1@handle',
+          fullHandleSlug: 'Char1@Handle',
         }),
       );
       expect(characterRepository.save).toHaveBeenCalled();
@@ -161,7 +177,7 @@ describe('CharacterService', () => {
       );
     });
 
-    it('should throw ConflictException if character name already exists for account', async () => {
+    it('should throw ConflictException if character handle already exists for account', async () => {
       (accountRepository.findOne as jest.Mock).mockResolvedValue({
         id: 'account-1',
         userId: 'user-1',
@@ -220,6 +236,31 @@ describe('CharacterService', () => {
     });
   });
 
+  describe('findOneBySlug', () => {
+    it('should return a character by slug', async () => {
+      const character = { id: 'char-1', fullHandleSlug: 'Char~1234@Acc' };
+      (characterRepository.findOne as jest.Mock).mockResolvedValue(character);
+
+      const result = await service.findOneBySlug('Char~1234@Acc');
+
+      expect(result).toEqual(character);
+      expect(characterRepository.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { fullHandleSlug: 'Char~1234@Acc' },
+          relations: expect.arrayContaining(['account', 'species']),
+        }),
+      );
+    });
+
+    it('should return null if character not found by slug', async () => {
+      (characterRepository.findOne as jest.Mock).mockResolvedValue(null);
+
+      const result = await service.findOneBySlug('non-existent');
+
+      expect(result).toBeNull();
+    });
+  });
+
   describe('findOneForUser', () => {
     it('should return an owned character', async () => {
       const character = { id: 'char-1', account: { userId: 'user-1' } };
@@ -250,15 +291,15 @@ describe('CharacterService', () => {
     it('should update an owned character', async () => {
       const character = {
         id: 'char-1',
-        name: 'Old',
+        handle: 'Old',
         accountId: 'acc-1',
         account: { handle: 'Acc', userId: 'user-1' },
       };
-      const updateDto = { name: 'New' };
+      const updateDto = { handle: 'New' };
 
       (characterRepository.findOne as jest.Mock)
         .mockResolvedValueOnce(character) // For findOneForUser
-        .mockResolvedValueOnce(null); // For assertNameUniqueForAccount
+        .mockResolvedValueOnce(null); // For assertHandleUniqueForAccount
       (characterRepository.save as jest.Mock).mockImplementation(val =>
         Promise.resolve(val),
       );
@@ -268,19 +309,20 @@ describe('CharacterService', () => {
         'user-1',
         updateDto as any,
       );
-      expect(result.name).toBe('New');
-      expect(result.handle).toBe('New@Acc');
+      expect(result.handle).toBe('New');
+      expect(result.fullHandle).toBe('New@Acc');
+      expect(result.fullHandleSlug).toBe('New@Acc');
       expect(characterRepository.save).toHaveBeenCalled();
     });
 
-    it('should skip name uniqueness check if name is same', async () => {
+    it('should skip handle uniqueness check if handle is same', async () => {
       const character = {
         id: 'char-1',
-        name: 'Same',
+        handle: 'Same',
         accountId: 'acc-1',
         account: { handle: 'Acc', userId: 'user-1' },
       };
-      const updateDto = { name: 'Same', notes: 'new notes' };
+      const updateDto = { handle: 'Same', notes: 'new notes' };
 
       (characterRepository.findOne as jest.Mock).mockResolvedValue(character);
       (characterRepository.save as jest.Mock).mockImplementation(val =>
@@ -292,10 +334,10 @@ describe('CharacterService', () => {
       expect(characterRepository.save).toHaveBeenCalled();
     });
 
-    it('should handle partial updates without name', async () => {
+    it('should handle partial updates without handle', async () => {
       const character = {
         id: 'char-1',
-        name: 'Same',
+        handle: 'Same',
         accountId: 'acc-1',
         account: { handle: 'Acc', userId: 'user-1' },
       };
@@ -403,15 +445,125 @@ describe('CharacterService', () => {
     });
   });
 
-  describe('assertNameUniqueForAccount (private)', () => {
-    it('should return early if name is not provided', async () => {
+  describe('assertHandleUniqueForAccount (private)', () => {
+    it('should return early if handle is not provided', async () => {
       // We can trigger this via create/update if we bypass DTO validation in tests
-      // To trigger !name, we'd need to call it with undefined.
-      // In updateForUser, it's only called if name is provided.
+      // To trigger !handle, we'd need to call it with undefined.
+      // In updateForUser, it's only called if handle is provided.
       // But we can test it specifically if we want 100%.
       // I'll add a helper to access private for coverage if needed, or just call it through a proxy.
-      await (service as any).assertNameUniqueForAccount('acc-1', undefined);
+      await (service as any).assertHandleUniqueForAccount(
+        { id: 'acc-1', handle: 'Handle' },
+        undefined,
+      );
       expect(characterRepository.findOne).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('uploadProfileImage', () => {
+    const mockFile = {
+      buffer: Buffer.from('test'),
+      originalname: 'test.jpg',
+      mimetype: 'image/jpeg',
+      size: 100,
+    } as any;
+
+    it('should upload a profile image and update character', async () => {
+      const character = {
+        id: 'char-1',
+        account: { userId: 'user-1' },
+        profilePictureId: 'old-key',
+      };
+      (characterRepository.findOne as jest.Mock).mockResolvedValue(character);
+      (
+        imageUploadsService.uploadImageToCloudflareR2 as jest.Mock
+      ).mockResolvedValue('new-key');
+      (characterRepository.save as jest.Mock).mockResolvedValue({
+        ...character,
+        profilePictureId: 'new-key',
+      });
+      (
+        imageUploadsService.deleteImageFromCloudflareR2 as jest.Mock
+      ).mockResolvedValue('old-key');
+
+      const result = await service.uploadProfileImage(
+        'char-1',
+        'user-1',
+        mockFile,
+      );
+
+      expect(result.profilePictureId).toBe('new-key');
+      expect(
+        imageUploadsService.uploadImageToCloudflareR2,
+      ).toHaveBeenCalledWith('user-1', mockFile, 'char-1');
+      expect(
+        imageUploadsService.deleteImageFromCloudflareR2,
+      ).toHaveBeenCalledWith('user-1', 'old-key');
+    });
+
+    it('should throw InternalServerErrorException if upload returns no key', async () => {
+      const character = { id: 'char-1', account: { userId: 'user-1' } };
+      (characterRepository.findOne as jest.Mock).mockResolvedValue(character);
+      (
+        imageUploadsService.uploadImageToCloudflareR2 as jest.Mock
+      ).mockResolvedValue(null);
+
+      await expect(
+        service.uploadProfileImage('char-1', 'user-1', mockFile),
+      ).rejects.toThrow(InternalServerErrorException);
+    });
+
+    it('should swallow error if old image deletion fails', async () => {
+      const character = {
+        id: 'char-1',
+        account: { userId: 'user-1' },
+        profilePictureId: 'old-key',
+      };
+      (characterRepository.findOne as jest.Mock).mockResolvedValue(character);
+      (
+        imageUploadsService.uploadImageToCloudflareR2 as jest.Mock
+      ).mockResolvedValue('new-key');
+      (characterRepository.save as jest.Mock).mockResolvedValue({
+        ...character,
+        profilePictureId: 'new-key',
+      });
+      (
+        imageUploadsService.deleteImageFromCloudflareR2 as jest.Mock
+      ).mockRejectedValue(new Error('Delete failed'));
+
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+
+      const result = await service.uploadProfileImage(
+        'char-1',
+        'user-1',
+        mockFile,
+      );
+
+      expect(result.profilePictureId).toBe('new-key');
+      expect(consoleSpy).toHaveBeenCalled();
+      consoleSpy.mockRestore();
+    });
+
+    it('should not try to delete if no old image exists', async () => {
+      const character = {
+        id: 'char-1',
+        account: { userId: 'user-1' },
+        profilePictureId: null,
+      };
+      (characterRepository.findOne as jest.Mock).mockResolvedValue(character);
+      (
+        imageUploadsService.uploadImageToCloudflareR2 as jest.Mock
+      ).mockResolvedValue('new-key');
+      (characterRepository.save as jest.Mock).mockResolvedValue({
+        ...character,
+        profilePictureId: 'new-key',
+      });
+
+      await service.uploadProfileImage('char-1', 'user-1', mockFile);
+
+      expect(
+        imageUploadsService.deleteImageFromCloudflareR2,
+      ).not.toHaveBeenCalled();
     });
   });
 });
