@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -21,6 +22,7 @@ import {
   ApiOkResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Request } from 'express';
 import { memoryStorage, File as MulterFile } from 'multer';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
@@ -61,11 +63,29 @@ export class CharacterController {
   @UseInterceptors(
     FileInterceptor('profilePicture', {
       storage: memoryStorage(),
+      fileFilter: (
+        _req: Request,
+        file: MulterFile,
+        callback: (error: Error | null, acceptFile: boolean) => void,
+      ) => {
+        const allowedMimeTypes = ['image/png', 'image/jpg', 'image/jpeg'];
+        if (allowedMimeTypes.includes(file.mimetype)) {
+          callback(null, true);
+        } else {
+          callback(
+            new BadRequestException(
+              'Invalid file type. Only PNG, JPG, or JPEGs are allowed.',
+            ),
+            false,
+          );
+        }
+      },
       limits: {
-        fileSize: +process.env.MAX_IMAGE_SIZE_IN_BYTES,
-        fieldSize: +process.env.MAX_IMAGE_SIZE_IN_BYTES,
+        fileSize: +process.env.MAX_IMAGE_SIZE_IN_BYTES || 10485760,
+        fieldSize: +process.env.MAX_IMAGE_SIZE_IN_BYTES || 10485760,
         files: 1,
         fields: 0,
+        parts: 1,
         headerPairs: 50,
       },
     }),
@@ -159,38 +179,68 @@ export class CharacterController {
     return this.characterService.removeForUser(id, userId);
   }
 
-  // --- Lookup Endpoints ---
-
+  /**
+   * Retrieves a list of general factions.
+   *
+   * @returns List of general factions.
+   */
   @Get('lookup/general-factions')
   @ApiOkResponse({ description: 'Successfully retrieved general factions.' })
   getGeneralFactions() {
     return this.characterService.getGeneralFactions();
   }
 
+  /**
+   * Retrieves a list of specific factions.
+   *
+   * @returns List of factions.
+   */
   @Get('lookup/factions')
   @ApiOkResponse({ description: 'Successfully retrieved factions.' })
   getFactions() {
     return this.characterService.getFactions();
   }
 
+  /**
+   * Retrieves a list of character sexes.
+   *
+   * @returns List of sexes.
+   */
   @Get('lookup/sexes')
   @ApiOkResponse({ description: 'Successfully retrieved sexes.' })
   getSexes() {
     return this.characterService.getSexes();
   }
 
+  /**
+   * Retrieves a list of character classes.
+   *
+   * @returns List of classes.
+   */
   @Get('lookup/classes')
   @ApiOkResponse({ description: 'Successfully retrieved classes.' })
   getClasses() {
     return this.characterService.getClasses();
   }
 
+  /**
+   * Retrieves a list of character recruit types.
+   *
+   * @returns List of recruit types.
+   */
   @Get('lookup/recruit-types')
   @ApiOkResponse({ description: 'Successfully retrieved recruit types.' })
   getRecruitTypes() {
     return this.characterService.getRecruitTypes();
   }
 
+  /**
+   * Retrieves a list of species, optionally filtered by faction or recruit type.
+   *
+   * @param factionId Optional faction ID filter.
+   * @param recruitTypeId Optional recruit type ID filter.
+   * @returns List of species.
+   */
   @Get('lookup/species')
   @ApiOkResponse({ description: 'Successfully retrieved species.' })
   getSpecies(
