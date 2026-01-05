@@ -1,3 +1,4 @@
+import { Exclude } from 'class-transformer';
 import {
   Column,
   Entity,
@@ -6,6 +7,7 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import type { CharacterRankEntity } from './character-rank.entity';
 import { CharacterEntity } from './character.entity';
 import type { RecruitTypeEntity } from './recruit-type.entity';
 import type { SpeciesEntity } from './species.entity';
@@ -17,6 +19,9 @@ export class FactionEntity {
 
   @Column({ length: 100, unique: true })
   name: string; // Federation, Klingon, TOS Starfleet, etc.
+
+  @Column({ length: 511, nullable: true })
+  iconUrl: string;
 
   @OneToMany('CharacterEntity', 'faction')
   characters: CharacterEntity[];
@@ -31,4 +36,8 @@ export class FactionEntity {
 
   @ManyToMany('RecruitTypeEntity', 'factions')
   recruitTypes: RecruitTypeEntity[];
+
+  @OneToMany('CharacterRankEntity', 'faction')
+  @Exclude()
+  ranks: CharacterRankEntity[];
 }
