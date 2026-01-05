@@ -8,6 +8,8 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Not, Repository } from 'typeorm';
 
+import { File as MulterFile } from 'multer';
+import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
 import { AccountEntity } from '../account/entities/account.entity';
 import { CreateCharacterDto } from './dto/create-character.dto';
 import { UpdateCharacterDto } from './dto/update-character.dto';
@@ -38,24 +40,34 @@ export class CharacterService {
     private readonly recruitTypeRepository: Repository<RecruitTypeEntity>,
     @InjectRepository(SpeciesEntity)
     private readonly speciesRepository: Repository<SpeciesEntity>,
+    private readonly imageUploadsService: ImageUploadsService,
   ) {}
 
-  private normalizeName(name: string): string {
-    return name.trim().toLowerCase();
+  private normalizeHandle(handle: string): string {
+    return handle.trim().toLowerCase();
   }
 
-  private async assertNameUniqueForAccount(
-    accountId: string,
-    name: string | undefined,
+  private generateSlug(handle: string): string {
+    return handle.trim().replace('#', '~');
+  }
+
+  private async assertHandleUniqueForAccount(
+    account: AccountEntity,
+    handle: string | undefined,
     excludeCharacterId?: string,
   ): Promise<void> {
-    if (!name) {
+    if (!handle) {
       return;
     }
 
-    const nameNormalized = this.normalizeName(name);
+    const fullHandleNormalized = this.normalizeHandle(
+      `${handle}@${account.handle}`,
+    );
 
-    const where: Record<string, unknown> = { accountId, nameNormalized };
+    const where: Record<string, unknown> = {
+      accountId: account.id,
+      fullHandleNormalized,
+    };
     if (excludeCharacterId) {
       where.id = Not(excludeCharacterId);
     }
@@ -63,7 +75,7 @@ export class CharacterService {
     const existing = await this.characterRepository.findOne({ where });
     if (existing) {
       throw new ConflictException(
-        'Character name already exists for this account',
+        'Character handle already exists for this account',
       );
     }
   }
@@ -96,18 +108,17 @@ export class CharacterService {
       userId,
     );
 
-    await this.assertNameUniqueForAccount(
-      createCharacterDto.accountId,
-      createCharacterDto.name,
-    );
+    await this.assertHandleUniqueForAccount(account, createCharacterDto.handle);
 
-    const nameNormalized = this.normalizeName(createCharacterDto.name);
-    const handle = `${createCharacterDto.name}@${account.handle}`;
+    const fullHandle = `${createCharacterDto.handle}@${account.handle}`;
+    const fullHandleNormalized = this.normalizeHandle(fullHandle);
+    const fullHandleSlug = this.generateSlug(fullHandle);
 
     const newCharacter = this.characterRepository.create({
       ...createCharacterDto,
-      nameNormalized,
-      handle,
+      fullHandle,
+      fullHandleNormalized,
+      fullHandleSlug,
     });
 
     try {
@@ -132,12 +143,35 @@ export class CharacterService {
       relations: [
         'generalFaction',
         'faction',
+        'faction.ranks',
         'sex',
         'class',
         'recruitType',
         'species',
       ],
-      order: { name: 'ASC' },
+      order: { handle: 'ASC' },
+    });
+  }
+
+  /**
+   * Finds a character by its URL slug.
+   *
+   * @param handleSlug Slug to look for.
+   * @returns The character if found, otherwise `null`.
+   */
+  async findOneBySlug(handleSlug: string): Promise<CharacterEntity | null> {
+    return this.characterRepository.findOne({
+      where: { fullHandleSlug: handleSlug },
+      relations: [
+        'account',
+        'generalFaction',
+        'faction',
+        'faction.ranks',
+        'sex',
+        'class',
+        'recruitType',
+        'species',
+      ],
     });
   }
 
@@ -148,6 +182,7 @@ export class CharacterService {
         'account',
         'generalFaction',
         'faction',
+        'faction.ranks',
         'sex',
         'class',
         'recruitType',
@@ -174,17 +209,20 @@ export class CharacterService {
     const character = await this.findOneForUser(id, userId);
 
     if (
-      typeof updateCharacterDto.name === 'string' &&
-      updateCharacterDto.name !== character.name
+      typeof updateCharacterDto.handle === 'string' &&
+      updateCharacterDto.handle !== character.handle
     ) {
-      await this.assertNameUniqueForAccount(
-        character.accountId,
-        updateCharacterDto.name,
+      await this.assertHandleUniqueForAccount(
+        character.account,
+        updateCharacterDto.handle,
         character.id,
       );
 
-      character.nameNormalized = this.normalizeName(updateCharacterDto.name);
-      character.handle = `${updateCharacterDto.name}@${character.account.handle}`;
+      character.fullHandle = `${updateCharacterDto.handle}@${character.account.handle}`;
+      character.fullHandleNormalized = this.normalizeHandle(
+        character.fullHandle,
+      );
+      character.fullHandleSlug = this.generateSlug(character.fullHandle);
     }
 
     Object.assign(character, updateCharacterDto);
@@ -195,6 +233,52 @@ export class CharacterService {
   async removeForUser(id: string, userId: string): Promise<void> {
     const character = await this.findOneForUser(id, userId);
     await this.characterRepository.softDelete(character.id);
+  }
+
+  /**
+   * Uploads a profile image for a character.
+   *
+   * @param id Character ID.
+   * @param userId Authenticated user ID.
+   * @param file File to upload.
+   * @returns The updated character.
+   */
+  async uploadProfileImage(
+    id: string,
+    userId: string,
+    file: MulterFile,
+  ): Promise<CharacterEntity> {
+    const character = await this.findOneForUser(id, userId);
+
+    const existingProfilePictureId = character.profilePictureId;
+
+    character.profilePictureId =
+      await this.imageUploadsService.uploadImageToCloudflareR2(
+        userId,
+        file,
+        id,
+      );
+
+    if (!character.profilePictureId) {
+      throw new InternalServerErrorException('Profile picture upload failed');
+    }
+
+    const updatedCharacter = await this.characterRepository.save(character);
+
+    if (existingProfilePictureId) {
+      try {
+        await this.imageUploadsService.deleteImageFromCloudflareR2(
+          userId,
+          existingProfilePictureId,
+        );
+      } catch (error) {
+        // Log error but don't fail the request as the new image is already saved
+        // In a production environment, we might want to use a formal Logger
+        console.error('Failed to delete old profile image from R2', error);
+      }
+    }
+
+    return updatedCharacter;
   }
 
   // --- Reference Data Methods ---
