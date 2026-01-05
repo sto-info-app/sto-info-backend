@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -19,7 +20,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { instanceToPlain } from 'class-transformer';
-import { memoryStorage, Multer } from 'multer';
+import { Request } from 'express';
+import { memoryStorage, File as MulterFile } from 'multer';
 import * as crypto from 'node:crypto';
 import { extname } from 'node:path';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
@@ -37,25 +39,37 @@ import { UserService } from './user.service';
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
+  /**
+   * Filter for image file uploads.
+   *
+   * @param _req Request object.
+   * @param file File to be validated.
+   * @param callback Callback function.
+   */
   public static readonly imageFileFilter = (
-    _req: any,
-    file: Multer.File,
-    cb: (error: Error | null, acceptFile: boolean) => void,
+    _req: Request,
+    file: MulterFile,
+    callback: (error: Error | null, acceptFile: boolean) => void,
   ) => {
     const allowedMimeTypes = ['image/png', 'image/jpg', 'image/jpeg'];
     if (allowedMimeTypes.includes(file.mimetype)) {
-      cb(null, true);
+      callback(null, true);
     } else {
-      cb(
-        new HttpException(
+      callback(
+        new BadRequestException(
           'Invalid file type. Only PNG, JPG, or JPEGs are allowed.',
-          HttpStatus.BAD_REQUEST,
         ),
         false,
       );
     }
   };
 
+  /**
+   * Retrieves the authenticated user's details.
+   *
+   * @param userId Authenticated user ID (injected).
+   * @returns The user entity.
+   */
   @ApiOkResponse({ description: 'Successfully found the user.' })
   @ApiBadRequestResponse({ description: 'The user cannot be found.' })
   @Get()
@@ -64,6 +78,13 @@ export class UserController {
     return await this.userService.findById(userId);
   }
 
+  /**
+   * Updates the authenticated user's profile information.
+   *
+   * @param userId Authenticated user ID (injected).
+   * @param userProfileData Update data payload.
+   * @returns Result of the update operation.
+   */
   @ApiOkResponse({ description: 'Successfully updated the user profile.' })
   @ApiBadRequestResponse({ description: 'Invalid user data provided.' })
   @Post('update-profile')
@@ -86,6 +107,13 @@ export class UserController {
     );
   }
 
+  /**
+   * Updates the authenticated user's profile picture.
+   *
+   * @param userId Authenticated user ID (injected).
+   * @param req Request object containing the uploaded file.
+   * @returns Result of the update operation.
+   */
   @ApiOkResponse({
     description: 'Successfully updated the user profile picture.',
   })
@@ -98,13 +126,17 @@ export class UserController {
       storage: memoryStorage(),
       fileFilter: UserController.imageFileFilter,
       limits: {
-        fileSize: +process.env.MAX_IMAGE_SIZE_IN_BYTES,
+        fileSize: +process.env.MAX_IMAGE_SIZE_IN_BYTES || 10485760,
+        fieldSize: +process.env.MAX_IMAGE_SIZE_IN_BYTES || 10485760,
         files: 1,
+        fields: 0,
+        parts: 1,
+        headerPairs: 50,
       },
     }),
   )
   async updateUserProfilePic(@UserId() userId: string, @Req() req) {
-    const file = req?.file as Multer.File | undefined;
+    const file = req?.file as MulterFile | undefined;
     if (!file) {
       throw new HttpException('Image file is required', HttpStatus.BAD_REQUEST);
     }

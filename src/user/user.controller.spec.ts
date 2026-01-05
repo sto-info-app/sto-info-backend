@@ -1,4 +1,4 @@
-import { HttpException } from '@nestjs/common';
+import { BadRequestException, HttpException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import type { Multer } from 'multer';
 import { UserController } from './user.controller';
@@ -128,8 +128,8 @@ describe('UserController', () => {
     it('should allow valid mime types', () => {
       const cb = jest.fn<void, [Error | null, boolean]>();
       UserController.imageFileFilter(
-        null as unknown,
-        { mimetype: 'image/png' } as unknown as Multer.File,
+        {} as any,
+        { mimetype: 'image/png' } as any,
         cb,
       );
       expect(cb).toHaveBeenCalledWith(null, true);
@@ -138,11 +138,11 @@ describe('UserController', () => {
     it('should reject invalid mime types', () => {
       const cb = jest.fn<void, [Error | null, boolean]>();
       UserController.imageFileFilter(
-        null as unknown,
-        { mimetype: 'text/plain' } as unknown as Multer.File,
+        {} as any,
+        { mimetype: 'text/plain' } as any,
         cb,
       );
-      expect(cb).toHaveBeenCalledWith(expect.any(HttpException), false);
+      expect(cb).toHaveBeenCalledWith(expect.any(BadRequestException), false);
     });
   });
 });

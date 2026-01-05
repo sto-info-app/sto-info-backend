@@ -64,6 +64,7 @@ describe('AccountService', () => {
       expect(repository.create).toHaveBeenCalledWith({
         ...dto,
         handleNormalized: 'h',
+        handleSlug: 'h',
       });
       expect(repository.save).toHaveBeenCalledWith(account);
     });
@@ -145,6 +146,28 @@ describe('AccountService', () => {
     });
   });
 
+  describe('findOneBySlug', () => {
+    it('should return an account by slug', async () => {
+      const account = { id: '1', handleSlug: 'Steve~1234' };
+      (repository.findOne as jest.Mock).mockResolvedValue(account);
+
+      const result = await service.findOneBySlug('Steve~1234');
+
+      expect(result).toEqual(account);
+      expect(repository.findOne).toHaveBeenCalledWith({
+        where: { handleSlug: 'Steve~1234' },
+      });
+    });
+
+    it('should return null if account not found by slug', async () => {
+      (repository.findOne as jest.Mock).mockResolvedValue(null);
+
+      const result = await service.findOneBySlug('non-existent');
+
+      expect(result).toBeNull();
+    });
+  });
+
   describe('findOneForUser', () => {
     it('should return an account by id for the given user', async () => {
       const account = { id: '1', userId: 'user-1' };
@@ -219,8 +242,18 @@ describe('AccountService', () => {
           handleNormalized: 'new-handle',
         }),
       });
-      expect(repository.save).toHaveBeenCalledWith({ ...existing, ...dto });
-      expect(result).toEqual({ ...existing, ...dto });
+      expect(repository.save).toHaveBeenCalledWith({
+        ...existing,
+        ...dto,
+        handleNormalized: 'new-handle',
+        handleSlug: 'new-handle',
+      });
+      expect(result).toEqual({
+        ...existing,
+        ...dto,
+        handleNormalized: 'new-handle',
+        handleSlug: 'new-handle',
+      });
     });
 
     it('should throw ConflictException if new handle already exists for user', async () => {
