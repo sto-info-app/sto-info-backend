@@ -1,11 +1,11 @@
 /** @type {import('@stryker-mutator/api/core').StrykerOptions} */
-module.exports = {
+export default {
   packageManager: 'npm',
-  reporters: ["html", "clear-text", "progress"],
+  reporters: ['html', 'clear-text', 'progress'],
   testRunner: 'jest',
   jest: {
     projectType: 'custom',
-    configFile: 'jest.config.js',
+    configFile: 'jest.config.mjs',
     enableFindRelatedTests: false,
   },
   mutate: [
@@ -28,7 +28,7 @@ module.exports = {
     '!src/**/*.constants.ts',
     '!src/database/migrations/**',
     '!src/views/**/*.js',
-    '!src/views/copy-email-templates-to-dist.js',
+    '!src/views/copy-email-templates-to-dist.ts',
     '!src/**/index.ts',
     '!src/express.d.ts',
   ],
@@ -38,7 +38,7 @@ module.exports = {
   thresholds: {
     high: 80,
     low: 60,
-    break: 0
+    break: 0,
   },
   ignorePatterns: ['dist', 'node_modules', 'coverage'],
   tempDirName: '.stryker-tmp',
