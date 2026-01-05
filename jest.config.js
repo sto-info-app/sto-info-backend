@@ -45,6 +45,7 @@ module.exports = {
     '/dist/',
     '/reports/',
     '/config/environments/',
+    '/database/migrations/**',
     '/src/main.ts',
   ],
   testEnvironment: 'node',
