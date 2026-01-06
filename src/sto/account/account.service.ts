@@ -19,14 +19,18 @@ export class AccountService {
     private readonly accountRepository: Repository<AccountEntity>,
   ) {}
 
-  /**
-   * Normalizes an account handle for consistent comparisons.
-   *
-   * @param handle Raw handle value.
-   * @returns A trimmed, lower-cased handle.
-   */
   private normalizeHandle(handle: string): string {
     return handle.trim().toLowerCase();
+  }
+
+  /**
+   * Generates a URL-safe slug from a handle by replacing '#' with '~'.
+   *
+   * @param handle Raw handle value.
+   * @returns A URL-safe slug.
+   */
+  private generateSlug(handle: string): string {
+    return handle.trim().replace('#', '~');
   }
 
   /**
@@ -76,10 +80,12 @@ export class AccountService {
     );
 
     const handleNormalized = this.normalizeHandle(createAccountDto.handle);
+    const handleSlug = this.generateSlug(createAccountDto.handle);
 
     const newAccount = this.accountRepository.create({
       ...createAccountDto,
       handleNormalized,
+      handleSlug,
     });
 
     try {
@@ -125,6 +131,18 @@ export class AccountService {
       },
     });
     return account;
+  }
+
+  /**
+   * Finds an account by its URL slug.
+   *
+   * @param handleSlug Slug to look for.
+   * @returns The account if found, otherwise `null`.
+   */
+  async findOneBySlug(handleSlug: string): Promise<AccountEntity | null> {
+    return this.accountRepository.findOne({
+      where: { handleSlug },
+    });
   }
 
   /**
@@ -227,6 +245,7 @@ export class AccountService {
       );
 
       account.handleNormalized = this.normalizeHandle(updateAccountDto.handle);
+      account.handleSlug = this.generateSlug(updateAccountDto.handle);
     }
 
     Object.assign(account, updateAccountDto);
