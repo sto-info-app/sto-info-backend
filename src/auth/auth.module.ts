@@ -31,9 +31,11 @@ import { LocalStrategy } from './local.strategy';
         const secretObject = await secretsService.getSecret(
           configService.get('AWS_SECRET_NAME'),
         );
+        const expiresInSeconds =
+          configService.get<number>('AUTH_TOKEN_EXPIRES_IN') || 3600; // Default to 1 hour if not specified
         return {
           secret: secretObject.jwtSecret,
-          signOptions: { expiresIn: '1h' },
+          signOptions: { expiresIn: `${expiresInSeconds}s` },
         };
       },
     }),
