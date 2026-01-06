@@ -519,7 +519,6 @@ describe('ImageUploadsService', () => {
       mockScanFile.mockImplementation((_buf, cb) =>
         cb(null, { FoundViruses: [] }),
       );
-
       mockS3Send.mockResolvedValue(undefined);
 
       const result = await service.uploadImageToCloudflareR2(
@@ -530,6 +529,23 @@ describe('ImageUploadsService', () => {
         }) as unknown as UploadR2FileParam,
       );
       expect(result).toBe('test/u/a.png');
+    });
+
+    it('should upload successfully with characterId', async () => {
+      mockScanFile.mockImplementation((_buf, cb) =>
+        cb(null, { FoundViruses: [] }),
+      );
+      mockS3Send.mockResolvedValue(undefined);
+
+      const result = await service.uploadImageToCloudflareR2(
+        'u',
+        createImageFile({
+          buffer: Buffer.from('a'),
+          originalname: 'a.png',
+        }) as unknown as UploadR2FileParam,
+        'char-1',
+      );
+      expect(result).toBe('test/u/char-1/a.png');
     });
   });
 
