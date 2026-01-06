@@ -95,7 +95,7 @@ export class AddHandleSlugToAccountAndCharacter1767507578970 implements Migratio
       `CREATE UNIQUE INDEX "UX_character_handle_slug" ON "sto_info_app"."character" ("handleSlug") WHERE "deletedAt" IS NULL`,
     );
     await queryRunner.query(
-      `CREATE UNIQUE INDEX "UX_character_account_handle_normalized" ON "sto_info_app"."character" ("accountId", "handleNormalized") WHERE "deletedAt" IS NULL`,
+      `CREATE UNIQUE INDEX "UX_character_account_handle_normalized" ON "sto_info_app"."character" ("accountId", "nameNormalized") WHERE "deletedAt" IS NULL`,
     );
     await queryRunner.query(
       `CREATE INDEX "IDX_bad81849bec5ce7c1a0be9b930" ON "sto_info_app"."recruit_type_faction_mapping" ("recruitTypeId") `,
@@ -248,7 +248,7 @@ export class AddHandleSlugToAccountAndCharacter1767507578970 implements Migratio
       `CREATE INDEX "IDX_recruit_type_faction_recruit_type" ON "sto_info_app"."recruit_type_faction_mapping" ("recruitTypeId") `,
     );
     await queryRunner.query(
-      `CREATE UNIQUE INDEX "UX_character_account_name_normalized" ON "sto_info_app"."character" ("accountId", "handleNormalized") WHERE ("deletedAt" IS NULL)`,
+      `CREATE UNIQUE INDEX "UX_character_account_name_normalized" ON "sto_info_app"."character" ("accountId", "nameNormalized") WHERE ("deletedAt" IS NULL)`,
     );
     await queryRunner.query(
       `ALTER TABLE "sto_info_app"."faction_species_mapping" ADD CONSTRAINT "FK_faction_species_species" FOREIGN KEY ("speciesId") REFERENCES "sto_info_app"."character_species"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
