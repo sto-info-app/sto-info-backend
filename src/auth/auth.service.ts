@@ -566,7 +566,9 @@ export class AuthService {
    * @returns The number of hours until the refresh token expires.
    */
   getRefreshTokenExpiryHours(): number {
-    return +process.env.AUTH_TOKEN_EXPIRES_IN / 60 / 60;
+    const refreshSeconds =
+      Number(process.env.AUTH_REFRESH_TOKEN_EXPIRES_IN) || 14400; // Default to 4 hours if not specified
+    return refreshSeconds / 60 / 60;
   }
 
   /**
