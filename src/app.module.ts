@@ -12,6 +12,7 @@ import { UserIdMiddleware } from './auth/user-id.middleware';
 import { ConfigCheckService } from './config-check/config-check.service';
 import { CronModule } from './cron/cron.module';
 import { DatabaseModule } from './database/database.module';
+import { HealthModule } from './health/health.module';
 import { MailModule } from './mail/mail.module';
 import { MailService } from './mail/mail.service';
 import { SecretsService } from './shared/secrets/secrets.service';
@@ -19,12 +20,12 @@ import { SharedModule } from './shared/shared.module';
 import { ImageUploadsService } from './shared/utilities/image-uploads.service';
 import { ValidatorsService } from './shared/utilities/validators.service';
 import { AccountModule } from './sto/account/account.module';
+import { CharacterModule } from './sto/character/character.module';
 import { LauncherModule } from './sto/launcher/launcher.module';
 import { PlatformLauncherModule } from './sto/platform-launcher/platform-launcher.module';
 import { PlatformModule } from './sto/platform/platform.module';
 import { UserRefreshTokenModule } from './user-refresh-token/user-refresh-token.module';
 import { UserModule } from './user/user.module';
-import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { HealthModule } from './health/health.module';
     SharedModule,
     UserRefreshTokenModule,
     AccountModule,
+    CharacterModule,
     PlatformModule,
     LauncherModule,
     PlatformLauncherModule,
