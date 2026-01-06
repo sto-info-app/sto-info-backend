@@ -122,16 +122,22 @@ export class ImageUploadsService {
    * Upload an image to Cloudflare R2.
    * @param userId The user ID
    * @param file The image to upload
+   * @param characterId The character ID (optional)
    * @returns The URL of the uploaded image
    */
-  async uploadImageToCloudflareR2(userId: string, file: MulterFile) {
+  async uploadImageToCloudflareR2(
+    userId: string,
+    file: MulterFile,
+    characterId?: string,
+  ) {
     const { fileBuffer, safeFileName } = await this.validateAndSanitiseFile(
       userId,
       file,
     );
 
     // Prepare the Cloudflare key (path and filename within the bucket)
-    const fileKey = `${this.environment}/${userId}/${safeFileName}`;
+    const folderPath = characterId ? `${userId}/${characterId}` : userId;
+    const fileKey = `${this.environment}/${folderPath}/${safeFileName}`;
 
     // Prepare the command to upload the file to R2
     const command = new PutObjectCommand({

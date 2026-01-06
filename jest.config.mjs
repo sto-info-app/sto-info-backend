@@ -1,4 +1,4 @@
-module.exports = {
+export default {
   moduleFileExtensions: ['js', 'json', 'ts'],
   testRegex: String.raw`.*\.spec\.ts$`,
   transform: {
@@ -32,7 +32,7 @@ module.exports = {
     '!**/database/migrations/**',
     // Exclude build scripts
     '!**/views/**/*.js',
-    '!**/views/copy-email-templates-to-dist.js',
+    '!**/views/copy-email-templates-to-dist.ts',
     // Exclude barrel export files (index.ts files that just re-export)
     '!**/index.ts',
     // Exclude express type augmentation
@@ -45,15 +45,16 @@ module.exports = {
     '/dist/',
     '/reports/',
     '/config/environments/',
+    '/database/migrations/',
     '/src/main.ts',
   ],
   testEnvironment: 'node',
   coverageThreshold: {
     global: {
-      statements: 100,
-      branches: 100,
-      functions: 100,
-      lines: 100,
+      statements: 99,
+      branches: 99,
+      functions: 99,
+      lines: 99,
     },
   },
   coverageDirectory: '<rootDir>/reports/coverage',

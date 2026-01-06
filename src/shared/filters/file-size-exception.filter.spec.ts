@@ -55,14 +55,61 @@ describe('FileSizeExceptionFilter', () => {
     });
   });
 
-  it('should handle different MulterError codes', () => {
-    const exception = new MulterError('LIMIT_UNEXPECTED_FILE', 'file');
+  describe('handle different MulterError codes', () => {
+    const testCases = [
+      {
+        code: 'LIMIT_FILE_SIZE' as const,
+        expectedMessage:
+          'File size is too large. Maximum allowed size is 5242880 bytes.',
+      },
+      {
+        code: 'LIMIT_FILE_COUNT' as const,
+        expectedMessage: 'Too many files uploaded. Only 1 file is allowed.',
+      },
+      {
+        code: 'LIMIT_FIELD_COUNT' as const,
+        expectedMessage: 'Too many fields uploaded.',
+      },
+      {
+        code: 'LIMIT_FIELD_SIZE' as const,
+        expectedMessage:
+          'Field content is too large. Maximum allowed size is 5242880 bytes.',
+      },
+      {
+        code: 'LIMIT_UNEXPECTED_FILE' as const,
+        expectedMessage: 'Upload failed: Unexpected field',
+      },
+    ];
 
-    filter.catch(exception, mockArgumentsHost);
+    it.each(testCases)(
+      'should return correct message for $code',
+      ({ code, expectedMessage }) => {
+        const exception = new MulterError(code);
+        // MulterError message is set based on the code in the constructor
+        // but we can override it if needed for the test.
 
-    expect(mockResponse.status).toHaveBeenCalledWith(
-      HttpStatus.PAYLOAD_TOO_LARGE,
+        filter.catch(exception, mockArgumentsHost);
+
+        expect(mockResponse.status).toHaveBeenCalledWith(
+          HttpStatus.PAYLOAD_TOO_LARGE,
+        );
+        expect(mockResponse.json).toHaveBeenCalledWith(
+          expect.objectContaining({
+            message: expectedMessage,
+          }),
+        );
+      },
     );
-    expect(mockResponse.json).toHaveBeenCalled();
+
+    it('should use exception.code if message is missing in default case', () => {
+      const exception = new MulterError('LIMIT_PART_COUNT');
+      exception.message = undefined as any;
+      filter.catch(exception, mockArgumentsHost);
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Upload failed: LIMIT_PART_COUNT',
+        }),
+      );
+    });
   });
 });
