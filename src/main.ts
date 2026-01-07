@@ -60,7 +60,7 @@ async function bootstrap() {
   // Define global rate limiting rules (baseline protection)
   const globalApiLimiter = createRateLimiter({
     windowMins: 5,
-    max: 50,
+    max: 300,
   });
 
   // Stricter rate limiting for authentication-related routes
