@@ -222,9 +222,9 @@ async function bootstrap() {
     }),
   );
 
-  // Apply global baseline rate limiting to all routes except health checks
+  // Apply global baseline rate limiting to all routes except health checks or preflight OPTIONS
   app.use((req: Request, res: Response, next: NextFunction) => {
-    if (req.path.startsWith('/health/')) {
+    if (req.method === 'OPTIONS' || req.path.startsWith('/health/')) {
       return next();
     }
     return globalApiLimiter(req, res, next);
