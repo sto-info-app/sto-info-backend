@@ -60,7 +60,7 @@ async function bootstrap() {
   // Define global rate limiting rules (baseline protection)
   const globalApiLimiter = createRateLimiter({
     windowMins: 5,
-    max: 50,
+    max: 300,
   });
 
   // Stricter rate limiting for authentication-related routes
@@ -109,6 +109,14 @@ async function bootstrap() {
     methods: allowedMethods,
     allowedHeaders: allowedHeaders,
   });
+
+  // Trust only the first proxy (Cloudflare used as a proxy) - needed for rate limiting
+  const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 1);
+
+  // Set trust proxy if not in local environment
+  if (!inLocal) {
+    app.set('trust proxy', trustProxyHops);
+  }
 
   // Global request size limits
   const maxImageSize =
@@ -214,9 +222,9 @@ async function bootstrap() {
     }),
   );
 
-  // Apply global baseline rate limiting to all routes except health checks
+  // Apply global baseline rate limiting to all routes except health checks or preflight OPTIONS
   app.use((req: Request, res: Response, next: NextFunction) => {
-    if (req.path.startsWith('/health/')) {
+    if (req.method === 'OPTIONS' || req.path.startsWith('/health/')) {
       return next();
     }
     return globalApiLimiter(req, res, next);
@@ -235,14 +243,6 @@ async function bootstrap() {
     ],
     strictAuthLimiter,
   );
-
-  // Trust only the first proxy (Cloudflare used as a proxy) - needed for rate limiting
-  const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 1);
-
-  // Set trust proxy if not in local environment
-  if (!inLocal) {
-    app.set('trust proxy', trustProxyHops);
-  }
 
   // Enable class serializer interceptor for managing response data
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
