@@ -110,6 +110,14 @@ async function bootstrap() {
     allowedHeaders: allowedHeaders,
   });
 
+  // Trust only the first proxy (Cloudflare used as a proxy) - needed for rate limiting
+  const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 1);
+
+  // Set trust proxy if not in local environment
+  if (!inLocal) {
+    app.set('trust proxy', trustProxyHops);
+  }
+
   // Global request size limits
   const maxImageSize =
     configService.get<number>('MAX_IMAGE_SIZE_IN_BYTES') || 10485760;
@@ -235,14 +243,6 @@ async function bootstrap() {
     ],
     strictAuthLimiter,
   );
-
-  // Trust only the first proxy (Cloudflare used as a proxy) - needed for rate limiting
-  const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 1);
-
-  // Set trust proxy if not in local environment
-  if (!inLocal) {
-    app.set('trust proxy', trustProxyHops);
-  }
 
   // Enable class serializer interceptor for managing response data
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
