@@ -1,6 +1,6 @@
 {
   "name": "sto-info-backend",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "Star Trek Online Information APIs",
   "author": "Steve Roberts",
   "private": true,
@@ -38,7 +38,7 @@
     "migration:show": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:show -d ./config/typeorm.datasource.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.962.0",
+    "@aws-sdk/client-s3": "^3.965.0",
     "@aws-sdk/client-secrets-manager": "^3.962.0",
     "@nestjs/common": "^11.1.11",
     "@nestjs/config": "^4.0.0",
