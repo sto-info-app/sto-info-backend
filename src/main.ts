@@ -80,6 +80,36 @@ async function bootstrap() {
   // Use environment vars
   const configService = app.get(ConfigService);
 
+  const appEnv = configService.get('NODE_ENV') ?? 'dev';
+  const inProduction = appEnv === 'prod';
+  const inDevelopment = appEnv === 'dev';
+  const inLocal = appEnv === 'local';
+
+  const devAllowedOrigins = [
+    'http://localhost:4200',
+    'https://dev.startrekonline.info',
+  ];
+  const prodAllowedOrigins = ['https://startrekonline.info'];
+
+  let allowedOrigins = devAllowedOrigins;
+  if (inProduction) {
+    allowedOrigins = prodAllowedOrigins;
+  }
+
+  const allowedMethods = 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS';
+  const allowedHeaders =
+    'Origin, X-Requested-With, Content-Type, Accept, Authorization';
+
+  //NOTE(CRITICAL): Enable CORS FIRST, before any other middleware
+  // This ensures preflight OPTIONS requests receive proper CORS headers
+  // even if they're rejected by subsequent middleware
+  app.enableCors({
+    origin: allowedOrigins,
+    credentials: true,
+    methods: allowedMethods,
+    allowedHeaders: allowedHeaders,
+  });
+
   // Global request size limits
   const maxImageSize =
     configService.get<number>('MAX_IMAGE_SIZE_IN_BYTES') || 10485760;
@@ -114,35 +144,6 @@ async function bootstrap() {
   // Initialize the DataSource
   const connectionSource = await connectionSourcePromise;
   await connectionSource.initialize();
-
-  const appEnv = configService.get('NODE_ENV') ?? 'dev';
-  const inProduction = appEnv === 'prod';
-  const inDevelopment = appEnv === 'dev';
-  const inLocal = appEnv === 'local';
-
-  const devAllowedOrigins = [
-    'http://localhost:4200',
-    'https://dev.startrekonline.info',
-  ];
-  const prodAllowedOrigins = ['https://startrekonline.info'];
-
-  let allowedOrigins = devAllowedOrigins;
-  if (inProduction) {
-    allowedOrigins = prodAllowedOrigins;
-  }
-
-  const allowedMethods = 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS';
-  const allowedHeaders =
-    'Origin, X-Requested-With, Content-Type, Accept, Authorization';
-
-  // Enable CORS globally so that all requests, including
-  // preflight (OPTIONS), receive the appropriate CORS headers
-  app.enableCors({
-    origin: allowedOrigins,
-    credentials: true,
-    methods: allowedMethods,
-    allowedHeaders: allowedHeaders,
-  });
 
   app.useGlobalPipes(
     new ValidationPipe({
