@@ -30,13 +30,13 @@ export class PlatformLauncherEntity {
   @DeleteDateColumn()
   deletedAt: Date;
 
-  @ManyToOne(() => PlatformEntity, platform => platform.platformLaunchers, {
+  @ManyToOne('PlatformEntity', 'platformLaunchers', {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'platformId' })
   platform: PlatformEntity;
 
-  @ManyToOne(() => LauncherEntity, launcher => launcher.platformLaunchers, {
+  @ManyToOne('LauncherEntity', 'platformLaunchers', {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'launcherId' })

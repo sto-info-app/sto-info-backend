@@ -15,22 +15,48 @@ import {
   CreateDateColumn,
   DeleteDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { CharacterEntity } from '../../character/entities/character.entity';
 
 @Entity({ name: 'account' })
+@Index('UX_account_user_handle_normalized', ['userId', 'handleNormalized'], {
+  unique: true,
+  where: '"deletedAt" IS NULL',
+})
+@Index('UX_account_handle_slug', ['handleSlug'], {
+  unique: true,
+  where: '"deletedAt" IS NULL',
+})
 export class AccountEntity {
   @PrimaryGeneratedColumn('uuid')
   @IsUUID()
   id: string;
 
   @IsNotEmpty()
+  @IsUUID()
+  @Column({ type: 'uuid', nullable: false })
+  userId: string;
+
+  @IsNotEmpty()
   @IsString()
   @Column({ length: 255, nullable: false })
   handle: string;
+
+  @IsNotEmpty()
+  @IsString()
+  @Column({ length: 255, nullable: false })
+  handleNormalized: string;
+
+  @IsNotEmpty()
+  @IsString()
+  @Column({ length: 255, nullable: false })
+  handleSlug: string;
 
   @IsOptional()
   @IsString()
@@ -42,11 +68,21 @@ export class AccountEntity {
   @Column({ length: 255, nullable: true })
   email: string;
 
-  @ManyToOne(() => PlatformEntity)
+  @IsOptional()
+  @IsUUID()
+  @Column({ type: 'uuid', nullable: true })
+  platformId: string;
+
+  @ManyToOne('PlatformEntity')
   @JoinColumn({ name: 'platformId' })
   platform: PlatformEntity;
 
-  @ManyToOne(() => LauncherEntity)
+  @IsOptional()
+  @IsUUID()
+  @Column({ type: 'uuid', nullable: true })
+  launcherId: string;
+
+  @ManyToOne('LauncherEntity')
   @JoinColumn({ name: 'launcherId' })
   launcher: LauncherEntity;
 
@@ -57,12 +93,16 @@ export class AccountEntity {
 
   @IsOptional()
   @IsDateString()
-  @Column()
+  @Column({ type: 'timestamp', nullable: true })
   accountCreatedDate: Date;
 
   @IsBoolean()
   @Column({ default: true })
   publiclyVisible: boolean;
+
+  @IsBoolean()
+  @Column({ default: false })
+  lifetimeSubscription: boolean;
 
   @CreateDateColumn()
   createdAt: Date;
@@ -73,7 +113,10 @@ export class AccountEntity {
   @DeleteDateColumn()
   deletedAt: Date;
 
-  @ManyToOne(() => UserEntity, user => user.accounts, { onDelete: 'CASCADE' })
+  @ManyToOne('UserEntity', 'accounts', { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userId' })
   user: UserEntity;
+
+  @OneToMany('CharacterEntity', 'account')
+  characters: CharacterEntity[];
 }

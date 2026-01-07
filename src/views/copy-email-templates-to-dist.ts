@@ -1,6 +1,6 @@
-const fs = require('node:fs');
-const path = require('node:path');
-const { Logger } = require('@nestjs/common');
+import { Logger } from '@nestjs/common';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 const srcDir = path.join(__dirname, 'email-templates');
 const destDir = path.join(__dirname, '../..', 'dist/email-templates');

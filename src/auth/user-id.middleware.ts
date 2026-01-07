@@ -101,7 +101,7 @@ export class UserIdMiddleware implements NestMiddleware {
    */
   private handleTokenError(err: any): void {
     if (err.name === 'TokenExpiredError') {
-      Logger.error('Token has expired:', err, 'UserIdMiddleware');
+      Logger.warn(`Token has expired: ${err.message}`, 'UserIdMiddleware');
     } else {
       Logger.error('Invalid token:', err, 'UserIdMiddleware');
     }

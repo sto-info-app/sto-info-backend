@@ -1,14 +1,18 @@
 import { config } from 'dotenv';
 config({ path: 'config/environments/.env' });
 
-import { ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
+import {
+  ClassSerializerInterceptor,
+  HttpStatus,
+  ValidationPipe,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { connectionSourcePromise } from 'config/typeorm.datasource';
-import { NextFunction, Request, Response } from 'express';
+import { json, NextFunction, Request, Response, urlencoded } from 'express';
 import rateLimit, { RateLimitRequestHandler } from 'express-rate-limit';
 import helmet from 'helmet';
 import { readFileSync } from 'node:fs';
@@ -65,24 +69,16 @@ async function bootstrap() {
     max: 10,
   });
 
-  // Create NestJS application
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // Create NestJS application with custom body parser limits
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bodyParser: false,
+  });
 
   // Use global exception filter for TypeORM exceptions
   app.useGlobalFilters(new TypeOrmExceptionFilter());
 
   // Use environment vars
   const configService = app.get(ConfigService);
-
-  // Use the client IP middleware
-  app.use(clientIpMiddleware);
-
-  // Use the nonce middleware
-  app.use(new NonceMiddleware().use);
-
-  // Initialize the DataSource
-  const connectionSource = await connectionSourcePromise;
-  await connectionSource.initialize();
 
   const appEnv = configService.get('NODE_ENV') ?? 'dev';
   const inProduction = appEnv === 'prod';
@@ -104,14 +100,50 @@ async function bootstrap() {
   const allowedHeaders =
     'Origin, X-Requested-With, Content-Type, Accept, Authorization';
 
-  // Enable CORS globally so that all requests, including
-  // preflight (OPTIONS), receive the appropriate CORS headers
+  //NOTE(CRITICAL): Enable CORS FIRST, before any other middleware
+  // This ensures preflight OPTIONS requests receive proper CORS headers
+  // even if they're rejected by subsequent middleware
   app.enableCors({
     origin: allowedOrigins,
     credentials: true,
     methods: allowedMethods,
     allowedHeaders: allowedHeaders,
   });
+
+  // Global request size limits
+  const maxImageSize =
+    configService.get<number>('MAX_IMAGE_SIZE_IN_BYTES') || 10485760;
+  const maxTotalPayloadSize = maxImageSize + 102400; // image size + 100KB overhead
+
+  // Set limits for standard body parsers (JSON & URL-encoded)
+  app.use(json({ limit: '1mb' }));
+  app.use(urlencoded({ limit: '1mb', extended: true }));
+
+  // Global Content-Length check to prevent early processing of oversized requests
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const contentLength = req.headers['content-length'];
+    if (
+      contentLength &&
+      Number.parseInt(contentLength, 10) > maxTotalPayloadSize
+    ) {
+      return res.status(HttpStatus.PAYLOAD_TOO_LARGE).json({
+        statusCode: HttpStatus.PAYLOAD_TOO_LARGE,
+        message: `Payload too large. Maximum allowed size is ${maxTotalPayloadSize} bytes.`,
+        error: 'Payload Too Large',
+      });
+    }
+    next();
+  });
+
+  // Use the client IP middleware
+  app.use(clientIpMiddleware);
+
+  // Use the nonce middleware
+  app.use(new NonceMiddleware().use);
+
+  // Initialize the DataSource
+  const connectionSource = await connectionSourcePromise;
+  await connectionSource.initialize();
 
   app.useGlobalPipes(
     new ValidationPipe({
