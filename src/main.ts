@@ -42,8 +42,8 @@ function createRateLimiter(options: {
     standardHeaders: true,
     legacyHeaders: false,
     handler: (_req: Request, res: Response) => {
-      res.status(429).json({
-        status: 429,
+      res.status(HttpStatus.TOO_MANY_REQUESTS).json({
+        status: HttpStatus.TOO_MANY_REQUESTS,
         error: errorMessage,
         message: fullErrorMessage,
       });
