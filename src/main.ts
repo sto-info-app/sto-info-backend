@@ -13,7 +13,10 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { connectionSourcePromise } from 'config/typeorm.datasource';
 import { json, NextFunction, Request, Response, urlencoded } from 'express';
-import rateLimit, { RateLimitRequestHandler } from 'express-rate-limit';
+import rateLimit, {
+  ipKeyGenerator,
+  RateLimitRequestHandler,
+} from 'express-rate-limit';
 import helmet from 'helmet';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -49,7 +52,9 @@ function createRateLimiter(options: {
       });
     },
     skipSuccessfulRequests: false,
-    keyGenerator: (req: Request) => req.clientIp ?? req.ip,
+    keyGenerator: (req: Request) => {
+      return ipKeyGenerator(req.clientIp ?? req.ip ?? '');
+    },
   });
 }
 
