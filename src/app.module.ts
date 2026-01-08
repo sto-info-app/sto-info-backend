@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { getTypeOrmConfig } from 'config/typeorm.config';
 import { ClsModule } from 'nestjs-cls';
 
+import { MulterModule } from '@nestjs/platform-express';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -40,6 +41,24 @@ import { UserModule } from './user/user.module';
         return typeOrmConfig;
       },
       inject: [ConfigService],
+    }),
+    MulterModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const maxImageBytes = Number(
+          config.get<string>('MAX_IMAGE_SIZE_IN_BYTES') ?? '10485760',
+        );
+
+        return {
+          limits: {
+            fileSize: maxImageBytes,
+            files: 1,
+            fields: 10,
+            parts: 20,
+          },
+        };
+      },
     }),
     ClsModule.forRoot({
       global: true,
