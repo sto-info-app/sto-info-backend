@@ -26,6 +26,10 @@ import * as crypto from 'node:crypto';
 import { extname } from 'node:path';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
+import {
+  DEFAULT_MULTER_LIMITS,
+  isAllowedImageMimeType,
+} from 'src/shared/constants/file-upload.constants';
 import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 import { UpdatedUserProfileResultDto } from './dto/updated-user-profile-result.dto';
@@ -51,8 +55,7 @@ export class UserController {
     file: MulterFile,
     callback: (error: Error | null, acceptFile: boolean) => void,
   ) => {
-    const allowedMimeTypes = ['image/png', 'image/jpg', 'image/jpeg'];
-    if (allowedMimeTypes.includes(file.mimetype)) {
+    if (isAllowedImageMimeType(file.mimetype)) {
       callback(null, true);
     } else {
       callback(
@@ -126,12 +129,16 @@ export class UserController {
       storage: memoryStorage(),
       fileFilter: UserController.imageFileFilter,
       limits: {
-        fileSize: +process.env.MAX_IMAGE_SIZE_IN_BYTES || 10485760,
-        fieldSize: +process.env.MAX_IMAGE_SIZE_IN_BYTES || 10485760,
-        files: 1,
-        fields: 10,
-        parts: 20,
-        headerPairs: 50,
+        fileSize:
+          +process.env.MAX_IMAGE_SIZE_IN_BYTES ||
+          DEFAULT_MULTER_LIMITS.fileSize,
+        fieldSize:
+          +process.env.MAX_IMAGE_SIZE_IN_BYTES ||
+          DEFAULT_MULTER_LIMITS.fieldSize,
+        files: DEFAULT_MULTER_LIMITS.files,
+        fields: DEFAULT_MULTER_LIMITS.fields,
+        parts: DEFAULT_MULTER_LIMITS.parts,
+        headerPairs: DEFAULT_MULTER_LIMITS.headerPairs,
       },
     }),
   )
