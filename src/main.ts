@@ -13,7 +13,10 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { connectionSourcePromise } from 'config/typeorm.datasource';
 import { json, NextFunction, Request, Response, urlencoded } from 'express';
-import rateLimit, { RateLimitRequestHandler } from 'express-rate-limit';
+import rateLimit, {
+  ipKeyGenerator,
+  RateLimitRequestHandler,
+} from 'express-rate-limit';
 import helmet from 'helmet';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -22,6 +25,12 @@ import { AppModule } from './app.module';
 import { NonceMiddleware } from './auth/nonce.middleware';
 import { clientIpMiddleware } from './common/http/client-ip.middleware';
 import { ConfigCheckService } from './config-check/config-check.service';
+import {
+  AUTH_RATE_LIMITED_ROUTES,
+  EXPENSIVE_RATE_LIMITED_ROUTES,
+  RATE_LIMIT_CONFIGS,
+  RATE_LIMIT_EXCLUDED_PATHS,
+} from './shared/constants/rate-limit.constants';
 import { SWAGGER_UI_DARK_THEME_CSS } from './shared/constants/swagger.constants';
 import { TypeOrmExceptionFilter } from './shared/filters/typeorm-exception.filter';
 import { getAppVersion } from './shared/utilities/version.utility';
@@ -29,11 +38,13 @@ import { getAppVersion } from './shared/utilities/version.utility';
 function createRateLimiter(options: {
   windowMins: number;
   max: number;
+  skipSuccessfulRequests?: boolean;
 }): RateLimitRequestHandler {
-  const { windowMins, max } = options;
+  const { windowMins, max, skipSuccessfulRequests = false } = options;
 
   const errorMessage = `Too many requests`;
-  const fullErrorMessage = `${errorMessage}, please try again after ${windowMins} minutes`;
+  const minuteLabel = windowMins === 1 ? 'minute' : 'minutes';
+  const fullErrorMessage = `${errorMessage}, please try again after ${windowMins} ${minuteLabel}`;
 
   return rateLimit({
     windowMs: windowMins * 60 * 1000,
@@ -41,15 +52,26 @@ function createRateLimiter(options: {
     message: fullErrorMessage,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req: Request) => {
+      // Skip rate limiting for OPTIONS requests (CORS preflight)
+      return req.method === 'OPTIONS';
+    },
     handler: (_req: Request, res: Response) => {
-      res.status(429).json({
-        status: 429,
+      const retryAfter = Math.ceil(windowMins * 60);
+      res.setHeader('Retry-After', retryAfter.toString());
+
+      res.status(HttpStatus.TOO_MANY_REQUESTS).json({
+        status: HttpStatus.TOO_MANY_REQUESTS,
         error: errorMessage,
         message: fullErrorMessage,
+        retryAfter: retryAfter,
       });
     },
-    skipSuccessfulRequests: false,
-    keyGenerator: (req: Request) => req.clientIp ?? req.ip,
+    skipSuccessfulRequests,
+    skipFailedRequests: false,
+    keyGenerator: (req: Request) => {
+      return ipKeyGenerator(req.clientIp ?? req.ip ?? '');
+    },
   });
 }
 
@@ -57,17 +79,11 @@ async function bootstrap() {
   const configCheckService = new ConfigCheckService();
   configCheckService.validateInput(process.env); // Validate the environment variables
 
-  // Define global rate limiting rules (baseline protection)
-  const globalApiLimiter = createRateLimiter({
-    windowMins: 5,
-    max: 300,
-  });
-
-  // Stricter rate limiting for authentication-related routes
-  const strictAuthLimiter = createRateLimiter({
-    windowMins: 15,
-    max: 10,
-  });
+  // Define rate limiters based on operation type
+  const readLimiter = createRateLimiter(RATE_LIMIT_CONFIGS.READ);
+  const writeLimiter = createRateLimiter(RATE_LIMIT_CONFIGS.WRITE);
+  const authLimiter = createRateLimiter(RATE_LIMIT_CONFIGS.AUTH);
+  const expensiveLimiter = createRateLimiter(RATE_LIMIT_CONFIGS.EXPENSIVE);
 
   // Create NestJS application with custom body parser limits
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -222,27 +238,27 @@ async function bootstrap() {
     }),
   );
 
-  // Apply global baseline rate limiting to all routes except health checks or preflight OPTIONS
+  // Apply strict rate limits to authentication endpoints (highest priority)
+  app.use([...AUTH_RATE_LIMITED_ROUTES], authLimiter);
+
+  // Apply strict rate limits to expensive operations (searches, uploads)
+  app.use([...EXPENSIVE_RATE_LIMITED_ROUTES], expensiveLimiter);
+
+  // Apply method-based rate limiting (general rules)
   app.use((req: Request, res: Response, next: NextFunction) => {
-    if (req.method === 'OPTIONS' || req.path.startsWith('/health/')) {
+    // Skip explicitly excluded paths
+    if (RATE_LIMIT_EXCLUDED_PATHS.some(path => req.path.startsWith(path))) {
       return next();
     }
-    return globalApiLimiter(req, res, next);
-  });
 
-  // Apply stricter rate limits for sensitive authentication endpoints
-  app.use(
-    [
-      '/auth/login',
-      '/auth/refresh',
-      '/auth/register',
-      '/auth/verify-email',
-      '/auth/resend-verification-email',
-      '/auth/request-password-reset',
-      '/auth/reset-password',
-    ],
-    strictAuthLimiter,
-  );
+    // Apply different limits based on HTTP method
+    if (req.method === 'GET' || req.method === 'HEAD') {
+      return readLimiter(req, res, next);
+    } else {
+      // POST, PUT, PATCH, DELETE (OPTIONS handled by skip function)
+      return writeLimiter(req, res, next);
+    }
+  });
 
   // Enable class serializer interceptor for managing response data
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
