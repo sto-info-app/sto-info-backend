@@ -36,7 +36,7 @@ export class ImageUploadsService {
   }
 
   /**
-   * Initialize the image upload service.
+   * Initialise the image upload service.
    */
   async onModuleInit() {
     await this.init();
