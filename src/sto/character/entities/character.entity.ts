@@ -198,12 +198,13 @@ export class CharacterEntity {
       return `${CLOUDFLARE_R2_CDN_ROOT_URL}/${this.profilePictureId}`;
     }
 
-    // New Cloudflare Images format
+    // New Cloudflare Images format - use custom domain
     const cfImagesHash = process.env.CLOUDFLARE_IMAGES_HASH;
-    if (!cfImagesHash) {
+    const cdnRootUrl = CLOUDFLARE_R2_CDN_ROOT_URL;
+    if (!cfImagesHash || !cdnRootUrl) {
       return null;
     }
-    return `https://imagedelivery.net/${cfImagesHash}/${this.profilePictureId}/public`;
+    return `${cdnRootUrl}/cdn-cgi/imagedelivery/${cfImagesHash}/${this.profilePictureId}/public`;
   }
 
   @Expose()
@@ -226,12 +227,13 @@ export class CharacterEntity {
       return `${CLOUDFLARE_R2_CDN_ROOT_URL}/cdn-cgi/image/width=300,height=300,fit=cover,format=auto/${this.profilePictureId}`;
     }
 
-    // New Cloudflare Images format - use square300 variant
+    // New Cloudflare Images format - use custom domain and square300 variant
     const cfImagesHash = process.env.CLOUDFLARE_IMAGES_HASH;
-    if (!cfImagesHash) {
+    const cdnRootUrl = CLOUDFLARE_R2_CDN_ROOT_URL;
+    if (!cfImagesHash || !cdnRootUrl) {
       return null;
     }
-    return `https://imagedelivery.net/${cfImagesHash}/${this.profilePictureId}/square300`;
+    return `${cdnRootUrl}/cdn-cgi/imagedelivery/${cfImagesHash}/${this.profilePictureId}/square300`;
   }
 
   @Expose()
@@ -249,12 +251,13 @@ export class CharacterEntity {
       return `${CLOUDFLARE_R2_CDN_ROOT_URL}/cdn-cgi/image/width=100,height=100,fit=cover,format=auto/${this.profilePictureId}`;
     }
 
-    // New Cloudflare Images format - use square100 variant
+    // New Cloudflare Images format - use custom domain and square100 variant
     const cfImagesHash = process.env.CLOUDFLARE_IMAGES_HASH;
-    if (!cfImagesHash) {
+    const cdnRootUrl = CLOUDFLARE_R2_CDN_ROOT_URL;
+    if (!cfImagesHash || !cdnRootUrl) {
       return null;
     }
-    return `https://imagedelivery.net/${cfImagesHash}/${this.profilePictureId}/square100`;
+    return `${cdnRootUrl}/cdn-cgi/imagedelivery/${cfImagesHash}/${this.profilePictureId}/square100`;
   }
 
   @Expose()

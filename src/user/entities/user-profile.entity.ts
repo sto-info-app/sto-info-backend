@@ -1,5 +1,6 @@
 import { Expose } from 'class-transformer';
 import { IsNotEmpty, IsOptional, IsUUID } from 'class-validator';
+import { CLOUDFLARE_R2_CDN_ROOT_URL } from 'src/shared/constants/image.constants';
 import {
   Column,
   CreateDateColumn,
@@ -60,10 +61,11 @@ export class UserProfileEntity {
     }
 
     const cfImagesHash = process.env.CLOUDFLARE_IMAGES_HASH;
-    if (!cfImagesHash) {
+    const cdnRootUrl = CLOUDFLARE_R2_CDN_ROOT_URL;
+    if (!cfImagesHash || !cdnRootUrl) {
       return null;
     }
-    return `https://imagedelivery.net/${cfImagesHash}/${this.profilePictureId}/public`;
+    return `${cdnRootUrl}/cdn-cgi/imagedelivery/${cfImagesHash}/${this.profilePictureId}/public`;
   }
 
   @Expose()
@@ -78,10 +80,11 @@ export class UserProfileEntity {
     }
 
     const cfImagesHash = process.env.CLOUDFLARE_IMAGES_HASH;
-    if (!cfImagesHash) {
+    const cdnRootUrl = CLOUDFLARE_R2_CDN_ROOT_URL;
+    if (!cfImagesHash || !cdnRootUrl) {
       return null;
     }
-    return `https://imagedelivery.net/${cfImagesHash}/${this.profilePictureId}/square300`;
+    return `${cdnRootUrl}/cdn-cgi/imagedelivery/${cfImagesHash}/${this.profilePictureId}/square300`;
   }
 
   @Expose()
@@ -91,9 +94,10 @@ export class UserProfileEntity {
     }
 
     const cfImagesHash = process.env.CLOUDFLARE_IMAGES_HASH;
-    if (!cfImagesHash) {
+    const cdnRootUrl = CLOUDFLARE_R2_CDN_ROOT_URL;
+    if (!cfImagesHash || !cdnRootUrl) {
       return null;
     }
-    return `https://imagedelivery.net/${cfImagesHash}/${this.profilePictureId}/square100`;
+    return `${cdnRootUrl}/cdn-cgi/imagedelivery/${cfImagesHash}/${this.profilePictureId}/square100`;
   }
 }
