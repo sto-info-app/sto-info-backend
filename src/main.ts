@@ -52,6 +52,10 @@ function createRateLimiter(options: {
     message: fullErrorMessage,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req: Request) => {
+      // Skip rate limiting for OPTIONS requests (CORS preflight)
+      return req.method === 'OPTIONS';
+    },
     handler: (_req: Request, res: Response) => {
       const retryAfter = Math.ceil(windowMins * 60);
       res.setHeader('Retry-After', retryAfter.toString());
@@ -242,11 +246,6 @@ async function bootstrap() {
 
   // Apply method-based rate limiting (general rules)
   app.use((req: Request, res: Response, next: NextFunction) => {
-    // Skip OPTIONS preflight requests and health checks
-    if (req.method === 'OPTIONS') {
-      return next();
-    }
-
     // Skip explicitly excluded paths
     if (RATE_LIMIT_EXCLUDED_PATHS.some(path => req.path.startsWith(path))) {
       return next();
