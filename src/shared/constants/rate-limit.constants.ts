@@ -67,7 +67,7 @@ export const AUTH_RATE_LIMITED_ROUTES = [
  */
 export const EXPENSIVE_RATE_LIMITED_ROUTES = [
   '/character/search',
-  '/character/*/upload',
+  '/character/:id/profile-image',
   '/account/search',
 ] as const;
 
