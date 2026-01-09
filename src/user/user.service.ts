@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { Multer } from 'multer';
@@ -14,6 +14,8 @@ import { UserEntity } from './entities/user.entity';
 
 @Injectable()
 export class UserService {
+  private readonly logger = new Logger(UserService.name);
+
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
@@ -26,11 +28,21 @@ export class UserService {
   ) {}
 
   async create(createUserDto: CreateUserDto): Promise<UserEntity> {
+    this.logger.debug(
+      `[create] Creating new user - Email: ${createUserDto.email}`,
+    );
+
     if (!this.validateEmailUsername(createUserDto.email)) {
+      this.logger.warn(
+        `[create] Invalid email format - Email: ${createUserDto.email}`,
+      );
       throw new HttpException('Invalid email', HttpStatus.BAD_REQUEST);
     }
 
     if (!createUserDto.password) {
+      this.logger.warn(
+        `[create] Missing password - Email: ${createUserDto.email}`,
+      );
       throw new HttpException('Invalid password', HttpStatus.BAD_REQUEST);
     }
 
@@ -39,6 +51,9 @@ export class UserService {
         where: { email: createUserDto.email },
       })
     ) {
+      this.logger.warn(
+        `[create] Email already exists - Email: ${createUserDto.email}`,
+      );
       throw new HttpException('Email already in use', HttpStatus.BAD_REQUEST);
     }
 
@@ -52,6 +67,9 @@ export class UserService {
 
     const newUser = await this.userRepository.save(user);
 
+    this.logger.log(
+      `[create] User created successfully - UserId: ${newUser.id}, Email: ${newUser.email}`,
+    );
     return newUser;
   }
 
