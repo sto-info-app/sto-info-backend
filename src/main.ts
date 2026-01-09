@@ -256,13 +256,39 @@ async function bootstrap() {
   );
 
   // Apply strict rate limits to authentication endpoints (highest priority)
-  app.use([...AUTH_RATE_LIMITED_ROUTES], authLimiter);
+  // Wrapper ensures OPTIONS requests bypass rate limiting entirely
+  app.use(
+    [...AUTH_RATE_LIMITED_ROUTES],
+    (req: Request, res: Response, next: NextFunction) => {
+      if (req.method === 'OPTIONS') {
+        console.log(`[Bypass Auth RateLimit] OPTIONS ${req.path}`);
+        return next(); // Skip rate limiter completely
+      }
+      return authLimiter(req, res, next);
+    },
+  );
 
   // Apply strict rate limits to expensive operations (searches, uploads)
-  app.use([...EXPENSIVE_RATE_LIMITED_ROUTES], expensiveLimiter);
+  // Wrapper ensures OPTIONS requests bypass rate limiting entirely
+  app.use(
+    [...EXPENSIVE_RATE_LIMITED_ROUTES],
+    (req: Request, res: Response, next: NextFunction) => {
+      if (req.method === 'OPTIONS') {
+        console.log(`[Bypass Expensive RateLimit] OPTIONS ${req.path}`);
+        return next(); // Skip rate limiter completely
+      }
+      return expensiveLimiter(req, res, next);
+    },
+  );
 
   // Apply method-based rate limiting (general rules)
   app.use((req: Request, res: Response, next: NextFunction) => {
+    // Skip OPTIONS requests entirely
+    if (req.method === 'OPTIONS') {
+      console.log(`[Bypass General RateLimit] OPTIONS ${req.path}`);
+      return next();
+    }
+
     // Skip explicitly excluded paths
     if (RATE_LIMIT_EXCLUDED_PATHS.some(path => req.path.startsWith(path))) {
       return next();
