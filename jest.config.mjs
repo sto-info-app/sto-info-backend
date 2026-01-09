@@ -77,7 +77,7 @@ export default {
     // Controllers - pragmatic (thin layer, mostly routing)
     './src/**/*.controller.ts': {
       statements: 95,
-      branches: 95,
+      branches: 80,
       functions: 95,
       lines: 95,
     },

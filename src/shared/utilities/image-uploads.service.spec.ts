@@ -119,6 +119,9 @@ describe('ImageUploadsService', () => {
     service = module.get<ImageUploadsService>(ImageUploadsService);
     secretsService = module.get<SecretsService>(SecretsService);
     await service.onModuleInit();
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'debug').mockImplementation(() => undefined);
   });
 
   it('should be defined', () => {
@@ -177,18 +180,6 @@ describe('ImageUploadsService', () => {
   });
 
   describe('uploadImageToCloudflareImages', () => {
-    let loggerErrorSpy: jest.SpyInstance;
-
-    beforeEach(() => {
-      loggerErrorSpy = jest
-        .spyOn(Logger, 'error')
-        .mockImplementation(() => undefined);
-    });
-
-    afterEach(() => {
-      loggerErrorSpy.mockRestore();
-    });
-
     it('should upload successfully', async () => {
       mockScanFile.mockImplementation((_buf, cb) =>
         cb(null, { FoundViruses: [] }),
@@ -245,6 +236,36 @@ describe('ImageUploadsService', () => {
           createImageFile() as unknown as UploadImagesFileParam,
         ),
       ).rejects.toThrow('Scan error');
+    });
+
+    it('should throw if scan fails with Error object', async () => {
+      mockScanFile.mockImplementation((_buf, cb) =>
+        cb(new Error('Detailed scan error'), null),
+      );
+
+      await expect(
+        service.uploadImageToCloudflareImages(
+          'user-1',
+          createImageFile() as unknown as UploadImagesFileParam,
+        ),
+      ).rejects.toThrow('Detailed scan error');
+    });
+
+    it('should throw if axios returns non-200 status (201)', async () => {
+      mockScanFile.mockImplementation((_buf, cb) =>
+        cb(null, { FoundViruses: [] }),
+      );
+      const axiosMock = axios as jest.Mocked<typeof axios>;
+      axiosMock.post.mockResolvedValue({
+        status: 201,
+      });
+
+      await expect(
+        service.uploadImageToCloudflareImages(
+          'user-1',
+          createImageFile() as unknown as UploadImagesFileParam,
+        ),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw if axios fails', async () => {
@@ -443,7 +464,7 @@ describe('ImageUploadsService', () => {
           'user-1',
           undefined as unknown as UploadR2FileParam,
         ),
-      ).rejects.toThrow(TypeError);
+      ).rejects.toThrow('File is missing');
     });
 
     it('should prefer file.filename over file.originalname when present', async () => {

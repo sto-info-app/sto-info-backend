@@ -53,6 +53,11 @@ describe('ImageUploadsService SAFE_FILENAME_PATTERN branch', () => {
     const { SecretsService } = await import('../secrets/secrets.service');
     const { S3Client } = await import('@aws-sdk/client-s3');
     const { ImageUploadsService } = await import('./image-uploads.service');
+    const { Logger } = await import('@nestjs/common');
+
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'debug').mockImplementation(() => undefined);
 
     process.env.AWS_SECRET_NAME = 'test-secret';
     process.env.MAX_IMAGE_SIZE_IN_BYTES = '1048576';
