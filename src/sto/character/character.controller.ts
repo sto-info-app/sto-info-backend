@@ -26,6 +26,10 @@ import { Request } from 'express';
 import { memoryStorage, File as MulterFile } from 'multer';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
+import {
+  DEFAULT_MULTER_LIMITS,
+  isAllowedImageMimeType,
+} from 'src/shared/constants/file-upload.constants';
 import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
 import { CharacterService } from './character.service';
 import { CreateCharacterRequestDto } from './dto/create-character-request.dto';
@@ -50,8 +54,7 @@ export class CharacterController {
     file: MulterFile,
     callback: (error: Error | null, acceptFile: boolean) => void,
   ) => {
-    const allowedMimeTypes = ['image/png', 'image/jpg', 'image/jpeg'];
-    if (allowedMimeTypes.includes(file.mimetype)) {
+    if (isAllowedImageMimeType(file.mimetype)) {
       callback(null, true);
     } else {
       callback(
@@ -90,12 +93,16 @@ export class CharacterController {
       storage: memoryStorage(),
       fileFilter: CharacterController.imageFileFilter,
       limits: {
-        fileSize: +process.env.MAX_IMAGE_SIZE_IN_BYTES || 10485760,
-        fieldSize: +process.env.MAX_IMAGE_SIZE_IN_BYTES || 10485760,
-        files: 1,
-        fields: 0,
-        parts: 1,
-        headerPairs: 50,
+        fileSize:
+          +process.env.MAX_IMAGE_SIZE_IN_BYTES ||
+          DEFAULT_MULTER_LIMITS.fileSize,
+        fieldSize:
+          +process.env.MAX_IMAGE_SIZE_IN_BYTES ||
+          DEFAULT_MULTER_LIMITS.fieldSize,
+        files: DEFAULT_MULTER_LIMITS.files,
+        fields: DEFAULT_MULTER_LIMITS.fields,
+        parts: DEFAULT_MULTER_LIMITS.parts,
+        headerPairs: DEFAULT_MULTER_LIMITS.headerPairs,
       },
     }),
   )

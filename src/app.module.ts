@@ -16,6 +16,7 @@ import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
 import { MailModule } from './mail/mail.module';
 import { MailService } from './mail/mail.service';
+import { DEFAULT_MULTER_LIMITS } from './shared/constants/file-upload.constants';
 import { SecretsService } from './shared/secrets/secrets.service';
 import { SharedModule } from './shared/shared.module';
 import { ImageUploadsService } from './shared/utilities/image-uploads.service';
@@ -53,9 +54,11 @@ import { UserModule } from './user/user.module';
         return {
           limits: {
             fileSize: maxImageBytes,
-            files: 1,
-            fields: 10,
-            parts: 20,
+            fieldSize: maxImageBytes,
+            files: DEFAULT_MULTER_LIMITS.files,
+            fields: DEFAULT_MULTER_LIMITS.fields,
+            parts: DEFAULT_MULTER_LIMITS.parts,
+            headerPairs: DEFAULT_MULTER_LIMITS.headerPairs,
           },
         };
       },
