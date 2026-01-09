@@ -232,9 +232,20 @@ export class ImageUploadsService {
    * Upload an image to Cloudflare Images.
    * @param userId The user ID
    * @param file The image to upload
+   * @param entityType Optional entity type (e.g., 'user', 'character')
+   * @param entityId Optional entity ID
    * @returns The URL of the uploaded image
    */
-  async uploadImageToCloudflareImages(userId: string, file: MulterFile) {
+  async uploadImageToCloudflareImages(
+    userId: string,
+    file: MulterFile,
+    entityType?: string,
+    entityId?: string,
+  ) {
+    this.logger.debug(
+      `[uploadImageToCloudflareImages] Starting upload - UserId: ${userId}, EntityType: ${entityType || 'none'}, EntityId: ${entityId || 'none'}`,
+    );
+
     const errorMsgFailedUpload = 'Failed to upload image to Cloudflare Images';
     const { fileBuffer, safeFileName } = await this.validateAndSanitiseFile(
       userId,
@@ -248,14 +259,40 @@ export class ImageUploadsService {
       contentType: file.mimetype,
     });
 
-    // Append metadata as a JSON string
-    formData.append(
-      'metadata',
-      JSON.stringify({
-        userId,
-        originalFileName: safeFileName,
-        env: this.environment,
-      }),
+    // Create a custom ID that includes env, userId, and optionally entityType/entityId
+    // This makes images searchable in Cloudflare dashboard
+    // Format: env-userId-entityType-entityId-timestamp
+    const timestamp = Date.now();
+    let customId = `${this.environment}-${userId}`;
+    if (entityType) {
+      customId += `-${entityType}`;
+    }
+    if (entityId) {
+      customId += `-${entityId}`;
+    }
+    customId += `-${timestamp}`;
+
+    this.logger.debug(
+      `[uploadImageToCloudflareImages] Generated custom ID: ${customId}`,
+    );
+
+    // Append the custom ID
+    formData.append('id', customId);
+
+    // Append metadata as a JSON string for additional context
+    const metadata = {
+      userId,
+      originalFileName: safeFileName,
+      env: this.environment,
+      uploadedAt: new Date().toISOString(),
+      ...(entityType && { entityType }),
+      ...(entityId && { entityId }),
+    };
+
+    formData.append('metadata', JSON.stringify(metadata));
+
+    this.logger.debug(
+      `[uploadImageToCloudflareImages] Metadata: ${JSON.stringify(metadata)}`,
     );
 
     try {
@@ -268,37 +305,46 @@ export class ImageUploadsService {
             ...formData.getHeaders(),
             Authorization: `Bearer ${this.cloudflareImagesApiKey}`,
           },
-          params: {
-            metadata: JSON.stringify({
-              userId,
-              originalFileName: safeFileName,
-            }),
-          },
         },
       );
 
       if (response?.status !== 200) {
+        this.logger.error(
+          `[uploadImageToCloudflareImages] Upload failed with status ${response?.status}`,
+        );
         throw new BadRequestException(errorMsgFailedUpload);
       }
 
       if (!response.data) {
+        this.logger.error(
+          '[uploadImageToCloudflareImages] Response data is missing',
+        );
         throw new BadRequestException(errorMsgFailedUpload);
       }
 
       if (!response.data.result) {
+        this.logger.error(
+          '[uploadImageToCloudflareImages] Response result is missing',
+        );
         throw new BadRequestException(errorMsgFailedUpload);
       }
 
       if (!response.data.result.id) {
+        this.logger.error(
+          '[uploadImageToCloudflareImages] Response result ID is missing',
+        );
         throw new BadRequestException(errorMsgFailedUpload);
       }
 
+      this.logger.log(
+        `[uploadImageToCloudflareImages] Successfully uploaded - ImageId: ${response.data.result.id}`,
+      );
+
       return response.data.result.id as string; // Get the ID of the uploaded image
     } catch (error) {
-      Logger.error(
-        'Error uploading image to Cloudflare Images:',
-        error.response?.data || error.message,
-        'ImageUploadsService',
+      this.logger.error(
+        `[uploadImageToCloudflareImages] Upload failed - Error: ${error.message}`,
+        error.response?.data || error.stack,
       );
       throw new BadRequestException(errorMsgFailedUpload);
     }

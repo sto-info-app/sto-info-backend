@@ -267,6 +267,8 @@ export class UserService {
       await this.imageUploadsService.uploadImageToCloudflareImages(
         userId,
         file,
+        'user',
+        userId,
       );
 
     if (!user.profile.profilePictureId) {

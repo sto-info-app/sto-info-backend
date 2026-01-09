@@ -264,18 +264,19 @@ export class CharacterService {
       const existingProfilePictureId = character.profilePictureId;
 
       this.logger.debug(
-        `[uploadProfileImage] Starting R2 upload - CharacterId: ${id}, UserId: ${userId}`,
+        `[uploadProfileImage] Starting Cloudflare Images upload - CharacterId: ${id}, UserId: ${userId}`,
       );
 
       character.profilePictureId =
-        await this.imageUploadsService.uploadImageToCloudflareR2(
+        await this.imageUploadsService.uploadImageToCloudflareImages(
           userId,
           file,
+          'character',
           id,
         );
 
       this.logger.debug(
-        `[uploadProfileImage] R2 upload complete - NewProfilePictureId: ${character.profilePictureId}`,
+        `[uploadProfileImage] Cloudflare Images upload complete - NewProfilePictureId: ${character.profilePictureId}`,
       );
 
       if (!character.profilePictureId) {
@@ -300,8 +301,7 @@ export class CharacterService {
           `[uploadProfileImage] Deleting old image - ProfilePictureId: ${existingProfilePictureId}`,
         );
         try {
-          await this.imageUploadsService.deleteImageFromCloudflareR2(
-            userId,
+          await this.imageUploadsService.deleteImageFromCloudflareImages(
             existingProfilePictureId,
           );
           this.logger.debug(
@@ -309,7 +309,7 @@ export class CharacterService {
           );
         } catch (error) {
           this.logger.error(
-            `[uploadProfileImage] Failed to delete old profile image from R2 - ProfilePictureId: ${existingProfilePictureId}, Error: ${error.message}`,
+            `[uploadProfileImage] Failed to delete old profile image from Cloudflare Images - ProfilePictureId: ${existingProfilePictureId}, Error: ${error.message}`,
             error.stack,
           );
         }
