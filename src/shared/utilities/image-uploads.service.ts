@@ -17,6 +17,7 @@ import { SecretsService } from '../secrets/secrets.service';
 
 @Injectable()
 export class ImageUploadsService {
+  private readonly logger = new Logger(ImageUploadsService.name);
   private readonly bucketName: string;
   private readonly environment: string;
   private cloudmersiveApiKey: string;
@@ -93,28 +94,47 @@ export class ImageUploadsService {
    * @throws BadRequestException if the file is infected
    */
   private async scanFileForViruses(fileBuffer: Buffer): Promise<void> {
+    this.logger.debug(
+      `[scanFileForViruses] Starting virus scan - BufferSize: ${fileBuffer.length} bytes`,
+    );
+
     const apiClient = cloudmersiveVirusApiClient.ApiClient.instance;
     const apiKey = apiClient.authentications['Apikey'];
     apiKey.apiKey = this.cloudmersiveApiKey;
 
     const virusApi = new cloudmersiveVirusApiClient.ScanApi();
 
-    const scanResult: { FoundViruses: string[] } = await new Promise(
-      (resolve, reject) => {
-        virusApi.scanFile(fileBuffer, (error, data) => {
-          if (error) {
-            reject(new Error(error));
-          } else {
-            resolve(data);
-          }
-        });
-      },
-    );
-
-    if (scanResult.FoundViruses && scanResult.FoundViruses.length > 0) {
-      throw new BadRequestException(
-        `File is infected with viruses: ${scanResult.FoundViruses.join(', ')}`,
+    try {
+      const scanResult: { FoundViruses: string[] } = await new Promise(
+        (resolve, reject) => {
+          virusApi.scanFile(fileBuffer, (error, data) => {
+            if (error) {
+              reject(new Error(error));
+            } else {
+              resolve(data);
+            }
+          });
+        },
       );
+
+      if (scanResult.FoundViruses && scanResult.FoundViruses.length > 0) {
+        this.logger.error(
+          `[scanFileForViruses] Viruses detected: ${scanResult.FoundViruses.join(', ')}`,
+        );
+        throw new BadRequestException(
+          `File is infected with viruses: ${scanResult.FoundViruses.join(', ')}`,
+        );
+      }
+
+      this.logger.debug(
+        '[scanFileForViruses] Virus scan passed - No threats found',
+      );
+    } catch (error) {
+      this.logger.error(
+        `[scanFileForViruses] Virus scan failed - Error: ${error.message}`,
+        error.stack,
+      );
+      throw error;
     }
   }
 
@@ -130,27 +150,52 @@ export class ImageUploadsService {
     file: MulterFile,
     characterId?: string,
   ) {
-    const { fileBuffer, safeFileName } = await this.validateAndSanitiseFile(
-      userId,
-      file,
+    this.logger.debug(
+      `[uploadImageToCloudflareR2] Starting upload - UserId: ${userId}, CharacterId: ${characterId}, FileName: ${file.originalname}, FileSize: ${file.size} bytes`,
     );
 
-    // Prepare the Cloudflare key (path and filename within the bucket)
-    const folderPath = characterId ? `${userId}/${characterId}` : userId;
-    const fileKey = `${this.environment}/${folderPath}/${safeFileName}`;
+    try {
+      const { fileBuffer, safeFileName } = await this.validateAndSanitiseFile(
+        userId,
+        file,
+      );
 
-    // Prepare the command to upload the file to R2
-    const command = new PutObjectCommand({
-      Bucket: this.bucketName,
-      Key: fileKey,
-      Body: fileBuffer,
-      ContentType: file.mimetype,
-    });
+      this.logger.debug(
+        `[uploadImageToCloudflareR2] File validated - OriginalName: ${file.originalname}, SafeName: ${safeFileName}, BufferSize: ${fileBuffer.length} bytes`,
+      );
 
-    // Upload to Cloudflare R2
-    await this.s3Client.send(command);
+      // Prepare the Cloudflare key (path and filename within the bucket)
+      const folderPath = characterId ? `${userId}/${characterId}` : userId;
+      const fileKey = `${this.environment}/${folderPath}/${safeFileName}`;
 
-    return fileKey;
+      this.logger.debug(
+        `[uploadImageToCloudflareR2] Prepared for R2 - FileKey: ${fileKey}, Bucket: ${this.bucketName}`,
+      );
+
+      // Prepare the command to upload the file to R2
+      const command = new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: fileKey,
+        Body: fileBuffer,
+        ContentType: file.mimetype,
+      });
+
+      // Upload to Cloudflare R2
+      this.logger.debug('[uploadImageToCloudflareR2] Sending to R2...');
+      await this.s3Client.send(command);
+
+      this.logger.log(
+        `[uploadImageToCloudflareR2] Successfully uploaded to R2 - FileKey: ${fileKey}`,
+      );
+
+      return fileKey;
+    } catch (error) {
+      this.logger.error(
+        `[uploadImageToCloudflareR2] Upload failed - UserId: ${userId}, CharacterId: ${characterId}, Error: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
   }
 
   /**
@@ -297,42 +342,63 @@ export class ImageUploadsService {
     userId: string,
     file: MulterFile,
   ): Promise<{ fileBuffer: Buffer; safeFileName: string }> {
+    this.logger.debug(
+      `[validateAndSanitiseFile] Starting validation - UserId: ${userId}, FileName: ${file?.originalname}, FileSize: ${file?.size} bytes, MimeType: ${file?.mimetype}`,
+    );
+
     if (!userId) {
+      this.logger.error('[validateAndSanitiseFile] User ID is missing');
       throw new BadRequestException('User ID is missing');
     }
 
     if (!file) {
+      this.logger.error('[validateAndSanitiseFile] File is missing');
       throw new BadRequestException('File is missing');
     }
 
     if (!file.mimetype) {
+      this.logger.error('[validateAndSanitiseFile] File mimetype is missing');
       throw new BadRequestException('File mimetype is missing');
     }
 
     // Validate file type and size (allow only jpeg, jpg, or png)
     if (!['image/jpeg', 'image/jpg', 'image/png'].includes(file.mimetype)) {
+      this.logger.error(
+        `[validateAndSanitiseFile] Invalid mimetype - MimeType: ${file.mimetype}`,
+      );
       throw new BadRequestException(
         'Invalid file type. Only jpeg, jpg, or png are allowed',
       );
     }
 
-    if (file.size > +process.env.MAX_IMAGE_SIZE_IN_BYTES) {
+    const maxSize = +process.env.MAX_IMAGE_SIZE_IN_BYTES;
+    if (file.size > maxSize) {
+      this.logger.error(
+        `[validateAndSanitiseFile] File too large - Size: ${file.size} bytes, MaxSize: ${maxSize} bytes`,
+      );
       throw new BadRequestException('File too large');
     }
 
     if (!file.buffer) {
+      this.logger.error('[validateAndSanitiseFile] File buffer is missing');
       throw new BadRequestException('File buffer is missing');
     }
 
     if (!file.filename && !file.originalname) {
+      this.logger.error('[validateAndSanitiseFile] File name is missing');
       throw new BadRequestException('File name is missing');
     }
 
     const fileBuffer = file.buffer;
 
     if (!fileBuffer || fileBuffer.length === 0) {
+      this.logger.error('[validateAndSanitiseFile] No image data provided');
       throw new BadRequestException('No image data provided');
     }
+
+    this.logger.debug(
+      `[validateAndSanitiseFile] File structure validated - BufferSize: ${fileBuffer.length} bytes`,
+    );
 
     // Scan the file for viruses
     await this.scanFileForViruses(fileBuffer);
@@ -341,8 +407,15 @@ export class ImageUploadsService {
     const originalFileName = file.filename ? file.filename : file.originalname;
     const safeFileName = originalFileName.replace(UNSAFE_FILENAME_PATTERN, '_');
     if (!SAFE_FILENAME_PATTERN.test(safeFileName)) {
+      this.logger.error(
+        `[validateAndSanitiseFile] Invalid characters in filename - OriginalName: ${originalFileName}, SafeName: ${safeFileName}`,
+      );
       throw new BadRequestException('Invalid characters in file name');
     }
+
+    this.logger.debug(
+      `[validateAndSanitiseFile] Validation complete - OriginalName: ${originalFileName}, SafeName: ${safeFileName}`,
+    );
 
     return { fileBuffer, safeFileName };
   }

@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -23,6 +24,8 @@ import { SpeciesEntity } from './entities/species.entity';
 
 @Injectable()
 export class CharacterService {
+  private readonly logger = new Logger(CharacterService.name);
+
   constructor(
     @InjectRepository(CharacterEntity)
     private readonly characterRepository: Repository<CharacterEntity>,
@@ -248,37 +251,78 @@ export class CharacterService {
     userId: string,
     file: MulterFile,
   ): Promise<CharacterEntity> {
-    const character = await this.findOneForUser(id, userId);
+    this.logger.debug(
+      `[uploadProfileImage] Starting upload - CharacterId: ${id}, UserId: ${userId}`,
+    );
 
-    const existingProfilePictureId = character.profilePictureId;
-
-    character.profilePictureId =
-      await this.imageUploadsService.uploadImageToCloudflareR2(
-        userId,
-        file,
-        id,
+    try {
+      const character = await this.findOneForUser(id, userId);
+      this.logger.debug(
+        `[uploadProfileImage] Character found - Handle: ${character.fullHandle}, ExistingProfilePictureId: ${character.profilePictureId || 'none'}`,
       );
 
-    if (!character.profilePictureId) {
-      throw new InternalServerErrorException('Profile picture upload failed');
-    }
+      const existingProfilePictureId = character.profilePictureId;
 
-    const updatedCharacter = await this.characterRepository.save(character);
+      this.logger.debug(
+        `[uploadProfileImage] Starting R2 upload - CharacterId: ${id}, UserId: ${userId}`,
+      );
 
-    if (existingProfilePictureId) {
-      try {
-        await this.imageUploadsService.deleteImageFromCloudflareR2(
+      character.profilePictureId =
+        await this.imageUploadsService.uploadImageToCloudflareR2(
           userId,
-          existingProfilePictureId,
+          file,
+          id,
         );
-      } catch (error) {
-        // Log error but don't fail the request as the new image is already saved
-        // In a production environment, we might want to use a formal Logger
-        console.error('Failed to delete old profile image from R2', error);
-      }
-    }
 
-    return updatedCharacter;
+      this.logger.debug(
+        `[uploadProfileImage] R2 upload complete - NewProfilePictureId: ${character.profilePictureId}`,
+      );
+
+      if (!character.profilePictureId) {
+        this.logger.error(
+          `[uploadProfileImage] Upload returned null/undefined - CharacterId: ${id}`,
+        );
+        throw new InternalServerErrorException('Profile picture upload failed');
+      }
+
+      this.logger.debug(
+        `[uploadProfileImage] Saving character to database - CharacterId: ${id}`,
+      );
+
+      const updatedCharacter = await this.characterRepository.save(character);
+
+      this.logger.log(
+        `[uploadProfileImage] Character saved successfully - CharacterId: ${id}, ProfilePictureId: ${updatedCharacter.profilePictureId}`,
+      );
+
+      if (existingProfilePictureId) {
+        this.logger.debug(
+          `[uploadProfileImage] Deleting old image - ProfilePictureId: ${existingProfilePictureId}`,
+        );
+        try {
+          await this.imageUploadsService.deleteImageFromCloudflareR2(
+            userId,
+            existingProfilePictureId,
+          );
+          this.logger.debug(
+            `[uploadProfileImage] Old image deleted - ProfilePictureId: ${existingProfilePictureId}`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `[uploadProfileImage] Failed to delete old profile image from R2 - ProfilePictureId: ${existingProfilePictureId}, Error: ${error.message}`,
+            error.stack,
+          );
+        }
+      }
+
+      return updatedCharacter;
+    } catch (error) {
+      this.logger.error(
+        `[uploadProfileImage] Upload failed - CharacterId: ${id}, UserId: ${userId}, Error: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
   }
 
   // --- Reference Data Methods ---

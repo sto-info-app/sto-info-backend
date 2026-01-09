@@ -4,6 +4,7 @@ import {
   Controller,
   Delete,
   Get,
+  Logger,
   Param,
   Post,
   Put,
@@ -40,6 +41,8 @@ import { UpdateCharacterDto } from './dto/update-character.dto';
 @UseGuards(JwtAuthGuard)
 @Controller('character')
 export class CharacterController {
+  private readonly logger = new Logger(CharacterController.name);
+
   constructor(private readonly characterService: CharacterService) {}
 
   /**
@@ -113,10 +116,38 @@ export class CharacterController {
     @Param('id') id: string,
     @UploadedFile() file: MulterFile,
   ) {
+    this.logger.debug(
+      `[uploadProfileImage] Request received - UserId: ${userId}, CharacterId: ${id}`,
+    );
+
     if (!file) {
+      this.logger.error(
+        `[uploadProfileImage] No file provided - UserId: ${userId}, CharacterId: ${id}`,
+      );
       throw new BadRequestException('Image file is required');
     }
-    return this.characterService.uploadProfileImage(id, userId, file);
+
+    this.logger.debug(
+      `[uploadProfileImage] File metadata - Name: ${file.originalname}, Size: ${file.size} bytes, MimeType: ${file.mimetype}`,
+    );
+
+    try {
+      const result = await this.characterService.uploadProfileImage(
+        id,
+        userId,
+        file,
+      );
+      this.logger.log(
+        `[uploadProfileImage] Successfully uploaded image - UserId: ${userId}, CharacterId: ${id}`,
+      );
+      return result;
+    } catch (error) {
+      this.logger.error(
+        `[uploadProfileImage] Failed to upload image - UserId: ${userId}, CharacterId: ${id}, Error: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
   }
 
   /**
