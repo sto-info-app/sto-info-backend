@@ -160,6 +160,12 @@ async function bootstrap() {
   app.use(json({ limit: '1mb' }));
   app.use(urlencoded({ limit: '1mb', extended: true }));
 
+  // Global request logger - DEBUG
+  app.use((req: Request, _res: Response, next: NextFunction) => {
+    console.log(`[REQUEST] ${req.method} ${req.path} from ${req.ip}`);
+    next();
+  });
+
   // Global Content-Length check to prevent early processing of oversized requests
   app.use((req: Request, res: Response, next: NextFunction) => {
     const contentLength = req.headers['content-length'];
