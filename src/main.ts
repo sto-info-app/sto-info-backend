@@ -53,8 +53,16 @@ function createRateLimiter(options: {
     standardHeaders: true,
     legacyHeaders: false,
     skip: (req: Request) => {
-      // Skip rate limiting for OPTIONS requests (CORS preflight)
+      // Skip rate limiting entirely for OPTIONS requests (CORS preflight)
       return req.method === 'OPTIONS';
+    },
+    requestWasSuccessful: (req: Request, res: Response) => {
+      // Don't count OPTIONS requests in rate limiting
+      if (req.method === 'OPTIONS') {
+        return false;
+      }
+      // Consider request successful if status is < 400
+      return res.statusCode < 400;
     },
     handler: (_req: Request, res: Response) => {
       const retryAfter = Math.ceil(windowMins * 60);
@@ -237,6 +245,16 @@ async function bootstrap() {
       referrerPolicy: { policy: 'strict-origin-when-cross-origin' }, // Sets the Referrer-Policy to strict-origin-when-cross-origin to prevent leaking of the referrer to external sites
     }),
   );
+
+  // CRITICAL: Handle OPTIONS requests immediately (CORS preflight)
+  // Return 204 No Content and don't pass to rate limiters
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.method === 'OPTIONS') {
+      // Send 204 No Content for OPTIONS and stop here
+      return res.status(204).end();
+    }
+    next();
+  });
 
   // Apply strict rate limits to authentication endpoints (highest priority)
   app.use([...AUTH_RATE_LIMITED_ROUTES], authLimiter);
