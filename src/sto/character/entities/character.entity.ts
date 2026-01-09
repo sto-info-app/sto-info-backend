@@ -181,12 +181,29 @@ export class CharacterEntity {
   @DeleteDateColumn()
   deletedAt: Date;
 
-  // Set base URL for the profile image stored on Cloudflare R2
+  // Set base URL for the profile image
+  // Supports both Cloudflare Images (new) and R2 (legacy)
   get profilePictureUrl(): string | null {
-    if (!CLOUDFLARE_R2_CDN_ROOT_URL || !this.profilePictureId) {
+    if (!this.profilePictureId) {
       return null;
     }
-    return `${CLOUDFLARE_R2_CDN_ROOT_URL}/${this.profilePictureId}`;
+
+    // Check if it's a Cloudflare Images ID (new format: env-userId-entityType-entityId-timestamp)
+    // or an old R2 path (contains slashes)
+    if (this.profilePictureId.includes('/')) {
+      // Legacy R2 format
+      if (!CLOUDFLARE_R2_CDN_ROOT_URL) {
+        return null;
+      }
+      return `${CLOUDFLARE_R2_CDN_ROOT_URL}/${this.profilePictureId}`;
+    }
+
+    // New Cloudflare Images format
+    const cfImagesHash = process.env.CLOUDFLARE_IMAGES_HASH;
+    if (!cfImagesHash) {
+      return null;
+    }
+    return `https://imagedelivery.net/${cfImagesHash}/${this.profilePictureId}/public`;
   }
 
   @Expose()
@@ -196,20 +213,48 @@ export class CharacterEntity {
 
   @Expose()
   get profilePicture300(): string | null {
-    if (!this.profilePictureUrl) {
+    if (!this.profilePictureId) {
       return null;
     }
-    // Using Cloudflare Image Resizing to provide a 300px square version
-    return `${CLOUDFLARE_R2_CDN_ROOT_URL}/cdn-cgi/image/width=300,height=300,fit=cover,format=auto/${this.profilePictureId}`;
+
+    // Check if it's a Cloudflare Images ID or old R2 path
+    if (this.profilePictureId.includes('/')) {
+      // Legacy R2 format - use Cloudflare Image Resizing
+      if (!CLOUDFLARE_R2_CDN_ROOT_URL) {
+        return null;
+      }
+      return `${CLOUDFLARE_R2_CDN_ROOT_URL}/cdn-cgi/image/width=300,height=300,fit=cover,format=auto/${this.profilePictureId}`;
+    }
+
+    // New Cloudflare Images format - use square300 variant
+    const cfImagesHash = process.env.CLOUDFLARE_IMAGES_HASH;
+    if (!cfImagesHash) {
+      return null;
+    }
+    return `https://imagedelivery.net/${cfImagesHash}/${this.profilePictureId}/square300`;
   }
 
   @Expose()
   get profilePicture100(): string | null {
-    if (!this.profilePictureUrl) {
+    if (!this.profilePictureId) {
       return null;
     }
-    // Using Cloudflare Image Resizing to provide a 100px square version
-    return `${CLOUDFLARE_R2_CDN_ROOT_URL}/cdn-cgi/image/width=100,height=100,fit=cover,format=auto/${this.profilePictureId}`;
+
+    // Check if it's a Cloudflare Images ID or old R2 path
+    if (this.profilePictureId.includes('/')) {
+      // Legacy R2 format - use Cloudflare Image Resizing
+      if (!CLOUDFLARE_R2_CDN_ROOT_URL) {
+        return null;
+      }
+      return `${CLOUDFLARE_R2_CDN_ROOT_URL}/cdn-cgi/image/width=100,height=100,fit=cover,format=auto/${this.profilePictureId}`;
+    }
+
+    // New Cloudflare Images format - use square100 variant
+    const cfImagesHash = process.env.CLOUDFLARE_IMAGES_HASH;
+    if (!cfImagesHash) {
+      return null;
+    }
+    return `https://imagedelivery.net/${cfImagesHash}/${this.profilePictureId}/square100`;
   }
 
   @Expose()
