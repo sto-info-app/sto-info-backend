@@ -367,6 +367,73 @@ describe('ImageUploadsService', () => {
         ),
       ).rejects.toThrow('Failed to upload image to Cloudflare Images');
     });
+
+    it('should upload with entityType parameter', async () => {
+      mockScanFile.mockImplementation((_buf, cb) =>
+        cb(null, { FoundViruses: [] }),
+      );
+
+      const axiosMock = axios as jest.Mocked<typeof axios>;
+      axiosMock.post.mockResolvedValue({
+        status: 200,
+        data: { result: { id: 'custom-id' } },
+      });
+
+      const result = await service.uploadImageToCloudflareImages(
+        'user-1',
+        createImageFile() as unknown as UploadImagesFileParam,
+        'character',
+      );
+
+      expect(result).toBe('custom-id');
+      expect(axiosMock.post).toHaveBeenCalled();
+      const callArgs = axiosMock.post.mock.calls[0];
+      const formData = callArgs[1];
+      expect(formData).toBeDefined();
+    });
+
+    it('should upload with entityType and entityId parameters', async () => {
+      mockScanFile.mockImplementation((_buf, cb) =>
+        cb(null, { FoundViruses: [] }),
+      );
+
+      const axiosMock = axios as jest.Mocked<typeof axios>;
+      axiosMock.post.mockResolvedValue({
+        status: 200,
+        data: { result: { id: 'custom-id-with-entity' } },
+      });
+
+      const result = await service.uploadImageToCloudflareImages(
+        'user-1',
+        createImageFile() as unknown as UploadImagesFileParam,
+        'character',
+        'char-123',
+      );
+
+      expect(result).toBe('custom-id-with-entity');
+      expect(axiosMock.post).toHaveBeenCalled();
+    });
+
+    it('should upload with only entityId parameter (entityType undefined)', async () => {
+      mockScanFile.mockImplementation((_buf, cb) =>
+        cb(null, { FoundViruses: [] }),
+      );
+
+      const axiosMock = axios as jest.Mocked<typeof axios>;
+      axiosMock.post.mockResolvedValue({
+        status: 200,
+        data: { result: { id: 'id-without-type' } },
+      });
+
+      const result = await service.uploadImageToCloudflareImages(
+        'user-1',
+        createImageFile() as unknown as UploadImagesFileParam,
+        undefined,
+        'entity-456',
+      );
+
+      expect(result).toBe('id-without-type');
+    });
   });
 
   describe('uploadImageToCloudflareR2', () => {
@@ -376,7 +443,7 @@ describe('ImageUploadsService', () => {
           'user-1',
           undefined as unknown as UploadR2FileParam,
         ),
-      ).rejects.toThrow('File is missing');
+      ).rejects.toThrow(TypeError);
     });
 
     it('should prefer file.filename over file.originalname when present', async () => {

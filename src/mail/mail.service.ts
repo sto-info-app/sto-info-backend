@@ -47,7 +47,7 @@ export class MailService {
   }
 
   /**
-   * Initialize the mail service by setting the SendGrid API key.
+   * Initialise the mail service by setting the SendGrid API key.
    */
   async onModuleInit() {
     await this.init();
