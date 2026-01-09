@@ -53,27 +53,10 @@ function createRateLimiter(options: {
     standardHeaders: true,
     legacyHeaders: false,
     skip: (req: Request) => {
-      // Skip rate limiting entirely for OPTIONS requests (CORS preflight)
-      const isOptions = req.method === 'OPTIONS';
-      if (isOptions) {
-        console.log(
-          `[RateLimit SKIP] OPTIONS ${req.path} - Skipping rate limit`,
-        );
-      }
-      return isOptions;
+      // Skip rate limiting for OPTIONS requests (CORS preflight)
+      return req.method === 'OPTIONS';
     },
-    requestWasSuccessful: (req: Request, res: Response) => {
-      // Don't count OPTIONS requests in rate limiting
-      if (req.method === 'OPTIONS') {
-        return false;
-      }
-      // Consider request successful if status is < 400
-      return res.statusCode < 400;
-    },
-    handler: (req: Request, res: Response) => {
-      console.log(
-        `[RateLimit HIT] ${req.method} ${req.path} - Too many requests`,
-      );
+    handler: (_req: Request, res: Response) => {
       const retryAfter = Math.ceil(windowMins * 60);
       res.setHeader('Retry-After', retryAfter.toString());
 
@@ -159,12 +142,6 @@ async function bootstrap() {
   // Set limits for standard body parsers (JSON & URL-encoded)
   app.use(json({ limit: '1mb' }));
   app.use(urlencoded({ limit: '1mb', extended: true }));
-
-  // Global request logger - DEBUG
-  app.use((req: Request, _res: Response, next: NextFunction) => {
-    console.log(`[REQUEST] ${req.method} ${req.path} from ${req.ip}`);
-    next();
-  });
 
   // Global Content-Length check to prevent early processing of oversized requests
   app.use((req: Request, res: Response, next: NextFunction) => {
@@ -262,39 +239,13 @@ async function bootstrap() {
   );
 
   // Apply strict rate limits to authentication endpoints (highest priority)
-  // Wrapper ensures OPTIONS requests bypass rate limiting entirely
-  app.use(
-    [...AUTH_RATE_LIMITED_ROUTES],
-    (req: Request, res: Response, next: NextFunction) => {
-      if (req.method === 'OPTIONS') {
-        console.log(`[Bypass Auth RateLimit] OPTIONS ${req.path}`);
-        return next(); // Skip rate limiter completely
-      }
-      return authLimiter(req, res, next);
-    },
-  );
+  app.use([...AUTH_RATE_LIMITED_ROUTES], authLimiter);
 
   // Apply strict rate limits to expensive operations (searches, uploads)
-  // Wrapper ensures OPTIONS requests bypass rate limiting entirely
-  app.use(
-    [...EXPENSIVE_RATE_LIMITED_ROUTES],
-    (req: Request, res: Response, next: NextFunction) => {
-      if (req.method === 'OPTIONS') {
-        console.log(`[Bypass Expensive RateLimit] OPTIONS ${req.path}`);
-        return next(); // Skip rate limiter completely
-      }
-      return expensiveLimiter(req, res, next);
-    },
-  );
+  app.use([...EXPENSIVE_RATE_LIMITED_ROUTES], expensiveLimiter);
 
   // Apply method-based rate limiting (general rules)
   app.use((req: Request, res: Response, next: NextFunction) => {
-    // Skip OPTIONS requests entirely
-    if (req.method === 'OPTIONS') {
-      console.log(`[Bypass General RateLimit] OPTIONS ${req.path}`);
-      return next();
-    }
-
     // Skip explicitly excluded paths
     if (RATE_LIMIT_EXCLUDED_PATHS.some(path => req.path.startsWith(path))) {
       return next();
@@ -304,7 +255,7 @@ async function bootstrap() {
     if (req.method === 'GET' || req.method === 'HEAD') {
       return readLimiter(req, res, next);
     } else {
-      // POST, PUT, PATCH, DELETE
+      // POST, PUT, PATCH, DELETE (OPTIONS handled by skip function)
       return writeLimiter(req, res, next);
     }
   });
