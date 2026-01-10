@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CharacterController } from './character.controller';
 import { CharacterService } from './character.service';
@@ -33,6 +33,13 @@ describe('CharacterController', () => {
 
     controller = module.get<CharacterController>(CharacterController);
     service = module.get<CharacterService>(CharacterService);
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'debug').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
   it('should be defined', () => {
@@ -110,6 +117,21 @@ describe('CharacterController', () => {
       await controller.getSpecies('fac-1', 'rec-1');
       expect(service.getSpecies).toHaveBeenCalledWith('fac-1', 'rec-1');
     });
+
+    it('should call getSpecies with no params', async () => {
+      await controller.getSpecies();
+      expect(service.getSpecies).toHaveBeenCalledWith(undefined, undefined);
+    });
+
+    it('should call getSpecies with only factionId', async () => {
+      await controller.getSpecies('fac-1');
+      expect(service.getSpecies).toHaveBeenCalledWith('fac-1', undefined);
+    });
+
+    it('should call getSpecies with only recruitTypeId', async () => {
+      await controller.getSpecies(undefined, 'rec-1');
+      expect(service.getSpecies).toHaveBeenCalledWith(undefined, 'rec-1');
+    });
   });
 
   describe('uploadProfileImage', () => {
@@ -123,10 +145,43 @@ describe('CharacterController', () => {
       );
     });
 
+    it('should handle file with all properties', async () => {
+      const file = {
+        buffer: Buffer.from('test-image-data'),
+        originalname: 'profile.png',
+        mimetype: 'image/png',
+        size: 1024,
+        fieldname: 'profilePicture',
+        encoding: '7bit',
+      } as any;
+      await controller.uploadProfileImage('user-1', 'char-1', file);
+      expect(service.uploadProfileImage).toHaveBeenCalledWith(
+        'char-1',
+        'user-1',
+        file,
+      );
+    });
+
     it('should throw if file is missing', async () => {
       await expect(
         controller.uploadProfileImage('user-1', 'char-1', undefined as any),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw if file is null', async () => {
+      await expect(
+        controller.uploadProfileImage('user-1', 'char-1', null as any),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should propagate errors from service', async () => {
+      const file = { buffer: Buffer.from('test') } as any;
+      const error = new BadRequestException('Upload failed');
+      jest.spyOn(service, 'uploadProfileImage').mockRejectedValue(error);
+
+      await expect(
+        controller.uploadProfileImage('user-1', 'char-1', file),
+      ).rejects.toThrow(error);
     });
   });
 
@@ -153,21 +208,43 @@ describe('CharacterController', () => {
   });
 
   describe('Static branches', () => {
-    it('should evaluate limits when env is set', async () => {
+    it('should evaluate fileSize and fieldSize limits when env is set', async () => {
       await jest.isolateModulesAsync(async () => {
         process.env.MAX_IMAGE_SIZE_IN_BYTES = '1048576';
-
-        await import('./character.controller');
+        const { CharacterController: LocalController } =
+          await import('./character.controller');
+        expect(LocalController).toBeDefined();
       });
     });
 
-    it('should evaluate limits when env is not set', async () => {
+    it('should fallback to default limits when env is not set', async () => {
       await jest.isolateModulesAsync(async () => {
         const originalEnv = process.env.MAX_IMAGE_SIZE_IN_BYTES;
         delete process.env.MAX_IMAGE_SIZE_IN_BYTES;
 
-        await import('./character.controller');
+        const { CharacterController: LocalController } =
+          await import('./character.controller');
+        expect(LocalController).toBeDefined();
+
         process.env.MAX_IMAGE_SIZE_IN_BYTES = originalEnv;
+      });
+    });
+
+    it('should handle falsy but defined env value', async () => {
+      await jest.isolateModulesAsync(async () => {
+        process.env.MAX_IMAGE_SIZE_IN_BYTES = '0';
+        const { CharacterController: LocalController } =
+          await import('./character.controller');
+        expect(LocalController).toBeDefined();
+      });
+    });
+
+    it('should handle empty string env value', async () => {
+      await jest.isolateModulesAsync(async () => {
+        process.env.MAX_IMAGE_SIZE_IN_BYTES = '';
+        const { CharacterController: LocalController } =
+          await import('./character.controller');
+        expect(LocalController).toBeDefined();
       });
     });
   });

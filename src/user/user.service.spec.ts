@@ -380,6 +380,9 @@ describe('UserService', () => {
       const result = await service.uploadProfilePicture('1', file as any);
       expect(result.userProfileData.profilePictureId).toBe('new');
       expect(
+        imageUploadsService.uploadImageToCloudflareImages,
+      ).toHaveBeenCalledWith('1', file, 'user', '1');
+      expect(
         imageUploadsService.deleteImageFromCloudflareImages,
       ).toHaveBeenCalledWith('old');
     });
@@ -401,6 +404,9 @@ describe('UserService', () => {
 
       const result = await service.uploadProfilePicture('1', file as any);
       expect(result.userProfileData.profilePictureId).toBe('new');
+      expect(
+        imageUploadsService.uploadImageToCloudflareImages,
+      ).toHaveBeenCalledWith('1', file, 'user', '1');
       expect(
         imageUploadsService.deleteImageFromCloudflareImages,
       ).not.toHaveBeenCalled();

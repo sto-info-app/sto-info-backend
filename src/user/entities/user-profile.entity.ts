@@ -1,6 +1,6 @@
 import { Expose } from 'class-transformer';
 import { IsNotEmpty, IsOptional, IsUUID } from 'class-validator';
-import { CLOUDFLARE_IMAGES_ROOT_URL } from 'src/shared/constants/image.constants';
+import { CLOUDFLARE_R2_CDN_ROOT_URL } from 'src/shared/constants/image.constants';
 import {
   Column,
   CreateDateColumn,
@@ -54,27 +54,50 @@ export class UserProfileEntity {
   @JoinColumn({ name: 'userId' })
   user: UserEntity;
 
-  // Set base URL for the profile image stored on Cloudflare images
+  // Set base URL for the profile image stored on Cloudflare Images
   get profilePictureUrl(): string | null {
-    if (!CLOUDFLARE_IMAGES_ROOT_URL || !this.profilePictureId) {
+    if (!this.profilePictureId) {
       return null;
     }
-    return `${CLOUDFLARE_IMAGES_ROOT_URL}/${this.profilePictureId}`;
+
+    const cfImagesHash = process.env.CLOUDFLARE_IMAGES_HASH;
+    const cdnRootUrl = CLOUDFLARE_R2_CDN_ROOT_URL;
+    if (!cfImagesHash || !cdnRootUrl) {
+      return null;
+    }
+    return `${cdnRootUrl}/cdn-cgi/imagedelivery/${cfImagesHash}/${this.profilePictureId}/public`;
   }
 
   @Expose()
   get profilePicture(): string | null {
-    if (!this.profilePictureUrl) {
-      return null;
-    }
-    return `${this.profilePictureUrl}/public`;
+    return this.profilePictureUrl;
   }
 
   @Expose()
   get profilePicture300(): string | null {
-    if (!this.profilePictureUrl) {
+    if (!this.profilePictureId) {
       return null;
     }
-    return `${this.profilePictureUrl}/square300`;
+
+    const cfImagesHash = process.env.CLOUDFLARE_IMAGES_HASH;
+    const cdnRootUrl = CLOUDFLARE_R2_CDN_ROOT_URL;
+    if (!cfImagesHash || !cdnRootUrl) {
+      return null;
+    }
+    return `${cdnRootUrl}/cdn-cgi/imagedelivery/${cfImagesHash}/${this.profilePictureId}/square300`;
+  }
+
+  @Expose()
+  get profilePicture100(): string | null {
+    if (!this.profilePictureId) {
+      return null;
+    }
+
+    const cfImagesHash = process.env.CLOUDFLARE_IMAGES_HASH;
+    const cdnRootUrl = CLOUDFLARE_R2_CDN_ROOT_URL;
+    if (!cfImagesHash || !cdnRootUrl) {
+      return null;
+    }
+    return `${cdnRootUrl}/cdn-cgi/imagedelivery/${cfImagesHash}/${this.profilePictureId}/square100`;
   }
 }

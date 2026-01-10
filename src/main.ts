@@ -25,6 +25,7 @@ import { AppModule } from './app.module';
 import { NonceMiddleware } from './auth/nonce.middleware';
 import { clientIpMiddleware } from './common/http/client-ip.middleware';
 import { ConfigCheckService } from './config-check/config-check.service';
+import { getLogLevelsForEnvironment } from './shared/constants/logging.constants';
 import {
   AUTH_RATE_LIMITED_ROUTES,
   EXPENSIVE_RATE_LIMITED_ROUTES,
@@ -85,9 +86,16 @@ async function bootstrap() {
   const authLimiter = createRateLimiter(RATE_LIMIT_CONFIGS.AUTH);
   const expensiveLimiter = createRateLimiter(RATE_LIMIT_CONFIGS.EXPENSIVE);
 
-  // Create NestJS application with custom body parser limits
+  // Determine log levels based on environment
+  const logLevels = getLogLevelsForEnvironment(
+    process.env.NODE_ENV,
+    process.env.LOG_LEVEL,
+  );
+
+  // Create NestJS application with custom body parser limits and configured logger
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bodyParser: false,
+    logger: logLevels,
   });
 
   // Use global exception filter for TypeORM exceptions

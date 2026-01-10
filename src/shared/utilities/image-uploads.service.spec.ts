@@ -119,6 +119,9 @@ describe('ImageUploadsService', () => {
     service = module.get<ImageUploadsService>(ImageUploadsService);
     secretsService = module.get<SecretsService>(SecretsService);
     await service.onModuleInit();
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'debug').mockImplementation(() => undefined);
   });
 
   it('should be defined', () => {
@@ -177,18 +180,6 @@ describe('ImageUploadsService', () => {
   });
 
   describe('uploadImageToCloudflareImages', () => {
-    let loggerErrorSpy: jest.SpyInstance;
-
-    beforeEach(() => {
-      loggerErrorSpy = jest
-        .spyOn(Logger, 'error')
-        .mockImplementation(() => undefined);
-    });
-
-    afterEach(() => {
-      loggerErrorSpy.mockRestore();
-    });
-
     it('should upload successfully', async () => {
       mockScanFile.mockImplementation((_buf, cb) =>
         cb(null, { FoundViruses: [] }),
@@ -245,6 +236,36 @@ describe('ImageUploadsService', () => {
           createImageFile() as unknown as UploadImagesFileParam,
         ),
       ).rejects.toThrow('Scan error');
+    });
+
+    it('should throw if scan fails with Error object', async () => {
+      mockScanFile.mockImplementation((_buf, cb) =>
+        cb(new Error('Detailed scan error'), null),
+      );
+
+      await expect(
+        service.uploadImageToCloudflareImages(
+          'user-1',
+          createImageFile() as unknown as UploadImagesFileParam,
+        ),
+      ).rejects.toThrow('Detailed scan error');
+    });
+
+    it('should throw if axios returns non-200 status (201)', async () => {
+      mockScanFile.mockImplementation((_buf, cb) =>
+        cb(null, { FoundViruses: [] }),
+      );
+      const axiosMock = axios as jest.Mocked<typeof axios>;
+      axiosMock.post.mockResolvedValue({
+        status: 201,
+      });
+
+      await expect(
+        service.uploadImageToCloudflareImages(
+          'user-1',
+          createImageFile() as unknown as UploadImagesFileParam,
+        ),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw if axios fails', async () => {
@@ -366,6 +387,73 @@ describe('ImageUploadsService', () => {
           createImageFile() as unknown as UploadImagesFileParam,
         ),
       ).rejects.toThrow('Failed to upload image to Cloudflare Images');
+    });
+
+    it('should upload with entityType parameter', async () => {
+      mockScanFile.mockImplementation((_buf, cb) =>
+        cb(null, { FoundViruses: [] }),
+      );
+
+      const axiosMock = axios as jest.Mocked<typeof axios>;
+      axiosMock.post.mockResolvedValue({
+        status: 200,
+        data: { result: { id: 'custom-id' } },
+      });
+
+      const result = await service.uploadImageToCloudflareImages(
+        'user-1',
+        createImageFile() as unknown as UploadImagesFileParam,
+        'character',
+      );
+
+      expect(result).toBe('custom-id');
+      expect(axiosMock.post).toHaveBeenCalled();
+      const callArgs = axiosMock.post.mock.calls[0];
+      const formData = callArgs[1];
+      expect(formData).toBeDefined();
+    });
+
+    it('should upload with entityType and entityId parameters', async () => {
+      mockScanFile.mockImplementation((_buf, cb) =>
+        cb(null, { FoundViruses: [] }),
+      );
+
+      const axiosMock = axios as jest.Mocked<typeof axios>;
+      axiosMock.post.mockResolvedValue({
+        status: 200,
+        data: { result: { id: 'custom-id-with-entity' } },
+      });
+
+      const result = await service.uploadImageToCloudflareImages(
+        'user-1',
+        createImageFile() as unknown as UploadImagesFileParam,
+        'character',
+        'char-123',
+      );
+
+      expect(result).toBe('custom-id-with-entity');
+      expect(axiosMock.post).toHaveBeenCalled();
+    });
+
+    it('should upload with only entityId parameter (entityType undefined)', async () => {
+      mockScanFile.mockImplementation((_buf, cb) =>
+        cb(null, { FoundViruses: [] }),
+      );
+
+      const axiosMock = axios as jest.Mocked<typeof axios>;
+      axiosMock.post.mockResolvedValue({
+        status: 200,
+        data: { result: { id: 'id-without-type' } },
+      });
+
+      const result = await service.uploadImageToCloudflareImages(
+        'user-1',
+        createImageFile() as unknown as UploadImagesFileParam,
+        undefined,
+        'entity-456',
+      );
+
+      expect(result).toBe('id-without-type');
     });
   });
 
