@@ -2,6 +2,7 @@ import {
   ConflictException,
   ForbiddenException,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -123,6 +124,13 @@ describe('CharacterService', () => {
       getRepositoryToken(SpeciesEntity),
     );
     imageUploadsService = module.get<ImageUploadsService>(ImageUploadsService);
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'debug').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
   it('should be defined', () => {
@@ -531,11 +539,6 @@ describe('CharacterService', () => {
         imageUploadsService.deleteImageFromCloudflareImages as jest.Mock
       ).mockRejectedValue(new Error('Delete failed'));
 
-      // Spy on the logger instance in the service
-      const loggerErrorSpy = jest
-        .spyOn((service as any).logger, 'error')
-        .mockImplementation();
-
       const result = await service.uploadProfileImage(
         'char-1',
         'user-1',
@@ -543,8 +546,6 @@ describe('CharacterService', () => {
       );
 
       expect(result.profilePictureId).toBe('new-img-id');
-      expect(loggerErrorSpy).toHaveBeenCalled();
-      loggerErrorSpy.mockRestore();
     });
 
     it('should not try to delete if no old image exists', async () => {

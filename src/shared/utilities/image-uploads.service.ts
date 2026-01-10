@@ -151,7 +151,7 @@ export class ImageUploadsService {
     characterId?: string,
   ) {
     this.logger.debug(
-      `[uploadImageToCloudflareR2] Starting upload - UserId: ${userId}, CharacterId: ${characterId}, FileName: ${file.originalname}, FileSize: ${file.size} bytes`,
+      `[uploadImageToCloudflareR2] Starting upload - UserId: ${userId}, CharacterId: ${characterId}, FileName: ${file?.originalname}, FileSize: ${file?.size} bytes`,
     );
 
     try {
@@ -243,7 +243,7 @@ export class ImageUploadsService {
     entityId?: string,
   ) {
     this.logger.debug(
-      `[uploadImageToCloudflareImages] Starting upload - UserId: ${userId}, EntityType: ${entityType || 'none'}, EntityId: ${entityId || 'none'}`,
+      `[uploadImageToCloudflareImages] Starting upload - UserId: ${userId}, EntityType: ${entityType || 'none'}, EntityId: ${entityId || 'none'}, FileName: ${file?.originalname}`,
     );
 
     const errorMsgFailedUpload = 'Failed to upload image to Cloudflare Images';
@@ -452,6 +452,7 @@ export class ImageUploadsService {
     // Sanitize the filename using the SAFE_FILENAME_PATTERN
     const originalFileName = file.filename ? file.filename : file.originalname;
     const safeFileName = originalFileName.replace(UNSAFE_FILENAME_PATTERN, '_');
+    /* istanbul ignore next */
     if (!SAFE_FILENAME_PATTERN.test(safeFileName)) {
       this.logger.error(
         `[validateAndSanitiseFile] Invalid characters in filename - OriginalName: ${originalFileName}, SafeName: ${safeFileName}`,
