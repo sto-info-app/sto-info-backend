@@ -12,6 +12,18 @@ The `sto-info-backend` is a backend service designed to provide information rela
 - Integration with external services
 - _Coming soon:_ Comprehensive logging and monitoring
 
+## Documentation
+
+Documentation is in [docs/](docs/).
+
+- [docs/environment-variables.md](docs/environment-variables.md)
+- [docs/infrastructure.md](docs/infrastructure.md)
+- [docs/security.md](docs/security.md)
+- [docs/database.md](docs/database.md)
+- [docs/backend.md](docs/backend.md)
+- [docs/frontend.md](docs/frontend.md)
+- [docs/api-endpoints.md](docs/api-endpoints.md)
+
 ## Getting Started
 
 ### Prerequisites
@@ -43,22 +55,15 @@ npm install
 
 ### Configuration
 
-Create a `.env` file in the `config/environments/` directory by copying the `config/environments/template.env` file. Amend the values to match your local setup.
-The dataseed values will automatically populate
+Create a `.env` file in [config/environments/](config/environments/) by copying [config/environments/template.env](config/environments/template.env). Amend values to match your local setup.
 
-You need to create a secret in AWS Secrets Manager with the following JSON:
-
-```json
-{
-  "jwtSecret": "YourJwtSecret",
-  "dbPassword": "YourDbPassword",
-  "sendGridApiKey": "YourSendGridApiKey"
-}
-```
+Environment variables and the required AWS Secrets Manager secret shape are documented in [docs/environment-variables.md](docs/environment-variables.md).
 
 ### Database
 
-This application uses PostreSQL. Create the database and schema, everything will be set up using TypeORM migrations and data seeding when the app is started.
+This application uses PostgreSQL. Schema changes are managed with TypeORM migrations.
+
+Database notes (including retention jobs and dev-only seeding) are in [docs/database.md](docs/database.md).
 
 Migration commands are as follows:
 
