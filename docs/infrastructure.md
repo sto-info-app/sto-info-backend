@@ -7,7 +7,7 @@
 Both frontend and backend are hosted on Render.com as separate web services.
 
 - **Backend**: NestJS application (this repository)
-- **Frontend**: Angular application (separate repository)
+- **Frontend**: Client application (separate repository)
 - **Database**: Render.com managed PostgreSQL instance
 
 ### Backend Web Service Configuration

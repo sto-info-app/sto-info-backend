@@ -21,7 +21,7 @@ Documentation is in [docs/](docs/).
 - [docs/security.md](docs/security.md)
 - [docs/database.md](docs/database.md)
 - [docs/backend.md](docs/backend.md)
-- [docs/frontend.md](docs/frontend.md)
+- [docs/frontend.md](docs/frontend.md) (frontend integration expectations)
 - [docs/api-endpoints.md](docs/api-endpoints.md)
 
 ## Getting Started

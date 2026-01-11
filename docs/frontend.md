@@ -1,287 +1,121 @@
-# Frontend Documentation (Angular)
+# Frontend Integration Guide (Backend Expectations)
 
-## Authentication Flow
+This document describes what any client application (web, mobile, desktop) must do to integrate with the `sto-info-backend` API.
 
-### Login Process
+It intentionally does **not** document any specific frontend framework or UI implementation.
 
-1. User submits credentials via login form
-2. Frontend sends POST request to `/auth/login` endpoint
-3. Backend validates credentials and returns JWT token
-4. Frontend stores token (typically in memory or session storage, **not** localStorage for security)
-5. Token is included in `Authorization: Bearer <token>` header for all subsequent API requests
+## Base URL
 
-### JWT Token Handling
+- The API base URL is environment-specific.
+- Local development default is typically `http://localhost:3000`.
+- Swagger UI is available at `/swagger` in non-production environments.
 
-**Storage:**
+## Authentication
 
-- Store token in memory for better security (prevents XSS theft)
-- Alternative: httpOnly cookie (requires backend changes)
-- Avoid localStorage (vulnerable to XSS attacks)
+### Access token (JWT)
 
-> TODO: Document the chosen access/refresh token storage strategy for this app (and any CSRF considerations if using cookies).
+- Most endpoints require an `Authorization` header:
 
-**Injection:**
+  `Authorization: Bearer <access_token>`
 
-- Use HTTP interceptor to automatically add `Authorization` header
-- Interceptor should check if token exists before adding header
+- When an access token is missing/invalid/expired, the API returns `401 Unauthorized`.
 
-**Expiry Handling:**
+### Login
 
-- Monitor token expiry time
-- Implement token refresh flow or forced logout before expiry
-- Handle 401 responses by redirecting to login
+- Clients authenticate by calling `POST /auth/login` with credentials.
+- On success, the API returns an `access_token`, `refresh_token`, and `expires_in`.
 
-> TODO: Document the refresh-token flow used by the frontend (if implemented) and the expected behaviour on 401/refresh failure.
+Recommended client behaviour:
 
-### Session Expiry and Auto-Logout
+- Store tokens securely and avoid persisting them where they are easily exfiltrated.
+- Include the access token on all authenticated requests.
+- Treat `expires_in` as advisory for proactive refresh; always handle `401` as the source of truth.
 
-**Inactivity Timer:**
+### Refresh
 
-- Frontend tracks user inactivity
-- When timer reaches zero, user is automatically logged out
-- Timer is reset on user interaction (clicks, keyboard events)
+- Clients call `POST /auth/refresh` to exchange a refresh token for a new access token (and typically a new refresh token).
 
-**Session Expired Page:**
+Recommended client behaviour:
 
-- User is redirected to a session expired page
-- All open Material Dialogs are closed on logout
-- User must re-authenticate to continue
+- Attempt refresh once when receiving `401` from an authenticated request.
+- If refresh fails (e.g. `401`/`403`), clear session state and require the user to re-authenticate.
 
-**Implementation:**
+### Logout / revoke
 
-- Service monitors activity (e.g., `AuthService` or `SessionService`)
-- Guards prevent access to protected routes when session expired
-- Cleanup on logout: clear token, close dialogs, reset state
+- Clients should call `POST /auth/logout` (or other revoke endpoints) to invalidate refresh tokens.
+- After logout, clients should clear any stored tokens and cached user state.
 
-## Environment Configuration
+## CORS (browser clients)
 
-### Environment Files
+- CORS is enforced by the backend and configured in `src/main.ts`.
+- Only requests from allowed origins will receive the appropriate CORS response headers.
 
-- `environment.ts`: Development configuration
-- `environment.prod.ts`: Production configuration
-- Other environments as needed (e.g., `environment.staging.ts`)
+Notes:
 
-**Key Configuration:**
+- The backend currently authenticates via bearer tokens (Authorization header), not cookies.
+- If a browser client ever uses cookie-based authentication in future, it must send requests with credentials enabled and ensure the backend’s allowed origins and credential settings remain correct.
 
-- `apiUrl`: Backend API base URL
-- `production`: Boolean flag for production mode
-- `cloudflareImagesBaseUrl`: Base URL for Cloudflare Images CDN
-- Any feature flags or API keys
+## Rate limiting
 
-> TODO: Fill in the real `apiUrl` and `cloudflareImagesBaseUrl` values used in each environment (dev/prod/staging).
+The API enforces rate limiting (see `src/main.ts`), including stricter limits for:
 
-### Environment-Specific Behaviour
+- Authentication routes
+- Expensive operations (e.g. uploads/searches)
 
-- API endpoints may differ between dev and prod
-- Logging verbosity may be reduced in production
-- Analytics or monitoring may only run in production
+Client expectations:
 
-## Image Handling
+- Handle `429 Too Many Requests` by respecting the `Retry-After` header.
+- Avoid retry storms; apply backoff and jitter.
 
-### User Profile Images
+## Error handling (recommended client behaviour)
 
-**Display Logic:**
+- `400 Bad Request`: request validation failed; display field-level errors where possible.
+- `401 Unauthorized`: access token missing/expired/invalid; attempt refresh (once) then re-authenticate.
+- `403 Forbidden`: authenticated but not permitted; show an access denied UI.
+- `413 Payload Too Large`: reduce upload size; show max size guidance.
+- `429 Too Many Requests`: respect `Retry-After`.
+- `5xx`: treat as transient; show a generic error and allow retry.
 
-1. Check if user has a Cloudflare Image ID
-2. If yes, construct Cloudflare Images URL using account hash and image ID
-3. If no, check for R2 public URL
-4. If neither, display default placeholder image
+## File uploads (images)
 
-**Cloudflare Images URL Format:**
+### Endpoints
 
-```
-<CLOUDFLARE_CDN_ROOT_URL>/cdn-cgi/imagedelivery/<CLOUDFLARE_IMAGES_HASH>/<IMAGE_ID>/public
-```
+- `POST /user/update-profile-pic` (multipart/form-data)
+- `POST /character/:id/profile-image` (multipart/form-data)
 
-### Character Images
+### Requirements
 
-**Display Logic:**
+- Auth required (`Authorization: Bearer ...`).
+- `Content-Type` must be `multipart/form-data`.
+- Allowed MIME types:
+  - `image/png`
+  - `image/jpg`
+  - `image/jpeg`
+- Maximum upload size is controlled by `MAX_IMAGE_SIZE_IN_BYTES` (defaults to 10 MB).
 
-Character images now use the same logic as user profile images:
+Client expectations:
 
-1. Check for Cloudflare Image ID
-2. Construct Cloudflare Images URL if ID exists
-3. Fall back to R2 public URL if available
-4. Display default placeholder if no image
+- Validate file type and size client-side for fast feedback.
+- Still expect server-side validation to reject invalid files.
 
-**Standardisation:**
+## Image rendering (Cloudflare Images)
 
-- Both user and character images use Cloudflare Images
-- Consistent URL construction across the application
-- Unified image component or service recommended
+When the backend returns a Cloudflare Images ID for a user/character image, clients should construct an image URL using the configured delivery root and hash.
 
-### Image Upload Workflow
+Format:
 
-**User Profile Image Upload:**
+`<CLOUDFLARE_CDN_ROOT_URL>/cdn-cgi/imagedelivery/<CLOUDFLARE_IMAGES_HASH>/<IMAGE_ID>/<VARIANT>`
 
-1. User selects image file via file input
-2. Frontend validates file (type, size) before upload
-3. Image may be cropped using image cropper component
-4. Cropped blob sent to backend `/user/update-profile-pic` endpoint
-5. Backend uploads to Cloudflare Images and returns image ID
-6. Frontend updates user object with new image ID
-7. UI displays new image from Cloudflare CDN
+Notes:
 
-**Character Image Upload:**
+- `CLOUDFLARE_CDN_ROOT_URL` and `CLOUDFLARE_IMAGES_HASH` are backend configuration values.
+- `VARIANT` is a Cloudflare Images variant name (for example `public`).
 
-Similar flow to profile images, using `/character/:id/profile-image` endpoint.
+If an image ID is not present, clients should fall back to whatever “no image” UX they choose (placeholder avatar, silhouette, etc.).
 
-> TODO: Confirm whether the frontend should call these endpoints directly or via a dedicated upload service (and document required auth headers/interceptor behaviour).
+## API surface area
 
-### File Upload Validation (Frontend)
+For the authoritative endpoint list and request/response examples, see:
 
-**Allowed MIME Types:**
-
-- `image/png`
-- `image/jpg`
-- `image/jpeg`
-
-**File Size Limit:**
-
-- Controlled by the backend setting `MAX_IMAGE_SIZE_IN_BYTES` (defaults to 10 MB)
-- Validate before upload to provide immediate feedback
-- Backend also validates (defence in depth)
-
-**Validation Implementation:**
-
-- Check `file.type` against allowed MIME types
-- Check `file.size` against maximum bytes
-- Display error message if validation fails
-
-### Image Cropper Component
-
-**CharacterPicComponent:**
-
-- Allows users to crop images before upload
-- Uses image cropper library (check `package.json` for exact package)
-
-> TODO: Document the exact image cropper package/version in use and any cropping presets/aspect ratios.
-
-- Outputs cropped image as blob for upload
-- Validates file type and size before and after cropping
-
-## Material Dialog Management
-
-### Dialog Strategy
-
-**Opening Dialogs:**
-
-- Use `MatDialog.open()` to create dialog instances
-- Store reference to `MatDialogRef` if you need to close programmatically
-
-**Closing Dialogs:**
-
-- User can close via UI (close button, backdrop click, escape key)
-- Application can close programmatically via `dialogRef.close()`
-
-### Dialog Cleanup on Logout
-
-**Critical Implementation:**
-
-When user logs out or session expires, **all open dialogs must be closed**.
-
-**Implementation:**
-
-```typescript
-// In logout method or session expiry handler:
-this.dialog.closeAll();
-```
-
-**Why This Matters:**
-
-- Prevents dialogs from remaining open after logout
-- Ensures clean state when navigating to login page
-- Avoids errors from components with stale authentication context
-
-## Custom Guards
-
-### AuthGuard
-
-- Checks if user is authenticated (has valid token)
-- Redirects to login page if not authenticated
-- Applied to all protected routes
-
-### RoleGuard
-
-- Checks if authenticated user has required role(s)
-- Returns 403 Forbidden or redirects if user lacks permissions
-- Used for admin-only or restricted routes
-
-## Browser-Specific Workarounds
-
-### Font Rendering (Firefox vs. Chrome)
-
-**Issue:**
-
-Condensed fonts may render differently between Firefox and Chrome, affecting line height and letter spacing.
-
-**Solution:**
-
-- Browser-specific CSS using `@-moz-document` or CSS feature detection
-- May need different font weights or fallbacks
-- Test fonts in both browsers before finalising design
-
-**Current Workarounds:**
-
-Check `styles.css` or component stylesheets for browser-specific rules.
-
-## NPM Scripts
-
-### Development
-
-- `npm start`: Start development server (usually `ng serve`)
-- `npm run build`: Build for production
-- `npm run build:dev`: Build with development configuration
-- `npm run watch`: Build and watch for changes
-
-### Testing
-
-- `npm test`: Run unit tests (Jest)
-- `npm run test:watch`: Run tests in watch mode
-- `npm run test:cov`: Generate test coverage report
-- `npm run test:mutation`: Run Stryker mutation tests
-- `npm run test:mutation:dry`: Dry run mutation tests
-
-### Code Quality
-
-- `npm run lint`: Run ESLint
-- `npm run format`: Format code with Prettier
-
-### Angular CLI
-
-- `ng generate component <name>`: Generate new component
-- `ng generate service <name>`: Generate new service
-- `ng generate guard <name>`: Generate new guard
-
-## Testing Strategy
-
-### Unit Tests (Jest)
-
-- All components, services, guards, and pipes should have corresponding `.spec.ts` files
-- Tests run in isolation using mocks and stubs
-- Aim for high code coverage (check coverage report for current %)
-
-### Mocking Strategies
-
-**Logger Mocking:**
-
-- Mock `Logger` in tests to suppress console output during test runs
-- Prevents error messages from cluttering test output
-- Example: Mock `Logger.error()` to do nothing in tests that intentionally trigger errors
-
-**Service Mocking:**
-
-- Mock HTTP calls using `HttpClientTestingModule`
-- Mock `MatDialog` using `MatDialogMock` or jasmine spies
-- Mock `Router` for navigation testing
-
-### Mutation Testing (Stryker)
-
-- Stryker introduces mutations (small code changes) to verify test quality
-- High mutation score indicates strong tests that catch bugs
-- Run `npm run test:mutation` to execute mutation tests
-- Review HTML report for detailed results
-
-### Coverage Requirements
-
-Document target coverage percentage here (e.g., 80% line coverage).
+- [docs/api-endpoints.md](api-endpoints.md)
+- Swagger UI at `/swagger` in non-production environments

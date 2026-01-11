@@ -16,7 +16,7 @@ CORS is configured in `src/main.ts`.
 
 ```typescript
 origin: [
-  'http://localhost:4200', // Angular dev server
+  'http://localhost:4200', // Local frontend dev server
   'https://dev.startrekonline.info', // Development frontend
 ];
 ```
@@ -64,14 +64,16 @@ origin: [
 **Causes:**
 
 1. Frontend origin not in allowed origins list
-2. Request sent without credentials when required
+2. Request blocked by browser preflight/CORS negotiation
 3. Preflight OPTIONS request failing
 
 **Solutions:**
 
 1. Add frontend origin to CORS configuration
-2. Ensure frontend sends `withCredentials: true` in HTTP requests
+2. Ensure the request includes the required headers (for example `Authorization`) and uses an allowed method/header set
 3. Check backend logs for OPTIONS request failures
+
+Note: The backend currently uses bearer tokens (the `Authorization` header). Cookie-based auth is not currently used; only enable `withCredentials` client-side if you intentionally introduce cookie-based authentication.
 
 **Testing:**
 

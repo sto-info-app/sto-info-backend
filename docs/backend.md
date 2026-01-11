@@ -7,11 +7,11 @@
 1. User logs in via `/auth/login` endpoint with credentials
 2. Backend validates credentials against PostgreSQL database
 3. On success, generates JWT token with user payload
-4. Token is returned to frontend and stored (typically in memory or session storage)
-5. Frontend includes token in `Authorization: Bearer <token>` header for subsequent requests
+4. Token is returned to the client application
+5. Client includes token in `Authorization: Bearer <token>` header for subsequent requests
 6. Backend validates token on protected routes using JWT strategy
 
-> TODO: Document the actual frontend storage strategy used in this project (memory/session storage/httpOnly cookies) and any refresh-token handling.
+Client-side token storage strategy is intentionally left to the consuming application; clients should store tokens securely and handle refresh/logout flows appropriately.
 
 ### JWT Configuration
 
