@@ -18,7 +18,8 @@ describe('ConfigCheckService', () => {
 
   describe('validateInput', () => {
     const validConfig = {
-      NODE_ENV: 'test',
+      NODE_ENV: 'local',
+      LOG_LEVEL: 'log',
       APP_PORT: '3000',
       APP_FRONTEND_URL: 'http://localhost:3000',
       APP_TITLE: 'Test App',
@@ -31,6 +32,7 @@ describe('ConfigCheckService', () => {
       DB_NAME: 'testdb',
       DB_SCHEMA: 'public',
       DB_USERNAME: 'testuser',
+      DB_SSL_REJECT_UNAUTHORIZED: 'false',
       TYPEORM_SYNCHRONIZE: 'false',
       TYPEORM_LOGGING: 'false',
       TYPEORM_ENTITIES: 'dist/**/*.entity.js',
@@ -52,7 +54,7 @@ describe('ConfigCheckService', () => {
     it('should validate correct configuration', () => {
       const result = service.validateInput(validConfig);
       expect(result).toBeDefined();
-      expect(result.NODE_ENV).toBe('test');
+      expect(result.NODE_ENV).toBe('local');
       expect(result.APP_PORT).toBe(3000);
     });
 

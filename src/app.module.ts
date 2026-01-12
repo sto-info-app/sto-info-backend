@@ -1,4 +1,3 @@
-import { S3Client } from '@aws-sdk/client-s3';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -17,9 +16,7 @@ import { HealthModule } from './health/health.module';
 import { MailModule } from './mail/mail.module';
 import { MailService } from './mail/mail.service';
 import { DEFAULT_MULTER_LIMITS } from './shared/constants/file-upload.constants';
-import { SecretsService } from './shared/secrets/secrets.service';
 import { SharedModule } from './shared/shared.module';
-import { ImageUploadsService } from './shared/utilities/image-uploads.service';
 import { ValidatorsService } from './shared/utilities/validators.service';
 import { AccountModule } from './sto/account/account.module';
 import { CharacterModule } from './sto/character/character.module';
@@ -82,15 +79,7 @@ import { UserModule } from './user/user.module';
     HealthModule,
   ],
   controllers: [AppController],
-  providers: [
-    S3Client,
-    AppService,
-    MailService,
-    SecretsService,
-    ConfigCheckService,
-    ValidatorsService,
-    ImageUploadsService,
-  ],
+  providers: [AppService, MailService, ConfigCheckService, ValidatorsService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
