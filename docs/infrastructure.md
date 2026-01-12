@@ -44,11 +44,15 @@ All variables from `config/environments/.env.example` must be configured in Rend
 **Key Variables:**
 
 - `NODE_ENV=prod`
+- `LOG_LEVEL`
 - `APP_PORT`
 - `APP_FRONTEND_URL`: Production frontend URL (used for CORS and links in emails)
+- `APP_TITLE`
 - `AWS_REGION`
 - `AWS_SECRET_NAME`: Name/ARN of the AWS Secrets Manager secret (contains `jwtSecret`, `dbPassword`, and third-party API keys)
-- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_SCHEMA`, `DB_USERNAME`
+- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (required if your Render service uses static AWS credentials)
+- `DB_TYPE=postgres`
+- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_SCHEMA`, `DB_USERNAME`, `DB_SSL_REJECT_UNAUTHORIZED`
 - `TYPEORM_SYNCHRONIZE=false`
 - `TYPEORM_LOGGING=false`
 - `TYPEORM_ENTITIES`, `TYPEORM_MIGRATIONS`
@@ -60,6 +64,10 @@ All variables from `config/environments/.env.example` must be configured in Rend
 - `AUDIT_DATA_NUKE_THRESHOLD_DAYS`
 - `AUDIT_IP_NUKE_THRESHOLD_DAYS`
 - `TRUST_PROXY_HOPS=1` (optional, defaults to 1)
+
+Optional (seed user):
+
+- `DATASEED_USER_EMAIL`, `DATASEED_USER_USERNAME`, `DATASEED_USER_FIRSTNAME`, `DATASEED_USER_LASTNAME`, `DATASEED_USER_PASSWORD`
 
 **Updating Environment Variables:**
 

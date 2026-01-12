@@ -55,7 +55,13 @@ npm install
 
 ### Configuration
 
-Create a `.env` file in [config/environments/](config/environments/) by copying [config/environments/template.env](config/environments/template.env). Amend values to match your local setup.
+Environment files live in [config/environments/](config/environments/):
+
+- [config/environments/.env](config/environments/.env): used for local development (not committed)
+- [config/environments/template.env](config/environments/template.env): starting point for creating your local `.env`
+- [config/environments/.env.example](config/environments/.env.example): safe example for hosted environments (e.g. Render)
+
+Create a `.env` file by copying [config/environments/template.env](config/environments/template.env) to [config/environments/.env](config/environments/.env), then amend values to match your local setup.
 
 Environment variables and the required AWS Secrets Manager secret shape are documented in [docs/environment-variables.md](docs/environment-variables.md).
 

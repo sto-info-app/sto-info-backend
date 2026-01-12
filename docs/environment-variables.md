@@ -2,11 +2,20 @@
 
 This document lists the environment variables used by the backend at runtime.
 
+## Environment files
+
+- Local development uses `config/environments/.env`.
+- `config/environments/template.env` is the template for creating your local `.env`.
+- `config/environments/.env.example` is a safe example for hosted environments (e.g. Render) and should match the same keys as `.env`.
+
+Note: the app reads `config/environments/.env` at startup (see `src/main.ts`).
+
 ## Required
 
 ### Application
 
-- `NODE_ENV`: `local` | `dev` | `prod`
+- `NODE_ENV`: `local` | `dev` | `staging` | `prod`
+- `LOG_LEVEL`: `error` | `warn` | `log` | `debug` | `verbose` (optionally comma-separated)
 - `APP_PORT`: Port the HTTP server listens on (default used by code is `3000`)
 - `APP_FRONTEND_URL`: Base URL used for CORS and links in emails
 - `APP_TITLE`: Used in email templates and user-facing copy
@@ -29,6 +38,7 @@ This document lists the environment variables used by the backend at runtime.
 - `DB_NAME`: Database name
 - `DB_SCHEMA`: Schema name (e.g. `sto_info_app`)
 - `DB_USERNAME`: Database username
+- `DB_SSL_REJECT_UNAUTHORIZED`: `true` | `false` (used for non-local SSL settings)
 - `TYPEORM_SYNCHRONIZE`: `true` | `false` (should be `false` in production)
 - `TYPEORM_LOGGING`: `true` | `false`
 - `TYPEORM_ENTITIES`: Glob relative to the built root (e.g. `src/**/*.entity.{js,ts}`)
@@ -70,7 +80,6 @@ This document lists the environment variables used by the backend at runtime.
 ## Optional
 
 - `TRUST_PROXY_HOPS`: Express trust proxy hops (default is `1` when not provided)
-- `DB_SSL_REJECT_UNAUTHORIZED`: `true` | `false` (used for non-local SSL settings)
 
 ## Optional (dev-only seeding)
 
