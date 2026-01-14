@@ -12,6 +12,18 @@ The `sto-info-backend` is a backend service designed to provide information rela
 - Integration with external services
 - _Coming soon:_ Comprehensive logging and monitoring
 
+## Documentation
+
+Documentation is in [docs/](docs/).
+
+- [docs/environment-variables.md](docs/environment-variables.md)
+- [docs/infrastructure.md](docs/infrastructure.md)
+- [docs/security.md](docs/security.md)
+- [docs/database.md](docs/database.md)
+- [docs/backend.md](docs/backend.md)
+- [docs/frontend.md](docs/frontend.md) (frontend integration expectations)
+- [docs/api-endpoints.md](docs/api-endpoints.md)
+
 ## Getting Started
 
 ### Prerequisites
@@ -19,6 +31,7 @@ The `sto-info-backend` is a backend service designed to provide information rela
 - Node.js (version 22.x or higher)
 - npm (version 10.x or higher)
 - PostgreSQL database (version 14.x or higher)
+- Redis (version 6.x or higher)
 - Amazon Secrets Manager
 
 ### Installation
@@ -43,22 +56,21 @@ npm install
 
 ### Configuration
 
-Create a `.env` file in the `config/environments/` directory by copying the `config/environments/template.env` file. Amend the values to match your local setup.
-The dataseed values will automatically populate
+Environment files live in [config/environments/](config/environments/):
 
-You need to create a secret in AWS Secrets Manager with the following JSON:
+- [config/environments/.env](config/environments/.env): used for local development (not committed)
+- [config/environments/template.env](config/environments/template.env): starting point for creating your local `.env`
+- [config/environments/.env.example](config/environments/.env.example): safe example for hosted environments (e.g. Render)
 
-```json
-{
-  "jwtSecret": "YourJwtSecret",
-  "dbPassword": "YourDbPassword",
-  "sendGridApiKey": "YourSendGridApiKey"
-}
-```
+Create a `.env` file by copying [config/environments/template.env](config/environments/template.env) to [config/environments/.env](config/environments/.env), then amend values to match your local setup.
+
+Environment variables and the required AWS Secrets Manager secret shape are documented in [docs/environment-variables.md](docs/environment-variables.md).
 
 ### Database
 
-This application uses PostreSQL. Create the database and schema, everything will be set up using TypeORM migrations and data seeding when the app is started.
+This application uses PostgreSQL. Schema changes are managed with TypeORM migrations.
+
+Database notes (including retention jobs and dev-only seeding) are in [docs/database.md](docs/database.md).
 
 Migration commands are as follows:
 

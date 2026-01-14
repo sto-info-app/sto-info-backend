@@ -21,7 +21,8 @@ export class UserRefreshTokenService {
   ): Promise<UserRefreshTokenEntity> {
     const refreshToken = this.refreshTokenRepository.create(refreshTokenDto);
 
-    // Hash the raw refresh token string before storing it
+    // If we have a raw token string in tokenId, we hash it for storage
+    // However, we should prefer using jwtId (JTI) for identification
     if (refreshToken.tokenId) {
       refreshToken.tokenId = await bcrypt.hash(
         refreshToken.tokenId,
@@ -53,12 +54,31 @@ export class UserRefreshTokenService {
   ): Promise<UserRefreshTokenEntity> {
     const refreshTokenEntity = new UserRefreshTokenEntity();
     refreshTokenEntity.user = user;
+    refreshTokenEntity.userId = user.id;
 
     // Parse the JWT to extract the jti claim
     const refreshTokenPayload = jwt.decode(refreshToken) as jwt.JwtPayload;
-    if (refreshTokenPayload.jti) {
-      refreshTokenEntity.tokenId = refreshTokenPayload.jti;
+    if (refreshTokenPayload?.jti) {
+      refreshTokenEntity.jwtId = refreshTokenPayload.jti;
     }
+
+    // Set the expiresAt value from the token itself or environment
+    const expiresAt = new Date();
+    if (refreshTokenPayload?.exp) {
+      expiresAt.setTime(refreshTokenPayload.exp * 1000);
+    } else {
+      expiresAt.setSeconds(
+        expiresAt.getSeconds() +
+          Number(process.env.AUTH_REFRESH_TOKEN_EXPIRES_IN),
+      );
+    }
+    refreshTokenEntity.expiresAt = expiresAt;
+
+    // We can also store a hash of the raw token if we want extra validation
+    refreshTokenEntity.tokenId = await bcrypt.hash(
+      refreshToken,
+      +process.env.AUTH_SALT_ROUNDS,
+    );
 
     return await this.refreshTokenRepository.save(refreshTokenEntity);
   }
@@ -66,58 +86,47 @@ export class UserRefreshTokenService {
   /**
    * Revokes a user's refresh token by marking it as revoked in the database.
    *
-   * This method is used by the logout endpoint and receives the raw refresh token string.
-   * It finds the matching token record by comparing the raw token against stored hashes
-   * using bcrypt, then marks the token as revoked.
-   *
-   * @param tokenId - The raw refresh token string to be revoked
+   * @param rawRefreshToken - The raw refresh token string to be revoked
    * @returns A promise that resolves when the token has been successfully revoked
-   *
-   * @remarks
-   * - This method iterates through all active tokens and compares each hash, which may not be performant for large datasets
-   * - If no matching token is found, the method returns silently without throwing an error
-   * - The token is marked as revoked rather than deleted, maintaining an audit trail
    */
-  async revokeUserRefreshToken(tokenId: string): Promise<void> {
-    const tokens = await this.refreshTokenRepository.find({
-      where: { isRevoked: false },
-    });
-
-    for (const tokenRecord of tokens) {
-      const matches = await bcrypt.compare(tokenId, tokenRecord.tokenId);
-      if (matches) {
-        tokenRecord.isRevoked = true;
-        await this.refreshTokenRepository.save(tokenRecord);
-        return;
-      }
+  async revokeUserRefreshToken(rawRefreshToken: string): Promise<void> {
+    // Decode the token to get the JTI
+    const payload = jwt.decode(rawRefreshToken) as jwt.JwtPayload;
+    if (!payload?.jti) {
+      return;
     }
+
+    await this.refreshTokenRepository.update(
+      { jwtId: payload.jti, isRevoked: false },
+      { isRevoked: true },
+    );
   }
 
-  async revokeToken(userId: string, tokenId: string): Promise<void> {
-    // Getting the refresh token: tokenId here is the raw token string.
-    const tokens = await this.refreshTokenRepository.find({
-      where: { user: { id: userId } },
-      relations: ['user'],
-    });
+  /**
+   * Revokes a specific token for a user.
+   *
+   * @param userId - The ID of the user
+   * @param rawRefreshToken - The raw refresh token string to be revoked
+   */
+  async revokeToken(userId: string, rawRefreshToken: string): Promise<void> {
+    // Decode the token to get the JTI
+    const payload = jwt.decode(rawRefreshToken) as jwt.JwtPayload;
 
-    for (const tokenRecord of tokens) {
-      const matches = await bcrypt.compare(tokenId, tokenRecord.tokenId);
-      if (matches) {
-        // Check the User ID (defensive)
-        if (tokenRecord.user.id !== userId) {
-          throw new UnauthorizedException(
-            'Refresh token does not match the user',
-          );
-        }
-
-        // Updating the refresh token
-        tokenRecord.isRevoked = true;
-        await this.refreshTokenRepository.save(tokenRecord);
-        return;
-      }
+    if (!payload?.jti) {
+      throw new UnauthorizedException('Invalid refresh token');
     }
 
-    throw new UnauthorizedException('Refresh token does not exist');
+    const tokenRecord = await this.refreshTokenRepository.findOne({
+      where: { jwtId: payload.jti, userId: userId },
+    });
+
+    if (!tokenRecord) {
+      throw new UnauthorizedException('Refresh token does not exist');
+    }
+
+    // Mark as revoked
+    tokenRecord.isRevoked = true;
+    await this.refreshTokenRepository.save(tokenRecord);
   }
 
   /**

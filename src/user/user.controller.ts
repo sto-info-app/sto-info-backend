@@ -16,8 +16,15 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiBody,
+  ApiConflictResponse,
+  ApiConsumes,
+  ApiNotFoundResponse,
   ApiOkResponse,
+  ApiOperation,
+  ApiPayloadTooLargeResponse,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { instanceToPlain } from 'class-transformer';
 import { Request } from 'express';
@@ -73,8 +80,20 @@ export class UserController {
    * @param userId Authenticated user ID (injected).
    * @returns The user entity.
    */
-  @ApiOkResponse({ description: 'Successfully found the user.' })
-  @ApiBadRequestResponse({ description: 'The user cannot be found.' })
+  @ApiOperation({
+    summary: 'Get the current user',
+    description:
+      'Returns the authenticated user record including the associated profile. Requires a valid JWT bearer token.',
+  })
+  @ApiOkResponse({
+    description: 'User retrieved successfully.',
+    type: UserEntity,
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid access token.' })
+  @ApiNotFoundResponse({
+    description:
+      'User does not exist, or the authenticated user id is not a valid UUID.',
+  })
   @Get()
   @HttpCode(HttpStatus.OK)
   async findUser(@UserId() userId: string): Promise<UserEntity> {
@@ -88,8 +107,26 @@ export class UserController {
    * @param userProfileData Update data payload.
    * @returns Result of the update operation.
    */
-  @ApiOkResponse({ description: 'Successfully updated the user profile.' })
-  @ApiBadRequestResponse({ description: 'Invalid user data provided.' })
+  @ApiOperation({
+    summary: 'Update the current user profile',
+    description:
+      'Updates profile fields for the authenticated user. The body currently requires a userId field for validation, but the server persists changes against the authenticated user id.',
+  })
+  @ApiOkResponse({
+    description:
+      'Profile updated successfully. If no changes were detected, affected may be 0.',
+    type: UpdatedUserProfileResultDto,
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid access token.' })
+  @ApiBadRequestResponse({
+    description: 'Request body is missing or fails validation.',
+  })
+  @ApiConflictResponse({
+    description: 'Username already exists.',
+  })
+  @ApiNotFoundResponse({
+    description: 'User/profile not found for the authenticated user id.',
+  })
   @Post('update-profile')
   @HttpCode(HttpStatus.OK)
   async updateUserProfile(
@@ -117,10 +154,40 @@ export class UserController {
    * @param req Request object containing the uploaded file.
    * @returns Result of the update operation.
    */
-  @ApiOkResponse({
-    description: 'Successfully updated the user profile picture.',
+  @ApiOperation({
+    summary: 'Upload a new profile picture',
+    description:
+      'Uploads an image to Cloudflare Images and stores the resulting image id on the user profile. Accepts a single file field named profilePicture.',
   })
-  @ApiBadRequestResponse({ description: 'Invalid image provided.' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['profilePicture'],
+      properties: {
+        profilePicture: {
+          type: 'string',
+          format: 'binary',
+          description: 'PNG, JPG, or JPEG image file.',
+        },
+      },
+    },
+  })
+  @ApiOkResponse({
+    description: 'Profile picture updated successfully.',
+    type: UpdatedUserProfileResultDto,
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid access token.' })
+  @ApiBadRequestResponse({
+    description:
+      'No file was supplied, or the file type is not allowed (PNG/JPG/JPEG only).',
+  })
+  @ApiPayloadTooLargeResponse({
+    description: 'Uploaded file exceeds the configured maximum image size.',
+  })
+  @ApiNotFoundResponse({
+    description: 'User/profile not found for the authenticated user id.',
+  })
   @Post('update-profile-pic')
   @HttpCode(HttpStatus.OK)
   @UseFilters(FileSizeExceptionFilter)

@@ -1,0 +1,480 @@
+# API Endpoints Reference
+
+This document lists the HTTP endpoints exposed by the STO Info backend application.
+
+## Conventions
+
+- Base URL is environment-specific (for example, `http://localhost:3000`).
+- Authenticated endpoints require `Authorization: Bearer <access_token>`.
+- Token payload fields use snake_case (for example, `access_token`).
+
+## Domains
+
+A list of domains can be found in the [Infrastructure](infrastructure.md) documentation.
+
+## Core Endpoints
+
+### GET /
+
+Returns a greeting string including the current environment name.
+
+**No Authentication Required**
+
+### GET /version
+
+Returns the current API app version.
+
+**No Authentication Required**
+
+## Authentication Endpoints
+
+These endpoints are under `/auth/*`.
+
+### POST /auth/register
+
+Register a new user account and send an email verification token.
+
+**Request:**
+
+```json
+{
+  "firstName": "Jean-Luc",
+  "lastName": "Picard",
+  "username": "captain.picard",
+  "email": "captain.picard@starfleet.example",
+  "password": "CorrectHorseBatteryStaple",
+  "confirmPassword": "CorrectHorseBatteryStaple"
+}
+```
+
+**Response:** `200 OK` (shape is implementation-defined)
+
+**Rate Limit:** Authentication endpoints are limited to 20 requests per 15 minutes
+
+### POST /auth/login
+
+Authenticate a user and return an access token plus refresh token.
+
+**Request:**
+
+```json
+{
+  "email": "captain.picard@starfleet.example",
+  "password": "CorrectHorseBatteryStaple"
+}
+```
+
+**Response:**
+
+```json
+{
+  "access_token": "<jwt>",
+  "refresh_token": "<jwt>",
+  "expires_in": 3600,
+  "user_id": "67f8ce9a-283c-4aaa-8e47-e7b8b2c0d217"
+}
+```
+
+**Rate Limit:** Authentication endpoints are limited to 20 requests per 15 minutes
+
+### POST /auth/refresh
+
+Exchange a refresh token for a new access token and a new refresh token.
+
+**Request:**
+
+```json
+{
+  "refresh_token": "<jwt>"
+}
+```
+
+**Response:**
+
+```json
+{
+  "access_token": "<jwt>",
+  "refresh_token": "<jwt>",
+  "expires_in": 3600
+}
+```
+
+**Rate Limit:** Authentication endpoints are limited to 20 requests per 15 minutes
+
+### POST /auth/logout
+
+Revoke a supplied refresh token.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Request:**
+
+```json
+{
+  "tokenId": "<refresh_token>"
+}
+```
+
+**Response:** `200 OK` (no body)
+
+### POST /auth/revoke
+
+Revoke the refresh token associated with the current authenticated context.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Response:** `200 OK` (no body)
+
+### POST /auth/verify-email
+
+Verify an email address using a verification token.
+
+**Request:**
+
+```json
+{
+  "token": "<64-hex-token>"
+}
+```
+
+**Response:** `200 OK` (shape is implementation-defined)
+
+**Rate Limit:** Authentication endpoints are limited to 20 requests per 15 minutes
+
+### POST /auth/resend-verification-email
+
+Resend a verification email (generates a new token if still unverified).
+
+**Request:**
+
+```json
+{
+  "token": "<64-hex-token>"
+}
+```
+
+**Response:** `200 OK` (shape is implementation-defined)
+
+**Rate Limit:** Authentication endpoints are limited to 20 requests per 15 minutes
+
+### POST /auth/request-password-reset
+
+Request a password reset email.
+
+**Request:**
+
+```json
+{
+  "email": "captain.picard@starfleet.example"
+}
+```
+
+**Response:** `200 OK` (no body)
+
+**Rate Limit:** Authentication endpoints are limited to 20 requests per 15 minutes
+
+### POST /auth/reset-password
+
+Reset a password using a password reset token.
+
+**Request:**
+
+```json
+{
+  "token": "<64-hex-token>",
+  "password": "EvenMoreSecurePassword123"
+}
+```
+
+**Response:** `200 OK` (no body)
+
+**Rate Limit:** Authentication endpoints are limited to 20 requests per 15 minutes
+
+## User Endpoints
+
+All user endpoints are under `/user/*` and require authentication.
+
+### GET /user
+
+Get the current user.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+### POST /user/update-profile
+
+Update the current user's profile.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Request:**
+
+```json
+{
+  "userId": "67f8ce9a-283c-4aaa-8e47-e7b8b2c0d217",
+  "firstName": "Jean-Luc",
+  "lastName": "Picard",
+  "username": "captain.picard",
+  "publiclyVisible": false
+}
+```
+
+### POST /user/update-profile-pic
+
+Upload a new user profile picture.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Content-Type:** `multipart/form-data`
+
+**Request:**
+
+- `profilePicture`: Image file (PNG/JPG/JPEG only, max size controlled by `MAX_IMAGE_SIZE_IN_BYTES`)
+
+## STO Reference Data Endpoints
+
+These endpoints return lookup/reference data.
+
+### GET /platform
+
+List all STO platforms.
+
+**No Authentication Required**
+
+### GET /launcher
+
+List all STO launchers.
+
+**No Authentication Required**
+
+### GET /platform-launcher
+
+List platform/launcher mappings.
+
+**No Authentication Required**
+
+## Account Endpoints
+
+All account endpoints are under `/account/*` and require authentication.
+
+### POST /account
+
+Create a new account for the current user.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+### GET /account
+
+List all accounts for the current user.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+### GET /account/:id
+
+Get a single account by id.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+### PUT /account/:id
+
+Update an account by id.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+### DELETE /account/:id
+
+Soft-delete an account by id.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+## Character Endpoints
+
+All character endpoints are under `/character/*` and require authentication.
+
+### POST /character
+
+Create a new character under an account owned by the current user.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+### GET /character?accountId=<uuid>
+
+List all characters for an account owned by the current user.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+### GET /character/:id
+
+Get a single character by id.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+### PUT /character/:id
+
+Update a character by id.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+### DELETE /character/:id
+
+Soft-delete a character by id.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+### POST /character/:id/profile-image
+
+Upload a character profile image.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Content-Type:** `multipart/form-data`
+
+**Request:**
+
+- `profilePicture`: Image file (PNG/JPG/JPEG only, max size controlled by `MAX_IMAGE_SIZE_IN_BYTES`)
+
+### GET /character/lookup/general-factions
+
+List general factions.
+
+### GET /character/lookup/factions
+
+List factions.
+
+### GET /character/lookup/sexes
+
+List sexes.
+
+### GET /character/lookup/classes
+
+List classes.
+
+### GET /character/lookup/recruit-types
+
+List recruit types.
+
+### GET /character/lookup/species
+
+List species.
+
+**Query (optional):** `factionId=<uuid>`, `recruitTypeId=<uuid>`
+
+## Health Check Endpoints
+
+### GET /health/ready
+
+Application readiness check.
+
+**No Authentication Required**
+
+### GET /health/live
+
+Application liveness check.
+
+**No Authentication Required**
+
+## Error Responses
+
+### 400 Bad Request
+
+```json
+{
+  "statusCode": 400,
+  "message": ["Validation error message"],
+  "error": "Bad Request"
+}
+```
+
+### 401 Unauthorised
+
+```json
+{
+  "statusCode": 401,
+  "message": "Unauthorised",
+  "error": "Unauthorised"
+}
+```
+
+### 403 Forbidden
+
+```json
+{
+  "statusCode": 403,
+  "message": "Forbidden resource",
+  "error": "Forbidden"
+}
+```
+
+### 404 Not Found
+
+```json
+{
+  "statusCode": 404,
+  "message": "Resource not found",
+  "error": "Not Found"
+}
+```
+
+### 413 Payload Too Large
+
+```json
+{
+  "statusCode": 413,
+  "message": "Payload too large. Maximum allowed size is X bytes.",
+  "error": "Payload Too Large"
+}
+```
+
+### 429 Too Many Requests
+
+```json
+{
+  "status": 429,
+  "error": "Too many requests",
+  "message": "Too many requests, please try again after X minutes",
+  "retryAfter": 900
+}
+```
+
+**Headers:**
+
+- `Retry-After`: Seconds until rate limit resets
+
+### 500 Internal Server Error
+
+```json
+{
+  "statusCode": 500,
+  "message": "Internal server error",
+  "error": "Internal Server Error"
+}
+```
+
+## Rate Limiting
+
+### Global Rate Limits
+
+- **Read Operations (GET, HEAD):** 1500 requests per 15 minutes (counts failed requests only)
+- **Write Operations (POST, PUT, PATCH, DELETE):** 200 requests per 15 minutes
+
+### Endpoint-Specific Rate Limits
+
+- **Authentication endpoints:** 20 requests per 15 minutes
+- **Expensive operations:** 50 requests per 15 minutes
+
+**Excluded Paths:** Requests where the path starts with `/health/` are excluded from rate limiting.
+
+### Rate Limit Headers
+
+All responses include:
+
+- `RateLimit-Limit`: Maximum requests allowed
+- `RateLimit-Remaining`: Requests remaining in current window
+- `RateLimit-Reset`: Timestamp when limit resets
+
+## Swagger Documentation
+
+Interactive API documentation available at:
+
+- **Development:** `http://localhost:3000/swagger`
+- **Development (Render):** `https://dev-api.startrekonline.info/swagger`
+- **Production:** Swagger disabled for security

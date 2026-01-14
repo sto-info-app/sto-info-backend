@@ -1,25 +1,23 @@
 import { config } from 'dotenv';
 config({ path: 'config/environments/.env' });
 
-import {
-  ClassSerializerInterceptor,
-  HttpStatus,
-  ValidationPipe,
-} from '@nestjs/common';
+import { HttpStatus, Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { NestFactory, Reflector } from '@nestjs/core';
+import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
-import { connectionSourcePromise } from 'config/typeorm.datasource';
 import { json, NextFunction, Request, Response, urlencoded } from 'express';
 import rateLimit, {
   ipKeyGenerator,
   RateLimitRequestHandler,
 } from 'express-rate-limit';
 import helmet from 'helmet';
+import Redis from 'ioredis';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { performance } from 'node:perf_hooks';
+import { type RedisReply, RedisStore } from 'rate-limit-redis';
 
 import { AppModule } from './app.module';
 import { NonceMiddleware } from './auth/nonce.middleware';
@@ -33,14 +31,27 @@ import {
   RATE_LIMIT_EXCLUDED_PATHS,
 } from './shared/constants/rate-limit.constants';
 import { SWAGGER_UI_DARK_THEME_CSS } from './shared/constants/swagger.constants';
-import { TypeOrmExceptionFilter } from './shared/filters/typeorm-exception.filter';
 import { getAppVersion } from './shared/utilities/version.utility';
 
-function createRateLimiter(options: {
-  windowMins: number;
-  max: number;
-  skipSuccessfulRequests?: boolean;
-}): RateLimitRequestHandler {
+function toMb(bytes: number): string {
+  return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+}
+
+function formatStartupMemory(message: string) {
+  const mem = process.memoryUsage();
+
+  return `[startup] ${message} | rss=${toMb(mem.rss)} heapUsed=${toMb(mem.heapUsed)} heapTotal=${toMb(mem.heapTotal)} external=${toMb(mem.external)} arrayBuffers=${toMb(mem.arrayBuffers)}`;
+}
+
+function createRateLimiter(
+  options: {
+    windowMins: number;
+    max: number;
+    skipSuccessfulRequests?: boolean;
+  },
+  redis: Redis,
+  prefix: string,
+): RateLimitRequestHandler {
   const { windowMins, max, skipSuccessfulRequests = false } = options;
 
   const errorMessage = `Too many requests`;
@@ -71,20 +82,58 @@ function createRateLimiter(options: {
     skipSuccessfulRequests,
     skipFailedRequests: false,
     keyGenerator: (req: Request) => {
-      return ipKeyGenerator(req.clientIp ?? req.ip ?? '');
+      const ip = req.clientIp ?? req.ip ?? '';
+      // /64 is the common recommendation for IPv6 subnetting when keying by IP
+      return ipKeyGenerator(ip, 64);
     },
+
+    store: new RedisStore({
+      sendCommand: (command: string, ...args: string[]) =>
+        redis.call(command, ...args) as Promise<RedisReply>,
+      prefix: `rl:${prefix}:`,
+    }),
   });
 }
 
 async function bootstrap() {
+  const startupDiagnosticsEnabled =
+    (process.env.STARTUP_DIAGNOSTICS ?? '').toLowerCase() === 'true';
+  const startTime = performance.now();
+
+  // Hybrid diagnostics logging:
+  // - Prefer Nest Logger when 'log' level is enabled.
+  // - Fall back to console when it isn't (so prod with strict levels still shows diagnostics).
+  // Note: the effective logger override happens during NestFactory.create.
+  const startupLogger = new Logger('Startup');
+
+  if (startupDiagnosticsEnabled) {
+    // At this point we don't yet know the configured log levels, so use console.
+    console.log(formatStartupMemory('bootstrap:start'));
+  }
+
   const configCheckService = new ConfigCheckService();
   configCheckService.validateInput(process.env); // Validate the environment variables
 
+  // Initialize Redis store for rate limiting
+  const redisUrl = process.env.REDIS_URL;
+  if (!redisUrl) {
+    throw new Error('REDIS_URL is not set');
+  }
+  const redis = new Redis(redisUrl);
+
   // Define rate limiters based on operation type
-  const readLimiter = createRateLimiter(RATE_LIMIT_CONFIGS.READ);
-  const writeLimiter = createRateLimiter(RATE_LIMIT_CONFIGS.WRITE);
-  const authLimiter = createRateLimiter(RATE_LIMIT_CONFIGS.AUTH);
-  const expensiveLimiter = createRateLimiter(RATE_LIMIT_CONFIGS.EXPENSIVE);
+  const readLimiter = createRateLimiter(RATE_LIMIT_CONFIGS.READ, redis, 'read');
+  const writeLimiter = createRateLimiter(
+    RATE_LIMIT_CONFIGS.WRITE,
+    redis,
+    'write',
+  );
+  const authLimiter = createRateLimiter(RATE_LIMIT_CONFIGS.AUTH, redis, 'auth');
+  const expensiveLimiter = createRateLimiter(
+    RATE_LIMIT_CONFIGS.EXPENSIVE,
+    redis,
+    'expensive',
+  );
 
   // Determine log levels based on environment
   const logLevels = getLogLevelsForEnvironment(
@@ -92,14 +141,29 @@ async function bootstrap() {
     process.env.LOG_LEVEL,
   );
 
+  const shouldUseNestLoggerForStartup = logLevels.includes('log');
+  const logStartup = (message: string) => {
+    const line = formatStartupMemory(message);
+
+    if (shouldUseNestLoggerForStartup) {
+      startupLogger.log(line);
+      return;
+    }
+
+    console.log(line);
+  };
+
   // Create NestJS application with custom body parser limits and configured logger
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bodyParser: false,
     logger: logLevels,
   });
 
-  // Use global exception filter for TypeORM exceptions
-  app.useGlobalFilters(new TypeOrmExceptionFilter());
+  if (startupDiagnosticsEnabled) {
+    logStartup(
+      `after NestFactory.create (+${(performance.now() - startTime).toFixed(0)}ms)`,
+    );
+  }
 
   // Use environment vars
   const configService = app.get(ConfigService);
@@ -172,10 +236,6 @@ async function bootstrap() {
 
   // Use the nonce middleware
   app.use(new NonceMiddleware().use);
-
-  // Initialize the DataSource
-  const connectionSource = await connectionSourcePromise;
-  await connectionSource.initialize();
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -268,8 +328,8 @@ async function bootstrap() {
     }
   });
 
-  // Enable class serializer interceptor for managing response data
-  app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
+  // Applied via AppModule:
+  // app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
 
   if (!inProduction) {
     const require = createRequire(__filename);
@@ -294,7 +354,21 @@ async function bootstrap() {
     });
   }
 
+  // Force module initialization before listening so we can log a stable "post-init" baseline.
+  // `app.listen()` calls init internally if needed, but calling it explicitly helps diagnostics.
+  await app.init();
+
+  if (startupDiagnosticsEnabled) {
+    logStartup(
+      `after app.init (+${(performance.now() - startTime).toFixed(0)}ms)`,
+    );
+  }
+
   // Start listening for requests on the specified port
   await app.listen(Number.parseInt(process.env.APP_PORT) || 3000);
+
+  if (startupDiagnosticsEnabled) {
+    logStartup(`listening (+${(performance.now() - startTime).toFixed(0)}ms)`);
+  }
 }
 bootstrap(); // NOSONAR - ignore Sonar warning S7785

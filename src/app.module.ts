@@ -1,9 +1,15 @@
-import { S3Client } from '@aws-sdk/client-s3';
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { getTypeOrmConfig } from 'config/typeorm.config';
 import { ClsModule } from 'nestjs-cls';
+
+import {
+  ClassSerializerInterceptor,
+  MiddlewareConsumer,
+  Module,
+  NestModule,
+} from '@nestjs/common';
 
 import { MulterModule } from '@nestjs/platform-express';
 import { AppController } from './app.controller';
@@ -17,9 +23,8 @@ import { HealthModule } from './health/health.module';
 import { MailModule } from './mail/mail.module';
 import { MailService } from './mail/mail.service';
 import { DEFAULT_MULTER_LIMITS } from './shared/constants/file-upload.constants';
-import { SecretsService } from './shared/secrets/secrets.service';
+import { TypeOrmExceptionFilter } from './shared/filters/typeorm-exception.filter';
 import { SharedModule } from './shared/shared.module';
-import { ImageUploadsService } from './shared/utilities/image-uploads.service';
 import { ValidatorsService } from './shared/utilities/validators.service';
 import { AccountModule } from './sto/account/account.module';
 import { CharacterModule } from './sto/character/character.module';
@@ -83,13 +88,18 @@ import { UserModule } from './user/user.module';
   ],
   controllers: [AppController],
   providers: [
-    S3Client,
     AppService,
     MailService,
-    SecretsService,
     ConfigCheckService,
     ValidatorsService,
-    ImageUploadsService,
+    {
+      provide: APP_FILTER,
+      useClass: TypeOrmExceptionFilter,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: ClassSerializerInterceptor,
+    },
   ],
 })
 export class AppModule implements NestModule {

@@ -3,6 +3,7 @@ import {
   CreateDateColumn,
   DeleteDateColumn,
   Entity,
+  Index,
   ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
@@ -14,10 +15,11 @@ export class UserRefreshTokenEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ unique: true })
+  @Column({ unique: true, nullable: true })
   tokenId: string;
 
-  @Column()
+  @Index()
+  @Column({ unique: true })
   jwtId: string;
 
   @Column()
@@ -37,4 +39,8 @@ export class UserRefreshTokenEntity {
 
   @ManyToOne(() => UserEntity, user => user.refreshTokens)
   user: UserEntity;
+
+  @Index()
+  @Column()
+  userId: string;
 }
