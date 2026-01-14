@@ -179,6 +179,14 @@ class EnvironmentVariables {
   @IsOptional()
   @IsNumber()
   TRUST_PROXY_HOPS: number;
+
+  @IsNotEmpty()
+  @IsString()
+  REDIS_HOST: string;
+
+  @IsNotEmpty()
+  @IsNumber()
+  REDIS_PORT: number;
 }
 
 @Injectable()

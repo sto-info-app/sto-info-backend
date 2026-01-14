@@ -49,6 +49,8 @@ describe('ConfigCheckService', () => {
       MAX_IMAGE_SIZE_IN_BYTES: '5242880',
       AUDIT_DATA_NUKE_THRESHOLD_DAYS: '90',
       AUDIT_IP_NUKE_THRESHOLD_DAYS: '30',
+      REDIS_HOST: 'localhost',
+      REDIS_PORT: '6379',
     };
 
     it('should validate correct configuration', () => {

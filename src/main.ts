@@ -1,14 +1,9 @@
 import { config } from 'dotenv';
 config({ path: 'config/environments/.env' });
 
-import {
-  ClassSerializerInterceptor,
-  HttpStatus,
-  Logger,
-  ValidationPipe,
-} from '@nestjs/common';
+import { HttpStatus, Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { NestFactory, Reflector } from '@nestjs/core';
+import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
@@ -18,9 +13,11 @@ import rateLimit, {
   RateLimitRequestHandler,
 } from 'express-rate-limit';
 import helmet from 'helmet';
+import Redis from 'ioredis';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { performance } from 'node:perf_hooks';
+import { RedisStore } from 'rate-limit-redis';
 
 import { AppModule } from './app.module';
 import { NonceMiddleware } from './auth/nonce.middleware';
@@ -34,7 +31,6 @@ import {
   RATE_LIMIT_EXCLUDED_PATHS,
 } from './shared/constants/rate-limit.constants';
 import { SWAGGER_UI_DARK_THEME_CSS } from './shared/constants/swagger.constants';
-import { TypeOrmExceptionFilter } from './shared/filters/typeorm-exception.filter';
 import { getAppVersion } from './shared/utilities/version.utility';
 
 function toMb(bytes: number): string {
@@ -47,11 +43,15 @@ function formatStartupMemory(message: string) {
   return `[startup] ${message} | rss=${toMb(mem.rss)} heapUsed=${toMb(mem.heapUsed)} heapTotal=${toMb(mem.heapTotal)} external=${toMb(mem.external)} arrayBuffers=${toMb(mem.arrayBuffers)}`;
 }
 
-function createRateLimiter(options: {
-  windowMins: number;
-  max: number;
-  skipSuccessfulRequests?: boolean;
-}): RateLimitRequestHandler {
+function createRateLimiter(
+  options: {
+    windowMins: number;
+    max: number;
+    skipSuccessfulRequests?: boolean;
+  },
+  redis: Redis,
+  prefix: string,
+): RateLimitRequestHandler {
   const { windowMins, max, skipSuccessfulRequests = false } = options;
 
   const errorMessage = `Too many requests`;
@@ -84,6 +84,11 @@ function createRateLimiter(options: {
     keyGenerator: (req: Request) => {
       return ipKeyGenerator(req.clientIp ?? req.ip ?? '');
     },
+    store: new RedisStore({
+      // @ts-expect-error - ioredis and rate-limit-redis type mismatch on call
+      sendCommand: (...args: string[]) => redis.call(...args),
+      prefix: `rl:${prefix}:`,
+    }),
   });
 }
 
@@ -106,11 +111,25 @@ async function bootstrap() {
   const configCheckService = new ConfigCheckService();
   configCheckService.validateInput(process.env); // Validate the environment variables
 
+  // Initialize Redis store for rate limiting
+  const redis = new Redis({
+    host: process.env.REDIS_HOST || 'localhost',
+    port: Number.parseInt(process.env.REDIS_PORT) || 6379,
+  });
+
   // Define rate limiters based on operation type
-  const readLimiter = createRateLimiter(RATE_LIMIT_CONFIGS.READ);
-  const writeLimiter = createRateLimiter(RATE_LIMIT_CONFIGS.WRITE);
-  const authLimiter = createRateLimiter(RATE_LIMIT_CONFIGS.AUTH);
-  const expensiveLimiter = createRateLimiter(RATE_LIMIT_CONFIGS.EXPENSIVE);
+  const readLimiter = createRateLimiter(RATE_LIMIT_CONFIGS.READ, redis, 'read');
+  const writeLimiter = createRateLimiter(
+    RATE_LIMIT_CONFIGS.WRITE,
+    redis,
+    'write',
+  );
+  const authLimiter = createRateLimiter(RATE_LIMIT_CONFIGS.AUTH, redis, 'auth');
+  const expensiveLimiter = createRateLimiter(
+    RATE_LIMIT_CONFIGS.EXPENSIVE,
+    redis,
+    'expensive',
+  );
 
   // Determine log levels based on environment
   const logLevels = getLogLevelsForEnvironment(
@@ -141,9 +160,6 @@ async function bootstrap() {
       `after NestFactory.create (+${(performance.now() - startTime).toFixed(0)}ms)`,
     );
   }
-
-  // Use global exception filter for TypeORM exceptions
-  app.useGlobalFilters(new TypeOrmExceptionFilter());
 
   // Use environment vars
   const configService = app.get(ConfigService);
@@ -308,8 +324,8 @@ async function bootstrap() {
     }
   });
 
-  // Enable class serializer interceptor for managing response data
-  app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
+  // Applied via AppModule:
+  // app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
 
   if (!inProduction) {
     const require = createRequire(__filename);
