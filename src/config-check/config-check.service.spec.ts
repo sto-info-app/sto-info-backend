@@ -141,6 +141,41 @@ describe('ConfigCheckService', () => {
       const result = service.validateInput(config);
       expect(result).toBeDefined();
     });
+
+    it('should accept valid redis:// URL for REDIS_URL', () => {
+      const config = { ...validConfig, REDIS_URL: 'redis://localhost:6379' };
+      const result = service.validateInput(config);
+      expect(result.REDIS_URL).toBe('redis://localhost:6379');
+    });
+
+    it('should accept valid rediss:// URL for REDIS_URL (secure Redis)', () => {
+      const config = {
+        ...validConfig,
+        REDIS_URL: 'rediss://red-example:6380',
+      };
+      const result = service.validateInput(config);
+      expect(result.REDIS_URL).toBe('rediss://red-example:6380');
+    });
+
+    it('should throw error for REDIS_URL without redis protocol', () => {
+      const invalidConfig = {
+        ...validConfig,
+        REDIS_URL: 'http://localhost:6379',
+      };
+
+      expect(() => service.validateInput(invalidConfig)).toThrow(
+        'Validation error',
+      );
+    });
+
+    it('should throw error for missing REDIS_URL', () => {
+      const invalidConfig = { ...validConfig };
+      delete invalidConfig.REDIS_URL;
+
+      expect(() => service.validateInput(invalidConfig)).toThrow(
+        'Validation error',
+      );
+    });
   });
 
   describe('get', () => {

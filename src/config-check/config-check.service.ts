@@ -182,6 +182,10 @@ class EnvironmentVariables {
 
   @IsNotEmpty()
   @IsString()
+  @Matches(/^rediss?:\/\/.+/, {
+    message:
+      'REDIS_URL must be a valid Redis connection string (redis:// or rediss://)',
+  })
   REDIS_URL: string;
 }
 
