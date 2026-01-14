@@ -182,11 +182,7 @@ class EnvironmentVariables {
 
   @IsNotEmpty()
   @IsString()
-  REDIS_HOST: string;
-
-  @IsNotEmpty()
-  @IsNumber()
-  REDIS_PORT: number;
+  REDIS_URL: string;
 }
 
 @Injectable()

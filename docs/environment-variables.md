@@ -46,8 +46,7 @@ Note: the app reads `config/environments/.env` at startup (see `src/main.ts`).
 
 ### Redis
 
-- `REDIS_HOST`: Hostname for Redis (used for rate limiting)
-- `REDIS_PORT`: Port for Redis (default is `6379`)
+- `REDIS_URL`: Full connection string for Redis (e.g. `redis://localhost:6379`). Render provides this automatically for managed Redis.
 
 ### Email
 
