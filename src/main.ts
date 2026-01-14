@@ -17,7 +17,7 @@ import Redis from 'ioredis';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { performance } from 'node:perf_hooks';
-import { RedisStore } from 'rate-limit-redis';
+import { type RedisReply, RedisStore } from 'rate-limit-redis';
 
 import { AppModule } from './app.module';
 import { NonceMiddleware } from './auth/nonce.middleware';
@@ -82,11 +82,14 @@ function createRateLimiter(
     skipSuccessfulRequests,
     skipFailedRequests: false,
     keyGenerator: (req: Request) => {
-      return ipKeyGenerator(req.clientIp ?? req.ip ?? '');
+      const ip = req.clientIp ?? req.ip ?? '';
+      // /64 is the common recommendation for IPv6 subnetting when keying by IP
+      return ipKeyGenerator(ip, 64);
     },
+
     store: new RedisStore({
-      // @ts-expect-error - ioredis and rate-limit-redis type mismatch on call
-      sendCommand: (...args: string[]) => redis.call(...args),
+      sendCommand: (command: string, ...args: string[]) =>
+        redis.call(command, ...args) as Promise<RedisReply>,
       prefix: `rl:${prefix}:`,
     }),
   });
