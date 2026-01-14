@@ -123,6 +123,20 @@ The `LOG_LEVEL` environment variable controls logging verbosity:
 - Full credit card numbers
 - Personal identification numbers
 
+## Startup Notes
+
+### Database Initialisation (TypeORM)
+
+- The application uses NestJS + `TypeOrmModule.forRootAsync(...)` to initialise the database connection.
+- Avoid manually creating/initialising a second `DataSource` during bootstrap, as it can duplicate connection pools/metadata and increase baseline memory usage.
+
+### Startup Diagnostics
+
+For investigating intermittent startup memory jumps (especially in production), you can enable lightweight memory/timing logs during bootstrap:
+
+- Set `STARTUP_DIAGNOSTICS=true` to log `rss`, `heapUsed`, `heapTotal`, `external`, and `arrayBuffers` at key stages (bootstrap start, after app creation, after module init, and after listening).
+- Leave unset/false for normal operation.
+
 ## Rate Limiting
 
 ### Global Rate Limiting

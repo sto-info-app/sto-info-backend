@@ -80,6 +80,7 @@ Note: the app reads `config/environments/.env` at startup (see `src/main.ts`).
 ## Optional
 
 - `TRUST_PROXY_HOPS`: Express trust proxy hops (default is `1` when not provided)
+- `STARTUP_DIAGNOSTICS`: `true` | `false` (default `false`). When `true`, logs process memory usage (RSS/heap/external) at key startup stages to help diagnose intermittent memory jumps.
 
 ## Optional (dev-only seeding)
 

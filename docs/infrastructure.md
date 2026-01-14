@@ -65,6 +65,10 @@ All variables from `config/environments/.env.example` must be configured in Rend
 - `AUDIT_IP_NUKE_THRESHOLD_DAYS`
 - `TRUST_PROXY_HOPS=1` (optional, defaults to 1)
 
+Optional (diagnostics):
+
+- `STARTUP_DIAGNOSTICS=true` (temporarily) to emit additional startup memory/timing logs in Render. Useful when investigating intermittent RSS jumps on boot.
+
 Optional (seed user):
 
 - `DATASEED_USER_EMAIL`, `DATASEED_USER_USERNAME`, `DATASEED_USER_FIRSTNAME`, `DATASEED_USER_LASTNAME`, `DATASEED_USER_PASSWORD`
