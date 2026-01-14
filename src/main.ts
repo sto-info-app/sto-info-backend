@@ -115,7 +115,11 @@ async function bootstrap() {
   configCheckService.validateInput(process.env); // Validate the environment variables
 
   // Initialize Redis store for rate limiting
-  const redis = new Redis(process.env.REDIS_URL);
+  const redisUrl = process.env.REDIS_URL;
+  if (!redisUrl) {
+    throw new Error('REDIS_URL is not set');
+  }
+  const redis = new Redis(redisUrl);
 
   // Define rate limiters based on operation type
   const readLimiter = createRateLimiter(RATE_LIMIT_CONFIGS.READ, redis, 'read');
