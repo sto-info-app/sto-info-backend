@@ -155,6 +155,29 @@ Stricter limits are applied to specific route groups before the method-based lim
 - Auth endpoints (15 minute window): 20 per window
 - Expensive endpoints (15 minute window): 50 per window
 
+### Implementation Details
+
+**Redis Store:**
+
+- Each rate limiter creates a dedicated `RedisStore` instance to avoid store reuse errors
+- Store uses type-safe `sendCommand` implementation with proper TypeScript typing (`RedisReply`)
+- Redis commands are executed via `ioredis` client's `call` method
+
+**Key Generation:**
+
+- Rate limit keys are generated from client IP addresses
+- IPv4 addresses: Used directly (e.g., `192.0.2.1`)
+- IPv6 addresses: `/64` subnet prefix used for keying (common recommendation for IPv6 subnetting)
+- IPv6-mapped IPv4 addresses (`:ffff:192.0.2.1`) are normalized to IPv4 by `clientIpMiddleware` before reaching rate limiter
+
+**IP Address Resolution:**
+
+Client IP is extracted in priority order:
+
+1. `CF-Connecting-IP` (Cloudflare's authoritative header)
+2. First entry from `X-Forwarded-For`
+3. Express `req.ip`
+
 ### Rate Limit Headers
 
 Responses include standard rate limit headers from `express-rate-limit` (RFC-style `RateLimit-*` headers), plus `Retry-After` on 429 responses.

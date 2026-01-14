@@ -31,6 +31,7 @@ Documentation is in [docs/](docs/).
 - Node.js (version 22.x or higher)
 - npm (version 10.x or higher)
 - PostgreSQL database (version 14.x or higher)
+- Redis (version 6.x or higher)
 - Amazon Secrets Manager
 
 ### Installation

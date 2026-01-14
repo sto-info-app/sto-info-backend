@@ -90,6 +90,52 @@ Optional (seed user):
 
 > TODO: Verify the managed Postgres version/plan/backup retention/extensions from the Render dashboard (and update this section if they differ).
 
+### Redis Service Configuration
+
+- **Service Type:** Redis (Managed)
+- **Version:** Redis 7.x
+- **Plan:** Starter (256MB memory, 10 connections)
+- **Persistence:** AOF (Append-Only File) enabled for data durability
+- **Eviction Policy:** `noeviction` (fails writes when memory limit reached)
+
+**Usage:**
+
+Redis is used for:
+
+1. **Rate Limiting State**: All rate limiting categories (Read, Write, Auth, Expensive) store their state in Redis with unique key prefixes (`rl:read:`, `rl:write:`, `rl:auth:`, `rl:expensive:`)
+2. **Refresh Token Revocation**: Revoked refresh token tracking (future implementation)
+
+**Connection String:**
+
+- Render automatically provides `REDIS_URL` environment variable for managed Redis instances
+- Format: `redis://red-xxxxx:port`
+- Render-managed Redis instances are private and only accessible from services within the same Render account
+
+**Key Patterns:**
+
+- `rl:read:{ip}`: Read operation rate limit tracking
+- `rl:write:{ip}`: Write operation rate limit tracking
+- `rl:auth:{ip}`: Authentication endpoint rate limit tracking
+- `rl:expensive:{ip}`: Expensive operation rate limit tracking
+
+**IPv6 Handling:**
+
+- Rate limiting keys use `/64` subnet for IPv6 addresses (common recommendation for IPv6 subnetting)
+- IPv4 addresses are used as-is
+- IPv6-mapped IPv4 addresses (e.g., `::ffff:192.0.2.1`) are normalized to IPv4 format (`192.0.2.1`)
+
+**Local Development:**
+
+For local development, install Redis locally:
+
+- **Windows**: Use WSL2 with Redis or Redis for Windows
+- **macOS**: `brew install redis` then `brew services start redis`
+- **Linux**: Install via package manager (e.g., `apt install redis-server`)
+
+Set `REDIS_URL=redis://localhost:6379` in your local `.env` file.
+
+> TODO: Verify the exact Redis version/plan/persistence settings from the Render dashboard and update if they differ.
+
 ### Health Check Endpoints
 
 **Backend Health Check:**
