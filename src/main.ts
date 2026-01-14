@@ -4,6 +4,7 @@ config({ path: 'config/environments/.env' });
 import {
   ClassSerializerInterceptor,
   HttpStatus,
+  Logger,
   ValidationPipe,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -11,7 +12,6 @@ import { NestFactory, Reflector } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
-import { connectionSourcePromise } from 'config/typeorm.datasource';
 import { json, NextFunction, Request, Response, urlencoded } from 'express';
 import rateLimit, {
   ipKeyGenerator,
@@ -20,6 +20,7 @@ import rateLimit, {
 import helmet from 'helmet';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { performance } from 'node:perf_hooks';
 
 import { AppModule } from './app.module';
 import { NonceMiddleware } from './auth/nonce.middleware';
@@ -35,6 +36,16 @@ import {
 import { SWAGGER_UI_DARK_THEME_CSS } from './shared/constants/swagger.constants';
 import { TypeOrmExceptionFilter } from './shared/filters/typeorm-exception.filter';
 import { getAppVersion } from './shared/utilities/version.utility';
+
+function toMb(bytes: number): string {
+  return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+}
+
+function formatStartupMemory(message: string) {
+  const mem = process.memoryUsage();
+
+  return `[startup] ${message} | rss=${toMb(mem.rss)} heapUsed=${toMb(mem.heapUsed)} heapTotal=${toMb(mem.heapTotal)} external=${toMb(mem.external)} arrayBuffers=${toMb(mem.arrayBuffers)}`;
+}
 
 function createRateLimiter(options: {
   windowMins: number;
@@ -77,6 +88,21 @@ function createRateLimiter(options: {
 }
 
 async function bootstrap() {
+  const startupDiagnosticsEnabled =
+    (process.env.STARTUP_DIAGNOSTICS ?? '').toLowerCase() === 'true';
+  const startTime = performance.now();
+
+  // Hybrid diagnostics logging:
+  // - Prefer Nest Logger when 'log' level is enabled.
+  // - Fall back to console when it isn't (so prod with strict levels still shows diagnostics).
+  // Note: the effective logger override happens during NestFactory.create.
+  const startupLogger = new Logger('Startup');
+
+  if (startupDiagnosticsEnabled) {
+    // At this point we don't yet know the configured log levels, so use console.
+    console.log(formatStartupMemory('bootstrap:start'));
+  }
+
   const configCheckService = new ConfigCheckService();
   configCheckService.validateInput(process.env); // Validate the environment variables
 
@@ -92,11 +118,29 @@ async function bootstrap() {
     process.env.LOG_LEVEL,
   );
 
+  const shouldUseNestLoggerForStartup = logLevels.includes('log');
+  const logStartup = (message: string) => {
+    const line = formatStartupMemory(message);
+
+    if (shouldUseNestLoggerForStartup) {
+      startupLogger.log(line);
+      return;
+    }
+
+    console.log(line);
+  };
+
   // Create NestJS application with custom body parser limits and configured logger
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bodyParser: false,
     logger: logLevels,
   });
+
+  if (startupDiagnosticsEnabled) {
+    logStartup(
+      `after NestFactory.create (+${(performance.now() - startTime).toFixed(0)}ms)`,
+    );
+  }
 
   // Use global exception filter for TypeORM exceptions
   app.useGlobalFilters(new TypeOrmExceptionFilter());
@@ -172,10 +216,6 @@ async function bootstrap() {
 
   // Use the nonce middleware
   app.use(new NonceMiddleware().use);
-
-  // Initialize the DataSource
-  const connectionSource = await connectionSourcePromise;
-  await connectionSource.initialize();
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -294,7 +334,21 @@ async function bootstrap() {
     });
   }
 
+  // Force module initialization before listening so we can log a stable "post-init" baseline.
+  // `app.listen()` calls init internally if needed, but calling it explicitly helps diagnostics.
+  await app.init();
+
+  if (startupDiagnosticsEnabled) {
+    logStartup(
+      `after app.init (+${(performance.now() - startTime).toFixed(0)}ms)`,
+    );
+  }
+
   // Start listening for requests on the specified port
   await app.listen(Number.parseInt(process.env.APP_PORT) || 3000);
+
+  if (startupDiagnosticsEnabled) {
+    logStartup(`listening (+${(performance.now() - startTime).toFixed(0)}ms)`);
+  }
 }
 bootstrap(); // NOSONAR - ignore Sonar warning S7785
