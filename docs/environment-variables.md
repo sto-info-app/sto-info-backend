@@ -44,6 +44,11 @@ Note: the app reads `config/environments/.env` at startup (see `src/main.ts`).
 - `TYPEORM_ENTITIES`: Glob relative to the built root (e.g. `src/**/*.entity.{js,ts}`)
 - `TYPEORM_MIGRATIONS`: Glob relative to the built root (e.g. `src/database/migrations/*.{js,ts}`)
 
+### Redis
+
+- `REDIS_HOST`: Hostname for Redis (used for rate limiting)
+- `REDIS_PORT`: Port for Redis (default is `6379`)
+
 ### Email
 
 - `SENDGRID_NOREPLY_SENDER`: From address for outbound email

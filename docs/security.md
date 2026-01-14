@@ -241,6 +241,8 @@ Document current token expiry (e.g., 1 hour, 24 hours).
 - Standard window length is 15 minutes
 - GET/HEAD (read): 1500 per window (only failed requests are counted)
 - POST/PUT/PATCH/DELETE (write): 200 per window
+- Rate limit state is stored in **Redis** to ensure scalability and prevent memory leaks.
+- Each rate limiting category (Read, Write, Auth, Expensive) uses a dedicated RedisStore instance with its own key prefix (e.g., `rl:read:`, `rl:auth:`).
 
 **Purpose:**
 

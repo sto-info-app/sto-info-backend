@@ -24,8 +24,8 @@ Client-side token storage strategy is intentionally left to the consuming applic
 
 ### Refresh tokens
 
-- Refresh token `jti` values are persisted in the database in `user_refresh_token`
-- Token IDs are stored as bcrypt hashes
+- Refresh token `jti` (JWT ID) values are persisted in the database as `jwtId`
+- Token revocation is high-performance $O(1)$ based on database indexing of `jwtId` and `userId`
 - Tokens can be revoked (marked `isRevoked=true`)
 - A scheduled cleanup deletes expired or revoked refresh tokens daily at 3am
 
@@ -141,7 +141,7 @@ For investigating intermittent startup memory jumps (especially in production), 
 
 ### Global Rate Limiting
 
-Rate limiting is implemented using `express-rate-limit` in `main.ts`.
+Rate limiting is implemented using `express-rate-limit` and stored in **Redis** via `rate-limit-redis`. Each category of rate limiting uses a unique Redis key prefix to prevent collisions.
 
 Default limits (15 minute windows):
 
