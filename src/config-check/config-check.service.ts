@@ -3,11 +3,13 @@ import { plainToClass } from 'class-transformer';
 import {
   IsBooleanString,
   IsEmail,
+  IsIn,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
   IsUrl,
+  Matches,
   ValidateIf,
   validateSync,
 } from 'class-validator';
@@ -16,8 +18,19 @@ import {
 //NOTE: The app will throw an error when it starts up if missing/invalid.
 class EnvironmentVariables {
   @IsNotEmpty()
-  @IsString()
+  @IsIn(['local', 'dev', 'staging', 'prod'])
   NODE_ENV: string;
+
+  @IsNotEmpty()
+  @IsString()
+  @Matches(
+    /^(error|warn|log|debug|verbose)(,(error|warn|log|debug|verbose))*$/,
+    {
+      message:
+        'LOG_LEVEL must be one of error,warn,log,debug,verbose (optionally comma-separated)',
+    },
+  )
+  LOG_LEVEL: string;
 
   @IsNotEmpty()
   @IsNumber()
@@ -50,6 +63,7 @@ class EnvironmentVariables {
 
   @IsNotEmpty()
   @IsString()
+  @IsIn(['postgres'])
   DB_TYPE: string;
 
   @IsNotEmpty()
@@ -71,6 +85,10 @@ class EnvironmentVariables {
   @IsNotEmpty()
   @IsString()
   DB_USERNAME: string;
+
+  @IsNotEmpty()
+  @IsBooleanString()
+  DB_SSL_REJECT_UNAUTHORIZED: string;
 
   @IsNotEmpty()
   @IsBooleanString()
@@ -108,6 +126,26 @@ class EnvironmentVariables {
   @IsString()
   AWS_SECRET_NAME: string;
 
+  @IsOptional()
+  @IsEmail()
+  DATASEED_USER_EMAIL?: string;
+
+  @IsOptional()
+  @IsString()
+  DATASEED_USER_USERNAME?: string;
+
+  @IsOptional()
+  @IsString()
+  DATASEED_USER_FIRSTNAME?: string;
+
+  @IsOptional()
+  @IsString()
+  DATASEED_USER_LASTNAME?: string;
+
+  @IsOptional()
+  @IsString()
+  DATASEED_USER_PASSWORD?: string;
+
   @IsNotEmpty()
   @ValidateIf(o => !o.CLOUDFLARE_R2_ENDPOINT.startsWith('https://'))
   @IsUrl()
@@ -141,6 +179,14 @@ class EnvironmentVariables {
   @IsOptional()
   @IsNumber()
   TRUST_PROXY_HOPS: number;
+
+  @IsNotEmpty()
+  @IsString()
+  @Matches(/^rediss?:\/\/.+/, {
+    message:
+      'REDIS_URL must be a valid Redis connection string (redis:// or rediss://)',
+  })
+  REDIS_URL: string;
 }
 
 @Injectable()

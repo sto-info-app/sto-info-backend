@@ -27,7 +27,7 @@ export class ImageUploadsService {
   constructor(
     private readonly secretsService: SecretsService,
     private readonly configService: ConfigService,
-    private s3Client: S3Client,
+    private readonly s3Client: S3Client,
   ) {
     this.bucketName = this.configService.get<string>(
       'CLOUDFLARE_R2_BUCKET_NAME',
@@ -71,16 +71,6 @@ export class ImageUploadsService {
     if (!secretObject.cloudmersiveApiKey) {
       throw new BadRequestException(errorMsgMissingCloudmersiveApiKey);
     }
-
-    // Initialise the S3 client with Cloudflare R2 endpoint and credentials
-    this.s3Client = new S3Client({
-      region: 'auto',
-      endpoint: process.env.CLOUDFLARE_R2_ENDPOINT,
-      credentials: {
-        accessKeyId: secretObject.cloudflareR2AccessKey,
-        secretAccessKey: secretObject.cloudflareR2Secret,
-      },
-    });
 
     // Set the variables from the AWS Secrets object
     this.cloudmersiveApiKey = secretObject.cloudmersiveApiKey;

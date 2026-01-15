@@ -108,7 +108,7 @@ export function parseLogLevel(logLevel?: string): LogLevel[] {
   const levelIndex = VALID_LOG_LEVELS.indexOf(logLevel as LogLevel);
 
   if (levelIndex >= 0) {
-    return VALID_LOG_LEVELS.slice(0, levelIndex + 1) as LogLevel[];
+    return VALID_LOG_LEVELS.slice(0, levelIndex + 1);
   }
 
   // Invalid level specified - return default

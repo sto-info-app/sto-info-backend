@@ -9,6 +9,18 @@ dotenvConfig({ path: './config/environments/.env' });
 
 const secretsService = new SecretsService();
 
+function getDbType(): 'postgres' {
+  const dbType = (process.env.DB_TYPE ?? 'postgres').toLowerCase();
+
+  // This project currently supports Postgres only.
+  // If you add support for other providers, extend this guard and the config validation.
+  if (dbType !== 'postgres') {
+    throw new Error(`Unsupported DB_TYPE: ${dbType}`);
+  }
+
+  return 'postgres';
+}
+
 export async function getTypeOrmConfig(): Promise<DataSourceOptions> {
   const secretObject = await secretsService.getSecret(
     process.env.AWS_SECRET_NAME,
@@ -21,7 +33,7 @@ export async function getTypeOrmConfig(): Promise<DataSourceOptions> {
   const migrationDir = join(rootDir, process.env.TYPEORM_MIGRATIONS);
 
   return {
-    type: 'postgres',
+    type: getDbType(),
     host: process.env.DB_HOST,
     port: Number.parseInt(process.env.DB_PORT, 10) || 5432,
     username: process.env.DB_USERNAME,

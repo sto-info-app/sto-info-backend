@@ -167,7 +167,8 @@ export class AuthService {
     const emailHtmlContent = await ejs.renderFile(
       path.join(
         __dirname,
-        '../..',
+        '..',
+        'views',
         'email-templates',
         'registration-welcome-email.ejs',
       ),

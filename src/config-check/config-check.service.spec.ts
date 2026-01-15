@@ -18,7 +18,8 @@ describe('ConfigCheckService', () => {
 
   describe('validateInput', () => {
     const validConfig = {
-      NODE_ENV: 'test',
+      NODE_ENV: 'local',
+      LOG_LEVEL: 'log',
       APP_PORT: '3000',
       APP_FRONTEND_URL: 'http://localhost:3000',
       APP_TITLE: 'Test App',
@@ -31,6 +32,7 @@ describe('ConfigCheckService', () => {
       DB_NAME: 'testdb',
       DB_SCHEMA: 'public',
       DB_USERNAME: 'testuser',
+      DB_SSL_REJECT_UNAUTHORIZED: 'false',
       TYPEORM_SYNCHRONIZE: 'false',
       TYPEORM_LOGGING: 'false',
       TYPEORM_ENTITIES: 'dist/**/*.entity.js',
@@ -47,12 +49,13 @@ describe('ConfigCheckService', () => {
       MAX_IMAGE_SIZE_IN_BYTES: '5242880',
       AUDIT_DATA_NUKE_THRESHOLD_DAYS: '90',
       AUDIT_IP_NUKE_THRESHOLD_DAYS: '30',
+      REDIS_URL: 'redis://localhost:6379',
     };
 
     it('should validate correct configuration', () => {
       const result = service.validateInput(validConfig);
       expect(result).toBeDefined();
-      expect(result.NODE_ENV).toBe('test');
+      expect(result.NODE_ENV).toBe('local');
       expect(result.APP_PORT).toBe(3000);
     });
 
@@ -137,6 +140,41 @@ describe('ConfigCheckService', () => {
       const config = { ...validConfig };
       const result = service.validateInput(config);
       expect(result).toBeDefined();
+    });
+
+    it('should accept valid redis:// URL for REDIS_URL', () => {
+      const config = { ...validConfig, REDIS_URL: 'redis://localhost:6379' };
+      const result = service.validateInput(config);
+      expect(result.REDIS_URL).toBe('redis://localhost:6379');
+    });
+
+    it('should accept valid rediss:// URL for REDIS_URL (secure Redis)', () => {
+      const config = {
+        ...validConfig,
+        REDIS_URL: 'rediss://red-example:6380',
+      };
+      const result = service.validateInput(config);
+      expect(result.REDIS_URL).toBe('rediss://red-example:6380');
+    });
+
+    it('should throw error for REDIS_URL without redis protocol', () => {
+      const invalidConfig = {
+        ...validConfig,
+        REDIS_URL: 'http://localhost:6379',
+      };
+
+      expect(() => service.validateInput(invalidConfig)).toThrow(
+        'Validation error',
+      );
+    });
+
+    it('should throw error for missing REDIS_URL', () => {
+      const invalidConfig = { ...validConfig };
+      delete invalidConfig.REDIS_URL;
+
+      expect(() => service.validateInput(invalidConfig)).toThrow(
+        'Validation error',
+      );
     });
   });
 
