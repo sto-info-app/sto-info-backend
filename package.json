@@ -1,6 +1,6 @@
 {
   "name": "sto-info-backend",
-  "version": "1.0.25",
+  "version": "1.0.26",
   "description": "Star Trek Online Information APIs",
   "author": "Steve Roberts",
   "private": true,
@@ -21,8 +21,8 @@
     "migration:show": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:show -d ./config/typeorm.datasource.ts",
     "typeorm": "ts-node -r tsconfig-paths/register ./config/run-typeorm.ts",
     "migration:generate": "npm run typeorm -- migration:generate",
-    "start": "cross-env TZ=UTC node dist/main",
-    "start:prod": "cross-env TZ=UTC node dist/main",
+    "start": "cross-env TZ=UTC node dist/src/main",
+    "start:prod": "cross-env TZ=UTC node dist/src/main",
     "start:render": "npm run migration:run && npm run start:prod",
     "start:dev": "cross-env TZ=UTC nest start --watch",
     "start:watch": "npm run start:dev",
