@@ -17,7 +17,8 @@ export class MailService {
 
   private readonly emailTemplatePath = path.join(
     __dirname,
-    '../..',
+    '..',
+    'views',
     'email-templates',
   );
 

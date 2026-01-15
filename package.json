@@ -1,6 +1,6 @@
 {
   "name": "sto-info-backend",
-  "version": "1.0.26",
+  "version": "1.0.27",
   "description": "Star Trek Online Information APIs",
   "author": "Steve Roberts",
   "private": true,
@@ -24,7 +24,7 @@
     "start": "cross-env TZ=UTC node dist/src/main",
     "start:prod": "cross-env TZ=UTC node dist/src/main",
     "start:render": "npm run migration:run && npm run start:prod",
-    "start:dev": "cross-env TZ=UTC nest start --watch",
+    "start:dev": "npm run assets:copy && cross-env TZ=UTC nest start --watch",
     "start:watch": "npm run start:dev",
     "start:debug": "cross-env TZ=UTC nest start --debug --watch",
     "start:dist": "npm run build && npm run migration:run && npm run start:prod",
