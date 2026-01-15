@@ -318,7 +318,7 @@ Document any caching strategies here (e.g., Redis, in-memory cache, HTTP caching
 
 ### Development Scripts
 
-- `npm run start:dev`: Start the application in development mode with hot-reload and watch mode. Use this for local development.
+- `npm run start:dev`: Copy email templates and start the application in development mode with hot-reload and watch mode. Use this for local development.
 - `npm run start:watch`: Alias for `start:dev`. Use for local development with auto-reload.
 - `npm run start:debug`: Start the application with debugging enabled and watch mode. Use when you need to attach a debugger.
 
