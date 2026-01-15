@@ -67,7 +67,7 @@
     "fast-glob": "^3.3.2",
     "helmet": "^8.1.0",
     "html-to-text": "^9.0.5",
-    "ioredis": "^5.9.1",
+    "ioredis": "^5.9.2",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.0.2",
     "nestjs-cls": "^6.2.0",
