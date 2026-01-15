@@ -6,7 +6,7 @@ export default {
   jest: {
     projectType: 'custom',
     configFile: 'jest.config.mjs',
-    enableFindRelatedTests: false,
+    enableFindRelatedTests: true,
   },
   mutate: [
     'src/**/*.ts',
