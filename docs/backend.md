@@ -316,34 +316,44 @@ Document any caching strategies here (e.g., Redis, in-memory cache, HTTP caching
 
 ## NPM Scripts
 
-### Development
+### Development Scripts
 
-- `npm run start`: Start application
-- `npm run start:dev`: Start with hot-reload and watch mode
-- `npm run start:debug`: Start with debugging enabled
+- `npm run start:dev`: Start the application in development mode with hot-reload and watch mode. Use this for local development.
+- `npm run start:watch`: Alias for `start:dev`. Use for local development with auto-reload.
+- `npm run start:debug`: Start the application with debugging enabled and watch mode. Use when you need to attach a debugger.
 
-### Building
+### Production & Deployment Scripts
 
-- `npm run build`: Compile TypeScript to JavaScript for production
-- `npm run format`: Format code with Prettier
-- `npm run lint`: Run ESLint checks
+- `npm run start`: Start the compiled application (requires `dist/` to exist). Use in production environments.
+- `npm run start:prod`: Alias for `start`. Use in production environments.
+- `npm run start:render`: Run migrations then start production server. **Used by Render.com for deployment**.
+- `npm run start:dist`: Build, run migrations, then start production server. Use for full local production testing.
 
-### Testing
+### Building & Assets
 
-- `npm run test`: Run unit tests
-- `npm run test:watch`: Run tests in watch mode
-- `npm run test:cov`: Run tests with coverage report
-- `npm run test:debug`: Run tests with debugging
-- `npm run test:mutation`: Run Stryker mutation tests
-- `npm run test:mutation:dry`: Dry run mutation tests (no actual mutations)
+- `npm run build`: Clean the `dist/` directory, compile TypeScript to JavaScript, and copy email templates. Use before deployment or production testing.
+- `npm run clean`: Remove the `dist/` directory. Use to ensure a clean build.
+- `npm run assets:copy`: Copy email templates to `dist/` directory. Automatically called by `build`.
 
-### Database
+### Linting
 
-- `npm run migration:create`: Create a new migration file
-- `npm run migration:generate`: Generate migration from entity changes
-- `npm run migration:run`: Execute pending migrations
-- `npm run migration:revert`: Revert last migration
+- `npm run lint`: Run ESLint checks on the codebase. Use to check code quality before committing.
+- `npm run lint:fix`: Run ESLint with auto-fix enabled. Use to automatically fix linting issues.
 
-### Other
+### Testing Scripts
 
-- `npm run typeorm`: Run TypeORM CLI commands directly
+- `npm run test`: Run unit tests. Use during development to verify functionality.
+- `npm run test:watch`: Run tests in watch mode (re-runs on file changes). Use during active development.
+- `npm run test:cov`: Run tests with full coverage report (lcov + text summary). Use before commits/PRs to ensure coverage.
+- `npm run test:debug`: Run tests with Node debugger attached. Use to debug failing tests.
+- `npm run test:e2e`: Run end-to-end tests. Use to verify full application flows.
+- `npm run test:mutation`: Run Stryker mutation tests with progress, clear-text, and HTML reporters. Use to verify test quality.
+- `npm run test:mutation:dry`: Run mutation tests in dry-run mode (no actual mutations). Use to verify Stryker configuration.
+
+### Database Migration Scripts
+
+- `npm run migration:generate -- -n <NameOfMigration>`: Generate a new migration from entity changes. Use when entity schemas change.
+- `npm run migration:run`: Execute all pending migrations. Use when deploying or setting up the database.
+- `npm run migration:revert`: Revert the last executed migration. Use to roll back a migration.
+- `npm run migration:show`: Show which migrations have been run and which are pending. Use to check migration status.
+- `npm run typeorm`: Run TypeORM CLI commands directly with ts-node and path mapping. Use for advanced TypeORM operations.
