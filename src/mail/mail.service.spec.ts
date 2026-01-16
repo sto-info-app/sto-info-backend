@@ -192,6 +192,44 @@ describe('MailService', () => {
         service.generateEmailMessageObject('invalid', 'sub', 'text', 'html'),
       ).toThrow('Invalid email format');
     });
+
+    it('should append environment to subject when NODE_ENV is not prod', () => {
+      process.env.NODE_ENV = 'development';
+      const result = service.generateEmailMessageObject(
+        'test@example.com',
+        'Test Subject',
+        'text',
+        'html',
+      );
+      expect(result.subject).toBe('Test Subject [development]');
+    });
+
+    it('should not append environment to subject when NODE_ENV is prod', () => {
+      process.env.NODE_ENV = 'prod';
+      const result = service.generateEmailMessageObject(
+        'test@example.com',
+        'Test Subject',
+        'text',
+        'html',
+      );
+      expect(result.subject).toBe('Test Subject');
+    });
+
+    it('should return correct message object structure', () => {
+      const result = service.generateEmailMessageObject(
+        'test@example.com',
+        'Test Subject',
+        'Test text',
+        '<html>Test html</html>',
+      );
+      expect(result).toHaveProperty('to', 'test@example.com');
+      expect(result).toHaveProperty('from');
+      expect(result.from).toHaveProperty('name', 'Test App');
+      expect(result.from).toHaveProperty('email', 'no-reply@test.local');
+      expect(result).toHaveProperty('subject');
+      expect(result).toHaveProperty('text', 'Test text');
+      expect(result).toHaveProperty('html', '<html>Test html</html>');
+    });
   });
 
   describe('validateEnvironmentVariables', () => {
