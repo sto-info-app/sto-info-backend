@@ -29,6 +29,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           done(error, null);
         }
       },
+      jsonWebTokenOptions: {
+        clockTolerance: 30, // 30 seconds buffer for expiry
+      },
     });
   }
 
