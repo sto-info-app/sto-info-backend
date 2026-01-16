@@ -104,14 +104,13 @@ export class AuthController {
     return this.authService.login(userLoginDto);
   }
 
-  @UseGuards(AuthGuard('jwt'))
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Log out the current session',
     description:
-      'Revokes the supplied refresh token, preventing further access-token refresh for that session.',
+      'Revokes the supplied refresh token, preventing further access-token refresh for that session. This endpoint works even if the access token has expired, as long as a valid tokenId is provided.',
   })
   @ApiBody({
     schema: {
@@ -132,7 +131,8 @@ export class AuthController {
     description: 'Logout successful. The refresh token is revoked.',
   })
   @ApiUnauthorizedResponse({
-    description: 'Missing or invalid access token.',
+    description:
+      'Missing or invalid access token (Optional for logout if tokenId is provided).',
   })
   async logout(@Body() body: { tokenId: string }): Promise<void> {
     await this.refreshTokenService.revokeUserRefreshToken(body.tokenId);
