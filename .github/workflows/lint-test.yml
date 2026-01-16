@@ -32,12 +32,12 @@ jobs:
 
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 0
 
       - name: Use Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -69,6 +69,8 @@ jobs:
         run: test -f reports/coverage/lcov.info
 
       - name: SonarQube Cloud Scan
+        # Skip SonarQube for Dependabot PRs (dependency updates have no code changes to analyze)
+        if: github.event_name != 'pull_request' || github.actor != 'dependabot[bot]'
         uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7.0.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -89,8 +91,8 @@ jobs:
             -Dsonar.issue.ignore.multicriteria.e2.resourceKey=**/*.spec.ts,**/*.test.ts,**/__tests__/**,**/test/**,**/tests/**
 
       - name: Run Incremental Mutation Testing
-        # Only run on PRs
-        if: github.event_name == 'pull_request'
+        # Only run on PRs, but skip Dependabot PRs (dependency updates have no code changes to mutate)
+        if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
         shell: bash
         run: |
           # Fetch the base branch to compare against

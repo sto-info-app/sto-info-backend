@@ -262,10 +262,15 @@ export class MailService {
       throw new Error('Invalid email format');
     }
 
+    const finalSubject =
+      process.env.NODE_ENV === 'prod'
+        ? subject
+        : `${subject} [${process.env.NODE_ENV}]`;
+
     return {
       to,
       from: this.noReplyEmailFromSender,
-      subject,
+      subject: finalSubject,
       text,
       html,
     };
