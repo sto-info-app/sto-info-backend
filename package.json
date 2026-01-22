@@ -120,7 +120,8 @@
     "typescript": "^5.5.3"
   },
   "overrides": {
-    "diff": "^8.0.3"
+    "diff": "^8.0.3",
+    "lodash": "^4.17.23"
   },
   "eslintConfig": {
     "root": true,
