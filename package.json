@@ -119,6 +119,9 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.5.3"
   },
+  "overrides": {
+    "diff": "^8.0.3"
+  },
   "eslintConfig": {
     "root": true,
     "env": {
