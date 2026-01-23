@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 env:
   NODE_VERSION: 24
@@ -17,6 +18,7 @@ concurrency:
 jobs:
   bump_version:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment: Development
 
     # Hardening:
@@ -28,7 +30,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           token: ${{ secrets.GH_PAT_REPO_TOKEN }}
@@ -42,13 +44,15 @@ jobs:
       - name: Install deps
         run: npm ci --ignore-scripts
 
-      - name: Bump patch version (no tag), commit to development
+      - name: Bump patch version and create PR
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT_REPO_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          NEW_VERSION="$(node -p "require('./package.json').version")"
-          echo "Current version: $NEW_VERSION"
+          CURRENT_VERSION="$(node -p "require('./package.json').version")"
+          echo "Current version: $CURRENT_VERSION"
 
           # Bump patch without creating a git tag
           npm version patch --no-git-tag-version
@@ -56,6 +60,34 @@ jobs:
           NEW_VERSION="$(node -p "require('./package.json').version")"
           echo "Bumped version: $NEW_VERSION"
 
+          # Create a new branch for the version bump
+          BRANCH_NAME="chore/bump-version-to-$NEW_VERSION"
+
+          # Check if a PR already exists for this version
+          EXISTING_PR=$(gh pr list --base development --head "$BRANCH_NAME" --json number --jq '.[0].number' || echo "")
+
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #$EXISTING_PR already exists for version $NEW_VERSION. Skipping."
+            exit 0
+          fi
+
+          # Delete the remote branch if it exists from a previous failed run
+          git push origin --delete "$BRANCH_NAME" 2>/dev/null || echo "Branch $BRANCH_NAME does not exist remotely, continuing..."
+
+          # Create the branch
+          git checkout -b "$BRANCH_NAME"
+
+          # Commit the changes
           git add package.json package-lock.json
           git commit -m "chore: bump version to $NEW_VERSION"
-          git push origin HEAD:development
+
+          # Push the branch
+          git push origin "$BRANCH_NAME"
+
+          # Create a pull request using GitHub CLI
+          gh pr create \
+            --title "chore: bump version to $NEW_VERSION" \
+            --body "Automated version bump from $CURRENT_VERSION to $NEW_VERSION" \
+            --base development \
+            --head "$BRANCH_NAME" \
+            --delete-branch
