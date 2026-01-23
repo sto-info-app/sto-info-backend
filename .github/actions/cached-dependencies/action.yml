@@ -14,7 +14,7 @@ runs:
   steps:
     - name: Restore node_modules cache
       if: inputs.use-cache == 'true'
-      uses: actions/cache@v4
+      uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
       with:
         path: node_modules
         key: ${{ runner.os }}-node${{ inputs.node-version }}-node-modules-${{ hashFiles('package-lock.json') }}

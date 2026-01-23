@@ -1,92 +1,92 @@
-name: Version bump on PR open (to development branch)
+name: Version bump on merge to development
 
 on:
-  pull_request:
+  push:
     branches: [development]
-    types: [opened, reopened]
 
 permissions:
   contents: write
-  pull-requests: read
+  pull-requests: write
 
 env:
   NODE_VERSION: 24
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: version-bump-development
   cancel-in-progress: true
 
 jobs:
   bump_version:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: Development
+
+    # Hardening:
+    # - Do not run on the bot itself (prevents loops)
+    # - Do not run if the commit message already looks like our bump commit
+    if: >
+      github.actor != 'github-actions[bot]' &&
+      !startsWith(github.event.head_commit.message, 'chore: bump version to ')
 
     steps:
-      - name: Detect fork PR
-        id: fork-check
-        run: |
-          if [ "${{ github.event.pull_request.head.repo.fork }}" = "true" ]; then
-            echo "is_fork=true" >> "$GITHUB_OUTPUT"
-            echo "PR is from a fork. Skipping version bump."
-          else
-            echo "is_fork=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Capture and validate PR branch info
-        if: steps.fork-check.outputs.is_fork != 'true'
-        id: pr-info
-        env:
-          PR_BRANCH_RAW: ${{ github.event.pull_request.head.ref }}
-          PR_REPO_RAW: ${{ github.event.pull_request.head.repo.full_name }}
-        run: |
-          # Allow only safe branch characters
-          if ! [[ "$PR_BRANCH_RAW" =~ ^[A-Za-z0-9._/-]+$ ]]; then
-            echo "Unsafe branch name detected. Aborting."
-            exit 1
-          fi
-
-          echo "pr_branch=$PR_BRANCH_RAW" >> "$GITHUB_OUTPUT"
-          echo "pr_repo=$PR_REPO_RAW" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout PR head branch
-        if: steps.fork-check.outputs.is_fork != 'true'
-        uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ steps.pr-info.outputs.pr_branch }}
-          repository: ${{ steps.pr-info.outputs.pr_repo }}
           fetch-depth: 0
+          token: ${{ secrets.GH_PAT_REPO_TOKEN }}
 
       - name: Set up Node
-        if: steps.fork-check.outputs.is_fork != 'true'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
 
-      - name: Stop if already bumped on this branch
-        if: steps.fork-check.outputs.is_fork != 'true'
+      - name: Install deps
+        run: npm ci --ignore-scripts
+
+      - name: Bump patch version and create PR
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT_REPO_TOKEN }}
         run: |
-          if git log -50 --pretty=%s | grep -qi "^chore: bump version to"; then
-            echo "Version bump commit already present. Exiting."
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          CURRENT_VERSION="$(node -p "require('./package.json').version")"
+          echo "Current version: $CURRENT_VERSION"
+
+          # Bump patch without creating a git tag
+          npm version patch --no-git-tag-version
+
+          NEW_VERSION="$(node -p "require('./package.json').version")"
+          echo "Bumped version: $NEW_VERSION"
+
+          # Create a new branch for the version bump
+          BRANCH_NAME="chore/bump-version-to-$NEW_VERSION"
+
+          # Check if a PR already exists for this version
+          EXISTING_PR=$(gh pr list --base development --head "$BRANCH_NAME" --json number --jq '.[0].number' || echo "")
+
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #$EXISTING_PR already exists for version $NEW_VERSION. Skipping."
             exit 0
           fi
 
-      - name: Show current version
-        if: steps.fork-check.outputs.is_fork != 'true'
-        run: node -p "require('./package.json').version"
+          # Delete the remote branch if it exists from a previous failed run
+          git push origin --delete "$BRANCH_NAME" 2>/dev/null || echo "Branch $BRANCH_NAME does not exist remotely, continuing..."
 
-      - name: Bump patch version (commit to PR branch)
-        if: steps.fork-check.outputs.is_fork != 'true'
-        env:
-          PR_BRANCH: ${{ steps.pr-info.outputs.pr_branch }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Create the branch
+          git checkout -b "$BRANCH_NAME"
 
-          NEW_VERSION=$(npm version patch --no-git-tag-version)
-
-          # Stage updated version files
+          # Commit the changes
           git add package.json package-lock.json
+          git commit -m "chore: bump version to $NEW_VERSION"
 
-          # Commit the version bump so it can be pushed
-          git commit -m "chore: bump version to ${NEW_VERSION#v}"
+          # Push the branch
+          git push origin "$BRANCH_NAME"
 
-          git push origin "HEAD:$PR_BRANCH"
+          # Create a pull request using GitHub CLI
+          gh pr create \
+            --title "chore: bump version to $NEW_VERSION" \
+            --body "Automated version bump from $CURRENT_VERSION to $NEW_VERSION" \
+            --base development \
+            --head "$BRANCH_NAME"
