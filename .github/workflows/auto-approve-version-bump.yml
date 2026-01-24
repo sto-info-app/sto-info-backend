@@ -9,14 +9,12 @@ permissions:
   pull-requests: write
 
 jobs:
+  # Only run for version bump PRs (title pattern match)
+  # Works regardless of whether PR is created by bot or PAT owner
   auto_approve:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    # Only run for PRs created by github-actions bot with version bump title
-    if: >
-      github.event.pull_request.user.login == 'github-actions[bot]' &&
-      startsWith(github.event.pull_request.title, 'chore: bump version to')
+    timeout-minutes: 5
+    if: "startsWith(github.event.pull_request.title, 'chore: bump version to')"
 
     steps:
       - name: Auto-approve PR
@@ -27,3 +25,17 @@ jobs:
             --repo ${{ github.repository }} \
             --approve \
             --body "Auto-approving automated version bump PR"
+
+      - name: Wait for checks and auto-merge
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT_REPO_TOKEN }}
+        run: |
+          # Wait a moment for approval to register
+          sleep 5
+
+          # Merge the PR (squash merge for clean history, auto-delete branch)
+          gh pr merge ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} \
+            --squash \
+            --delete-branch \
+            --body "Auto-merging automated version bump"

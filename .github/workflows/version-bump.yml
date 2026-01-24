@@ -21,12 +21,12 @@ jobs:
     timeout-minutes: 30
     environment: Development
 
-    # Hardening:
-    # - Do not run on the bot itself (prevents loops)
-    # - Do not run if the commit message already looks like our bump commit
+    # Hardening: prevent infinite loops
+    # - Do not run if the commit message matches our version bump pattern
+    # Note: Commits are authored by the PAT owner (not bot) to enable GPG signing
     if: >
-      github.actor != 'github-actions[bot]' &&
-      !startsWith(github.event.head_commit.message, 'chore: bump version to ')
+      !startsWith(github.event.head_commit.message, 'chore: bump version to ') &&
+      !contains(github.event.head_commit.message, 'Automated version bump from')
 
     steps:
       - name: Checkout
@@ -48,8 +48,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT_REPO_TOKEN }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Configure git to use the PAT owner's identity
+          git config user.name "Steve Roberts"
+          git config user.email "1162407+steverobertsuk@users.noreply.github.com"
 
           CURRENT_VERSION="$(node -p "require('./package.json').version")"
           echo "Current version: $CURRENT_VERSION"
