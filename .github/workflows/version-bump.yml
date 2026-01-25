@@ -18,15 +18,15 @@ concurrency:
 jobs:
   bump_version:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    environment: Development
+    timeout-minutes: 15
 
     # Hardening: prevent infinite loops
-    # - Do not run if the commit message matches our version bump pattern
-    # Note: Commits are authored by the PAT owner (not bot) to enable GPG signing
-    if: >
+    # - Skip if the commit message matches our version bump pattern
+    # - Skip if it's a merge commit from a version bump PR
+    if: |
       !startsWith(github.event.head_commit.message, 'chore: bump version to ') &&
-      !contains(github.event.head_commit.message, 'Automated version bump from')
+      !contains(github.event.head_commit.message, 'Automated version bump from') &&
+      !(contains(github.event.head_commit.message, 'Merge pull request') && contains(github.event.head_commit.message, 'chore/bump-version-to'))
 
     steps:
       - name: Checkout
@@ -39,55 +39,57 @@ jobs:
         uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
 
-      - name: Install deps
-        run: npm ci --ignore-scripts
+      - name: Load & cache dependencies
+        uses: ./.github/actions/cached-dependencies
+        with:
+          use-cache: true
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Bump patch version and create PR
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT_REPO_TOKEN }}
-        run: |
-          # Configure git to use the PAT owner's identity
-          git config user.name "Steve Roberts"
-          git config user.email "1162407+steverobertsuk@users.noreply.github.com"
+    - name: Bump patch version and create PR
+      env:
+        GH_TOKEN: ${{ secrets.GH_PAT_REPO_TOKEN }}
+      run: |
+        # Configure git to use the bot's identity
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          CURRENT_VERSION="$(node -p "require('./package.json').version")"
-          echo "Current version: $CURRENT_VERSION"
+        CURRENT_VERSION="$(node -p "require('./package.json').version")"
+        echo "Current version: $CURRENT_VERSION"
 
-          # Bump patch without creating a git tag
-          npm version patch --no-git-tag-version
+        # Bump patch without creating a git tag
+        npm version patch --no-git-tag-version
 
-          NEW_VERSION="$(node -p "require('./package.json').version")"
-          echo "Bumped version: $NEW_VERSION"
+        NEW_VERSION="$(node -p "require('./package.json').version")"
+        echo "Bumped version: $NEW_VERSION"
 
-          # Create a new branch for the version bump
-          BRANCH_NAME="chore/bump-version-to-$NEW_VERSION"
+        # Create a new branch for the version bump
+        BRANCH_NAME="chore/bump-version-to-$NEW_VERSION"
 
-          # Check if a PR already exists for this version
-          EXISTING_PR=$(gh pr list --base development --head "$BRANCH_NAME" --json number --jq '.[0].number' || echo "")
+        # Check if a PR already exists for this version
+        EXISTING_PR=$(gh pr list --base development --head "$BRANCH_NAME" --json number --jq '.[0].number' || echo "")
 
-          if [ -n "$EXISTING_PR" ]; then
-            echo "PR #$EXISTING_PR already exists for version $NEW_VERSION. Skipping."
-            exit 0
-          fi
+        if [ -n "$EXISTING_PR" ]; then
+          echo "PR #$EXISTING_PR already exists for version $NEW_VERSION. Skipping."
+          exit 0
+        fi
 
-          # Delete the remote branch if it exists from a previous failed run
-          git push origin --delete "$BRANCH_NAME" 2>/dev/null || echo "Branch $BRANCH_NAME does not exist remotely, continuing..."
+        # Delete the remote branch if it exists from a previous failed run
+        git push origin --delete "$BRANCH_NAME" 2>/dev/null || echo "Branch $BRANCH_NAME does not exist remotely, continuing..."
 
-          # Create the branch
-          git checkout -b "$BRANCH_NAME"
+        # Create the branch
+        git checkout -b "$BRANCH_NAME"
 
-          # Commit the changes
-          git add package.json package-lock.json
-          git commit -m "chore: bump version to $NEW_VERSION"
+        # Commit the changes
+        git add package.json package-lock.json
+        git commit -m "chore: bump version to $NEW_VERSION"
 
-          # Push the branch
-          git push origin "$BRANCH_NAME"
+        # Push the branch
+        git push origin "$BRANCH_NAME"
 
-          # Create a pull request using GitHub CLI
-          gh pr create \
-            --title "chore: bump version to $NEW_VERSION" \
-            --body "Automated version bump from $CURRENT_VERSION to $NEW_VERSION" \
-            --base development \
-            --head "$BRANCH_NAME"
+        # Create a pull request using GitHub CLI
+        gh pr create \
+          --title "chore: bump version to $NEW_VERSION" \
+          --body "Automated version bump from $CURRENT_VERSION to $NEW_VERSION" \
+          --base development \
+          --head "$BRANCH_NAME"
