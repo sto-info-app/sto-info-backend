@@ -1,0 +1,46 @@
+name: Mutation Testing (Full)
+
+on:
+  schedule:
+    - cron: '0 0 * * 0' # Run every Sunday at midnight
+  workflow_dispatch: # Allow manual trigger
+
+env:
+  NODE_VERSION: 24
+
+jobs:
+  stryker_full:
+    name: Full Mutation Analysis
+    if: github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Load & cache dependencies
+        uses: ./.github/actions/cached-dependencies
+        with:
+          use-cache: true
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Run Stryker (Full)
+        run: npx stryker run
+
+      - name: Upload Mutation Report
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: always()
+        with:
+          name: stryker-full-report
+          path: reports/mutation/
+          retention-days: 30
