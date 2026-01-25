@@ -18,15 +18,15 @@ concurrency:
 jobs:
   bump_version:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    environment: Development
+    timeout-minutes: 15
 
-    # Hardening:
-    # - Do not run on the bot itself (prevents loops)
-    # - Do not run if the commit message already looks like our bump commit
-    if: >
-      github.actor != 'github-actions[bot]' &&
-      !startsWith(github.event.head_commit.message, 'chore: bump version to ')
+    # Hardening: prevent infinite loops
+    # - Skip if the commit message matches our version bump pattern
+    # - Skip if it's a merge commit from a version bump PR
+    if: |
+      !startsWith(github.event.head_commit.message, 'chore: bump version to ') &&
+      !contains(github.event.head_commit.message, 'Automated version bump from') &&
+      !(contains(github.event.head_commit.message, 'Merge pull request') && contains(github.event.head_commit.message, 'chore/bump-version-to'))
 
     steps:
       - name: Checkout
@@ -39,17 +39,20 @@ jobs:
         uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
 
-      - name: Install deps
-        run: npm ci --ignore-scripts
+      - name: Load & cache dependencies
+        uses: ./.github/actions/cached-dependencies
+        with:
+          use-cache: true
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Bump patch version and create PR
         env:
           GH_TOKEN: ${{ secrets.GH_PAT_REPO_TOKEN }}
         run: |
+          # Configure git to use the bot's identity
           git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
           CURRENT_VERSION="$(node -p "require('./package.json').version")"
           echo "Current version: $CURRENT_VERSION"

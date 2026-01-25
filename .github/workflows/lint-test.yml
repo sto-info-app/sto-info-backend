@@ -80,11 +80,14 @@ jobs:
 
   lint_and_test:
     # Don't run for draft PRs (but still run for pushes)
-    # Skip version bump PRs from github-actions bot
-    if: >
+    # Skip version bump PRs from github-actions bot or with version bump branch pattern
+    if: |
       github.actor != 'dependabot[bot]' &&
       (github.event_name != 'pull_request' || github.event.pull_request.draft == false) &&
-      !(github.event_name == 'pull_request' && github.event.pull_request.user.login == 'github-actions[bot]' && startsWith(github.event.pull_request.title, 'chore: bump version to'))
+      !(github.event_name == 'pull_request' && (
+        (github.event.pull_request.user.login == 'github-actions[bot]' && startsWith(github.event.pull_request.title, 'chore: bump version to')) ||
+        startsWith(github.event.pull_request.head.ref, 'chore/bump-version-to-')
+      ))
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -157,7 +160,7 @@ jobs:
         uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
         with:
           path: .stryker-tmp/incremental.json
-          key: stryker-incremental-${{ github.base_ref }}-${{ hashFiles('src/**/*.ts', '!src/**/*.spec.ts') }}
+          key: stryker-incremental-${{ github.base_ref }}-${{ hashFiles('src/**/*.ts') }}
           restore-keys: |
             stryker-incremental-${{ github.base_ref }}-
             stryker-incremental-
