@@ -7,6 +7,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: read
 
 env:
   NODE_VERSION: 24
@@ -19,6 +20,7 @@ jobs:
   bump_version:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    environment: Development
 
     # Hardening: prevent infinite loops
     # - Skip if the commit message matches our version bump pattern
@@ -87,9 +89,22 @@ jobs:
           # Push the branch
           git push origin "$BRANCH_NAME"
 
-          # Create a pull request using GitHub CLI
-          gh pr create \
+          # Create a pull request
+          PR_URL=$(gh pr create \
             --title "chore: bump version to $NEW_VERSION" \
             --body "Automated version bump from $CURRENT_VERSION to $NEW_VERSION" \
             --base development \
-            --head "$BRANCH_NAME"
+            --head "$BRANCH_NAME")
+
+          echo "PR_URL=$PR_URL" >> "$GITHUB_ENV"
+
+      - name: Enable auto-merge
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT_REPO_TOKEN }}
+        run: |
+          sleep 5
+          gh pr merge "$PR_URL" \
+            --repo "${{ github.repository }}" \
+            --merge \
+            --auto \
+            --body "Auto-merging automated version bump"
