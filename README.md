@@ -125,7 +125,7 @@ We welcome contributions! Please read our [contributing guidelines](CONTRIBUTING
 
 We use SonarQube Cloud to ensure the code quality of this project. SonarQube helps us to identify bugs, vulnerabilities, and code smells in our codebase.
 
-[![SonarQube Cloud](https://sonarcloud.io/images/project_badges/sonarcloud-light.svg)](https://sonarcloud.io/summary/new_code?id=steverobertsuk_sto-info-backend)
+[![SonarQube Cloud](https://sonarcloud.io/images/project_badges/sonarcloud-highlight.svg)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
 
 ### Running SonarQube Analysis
 
@@ -140,7 +140,7 @@ Install the [SonarQube IDE](https://www.sonarsource.com/products/sonarlint/) and
 ```json
 {
   "sonarCloudOrganization": "steverobertsuk",
-  "projectKey": "steverobertsuk_sto-info-backend"
+  "projectKey": "sto-info-app_sto-info-backend"
 }
 ```
 
@@ -148,7 +148,7 @@ The analysis results will be available on the SonarQube dashboard.
 
 ### Current SonarQube Analysis
 
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=steverobertsuk_sto-info-backend&metric=alert_status&token=112872819709705c46aa22a30dbc9cb78546a38e)](https://sonarcloud.io/summary/new_code?id=steverobertsuk_sto-info-backend) [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=steverobertsuk_sto-info-backend&metric=bugs&token=112872819709705c46aa22a30dbc9cb78546a38e)](https://sonarcloud.io/summary/new_code?id=steverobertsuk_sto-info-backend) [![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=steverobertsuk_sto-info-backend&metric=code_smells&token=112872819709705c46aa22a30dbc9cb78546a38e)](https://sonarcloud.io/summary/new_code?id=steverobertsuk_sto-info-backend) [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=steverobertsuk_sto-info-backend&metric=duplicated_lines_density&token=112872819709705c46aa22a30dbc9cb78546a38e)](https://sonarcloud.io/summary/new_code?id=steverobertsuk_sto-info-backend)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=alert_status&token=112872819709705c46aa22a30dbc9cb78546a38e)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend) [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=bugs&token=112872819709705c46aa22a30dbc9cb78546a38e)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend) [![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=code_smells&token=112872819709705c46aa22a30dbc9cb78546a38e)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend) [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=duplicated_lines_density&token=112872819709705c46aa22a30dbc9cb78546a38e)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
 
 ## Licence
 
