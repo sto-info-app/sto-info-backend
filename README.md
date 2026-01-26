@@ -1,4 +1,4 @@
-# sto-info-backend
+# sto-info-backend [![Uptime status](https://img.shields.io/uptimerobot/status/m802169058-d230a9a973c1eef1de28ed63.svg)](https://status.startrekonline.info/) [![Uptime 30 days](https://img.shields.io/uptimerobot/ratio/m802169058-d230a9a973c1eef1de28ed63.svg)](https://status.startrekonline.info/)
 
 ## Project Overview
 
