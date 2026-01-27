@@ -72,7 +72,7 @@
   ],
   "sonarlint.connectedMode.project": {
     "connectionId": "steverobertsuk",
-    "projectKey": "steverobertsuk_sto-info-backend"
+    "projectKey": "sto-info-app_sto-info-backend"
   },
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "explicit",
