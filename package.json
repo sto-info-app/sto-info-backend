@@ -39,7 +39,7 @@
     "test:mutation:dry": "stryker run --reporters clear-text --reporters html --reporters progress --dryRunOnly"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.975.0",
+    "@aws-sdk/client-s3": "^3.978.0",
     "@aws-sdk/client-secrets-manager": "^3.978.0",
     "@nestjs/common": "^11.1.12",
     "@nestjs/config": "^4.0.0",
