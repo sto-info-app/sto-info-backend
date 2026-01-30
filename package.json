@@ -94,7 +94,7 @@
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.1.12",
     "@stryker-mutator/core": "^9.5.0",
-    "@stryker-mutator/jest-runner": "^9.4.0",
+    "@stryker-mutator/jest-runner": "^9.5.0",
     "@stryker-mutator/typescript-checker": "^9.5.0",
     "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.6",
