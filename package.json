@@ -39,8 +39,8 @@
     "test:mutation:dry": "stryker run --reporters clear-text --reporters html --reporters progress --dryRunOnly"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.978.0",
-    "@aws-sdk/client-secrets-manager": "^3.978.0",
+    "@aws-sdk/client-s3": "^3.981.0",
+    "@aws-sdk/client-secrets-manager": "^3.981.0",
     "@nestjs/common": "^11.1.12",
     "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.1.12",
@@ -75,7 +75,7 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
-    "pg": "^8.17.2",
+    "pg": "^8.18.0",
     "rate-limit-redis": "^4.3.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
@@ -108,7 +108,7 @@
     "eslint-plugin-prettier": "^5.5.5",
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "glob": "^13.0.0",
-    "globals": "^17.2.0",
+    "globals": "^17.3.0",
     "jest": "^30.2.0",
     "prettier": "^3.8.1",
     "rimraf": "^6.1.2",
