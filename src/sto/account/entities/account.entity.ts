@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import {
   IsBoolean,
   IsDateString,
@@ -21,6 +22,7 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  VirtualColumn,
 } from 'typeorm';
 import { CharacterEntity } from '../../character/entities/character.entity';
 
@@ -119,4 +121,32 @@ export class AccountEntity {
 
   @OneToMany('CharacterEntity', 'account')
   characters: CharacterEntity[];
+
+  /**
+   * The number of non-deleted characters associated with this specific account.
+   */
+  @ApiProperty({
+    description:
+      'The number of non-deleted characters associated with this specific account.',
+    example: 5,
+  })
+  @VirtualColumn({
+    query: alias =>
+      `SELECT count(*) FROM "sto_info_app"."character" WHERE "accountId" = ${alias}.id AND "deletedAt" IS NULL`,
+  })
+  characterCount: number;
+
+  /**
+   * The number of non-deleted characters associated with the user across all their accounts.
+   */
+  @ApiProperty({
+    description:
+      'The number of non-deleted characters associated with the user across all their accounts.',
+    example: 12,
+  })
+  @VirtualColumn({
+    query: alias =>
+      `SELECT count(*) FROM "sto_info_app"."character" c JOIN "sto_info_app"."account" a ON c."accountId" = a.id WHERE a."userId" = ${alias}."userId" AND c."deletedAt" IS NULL`,
+  })
+  userCharacterCount: number;
 }
