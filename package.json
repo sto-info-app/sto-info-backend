@@ -89,7 +89,7 @@
   "devDependencies": {
     "@eslint/config-array": "^0.23.0",
     "@eslint/object-schema": "^3.0.0",
-    "@ianvs/prettier-plugin-sort-imports": "^4.7.0",
+    "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
     "@nestjs/cli": "^11.0.16",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.1.13",
