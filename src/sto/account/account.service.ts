@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -74,6 +75,14 @@ export class AccountService {
    * @throws {InternalServerErrorException} If saving fails.
    */
   async create(createAccountDto: CreateAccountDto): Promise<AccountEntity> {
+    if (!createAccountDto) {
+      throw new BadRequestException('Account data is required');
+    }
+
+    if (!createAccountDto.userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
     await this.assertHandleUniqueForUser(
       createAccountDto.userId,
       createAccountDto.handle,
@@ -106,6 +115,10 @@ export class AccountService {
    * @returns List of the user's accounts.
    */
   async findAllUsersAccounts(userId: string): Promise<AccountEntity[]> {
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
     return this.accountRepository.find({
       where: {
         user: {
@@ -125,6 +138,10 @@ export class AccountService {
    * @returns The account if found, otherwise `null`.
    */
   async findOne(id: string): Promise<AccountEntity> {
+    if (!id) {
+      throw new BadRequestException('Account ID is required');
+    }
+
     const account = await this.accountRepository.findOne({
       where: {
         id: id,
@@ -140,6 +157,10 @@ export class AccountService {
    * @returns The account if found, otherwise `null`.
    */
   async findOneBySlug(handleSlug: string): Promise<AccountEntity | null> {
+    if (!handleSlug) {
+      throw new BadRequestException('Handle slug is required');
+    }
+
     return this.accountRepository.findOne({
       where: { handleSlug },
     });
@@ -158,6 +179,14 @@ export class AccountService {
     id: string,
     userId: string,
   ): Promise<AccountEntity> {
+    if (!id) {
+      throw new BadRequestException('Account ID is required');
+    }
+
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
     const account = await this.accountRepository.findOne({
       where: {
         id,
@@ -185,6 +214,14 @@ export class AccountService {
    * @throws {ForbiddenException} If the account is not owned by the user.
    */
   async findOneForUser(id: string, userId: string): Promise<AccountEntity> {
+    if (!id) {
+      throw new BadRequestException('Account ID is required');
+    }
+
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
     return this.requireOwnedAccount(id, userId);
   }
 
@@ -202,6 +239,14 @@ export class AccountService {
     id: string,
     updateAccountDto: UpdateAccountDto,
   ): Promise<AccountEntity> {
+    if (!id) {
+      throw new BadRequestException('Account ID is required');
+    }
+
+    if (!updateAccountDto) {
+      throw new BadRequestException('Update data is required');
+    }
+
     await this.accountRepository.update(id, updateAccountDto);
     const updatedAccount = await this.accountRepository.findOne({
       where: {
@@ -232,6 +277,18 @@ export class AccountService {
     userId: string,
     updateAccountDto: UpdateAccountDto,
   ): Promise<AccountEntity> {
+    if (!id) {
+      throw new BadRequestException('Account ID is required');
+    }
+
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
+    if (!updateAccountDto) {
+      throw new BadRequestException('Update data is required');
+    }
+
     const account = await this.requireOwnedAccount(id, userId);
 
     if (
@@ -262,6 +319,10 @@ export class AccountService {
    * @throws {NotFoundException} If the account does not exist.
    */
   async remove(id: string): Promise<void> {
+    if (!id) {
+      throw new BadRequestException('Account ID is required');
+    }
+
     const deleteResponse = await this.accountRepository.softDelete(id);
     if (!deleteResponse.affected) {
       throw new NotFoundException(`Account with ID "${id}" not found`);
@@ -277,6 +338,14 @@ export class AccountService {
    * @throws {ForbiddenException} If the account is not owned by the user.
    */
   async removeForUser(id: string, userId: string): Promise<void> {
+    if (!id) {
+      throw new BadRequestException('Account ID is required');
+    }
+
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
     const account = await this.requireOwnedAccount(id, userId);
     const deleteResponse = await this.accountRepository.softDelete(account.id);
     if (!deleteResponse.affected) {
