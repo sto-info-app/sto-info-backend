@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   InternalServerErrorException,
@@ -114,6 +115,18 @@ describe('AccountService', () => {
       expect(result).toEqual(account);
       expect(repository.findOne).not.toHaveBeenCalled();
     });
+
+    it('should throw BadRequestException if dto is missing', async () => {
+      await expect(service.create(null as any)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if userId is missing', async () => {
+      await expect(service.create({ handle: 'h' } as any)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
   });
 
   describe('findAllUsersAccounts', () => {
@@ -132,6 +145,12 @@ describe('AccountService', () => {
         order: { handle: 'ASC', username: 'ASC', createdAt: 'ASC' },
       });
     });
+
+    it('should throw BadRequestException if userId is missing', async () => {
+      await expect(service.findAllUsersAccounts('')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
   });
 
   describe('findOne', () => {
@@ -143,6 +162,10 @@ describe('AccountService', () => {
 
       expect(result).toEqual(account);
       expect(repository.findOne).toHaveBeenCalledWith({ where: { id: '1' } });
+    });
+
+    it('should throw BadRequestException if id is missing', async () => {
+      await expect(service.findOne('')).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -165,6 +188,12 @@ describe('AccountService', () => {
       const result = await service.findOneBySlug('non-existent');
 
       expect(result).toBeNull();
+    });
+
+    it('should throw BadRequestException if slug is missing', async () => {
+      await expect(service.findOneBySlug('')).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -197,6 +226,18 @@ describe('AccountService', () => {
         ForbiddenException,
       );
     });
+
+    it('should throw BadRequestException if id is missing', async () => {
+      await expect(service.findOneForUser('', 'user-1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if userId is missing', async () => {
+      await expect(service.findOneForUser('1', '')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
   });
 
   describe('update', () => {
@@ -220,6 +261,18 @@ describe('AccountService', () => {
 
       await expect(service.update('1', dto as any)).rejects.toThrow(
         NotFoundException,
+      );
+    });
+
+    it('should throw BadRequestException if id is missing', async () => {
+      await expect(service.update('', {}) as any).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if dto is missing', async () => {
+      await expect(service.update('1', null as any)).rejects.toThrow(
+        BadRequestException,
       );
     });
   });
@@ -327,6 +380,24 @@ describe('AccountService', () => {
       expect(repository.findOne).toHaveBeenCalledTimes(1); // Only for requireOwnedAccount
       expect(repository.save).toHaveBeenCalled();
     });
+
+    it('should throw BadRequestException if id is missing', async () => {
+      await expect(service.updateForUser('', 'user-1', {})).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if userId is missing', async () => {
+      await expect(service.updateForUser('1', '', {})).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if dto is missing', async () => {
+      await expect(
+        service.updateForUser('1', 'user-1', null as any),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 
   describe('remove', () => {
@@ -342,6 +413,10 @@ describe('AccountService', () => {
       (repository.softDelete as jest.Mock).mockResolvedValue({ affected: 0 });
 
       await expect(service.remove('1')).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException if id is missing', async () => {
+      await expect(service.remove('')).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -379,6 +454,18 @@ describe('AccountService', () => {
 
       await expect(service.removeForUser('1', 'user-1')).rejects.toThrow(
         NotFoundException,
+      );
+    });
+
+    it('should throw BadRequestException if id is missing', async () => {
+      await expect(service.removeForUser('', 'user-1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if userId is missing', async () => {
+      await expect(service.removeForUser('1', '')).rejects.toThrow(
+        BadRequestException,
       );
     });
   });
