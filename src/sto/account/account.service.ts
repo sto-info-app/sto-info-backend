@@ -179,14 +179,6 @@ export class AccountService {
     id: string,
     userId: string,
   ): Promise<AccountEntity> {
-    if (!id) {
-      throw new BadRequestException('Account ID is required');
-    }
-
-    if (!userId) {
-      throw new BadRequestException('User ID is required');
-    }
-
     const account = await this.accountRepository.findOne({
       where: {
         id,
