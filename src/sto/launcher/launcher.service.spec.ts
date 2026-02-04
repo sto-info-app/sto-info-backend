@@ -1,4 +1,7 @@
-import { InternalServerErrorException } from '@nestjs/common';
+import {
+  BadRequestException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -69,6 +72,10 @@ describe('LauncherService', () => {
       expect(result).toEqual(launcher);
       expect(repository.findOne).toHaveBeenCalledWith({ where: { id: '1' } });
     });
+
+    it('should throw BadRequestException if id is missing', async () => {
+      await expect(service.findOne('')).rejects.toThrow(BadRequestException);
+    });
   });
 
   describe('findOneByName', () => {
@@ -82,6 +89,12 @@ describe('LauncherService', () => {
       expect(repository.findOne).toHaveBeenCalledWith({
         where: { name: 'Steam' },
       });
+    });
+
+    it('should throw BadRequestException if name is missing', async () => {
+      await expect(service.findOneByName('')).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -127,6 +140,12 @@ describe('LauncherService', () => {
         InternalServerErrorException,
       );
     });
+
+    it('should throw BadRequestException if dto is missing', async () => {
+      await expect(service.create(null as any)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
   });
 
   describe('update', () => {
@@ -158,6 +177,16 @@ describe('LauncherService', () => {
         InternalServerErrorException,
       );
     });
+
+    it('should throw BadRequestException if id is missing', async () => {
+      await expect(service.update('', {})).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if dto is missing', async () => {
+      await expect(service.update('1', null as any)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
   });
 
   describe('remove', () => {
@@ -179,6 +208,10 @@ describe('LauncherService', () => {
       await expect(service.remove('1')).rejects.toThrow(
         InternalServerErrorException,
       );
+    });
+
+    it('should throw BadRequestException if id is missing', async () => {
+      await expect(service.remove('')).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -203,6 +236,10 @@ describe('LauncherService', () => {
       await expect(service.softRemove('1')).rejects.toThrow(
         InternalServerErrorException,
       );
+    });
+
+    it('should throw BadRequestException if id is missing', async () => {
+      await expect(service.softRemove('')).rejects.toThrow(BadRequestException);
     });
   });
 

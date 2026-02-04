@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
@@ -19,6 +23,10 @@ export class UserRefreshTokenService {
   async create(
     refreshTokenDto: CreateUserRefreshTokenDto,
   ): Promise<UserRefreshTokenEntity> {
+    if (!refreshTokenDto) {
+      throw new BadRequestException('Refresh token data is required');
+    }
+
     const refreshToken = this.refreshTokenRepository.create(refreshTokenDto);
 
     // If we have a raw token string in tokenId, we hash it for storage
@@ -43,6 +51,10 @@ export class UserRefreshTokenService {
   }
 
   async findByTokenId(tokenId: string): Promise<UserRefreshTokenEntity | null> {
+    if (!tokenId) {
+      throw new BadRequestException('Token ID is required');
+    }
+
     return await this.refreshTokenRepository.findOne({
       where: { tokenId: tokenId },
     });
@@ -52,6 +64,14 @@ export class UserRefreshTokenService {
     user: UserEntity,
     refreshToken: string,
   ): Promise<UserRefreshTokenEntity> {
+    if (!user) {
+      throw new BadRequestException('User is required');
+    }
+
+    if (!refreshToken) {
+      throw new BadRequestException('Refresh token is required');
+    }
+
     const refreshTokenEntity = new UserRefreshTokenEntity();
     refreshTokenEntity.user = user;
     refreshTokenEntity.userId = user.id;
@@ -90,6 +110,10 @@ export class UserRefreshTokenService {
    * @returns A promise that resolves when the token has been successfully revoked
    */
   async revokeUserRefreshToken(rawRefreshToken: string): Promise<void> {
+    if (!rawRefreshToken) {
+      throw new BadRequestException('Refresh token is required');
+    }
+
     // Decode the token to get the JTI
     const payload = jwt.decode(rawRefreshToken) as jwt.JwtPayload;
     if (!payload?.jti) {
@@ -109,6 +133,14 @@ export class UserRefreshTokenService {
    * @param rawRefreshToken - The raw refresh token string to be revoked
    */
   async revokeToken(userId: string, rawRefreshToken: string): Promise<void> {
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
+    if (!rawRefreshToken) {
+      throw new BadRequestException('Refresh token is required');
+    }
+
     // Decode the token to get the JTI
     const payload = jwt.decode(rawRefreshToken) as jwt.JwtPayload;
 
@@ -139,6 +171,10 @@ export class UserRefreshTokenService {
    * or suspicious activity).
    */
   async revokeAllTokensForUser(userId: string): Promise<void> {
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
     await this.refreshTokenRepository.update(
       { user: { id: userId }, isRevoked: false },
       { isRevoked: true },

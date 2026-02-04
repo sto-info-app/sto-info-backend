@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   InternalServerErrorException,
@@ -219,6 +220,24 @@ describe('CharacterService', () => {
         'Failed to save a new character',
       );
     });
+
+    it('should throw BadRequestException if dto is missing', async () => {
+      await expect(service.create(null as any, 'user-1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if accountId is missing', async () => {
+      await expect(service.create({} as any, 'user-1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if userId is missing', async () => {
+      await expect(service.create(createDto as any, '')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
   });
 
   describe('findAllForAccount', () => {
@@ -240,6 +259,18 @@ describe('CharacterService', () => {
             'species',
           ]),
         }),
+      );
+    });
+
+    it('should throw BadRequestException if accountId is missing', async () => {
+      await expect(service.findAllForAccount('', 'user-1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if userId is missing', async () => {
+      await expect(service.findAllForAccount('acc-1', '')).rejects.toThrow(
+        BadRequestException,
       );
     });
   });
@@ -267,6 +298,12 @@ describe('CharacterService', () => {
 
       expect(result).toBeNull();
     });
+
+    it('should throw BadRequestException if slug is missing', async () => {
+      await expect(service.findOneBySlug('')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
   });
 
   describe('findOneForUser', () => {
@@ -291,6 +328,18 @@ describe('CharacterService', () => {
 
       await expect(service.findOneForUser('char-1', 'user-1')).rejects.toThrow(
         ForbiddenException,
+      );
+    });
+
+    it('should throw BadRequestException if id is missing', async () => {
+      await expect(service.findOneForUser('', 'user-1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if userId is missing', async () => {
+      await expect(service.findOneForUser('char-1', '')).rejects.toThrow(
+        BadRequestException,
       );
     });
   });
@@ -360,6 +409,24 @@ describe('CharacterService', () => {
       expect(characterRepository.findOne).toHaveBeenCalledTimes(1);
       expect(characterRepository.save).toHaveBeenCalled();
     });
+
+    it('should throw BadRequestException if id is missing', async () => {
+      await expect(service.updateForUser('', 'user-1', {})).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if userId is missing', async () => {
+      await expect(service.updateForUser('char-1', '', {})).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if dto is missing', async () => {
+      await expect(
+        service.updateForUser('char-1', 'user-1', null as any),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 
   describe('removeForUser', () => {
@@ -372,6 +439,18 @@ describe('CharacterService', () => {
 
       await service.removeForUser('char-1', 'user-1');
       expect(characterRepository.softDelete).toHaveBeenCalledWith('char-1');
+    });
+
+    it('should throw BadRequestException if id is missing', async () => {
+      await expect(service.removeForUser('', 'user-1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if userId is missing', async () => {
+      await expect(service.removeForUser('char-1', '')).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -568,6 +647,24 @@ describe('CharacterService', () => {
       expect(
         imageUploadsService.deleteImageFromCloudflareImages,
       ).not.toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException if id is missing', async () => {
+      await expect(
+        service.uploadProfileImage('', 'user-1', mockFile),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if userId is missing', async () => {
+      await expect(
+        service.uploadProfileImage('char-1', '', mockFile),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if file is missing', async () => {
+      await expect(
+        service.uploadProfileImage('char-1', 'user-1', null as any),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

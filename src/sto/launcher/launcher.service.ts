@@ -1,4 +1,8 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -18,6 +22,10 @@ export class LauncherService {
   }
 
   async findOne(id: string): Promise<LauncherEntity> {
+    if (!id) {
+      throw new BadRequestException('Launcher ID is required');
+    }
+
     const launcher = await this.launcherRepository.findOne({
       where: {
         id: id,
@@ -27,6 +35,10 @@ export class LauncherService {
   }
 
   async findOneByName(name: string): Promise<LauncherEntity> {
+    if (!name) {
+      throw new BadRequestException('Launcher name is required');
+    }
+
     const launcher = await this.launcherRepository.findOne({
       where: { name: name },
     });
@@ -45,6 +57,10 @@ export class LauncherService {
   }
 
   async create(createLauncherDto: CreateLauncherDto): Promise<LauncherEntity> {
+    if (!createLauncherDto) {
+      throw new BadRequestException('Launcher data is required');
+    }
+
     const newLauncher = this.launcherRepository.create(createLauncherDto);
     try {
       await this.launcherRepository.save(newLauncher);
@@ -61,6 +77,14 @@ export class LauncherService {
     id: string,
     updateLauncherDto: UpdateLauncherDto,
   ): Promise<LauncherEntity> {
+    if (!id) {
+      throw new BadRequestException('Launcher ID is required');
+    }
+
+    if (!updateLauncherDto) {
+      throw new BadRequestException('Update data is required');
+    }
+
     const launcher = await this.findOne(id);
     const updatedLauncher = this.launcherRepository.merge(
       launcher,
@@ -78,6 +102,10 @@ export class LauncherService {
   }
 
   async remove(id: string): Promise<void> {
+    if (!id) {
+      throw new BadRequestException('Launcher ID is required');
+    }
+
     const launcher = await this.findOne(id);
     try {
       await this.launcherRepository.remove(launcher);
@@ -90,6 +118,10 @@ export class LauncherService {
   }
 
   async softRemove(id: string): Promise<void> {
+    if (!id) {
+      throw new BadRequestException('Launcher ID is required');
+    }
+
     const launcher = await this.findOne(id);
     try {
       await this.launcherRepository.softDelete(launcher.id);

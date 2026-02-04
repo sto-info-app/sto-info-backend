@@ -1,4 +1,8 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -18,6 +22,10 @@ export class PlatformService {
   }
 
   async findOne(id: string): Promise<PlatformEntity> {
+    if (!id) {
+      throw new BadRequestException('Platform ID is required');
+    }
+
     const platform = await this.platformRepository.findOne({
       where: {
         id: id,
@@ -27,6 +35,10 @@ export class PlatformService {
   }
 
   async findOneByName(name: string): Promise<PlatformEntity> {
+    if (!name) {
+      throw new BadRequestException('Platform name is required');
+    }
+
     const platform = await this.platformRepository.findOne({
       where: { name: name },
     });
@@ -45,6 +57,10 @@ export class PlatformService {
   }
 
   async create(createPlatformDto: CreatePlatformDto): Promise<PlatformEntity> {
+    if (!createPlatformDto) {
+      throw new BadRequestException('Platform data is required');
+    }
+
     const newPlatform = this.platformRepository.create(createPlatformDto);
     try {
       await this.platformRepository.save(newPlatform);
@@ -61,6 +77,14 @@ export class PlatformService {
     id: string,
     updatePlatformDto: UpdatePlatformDto,
   ): Promise<PlatformEntity> {
+    if (!id) {
+      throw new BadRequestException('Platform ID is required');
+    }
+
+    if (!updatePlatformDto) {
+      throw new BadRequestException('Update data is required');
+    }
+
     const platform = await this.findOne(id);
     const updatedPlatform = this.platformRepository.merge(
       platform,
@@ -78,6 +102,10 @@ export class PlatformService {
   }
 
   async remove(id: string): Promise<void> {
+    if (!id) {
+      throw new BadRequestException('Platform ID is required');
+    }
+
     const platform = await this.findOne(id);
     try {
       await this.platformRepository.remove(platform);
@@ -90,6 +118,10 @@ export class PlatformService {
   }
 
   async softRemove(id: string): Promise<void> {
+    if (!id) {
+      throw new BadRequestException('Platform ID is required');
+    }
+
     const platform = await this.findOne(id);
     try {
       await this.platformRepository.softDelete(platform.id);

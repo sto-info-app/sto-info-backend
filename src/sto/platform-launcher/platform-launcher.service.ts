@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -15,6 +16,14 @@ export class PlatformLauncherService {
   ) {}
 
   async addPlatformLauncherRelation(platformId: string, launcherId: string) {
+    if (!platformId) {
+      throw new BadRequestException('Platform ID is required');
+    }
+
+    if (!launcherId) {
+      throw new BadRequestException('Launcher ID is required');
+    }
+
     const platformLauncher = new PlatformLauncherEntity();
     platformLauncher.platformId = platformId;
     platformLauncher.launcherId = launcherId;
@@ -30,6 +39,14 @@ export class PlatformLauncherService {
   }
 
   async removePlatformLauncherRelation(platformId: string, launcherId: string) {
+    if (!platformId) {
+      throw new BadRequestException('Platform ID is required');
+    }
+
+    if (!launcherId) {
+      throw new BadRequestException('Launcher ID is required');
+    }
+
     const platformLauncher = await this.platformLauncherRepository.findOne({
       where: { platformId: platformId, launcherId: launcherId },
     });
@@ -55,6 +72,10 @@ export class PlatformLauncherService {
   async findAllLaunchersForPlatform(
     platformId: string,
   ): Promise<PlatformLauncherEntity[]> {
+    if (!platformId) {
+      throw new BadRequestException('Platform ID is required');
+    }
+
     const launchers = await this.platformLauncherRepository.find({
       where: { platformId: platformId },
     });
@@ -65,6 +86,14 @@ export class PlatformLauncherService {
     platformId: string,
     launcherId: string,
   ): Promise<PlatformLauncherEntity> {
+    if (!platformId) {
+      throw new BadRequestException('Platform ID is required');
+    }
+
+    if (!launcherId) {
+      throw new BadRequestException('Launcher ID is required');
+    }
+
     const platformLauncher = await this.platformLauncherRepository.findOne({
       where: { platformId: platformId, launcherId: launcherId },
     });

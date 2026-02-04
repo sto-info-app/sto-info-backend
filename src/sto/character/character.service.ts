@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -106,6 +107,18 @@ export class CharacterService {
     createCharacterDto: CreateCharacterDto,
     userId: string,
   ): Promise<CharacterEntity> {
+    if (!createCharacterDto) {
+      throw new BadRequestException('Character data is required');
+    }
+
+    if (!createCharacterDto.accountId) {
+      throw new BadRequestException('Account ID is required');
+    }
+
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
     const account = await this.requireOwnedAccount(
       createCharacterDto.accountId,
       userId,
@@ -139,6 +152,14 @@ export class CharacterService {
     accountId: string,
     userId: string,
   ): Promise<CharacterEntity[]> {
+    if (!accountId) {
+      throw new BadRequestException('Account ID is required');
+    }
+
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
     await this.requireOwnedAccount(accountId, userId);
 
     return this.characterRepository.find({
@@ -163,6 +184,10 @@ export class CharacterService {
    * @returns The character if found, otherwise `null`.
    */
   async findOneBySlug(handleSlug: string): Promise<CharacterEntity | null> {
+    if (!handleSlug) {
+      throw new BadRequestException('Handle slug is required');
+    }
+
     return this.characterRepository.findOne({
       where: { fullHandleSlug: handleSlug },
       relations: [
@@ -179,6 +204,14 @@ export class CharacterService {
   }
 
   async findOneForUser(id: string, userId: string): Promise<CharacterEntity> {
+    if (!id) {
+      throw new BadRequestException('Character ID is required');
+    }
+
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
     const character = await this.characterRepository.findOne({
       where: { id },
       relations: [
@@ -209,6 +242,18 @@ export class CharacterService {
     userId: string,
     updateCharacterDto: UpdateCharacterDto,
   ): Promise<CharacterEntity> {
+    if (!id) {
+      throw new BadRequestException('Character ID is required');
+    }
+
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
+    if (!updateCharacterDto) {
+      throw new BadRequestException('Update data is required');
+    }
+
     const character = await this.findOneForUser(id, userId);
 
     if (
@@ -234,6 +279,14 @@ export class CharacterService {
   }
 
   async removeForUser(id: string, userId: string): Promise<void> {
+    if (!id) {
+      throw new BadRequestException('Character ID is required');
+    }
+
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
     const character = await this.findOneForUser(id, userId);
     await this.characterRepository.softDelete(character.id);
   }
@@ -251,6 +304,18 @@ export class CharacterService {
     userId: string,
     file: MulterFile,
   ): Promise<CharacterEntity> {
+    if (!id) {
+      throw new BadRequestException('Character ID is required');
+    }
+
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+
     this.logger.debug(
       `[uploadProfileImage] Starting upload - CharacterId: ${id}, UserId: ${userId}`,
     );

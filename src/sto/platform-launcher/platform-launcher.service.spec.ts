@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
@@ -68,6 +69,18 @@ describe('PlatformLauncherService', () => {
         service.addPlatformLauncherRelation('platform-1', 'launcher-1'),
       ).rejects.toThrow(InternalServerErrorException);
     });
+
+    it('should throw BadRequestException if platformId is missing', async () => {
+      await expect(
+        service.addPlatformLauncherRelation('', 'launcher-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if launcherId is missing', async () => {
+      await expect(
+        service.addPlatformLauncherRelation('platform-1', ''),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 
   describe('removePlatformLauncherRelation', () => {
@@ -104,6 +117,18 @@ describe('PlatformLauncherService', () => {
       await expect(
         service.removePlatformLauncherRelation('platform-1', 'launcher-1'),
       ).rejects.toThrow(InternalServerErrorException);
+    });
+
+    it('should throw BadRequestException if platformId is missing', async () => {
+      await expect(
+        service.removePlatformLauncherRelation('', 'launcher-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if launcherId is missing', async () => {
+      await expect(
+        service.removePlatformLauncherRelation('platform-1', ''),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -144,6 +169,12 @@ describe('PlatformLauncherService', () => {
         where: { platformId: 'platform-1' },
       });
     });
+
+    it('should throw BadRequestException if platformId is missing', async () => {
+      await expect(service.findAllLaunchersForPlatform('')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
   });
 
   describe('findOne', () => {
@@ -169,6 +200,18 @@ describe('PlatformLauncherService', () => {
       const result = await service.findOne('platform-1', 'launcher-1');
 
       expect(result).toBeNull();
+    });
+
+    it('should throw BadRequestException if platformId is missing', async () => {
+      await expect(service.findOne('', 'launcher-1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if launcherId is missing', async () => {
+      await expect(service.findOne('platform-1', '')).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 });
