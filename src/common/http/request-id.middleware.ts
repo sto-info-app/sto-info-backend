@@ -1,0 +1,23 @@
+import { Injectable, NestMiddleware } from '@nestjs/common';
+import * as Sentry from '@sentry/nestjs';
+import { randomUUID } from 'crypto';
+import type { NextFunction, Request, Response } from 'express';
+
+export type RequestWithId = Request & { requestId: string };
+
+@Injectable()
+export class RequestIdMiddleware implements NestMiddleware {
+  use(req: RequestWithId, res: Response, next: NextFunction) {
+    const inbound = req.header('x-request-id');
+    const requestId =
+      inbound && inbound.trim().length > 0 ? inbound.trim() : randomUUID();
+
+    req.requestId = requestId;
+    res.setHeader('X-Request-Id', requestId);
+
+    // Set request ID in Sentry for this request scope
+    Sentry.setTag('request_id', requestId);
+
+    next();
+  }
+}
