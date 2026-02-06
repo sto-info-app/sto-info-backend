@@ -1,21 +1,23 @@
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { getTypeOrmConfig } from 'config/typeorm.config';
-import { ClsModule } from 'nestjs-cls';
-
 import {
   ClassSerializerInterceptor,
   MiddlewareConsumer,
   Module,
   NestModule,
 } from '@nestjs/common';
-
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { MulterModule } from '@nestjs/platform-express';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { SentryModule } from '@sentry/nestjs/setup';
+
+import { getTypeOrmConfig } from 'config/typeorm.config';
+import { ClsModule } from 'nestjs-cls';
+
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { UserIdMiddleware } from './auth/user-id.middleware';
+import { RequestIdMiddleware } from './common/http/request-id.middleware';
 import { ConfigCheckService } from './config-check/config-check.service';
 import { CronModule } from './cron/cron.module';
 import { DatabaseModule } from './database/database.module';
@@ -40,6 +42,7 @@ import { UserModule } from './user/user.module';
       isGlobal: true,
       envFilePath: `config/environments/${process.env.NODE_ENV || ''}.env`,
     }),
+    SentryModule.forRoot(),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async () => {
@@ -104,6 +107,6 @@ import { UserModule } from './user/user.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(UserIdMiddleware).forRoutes('*');
+    consumer.apply(RequestIdMiddleware, UserIdMiddleware).forRoutes('*');
   }
 }
