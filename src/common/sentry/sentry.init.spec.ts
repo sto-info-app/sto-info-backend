@@ -16,33 +16,33 @@ describe('Sentry Initialization', () => {
     process.env = originalEnv;
   });
 
-  it('should initialize Sentry if SENTRY_DSN is provided', () => {
+  it('should initialize Sentry if SENTRY_DSN is provided', async () => {
     process.env.SENTRY_DSN = 'https://example@sentry.io/123';
     process.env.NODE_ENV = 'production';
     process.env.APP_VERSION = '1.0.0';
 
-    jest.isolateModules(() => {
-      require('./sentry.init');
+    await jest.isolateModulesAsync(async () => {
+      await import('./sentry.init');
     });
 
     expect(Sentry.init).toHaveBeenCalled();
   });
 
-  it('should not initialize Sentry if SENTRY_DSN is missing', () => {
+  it('should not initialize Sentry if SENTRY_DSN is missing', async () => {
     delete process.env.SENTRY_DSN;
 
-    jest.isolateModules(() => {
-      require('./sentry.init');
+    await jest.isolateModulesAsync(async () => {
+      await import('./sentry.init');
     });
 
     expect(Sentry.init).not.toHaveBeenCalled();
   });
 
-  it('should filter health and metrics URLs in beforeSendTransaction', () => {
+  it('should filter health and metrics URLs in beforeSendTransaction', async () => {
     process.env.SENTRY_DSN = 'https://example@sentry.io/123';
 
-    jest.isolateModules(() => {
-      require('./sentry.init');
+    await jest.isolateModulesAsync(async () => {
+      await import('./sentry.init');
     });
 
     expect(Sentry.init).toHaveBeenCalled();
@@ -57,13 +57,13 @@ describe('Sentry Initialization', () => {
     expect(beforeSendTransaction({})).toEqual({});
   });
 
-  it('should fallback to dev environment if NODE_ENV is missing', () => {
+  it('should fallback to dev environment if NODE_ENV is missing', async () => {
     process.env.SENTRY_DSN = 'https://example@sentry.io/123';
     delete process.env.NODE_ENV;
     process.env.APP_VERSION = '1.0.0';
 
-    jest.isolateModules(() => {
-      require('./sentry.init');
+    await jest.isolateModulesAsync(async () => {
+      await import('./sentry.init');
     });
 
     expect(Sentry.init).toHaveBeenCalledWith(
@@ -73,11 +73,11 @@ describe('Sentry Initialization', () => {
     );
   });
 
-  it('should redact sensitive headers and data in beforeSend', () => {
+  it('should redact sensitive headers and data in beforeSend', async () => {
     process.env.SENTRY_DSN = 'https://example@sentry.io/123';
 
-    jest.isolateModules(() => {
-      require('./sentry.init');
+    await jest.isolateModulesAsync(async () => {
+      await import('./sentry.init');
     });
 
     const initCall = (Sentry.init as jest.Mock).mock.calls[0][0];
