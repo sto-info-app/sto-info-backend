@@ -5,6 +5,7 @@ import { LoggingInterceptor } from './logging.interceptor';
 
 jest.mock('@sentry/nestjs', () => ({
   setTag: jest.fn(),
+  captureException: jest.fn(),
 }));
 
 describe('LoggingInterceptor', () => {
@@ -41,7 +42,9 @@ describe('LoggingInterceptor', () => {
   });
 
   it('should log the successful request and set Sentry tags', done => {
-    const loggerSpy = jest.spyOn((interceptor as any).logger, 'log');
+    const loggerSpy = jest
+      .spyOn((interceptor as any).logger, 'log')
+      .mockImplementation(() => {});
 
     interceptor
       .intercept(
@@ -63,8 +66,10 @@ describe('LoggingInterceptor', () => {
       });
   });
 
-  it('should log failed requests', done => {
-    const loggerSpy = jest.spyOn((interceptor as any).logger, 'error');
+  it('should log failed requests and capture exception in Sentry', done => {
+    const loggerSpy = jest
+      .spyOn((interceptor as any).logger, 'error')
+      .mockImplementation(() => {});
     const error = new Error('Test error');
     mockCallHandler.handle = jest.fn().mockReturnValue(throwError(() => error));
 
@@ -79,6 +84,7 @@ describe('LoggingInterceptor', () => {
           expect(loggerSpy).toHaveBeenCalledWith(
             expect.stringMatching(/GET \/test \d+ms - Error: Test error/),
           );
+          expect(Sentry.captureException).toHaveBeenCalledWith(error);
           done();
         },
       });

@@ -38,6 +38,8 @@ export class LoggingInterceptor implements NestInterceptor {
           this.logger.error(
             `${method} ${url} ${timeout}ms - Error: ${err.message}`,
           );
+          // Manually capture the exception to ensure Sentry tracks it
+          Sentry.captureException(err);
         },
       }),
     );
