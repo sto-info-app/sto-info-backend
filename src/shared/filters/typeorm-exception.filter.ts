@@ -5,6 +5,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import * as Sentry from '@sentry/nestjs';
 import { TypeORMError } from 'typeorm';
 
 @Catch(TypeORMError)
@@ -18,6 +19,23 @@ export class TypeOrmExceptionFilter implements ExceptionFilter {
       `TypeORM error on ${request.method} ${request.url}: ${exception.message}`,
       exception.stack,
     );
+
+    Sentry.withScope(scope => {
+      scope.setTag('layer', 'typeorm-filter');
+      scope.setTag('db', 'postgres');
+
+      scope.setContext('request', {
+        method: request.method,
+        path: request.url,
+      });
+
+      const requestId = request.headers?.['x-request-id'] || request.id;
+      if (requestId) {
+        scope.setTag('request_id', String(requestId));
+      }
+
+      Sentry.captureException(exception);
+    });
 
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,

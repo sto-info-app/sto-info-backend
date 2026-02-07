@@ -455,6 +455,27 @@ describe('ImageUploadsService', () => {
 
       expect(result).toBe('id-without-type');
     });
+
+    it('should hit logger branches when parameters are missing', async () => {
+      mockScanFile.mockImplementation((_buf, cb) =>
+        cb(null, { FoundViruses: [] }),
+      );
+
+      const axiosMock = axios as jest.Mocked<typeof axios>;
+      axiosMock.post.mockResolvedValue({
+        status: 200,
+        data: { result: { id: 'logger-test' } },
+      });
+
+      // Hit 'none' branches for entityType and entityId
+      // Provide a valid filename to pass validation later
+      const file = createImageFile({
+        originalname: 'test.png',
+      }) as unknown as UploadImagesFileParam;
+
+      await service.uploadImageToCloudflareImages('user-1', file, '', '');
+      expect(axiosMock.post).toHaveBeenCalled();
+    });
   });
 
   describe('uploadImageToCloudflareR2', () => {

@@ -1,6 +1,8 @@
 import { config } from 'dotenv';
 config({ path: 'config/environments/.env' });
 
+import './common/sentry/sentry.init';
+
 import { HttpStatus, Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
@@ -22,6 +24,7 @@ import { type RedisReply, RedisStore } from 'rate-limit-redis';
 import { AppModule } from './app.module';
 import { NonceMiddleware } from './auth/nonce.middleware';
 import { clientIpMiddleware } from './common/http/client-ip.middleware';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { ConfigCheckService } from './config-check/config-check.service';
 import { getLogLevelsForEnvironment } from './shared/constants/logging.constants';
 import {
@@ -328,8 +331,8 @@ async function bootstrap() {
     }
   });
 
-  // Applied via AppModule:
-  // app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
+  // Global Interceptors
+  app.useGlobalInterceptors(new LoggingInterceptor());
 
   if (!inProduction) {
     const require = createRequire(__filename);
