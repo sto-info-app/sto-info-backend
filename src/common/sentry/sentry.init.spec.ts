@@ -4,11 +4,15 @@ jest.mock('@sentry/nestjs', () => ({
   init: jest.fn(),
 }));
 
+jest.mock('../../shared/utilities/version.utility', () => ({
+  getAppVersion: jest.fn(() => '1.0.0'),
+}));
+
 describe('Sentry Initialization', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
-    (Sentry.init as jest.Mock).mockClear();
+    jest.clearAllMocks();
     process.env = { ...originalEnv };
   });
 
@@ -19,7 +23,6 @@ describe('Sentry Initialization', () => {
   it('should initialize Sentry if SENTRY_DSN is provided', async () => {
     process.env.SENTRY_DSN = 'https://example@sentry.io/123';
     process.env.NODE_ENV = 'production';
-    process.env.APP_VERSION = '1.0.0';
 
     await jest.isolateModulesAsync(async () => {
       await import('./sentry.init');
@@ -60,7 +63,6 @@ describe('Sentry Initialization', () => {
   it('should fallback to dev environment if NODE_ENV is missing', async () => {
     process.env.SENTRY_DSN = 'https://example@sentry.io/123';
     delete process.env.NODE_ENV;
-    process.env.APP_VERSION = '1.0.0';
 
     await jest.isolateModulesAsync(async () => {
       await import('./sentry.init');
