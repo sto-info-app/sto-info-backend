@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
@@ -72,6 +72,12 @@ describe('UserRefreshTokenService', () => {
       expect(result.tokenId).toBeUndefined();
       expect(repo.save).toHaveBeenCalled();
     });
+
+    it('should throw BadRequestException if dto is missing', async () => {
+      await expect(service.create(null as any)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
   });
 
   describe('findByTokenId', () => {
@@ -79,6 +85,12 @@ describe('UserRefreshTokenService', () => {
       const token = { id: 1 };
       (repo.findOne as jest.Mock).mockResolvedValue(token);
       expect(await service.findByTokenId('tid')).toBe(token);
+    });
+
+    it('should throw BadRequestException if tokenId is missing', async () => {
+      await expect(service.findByTokenId('')).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -130,6 +142,18 @@ describe('UserRefreshTokenService', () => {
       expect(result.jwtId).toBeUndefined();
       expect(result.expiresAt).toBeDefined();
     });
+
+    it('should throw BadRequestException if user is missing', async () => {
+      await expect(
+        service.createUserRefreshToken(null as any, 'token'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if token is missing', async () => {
+      await expect(
+        service.createUserRefreshToken({ id: 'u1' } as any, ''),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 
   describe('revokeUserRefreshToken', () => {
@@ -155,6 +179,12 @@ describe('UserRefreshTokenService', () => {
 
       await service.revokeUserRefreshToken('no_jti');
       expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException if token is missing', async () => {
+      await expect(service.revokeUserRefreshToken('')).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -196,12 +226,30 @@ describe('UserRefreshTokenService', () => {
         UnauthorizedException,
       );
     });
+
+    it('should throw BadRequestException if userId is missing', async () => {
+      await expect(service.revokeToken('', 'raw')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if token is missing', async () => {
+      await expect(service.revokeToken('u1', '')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
   });
 
   describe('revokeAllTokensForUser', () => {
     it('should update all tokens for user', async () => {
       await service.revokeAllTokensForUser('u1');
       expect(repo.update).toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException if userId is missing', async () => {
+      await expect(service.revokeAllTokensForUser('')).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 

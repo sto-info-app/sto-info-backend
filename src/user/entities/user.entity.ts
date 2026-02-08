@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import * as bcrypt from 'bcrypt';
 import { Exclude } from 'class-transformer';
 import { IsEmail, IsNotEmpty, IsString, IsUUID } from 'class-validator';
@@ -12,6 +13,7 @@ import {
   PrimaryColumn,
   Unique,
   UpdateDateColumn,
+  VirtualColumn,
 } from 'typeorm';
 import { v4 as uuid } from 'uuid';
 import { AccountEntity } from '../../sto/account/entities/account.entity';
@@ -99,4 +101,18 @@ export class UserEntity {
   async comparePassword(password: string): Promise<boolean> {
     return bcrypt.compare(password, this.password);
   }
+
+  /**
+   * The total number of non-deleted characters associated with this user across all their accounts.
+   */
+  @ApiProperty({
+    description:
+      'The total number of non-deleted characters associated with this user across all their accounts.',
+    example: 12,
+  })
+  @VirtualColumn({
+    query: alias =>
+      `SELECT count(*) FROM "sto_info_app"."character" c JOIN "sto_info_app"."account" a ON c."accountId" = a.id WHERE a."userId" = ${alias}.id AND c."deletedAt" IS NULL`,
+  })
+  characterCount: number;
 }

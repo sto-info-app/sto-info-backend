@@ -1,6 +1,17 @@
 import { ArgumentsHost, HttpStatus, Logger } from '@nestjs/common';
+import * as Sentry from '@sentry/nestjs';
 import { TypeORMError } from 'typeorm';
 import { TypeOrmExceptionFilter } from './typeorm-exception.filter';
+
+jest.mock('@sentry/nestjs', () => ({
+  withScope: jest.fn(callback =>
+    callback({
+      setTag: jest.fn(),
+      setContext: jest.fn(),
+    }),
+  ),
+  captureException: jest.fn(),
+}));
 
 describe('TypeOrmExceptionFilter', () => {
   let filter: TypeOrmExceptionFilter;
@@ -21,6 +32,7 @@ describe('TypeOrmExceptionFilter', () => {
     mockRequest = {
       method: 'POST',
       url: '/api/users',
+      headers: {},
     };
 
     mockCtx = {
@@ -39,6 +51,7 @@ describe('TypeOrmExceptionFilter', () => {
 
   afterEach(() => {
     loggerErrorSpy.mockRestore();
+    jest.clearAllMocks();
   });
 
   it('should be defined', () => {
@@ -57,6 +70,77 @@ describe('TypeOrmExceptionFilter', () => {
     );
   });
 
+  it('should send error to Sentry with context', () => {
+    const exception = new TypeORMError('Database error');
+    const mockScope = {
+      setTag: jest.fn(),
+      setContext: jest.fn(),
+    };
+    (Sentry.withScope as jest.Mock).mockImplementationOnce(callback =>
+      callback(mockScope),
+    );
+
+    filter.catch(exception, mockArgumentsHost);
+
+    expect(Sentry.withScope).toHaveBeenCalled();
+    expect(mockScope.setTag).toHaveBeenCalledWith('layer', 'typeorm-filter');
+    expect(mockScope.setContext).toHaveBeenCalledWith('request', {
+      method: 'POST',
+      path: '/api/users',
+    });
+    expect(Sentry.captureException).toHaveBeenCalledWith(exception);
+  });
+
+  it('should include request ID in Sentry from headers', () => {
+    const exception = new TypeORMError('Database error');
+    const mockScope = {
+      setTag: jest.fn(),
+      setContext: jest.fn(),
+    };
+    (Sentry.withScope as jest.Mock).mockImplementationOnce(callback =>
+      callback(mockScope),
+    );
+    mockRequest.headers['x-request-id'] = 'req-123';
+
+    filter.catch(exception, mockArgumentsHost);
+
+    expect(mockScope.setTag).toHaveBeenCalledWith('request_id', 'req-123');
+  });
+
+  it('should include request ID in Sentry from request.id', () => {
+    const exception = new TypeORMError('Database error');
+    const mockScope = {
+      setTag: jest.fn(),
+      setContext: jest.fn(),
+    };
+    (Sentry.withScope as jest.Mock).mockImplementationOnce(callback =>
+      callback(mockScope),
+    );
+    mockRequest.id = 'req-456';
+
+    filter.catch(exception, mockArgumentsHost);
+
+    expect(mockScope.setTag).toHaveBeenCalledWith('request_id', 'req-456');
+  });
+
+  it('should handle missing request ID', () => {
+    const exception = new TypeORMError('Database error');
+    const mockScope = {
+      setTag: jest.fn(),
+      setContext: jest.fn(),
+    };
+    (Sentry.withScope as jest.Mock).mockImplementationOnce(callback =>
+      callback(mockScope),
+    );
+
+    filter.catch(exception, mockArgumentsHost);
+
+    expect(mockScope.setTag).not.toHaveBeenCalledWith(
+      'request_id',
+      expect.any(String),
+    );
+  });
+
   it('should return generic database error message', () => {
     const exception = new TypeORMError('Constraint violation');
 
@@ -66,6 +150,23 @@ describe('TypeOrmExceptionFilter', () => {
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
       message: 'Database error',
     });
+  });
+
+  it('should handle missing headers object for request ID', () => {
+    const exception = new TypeORMError('Database error');
+    const mockScope = {
+      setTag: jest.fn(),
+      setContext: jest.fn(),
+    };
+    (Sentry.withScope as jest.Mock).mockImplementationOnce(callback =>
+      callback(mockScope),
+    );
+    delete mockRequest.headers;
+    mockRequest.id = 'fallback-id';
+
+    filter.catch(exception, mockArgumentsHost);
+
+    expect(mockScope.setTag).toHaveBeenCalledWith('request_id', 'fallback-id');
   });
 
   it('should log error with request details', () => {
