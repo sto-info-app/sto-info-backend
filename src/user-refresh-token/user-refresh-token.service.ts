@@ -105,15 +105,23 @@ export class UserRefreshTokenService {
     refreshTokenEntity.user = user;
     refreshTokenEntity.userId = user.id;
 
-    // Parse the JWT to extract the jti claim
-    const refreshTokenPayload = jwt.decode(refreshToken) as jwt.JwtPayload;
-    if (refreshTokenPayload?.jti) {
+    let refreshTokenPayload: jwt.JwtPayload;
+    try {
+      refreshTokenPayload =
+        await this.verifyAndDecodeRefreshToken(refreshToken);
+    } catch (err) {
+      throw new BadRequestException('Invalid refresh token', {
+        cause: err as Error,
+      });
+    }
+
+    if (refreshTokenPayload.jti) {
       refreshTokenEntity.jwtId = refreshTokenPayload.jti;
     }
 
     // Set the expiresAt value from the token itself or environment
     const expiresAt = new Date();
-    if (refreshTokenPayload?.exp) {
+    if (refreshTokenPayload.exp) {
       expiresAt.setTime(refreshTokenPayload.exp * 1000);
     } else {
       expiresAt.setSeconds(
@@ -143,9 +151,15 @@ export class UserRefreshTokenService {
       throw new BadRequestException('Refresh token is required');
     }
 
-    // Decode the token to get the JTI
-    const payload = jwt.decode(rawRefreshToken) as jwt.JwtPayload;
-    if (!payload?.jti) {
+    let payload: jwt.JwtPayload;
+    try {
+      payload = await this.verifyAndDecodeRefreshToken(rawRefreshToken);
+    } catch {
+      // Best-effort revoke: if the token is invalid/expired we can't reliably identify the JTI.
+      return;
+    }
+
+    if (!payload.jti) {
       return;
     }
 
@@ -170,10 +184,16 @@ export class UserRefreshTokenService {
       throw new BadRequestException('Refresh token is required');
     }
 
-    // Decode the token to get the JTI
-    const payload = jwt.decode(rawRefreshToken) as jwt.JwtPayload;
+    let payload: jwt.JwtPayload;
+    try {
+      payload = await this.verifyAndDecodeRefreshToken(rawRefreshToken);
+    } catch (err) {
+      throw new UnauthorizedException('Invalid refresh token', {
+        cause: err as Error,
+      });
+    }
 
-    if (!payload?.jti) {
+    if (!payload.jti) {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
