@@ -88,7 +88,7 @@
     "uuidv4": "^6.2.13"
   },
   "devDependencies": {
-    "@eslint/config-array": "^0.23.0",
+    "@eslint/config-array": "^0.23.1",
     "@eslint/object-schema": "^3.0.0",
     "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
     "@nestjs/cli": "^11.0.16",
@@ -100,11 +100,11 @@
     "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
-    "@types/node": "^25.2.1",
+    "@types/node": "^25.2.2",
     "@types/supertest": "^6.0.2",
     "@typescript-eslint/eslint-plugin": "^8.54.0",
     "@typescript-eslint/parser": "^8.53.1",
-    "eslint": "^9.39.2",
+    "eslint": "^10.0.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
     "eslint-plugin-simple-import-sort": "^12.1.1",
