@@ -71,7 +71,7 @@ export class ContactService {
     const name = this.escapeHtml(payload.name);
     const email = this.escapeHtml(payload.email);
     const topic = this.escapeHtml(payload.topic);
-    const message = this.escapeHtml(payload.message).replace(
+    const message = this.escapeHtml(payload.message).replaceAll(
       /\r?\n/g,
       '<br />',
     );
@@ -101,7 +101,7 @@ export class ContactService {
     const appTitle = this.escapeHtml(process.env.APP_TITLE ?? 'our team');
     const name = this.escapeHtml(payload.name);
     const topic = this.escapeHtml(payload.topic);
-    const message = this.escapeHtml(payload.message).replace(
+    const message = this.escapeHtml(payload.message).replaceAll(
       /\r?\n/g,
       '<br />',
     );
@@ -146,10 +146,10 @@ export class ContactService {
 
   private escapeHtml(value: string): string {
     return value
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
   }
 }
