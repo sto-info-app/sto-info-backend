@@ -206,6 +206,26 @@ describe('AuditSubscriber', () => {
 
       expect(mockRepository.save).toHaveBeenCalled();
     });
+
+    it('should skip UPDATE when entityId is missing', async () => {
+      const event: Partial<UpdateEvent<any>> = {
+        entity: { name: 'Updated' },
+        metadata: {
+          target: class TestEntity {},
+          name: 'TestEntity',
+          primaryColumns: [
+            {
+              getEntityValue: jest.fn().mockReturnValue(null),
+            },
+          ],
+        } as any,
+        manager: mockManager as EntityManager,
+      };
+
+      await subscriber.afterUpdate(event as UpdateEvent<any>);
+
+      expect(mockRepository.save).not.toHaveBeenCalled();
+    });
   });
 
   describe('afterRemove', () => {

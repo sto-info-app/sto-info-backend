@@ -18,6 +18,7 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { UserIdMiddleware } from './auth/user-id.middleware';
 import { RequestIdMiddleware } from './common/http/request-id.middleware';
+import { ContactModule } from './contact/contact.module';
 import { ConfigCheckService } from './config-check/config-check.service';
 import { CronModule } from './cron/cron.module';
 import { DatabaseModule } from './database/database.module';
@@ -80,6 +81,7 @@ import { UserModule } from './user/user.module';
     MailModule,
     SharedModule,
     UserRefreshTokenModule,
+    ContactModule,
     AccountModule,
     CharacterModule,
     PlatformModule,

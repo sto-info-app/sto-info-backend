@@ -176,6 +176,14 @@ class EnvironmentVariables {
   @IsNumber()
   AUDIT_IP_NUKE_THRESHOLD_DAYS: number;
 
+  @IsNotEmpty()
+  @IsNumber()
+  CONTACT_REQUEST_EMAIL_MASK_RETENTION_DAYS: number;
+
+  @IsNotEmpty()
+  @IsNumber()
+  CONTACT_REQUEST_RECORD_RETENTION_DAYS: number;
+
   @IsOptional()
   @IsNumber()
   TRUST_PROXY_HOPS: number;
