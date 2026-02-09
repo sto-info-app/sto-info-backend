@@ -1,4 +1,10 @@
-import { IsEmail, IsNotEmpty, IsString, IsUUID } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+} from 'class-validator';
 import {
   Column,
   CreateDateColumn,
@@ -17,10 +23,10 @@ export class ContactRequestEntity {
   @Column({ length: 100, nullable: false })
   name: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsEmail()
-  @Column({ length: 320, nullable: false })
-  emailMasked: string;
+  @Column({ length: 320, nullable: true, default: null })
+  emailMasked: string | null;
 
   @IsNotEmpty()
   @IsString()
