@@ -1,8 +1,10 @@
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
+import { SecretsService } from 'src/shared/secrets/secrets.service';
 import { Repository } from 'typeorm';
 import { UserRefreshTokenEntity } from './entities/user-refresh-token.entity';
 import { UserRefreshTokenService } from './user-refresh-token.service';
@@ -13,11 +15,32 @@ jest.mock('jsonwebtoken');
 describe('UserRefreshTokenService', () => {
   let service: UserRefreshTokenService;
   let repo: Repository<UserRefreshTokenEntity>;
+  let secretsService: SecretsService;
+  let configService: ConfigService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UserRefreshTokenService,
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn().mockImplementation((key: string) => {
+              if (key === 'AWS_SECRET_NAME') {
+                return 'test-secret-name';
+              }
+              return undefined;
+            }),
+          },
+        },
+        {
+          provide: SecretsService,
+          useValue: {
+            getSecret: jest
+              .fn()
+              .mockResolvedValue({ jwtSecret: 'test-secret' }),
+          },
+        },
         {
           provide: getRepositoryToken(UserRefreshTokenEntity),
           useValue: {
@@ -40,6 +63,8 @@ describe('UserRefreshTokenService', () => {
     repo = module.get<Repository<UserRefreshTokenEntity>>(
       getRepositoryToken(UserRefreshTokenEntity),
     );
+    secretsService = module.get<SecretsService>(SecretsService);
+    configService = module.get<ConfigService>(ConfigService);
     process.env.AUTH_SALT_ROUNDS = '10';
     process.env.AUTH_REFRESH_TOKEN_EXPIRES_IN = '3600';
   });
@@ -97,7 +122,7 @@ describe('UserRefreshTokenService', () => {
   describe('createUserRefreshToken', () => {
     it('should create from user and token string', async () => {
       const user = { id: 'u1' };
-      (jwt.decode as jest.Mock).mockReturnValue({
+      (jwt.verify as jest.Mock).mockReturnValue({
         jti: 'jti',
         exp: 1234567890,
       });
@@ -110,11 +135,14 @@ describe('UserRefreshTokenService', () => {
       expect(result.jwtId).toBe('jti');
       expect(result.tokenId).toBe('hashed_token');
       expect(result.expiresAt).toBeDefined();
+      expect(configService.get).toHaveBeenCalledWith('AWS_SECRET_NAME');
+      expect(secretsService.getSecret).toHaveBeenCalledWith('test-secret-name');
+      expect(jwt.verify).toHaveBeenCalled();
     });
 
     it('should handle missing jti in createUserRefreshToken', async () => {
       const user = { id: 'u1' };
-      (jwt.decode as jest.Mock).mockReturnValue({});
+      (jwt.verify as jest.Mock).mockReturnValue({});
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed_token');
       (repo.save as jest.Mock).mockImplementation(val => val);
 
@@ -124,7 +152,7 @@ describe('UserRefreshTokenService', () => {
 
     it('should handle missing exp in createUserRefreshToken', async () => {
       const user = { id: 'u1' };
-      (jwt.decode as jest.Mock).mockReturnValue({ jti: 'jti' });
+      (jwt.verify as jest.Mock).mockReturnValue({ jti: 'jti' });
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed_token');
       (repo.save as jest.Mock).mockImplementation(val => val);
 
@@ -132,15 +160,71 @@ describe('UserRefreshTokenService', () => {
       expect(result.expiresAt).toBeDefined();
     });
 
-    it('should handle null payload in createUserRefreshToken', async () => {
+    it('should throw BadRequestException if refresh token cannot be verified', async () => {
       const user = { id: 'u1' };
-      (jwt.decode as jest.Mock).mockReturnValue(null);
-      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed_token');
-      (repo.save as jest.Mock).mockImplementation(val => val);
+      (jwt.verify as jest.Mock).mockImplementation(() => {
+        throw new Error('bad token');
+      });
 
-      const result = await service.createUserRefreshToken(user as any, 'token');
-      expect(result.jwtId).toBeUndefined();
-      expect(result.expiresAt).toBeDefined();
+      await expect(
+        service.createUserRefreshToken(user as any, 'token'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if AWS_SECRET_NAME is missing', async () => {
+      const user = { id: 'u1' };
+      (configService.get as jest.Mock).mockReturnValueOnce(undefined);
+
+      await expect(
+        service.createUserRefreshToken(user as any, 'token'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if jwtSecret is missing from secret', async () => {
+      const user = { id: 'u1' };
+      (secretsService.getSecret as jest.Mock).mockResolvedValueOnce({});
+
+      await expect(
+        service.createUserRefreshToken(user as any, 'token'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if secret service returns null', async () => {
+      const user = { id: 'u1' };
+      (secretsService.getSecret as jest.Mock).mockResolvedValueOnce(null);
+
+      await expect(
+        service.createUserRefreshToken(user as any, 'token'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if secret service throws', async () => {
+      const user = { id: 'u1' };
+      (secretsService.getSecret as jest.Mock).mockRejectedValueOnce(
+        new Error('secrets down'),
+      );
+
+      await expect(
+        service.createUserRefreshToken(user as any, 'token'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if jwt.verify returns string payload', async () => {
+      const user = { id: 'u1' };
+      (jwt.verify as jest.Mock).mockReturnValue('payload');
+
+      await expect(
+        service.createUserRefreshToken(user as any, 'token'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if jwt.verify returns null payload', async () => {
+      const user = { id: 'u1' };
+      (jwt.verify as jest.Mock).mockReturnValue(null);
+
+      await expect(
+        service.createUserRefreshToken(user as any, 'token'),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException if user is missing', async () => {
@@ -158,7 +242,7 @@ describe('UserRefreshTokenService', () => {
 
   describe('revokeUserRefreshToken', () => {
     it('should revoke matching token by jti', async () => {
-      (jwt.decode as jest.Mock).mockReturnValue({ jti: 'jti' });
+      (jwt.verify as jest.Mock).mockReturnValue({ jti: 'jti' });
 
       await service.revokeUserRefreshToken('raw_token');
       expect(repo.update).toHaveBeenCalledWith(
@@ -167,17 +251,26 @@ describe('UserRefreshTokenService', () => {
       );
     });
 
-    it('should do nothing if token payload is invalid', async () => {
-      (jwt.decode as jest.Mock).mockReturnValue(null);
+    it('should do nothing if token cannot be verified', async () => {
+      (jwt.verify as jest.Mock).mockImplementation(() => {
+        throw new Error('bad token');
+      });
 
       await service.revokeUserRefreshToken('invalid');
       expect(repo.update).not.toHaveBeenCalled();
     });
 
     it('should do nothing if jti is missing', async () => {
-      (jwt.decode as jest.Mock).mockReturnValue({});
+      (jwt.verify as jest.Mock).mockReturnValue({});
 
       await service.revokeUserRefreshToken('no_jti');
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it('should do nothing if jwt.verify returns string payload', async () => {
+      (jwt.verify as jest.Mock).mockReturnValue('payload');
+
+      await service.revokeUserRefreshToken('raw_token');
       expect(repo.update).not.toHaveBeenCalled();
     });
 
@@ -190,7 +283,7 @@ describe('UserRefreshTokenService', () => {
 
   describe('revokeToken', () => {
     it('should revoke for specific user by jti', async () => {
-      (jwt.decode as jest.Mock).mockReturnValue({ jti: 'jti' });
+      (jwt.verify as jest.Mock).mockReturnValue({ jti: 'jti' });
       const tokenRecord: any = { jwtId: 'jti', userId: 'u1', isRevoked: false };
       (repo.findOne as jest.Mock).mockResolvedValue(tokenRecord);
 
@@ -203,15 +296,17 @@ describe('UserRefreshTokenService', () => {
     });
 
     it('should throw if jti missing', async () => {
-      (jwt.decode as jest.Mock).mockReturnValue({});
+      (jwt.verify as jest.Mock).mockReturnValue({});
 
       await expect(service.revokeToken('u1', 'raw')).rejects.toThrow(
         UnauthorizedException,
       );
     });
 
-    it('should throw if payload is null', async () => {
-      (jwt.decode as jest.Mock).mockReturnValue(null);
+    it('should throw if refresh token cannot be verified', async () => {
+      (jwt.verify as jest.Mock).mockImplementation(() => {
+        throw new Error('bad token');
+      });
 
       await expect(service.revokeToken('u1', 'raw')).rejects.toThrow(
         UnauthorizedException,
@@ -219,7 +314,7 @@ describe('UserRefreshTokenService', () => {
     });
 
     it('should throw if token not found in db', async () => {
-      (jwt.decode as jest.Mock).mockReturnValue({ jti: 'missing' });
+      (jwt.verify as jest.Mock).mockReturnValue({ jti: 'missing' });
       (repo.findOne as jest.Mock).mockResolvedValue(null);
 
       await expect(service.revokeToken('u1', 'raw')).rejects.toThrow(
