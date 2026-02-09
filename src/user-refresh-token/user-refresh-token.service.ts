@@ -3,10 +3,12 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
+import { SecretsService } from 'src/shared/secrets/secrets.service';
 import { Repository } from 'typeorm';
 
 import { UserEntity } from 'src/user/entities/user.entity';
@@ -18,7 +20,34 @@ export class UserRefreshTokenService {
   constructor(
     @InjectRepository(UserRefreshTokenEntity)
     private readonly refreshTokenRepository: Repository<UserRefreshTokenEntity>,
+    private readonly configService: ConfigService,
+    private readonly secretsService: SecretsService,
   ) {}
+
+  private async verifyAndDecodeRefreshToken(
+    rawRefreshToken: string,
+  ): Promise<jwt.JwtPayload> {
+    const secretName = this.configService.get<string>('AWS_SECRET_NAME');
+    if (!secretName) {
+      throw new UnauthorizedException('Refresh token verification unavailable');
+    }
+
+    const secretObject = await this.secretsService.getSecret(secretName);
+    if (!secretObject?.jwtSecret) {
+      throw new UnauthorizedException('Refresh token verification unavailable');
+    }
+
+    const verified = jwt.verify(rawRefreshToken, secretObject.jwtSecret, {
+      algorithms: ['HS256'],
+      clockTolerance: 30,
+    });
+
+    if (!verified || typeof verified === 'string') {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    return verified;
+  }
 
   async create(
     refreshTokenDto: CreateUserRefreshTokenDto,
