@@ -78,6 +78,8 @@ Note: the app reads `config/environments/.env` at startup (see `src/main.ts`).
 
 - `AUDIT_DATA_NUKE_THRESHOLD_DAYS`: Delete audit/audit-login-attempt rows older than this many days
 - `AUDIT_IP_NUKE_THRESHOLD_DAYS`: Null out `ipAddress` in audit/audit-login-attempt rows older than this many days
+- `CONTACT_REQUEST_EMAIL_MASK_RETENTION_DAYS`: Null out masked contact emails older than this many days
+- `CONTACT_REQUEST_RECORD_RETENTION_DAYS`: Delete contact requests older than this many days
 
 > TODO: Confirm the retention thresholds used in production and the rationale (privacy/compliance requirements).
 

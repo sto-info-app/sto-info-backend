@@ -52,7 +52,7 @@ export class CharacterService {
   }
 
   private generateSlug(handle: string): string {
-    return handle.trim().replace('#', '~');
+    return handle.trim().replaceAll('#', '~');
   }
 
   private async assertHandleUniqueForAccount(

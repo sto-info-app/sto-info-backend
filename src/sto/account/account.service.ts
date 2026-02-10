@@ -31,7 +31,7 @@ export class AccountService {
    * @returns A URL-safe slug.
    */
   private generateSlug(handle: string): string {
-    return handle.trim().replace('#', '~');
+    return handle.trim().replaceAll('#', '~');
   }
 
   /**

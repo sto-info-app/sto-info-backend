@@ -203,7 +203,7 @@ export class ImageUploadsService {
       throw new BadRequestException('Image URL is missing');
     }
 
-    const fileKey = imageUrl.replace(
+    const fileKey = imageUrl.replaceAll(
       `${process.env.CLOUDFLARE_CDN_ROOT_URL}/`,
       '',
     );
@@ -441,7 +441,10 @@ export class ImageUploadsService {
 
     // Sanitize the filename using the SAFE_FILENAME_PATTERN
     const originalFileName = file.filename ? file.filename : file.originalname;
-    const safeFileName = originalFileName.replace(UNSAFE_FILENAME_PATTERN, '_');
+    const safeFileName = originalFileName.replaceAll(
+      UNSAFE_FILENAME_PATTERN,
+      '_',
+    );
     /* istanbul ignore next */
     if (!SAFE_FILENAME_PATTERN.test(safeFileName)) {
       this.logger.error(

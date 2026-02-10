@@ -83,7 +83,11 @@ export class AuditSubscriber implements EntitySubscriberInterface {
     const audit = new AuditEntity();
     audit.entity = event.metadata.name;
     audit.action = action;
-    audit.entityId = this.getEntityId(event);
+    const entityId = this.getEntityId(event);
+    if (!entityId) {
+      return;
+    }
+    audit.entityId = entityId;
 
     if (action === 'UPDATE') {
       audit.oldValue = oldEntity ? { ...oldEntity } : null;

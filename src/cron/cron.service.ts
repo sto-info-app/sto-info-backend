@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { CRON_TIMEZONE } from './constants/cron.constants';
 import { AuditCleanupService } from './jobs/audit-cleanup/audit-cleanup.service';
 import { AuditLoginAttemptCleanupService } from './jobs/audit-login-attempt-cleanup/audit-login-attempt-cleanup.service';
+import { ContactRequestCleanupService } from './jobs/contact-request-cleanup/contact-request-cleanup.service';
 
 @Injectable()
 export class CronService {
@@ -11,17 +12,20 @@ export class CronService {
   constructor(
     private readonly auditCleanupService: AuditCleanupService,
     private readonly auditLoginAttemptCleanupService: AuditLoginAttemptCleanupService,
+    private readonly contactRequestCleanupService: ContactRequestCleanupService,
   ) {}
 
   /**
    * Run daily midnight jobs
    */
+  @Cron('26 3 * * *', { timeZone: CRON_TIMEZONE })
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT, { timeZone: CRON_TIMEZONE })
   async dailyMidnightJobs() {
     this.logger.log('Running daily midnight jobs...');
     try {
       await this.handleAuditCleanup();
       await this.handleAuditLoginAttemptCleanup();
+      await this.handleContactRequestCleanup();
     } catch (error) {
       this.logger.error('Error running daily midnight jobs:', error);
     }
@@ -55,6 +59,19 @@ export class CronService {
         'Error running audit login attempt cleanup job:',
         error,
       );
+    }
+  }
+
+  /**
+   * Cleanup masked contact emails
+   */
+  private async handleContactRequestCleanup() {
+    this.logger.log('Starting contact request cleanup job...');
+    try {
+      await this.contactRequestCleanupService.cleanup();
+      this.logger.log('Contact request cleanup job completed successfully.');
+    } catch (error) {
+      this.logger.error('Error running contact request cleanup job:', error);
     }
   }
 }

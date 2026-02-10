@@ -49,6 +49,8 @@ describe('ConfigCheckService', () => {
       MAX_IMAGE_SIZE_IN_BYTES: '5242880',
       AUDIT_DATA_NUKE_THRESHOLD_DAYS: '90',
       AUDIT_IP_NUKE_THRESHOLD_DAYS: '30',
+      CONTACT_REQUEST_EMAIL_MASK_RETENTION_DAYS: '21',
+      CONTACT_REQUEST_RECORD_RETENTION_DAYS: '90',
       REDIS_URL: 'redis://localhost:6379',
     };
 
