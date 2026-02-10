@@ -3,10 +3,12 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
+import { SecretsService } from 'src/shared/secrets/secrets.service';
 import { Repository } from 'typeorm';
 
 import { UserEntity } from 'src/user/entities/user.entity';
@@ -18,7 +20,34 @@ export class UserRefreshTokenService {
   constructor(
     @InjectRepository(UserRefreshTokenEntity)
     private readonly refreshTokenRepository: Repository<UserRefreshTokenEntity>,
+    private readonly configService: ConfigService,
+    private readonly secretsService: SecretsService,
   ) {}
+
+  private async verifyAndDecodeRefreshToken(
+    rawRefreshToken: string,
+  ): Promise<jwt.JwtPayload> {
+    const secretName = this.configService.get<string>('AWS_SECRET_NAME');
+    if (!secretName) {
+      throw new UnauthorizedException('Refresh token verification unavailable');
+    }
+
+    const secretObject = await this.secretsService.getSecret(secretName);
+    if (!secretObject?.jwtSecret) {
+      throw new UnauthorizedException('Refresh token verification unavailable');
+    }
+
+    const verified = jwt.verify(rawRefreshToken, secretObject.jwtSecret, {
+      algorithms: ['HS256'],
+      clockTolerance: 30,
+    });
+
+    if (!verified || typeof verified === 'string') {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    return verified;
+  }
 
   async create(
     refreshTokenDto: CreateUserRefreshTokenDto,
@@ -76,15 +105,23 @@ export class UserRefreshTokenService {
     refreshTokenEntity.user = user;
     refreshTokenEntity.userId = user.id;
 
-    // Parse the JWT to extract the jti claim
-    const refreshTokenPayload = jwt.decode(refreshToken) as jwt.JwtPayload;
-    if (refreshTokenPayload?.jti) {
+    let refreshTokenPayload: jwt.JwtPayload;
+    try {
+      refreshTokenPayload =
+        await this.verifyAndDecodeRefreshToken(refreshToken);
+    } catch (err) {
+      throw new BadRequestException('Invalid refresh token', {
+        cause: err as Error,
+      });
+    }
+
+    if (refreshTokenPayload.jti) {
       refreshTokenEntity.jwtId = refreshTokenPayload.jti;
     }
 
     // Set the expiresAt value from the token itself or environment
     const expiresAt = new Date();
-    if (refreshTokenPayload?.exp) {
+    if (refreshTokenPayload.exp) {
       expiresAt.setTime(refreshTokenPayload.exp * 1000);
     } else {
       expiresAt.setSeconds(
@@ -114,9 +151,15 @@ export class UserRefreshTokenService {
       throw new BadRequestException('Refresh token is required');
     }
 
-    // Decode the token to get the JTI
-    const payload = jwt.decode(rawRefreshToken) as jwt.JwtPayload;
-    if (!payload?.jti) {
+    let payload: jwt.JwtPayload;
+    try {
+      payload = await this.verifyAndDecodeRefreshToken(rawRefreshToken);
+    } catch {
+      // Best-effort revoke: if the token is invalid/expired we can't reliably identify the JTI.
+      return;
+    }
+
+    if (!payload.jti) {
       return;
     }
 
@@ -141,10 +184,16 @@ export class UserRefreshTokenService {
       throw new BadRequestException('Refresh token is required');
     }
 
-    // Decode the token to get the JTI
-    const payload = jwt.decode(rawRefreshToken) as jwt.JwtPayload;
+    let payload: jwt.JwtPayload;
+    try {
+      payload = await this.verifyAndDecodeRefreshToken(rawRefreshToken);
+    } catch (err) {
+      throw new UnauthorizedException('Invalid refresh token', {
+        cause: err as Error,
+      });
+    }
 
-    if (!payload?.jti) {
+    if (!payload.jti) {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
