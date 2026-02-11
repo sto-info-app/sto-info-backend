@@ -10,7 +10,7 @@ The `sto-info-backend` is a backend service designed to provide information rela
 - Authentication and authorisation
 - Data validation and error handling
 - Integration with external services
-- _Coming soon:_ Comprehensive logging and monitoring
+- Comprehensive logging and monitoring
 
 ## Documentation
 

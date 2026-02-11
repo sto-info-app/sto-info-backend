@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 # Declare default permissions as read only.
-permissions: read-all
+permissions: read
 
 jobs:
   analysis:
@@ -56,7 +56,7 @@ jobs:
       # Upload the results as artifacts (optional). Commenting out will disable uploads of run results in SARIF
       # format to the repository Actions tab.
       - name: 'Upload artifact'
-        uses: actions/upload-artifact@4cedc5d8fe0a446d10e8cf356c6637ee8a042e4e # v4.6.1
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: SARIF file
           path: results.sarif
