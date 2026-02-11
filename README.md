@@ -23,6 +23,8 @@ Documentation is in [docs/](docs/).
 - [docs/backend.md](docs/backend.md)
 - [docs/frontend.md](docs/frontend.md) (frontend integration expectations)
 - [docs/api-endpoints.md](docs/api-endpoints.md)
+- [docs/github/SECURITY-AUTOMATION.md](docs/github/SECURITY-AUTOMATION.md)
+- [docs/github/QUALITY-AUTOMATION.md](docs/github/QUALITY-AUTOMATION.md)
 
 ## Getting Started
 
