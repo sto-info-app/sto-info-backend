@@ -1,4 +1,4 @@
-# sto-info-backend [![Uptime status](https://img.shields.io/uptimerobot/status/m802169058-d230a9a973c1eef1de28ed63.svg)](https://status.startrekonline.info/) [![Uptime 30 days](https://img.shields.io/uptimerobot/ratio/m802169058-d230a9a973c1eef1de28ed63.svg)](https://status.startrekonline.info/)
+# sto-info-backend [![Uptime status](https://img.shields.io/uptimerobot/status/m802169058-d230a9a973c1eef1de28ed63.svg)](https://status.startrekonline.info/) [![Uptime 30 days](https://img.shields.io/uptimerobot/ratio/m802169058-d230a9a973c1eef1de28ed63.svg)](https://status.startrekonline.info/) [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/sto-info-app/sto-info-backend/badge)](https://scorecard.dev/viewer/?uri=github.com/sto-info-app/sto-info-backend)
 
 ## Project Overview
 
@@ -23,6 +23,8 @@ Documentation is in [docs/](docs/).
 - [docs/backend.md](docs/backend.md)
 - [docs/frontend.md](docs/frontend.md) (frontend integration expectations)
 - [docs/api-endpoints.md](docs/api-endpoints.md)
+- [docs/github/SECURITY-AUTOMATION.md](docs/github/SECURITY-AUTOMATION.md)
+- [docs/github/QUALITY-AUTOMATION.md](docs/github/QUALITY-AUTOMATION.md)
 
 ## Getting Started
 
@@ -149,6 +151,11 @@ The analysis results will be available on the SonarQube dashboard.
 ### Current SonarQube Analysis
 
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=alert_status&token=112872819709705c46aa22a30dbc9cb78546a38e)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend) [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=bugs&token=112872819709705c46aa22a30dbc9cb78546a38e)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend) [![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=code_smells&token=112872819709705c46aa22a30dbc9cb78546a38e)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend) [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=duplicated_lines_density&token=112872819709705c46aa22a30dbc9cb78546a38e)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
+
+## Contributors
+
+<!-- README_CONTRIBUTORS -->
+<!-- README_CONTRIBUTORS -->
 
 ## Licence
 
