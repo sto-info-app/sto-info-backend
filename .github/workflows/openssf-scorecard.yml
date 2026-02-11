@@ -1,27 +1,32 @@
 name: OpenSSF Scorecard
 on:
+  # For Branch-Protection check. Only the default branch is supported. See
+  # https://github.com/ossf/scorecard-action#branch-protection
+  branch_protection_rule:
+  # To guarantee Maintained check is occasionally updated. See
+  # https://github.com/ossf/scorecard-action#maintained
   schedule:
     - cron: '30 3 * * 0' # Sundays at 03:30 UTC
   push:
     branches: ['development']
   workflow_dispatch:
 
+# Declare default permissions as read only.
 permissions: read-all
 
 jobs:
   analysis:
-    name: Scorecard Analysis
+    name: Scorecard analysis
     runs-on: ubuntu-latest
-    # Run only on the canonical repository
     if: github.repository_owner == 'sto-info-app' || github.event.repository.fork == false
     permissions:
       # Needed to upload the results to code-scanning dashboard.
       security-events: write
-      # Needed to publish results and get a badge.
+      # Needed to publish results and get a badge (see publish_results below).
       id-token: write
-      # Needed to access repository contents.
+      # Allows actions/checkout to fetch the repository.
       contents: read
-      # Needed to access actions.
+      # Allows the action to view the status of previous runs.
       actions: read
 
     steps:
