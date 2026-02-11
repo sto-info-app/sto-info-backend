@@ -1,27 +1,32 @@
 name: OpenSSF Scorecard
 on:
+  # For Branch-Protection check. Only the default branch is supported. See
+  # https://github.com/ossf/scorecard-action#branch-protection
+  branch_protection_rule:
+  # To guarantee Maintained check is occasionally updated. See
+  # https://github.com/ossf/scorecard-action#maintained
   schedule:
     - cron: '30 3 * * 0' # Sundays at 03:30 UTC
   push:
     branches: ['development']
   workflow_dispatch:
 
+# Declare default permissions as read only.
 permissions: read-all
 
 jobs:
   analysis:
-    name: Scorecard Analysis
+    name: Scorecard analysis
     runs-on: ubuntu-latest
-    # Run only on the canonical repository
     if: github.repository_owner == 'sto-info-app' || github.event.repository.fork == false
     permissions:
       # Needed to upload the results to code-scanning dashboard.
       security-events: write
-      # Needed to publish results and get a badge.
+      # Needed to publish results and get a badge (see publish_results below).
       id-token: write
-      # Needed to access repository contents.
+      # Allows actions/checkout to fetch the repository.
       contents: read
-      # Needed to access actions.
+      # Allows the action to view the status of previous runs.
       actions: read
 
     steps:
@@ -31,21 +36,34 @@ jobs:
           persist-credentials: false
 
       - name: 'Run analysis'
-        uses: ossf/scorecard-action@62b2cac7ed8198b15735ed49ab1e5cf35480ba46 # v2.4.0
+        uses: ossf/scorecard-action@e363bf2217767df52423bc244a56a629d3fbc9c1 # v2.3.1
         with:
           results_file: results.sarif
           results_format: sarif
-          # Publish results to OpenSSF Scorecard API
+          # (Optional) "repo_token" is only needed for private repositories.
+          # Scorecard `token` permission is "none" by default for public repositories.
+          # repo_token: ${{ secrets.SCORECARD_TOKEN }}
+
+          # Public repositories:
+          #   - Publish results to OpenSSF REST API for easy access by consumers
+          #   - Allows the repository to include the Scorecard badge.
+          #   - See https://github.com/ossf/scorecard-action#publishing-results.
+          # For private repositories:
+          #   - `publish_results` will always be set to `false`, regardless
+          #     of the value entered here.
           publish_results: true
 
+      # Upload the results as artifacts (optional). Commenting out will disable uploads of run results in SARIF
+      # format to the repository Actions tab.
       - name: 'Upload artifact'
-        uses: actions/upload-artifact@4cedc5d8fe0a446d10e8cf356c6637ee8a042e4e # v4.6.1
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.4.0
         with:
           name: SARIF file
           path: results.sarif
           retention-days: 5
 
+      # Upload the results to GitHub's code scanning dashboard.
       - name: 'Upload to code-scanning'
-        uses: github/codeql-action/upload-sarif@9e8d0789d4a0fa9ceb6b1738f7e269594bdd67f0 # v3.28.9
+        uses: github/codeql-action/upload-sarif@b56ba49b26e50535fa1e7f7db0f4f7b4bf65d80d # v3.28.10
         with:
           sarif_file: results.sarif
