@@ -152,6 +152,11 @@ The analysis results will be available on the SonarQube dashboard.
 
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=alert_status&token=112872819709705c46aa22a30dbc9cb78546a38e)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend) [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=bugs&token=112872819709705c46aa22a30dbc9cb78546a38e)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend) [![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=code_smells&token=112872819709705c46aa22a30dbc9cb78546a38e)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend) [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=duplicated_lines_density&token=112872819709705c46aa22a30dbc9cb78546a38e)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
 
+## Contributors
+
+<!-- README_CONTRIBUTORS -->
+<!-- README_CONTRIBUTORS -->
+
 ## Licence
 
 This project is licensed under the MIT Licence. See the [LICENCE](LICENCE) file for more information.

@@ -1,0 +1,30 @@
+name: Contributors
+on:
+  push:
+    branches: ['development']
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * 0' # Sundays at 00:00 UTC
+
+permissions: read-all
+
+jobs:
+  update-contributors:
+    name: Update Contributors
+    runs-on: ubuntu-latest
+    # Run only on the canonical repository
+    if: github.repository_owner == 'sto-info-app' || github.event.repository.fork == false
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Update Contributors
+        uses: akhilmhdh/contributors-readme-action@e81aa176722d579b1227038ded9efc86252bb881 # v2.3.6
+        with:
+          image_size: 100
+          commit_message: 'docs: update contributors [skip ci]'
+          # Updates both README.md and CONTRIBUTORS.md if markers are present
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
