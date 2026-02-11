@@ -1,0 +1,70 @@
+name: 'Bug Report'
+description: 'Report a bug to help us improve.'
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug. Please fill out the form below with as much detail as possible.
+  - type: input
+    id: summary
+    attributes:
+      label: 'Summary'
+      description: 'A clear and concise summary of the bug.'
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: 'Component'
+      description: 'Which part of the system is affected?'
+      options:
+        - 'API (General)'
+        - 'Authentication / Auth'
+        - 'Cron / Background Jobs'
+        - 'Database / Migrations'
+        - 'External Integrations'
+        - 'Other'
+    validations:
+      required: true
+  - type: textarea
+    id: steps_to_reproduce
+    attributes:
+      label: 'Steps to Reproduce'
+      description: 'How can we replicate this issue?'
+      placeholder: "1. Go to...\n2. Click on...\n3. See error..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected_behaviour
+    attributes:
+      label: 'Expected Behaviour'
+      description: 'What did you expect to happen?'
+    validations:
+      required: true
+  - type: textarea
+    id: actual_behaviour
+    attributes:
+      label: 'Actual Behaviour'
+      description: 'What actually happened?'
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 'Environment'
+      description: 'e.g. Node version, OS, local or dev environment.'
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 'Logs or Error Messages'
+      description: 'Please include any relevant logs. Ensure no sensitive data (keys, passwords) is included.'
+  - type: checkboxes
+    id: security_confirmation
+    attributes:
+      label: 'Security Check'
+      options:
+        - label: 'I confirm that I have not included any secrets, keys, or sensitive credentials in this report.'
+          required: true
