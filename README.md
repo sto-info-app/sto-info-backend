@@ -1,4 +1,4 @@
-# sto-info-backend [![Uptime status](https://img.shields.io/uptimerobot/status/m802169058-d230a9a973c1eef1de28ed63.svg)](https://status.startrekonline.info/) [![Uptime 30 days](https://img.shields.io/uptimerobot/ratio/m802169058-d230a9a973c1eef1de28ed63.svg)](https://status.startrekonline.info/)
+# sto-info-backend [![Uptime status](https://img.shields.io/uptimerobot/status/m802169058-d230a9a973c1eef1de28ed63.svg)](https://status.startrekonline.info/) [![Uptime 30 days](https://img.shields.io/uptimerobot/ratio/m802169058-d230a9a973c1eef1de28ed63.svg)](https://status.startrekonline.info/) [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/sto-info-app/sto-info-backend/badge)](https://scorecard.dev/viewer/?uri=github.com/sto-info-app/sto-info-backend)
 
 ## Project Overview
 
