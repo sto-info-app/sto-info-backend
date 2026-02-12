@@ -9,7 +9,9 @@ on:
 env:
   NODE_VERSION: 24
 
-permissions: read-all
+# Declare default permissions as read only.
+permissions:
+  contents: read
 
 jobs:
   update-contributors:
@@ -24,7 +26,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Update Contributors
-        uses: akhilmhdh/contributors-readme-action@e81aa176722d579b1227038ded9efc86252bb881 # v2.3.6
+        uses: akhilmhdh/contributors-readme-action@83ea0b4f1ac928fbfe88b9e8460a932a528eb79f # v2.3.11
         with:
           image_size: 100
           commit_message: 'docs: update contributors [skip ci]'
