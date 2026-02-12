@@ -14,7 +14,8 @@ env:
   NODE_VERSION: 24
 
 # Declare default permissions as read only.
-permissions: read
+permissions:
+  contents: read
 
 jobs:
   analysis:
@@ -30,6 +31,10 @@ jobs:
       contents: read
       # Allows the action to view the status of previous runs.
       actions: read
+      # Allows the action to check for issues, PRs and CI checks.
+      issues: read
+      pull-requests: read
+      checks: read
 
     steps:
       - name: 'Checkout code'
