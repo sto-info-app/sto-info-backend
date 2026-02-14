@@ -9,9 +9,8 @@ on:
 env:
   NODE_VERSION: 24
 
-# Declare default permissions as read only.
-permissions:
-  contents: read
+# Declare default permissions as none.
+permissions: {}
 
 jobs:
   update-contributors:

@@ -4,6 +4,8 @@ on:
   push:
     branches: [production]
 
+permissions: {}
+
 env:
   NODE_VERSION: 24
 
