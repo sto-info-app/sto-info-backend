@@ -4,10 +4,7 @@ on:
   push:
     branches: [development]
 
-permissions:
-  contents: write
-  pull-requests: write
-  actions: read
+permissions: {}
 
 env:
   NODE_VERSION: 24
@@ -21,6 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: Development
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: read
 
     # Hardening: prevent infinite loops
     # - Skip if the commit message matches our version bump pattern
