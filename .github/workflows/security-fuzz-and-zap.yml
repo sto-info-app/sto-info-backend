@@ -1,0 +1,211 @@
+name: 'Security: Fuzz + ZAP'
+
+on:
+  pull_request:
+    branches:
+      - development
+    types: [opened, synchronize, reopened, ready_for_review]
+
+  schedule:
+    # Weekly full scan every Monday at 03:00 UTC
+    - cron: '0 3 * * 1'
+
+  workflow_dispatch:
+    inputs:
+      fuzz_run_count:
+        description: 'Number of fuzz test runs (default: 100 for PR, 1000 for weekly)'
+        required: false
+        default: '1000'
+      zap_scan_type:
+        description: 'ZAP scan type (baseline or full)'
+        required: false
+        default: 'full'
+
+permissions: {}
+
+env:
+  NODE_VERSION: 24
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fuzz:
+    name: 'Property-based fuzz testing'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Resolve cache toggle
+        id: cache-toggle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          value=$(gh api repos/$REPO/actions/variables/CACHE_NODE_MODULES --jq '.value' 2>/dev/null || echo '')
+          if [ -z "$value" ]; then
+            value=true
+          fi
+          echo "use_cache=$value" >> "$GITHUB_OUTPUT"
+
+      - name: Cache node_modules
+        if: steps.cache-toggle.outputs.use_cache == 'true'
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ env.NODE_VERSION }}-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run lightweight fuzz tests (PR)
+        if: github.event_name == 'pull_request'
+        run: npm run test:fuzz
+        env:
+          FUZZ_NUM_RUNS: 50
+
+      - name: Run deep fuzz tests (weekly/manual)
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: npm run test:fuzz:full
+        env:
+          FUZZ_NUM_RUNS: ${{ github.event.inputs.fuzz_run_count || '1000' }}
+
+  zap:
+    name: 'OWASP ZAP DAST scan'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Resolve cache toggle
+        id: cache-toggle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          value=$(gh api repos/$REPO/actions/variables/CACHE_NODE_MODULES --jq '.value' 2>/dev/null || echo '')
+          if [ -z "$value" ]; then
+            value=true
+          fi
+          echo "use_cache=$value" >> "$GITHUB_OUTPUT"
+
+      - name: Cache node_modules
+        if: steps.cache-toggle.outputs.use_cache == 'true'
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ env.NODE_VERSION }}-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create test environment file
+        run: |
+          mkdir -p config/environments
+          cat << 'EOF' > config/environments/.env
+          NODE_ENV=test
+          PORT=3000
+          DATABASE_URL=postgresql://test_user:test_password@localhost:5432/test_db
+          JWT_SECRET=test-jwt-secret-for-zap-scanning-only
+          JWT_EXPIRES_IN=1h
+          REFRESH_TOKEN_EXPIRES_IN=7d
+          BCRYPT_ROUNDS=10
+          ENABLE_SWAGGER=false
+          AWS_REGION=us-east-1
+          USE_AWS_SECRETS=false
+          EOF
+
+      - name: Build application
+        run: npm run build
+
+      - name: Run database migrations
+        run: npm run migration:run
+        env:
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+
+      - name: Start API server
+        run: |
+          npm run start:prod &
+          SERVER_PID=$!
+          echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
+          echo "Started server with PID: $SERVER_PID"
+
+          # Wait for server to be ready (max 60 seconds)
+          timeout=60
+          counter=0
+          until curl -sf http://localhost:3000/health > /dev/null 2>&1 || curl -sf http://localhost:3000 > /dev/null 2>&1; do
+            if [ $counter -ge $timeout ]; then
+              echo "Server failed to start within ${timeout}s"
+              exit 1
+            fi
+            echo "Waiting for server to start... ($counter/$timeout)"
+            sleep 2
+            counter=$((counter + 2))
+          done
+          echo "Server is ready at http://localhost:3000"
+
+      - name: Run ZAP baseline scan on /health endpoint (PR)
+        if: github.event_name == 'pull_request'
+        uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # v0.15.0
+        with:
+          target: 'http://localhost:3000/health'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a -j -m 3 -T 600'
+          allow_issue_writing: false
+          artifact_name: 'zap-baseline-report'
+
+      - name: Run ZAP full scan on base URL (weekly/manual)
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.zap_scan_type == 'full')
+        uses: zaproxy/action-full-scan@3c58388149901b9a03b7718852c5ba889646c27c # v0.13.0
+        with:
+          target: 'http://localhost:3000'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a -j -m 3 -T 1800'
+          allow_issue_writing: false
+          artifact_name: 'zap-full-scan-report'
+
+      - name: Cleanup server
+        if: always()
+        run: |
+          if [ -n "$SERVER_PID" ]; then
+            kill $SERVER_PID 2>/dev/null || true
+          fi
