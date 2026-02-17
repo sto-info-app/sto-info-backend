@@ -343,12 +343,18 @@ Document any caching strategies here (e.g., Redis, in-memory cache, HTTP caching
 ### Testing Scripts
 
 - `npm run test`: Run unit tests. Use during development to verify functionality.
+- `npm run test:fuzz`: Run lightweight property-based fuzz tests. Use to catch obvious edge cases quickly.
+- `npm run test:fuzz:full`: Run comprehensive property-based fuzz tests. Use for deeper analysis (slower).
 - `npm run test:watch`: Run tests in watch mode (re-runs on file changes). Use during active development.
 - `npm run test:cov`: Run tests with full coverage report (lcov + text summary). Use before commits/PRs to ensure coverage.
 - `npm run test:debug`: Run tests with Node debugger attached. Use to debug failing tests.
 - `npm run test:e2e`: Run end-to-end tests. Use to verify full application flows.
 - `npm run test:mutation`: Run Stryker mutation tests with progress, clear-text, and HTML reporters. Use to verify test quality.
 - `npm run test:mutation:dry`: Run mutation tests in dry-run mode (no actual mutations). Use to verify Stryker configuration.
+
+### Verification
+
+- `npm run verify`: Run a full local verification pass (security audit, lint, coverage tests, lightweight fuzz tests, and build).
 
 ### Database Migration Scripts
 

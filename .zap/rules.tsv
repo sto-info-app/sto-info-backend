@@ -1,0 +1,21 @@
+# ZAP Scan Rules Configuration
+# Format: <scanId>	<action>	<url>
+# Actions: IGNORE, WARN, FAIL
+# 
+# Example:
+# 10202	IGNORE	http://localhost:3000/api/known-false-positive
+#
+# Common scan IDs:
+# 10020 - X-Frame-Options Header
+# 10021 - X-Content-Type-Options Header
+# 10023 - Information Disclosure - Debug Error Messages
+# 10035 - Strict-Transport-Security Header
+# 10038 - Content Security Policy (CSP) Header
+# 10049 - Content Cacheability
+# 10054 - Cookie Without SameSite Attribute
+# 10055 - CSP Scanner (Policy Errors)
+# 10095 - Backup File Disclosure
+# 10096 - Timestamp Disclosure
+# 10098 - Cross-Domain Misconfiguration
+#
+# Add custom rules below this line

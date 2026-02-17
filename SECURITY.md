@@ -11,6 +11,116 @@ We provide security updates for the following versions:
 
 The `development` branch is the primary target for all security fixes. Production releases are tagged and should be considered the latest stable state.
 
+## Automated Security Testing
+
+This repository employs multiple layers of automated security testing to identify vulnerabilities early in the development lifecycle.
+
+### Property-based fuzz testing with fast-check
+
+**What it does:**
+Property-based fuzz testing generates thousands of random inputs to test code behaviour under unexpected conditions. This helps identify edge cases, crashes, and unhandled exceptions.
+
+**When it runs:**
+
+- **Pull requests**: Lightweight tests (~50 iterations per property) to provide fast feedback
+- **Weekly schedule**: Comprehensive tests (~1000 iterations per property) for deep analysis
+- **Manual trigger**: Available via workflow_dispatch with configurable iteration counts
+
+**How to run locally:**
+
+```bash
+# Lightweight (fast feedback)
+npm run test:fuzz
+
+# Comprehensive (deep analysis)
+npm run test:fuzz:full
+
+# Custom iteration count
+FUZZ_NUM_RUNS=500 npm run test:fuzz
+```
+
+**Current test coverage:**
+
+- DTO validation (class-validator integration)
+- String manipulation and parsing utilities
+- JSON parsing robustness
+- Type conversion edge cases
+
+### OWASP ZAP DAST scanning
+
+**What it does:**
+ZAP (Zed Attack Proxy) performs Dynamic Application Security Testing by actively scanning the running API for common web vulnerabilities including:
+
+- SQL injection
+- Cross-site scripting (XSS)
+- Security header misconfigurations
+- Authentication/authorisation bypass
+- Information disclosure
+- Insecure API endpoints
+- And 50+ other vulnerability types
+
+**When it runs:**
+
+- **Pull requests**: ZAP baseline scan against `/health` endpoint (fast, ~10 minutes)
+- **Weekly schedule**: ZAP full scan against base URL (comprehensive, ~30 minutes, deep spider + active scan)
+- **Manual trigger**: Available via workflow_dispatch with configurable scan type
+
+**Scan execution:**
+
+- PostgreSQL 16 service container started with test-only credentials
+- Database migrations run against test database
+- API server started on localhost:3000
+- ZAP scans against local server (no external dependencies)
+- Reports stored as workflow artifacts for 30 days
+
+**Test database credentials** (safe for CI, never used in production):
+
+```
+User: test_user
+Password: test_password
+Database: test_db
+```
+
+**Failure criteria:**
+
+- Scan fails on Medium or High severity findings
+- Low and Informational findings logged but do not fail the build
+
+**Limitations:**
+
+- **Authentication**: Scans run against unauthenticated endpoints only; authenticated endpoints requiring JWT tokens are not currently tested
+- **Coverage**: PR scans target only `/health` endpoint; weekly scans spider from base URL but may not discover all routes
+- **False positives**: Some findings may be false positives; tune via `.zap/rules.tsv`
+
+**Tuning false positives:**
+
+Edit `.zap/rules.tsv` to suppress known false positives:
+
+```tsv
+# Format: <scanId>	<action>	<url>
+10202	IGNORE	http://localhost:3000/api/known-safe-endpoint
+```
+
+Common scan IDs are documented in `.zap/rules.tsv`.
+
+**How to interpret results:**
+
+1. Download ZAP report artifact from workflow run
+2. Open `index.html` in browser
+3. Review findings by severity
+4. Investigate Medium/High findings first
+5. Add legitimate false positives to `.zap/rules.tsv`
+
+**Future enhancements:**
+
+- Add authenticated scan context with JWT token
+- Include OpenAPI/Swagger definition for better route discovery
+- Add custom ZAP scripts for API-specific vulnerability tests
+
+### Continuous updates
+
+Both fast-check and ZAP are updated regularly via Dependabot to ensure the latest vulnerability signatures and testing capabilities.
+
 ## Reporting a Vulnerability
 
 If you believe you have discovered a security vulnerability, please report it privately through one of the following channels:
