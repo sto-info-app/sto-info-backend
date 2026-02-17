@@ -1,0 +1,51 @@
+name: 'CodeQL Static Analysis'
+
+on:
+  push:
+    branches: ['development', 'production']
+  pull_request:
+    branches: ['development']
+  schedule:
+    - cron: '30 0 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  code_scanning:
+    name: 'Analyse Source Code'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['javascript-typescript']
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # Initialises the CodeQL tools for scanning.
+      - name: Initialise CodeQL
+        uses: github/codeql-action/init@f5c2471be782132e47a6e6f9c725e56730d6e9a3 # v3.32.3
+        with:
+          languages: ${{ matrix.language }}
+          # If you wish to specify custom queries, you can do so here or in a config file.
+          # By default, queries listed here will override any specified in a config file.
+          # Prefix the list here with "+" to use these queries and those in the config file.
+          queries: security-extended,security-and-quality
+
+      # Autobuild attempts to build any compiled languages (JS/TS is technically interpreted
+      # but this step still helps in preparing the environment).
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@f5c2471be782132e47a6e6f9c725e56730d6e9a3 # v3.32.3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@f5c2471be782132e47a6e6f9c725e56730d6e9a3 # v3.32.3
+        with:
+          category: '/language:${{matrix.language}}'
