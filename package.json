@@ -44,7 +44,7 @@
     "verify": "npm audit --audit-level=high --omit=dev && npm run lint && npm run test:cov && npm run test:fuzz && npm run build"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.990.0",
+    "@aws-sdk/client-s3": "^3.992.0",
     "@aws-sdk/client-secrets-manager": "^3.990.0",
     "@nestjs/common": "^11.1.13",
     "@nestjs/config": "^4.0.3",
