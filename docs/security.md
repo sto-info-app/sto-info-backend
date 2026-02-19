@@ -1,5 +1,40 @@
 # Security Documentation
 
+## Dependency Overrides
+
+This repository uses `npm overrides` sparingly to address security issues that originate in transitive dependencies (dependencies of dependencies) where upgrading a single top-level package would otherwise require a breaking change.
+
+### `minimatch` override
+
+**Why it exists**
+
+- `minimatch < 10.2.1` has a high-severity ReDoS advisory (GHSA-3ppc-4f35-3m26) triggered by certain patterns (for example repeated wildcards with a non-matching literal).
+- In this repo, `minimatch` is brought in transitively via packages such as Sentry (`@sentry/node`), TypeORM's dependency chain (`glob`), and tooling dependencies.
+- Rather than forcing a breaking upgrade of top-level packages solely to pull in a patched transitive version, we pin `minimatch` to a known-fixed version using:
+
+```json
+"overrides": {
+  "minimatch": "10.2.1"
+}
+```
+
+**When it can be removed**
+
+Remove the override once all relevant dependency paths naturally resolve to `minimatch >= 10.2.1` (i.e., no package in the lockfile requires an older vulnerable range).
+
+Practical removal checklist:
+
+1. Run `npm ls minimatch --all` and confirm there are no versions `< 10.2.1`.
+2. Remove the `minimatch` entry from `overrides` in `package.json`.
+3. Run `npm install` to regenerate `package-lock.json`.
+4. Run `npm audit --omit=dev --audit-level=high` (matches the CI gate in `npm run verify`).
+
+If step (1) fails after removing the override, keep the override and instead upgrade the top-level packages that introduce older `minimatch` constraints until the tree is clean.
+
+**Security/operational trade-offs**
+
+Overrides reduce exposure to known vulnerabilities quickly, but they also change the dependency tree independently of what upstream packages tested. Keep overrides minimal, and prefer removing them once upstream dependencies have caught up.
+
 ## CORS Configuration
 
 ### Purpose
