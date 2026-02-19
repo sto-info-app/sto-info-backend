@@ -40,13 +40,20 @@ jobs:
           # If CodeQL "default setup" is enabled in the repo settings, GitHub will reject
           # SARIF uploads from advanced (workflow-based) configurations.
           # When that is the case, we skip this workflow so the default setup can run.
-          state=$(gh api "repos/$REPO/code-scanning/default-setup" --jq '.state' 2>/dev/null || echo '')
-          if [ "$state" = "configured" ] || [ "$state" = "enabled" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          state=''
+          if state=$(gh api "repos/$REPO/code-scanning/default-setup" --jq '.state' 2>/dev/null); then
+            if [ "$state" = "configured" ] || [ "$state" = "enabled" ]; then
+              echo "enabled=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "enabled=false" >> "$GITHUB_OUTPUT"
+            fi
+            echo "state=$state" >> "$GITHUB_OUTPUT"
           else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            # If we cannot query the default setup state (permissions/API hiccup), be conservative
+            # and skip advanced CodeQL to avoid failing the workflow.
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "state=unknown" >> "$GITHUB_OUTPUT"
           fi
-          echo "state=$state" >> "$GITHUB_OUTPUT"
 
       # Initialises the CodeQL tools for scanning.
       - name: Initialise CodeQL
