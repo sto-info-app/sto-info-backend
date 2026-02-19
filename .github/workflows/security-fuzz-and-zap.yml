@@ -87,6 +87,7 @@ jobs:
     name: 'OWASP ZAP DAST scan'
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    if: github.repository_owner == 'sto-info-app' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
     permissions:
       contents: read
 
