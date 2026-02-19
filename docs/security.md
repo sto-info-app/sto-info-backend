@@ -14,22 +14,43 @@ This repository uses `npm overrides` sparingly to address security issues that o
 
 ```json
 "overrides": {
-  "minimatch": "10.2.1"
+  "minimatch": "10.2.1",
+  "test-exclude": {
+    "minimatch": "3.1.2",
+    "glob": {
+      "minimatch": "3.1.2"
+    }
+  }
 }
 ```
 
+**Why the `test-exclude` exception exists**
+
+Jest coverage in this repo relies on Istanbul's `test-exclude` via `babel-plugin-istanbul`. Some versions of `test-exclude`/`glob` expect `require('minimatch')` to return a callable function.
+
+When `minimatch` is globally overridden to a newer major (for the security fix), that assumption can break and Jest will fail at transform/instrumentation time with an error like:
+
+- `TypeError: minimatch is not a function`
+
+To keep the security fix while preserving Jest coverage, we allow `test-exclude` (and its `glob` dependency) to continue using `minimatch@3.1.2`.
+
 **When it can be removed**
 
-Remove the override once all relevant dependency paths naturally resolve to `minimatch >= 10.2.1` (i.e., no package in the lockfile requires an older vulnerable range).
+Remove the override(s) once both of the following are true without them:
+
+- `npm audit --omit=dev --audit-level=high` reports 0 vulnerabilities
+- `npm run test:cov` runs without coverage instrumentation errors
+
+In practice, this means upstream packages must have updated to versions that (a) no longer pull in vulnerable `minimatch` versions and (b) remain compatible with `minimatch >= 10.2.1` where they consume it.
 
 Practical removal checklist:
 
-1. Run `npm ls minimatch --all` and confirm there are no versions `< 10.2.1`.
-2. Remove the `minimatch` entry from `overrides` in `package.json`.
-3. Run `npm install` to regenerate `package-lock.json`.
-4. Run `npm audit --omit=dev --audit-level=high` (matches the CI gate in `npm run verify`).
+1. Remove the `overrides` entries from `package.json`.
+2. Run `npm install` to regenerate `package-lock.json`.
+3. Run `npm audit --omit=dev --audit-level=high` (matches the CI gate in `npm run verify`).
+4. Run `npm run test:cov` to ensure coverage still works.
 
-If step (1) fails after removing the override, keep the override and instead upgrade the top-level packages that introduce older `minimatch` constraints until the tree is clean.
+If the audit gate fails after removing the overrides, keep them and instead upgrade the top-level packages that introduce older `minimatch` constraints until the tree is clean.
 
 **Security/operational trade-offs**
 
