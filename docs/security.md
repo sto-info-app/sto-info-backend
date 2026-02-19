@@ -35,6 +35,16 @@ If step (1) fails after removing the override, keep the override and instead upg
 
 Overrides reduce exposure to known vulnerabilities quickly, but they also change the dependency tree independently of what upstream packages tested. Keep overrides minimal, and prefer removing them once upstream dependencies have caught up.
 
+### Moderate `npm audit` findings (dev-only)
+
+Occasionally `npm audit --audit-level=moderate` will report moderate vulnerabilities in **development/tooling** dependencies.
+
+As of Feb 2026, the remaining moderate findings are associated with the `ajv < 8.18.0` advisory (GHSA-2g4f-4pwh-qvx6) and are pulled in via tooling packages (for example ESLint and Nest CLI chains). These findings do **not** impact the runtime dependency set as verified by:
+
+- `npm audit --omit=dev --audit-level=moderate`
+
+We deliberately do **not** force an `ajv` override because different toolchains depend on different major versions of `ajv` (for example `ajv@6` vs `ajv@8`), and overriding across majors is likely to break the affected tools. Instead, we rely on upstream upgrades to resolve the advisory in tooling over time.
+
 ## CORS Configuration
 
 ### Purpose
