@@ -30,8 +30,27 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - name: Detect CodeQL default setup
+        id: codeql-default-setup
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          # If CodeQL "default setup" is enabled in the repo settings, GitHub will reject
+          # SARIF uploads from advanced (workflow-based) configurations.
+          # When that is the case, we skip this workflow so the default setup can run.
+          state=$(gh api "repos/$REPO/code-scanning/default-setup" --jq '.state' 2>/dev/null || echo '')
+          if [ "$state" = "configured" ] || [ "$state" = "enabled" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "state=$state" >> "$GITHUB_OUTPUT"
+
       # Initialises the CodeQL tools for scanning.
       - name: Initialise CodeQL
+        if: steps.codeql-default-setup.outputs.enabled != 'true'
         uses: github/codeql-action/init@f5c2471be782132e47a6e6f9c725e56730d6e9a3 # v3.32.3
         with:
           languages: ${{ matrix.language }}
@@ -43,9 +62,17 @@ jobs:
       # Autobuild attempts to build any compiled languages (JS/TS is technically interpreted
       # but this step still helps in preparing the environment).
       - name: Autobuild
+        if: steps.codeql-default-setup.outputs.enabled != 'true'
         uses: github/codeql-action/autobuild@f5c2471be782132e47a6e6f9c725e56730d6e9a3 # v3.32.3
 
       - name: Perform CodeQL Analysis
+        if: steps.codeql-default-setup.outputs.enabled != 'true'
         uses: github/codeql-action/analyze@f5c2471be782132e47a6e6f9c725e56730d6e9a3 # v3.32.3
         with:
           category: '/language:${{matrix.language}}'
+
+      - name: Skip advanced CodeQL (default setup enabled)
+        if: steps.codeql-default-setup.outputs.enabled == 'true'
+        run: |
+          echo "CodeQL default setup is enabled (state='${{ steps.codeql-default-setup.outputs.state }}')."
+          echo "Skipping advanced workflow-based CodeQL to avoid SARIF processing errors."
