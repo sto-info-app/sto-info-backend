@@ -24,7 +24,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Request } from 'express';
-import { memoryStorage, File as MulterFile } from 'multer';
+import type { File as MulterFile } from 'multer';
+import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
 import {

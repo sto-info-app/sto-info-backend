@@ -114,5 +114,16 @@ describe('Sentry Initialization', () => {
     event = { request: { headers: {} } } as any;
     result = beforeSend(event);
     expect(result.request.headers).toEqual({});
+
+    // Event with no request (to cover event.request? branches)
+    event = {} as any;
+    result = beforeSend(event);
+    expect(result).toEqual({});
+
+    // Event with request but no headers (specifically for headers branch)
+    event = { request: { data: { foo: 'bar' } } } as any;
+    result = beforeSend(event);
+    expect(result.request.headers).toBeUndefined();
+    expect(result.request.data).toBeUndefined();
   });
 });

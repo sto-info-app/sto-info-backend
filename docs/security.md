@@ -1,5 +1,71 @@
 # Security Documentation
 
+## Dependency Overrides
+
+This repository uses `npm overrides` sparingly to address security issues that originate in transitive dependencies (dependencies of dependencies) where upgrading a single top-level package would otherwise require a breaking change.
+
+### `minimatch` override
+
+**Why it exists**
+
+- `minimatch < 10.2.1` has a high-severity ReDoS advisory (GHSA-3ppc-4f35-3m26) triggered by certain patterns (for example repeated wildcards with a non-matching literal).
+- In this repo, `minimatch` is brought in transitively via packages such as Sentry (`@sentry/node`), TypeORM's dependency chain (`glob`), and tooling dependencies.
+- Rather than forcing a breaking upgrade of top-level packages solely to pull in a patched transitive version, we pin `minimatch` to a known-fixed version using:
+
+```json
+"overrides": {
+  "minimatch": "10.2.1",
+  "test-exclude": {
+    "minimatch": "3.1.2",
+    "glob": {
+      "minimatch": "3.1.2"
+    }
+  }
+}
+```
+
+**Why the `test-exclude` exception exists**
+
+Jest coverage in this repo relies on Istanbul's `test-exclude` via `babel-plugin-istanbul`. Some versions of `test-exclude`/`glob` expect `require('minimatch')` to return a callable function.
+
+When `minimatch` is globally overridden to a newer major (for the security fix), that assumption can break and Jest will fail at transform/instrumentation time with an error like:
+
+- `TypeError: minimatch is not a function`
+
+To keep the security fix while preserving Jest coverage, we allow `test-exclude` (and its `glob` dependency) to continue using `minimatch@3.1.2`.
+
+**When it can be removed**
+
+Remove the override(s) once both of the following are true without them:
+
+- `npm audit --omit=dev --audit-level=high` reports 0 vulnerabilities
+- `npm run test:cov` runs without coverage instrumentation errors
+
+In practice, this means upstream packages must have updated to versions that (a) no longer pull in vulnerable `minimatch` versions and (b) remain compatible with `minimatch >= 10.2.1` where they consume it.
+
+Practical removal checklist:
+
+1. Remove the `overrides` entries from `package.json`.
+2. Run `npm install` to regenerate `package-lock.json`.
+3. Run `npm audit --omit=dev --audit-level=high` (matches the CI gate in `npm run verify`).
+4. Run `npm run test:cov` to ensure coverage still works.
+
+If the audit gate fails after removing the overrides, keep them and instead upgrade the top-level packages that introduce older `minimatch` constraints until the tree is clean.
+
+**Security/operational trade-offs**
+
+Overrides reduce exposure to known vulnerabilities quickly, but they also change the dependency tree independently of what upstream packages tested. Keep overrides minimal, and prefer removing them once upstream dependencies have caught up.
+
+### Moderate `npm audit` findings (dev-only)
+
+Occasionally `npm audit --audit-level=moderate` will report moderate vulnerabilities in **development/tooling** dependencies.
+
+As of Feb 2026, the remaining moderate findings are associated with the `ajv < 8.18.0` advisory (GHSA-2g4f-4pwh-qvx6) and are pulled in via tooling packages (for example ESLint and Nest CLI chains). These findings do **not** impact the runtime dependency set as verified by:
+
+- `npm audit --omit=dev --audit-level=moderate`
+
+We deliberately do **not** force an `ajv` override because different toolchains depend on different major versions of `ajv` (for example `ajv@6` vs `ajv@8`), and overriding across majors is likely to break the affected tools. Instead, we rely on upstream upgrades to resolve the advisory in tooling over time.
+
 ## CORS Configuration
 
 ### Purpose

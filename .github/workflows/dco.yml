@@ -1,0 +1,101 @@
+name: DCO Enforcement
+
+on:
+  pull_request:
+    branches: [production, development]
+    types: [opened, synchronize, reopened]
+
+permissions: {}
+
+jobs:
+  dco:
+    name: DCO Check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: DCO Check
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pull_number = context.payload.pull_request.number;
+
+            const commits = await github.paginate(
+              github.rest.pulls.listCommits,
+              { owner, repo, pull_number, per_page: 100 },
+            );
+
+            function isValidEmail(email) {
+              return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+            }
+
+            function getSignoffs(message) {
+              const regex = /^Signed-off-by: (.*) <(.*)>$/gim;
+              const signoffs = [];
+              let match;
+              while ((match = regex.exec(message)) !== null) {
+                signoffs.push({ name: match[1], email: match[2] });
+              }
+              return signoffs;
+            }
+
+            const failures = [];
+            for (const c of commits) {
+              const sha = c.sha;
+              const message = (c.commit && c.commit.message) ? c.commit.message : '';
+              const isMerge = c.parents && c.parents.length > 1;
+              const isBot = c.author && c.author.type === 'Bot';
+
+              if (isMerge || isBot) {
+                continue;
+              }
+
+              const signoffs = getSignoffs(message);
+              if (signoffs.length === 0) {
+                failures.push(`- ${sha}: The sign-off is missing.`);
+                continue;
+              }
+
+              const author = (c.commit && c.commit.author) ? c.commit.author : {};
+              const committer = (c.commit && c.commit.committer) ? c.commit.committer : {};
+              const email = author.email || committer.email || '';
+
+              if (!isValidEmail(email)) {
+                failures.push(`- ${sha}: ${email || '(missing email)'} is not a valid email address.`);
+                continue;
+              }
+
+              const names = [author.name, committer.name].filter(Boolean).map((n) => n.toLowerCase());
+              const emails = [author.email, committer.email].filter(Boolean).map((e) => e.toLowerCase());
+
+              if (signoffs.length === 1) {
+                const sig = signoffs[0];
+                const nameOk = names.includes((sig.name || '').toLowerCase());
+                const emailOk = emails.includes((sig.email || '').toLowerCase());
+                if (!nameOk || !emailOk) {
+                  failures.push(
+                    `- ${sha}: Expected "${author.name} <${author.email}>", but got "${sig.name} <${sig.email}>".`
+                  );
+                }
+              } else {
+                const valid = signoffs.filter((sig) =>
+                  names.includes((sig.name || '').toLowerCase()) &&
+                  emails.includes((sig.email || '').toLowerCase())
+                );
+
+                if (valid.length === 0) {
+                  const got = signoffs.map((sig) => `"${sig.name} <${sig.email}>"`).join(', ');
+                  failures.push(
+                    `- ${sha}: Can not find "${author.name} <${author.email}>", in [${got}].`
+                  );
+                }
+              }
+            }
+
+            if (failures.length > 0) {
+              core.setFailed(`The SoB (DCO) check failed\n\n${failures.join('\n')}\n\nAll proposed commits should include a Signed-off-by: <your-name> <your-email-address> line in their commit message.`);
+            }

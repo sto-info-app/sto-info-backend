@@ -183,6 +183,23 @@ describe('CharacterController', () => {
         controller.uploadProfileImage('user-1', 'char-1', file),
       ).rejects.toThrow(error);
     });
+
+    it('should handle undefined userId or id in logger', async () => {
+      const file = {
+        buffer: Buffer.from('test'),
+        originalname: 'a.png',
+      } as any;
+      await controller.uploadProfileImage(
+        undefined as any,
+        undefined as any,
+        file,
+      );
+      expect(service.uploadProfileImage).toHaveBeenCalledWith(
+        undefined,
+        undefined,
+        file,
+      );
+    });
   });
 
   describe('imageFileFilter', () => {

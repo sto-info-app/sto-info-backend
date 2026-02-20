@@ -1,6 +1,6 @@
 export default {
   moduleFileExtensions: ['js', 'json', 'ts'],
-  testRegex: String.raw`.*\.spec\.ts$`,
+  testRegex: String.raw`\.spec\.ts$`,
   transform: {
     [String.raw`^.+\.(t|j)s$`]: 'ts-jest',
   },
@@ -13,6 +13,7 @@ export default {
     'src/**/*.(t|j)s',
     // Exclude test files
     '!**/*.spec.(t|j)s',
+    '!**/*.fuzz.spec.(t|j)s',
     // Exclude NestJS module files
     '!**/*.module.(t|j)s',
     // Exclude main entry point
