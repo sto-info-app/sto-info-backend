@@ -61,25 +61,15 @@ ZAP (Zed Attack Proxy) performs Dynamic Application Security Testing by actively
 
 **When it runs:**
 
-- **Pull requests**: ZAP baseline scan against `/health` endpoint (fast, ~10 minutes)
-- **Weekly schedule**: ZAP full scan against base URL (comprehensive, ~30 minutes, deep spider + active scan)
+- **Development version bumps**: ZAP baseline scan against the dev API `/health` endpoint (fast, ~10 minutes)
+- **Weekly schedule**: ZAP full scan against the dev API base URL (comprehensive, ~30 minutes, deep spider + active scan)
 - **Manual trigger**: Available via workflow_dispatch with configurable scan type
 
 **Scan execution:**
 
-- PostgreSQL 16 service container started with test-only credentials
-- Database migrations run against test database
-- API server started on localhost:3000
-- ZAP scans against local server (no external dependencies)
+- ZAP scans run against the development API environment
+- Weekly scheduled scan and on-push scan for `development` after version bumps (with a short delay to allow deployment)
 - Reports stored as workflow artifacts for 30 days
-
-**Test database credentials** (safe for CI, never used in production):
-
-```
-User: test_user
-Password: test_password
-Database: test_db
-```
 
 **Failure criteria:**
 
@@ -89,7 +79,8 @@ Database: test_db
 **Limitations:**
 
 - **Authentication**: Scans run against unauthenticated endpoints only; authenticated endpoints requiring JWT tokens are not currently tested
-- **Coverage**: PR scans target only `/health` endpoint; weekly scans spider from base URL but may not discover all routes
+- **Coverage**: Baseline scans target only `/health`; weekly/manual full scans spider from the base URL but may not discover all routes
+- **Version matching**: On `development` pushes, the ZAP workflow checks that the deployed `/version` matches this repo's `package.json` version before scanning
 - **False positives**: Some findings may be false positives; tune via `.zap/rules.tsv`
 
 **Tuning false positives:**
@@ -98,7 +89,7 @@ Edit `.zap/rules.tsv` to suppress known false positives:
 
 ```tsv
 # Format: <scanId>	<action>	<url>
-10202	IGNORE	http://localhost:3000/api/known-safe-endpoint
+10202	IGNORE	https://dev-api\\.sto-info\\.com/api/known-safe-endpoint
 ```
 
 Common scan IDs are documented in `.zap/rules.tsv`.

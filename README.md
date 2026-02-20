@@ -10,7 +10,8 @@
 [![Dependency Review](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dependency-review.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dependency-review.yml)
 [![npm audit](https://github.com/sto-info-app/sto-info-backend/actions/workflows/audit.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/audit.yml)
 [![DCO Enforcement](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dco.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dco.yml)
-[![Security: Fuzz + ZAP](https://github.com/sto-info-app/sto-info-backend/actions/workflows/security-fuzz-and-zap.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/security-fuzz-and-zap.yml)
+[![Security: Fuzz](https://github.com/sto-info-app/sto-info-backend/actions/workflows/security-fuzz.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/security-fuzz.yml)
+[![Security: ZAP (Dev API)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/security-zap-dev.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/security-zap-dev.yml)
 
 ## CI and delivery
 
@@ -176,10 +177,10 @@ Dynamic Application Security Testing (DAST) is performed using OWASP ZAP to iden
 
 **CI behaviour:**
 
-- **Pull requests**: Runs ZAP baseline scan against `/health` endpoint with 10-minute timeout
-- **Weekly schedule**: Runs ZAP full scan against base URL with 30-minute timeout
+- **Development version bumps**: Runs a ZAP baseline scan against the dev API `/health` endpoint (after a short deployment wait)
+- **Weekly schedule**: Runs a ZAP full scan against the dev API base URL
+- **Manual trigger**: Can run baseline or full scan via workflow_dispatch
 - **Scan reports**: Available as workflow artifacts for 30 days
-- **Database**: Uses PostgreSQL 16 service container with test-only credentials
 
 **Limitations:**
 
