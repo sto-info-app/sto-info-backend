@@ -13,6 +13,7 @@ export default {
 
     // Exclude tests
     '!src/**/*.spec.ts',
+    '!src/**/*.fuzz.spec.ts',
 
     // Keep these aligned with jest.config.js collectCoverageFrom excludes
     '!src/**/*.module.ts',

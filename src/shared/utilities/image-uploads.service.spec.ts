@@ -476,6 +476,15 @@ describe('ImageUploadsService', () => {
       await service.uploadImageToCloudflareImages('user-1', file, '', '');
       expect(axiosMock.post).toHaveBeenCalled();
     });
+
+    it('should handle missing file in logger', async () => {
+      await expect(
+        service.uploadImageToCloudflareImages(
+          'user-1',
+          undefined as unknown as UploadImagesFileParam,
+        ),
+      ).rejects.toThrow('File is missing');
+    });
   });
 
   describe('uploadImageToCloudflareR2', () => {

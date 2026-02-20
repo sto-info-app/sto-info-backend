@@ -1,0 +1,74 @@
+name: npm audit
+
+on:
+  pull_request:
+    branches:
+      - development
+      - production
+    types: [opened, synchronize, reopened, ready_for_review]
+
+  push:
+    branches:
+      - development
+      - production
+
+  schedule:
+    # Run weekly on Sunday at midnight to catch new vulnerabilities
+    - cron: '0 0 * * 0'
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  NODE_VERSION: 24
+
+jobs:
+  audit:
+    name: Security Audit
+    # Skip for Dependabot (since it's already doing its own thing)
+    # Skip draft PRs
+    # Skip version bump PRs from github-actions bot
+    if: |
+      github.actor != 'dependabot[bot]' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.draft == false) &&
+      !(github.event_name == 'pull_request' && (
+        (github.event.pull_request.user.login == 'github-actions[bot]' && startsWith(github.event.pull_request.title, 'chore: bump version to')) ||
+        startsWith(github.event.pull_request.head.ref, 'chore/bump-version-to-')
+      ))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Resolve cache toggle
+        id: cache-toggle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          value=$(gh api repos/$REPO/actions/variables/CACHE_NODE_MODULES --jq '.value' 2>/dev/null || echo '')
+          if [ -z "$value" ]; then
+            value=true
+          fi
+          echo "use_cache=$value" >> "$GITHUB_OUTPUT"
+
+      - name: Load & cache dependencies
+        uses: ./.github/actions/cached-dependencies
+        with:
+          use-cache: ${{ steps.cache-toggle.outputs.use_cache }}
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: npm audit (production dependencies)
+        run: npm audit --audit-level=high --omit=dev

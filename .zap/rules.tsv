@@ -1,0 +1,38 @@
+# ZAP Scan Rules Configuration
+# Format: <scanId>	<action>	<url>
+# Actions: IGNORE, WARN, FAIL
+# 
+# Example:
+# 10202	IGNORE	http://localhost:3000/api/known-false-positive
+#
+# Common scan IDs:
+# 10020 - X-Frame-Options Header
+# 10021 - X-Content-Type-Options Header
+# 10023 - Information Disclosure - Debug Error Messages
+# 10035 - Strict-Transport-Security Header
+# 10038 - Content Security Policy (CSP) Header
+# 10049 - Content Cacheability
+# 10054 - Cookie Without SameSite Attribute
+# 10055 - CSP Scanner (Policy Errors)
+# 10095 - Backup File Disclosure
+# 10096 - Timestamp Disclosure
+# 10098 - Cross-Domain Misconfiguration
+#
+# Add custom rules below this line
+
+# The rules below are intentionally conservative and scoped to the dev API.
+# Rationale: some header-oriented findings are primarily browser-focused and can
+# generate noise for a JSON API. We keep them as WARN so they remain visible in
+# reports but (depending on scan configuration) are less likely to fail CI.
+
+# X-Frame-Options Header Missing (clickjacking protection; typically less relevant for pure APIs)
+10020	WARN	https://dev-api\.sto-info\.com/.*
+
+# Content Security Policy (CSP) Header Not Set (primarily for browsers; not typical for APIs)
+10038	WARN	https://dev-api\.sto-info\.com/.*
+
+# CSP Scanner (Policy Errors) (often noisy when CSP is not used)
+10055	WARN	https://dev-api\.sto-info\.com/.*
+
+# Content Cacheability (often flagged on APIs; treat as warning until tuned per endpoint)
+10049	WARN	https://dev-api\.sto-info\.com/.*
