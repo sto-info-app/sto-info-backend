@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
+  NotFoundException,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -31,6 +32,11 @@ export class LauncherService {
         id: id,
       },
     });
+
+    if (!launcher) {
+      throw new NotFoundException('Launcher not found');
+    }
+
     return launcher;
   }
 
@@ -42,6 +48,11 @@ export class LauncherService {
     const launcher = await this.launcherRepository.findOne({
       where: { name: name },
     });
+
+    if (!launcher) {
+      throw new NotFoundException('Launcher not found');
+    }
+
     return launcher;
   }
 
@@ -65,11 +76,10 @@ export class LauncherService {
     try {
       await this.launcherRepository.save(newLauncher);
       return newLauncher;
-    } catch (error) {
-      throw new InternalServerErrorException(
-        'Failed to save a new launcher',
-        error,
-      );
+    } catch (error: unknown) {
+      throw new InternalServerErrorException('Failed to save a new launcher', {
+        cause: error,
+      });
     }
   }
 
@@ -93,11 +103,10 @@ export class LauncherService {
     try {
       await this.launcherRepository.save(updatedLauncher);
       return updatedLauncher;
-    } catch (error) {
-      throw new InternalServerErrorException(
-        'Failed to update launcher',
-        error,
-      );
+    } catch (error: unknown) {
+      throw new InternalServerErrorException('Failed to update launcher', {
+        cause: error,
+      });
     }
   }
 
@@ -109,11 +118,10 @@ export class LauncherService {
     const launcher = await this.findOne(id);
     try {
       await this.launcherRepository.remove(launcher);
-    } catch (error) {
-      throw new InternalServerErrorException(
-        'Failed to delete launcher',
-        error,
-      );
+    } catch (error: unknown) {
+      throw new InternalServerErrorException('Failed to delete launcher', {
+        cause: error,
+      });
     }
   }
 
@@ -125,11 +133,10 @@ export class LauncherService {
     const launcher = await this.findOne(id);
     try {
       await this.launcherRepository.softDelete(launcher.id);
-    } catch (error) {
-      throw new InternalServerErrorException(
-        'Failed to soft delete launcher',
-        error,
-      );
+    } catch (error: unknown) {
+      throw new InternalServerErrorException('Failed to soft delete launcher', {
+        cause: error,
+      });
     }
   }
 
@@ -139,10 +146,10 @@ export class LauncherService {
     for (const launcher of launchers) {
       try {
         await this.remove(launcher.id);
-      } catch (error) {
+      } catch (error: unknown) {
         throw new InternalServerErrorException(
           `Failed to hard delete launcher #${launcher.id}`,
-          error,
+          { cause: error },
         );
       }
     }

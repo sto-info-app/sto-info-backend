@@ -194,12 +194,12 @@ describe('PlatformLauncherService', () => {
       });
     });
 
-    it('should return null if relation not found', async () => {
+    it('should throw NotFoundException if relation not found', async () => {
       (repository.findOne as jest.Mock).mockResolvedValue(null);
 
-      const result = await service.findOne('platform-1', 'launcher-1');
-
-      expect(result).toBeNull();
+      await expect(service.findOne('platform-1', 'launcher-1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw BadRequestException if platformId is missing', async () => {

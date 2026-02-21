@@ -600,6 +600,20 @@ describe('CharacterService', () => {
       ).rejects.toThrow(InternalServerErrorException);
     });
 
+    it('should log and rethrow non-Error thrown values from the upload flow', async () => {
+      (characterRepository.findOne as jest.Mock).mockRejectedValue('boom');
+
+      await expect(
+        service.uploadProfileImage('char-1', 'user-1', mockFile),
+      ).rejects.toBe('boom');
+
+      const loggerErrorSpy = Logger.prototype.error as unknown as jest.Mock;
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[uploadProfileImage] Upload failed'),
+        undefined,
+      );
+    });
+
     it('should swallow error if old image deletion fails', async () => {
       const character = {
         id: 'char-1',
@@ -617,6 +631,33 @@ describe('CharacterService', () => {
       (
         imageUploadsService.deleteImageFromCloudflareImages as jest.Mock
       ).mockRejectedValue(new Error('Delete failed'));
+
+      const result = await service.uploadProfileImage(
+        'char-1',
+        'user-1',
+        mockFile,
+      );
+
+      expect(result.profilePictureId).toBe('new-img-id');
+    });
+
+    it('should swallow non-Error thrown values if old image deletion fails', async () => {
+      const character = {
+        id: 'char-1',
+        account: { userId: 'user-1' },
+        profilePictureId: 'old-img-id',
+      };
+      (characterRepository.findOne as jest.Mock).mockResolvedValue(character);
+      (
+        imageUploadsService.uploadImageToCloudflareImages as jest.Mock
+      ).mockResolvedValue('new-img-id');
+      (characterRepository.save as jest.Mock).mockResolvedValue({
+        ...character,
+        profilePictureId: 'new-img-id',
+      });
+      (
+        imageUploadsService.deleteImageFromCloudflareImages as jest.Mock
+      ).mockRejectedValue('Delete failed');
 
       const result = await service.uploadProfileImage(
         'char-1',

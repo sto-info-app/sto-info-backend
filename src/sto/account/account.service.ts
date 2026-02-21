@@ -100,11 +100,10 @@ export class AccountService {
     try {
       await this.accountRepository.save(newAccount);
       return newAccount;
-    } catch (error) {
-      throw new InternalServerErrorException(
-        'Failed to save a new account',
-        error,
-      );
+    } catch (error: unknown) {
+      throw new InternalServerErrorException('Failed to save a new account', {
+        cause: error,
+      });
     }
   }
 
@@ -137,7 +136,7 @@ export class AccountService {
    * @param id Account ID.
    * @returns The account if found, otherwise `null`.
    */
-  async findOne(id: string): Promise<AccountEntity> {
+  async findOne(id: string): Promise<AccountEntity | null> {
     if (!id) {
       throw new BadRequestException('Account ID is required');
     }

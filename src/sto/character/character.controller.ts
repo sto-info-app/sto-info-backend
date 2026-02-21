@@ -23,8 +23,7 @@ import {
   ApiOkResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { Request } from 'express';
-import type { File as MulterFile } from 'multer';
+import type { Request } from 'express';
 import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
@@ -55,7 +54,7 @@ export class CharacterController {
    */
   public static readonly imageFileFilter = (
     _req: Request,
-    file: MulterFile,
+    file: Express.Multer.File,
     callback: (error: Error | null, acceptFile: boolean) => void,
   ) => {
     if (isAllowedImageMimeType(file.mimetype)) {
@@ -98,10 +97,10 @@ export class CharacterController {
       fileFilter: CharacterController.imageFileFilter,
       limits: {
         fileSize:
-          +process.env.MAX_IMAGE_SIZE_IN_BYTES ||
+          +process.env.MAX_IMAGE_SIZE_IN_BYTES! ||
           DEFAULT_MULTER_LIMITS.fileSize,
         fieldSize:
-          +process.env.MAX_IMAGE_SIZE_IN_BYTES ||
+          +process.env.MAX_IMAGE_SIZE_IN_BYTES! ||
           DEFAULT_MULTER_LIMITS.fieldSize,
         files: DEFAULT_MULTER_LIMITS.files,
         fields: DEFAULT_MULTER_LIMITS.fields,
@@ -115,7 +114,7 @@ export class CharacterController {
   async uploadProfileImage(
     @UserId() userId: string,
     @Param('id') id: string,
-    @UploadedFile() file: MulterFile,
+    @UploadedFile() file: Express.Multer.File,
   ) {
     this.logger.debug(
       `[uploadProfileImage] Request received - UserId: ${userId}, CharacterId: ${id}`,
@@ -142,10 +141,12 @@ export class CharacterController {
         `[uploadProfileImage] Successfully uploaded image - UserId: ${userId}, CharacterId: ${id}`,
       );
       return result;
-    } catch (error) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      const stack = error instanceof Error ? error.stack : undefined;
       this.logger.error(
-        `[uploadProfileImage] Failed to upload image - UserId: ${userId}, CharacterId: ${id}, Error: ${error.message}`,
-        error.stack,
+        `[uploadProfileImage] Failed to upload image - UserId: ${userId}, CharacterId: ${id}, Error: ${message}`,
+        stack,
       );
       throw error;
     }
