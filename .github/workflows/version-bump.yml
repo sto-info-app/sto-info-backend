@@ -51,7 +51,7 @@ jobs:
 
       - name: Bump patch version and create PR
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT_REPO_TOKEN }}
         run: |
           # Configure git to use the bot's identity
           git config user.name "github-actions[bot]"
@@ -101,7 +101,7 @@ jobs:
 
       - name: Enable auto-merge
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT_REPO_TOKEN }}
         run: |
           sleep 5
           gh pr merge "$PR_URL" \
