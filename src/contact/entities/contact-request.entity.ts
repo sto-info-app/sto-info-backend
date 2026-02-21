@@ -25,7 +25,7 @@ export class ContactRequestEntity {
 
   @IsOptional()
   @IsEmail()
-  @Column({ length: 320, nullable: true, default: null })
+  @Column({ type: 'varchar', length: 320, nullable: true, default: null })
   emailMasked: string | null;
 
   @IsNotEmpty()
