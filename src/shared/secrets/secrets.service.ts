@@ -27,15 +27,18 @@ export class SecretsService {
       const command = new GetSecretValueCommand({ SecretId: secretName });
       const data = await this.secretsManager.send(command);
 
-      if ('SecretString' in data) {
-        // Parse the secret from JSON into an object
-        const secretObject = JSON.parse(data.SecretString);
-        // Store the secret object in the cache
-        this.cache[secretName] = secretObject;
-        return secretObject;
+      if (!('SecretString' in data) || !data.SecretString) {
+        return undefined;
       }
-    } catch (err) {
-      this.logger.error(`Failed to get secret ${secretName}`, err.stack);
+
+      // Parse the secret from JSON into an object
+      const secretObject = JSON.parse(data.SecretString);
+      // Store the secret object in the cache
+      this.cache[secretName] = secretObject;
+      return secretObject;
+    } catch (err: unknown) {
+      const stack = err instanceof Error ? err.stack : undefined;
+      this.logger.error(`Failed to get secret ${secretName}`, stack);
       throw err;
     }
   }

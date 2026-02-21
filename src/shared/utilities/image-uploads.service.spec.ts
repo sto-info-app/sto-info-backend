@@ -251,6 +251,19 @@ describe('ImageUploadsService', () => {
       ).rejects.toThrow('Detailed scan error');
     });
 
+    it('should throw if scanner throws synchronously', async () => {
+      mockScanFile.mockImplementation(() => {
+        throw new Error('Sync scan throw');
+      });
+
+      await expect(
+        service.uploadImageToCloudflareImages(
+          'user-1',
+          createImageFile() as unknown as UploadImagesFileParam,
+        ),
+      ).rejects.toThrow('Sync scan throw');
+    });
+
     it('should throw if axios returns non-200 status (201)', async () => {
       mockScanFile.mockImplementation((_buf, cb) =>
         cb(null, { FoundViruses: [] }),
@@ -306,6 +319,7 @@ describe('ImageUploadsService', () => {
         cb(null, { FoundViruses: [] }),
       );
       const axiosMock = axios as jest.Mocked<typeof axios>;
+      axiosMock.isAxiosError.mockReturnValue(true);
       axiosMock.post.mockRejectedValue({
         response: { data: 'error' },
       });
@@ -324,6 +338,22 @@ describe('ImageUploadsService', () => {
       );
       const axiosMock = axios as jest.Mocked<typeof axios>;
       axiosMock.post.mockRejectedValue(new Error('boom'));
+
+      await expect(
+        service.uploadImageToCloudflareImages(
+          'user-1',
+          createImageFile() as unknown as UploadImagesFileParam,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw if axios throws a non-Error value without response', async () => {
+      mockScanFile.mockImplementation((_buf, cb) =>
+        cb(null, { FoundViruses: [] }),
+      );
+      const axiosMock = axios as jest.Mocked<typeof axios>;
+      axiosMock.isAxiosError.mockReturnValue(false);
+      axiosMock.post.mockRejectedValue({});
 
       await expect(
         service.uploadImageToCloudflareImages(
@@ -512,6 +542,20 @@ describe('ImageUploadsService', () => {
       );
 
       expect(fileKey).toBe('test/u/preferred.png');
+    });
+
+    it('should log and rethrow non-Error failures from S3 client', async () => {
+      mockScanFile.mockImplementation((_buf, cb) =>
+        cb(null, { FoundViruses: [] }),
+      );
+      mockS3Send.mockRejectedValue('boom');
+
+      await expect(
+        service.uploadImageToCloudflareR2(
+          'u',
+          createImageFile() as unknown as UploadR2FileParam,
+        ),
+      ).rejects.toBe('boom');
     });
   });
 
