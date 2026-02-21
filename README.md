@@ -7,9 +7,9 @@
 [![Security Policy](https://img.shields.io/badge/security%20policy-SECURITY.md-informational)](https://github.com/sto-info-app/sto-info-backend/blob/development/SECURITY.md)
 
 [![CodeQL Analysis](https://github.com/sto-info-app/sto-info-backend/actions/workflows/codeql.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/codeql.yml)
-[![Dependency Review](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dependency-review.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dependency-review.yml)
+[![Dependency Review](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dependency-review.yml)
 [![npm audit](https://github.com/sto-info-app/sto-info-backend/actions/workflows/audit.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/audit.yml)
-[![DCO Enforcement](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dco.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dco.yml)
+[![DCO Enforcement](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dco.yml/badge.svg)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dco.yml)
 [![Security: Fuzz](https://github.com/sto-info-app/sto-info-backend/actions/workflows/security-fuzz.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/security-fuzz.yml)
 [![Security: ZAP (Dev API)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/security-zap-dev.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/security-zap-dev.yml)
 
