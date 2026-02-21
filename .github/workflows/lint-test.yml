@@ -7,11 +7,27 @@ on:
       - 'epic/*'
       - production
     types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - 'docs/**'
+      - '.agent/**'
+      - '.vscode/**'
+      - 'README.md'
+      - 'SECURITY.md'
+      - 'CONTRIBUTING.md'
+      - 'LICENCE'
 
   push:
     branches:
       - development
       - production
+    paths-ignore:
+      - 'docs/**'
+      - '.agent/**'
+      - '.vscode/**'
+      - 'README.md'
+      - 'SECURITY.md'
+      - 'CONTRIBUTING.md'
+      - 'LICENCE'
 
 permissions: {}
 
@@ -81,6 +97,7 @@ jobs:
     # Skip version bump PRs from github-actions bot or with version bump branch pattern
     if: |
       github.actor != 'dependabot[bot]' &&
+      github.actor != 'github-actions[bot]' &&
       (github.event_name != 'pull_request' || github.event.pull_request.draft == false) &&
       !(github.event_name == 'pull_request' && (
         (github.event.pull_request.user.login == 'github-actions[bot]' && startsWith(github.event.pull_request.title, 'chore: bump version to')) ||

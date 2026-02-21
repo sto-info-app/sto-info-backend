@@ -36,7 +36,13 @@ jobs:
     name: 'OWASP ZAP DAST scan (Dev API)'
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    if: github.repository_owner == 'sto-info-app'
+    if: |
+      github.repository_owner == 'sto-info-app' &&
+      (github.event_name != 'push' || 
+        startsWith(github.event.head_commit.message, 'chore: bump version to ') ||
+        contains(github.event.head_commit.message, 'Automated version bump from') ||
+        (contains(github.event.head_commit.message, 'Merge pull request') && contains(github.event.head_commit.message, 'chore/bump-version-to'))
+      )
     permissions:
       contents: read
 
@@ -51,7 +57,7 @@ jobs:
 
       - name: Wait for deployment (development push)
         if: github.event_name == 'push'
-        run: sleep 300
+        run: sleep 420 # Increased to 7 minutes to allow deployment to settle
 
       - name: Verify deployed version matches repo (development push)
         if: github.event_name == 'push'
@@ -61,7 +67,7 @@ jobs:
           expected_version=$(node -p "require('./package.json').version")
           echo "Expected repo version: ${expected_version}"
 
-          max_attempts=10
+          max_attempts=20
           delay_seconds=15
 
           for attempt in $(seq 1 $max_attempts); do
