@@ -5,10 +5,6 @@ on:
     branches:
       - development
     types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - 'src/**/*.ts'
-      - 'package.json'
-      - 'package-lock.json'
 
   schedule:
     # Weekly deep fuzz run every Monday at 03:00 UTC
@@ -31,8 +27,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  check_changes:
+    runs-on: ubuntu-latest
+    outputs:
+      src_changed: ${{ steps.filter.outputs.src_changed }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: dorny/paths-filter@de225aa2aa39c2c019d084ee9b80362f62762b33 # v3.0.2
+        id: filter
+        with:
+          filters: |
+            src_changed:
+              - 'src/**/*.ts'
+              - 'package.json'
+              - 'package-lock.json'
+
   fuzz:
     name: 'Property-based fuzz testing'
+    needs: check_changes
+    # Skip if code_changed is false (unless scheduled or push)
+    if: |
+      needs.check_changes.outputs.src_changed == 'true' || 
+      github.event_name == 'schedule' || 
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:

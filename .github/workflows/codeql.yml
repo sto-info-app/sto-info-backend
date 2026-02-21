@@ -3,22 +3,8 @@ name: 'CodeQL Static Analysis'
 on:
   push:
     branches: ['development', 'production']
-    paths-ignore:
-      - 'docs/**'
-      - 'README.md'
-      - 'SECURITY.md'
-      - 'CONTRIBUTING.md'
-      - '.vscode/**'
-      - '.agent/**'
   pull_request:
     branches: ['development']
-    paths-ignore:
-      - 'docs/**'
-      - 'README.md'
-      - 'SECURITY.md'
-      - 'CONTRIBUTING.md'
-      - '.vscode/**'
-      - '.agent/**'
   schedule:
     - cron: '30 0 * * 1'
 
@@ -26,8 +12,29 @@ permissions:
   contents: read
 
 jobs:
+  check_changes:
+    runs-on: ubuntu-latest
+    outputs:
+      src_changed: ${{ steps.filter.outputs.src_changed }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: dorny/paths-filter@de225aa2aa39c2c019d084ee9b80362f62762b33 # v3.0.2
+        id: filter
+        with:
+          filters: |
+            src_changed:
+              - 'src/**/*.ts'
+              - 'package.json'
+              - 'package-lock.json'
+
   code_scanning:
     name: 'Analyse Source Code'
+    needs: check_changes
+    # Skip if no src changed (unless scheduled or push)
+    if: |
+      needs.check_changes.outputs.src_changed == 'true' || 
+      github.event_name == 'schedule' || 
+      github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
