@@ -99,7 +99,7 @@ jobs:
 
           echo "PR_URL=$PR_URL" >> "$GITHUB_ENV"
 
-      - name: Enable auto-merge
+      - name: Merge version bump
         env:
           GH_TOKEN: ${{ secrets.GH_PAT_REPO_TOKEN }}
         run: |
@@ -107,5 +107,5 @@ jobs:
           gh pr merge "$PR_URL" \
             --repo "${{ github.repository }}" \
             --merge \
-            --auto \
-            --body "Auto-merging automated version bump"
+            --admin \
+            --body "Automated version bump merge (bypassing review requirement)"
