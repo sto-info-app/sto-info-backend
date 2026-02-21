@@ -155,7 +155,7 @@ export class CharacterEntity {
   @IsOptional()
   @IsDateString()
   @Column({ type: 'timestamp', nullable: true })
-  createdDate: Date;
+  createdDate: Date | null;
 
   @IsOptional()
   @IsString()
@@ -175,12 +175,12 @@ export class CharacterEntity {
   @IsOptional()
   @IsString()
   @Column({ type: 'text', nullable: true })
-  biography: string;
+  biography: string | null;
 
   @IsOptional()
   @IsString()
   @Column({ type: 'text', nullable: true })
-  notes: string;
+  notes: string | null;
 
   @CreateDateColumn()
   createdAt: Date;

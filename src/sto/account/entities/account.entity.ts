@@ -91,12 +91,12 @@ export class AccountEntity {
   @IsOptional()
   @IsString()
   @Column({ type: 'text', nullable: true })
-  notes: string;
+  notes: string | null;
 
   @IsOptional()
   @IsDateString()
   @Column({ type: 'timestamp', nullable: true })
-  accountCreatedDate: Date;
+  accountCreatedDate: Date | null;
 
   @IsBoolean()
   @Column({ type: 'boolean', default: true })
