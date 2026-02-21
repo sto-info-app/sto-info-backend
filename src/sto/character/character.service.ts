@@ -8,7 +8,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { stringifyError } from 'src/shared/utilities/error.utility';
 import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
+
 import { Not, Repository } from 'typeorm';
 import { AccountEntity } from '../account/entities/account.entity';
 import { CreateCharacterDto } from './dto/create-character.dto';
@@ -352,7 +354,8 @@ export class CharacterService {
 
       return updatedCharacter;
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = stringifyError(error);
+
       const stack = error instanceof Error ? error.stack : undefined;
       this.logger.error(
         `[uploadProfileImage] Upload failed - CharacterId: ${id}, UserId: ${userId}, Error: ${message}`,
@@ -398,7 +401,8 @@ export class CharacterService {
         `[uploadProfileImage] Old image deleted - ProfilePictureId: ${existingProfilePictureId}`,
       );
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = stringifyError(error);
+
       const stack = error instanceof Error ? error.stack : undefined;
       this.logger.error(
         `[uploadProfileImage] Failed to delete old profile image from Cloudflare Images - ProfilePictureId: ${existingProfilePictureId}, Error: ${message}`,

@@ -15,6 +15,8 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { stringifyError } from 'src/shared/utilities/error.utility';
+
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -142,7 +144,8 @@ export class CharacterController {
       );
       return result;
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = stringifyError(error);
+
       const stack = error instanceof Error ? error.stack : undefined;
       this.logger.error(
         `[uploadProfileImage] Failed to upload image - UserId: ${userId}, CharacterId: ${id}, Error: ${message}`,
