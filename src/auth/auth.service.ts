@@ -498,7 +498,11 @@ export class AuthService {
       // and the raw refresh token value using bcrypt comparison.
       const matchingToken = await (async () => {
         for (const token of user.refreshTokens) {
-          if (token.isRevoked || token.jwtId !== payload.jti) {
+          if (
+            token.isRevoked ||
+            token.jwtId !== payload.jti ||
+            !token.tokenId
+          ) {
             continue;
           }
 

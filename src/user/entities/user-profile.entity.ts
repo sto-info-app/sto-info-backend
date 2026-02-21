@@ -23,22 +23,22 @@ export class UserProfileEntity {
   userId: string;
 
   @IsNotEmpty()
-  @Column({ length: 50, nullable: false, unique: true })
+  @Column({ type: 'varchar', length: 50, nullable: false, unique: true })
   username: string;
 
   @IsOptional()
-  @Column({ length: 255, nullable: true, default: null })
-  firstName: string;
+  @Column({ type: 'varchar', length: 255, nullable: true, default: null })
+  firstName: string | null;
 
   @IsOptional()
-  @Column({ length: 255, nullable: true, default: null })
-  lastName: string;
+  @Column({ type: 'varchar', length: 255, nullable: true, default: null })
+  lastName: string | null;
 
   @IsOptional()
-  @Column({ nullable: true, default: null })
-  profilePictureId: string;
+  @Column({ type: 'varchar', nullable: true, default: null })
+  profilePictureId: string | null;
 
-  @Column({ default: false })
+  @Column({ type: 'boolean', default: false })
   publiclyVisible: boolean;
 
   @CreateDateColumn()

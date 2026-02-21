@@ -59,13 +59,18 @@ export class CharacterEntity {
 
   @IsNotEmpty()
   @IsString()
-  @Column({ length: 255, nullable: false })
+  @Column({ type: 'varchar', length: 255, nullable: false })
   handle: string;
 
   @IsOptional()
   @IsString()
-  @Column({ name: 'profilePictureId', length: 255, nullable: true })
-  profilePictureId: string;
+  @Column({
+    name: 'profilePictureId',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
+  profilePictureId: string | null;
 
   @IsOptional()
   @IsNumber()
@@ -75,17 +80,22 @@ export class CharacterEntity {
 
   @IsNotEmpty()
   @IsString()
-  @Column({ name: 'fullHandleNormalized', length: 511, nullable: false })
+  @Column({
+    name: 'fullHandleNormalized',
+    type: 'varchar',
+    length: 511,
+    nullable: false,
+  })
   fullHandleNormalized: string;
 
   @IsNotEmpty()
   @IsString()
-  @Column({ length: 511, nullable: false })
+  @Column({ type: 'varchar', length: 511, nullable: false })
   fullHandleSlug: string;
 
   @IsNotEmpty()
   @IsString()
-  @Column({ length: 511, nullable: false })
+  @Column({ type: 'varchar', length: 511, nullable: false })
   fullHandle: string; // Character@Account
 
   @IsNotEmpty()
@@ -145,32 +155,32 @@ export class CharacterEntity {
   @IsOptional()
   @IsDateString()
   @Column({ type: 'timestamp', nullable: true })
-  createdDate: Date;
+  createdDate: Date | null;
 
   @IsOptional()
   @IsString()
-  @Column({ length: 255, nullable: true })
-  firstName: string;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  firstName: string | null;
 
   @IsOptional()
   @IsString()
-  @Column({ length: 255, nullable: true })
-  middleName: string;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  middleName: string | null;
 
   @IsOptional()
   @IsString()
-  @Column({ length: 255, nullable: true })
-  lastName: string;
-
-  @IsOptional()
-  @IsString()
-  @Column({ type: 'text', nullable: true })
-  biography: string;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  lastName: string | null;
 
   @IsOptional()
   @IsString()
   @Column({ type: 'text', nullable: true })
-  notes: string;
+  biography: string | null;
+
+  @IsOptional()
+  @IsString()
+  @Column({ type: 'text', nullable: true })
+  notes: string | null;
 
   @CreateDateColumn()
   createdAt: Date;
