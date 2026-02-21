@@ -9,9 +9,6 @@ on:
       - 'src/**/*.ts'
       - 'package.json'
       - 'package-lock.json'
-    paths-ignore:
-      - 'docs/**'
-      - 'README.md'
 
   schedule:
     # Weekly deep fuzz run every Monday at 03:00 UTC

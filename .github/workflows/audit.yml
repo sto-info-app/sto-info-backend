@@ -6,10 +6,9 @@ on:
       - development
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
+      - 'src/**/*.ts'
       - 'package.json'
       - 'package-lock.json'
-    paths-ignore:
-      - '.github/workflows/**'
 
   push:
     branches:
