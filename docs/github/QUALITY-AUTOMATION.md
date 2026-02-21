@@ -55,6 +55,14 @@ Sentry is used for error tracking and performance monitoring in production and s
 - **Privacy**: The configuration for Sentry has `sendDefaultPii` set to `false` to ensure no sensitive personal data is sent to the monitoring service.
 - **Usage**: Developers use Sentry alerts to identify and resolve issues as they occur in the live environment.
 
+## Required Status Checks & "Smart Skips"
+
+To maintain high standards without making the development process frustrating, we use a "Smart Skip" strategy for our required PR checks.
+
+- **Behavior**: All required workflows (`Lint and Test`, `Audit`, `CodeQL`, etc.) trigger on every PR to ensure status checks are never "stuck."
+- **Efficiency**: A lightweight filter job identifies if relevant code was changed. If only documentation, READMEs, or configs were updated, the heavy jobs are skipped.
+- **Compliance**: This ensures that even "Skipped" jobs report as a success to GitHub, preserving the green "All checks passed" status while saving significant CI minutes.
+
 ## See Also
 
 - [SECURITY-AUTOMATION.md](SECURITY-AUTOMATION.md) for security-specific automation details.

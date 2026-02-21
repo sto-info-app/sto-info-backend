@@ -61,15 +61,15 @@ ZAP (Zed Attack Proxy) performs Dynamic Application Security Testing by actively
 
 **When it runs:**
 
-- **Development version bumps**: ZAP baseline scan against the dev API `/health` endpoint (fast, ~10 minutes)
-- **Weekly schedule**: ZAP full scan against the dev API base URL (comprehensive, ~30 minutes, deep spider + active scan)
-- **Manual trigger**: Available via workflow_dispatch with configurable scan type
+- **Automated Version Bumps**: ZAP baseline scan against the dev API `/health` endpoint (fast, ~10 minutes). This runs after a successful version bump is merged into `development`.
+- **Weekly schedule**: ZAP full scan against the dev API base URL (comprehensive, ~30 minutes, deep spider + active scan).
+- **Manual trigger**: Available via workflow_dispatch with configurable scan type.
 
 **Scan execution:**
 
-- ZAP scans run against the development API environment
-- Weekly scheduled scan and on-push scan for `development` after version bumps (with a short delay to allow deployment)
-- Reports stored as workflow artifacts for 30 days
+- ZAP scans run against the development API environment.
+- Scans are triggered by automated version bump commits or the weekly schedule. A 7-minute deployment wait is used to ensure the environment is ready.
+- Reports stored as workflow artifacts for 30 days.
 
 **Failure criteria:**
 

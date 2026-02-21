@@ -29,6 +29,22 @@ Snyk is used for static analysis and dependency scanning.
 - **Blocking**: Snyk can be configured to block PR merges if new high-severity vulnerabilities are introduced.
 - **Fixing**: Use `snyk monitor` or the dashboard's "Fix this vulnerability" suggestions to update dependencies or refactor code.
 
+## Property-based Fuzzing (fast-check)
+
+Generic fuzzing generates random inputs to test code robustness. In this repo, it's used to discover edge cases in DTO validation, string parsing, and JWT handling.
+
+- **PRs**: A lightweight pass (50 runs) is a **required check** for all PRs.
+- **Schedule**: A deep pass (1000 runs) occurs weekly.
+- **Smart Skip**: If a PR only modifies documentation, the fuzzing job is skipped to save CI credits, but still reports a "Success" to satisfy branch protection.
+
+## DAST Scanning (OWASP ZAP)
+
+The development API is scanned for active runtime vulnerabilities by OWASP ZAP.
+
+- **Trigger**: Runs automatically after automated version bumps are merged to `development`.
+- **Wait Time**: The workflow waits 7 minutes for the deployment to settle before starting.
+- **Reports**: HTML reports are uploaded as workflow artifacts.
+
 ## SonarCloud
 
 SonarCloud provides continuous inspection of code quality and security.
