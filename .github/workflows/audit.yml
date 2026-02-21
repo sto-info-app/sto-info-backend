@@ -5,18 +5,11 @@ on:
     branches:
       - development
     types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - 'src/**/*.ts'
-      - 'package.json'
-      - 'package-lock.json'
 
   push:
     branches:
       - development
       - production
-    paths:
-      - 'package.json'
-      - 'package-lock.json'
 
   schedule:
     # Run weekly on Sunday at midnight to catch new vulnerabilities
@@ -32,14 +25,31 @@ env:
   NODE_VERSION: 24
 
 jobs:
+  check_changes:
+    runs-on: ubuntu-latest
+    outputs:
+      pkg_changed: ${{ steps.filter.outputs.pkg_changed }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: dorny/paths-filter@de225aa2aa39c2c019d084ee9b80362f62762b33 # v3.0.2
+        id: filter
+        with:
+          filters: |
+            pkg_changed:
+              - 'package.json'
+              - 'package-lock.json'
+
   audit:
     name: Security Audit
-    # Skip for Dependabot (since it's already doing its own thing)
+    needs: check_changes
+    # Skip for Dependabot
     # Skip draft PRs
-    # Skip version bump PRs from github-actions bot
+    # Skip version bump PRs
+    # Run if pkg_changed or push or schedule/dispatch
     if: |
       github.actor != 'dependabot[bot]' &&
       github.actor != 'github-actions[bot]' &&
+      (needs.check_changes.outputs.pkg_changed == 'true' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'push') &&
       (github.event_name != 'pull_request' || github.event.pull_request.draft == false) &&
       !(github.event_name == 'pull_request' && (
         (github.event.pull_request.user.login == 'github-actions[bot]' && startsWith(github.event.pull_request.title, 'chore: bump version to')) ||

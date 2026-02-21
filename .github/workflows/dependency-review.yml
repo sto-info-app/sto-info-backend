@@ -3,9 +3,6 @@ name: 'Dependency Review'
 on:
   pull_request:
     branches: ['development']
-    paths:
-      - 'package.json'
-      - 'package-lock.json'
 
 env:
   NODE_VERSION: 24
