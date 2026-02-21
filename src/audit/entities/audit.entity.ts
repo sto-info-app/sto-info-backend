@@ -47,12 +47,12 @@ export class AuditEntity {
   @IsOptional()
   @IsUUID()
   @Column({ nullable: true, default: null })
-  userId: string;
+  userId: string | null;
 
   @IsOptional()
   @IsIP()
   @Column({ nullable: true, default: null })
-  ipAddress: string;
+  ipAddress: string | null;
 
   @CreateDateColumn()
   createdAt: Date;
