@@ -130,6 +130,24 @@ jobs:
       - name: Verify coverage exists
         run: test -f reports/coverage/lcov.info
 
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        with:
+          files: reports/coverage/lcov.info
+          fail_ci_if_error: false
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        with:
+          files: reports/junit/junit.xml
+          report_type: test_results
+          fail_ci_if_error: false
+
       - name: SonarQube Cloud Scan
         # Skip for Dependabot PRs (no code changes, avoids errors)
         if: github.actor != 'dependabot[bot]'
@@ -171,34 +189,8 @@ jobs:
           # Fetch the base branch to compare against
           git fetch origin ${{ github.base_ref }} --depth=1
 
-          # Get changed files in src/ that match mutation criteria (exclude specs, modules, static pages, etc.)
-          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | \
-            grep '^src/.*\.ts$' | \
-            grep -v '\.d\.ts$' | \
-            grep -v '\.spec\.ts$' | \
-            grep -v '\.module\.ts$' | \
-            grep -v 'environments/' | \
-            grep -v '\.model\.ts$' | \
-            grep -v '\.models\.ts$' | \
-            grep -v '\.interface\.ts$' | \
-            grep -v '\.interfaces\.ts$' | \
-            grep -v '\.enum\.ts$' | \
-            grep -v '\.constant\.ts$' | \
-            grep -v '\.constants\.ts$' | \
-            grep -v 'main.ts' | \
-            tr '\n' ',' | sed 's/,$//' || true)
-
-          if [ -z "$CHANGED_FILES" ]; then
-            echo "No relevant source files changed. Skipping mutation testing."
-          else
-            echo "Mutating files: $CHANGED_FILES"
-            # Run with incremental mode and limited concurrency
-            npx stryker run \
-              --mutate "$CHANGED_FILES" \
-              --concurrency 2 \
-              --incremental \
-              --force
-          fi
+          # Compute and run incremental mutation testing (exits 0 when nothing to mutate)
+          BASE_REF=origin/${{ github.base_ref }} npm run test:mutation:incremental
 
       - name: Build (push only)
         if: github.event_name == 'push'
