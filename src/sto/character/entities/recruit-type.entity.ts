@@ -15,7 +15,7 @@ export class RecruitTypeEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ length: 50, unique: true })
+  @Column({ type: 'varchar', length: 50, unique: true })
   name: string; // Standard, Delta, Temporal, Gamma, Klingon
 
   @OneToMany('CharacterEntity', 'recruitType')

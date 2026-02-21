@@ -17,11 +17,11 @@ export class FactionEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ length: 100, unique: true })
+  @Column({ type: 'varchar', length: 100, unique: true })
   name: string; // Federation, Klingon, TOS Starfleet, etc.
 
-  @Column({ length: 511, nullable: true })
-  iconUrl: string;
+  @Column({ type: 'varchar', length: 511, nullable: true })
+  iconUrl: string | null;
 
   @OneToMany('CharacterEntity', 'faction')
   characters: CharacterEntity[];

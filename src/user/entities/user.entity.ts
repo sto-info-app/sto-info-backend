@@ -30,16 +30,16 @@ export class UserEntity {
 
   @IsEmail()
   @IsNotEmpty()
-  @Column({ length: 255, nullable: false, unique: true })
+  @Column({ type: 'varchar', length: 255, nullable: false, unique: true })
   email: string;
 
   @Exclude()
   @IsString()
   @IsNotEmpty()
-  @Column({ length: 255, nullable: false })
+  @Column({ type: 'varchar', length: 255, nullable: false })
   password: string;
 
-  @Column({ default: false })
+  @Column({ type: 'boolean', default: false })
   emailVerified: boolean;
 
   @Exclude()
@@ -47,13 +47,13 @@ export class UserEntity {
   emailVerificationToken: string | null;
 
   @Exclude()
-  @Column({ nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   emailVerificationTokenExpiry: Date | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   lastLoginAt: Date | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   lastPasswordReset: Date | null;
 
   @Exclude()
@@ -61,10 +61,10 @@ export class UserEntity {
   passwordResetToken: string | null;
 
   @Exclude()
-  @Column({ nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   passwordResetTokenExpiry: Date | null;
 
-  @Column({ default: false })
+  @Column({ type: 'boolean', default: false })
   isAccountDisabled: boolean;
 
   @Exclude()

@@ -20,7 +20,7 @@ export class ContactRequestEntity {
 
   @IsNotEmpty()
   @IsString()
-  @Column({ length: 100, nullable: false })
+  @Column({ type: 'varchar', length: 100, nullable: false })
   name: string;
 
   @IsOptional()
@@ -30,7 +30,7 @@ export class ContactRequestEntity {
 
   @IsNotEmpty()
   @IsString()
-  @Column({ length: 50, nullable: false })
+  @Column({ type: 'varchar', length: 50, nullable: false })
   topic: string;
 
   @IsNotEmpty()

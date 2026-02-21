@@ -21,7 +21,7 @@ export class AuditLoginAttemptEntity {
   @Column({ type: 'varchar', nullable: true, default: null })
   ipAddress: string | null;
 
-  @Column()
+  @Column({ type: 'boolean' })
   success: boolean;
 
   @CreateDateColumn()
