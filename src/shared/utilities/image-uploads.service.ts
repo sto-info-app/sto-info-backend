@@ -6,7 +6,8 @@ import {
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
-import * as cloudmersiveVirusApiClient from 'cloudmersive-virus-api-client';
+import * as Cloudmersive from 'cloudmersive-virus-api-client';
+
 import * as FormData from 'form-data';
 import {
   SAFE_FILENAME_PATTERN,
@@ -88,23 +89,27 @@ export class ImageUploadsService {
       `[scanFileForViruses] Starting virus scan - BufferSize: ${fileBuffer.length} bytes`,
     );
 
-    const apiClient = cloudmersiveVirusApiClient.ApiClient.instance;
+    const apiClient = Cloudmersive.ApiClient.instance;
+
     const apiKey = apiClient.authentications['Apikey'];
     apiKey.apiKey = this.cloudmersiveApiKey;
 
-    const virusApi = new cloudmersiveVirusApiClient.ScanApi();
+    const virusApi = new Cloudmersive.ScanApi();
 
     try {
-      const scanResult: { FoundViruses: string[] } = await new Promise(
+      const scanResult = await new Promise<Cloudmersive.VirusScanResult>(
         (resolve, reject) => {
           try {
-            virusApi.scanFile(fileBuffer, (error: unknown, data: unknown) => {
-              if (error) {
-                reject(ensureError(error));
-              } else {
-                resolve(data as any);
-              }
-            });
+            virusApi.scanFile(
+              fileBuffer,
+              (error: unknown, data: Cloudmersive.VirusScanResult) => {
+                if (error) {
+                  reject(ensureError(error));
+                } else {
+                  resolve(data);
+                }
+              },
+            );
           } catch (error: unknown) {
             reject(ensureError(error));
           }
@@ -112,11 +117,15 @@ export class ImageUploadsService {
       );
 
       if (scanResult.FoundViruses && scanResult.FoundViruses.length > 0) {
+        const virusNames = scanResult.FoundViruses.map(
+          (v: Cloudmersive.VirusFound) => v.VirusName,
+        ).join(', ');
+
         this.logger.error(
-          `[scanFileForViruses] Viruses detected: ${scanResult.FoundViruses.join(', ')}`,
+          `[scanFileForViruses] Viruses detected: ${virusNames}`,
         );
         throw new BadRequestException(
-          `File is infected with viruses: ${scanResult.FoundViruses.join(', ')}`,
+          `File is infected with viruses: ${virusNames}`,
         );
       }
 

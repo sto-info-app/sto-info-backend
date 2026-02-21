@@ -216,7 +216,7 @@ describe('ImageUploadsService', () => {
 
     it('should throw if virus found', async () => {
       mockScanFile.mockImplementation((_buf, cb) =>
-        cb(null, { FoundViruses: ['EICAR'] }),
+        cb(null, { FoundViruses: [{ VirusName: 'EICAR' }] }),
       );
 
       await expect(
