@@ -3,8 +3,22 @@ name: 'CodeQL Static Analysis'
 on:
   push:
     branches: ['development', 'production']
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
+      - 'SECURITY.md'
+      - 'CONTRIBUTING.md'
+      - '.vscode/**'
+      - '.agent/**'
   pull_request:
     branches: ['development']
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
+      - 'SECURITY.md'
+      - 'CONTRIBUTING.md'
+      - '.vscode/**'
+      - '.agent/**'
   schedule:
     - cron: '30 0 * * 1'
 

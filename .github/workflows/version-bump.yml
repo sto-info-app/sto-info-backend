@@ -3,6 +3,15 @@ name: Version bump on merge to development
 on:
   push:
     branches: [development]
+    paths-ignore:
+      - 'docs/**'
+      - '.github/**'
+      - 'README.md'
+      - 'SECURITY.md'
+      - 'CONTRIBUTING.md'
+      - '.agent/**'
+      - '.vscode/**'
+      - 'LICENCE'
 
 permissions: {}
 
@@ -23,10 +32,9 @@ jobs:
       pull-requests: write
       actions: read
 
-    # Hardening: prevent infinite loops
-    # - Skip if the commit message matches our version bump pattern
-    # - Skip if it's a merge commit from a version bump PR
+    # Hardening: prevent infinite loops and unnecessary runs
     if: |
+      github.actor != 'github-actions[bot]' &&
       !startsWith(github.event.head_commit.message, 'chore: bump version to ') &&
       !contains(github.event.head_commit.message, 'Automated version bump from') &&
       !(contains(github.event.head_commit.message, 'Merge pull request') && contains(github.event.head_commit.message, 'chore/bump-version-to'))
