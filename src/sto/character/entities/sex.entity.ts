@@ -6,7 +6,7 @@ export class SexEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ length: 20, unique: true })
+  @Column({ type: 'varchar', length: 20, unique: true })
   name: string; // Male, Female
 
   @OneToMany('CharacterEntity', 'sex')

@@ -43,8 +43,8 @@ export class CharacterRankEntity {
 
   @IsOptional()
   @IsString()
-  @Column({ length: 511, nullable: true })
-  iconUrl: string;
+  @Column({ type: 'varchar', length: 511, nullable: true })
+  iconUrl: string | null;
 
   @IsNotEmpty()
   @IsUUID()

@@ -14,7 +14,7 @@ export class SpeciesEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ length: 100, unique: true })
+  @Column({ type: 'varchar', length: 100, unique: true })
   name: string;
 
   @OneToMany('CharacterEntity', 'species')
