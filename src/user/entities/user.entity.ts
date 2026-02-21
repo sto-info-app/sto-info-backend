@@ -43,7 +43,7 @@ export class UserEntity {
   emailVerified: boolean;
 
   @Exclude()
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   emailVerificationToken: string | null;
 
   @Exclude()
@@ -57,7 +57,7 @@ export class UserEntity {
   lastPasswordReset: Date | null;
 
   @Exclude()
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   passwordResetToken: string | null;
 
   @Exclude()
@@ -68,11 +68,11 @@ export class UserEntity {
   isAccountDisabled: boolean;
 
   @Exclude()
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   provider: string | null;
 
   @Exclude()
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   providerId: string | null;
 
   @CreateDateColumn()
