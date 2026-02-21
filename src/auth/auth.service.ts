@@ -20,6 +20,8 @@ import * as path from 'node:path';
 import { AuditLoginAttemptEntity } from 'src/audit/entities/audit-login-attempt.entity';
 import { MailService } from 'src/mail/mail.service';
 import { EMAIL_PATTERN } from 'src/shared/constants/regex-patterns.constants';
+import { stringifyError } from 'src/shared/utilities/error.utility';
+
 import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
 import { UserRefreshTokenService } from 'src/user-refresh-token/user-refresh-token.service';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
@@ -541,7 +543,8 @@ export class AuthService {
       };
     } catch (error: unknown) {
       // Log the error for debugging purposes
-      const message = error instanceof Error ? error.message : String(error);
+      const message = stringifyError(error);
+
       console.error('Refresh token validation failed:', message);
       throw new UnauthorizedException('Invalid refresh token');
     }

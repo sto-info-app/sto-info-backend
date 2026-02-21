@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { instanceToPlain } from 'class-transformer';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { ensureError } from 'src/shared/utilities/error.utility';
+
 import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
 
@@ -27,7 +29,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
             done(null, secretObject.jwtSecret);
           })
           .catch((error: unknown) => {
-            done(error instanceof Error ? error : new Error(String(error)));
+            done(ensureError(error));
           });
       },
       jsonWebTokenOptions: {
