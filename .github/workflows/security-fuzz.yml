@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - development
+      - production
     types: [opened, synchronize, reopened, ready_for_review]
 
   schedule:
@@ -29,6 +30,8 @@ concurrency:
 jobs:
   check_changes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       src_changed: ${{ steps.filter.outputs.src_changed }}
     steps:

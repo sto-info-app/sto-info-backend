@@ -25,6 +25,8 @@ concurrency:
 jobs:
   check_changes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       src_changed: ${{ steps.filter.outputs.src_changed }}
     steps:

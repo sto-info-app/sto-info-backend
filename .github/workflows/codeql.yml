@@ -4,16 +4,17 @@ on:
   push:
     branches: ['development', 'production']
   pull_request:
-    branches: ['development']
+    branches: ['development', 'production']
   schedule:
     - cron: '30 0 * * 1'
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   check_changes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       src_changed: ${{ steps.filter.outputs.src_changed }}
     steps:
