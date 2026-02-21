@@ -13,6 +13,7 @@ import {
   UNSAFE_FILENAME_PATTERN,
 } from '../constants/regex-patterns.constants';
 import { SecretsService } from '../secrets/secrets.service';
+import { ensureError, stringifyError } from './error.utility';
 
 @Injectable()
 export class ImageUploadsService {
@@ -99,15 +100,13 @@ export class ImageUploadsService {
           try {
             virusApi.scanFile(fileBuffer, (error: unknown, data: unknown) => {
               if (error) {
-                reject(
-                  error instanceof Error ? error : new Error(String(error)),
-                );
+                reject(ensureError(error));
               } else {
                 resolve(data as any);
               }
             });
           } catch (error: unknown) {
-            reject(new Error(String(error)));
+            reject(ensureError(error));
           }
         },
       );
@@ -185,7 +184,8 @@ export class ImageUploadsService {
 
       return fileKey;
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = stringifyError(error);
+
       const stack = error instanceof Error ? error.stack : undefined;
       this.logger.error(
         `[uploadImageToCloudflareR2] Upload failed - UserId: ${userId}, CharacterId: ${characterId}, Error: ${message}`,
@@ -305,8 +305,8 @@ export class ImageUploadsService {
 
       return imageId;
     } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = stringifyError(error);
+
       const errorDetails = this.getCloudflareUploadErrorDetails(error);
 
       this.logger.error(
@@ -349,8 +349,9 @@ export class ImageUploadsService {
     const status = (response as { status?: unknown }).status;
     if (status !== 200) {
       this.logger.error(
-        `[uploadImageToCloudflareImages] Upload failed with status ${String(status)}`,
+        `[uploadImageToCloudflareImages] Upload failed with status ${stringifyError(status)}`,
       );
+
       throw new BadRequestException(errorMsgFailedUpload);
     }
 
