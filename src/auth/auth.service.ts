@@ -152,6 +152,10 @@ export class AuthService {
       throw new NotFoundException('Invalid token');
     }
 
+    if (!user.emailVerificationTokenExpiry) {
+      throw new BadRequestException('Token expired');
+    }
+
     if (new Date() > user.emailVerificationTokenExpiry) {
       throw new BadRequestException('Token expired');
     }
@@ -351,7 +355,7 @@ export class AuthService {
     return {
       access_token: this.jwtService.sign(payload),
       refresh_token: newUserRefreshToken,
-      expires_in: +process.env.AUTH_TOKEN_EXPIRES_IN,
+      expires_in: +process.env.AUTH_TOKEN_EXPIRES_IN!,
       user_id: user.id,
     };
   }
@@ -390,7 +394,11 @@ export class AuthService {
       throw new BadRequestException('Invalid request'); //NOTE: Changed from NotFoundException to not show if email exists
     }
 
-    if (user.passwordResetToken && new Date() < user.passwordResetTokenExpiry) {
+    if (
+      user.passwordResetToken &&
+      user.passwordResetTokenExpiry &&
+      new Date() < user.passwordResetTokenExpiry
+    ) {
       throw new BadRequestException('Password reset already requested');
     }
 
@@ -432,6 +440,10 @@ export class AuthService {
 
     if (!user) {
       throw new NotFoundException('Invalid token');
+    }
+
+    if (!user.passwordResetTokenExpiry) {
+      throw new BadRequestException('Token expired');
     }
 
     if (new Date() > user.passwordResetTokenExpiry) {
@@ -525,11 +537,12 @@ export class AuthService {
       return {
         access_token: this.jwtService.sign(newPayload),
         refresh_token: newUserRefreshToken,
-        expires_in: +process.env.AUTH_TOKEN_EXPIRES_IN,
+        expires_in: +process.env.AUTH_TOKEN_EXPIRES_IN!,
       };
-    } catch (error) {
+    } catch (error: unknown) {
       // Log the error for debugging purposes
-      console.error('Refresh token validation failed:', error.message);
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Refresh token validation failed:', message);
       throw new UnauthorizedException('Invalid refresh token');
     }
   }
@@ -578,7 +591,7 @@ export class AuthService {
    * @returns A promise that resolves with the hashed password.
    */
   async getHashedPassword(password: string): Promise<string> {
-    return await bcrypt.hash(password, +process.env.AUTH_SALT_ROUNDS);
+    return await bcrypt.hash(password, +process.env.AUTH_SALT_ROUNDS!);
   }
 
   /**

@@ -24,6 +24,7 @@ import {
   ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import type { Request } from 'express';
 import { UserRefreshTokenDto } from 'src/user-refresh-token/dto/user-refresh-token.dto';
 import { UserRefreshTokenService } from 'src/user-refresh-token/user-refresh-token.service';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
@@ -287,8 +288,8 @@ export class AuthController {
     description:
       'Missing or invalid access token, or the refresh token cannot be revoked.',
   })
-  async revoke(@UserId() userId: string, @Req() req): Promise<void> {
-    const tokenId = req.user.tokenId;
+  async revoke(@UserId() userId: string, @Req() req: Request): Promise<void> {
+    const tokenId = (req as any).user?.tokenId as string;
     await this.authService.revokeToken(userId, tokenId);
   }
 }

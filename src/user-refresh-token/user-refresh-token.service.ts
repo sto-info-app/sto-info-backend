@@ -63,7 +63,7 @@ export class UserRefreshTokenService {
     if (refreshToken.tokenId) {
       refreshToken.tokenId = await bcrypt.hash(
         refreshToken.tokenId,
-        +process.env.AUTH_SALT_ROUNDS,
+        +process.env.AUTH_SALT_ROUNDS!,
       );
     }
 
@@ -134,7 +134,7 @@ export class UserRefreshTokenService {
     // We can also store a hash of the raw token if we want extra validation
     refreshTokenEntity.tokenId = await bcrypt.hash(
       refreshToken,
-      +process.env.AUTH_SALT_ROUNDS,
+      +process.env.AUTH_SALT_ROUNDS!,
     );
 
     return await this.refreshTokenRepository.save(refreshTokenEntity);

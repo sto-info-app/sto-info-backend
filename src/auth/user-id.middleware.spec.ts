@@ -112,7 +112,7 @@ describe('UserIdMiddleware', () => {
       const spyGet = jest
         .spyOn(CurrentContextHelper, 'userUuid', 'get')
         .mockReturnValue(null);
-      req.headers.authorization = 'Bearer valid-token';
+      req.headers!.authorization = 'Bearer valid-token';
       (jwt.verify as jest.Mock).mockReturnValue({ sub: 'user-uuid' });
       const spySet = jest.spyOn(CurrentContextHelper, 'userUuid', 'set');
 
@@ -165,7 +165,7 @@ describe('UserIdMiddleware', () => {
       const spyGet = jest
         .spyOn(CurrentContextHelper, 'userUuid', 'get')
         .mockReturnValue(null);
-      req.headers.authorization = 'Bearer valid-token';
+      req.headers!.authorization = 'Bearer valid-token';
       (secretsService.getSecret as jest.Mock).mockResolvedValue({});
 
       await middleware.use(req as unknown as Request, res, next);
@@ -182,7 +182,7 @@ describe('UserIdMiddleware', () => {
       const spyGet = jest
         .spyOn(CurrentContextHelper, 'userUuid', 'get')
         .mockReturnValue(null);
-      req.headers.authorization = 'Bearer valid-token';
+      req.headers!.authorization = 'Bearer valid-token';
       (secretsService.getSecret as jest.Mock).mockResolvedValue(null);
 
       await middleware.use(req as unknown as Request, res, next);
@@ -199,7 +199,7 @@ describe('UserIdMiddleware', () => {
       const spyGet = jest
         .spyOn(CurrentContextHelper, 'userUuid', 'get')
         .mockReturnValue(null);
-      req.headers.authorization = 'Bearer expired-token';
+      req.headers!.authorization = 'Bearer expired-token';
       const error = new Error('jwt expired') as Error & { name: string };
       error.name = 'TokenExpiredError';
       (jwt.verify as jest.Mock).mockImplementation(() => {
@@ -220,7 +220,7 @@ describe('UserIdMiddleware', () => {
       const spyGet = jest
         .spyOn(CurrentContextHelper, 'userUuid', 'get')
         .mockReturnValue(null);
-      req.headers.authorization = 'Bearer bad-token';
+      req.headers!.authorization = 'Bearer bad-token';
       const error = new Error('Bad');
       (jwt.verify as jest.Mock).mockImplementation(() => {
         throw error;
