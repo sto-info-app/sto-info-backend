@@ -31,7 +31,7 @@ export function getClientIp(req: Request): string {
   }
 
   // 3) Express-derived IP (depends on trust proxy)
-  return normaliseIp(req.ip);
+  return normaliseIp(req.ip ?? '');
 }
 
 /**

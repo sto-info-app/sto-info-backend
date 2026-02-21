@@ -81,6 +81,18 @@ describe('client-ip.utility', () => {
       expect(result).toBe('172.16.0.1');
     });
 
+    it('should fall back to empty string when req.ip is undefined', () => {
+      (mockReq.header as jest.Mock).mockReturnValue(undefined);
+      Object.defineProperty(mockReq, 'ip', {
+        value: undefined,
+        writable: true,
+        configurable: true,
+      });
+
+      const result = getClientIp(mockReq as Request);
+      expect(result).toBe('');
+    });
+
     it('should normalize IPv6-mapped IPv4 from req.ip', () => {
       (mockReq.header as jest.Mock).mockReturnValue(undefined);
       Object.defineProperty(mockReq, 'ip', {

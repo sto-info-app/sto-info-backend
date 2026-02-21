@@ -214,7 +214,8 @@ export class ConfigCheckService {
     return config;
   }
 
-  get(key: string): string {
-    return process.env[key];
+  get(key: string): string | undefined {
+    const value = process.env[key];
+    return typeof value === 'string' ? value : undefined;
   }
 }
