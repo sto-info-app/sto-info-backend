@@ -2,7 +2,7 @@
 
 ## Security posture
 
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/11942/badge)](https://www.bestpractices.dev/projects/11942)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/11991/badge)](https://www.bestpractices.dev/projects/11942)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/sto-info-app/sto-info-backend/badge)](https://securityscorecards.dev/viewer/?uri=github.com/sto-info-app/sto-info-backend)
 [![Security Policy](https://img.shields.io/badge/security%20policy-SECURITY.md-informational)](https://github.com/sto-info-app/sto-info-backend/blob/development/SECURITY.md)
 
@@ -24,20 +24,32 @@
 ## Quality and testing
 
 [![Mutation testing](https://github.com/sto-info-app/sto-info-backend/actions/workflows/mutation-testing.yml/badge.svg)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/mutation-testing.yml)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=alert_status&token=112872819709705c46aa22a30dbc9cb78546a38e)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
-[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=bugs&token=112872819709705c46aa22a30dbc9cb78546a38e)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
-[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=code_smells&token=112872819709705c46aa22a30dbc9cb78546a38e)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
-[![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=duplicated_lines_density&token=112872819709705c46aa22a30dbc9cb78546a38e)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=coverage)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
+[![codecov](https://codecov.io/gh/sto-info-app/sto-info-backend/graph/badge.svg?token=ZX5Y9GQ3ZR)](https://codecov.io/gh/sto-info-app/sto-info-backend)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
+
+## Code metrics
+
+[![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
+[![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
+[![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
 
 ## Release and project
 
 [![Release](https://img.shields.io/github/v/release/sto-info-app/sto-info-backend?display_name=tag&sort=semver)](https://github.com/sto-info-app/sto-info-backend/releases)
 [![Licence](https://img.shields.io/github/license/sto-info-app/sto-info-backend)](https://github.com/sto-info-app/sto-info-backend/blob/development/LICENCE)
+[![All Contributors](https://img.shields.io/github/all-contributors/sto-info-app/sto-info-backend?label=all%20contributors)](https://github.com/sto-info-app/sto-info-backend#contributors)
+[![NestJS](https://img.shields.io/github/package-json/dependency-version/sto-info-app/sto-info-backend/@nestjs/core?label=nestjs&branch=development)](https://github.com/sto-info-app/sto-info-backend/blob/development/package.json)
 [![Node](https://img.shields.io/badge/node-24.x-informational)](https://github.com/sto-info-app/sto-info-backend/blob/development/package.json)
 
 ## Project Overview
 
-The `sto-info-backend` is a backend service designed to provide information related to STO (Star Trek Online) player's accounts, characters and fleets. It is built using modern web technologies and follows best practices for API development.
+The `sto-info-backend` is a NestJS-based REST API that powers the STO Info platform. It provides structured, secure endpoints for player accounts, characters, fleets, authentication, and related operational data. This backend enables the frontend application and integrations to retrieve, validate, and manage Star Trek Online-related information reliably.
 
 ## Features
 
@@ -65,7 +77,7 @@ Documentation is in [docs/](docs/).
 
 ### Prerequisites
 
-- Node.js (version 22.x or higher)
+- Node.js (version 24.x)
 - npm (version 10.x or higher)
 - PostgreSQL database (version 14.x or higher)
 - Redis (version 6.x or higher)
@@ -137,6 +149,28 @@ npm test
 ```
 
 This will execute all the unit tests and provide a summary of the test results.
+
+### Mutation testing
+
+This project uses Stryker for mutation testing.
+
+```sh
+npm run test:mutation
+```
+
+For PR-style incremental mutation testing (only mutates relevant changed `src/**/*.ts` files), you can run:
+
+```sh
+BASE_REF=origin/development npm run test:mutation:incremental
+```
+
+### Local verify (CI-style check)
+
+To run the same kind of checks expected by CI (audit, lint, tests with coverage, lightweight fuzz tests, and a build), run:
+
+```sh
+npm run verify
+```
 
 ## Security Testing
 
