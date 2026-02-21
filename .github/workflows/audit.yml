@@ -4,13 +4,20 @@ on:
   pull_request:
     branches:
       - development
-      - production
     types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+    paths-ignore:
+      - '.github/workflows/**'
 
   push:
     branches:
       - development
       - production
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
 
   schedule:
     # Run weekly on Sunday at midnight to catch new vulnerabilities
@@ -33,6 +40,7 @@ jobs:
     # Skip version bump PRs from github-actions bot
     if: |
       github.actor != 'dependabot[bot]' &&
+      github.actor != 'github-actions[bot]' &&
       (github.event_name != 'pull_request' || github.event.pull_request.draft == false) &&
       !(github.event_name == 'pull_request' && (
         (github.event.pull_request.user.login == 'github-actions[bot]' && startsWith(github.event.pull_request.title, 'chore: bump version to')) ||
