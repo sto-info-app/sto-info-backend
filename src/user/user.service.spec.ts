@@ -86,7 +86,7 @@ describe('UserService', () => {
 
   describe('create', () => {
     it('should create a user successfully', async () => {
-      const dto = { email: 'test@e.com', password: 'pass', username: 'user' };
+      const dto = { email: 'test@e.com', password: 'pass', username: 'user' }; // NOSONAR
       (userRepository.findOne as jest.Mock).mockResolvedValue(null);
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed');
       (userRepository.save as jest.Mock).mockResolvedValue({ id: '1', ...dto });
@@ -173,10 +173,9 @@ describe('UserService', () => {
       expect(result.id).toBe('1');
     });
 
-    it('should return null if user not found', async () => {
+    it('should throw if user not found', async () => {
       (userRepository.findOne as jest.Mock).mockResolvedValue(null);
-      const result = await service.findById('1');
-      expect(result).toBeNull();
+      await expect(service.findById('1')).rejects.toThrow(HttpException);
     });
 
     it('should throw if id is invalid', async () => {
@@ -189,6 +188,10 @@ describe('UserService', () => {
     it('should find user by email', async () => {
       (userRepository.findOne as jest.Mock).mockResolvedValue({ email: 'e' });
       const result = await service.findByEmail('e');
+      expect(result).not.toBeNull();
+      if (!result) {
+        throw new Error('Expected user to be found');
+      }
       expect(result.email).toBe('e');
     });
   });

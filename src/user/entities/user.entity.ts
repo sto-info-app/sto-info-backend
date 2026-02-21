@@ -44,36 +44,36 @@ export class UserEntity {
 
   @Exclude()
   @Column({ nullable: true })
-  emailVerificationToken: string;
+  emailVerificationToken: string | null;
 
   @Exclude()
   @Column({ nullable: true })
-  emailVerificationTokenExpiry: Date;
+  emailVerificationTokenExpiry: Date | null;
 
   @Column({ nullable: true })
-  lastLoginAt: Date;
+  lastLoginAt: Date | null;
 
   @Column({ nullable: true })
-  lastPasswordReset: Date;
-
-  @Exclude()
-  @Column({ nullable: true })
-  passwordResetToken: string;
+  lastPasswordReset: Date | null;
 
   @Exclude()
   @Column({ nullable: true })
-  passwordResetTokenExpiry: Date;
+  passwordResetToken: string | null;
+
+  @Exclude()
+  @Column({ nullable: true })
+  passwordResetTokenExpiry: Date | null;
 
   @Column({ default: false })
   isAccountDisabled: boolean;
 
   @Exclude()
   @Column({ nullable: true })
-  provider: string;
+  provider: string | null;
 
   @Exclude()
   @Column({ nullable: true })
-  providerId: string;
+  providerId: string | null;
 
   @CreateDateColumn()
   createdAt: Date;
@@ -82,7 +82,7 @@ export class UserEntity {
   updatedAt: Date;
 
   @DeleteDateColumn()
-  deletedAt: Date;
+  deletedAt: Date | null;
 
   @BeforeInsert()
   generateUuid() {

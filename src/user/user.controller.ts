@@ -27,8 +27,8 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { instanceToPlain } from 'class-transformer';
-import { Request } from 'express';
-import { memoryStorage, File as MulterFile } from 'multer';
+import type { Request } from 'express';
+import { memoryStorage } from 'multer';
 import * as crypto from 'node:crypto';
 import { extname } from 'node:path';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
@@ -59,7 +59,7 @@ export class UserController {
    */
   public static readonly imageFileFilter = (
     _req: Request,
-    file: MulterFile,
+    file: Express.Multer.File,
     callback: (error: Error | null, acceptFile: boolean) => void,
   ) => {
     if (isAllowedImageMimeType(file.mimetype)) {
@@ -197,10 +197,10 @@ export class UserController {
       fileFilter: UserController.imageFileFilter,
       limits: {
         fileSize:
-          +process.env.MAX_IMAGE_SIZE_IN_BYTES ||
+          +process.env.MAX_IMAGE_SIZE_IN_BYTES! ||
           DEFAULT_MULTER_LIMITS.fileSize,
         fieldSize:
-          +process.env.MAX_IMAGE_SIZE_IN_BYTES ||
+          +process.env.MAX_IMAGE_SIZE_IN_BYTES! ||
           DEFAULT_MULTER_LIMITS.fieldSize,
         files: DEFAULT_MULTER_LIMITS.files,
         fields: DEFAULT_MULTER_LIMITS.fields,
@@ -209,8 +209,8 @@ export class UserController {
       },
     }),
   )
-  async updateUserProfilePic(@UserId() userId: string, @Req() req) {
-    const file = req?.file as MulterFile | undefined;
+  async updateUserProfilePic(@UserId() userId: string, @Req() req: Request) {
+    const file = (req as any)?.file as Express.Multer.File | undefined;
     if (!file) {
       throw new HttpException('Image file is required', HttpStatus.BAD_REQUEST);
     }
