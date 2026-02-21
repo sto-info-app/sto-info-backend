@@ -28,7 +28,10 @@ jobs:
         uses: akhilmhdh/contributors-readme-action@83ea0b4f1ac928fbfe88b9e8460a932a528eb79f # v2.3.11
         with:
           image_size: 100
-          commit_message: 'docs: update contributors [skip ci]'
+          commit_message: |
+            docs: update contributors [skip ci]
+
+            Signed-off-by: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
           # Updates both README.md and CONTRIBUTORS.md if markers are present
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
