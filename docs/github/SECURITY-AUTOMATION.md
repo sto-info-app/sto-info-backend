@@ -8,7 +8,7 @@ We use the [OpenSSF Scorecard](https://scorecard.dev/) to automatically assess o
 
 ### What it does
 
-- **Schedule**: Runs weekly (Sundays at 03:30 UTC) and on every push to the `development` branch.
+- **Schedule**: Runs weekly (Sundays at 03:30 UTC) and on every push to the `development` and `production` branches.
 - **Findings**: Results are uploaded to GitHub **Security** -> **Code scanning alerts**.
 - **Badge**: A Scorecard badge is displayed in the main README, linking to the detailed report.
 
@@ -52,6 +52,14 @@ SonarCloud provides continuous inspection of code quality and security.
 - **Security Hotspots**: Focuses on potential security risks that require human review.
 - **Rules**: Checks against a wide range of security rules (OWASP Top 10, CWE, etc.).
 - **Results**: Integrated with the SonarCloud dashboard and reported as a status check on PRs.
+
+## Workflow Security
+
+We enforce the principle of least privilege for our GitHub Actions workflows.
+
+- **Default Permissions**: All workflows default to `permissions: {}` at the top level.
+- **Job-Level Granularity**: Permissions are only granted at the job level for specific tasks (e.g., `contents: read` for fetching code, `security-events: write` for uploading CodeQL scans).
+- **Hardened Runners**: Workflows run on standard GitHub-hosted runners with automated smart-skipping to minimize the attack surface of continuous integration.
 
 ## Where to see results
 

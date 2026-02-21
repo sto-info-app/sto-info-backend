@@ -1,5 +1,21 @@
 # Security Policy
 
+## Required Status Checks & "Smart Skips"
+
+To maintain high standards without making the development process frustrating, we use a "Smart Skip" strategy for our required PR checks.
+
+- **Behavior**: All required workflows (`Lint and Test`, `Audit`, `CodeQL`, etc.) trigger on every PR to `development` and `production` to ensure status checks are never "stuck."
+- **Efficiency**: A lightweight filter job identifies if relevant code was changed. If only documentation, READMEs, or configs were updated, the heavy jobs are skipped.
+- **Compliance**: This ensures that even "Skipped" jobs report as a success to GitHub, preserving the green "All checks passed" status while saving significant CI minutes.
+
+## Workflow Security
+
+We enforce the principle of least privilege for our GitHub Actions workflows.
+
+- **Default Permissions**: All workflows default to `permissions: {}` at the top level.
+- **Job-Level Granularity**: Permissions are only granted at the job level for specific tasks (e.g., `contents: read` for fetching code, `security-events: write` for uploading CodeQL scans).
+- **Hardened Runners**: Workflows run on standard GitHub-hosted runners with automated smart-skipping to minimize the attack surface of continuous integration.
+
 ## Supported Versions
 
 We provide security updates for the following versions:
