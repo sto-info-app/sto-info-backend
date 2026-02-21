@@ -18,15 +18,15 @@ export class AuditEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({ type: 'varchar' })
   @IsString()
   entity: string;
 
-  @Column()
+  @Column({ type: 'varchar' })
   @IsString()
   action: string;
 
-  @Column()
+  @Column({ type: 'varchar' })
   @IsString()
   @Validate(
     (value: any) => isUUID(value, '4') || !Number.isNaN(Number(value)),

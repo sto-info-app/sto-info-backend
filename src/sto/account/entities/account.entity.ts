@@ -47,28 +47,28 @@ export class AccountEntity {
 
   @IsNotEmpty()
   @IsString()
-  @Column({ length: 255, nullable: false })
+  @Column({ type: 'varchar', length: 255, nullable: false })
   handle: string;
 
   @IsNotEmpty()
   @IsString()
-  @Column({ length: 255, nullable: false })
+  @Column({ type: 'varchar', length: 255, nullable: false })
   handleNormalized: string;
 
   @IsNotEmpty()
   @IsString()
-  @Column({ length: 255, nullable: false })
+  @Column({ type: 'varchar', length: 255, nullable: false })
   handleSlug: string;
 
   @IsOptional()
   @IsString()
-  @Column({ length: 255, nullable: true })
-  username: string;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  username: string | null;
 
   @IsOptional()
   @IsEmail()
-  @Column({ length: 255, nullable: true })
-  email: string;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  email: string | null;
 
   @IsOptional()
   @IsUUID()
@@ -91,19 +91,19 @@ export class AccountEntity {
   @IsOptional()
   @IsString()
   @Column({ type: 'text', nullable: true })
-  notes: string;
+  notes: string | null;
 
   @IsOptional()
   @IsDateString()
   @Column({ type: 'timestamp', nullable: true })
-  accountCreatedDate: Date;
+  accountCreatedDate: Date | null;
 
   @IsBoolean()
-  @Column({ default: true })
+  @Column({ type: 'boolean', default: true })
   publiclyVisible: boolean;
 
   @IsBoolean()
-  @Column({ default: false })
+  @Column({ type: 'boolean', default: false })
   lifetimeSubscription: boolean;
 
   @CreateDateColumn()
