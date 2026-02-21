@@ -11,8 +11,8 @@ export class MailService {
   private readonly logger = new Logger('MailService');
 
   private readonly noReplyEmailFromSender: { name: string; email: string } = {
-    name: process.env.APP_TITLE,
-    email: process.env.SENDGRID_NOREPLY_SENDER,
+    name: process.env.APP_TITLE!,
+    email: process.env.SENDGRID_NOREPLY_SENDER!,
   };
 
   private readonly emailTemplatePath = path.join(
@@ -59,7 +59,7 @@ export class MailService {
    */
   private async init() {
     const secretObject = await this.secretsService.getSecret(
-      process.env.AWS_SECRET_NAME,
+      process.env.AWS_SECRET_NAME!,
     );
 
     sgMail.setApiKey(secretObject.sendGridApiKey);
@@ -223,10 +223,11 @@ export class MailService {
     try {
       await sgMail.send(message);
     } catch (error) {
-      if (error?.response?.body?.errors) {
-        this.logger.error(error.response.body.errors);
+      const err = error as any;
+      if (err?.response?.body?.errors) {
+        this.logger.error(err.response.body.errors);
       } else {
-        this.logger.error(error);
+        this.logger.error(err);
       }
     }
   }
@@ -236,7 +237,7 @@ export class MailService {
    * @param email The email address to validate.
    * @returns True if the email format is valid, false otherwise.
    */
-  validateEmailFormat(email: string): boolean {
+  validateEmailFormat(email: string | null | undefined): boolean {
     if (!email) {
       return false;
     }

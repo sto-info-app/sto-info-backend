@@ -18,6 +18,27 @@ Codecov provides analysis of our test coverage.
 - **Status Checks**: Coverage reports appear directly in PR comments and as a status check.
 - **Blocking**: PR merges may be blocked if coverage drops below the required threshold or if new code is not adequately tested.
 
+CI uploads both coverage (`reports/coverage/lcov.info`) and JUnit test results (`reports/junit/junit.xml`) to Codecov.
+
+## Jest coverage thresholds
+
+In addition to Codecov reporting, Jest enforces coverage thresholds during CI.
+
+- **Local**: `npm run test:cov` runs tests and enforces configured thresholds.
+- **CI**: `npm run verify` runs `test:cov` as part of the lint/test pipeline.
+
+If the test suite passes but the job fails, check the per-file coverage output in the Jest summary and the generated report in `reports/coverage/`.
+
+## Mutation testing (Stryker)
+
+Mutation testing is used to validate the effectiveness of tests (i.e., tests should fail when the code is mutated).
+
+- **Full run**: `npm run test:mutation`
+- **Incremental (PRs)**: The `lint-test` workflow runs incremental mutation testing on pull requests.
+  - It computes relevant changed files under `src/**/*.ts` (excluding specs, modules, and other non-runtime files) and mutates only those.
+  - It uses Stryker incremental mode to cache results between runs.
+  - You can reproduce locally with: `BASE_REF=origin/<base-branch> npm run test:mutation:incremental`
+
 ## SonarCloud Quality Gate
 
 SonarCloud enforces a "Quality Gate" that must pass for all changes.

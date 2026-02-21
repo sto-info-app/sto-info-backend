@@ -22,7 +22,8 @@ export default [
     languageOptions: {
       parser: tsParser,
       parserOptions: {
-        project: './tsconfig.json',
+        project: ['./tsconfig.json', './tsconfig.spec.json'],
+
         tsconfigRootDir: __dirname,
         sourceType: 'module',
       },

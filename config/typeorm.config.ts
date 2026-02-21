@@ -23,19 +23,19 @@ function getDbType(): 'postgres' {
 
 export async function getTypeOrmConfig(): Promise<DataSourceOptions> {
   const secretObject = await secretsService.getSecret(
-    process.env.AWS_SECRET_NAME,
+    process.env.AWS_SECRET_NAME!,
   );
 
   const isLocalEnv = process.env.NODE_ENV === 'local';
 
   const rootDir = join(__dirname, '../');
-  const entitiesDir = join(rootDir, process.env.TYPEORM_ENTITIES);
-  const migrationDir = join(rootDir, process.env.TYPEORM_MIGRATIONS);
+  const entitiesDir = join(rootDir, process.env.TYPEORM_ENTITIES!);
+  const migrationDir = join(rootDir, process.env.TYPEORM_MIGRATIONS!);
 
   return {
     type: getDbType(),
     host: process.env.DB_HOST,
-    port: Number.parseInt(process.env.DB_PORT, 10) || 5432,
+    port: Number.parseInt(process.env.DB_PORT ?? '', 10) || 5432,
     username: process.env.DB_USERNAME,
     password: secretObject.dbPassword, // Use the dbPassword from AWS Secrets Manager
     database: process.env.DB_NAME,

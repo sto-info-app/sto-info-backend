@@ -210,7 +210,7 @@ describe('AuthService', () => {
           overrides.usernameExist || false,
         );
 
-        const promise = service.register(testDto as any);
+        const promise = service.register(testDto);
         await expect(promise).rejects.toThrow(errorType);
         await expect(promise).rejects.toThrow(errorMsg);
       },
@@ -286,6 +286,17 @@ describe('AuthService', () => {
         emailVerificationTokenExpiry: new Date(Date.now() - 10000),
       };
       (userRepository.findOne as jest.Mock).mockResolvedValue(user);
+      await expect(service.verifyEmail('token')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if emailVerificationTokenExpiry is missing', async () => {
+      const user = {
+        emailVerificationTokenExpiry: null,
+      };
+      (userRepository.findOne as jest.Mock).mockResolvedValue(user);
+
       await expect(service.verifyEmail('token')).rejects.toThrow(
         BadRequestException,
       );
@@ -477,8 +488,7 @@ describe('AuthService', () => {
     ])(
       'should throw HttpException for %s',
       async (name, userMock, expectedStatus) => {
-        if (name === 'missing email' || name === 'missing password') {
-        } else {
+        if (name !== 'missing email' && name !== 'missing password') {
           jest.spyOn(service, 'validateUser').mockResolvedValue(
             userMock
               ? {
@@ -611,6 +621,15 @@ describe('AuthService', () => {
         BadRequestException,
       );
     });
+
+    it('should throw BadRequestException if passwordResetTokenExpiry is missing', async () => {
+      const user = { passwordResetTokenExpiry: null };
+      (userRepository.findOne as jest.Mock).mockResolvedValue(user);
+
+      await expect(service.resetPassword('token', 'pass')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
   });
 
   describe('refreshToken', () => {
@@ -625,6 +644,27 @@ describe('AuthService', () => {
 
       const result = await service.refreshToken('old-token');
       expect(result.access_token).toBe('new-token');
+    });
+
+    it('should handle non-Error thrown values during refreshToken validation', async () => {
+      jest
+        .spyOn(console, 'error')
+        .mockImplementation(() => undefined as unknown as void);
+
+      (jwtService.verify as jest.Mock).mockReturnValue({
+        sub: '1',
+        jti: 'jti',
+      });
+      (userRepository.findOne as jest.Mock).mockRejectedValue('boom');
+
+      await expect(service.refreshToken('t')).rejects.toThrow(
+        UnauthorizedException,
+      );
+
+      expect(console.error).toHaveBeenCalledWith(
+        'Refresh token validation failed:',
+        'boom',
+      );
     });
 
     it('should throw UnauthorizedException if user not found', async () => {

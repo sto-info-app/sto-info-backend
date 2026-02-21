@@ -1,5 +1,12 @@
 # Backend Documentation (NestJS)
 
+## TypeScript configuration
+
+This project is built with TypeScript strict mode enabled.
+
+- `strict` is enabled in `tsconfig.json`.
+- `strictPropertyInitialization` is disabled to accommodate TypeORM entity patterns (entities are typically constructed by the ORM rather than via constructors).
+
 ## Authentication and Authorisation
 
 ### JWT Token Flow
@@ -351,6 +358,7 @@ Document any caching strategies here (e.g., Redis, in-memory cache, HTTP caching
 - `npm run test:e2e`: Run end-to-end tests. Use to verify full application flows.
 - `npm run test:mutation`: Run Stryker mutation tests with progress, clear-text, and HTML reporters. Use to verify test quality.
 - `npm run test:mutation:dry`: Run mutation tests in dry-run mode (no actual mutations). Use to verify Stryker configuration.
+- `npm run test:mutation:incremental`: Run incremental mutation testing against only relevant files changed compared to `BASE_REF` (defaults to `origin/development`).
 
 ### Verification
 

@@ -44,7 +44,7 @@ export class UserSeederService {
         user.email = process.env.DATASEED_USER_EMAIL;
         user.password = await bcrypt.hash(
           process.env.DATASEED_USER_PASSWORD,
-          +process.env.AUTH_SALT_ROUNDS,
+          +process.env.AUTH_SALT_ROUNDS!,
         );
         user.emailVerified = true;
 

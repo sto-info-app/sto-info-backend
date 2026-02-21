@@ -1,7 +1,6 @@
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
-import { Multer } from 'multer';
 import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
 import { Repository } from 'typeorm';
@@ -61,7 +60,7 @@ export class UserService {
     user.email = createUserDto.email;
     user.password = await bcrypt.hash(
       createUserDto.password,
-      +process.env.AUTH_SALT_ROUNDS,
+      +process.env.AUTH_SALT_ROUNDS!,
     );
     user.emailVerified = false;
 
@@ -120,7 +119,7 @@ export class UserService {
       );
     }
 
-    return await this.userRepository.findOne({
+    const user = await this.userRepository.findOne({
       where: {
         id: id,
       },
@@ -131,9 +130,15 @@ export class UserService {
         // 'accounts.launcher',
       ],
     });
+
+    if (!user) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    return user;
   }
 
-  async findByEmail(email: string): Promise<UserEntity> {
+  async findByEmail(email: string): Promise<UserEntity | null> {
     return await this.userRepository.findOne({
       where: { email: email },
       relations: ['profile'],
@@ -181,9 +186,12 @@ export class UserService {
       throw new HttpException('User data not found', HttpStatus.NOT_FOUND);
     }
 
-    const isProfileUnchanged = Object.keys(userProfileData).every(
-      key => userProfileData[key] === user.profile[key],
-    );
+    const keys = Object.keys(userProfileData) as Array<
+      keyof UpdateUserProfileDto
+    >;
+    const isProfileUnchanged = keys.every(key => {
+      return userProfileData[key] === (user.profile as any)[key];
+    });
 
     if (isProfileUnchanged) {
       return { affected: 0, updatedProfile: user.profile };
@@ -264,7 +272,7 @@ export class UserService {
    */
   async uploadProfilePicture(
     userId: string,
-    file: Multer.File,
+    file: Express.Multer.File,
   ): Promise<UpdatedUserProfileResultDto> {
     if (!userId || !this.validatorsService.validateUuid(userId)) {
       throw new HttpException('User not found', HttpStatus.NOT_FOUND);

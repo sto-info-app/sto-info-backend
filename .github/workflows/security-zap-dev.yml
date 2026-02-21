@@ -65,7 +65,7 @@ jobs:
           delay_seconds=15
 
           for attempt in $(seq 1 $max_attempts); do
-            actual_version=$(curl -fsSL "${DEV_API_VERSION_URL}" 2>/dev/null | tr -d '\r\n' || true)
+            actual_version=$(curl -fsSL --proto '=https' --proto-redir '=https' "${DEV_API_VERSION_URL}" 2>/dev/null | tr -d '\r\n' || true)
             if [ -n "${actual_version}" ]; then
               echo "Deployed API version: ${actual_version}"
               if [ "${actual_version}" = "${expected_version}" ]; then

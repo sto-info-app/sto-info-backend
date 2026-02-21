@@ -63,7 +63,7 @@ describe('ConfigCheckService', () => {
 
     it('should throw error for missing required field', () => {
       const invalidConfig = { ...validConfig };
-      delete invalidConfig.NODE_ENV;
+      delete (invalidConfig as any).NODE_ENV;
 
       expect(() => service.validateInput(invalidConfig)).toThrow(
         'Validation error',
@@ -172,7 +172,7 @@ describe('ConfigCheckService', () => {
 
     it('should throw error for missing REDIS_URL', () => {
       const invalidConfig = { ...validConfig };
-      delete invalidConfig.REDIS_URL;
+      delete (invalidConfig as any).REDIS_URL;
 
       expect(() => service.validateInput(invalidConfig)).toThrow(
         'Validation error',

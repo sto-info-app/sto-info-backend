@@ -111,10 +111,31 @@ describe('SecretsService', () => {
       );
     });
 
+    it('should handle non-Error thrown values and log undefined stack', async () => {
+      mockSend.mockRejectedValue('boom');
+
+      await expect(service.getSecret('string-error-secret')).rejects.toBe(
+        'boom',
+      );
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        'Failed to get secret string-error-secret',
+        undefined,
+      );
+    });
+
     it('should return undefined if SecretString is not in response', async () => {
       mockSend.mockResolvedValue({}); // No SecretString field
 
       const result = await service.getSecret('empty-secret');
+
+      expect(result).toBeUndefined();
+    });
+
+    it('should return undefined if SecretString is empty', async () => {
+      mockSend.mockResolvedValue({ SecretString: '' });
+
+      const result = await service.getSecret('empty-string-secret');
 
       expect(result).toBeUndefined();
     });

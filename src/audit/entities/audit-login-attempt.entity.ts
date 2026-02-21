@@ -14,12 +14,12 @@ export class AuditLoginAttemptEntity {
   @IsNotEmpty()
   @IsEmail()
   @Column({ length: 255, nullable: true, default: null })
-  email: string;
+  email: string | null;
 
   @IsOptional()
   @IsIP()
   @Column({ nullable: true, default: null })
-  ipAddress: string;
+  ipAddress: string | null;
 
   @Column()
   success: boolean;

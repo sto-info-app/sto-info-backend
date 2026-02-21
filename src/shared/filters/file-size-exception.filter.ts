@@ -20,7 +20,7 @@ export class FileSizeExceptionFilter implements ExceptionFilter {
       message = 'Too many files uploaded. Only 1 file is allowed.';
     } else if (exception.code === 'LIMIT_FIELD_COUNT') {
       message = 'Too many fields uploaded.';
-    } else if (exception.code === 'LIMIT_FIELD_SIZE') {
+    } else if (exception.code === 'LIMIT_FIELD_VALUE') {
       message = `Field content is too large. Maximum allowed size is ${process.env.MAX_IMAGE_SIZE_IN_BYTES} bytes.`;
     } else {
       message = `Upload failed: ${exception.message || exception.code}`;

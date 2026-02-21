@@ -6,14 +6,15 @@ import {
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
-import * as cloudmersiveVirusApiClient from 'cloudmersive-virus-api-client';
+import * as Cloudmersive from 'cloudmersive-virus-api-client';
+
 import * as FormData from 'form-data';
-import { File as MulterFile } from 'multer';
 import {
   SAFE_FILENAME_PATTERN,
   UNSAFE_FILENAME_PATTERN,
 } from '../constants/regex-patterns.constants';
 import { SecretsService } from '../secrets/secrets.service';
+import { ensureError, stringifyError } from './error.utility';
 
 @Injectable()
 export class ImageUploadsService {
@@ -31,8 +32,8 @@ export class ImageUploadsService {
   ) {
     this.bucketName = this.configService.get<string>(
       'CLOUDFLARE_R2_BUCKET_NAME',
-    );
-    this.environment = this.configService.get<string>('NODE_ENV');
+    )!;
+    this.environment = this.configService.get<string>('NODE_ENV')!;
   }
 
   /**
@@ -49,7 +50,7 @@ export class ImageUploadsService {
    */
   private async init() {
     const secretObject = await this.secretsService.getSecret(
-      process.env.AWS_SECRET_NAME,
+      process.env.AWS_SECRET_NAME!,
     );
 
     const errorMsgMissingCloudflareR2 =
@@ -88,41 +89,53 @@ export class ImageUploadsService {
       `[scanFileForViruses] Starting virus scan - BufferSize: ${fileBuffer.length} bytes`,
     );
 
-    const apiClient = cloudmersiveVirusApiClient.ApiClient.instance;
+    const apiClient = Cloudmersive.ApiClient.instance;
+
     const apiKey = apiClient.authentications['Apikey'];
     apiKey.apiKey = this.cloudmersiveApiKey;
 
-    const virusApi = new cloudmersiveVirusApiClient.ScanApi();
+    const virusApi = new Cloudmersive.ScanApi();
 
     try {
-      const scanResult: { FoundViruses: string[] } = await new Promise(
+      const scanResult = await new Promise<Cloudmersive.VirusScanResult>(
         (resolve, reject) => {
-          virusApi.scanFile(fileBuffer, (error, data) => {
-            if (error) {
-              reject(new Error(error));
-            } else {
-              resolve(data);
-            }
-          });
+          try {
+            virusApi.scanFile(
+              fileBuffer,
+              (error: unknown, data: Cloudmersive.VirusScanResult) => {
+                if (error) {
+                  reject(ensureError(error));
+                } else {
+                  resolve(data);
+                }
+              },
+            );
+          } catch (error: unknown) {
+            reject(ensureError(error));
+          }
         },
       );
 
       if (scanResult.FoundViruses && scanResult.FoundViruses.length > 0) {
+        const virusNames = scanResult.FoundViruses.map(
+          (v: Cloudmersive.VirusFound) => v.VirusName,
+        ).join(', ');
+
         this.logger.error(
-          `[scanFileForViruses] Viruses detected: ${scanResult.FoundViruses.join(', ')}`,
+          `[scanFileForViruses] Viruses detected: ${virusNames}`,
         );
         throw new BadRequestException(
-          `File is infected with viruses: ${scanResult.FoundViruses.join(', ')}`,
+          `File is infected with viruses: ${virusNames}`,
         );
       }
 
       this.logger.debug(
         '[scanFileForViruses] Virus scan passed - No threats found',
       );
-    } catch (error) {
+    } catch (error: unknown) {
       this.logger.error(
-        `[scanFileForViruses] Virus scan failed - Error: ${error.message}`,
-        error.stack,
+        `[scanFileForViruses] Virus scan failed - Error: ${(error as Error).message}`,
+        (error as Error).stack,
       );
       throw error;
     }
@@ -137,7 +150,7 @@ export class ImageUploadsService {
    */
   async uploadImageToCloudflareR2(
     userId: string,
-    file: MulterFile,
+    file: Express.Multer.File,
     characterId?: string,
   ) {
     this.logger.debug(
@@ -179,10 +192,13 @@ export class ImageUploadsService {
       );
 
       return fileKey;
-    } catch (error) {
+    } catch (error: unknown) {
+      const message = stringifyError(error);
+
+      const stack = error instanceof Error ? error.stack : undefined;
       this.logger.error(
-        `[uploadImageToCloudflareR2] Upload failed - UserId: ${userId}, CharacterId: ${characterId}, Error: ${error.message}`,
-        error.stack,
+        `[uploadImageToCloudflareR2] Upload failed - UserId: ${userId}, CharacterId: ${characterId}, Error: ${message}`,
+        stack,
       );
       throw error;
     }
@@ -228,7 +244,7 @@ export class ImageUploadsService {
    */
   async uploadImageToCloudflareImages(
     userId: string,
-    file: MulterFile,
+    file: Express.Multer.File,
     entityType?: string,
     entityId?: string,
   ) {
@@ -249,18 +265,7 @@ export class ImageUploadsService {
       contentType: file.mimetype,
     });
 
-    // Create a custom ID that includes env, userId, and optionally entityType/entityId
-    // This makes images searchable in Cloudflare dashboard
-    // Format: env-userId-entityType-entityId-timestamp
-    const timestamp = Date.now();
-    let customId = `${this.environment}-${userId}`;
-    if (entityType) {
-      customId += `-${entityType}`;
-    }
-    if (entityId) {
-      customId += `-${entityId}`;
-    }
-    customId += `-${timestamp}`;
+    const customId = this.buildCloudflareCustomId(userId, entityType, entityId);
 
     this.logger.debug(
       `[uploadImageToCloudflareImages] Generated custom ID: ${customId}`,
@@ -298,46 +303,101 @@ export class ImageUploadsService {
         },
       );
 
-      if (response?.status !== 200) {
-        this.logger.error(
-          `[uploadImageToCloudflareImages] Upload failed with status ${response?.status}`,
-        );
-        throw new BadRequestException(errorMsgFailedUpload);
-      }
-
-      if (!response.data) {
-        this.logger.error(
-          '[uploadImageToCloudflareImages] Response data is missing',
-        );
-        throw new BadRequestException(errorMsgFailedUpload);
-      }
-
-      if (!response.data.result) {
-        this.logger.error(
-          '[uploadImageToCloudflareImages] Response result is missing',
-        );
-        throw new BadRequestException(errorMsgFailedUpload);
-      }
-
-      if (!response.data.result.id) {
-        this.logger.error(
-          '[uploadImageToCloudflareImages] Response result ID is missing',
-        );
-        throw new BadRequestException(errorMsgFailedUpload);
-      }
-
-      this.logger.log(
-        `[uploadImageToCloudflareImages] Successfully uploaded - ImageId: ${response.data.result.id}`,
+      const imageId = this.extractCloudflareImageId(
+        response,
+        errorMsgFailedUpload,
       );
 
-      return response.data.result.id as string; // Get the ID of the uploaded image
-    } catch (error) {
+      this.logger.log(
+        `[uploadImageToCloudflareImages] Successfully uploaded - ImageId: ${imageId}`,
+      );
+
+      return imageId;
+    } catch (error: unknown) {
+      const errorMessage = stringifyError(error);
+
+      const errorDetails = this.getCloudflareUploadErrorDetails(error);
+
       this.logger.error(
-        `[uploadImageToCloudflareImages] Upload failed - Error: ${error.message}`,
-        error.response?.data || error.stack,
+        `[uploadImageToCloudflareImages] Upload failed - Error: ${errorMessage}`,
+        errorDetails,
       );
       throw new BadRequestException(errorMsgFailedUpload);
     }
+  }
+
+  private buildCloudflareCustomId(
+    userId: string,
+    entityType?: string,
+    entityId?: string,
+  ): string {
+    // Format: env-userId-entityType-entityId-timestamp
+    const timestamp = Date.now();
+    const parts = [this.environment, userId];
+    if (entityType) {
+      parts.push(entityType);
+    }
+    if (entityId) {
+      parts.push(entityId);
+    }
+    parts.push(String(timestamp));
+    return parts.join('-');
+  }
+
+  private extractCloudflareImageId(
+    response: unknown,
+    errorMsgFailedUpload: string,
+  ): string {
+    if (!response || typeof response !== 'object') {
+      this.logger.error(
+        '[uploadImageToCloudflareImages] Response is missing or invalid',
+      );
+      throw new BadRequestException(errorMsgFailedUpload);
+    }
+
+    const status = (response as { status?: unknown }).status;
+    if (status !== 200) {
+      this.logger.error(
+        `[uploadImageToCloudflareImages] Upload failed with status ${stringifyError(status)}`,
+      );
+
+      throw new BadRequestException(errorMsgFailedUpload);
+    }
+
+    const data = (response as { data?: any }).data;
+    if (!data) {
+      this.logger.error(
+        '[uploadImageToCloudflareImages] Response data is missing',
+      );
+      throw new BadRequestException(errorMsgFailedUpload);
+    }
+
+    if (!data.result) {
+      this.logger.error(
+        '[uploadImageToCloudflareImages] Response result is missing',
+      );
+      throw new BadRequestException(errorMsgFailedUpload);
+    }
+
+    const id = data.result.id as unknown;
+    if (typeof id !== 'string' || id.length === 0) {
+      this.logger.error(
+        '[uploadImageToCloudflareImages] Response result ID is missing',
+      );
+      throw new BadRequestException(errorMsgFailedUpload);
+    }
+
+    return id;
+  }
+
+  private getCloudflareUploadErrorDetails(error: unknown): unknown {
+    if (axios.isAxiosError(error)) {
+      return error.response?.data;
+    }
+    if (error instanceof Error) {
+      return error.stack;
+    }
+    return undefined;
   }
 
   /**
@@ -376,7 +436,7 @@ export class ImageUploadsService {
    */
   private async validateAndSanitiseFile(
     userId: string,
-    file: MulterFile,
+    file: Express.Multer.File,
   ): Promise<{ fileBuffer: Buffer; safeFileName: string }> {
     this.logger.debug(
       `[validateAndSanitiseFile] Starting validation - UserId: ${userId}, FileName: ${file?.originalname}, FileSize: ${file?.size} bytes, MimeType: ${file?.mimetype}`,
@@ -407,7 +467,7 @@ export class ImageUploadsService {
       );
     }
 
-    const maxSize = +process.env.MAX_IMAGE_SIZE_IN_BYTES;
+    const maxSize = +process.env.MAX_IMAGE_SIZE_IN_BYTES!;
     if (file.size > maxSize) {
       this.logger.error(
         `[validateAndSanitiseFile] File too large - Size: ${file.size} bytes, MaxSize: ${maxSize} bytes`,
