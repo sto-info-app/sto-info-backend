@@ -65,6 +65,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          # Ensure the labels exist
+          gh label create version-bump --color "ededed" --description "Automated version bump" || true
+          gh label create chore --color "ededed" --description "Maintenance task" || true
+
+
           CURRENT_VERSION="$(node -p "require('./package.json').version")"
           echo "Current version: $CURRENT_VERSION"
 
@@ -103,7 +108,8 @@ jobs:
             --title "chore: bump version to $NEW_VERSION" \
             --body "Automated version bump from $CURRENT_VERSION to $NEW_VERSION" \
             --base development \
-            --head "$BRANCH_NAME")
+            --head "$BRANCH_NAME" \
+            --label "version-bump,chore")
 
           echo "PR_URL=$PR_URL" >> "$GITHUB_ENV"
 
