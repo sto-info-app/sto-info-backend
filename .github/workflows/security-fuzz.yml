@@ -36,7 +36,7 @@ jobs:
       src_changed: ${{ steps.filter.outputs.src_changed }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: dorny/paths-filter@de225aa2aa39c2c019d084ee9b80362f62762b33 # v3.0.2
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: filter
         with:
           filters: |
@@ -58,6 +58,7 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+      pull-requests: write
 
     steps:
       - name: Checkout repository
@@ -103,3 +104,16 @@ jobs:
         run: npm run test:fuzz:full
         env:
           FUZZ_NUM_RUNS: ${{ github.event.inputs.fuzz_run_count || '1000' }}
+
+      - name: Summarize Results
+        if: always()
+        run: npm run summary:ci
+        env:
+          CI_SUMMARY_FILE: fuzz-summary.md
+
+      - name: Post PR Comment
+        if: always() && github.event_name == 'pull_request'
+        uses: mshick/add-pr-comment@a65dfaca06c646b17047641328956551b757e753 # v2.11.0
+        with:
+          message-path: fuzz-summary.md
+          allow-repeats: true

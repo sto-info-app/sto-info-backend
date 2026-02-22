@@ -35,13 +35,14 @@
     "test:fuzz": "cross-env TZ=UTC FUZZ_NUM_RUNS=${FUZZ_NUM_RUNS:-50} jest --testRegex='.*\\.fuzz\\.spec\\.ts$' --coverage=false",
     "test:fuzz:full": "cross-env TZ=UTC FUZZ_NUM_RUNS=${FUZZ_NUM_RUNS:-1000} jest --testRegex='.*\\.fuzz\\.spec\\.ts$' --coverage=false",
     "test:watch": "cross-env TZ=UTC jest --watch",
-    "test:cov": "cross-env TZ=UTC jest --config jest.config.mjs --runInBand --coverage --coverageDirectory=reports/coverage --coverageReporters=lcov --coverageReporters=text-summary --testPathIgnorePatterns='.fuzz.spec.ts'",
+    "test:cov": "cross-env TZ=UTC jest --config jest.config.mjs --runInBand --coverage --coverageDirectory=reports/coverage --testPathIgnorePatterns='.fuzz.spec.ts'",
     "test:debug": "cross-env TZ=UTC node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "cross-env TZ=UTC jest --config ./test/jest-e2e.json",
     "e2e": "npm run test:e2e",
     "test:mutation": "stryker run --reporters clear-text --reporters html --reporters progress",
     "test:mutation:dry": "stryker run --reporters clear-text --reporters html --reporters progress --dryRunOnly",
     "test:mutation:incremental": "node ./scripts/run-incremental-mutation.mjs",
+    "summary:ci": "node scripts/generate-ci-summary.mjs",
     "verify": "npm audit --audit-level=high --omit=dev && npm run lint && npm run test:cov && npm run test:fuzz && npm run build",
     "prepare": "husky"
   },
@@ -124,6 +125,7 @@
     "globals": "^17.3.0",
     "husky": "^9.0.0",
     "jest": "^30.2.0",
+    "jest-junit": "^16.0.0",
     "prettier": "^3.8.1",
     "rimraf": "^6.1.3",
     "source-map-support": "^0.5.21",
@@ -162,5 +164,12 @@
       "plugin:@typescript-eslint/recommended-requiring-type-checking",
       "plugin:prettier/recommended"
     ]
+  },
+  "jest-junit": {
+    "suiteName": "sto-info-backend",
+    "outputDirectory": "reports/junit",
+    "outputName": "junit.xml",
+    "addFileAttribute": "true",
+    "usePathForSuiteName": "true"
   }
 }

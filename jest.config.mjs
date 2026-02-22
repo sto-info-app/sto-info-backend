@@ -8,7 +8,14 @@ export default {
     '^src/(.*)$': '<rootDir>/src/$1',
   },
   collectCoverage: true,
-  coverageReporters: ['text-summary', 'text', 'lcov', 'cobertura'],
+  reporters: ['default', 'jest-junit'],
+  coverageReporters: [
+    'text-summary',
+    'text',
+    'lcov',
+    'cobertura',
+    'json-summary',
+  ],
   collectCoverageFrom: [
     'src/**/*.(t|j)s',
     // Exclude test files
