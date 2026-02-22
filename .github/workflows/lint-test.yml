@@ -205,7 +205,7 @@ jobs:
 
       - name: Post PR Comment
         if: always() && github.event_name == 'pull_request'
-        uses: mshick/add-pr-comment@a65dfaca06c646b17047641328956551b757e753 # v2.11.0
+        uses: mshick/add-pr-comment@b8f338c590a895d50bcbfa6c5859251edc8952fc # v2.8.2
         with:
           message-path: ci-summary.md
           allow-repeats: true
