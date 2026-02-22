@@ -59,9 +59,17 @@ Sentry is used for error tracking and performance monitoring in production and s
 
 To maintain high standards without making the development process frustrating, we use a "Smart Skip" strategy for our required PR checks.
 
-- **Behavior**: All required workflows (`Lint and Test`, `Audit`, `CodeQL`, etc.) trigger on every PR to ensure status checks are never "stuck."
+- **Behavior**: All required workflows (`Lint and Test`, `Audit`, `CodeQL`, etc.) trigger on every PR to `development` and `production` to ensure status checks are never "stuck."
 - **Efficiency**: A lightweight filter job identifies if relevant code was changed. If only documentation, READMEs, or configs were updated, the heavy jobs are skipped.
 - **Compliance**: This ensures that even "Skipped" jobs report as a success to GitHub, preserving the green "All checks passed" status while saving significant CI minutes.
+
+## Automated CI Summaries
+
+To provide fast and actionable feedback, the CI pipeline automatically generates a summary of test results and code coverage.
+
+- **Location**: Summaries are posted as a **GitHub Step Summary** in the Actions tab and as a **PR comment** on every pull request.
+- **Content**: The summary includes pass/fail counts for unit tests and a tabular breakdown of code coverage (Statements, Branches, Functions, Lines).
+- **Automation**: This is handled by a custom script (`scripts/generate-ci-summary.mjs`) that parses JUnit and JSON coverage reports.
 
 ## See Also
 

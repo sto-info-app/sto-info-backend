@@ -36,6 +36,7 @@ Generic fuzzing generates random inputs to test code robustness. In this repo, i
 - **PRs**: A lightweight pass (50 runs) is a **required check** for all PRs.
 - **Schedule**: A deep pass (1000 runs) occurs weekly.
 - **Smart Skip**: If a PR only modifies documentation, the fuzzing job is skipped to save CI credits, but still reports a "Success" to satisfy branch protection.
+- **Reporting**: Detailed fuzzing results are included in the **Automated CI Summaries** posted to each PR.
 
 ## DAST Scanning (OWASP ZAP)
 
