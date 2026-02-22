@@ -4,11 +4,8 @@ on:
   pull_request:
     branches:
       - development
+      - production
     types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - 'src/**/*.ts'
-      - 'package.json'
-      - 'package-lock.json'
 
   schedule:
     # Weekly deep fuzz run every Monday at 03:00 UTC
@@ -31,12 +28,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  check_changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      src_changed: ${{ steps.filter.outputs.src_changed }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          filters: |
+            src_changed:
+              - 'src/**/*.ts'
+              - 'package.json'
+              - 'package-lock.json'
+
   fuzz:
     name: 'Property-based fuzz testing'
+    needs: check_changes
+    # Skip if code_changed is false (unless scheduled or push)
+    if: |
+      needs.check_changes.outputs.src_changed == 'true' || 
+      github.event_name == 'schedule' || 
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
+      actions: read
+      pull-requests: write
 
     steps:
       - name: Checkout repository
@@ -59,17 +82,11 @@ jobs:
           fi
           echo "use_cache=$value" >> "$GITHUB_OUTPUT"
 
-      - name: Cache node_modules
-        if: steps.cache-toggle.outputs.use_cache == 'true'
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      - name: Load & cache dependencies
+        uses: ./.github/actions/cached-dependencies
         with:
-          path: node_modules
-          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-${{ env.NODE_VERSION }}-
-
-      - name: Install dependencies
-        run: npm ci
+          use-cache: ${{ steps.cache-toggle.outputs.use_cache }}
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Run lightweight fuzz tests (PR)
         if: github.event_name == 'pull_request'
@@ -82,3 +99,16 @@ jobs:
         run: npm run test:fuzz:full
         env:
           FUZZ_NUM_RUNS: ${{ github.event.inputs.fuzz_run_count || '1000' }}
+
+      - name: Summarize Results
+        if: always()
+        run: npm run summary:ci
+        env:
+          CI_SUMMARY_FILE: fuzz-summary.md
+
+      - name: Post PR Comment
+        if: always() && github.event_name == 'pull_request'
+        uses: mshick/add-pr-comment@b8f338c590a895d50bcbfa6c5859251edc8952fc # v2.8.2
+        with:
+          message-path: fuzz-summary.md
+          allow-repeats: true
