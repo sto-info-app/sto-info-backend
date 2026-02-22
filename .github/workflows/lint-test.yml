@@ -98,6 +98,7 @@ jobs:
             }
 
   lint_and_test:
+    name: 'Lint and Test'
     needs: check_changes
     # Skip if dependabot
     # Skip draft PRs

@@ -46,7 +46,7 @@ jobs:
               - 'package-lock.json'
 
   fuzz:
-    name: 'Property-based fuzz testing'
+    name: 'Security: Fuzz'
     needs: check_changes
     # Skip if code_changed is false (unless scheduled or push)
     if: |

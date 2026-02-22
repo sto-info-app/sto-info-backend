@@ -41,7 +41,7 @@ jobs:
               - 'package-lock.json'
 
   audit:
-    name: Security Audit
+    name: 'npm audit'
     needs: check_changes
     # Skip for Dependabot
     # Skip draft PRs
