@@ -1,6 +1,6 @@
 {
   "name": "sto-info-backend",
-  "version": "1.0.92",
+  "version": "1.0.93",
   "description": "Star Trek Online Information APIs",
   "author": "Steve Roberts",
   "private": true,
