@@ -19,6 +19,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      pull-requests: write
 
     steps:
       - name: Checkout repo
@@ -52,3 +53,20 @@ jobs:
 
           git tag -a "$TAG_NAME" -m "Release $TAG_NAME"
           git push origin "$TAG_NAME"
+
+      - name: Unmask last version bump in release notes
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT_REPO_TOKEN || github.token }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          echo "Finding PR for version $VERSION..."
+
+          # Search for the merged version bump PR
+          PR_NUMBER=$(gh pr list --repo "${{ github.repository }}" --state merged --search "chore: bump version to $VERSION" --json number --jq '.[0].number' || echo "")
+
+          if [ -n "$PR_NUMBER" ]; then
+            echo "Removing 'version-bump' label from PR #$PR_NUMBER to include it in release notes."
+            gh pr edit "$PR_NUMBER" --repo "${{ github.repository }}" --remove-label version-bump || echo "Failed to remove label, but continuing..."
+          else
+            echo "No matching version bump PR found for version $VERSION."
+          fi
