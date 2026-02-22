@@ -58,6 +58,7 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+      actions: read
       pull-requests: write
 
     steps:
@@ -81,17 +82,11 @@ jobs:
           fi
           echo "use_cache=$value" >> "$GITHUB_OUTPUT"
 
-      - name: Cache node_modules
-        if: steps.cache-toggle.outputs.use_cache == 'true'
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      - name: Load & cache dependencies
+        uses: ./.github/actions/cached-dependencies
         with:
-          path: node_modules
-          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-${{ env.NODE_VERSION }}-
-
-      - name: Install dependencies
-        run: npm ci
+          use-cache: ${{ steps.cache-toggle.outputs.use_cache }}
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Run lightweight fuzz tests (PR)
         if: github.event_name == 'pull_request'
