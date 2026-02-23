@@ -2,7 +2,7 @@
 
 ## Security posture
 
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/11991/badge)](https://www.bestpractices.dev/projects/11942)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/11991/badge)](https://www.bestpractices.dev/projects/11991)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/sto-info-app/sto-info-backend/badge)](https://securityscorecards.dev/viewer/?uri=github.com/sto-info-app/sto-info-backend)
 [![Security Policy](https://img.shields.io/badge/security%20policy-SECURITY.md-informational)](https://github.com/sto-info-app/sto-info-backend/blob/development/SECURITY.md)
 
