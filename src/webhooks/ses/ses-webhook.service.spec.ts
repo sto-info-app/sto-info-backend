@@ -71,6 +71,7 @@ describe('SesWebhookService', () => {
 
   afterEach(() => {
     delete process.env.AWS_SNS_TOPIC_ARN;
+    jest.clearAllMocks();
   });
 
   it('should be defined', () => {
@@ -431,6 +432,19 @@ describe('SesWebhookService', () => {
     it('should hash with empty key when sesEmailHmacSecret is absent from secrets', async () => {
       configService.get.mockReturnValue('some-secret-name');
       secretsService.getSecret.mockResolvedValueOnce({} as any);
+      repo.count.mockResolvedValue(0);
+      await service.isSuppressed('user@example.com');
+      const expectedHash = createHmac('sha256', '') //NOSONAR - test data
+        .update('user@example.com')
+        .digest('hex');
+      expect(repo.count).toHaveBeenCalledWith({
+        where: { emailHashed: expectedHash, suppress: true },
+      });
+    });
+
+    it('should hash with empty key when secretObject is null', async () => {
+      configService.get.mockReturnValue('some-secret-name');
+      secretsService.getSecret.mockResolvedValueOnce(null as any);
       repo.count.mockResolvedValue(0);
       await service.isSuppressed('user@example.com');
       const expectedHash = createHmac('sha256', '') //NOSONAR - test data
