@@ -182,9 +182,47 @@ describe('MailService', () => {
       warnSpy.mockRestore();
       errorSpy.mockRestore();
     });
+
+    it('should fall back to SendGrid and stringify non-Error sesError', async () => {
+      // Exercises the `String(sesError)` branch (sesError is not an instance of Error)
+      (mockMailerService.sendMail as jest.Mock).mockRejectedValue(
+        'plain string error',
+      );
+      const warnSpy = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+
+      await service.sendEmailWithFallback(sampleMessage);
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Amazon SES sending failed — falling back to SendGrid.',
+        'plain string error',
+      );
+      expect(sgMail.send).toHaveBeenCalled();
+      warnSpy.mockRestore();
+    });
   });
 
   describe('sendEmailViaSES', () => {
+    it('should omit ConfigurationSetName when AWS_SES_CONFIGURATION_SET is not set', async () => {
+      delete process.env.AWS_SES_CONFIGURATION_SET;
+      const message: EmailMessage = {
+        to: 'test@example.com',
+        from: { name: 'Test App', email: 'no-reply@test.local' },
+        subject: 'Test Subject',
+        text: 'Test text',
+        html: '<html>Test html</html>',
+      };
+
+      await service.sendEmailViaSES(message);
+
+      expect(mockMailerService.sendMail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ses: { ConfigurationSetName: undefined },
+        }),
+      );
+    });
+
     it('should call mailerService.sendMail with correct parameters', async () => {
       const message: EmailMessage = {
         to: 'test@example.com',
@@ -206,6 +244,44 @@ describe('MailService', () => {
           ses: expect.objectContaining({
             ConfigurationSetName: 'test-config-set',
           }),
+        }),
+      );
+    });
+
+    it('should include replyTo header when replyTo is provided', async () => {
+      const message: EmailMessage = {
+        to: 'test@example.com',
+        from: { name: 'Test App', email: 'no-reply@test.local' },
+        subject: 'Test Subject',
+        text: 'Test text',
+        html: '<html>Test html</html>',
+        replyTo: { email: 'support@test.local', name: 'Support' },
+      };
+
+      await service.sendEmailViaSES(message);
+
+      expect(mockMailerService.sendMail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          replyTo: '"Support" <support@test.local>',
+        }),
+      );
+    });
+
+    it('should handle replyTo without a name', async () => {
+      const message: EmailMessage = {
+        to: 'test@example.com',
+        from: { name: 'Test App', email: 'no-reply@test.local' },
+        subject: 'Test Subject',
+        text: 'Test text',
+        html: '<html>Test html</html>',
+        replyTo: { email: 'support@test.local' },
+      };
+
+      await service.sendEmailViaSES(message);
+
+      expect(mockMailerService.sendMail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          replyTo: '"" <support@test.local>',
         }),
       );
     });
@@ -290,6 +366,23 @@ describe('MailService', () => {
         subject: 'Test Subject',
         text: 'Test text',
         html: '<html>Test html</html>',
+      });
+    });
+
+    it('should include replyTo when provided', () => {
+      const message: EmailMessage = {
+        to: 'test@example.com',
+        from: { name: 'Test App', email: 'no-reply@test.local' },
+        subject: 'Test Subject',
+        text: 'Test text',
+        html: '<html>Test html</html>',
+        replyTo: { email: 'reply@test.local', name: 'Reply' },
+      };
+
+      const result = service.toSendGridMessage(message);
+
+      expect(result).toMatchObject({
+        replyTo: { email: 'reply@test.local', name: 'Reply' },
       });
     });
   });
