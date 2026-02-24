@@ -143,5 +143,54 @@ describe('SesWebhookController', () => {
         controller.handleSnsNotification('UnsubscribeConfirmation', envelope),
       ).resolves.not.toThrow();
     });
+
+    it('should return early and log when body is invalid JSON string', async () => {
+      await expect(
+        controller.handleSnsNotification(
+          'Notification',
+          'not-valid-json' as any,
+        ),
+      ).resolves.toBeUndefined();
+      expect(service.processNotification).not.toHaveBeenCalled();
+    });
+
+    it('should skip and log when Notification Message field contains invalid JSON', async () => {
+      const envelope = makeEnvelope({ Message: '{invalid-json}' });
+      await expect(
+        controller.handleSnsNotification('Notification', envelope),
+      ).resolves.toBeUndefined();
+      expect(service.processNotification).not.toHaveBeenCalled();
+    });
+
+    it('should fall back to envelope.Type when x-amz-sns-message-type header is absent', async () => {
+      const sesNotification = {
+        notificationType: 'Delivery',
+        mail: {
+          messageId: 'ses-003',
+          source: 'no-reply@test.local',
+          destination: ['user@example.com'],
+          timestamp: '',
+        },
+        delivery: {
+          recipients: ['user@example.com'],
+          timestamp: '',
+          processingTimeMillis: 100,
+          smtpResponse: '250',
+        },
+      };
+      const envelope = makeEnvelope({
+        Type: 'Notification',
+        Message: JSON.stringify(sesNotification),
+      });
+      // Pass undefined/null as the header to simulate header absence
+      await controller.handleSnsNotification(
+        undefined as unknown as string,
+        envelope,
+      );
+      expect(service.processNotification).toHaveBeenCalledWith(
+        'msg-001',
+        sesNotification,
+      );
+    });
   });
 });
