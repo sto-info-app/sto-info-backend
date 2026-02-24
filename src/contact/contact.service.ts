@@ -36,7 +36,7 @@ export class ContactService {
       supportHtmlContent,
     );
 
-    await this.mailService.sendEmailViaSendGrid({
+    await this.mailService.sendEmailWithFallback({
       ...supportMessage,
       replyTo: {
         email: payload.email,
@@ -54,7 +54,7 @@ export class ContactService {
       userHtmlContent,
     );
 
-    await this.mailService.sendEmailViaSendGrid(userMessage);
+    await this.mailService.sendEmailWithFallback(userMessage);
   }
 
   private buildSupportTextContent(payload: ContactRequestDto): string {

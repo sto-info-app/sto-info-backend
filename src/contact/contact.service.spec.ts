@@ -8,16 +8,16 @@ import { ContactRequestEntity } from './entities/contact-request.entity';
 describe('ContactService', () => {
   let service: ContactService;
   type MailServiceMock = jest.Mocked<
-    Pick<MailService, 'generateEmailMessageObject' | 'sendEmailViaSendGrid'>
+    Pick<MailService, 'generateEmailMessageObject' | 'sendEmailWithFallback'>
   >;
-  type SendGridMessage = Parameters<MailService['sendEmailViaSendGrid']>[0];
+  type EmailMessage = Parameters<MailService['sendEmailWithFallback']>[0];
   let mailService: MailServiceMock;
   let repository: Repository<ContactRequestEntity>;
 
   beforeEach(async () => {
     mailService = {
       generateEmailMessageObject: jest.fn(),
-      sendEmailViaSendGrid: jest.fn(),
+      sendEmailWithFallback: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -75,8 +75,8 @@ describe('ContactService', () => {
     });
 
     mailService.generateEmailMessageObject
-      .mockReturnValueOnce(supportMessageStub as SendGridMessage)
-      .mockReturnValueOnce(userMessageStub as SendGridMessage);
+      .mockReturnValueOnce(supportMessageStub as EmailMessage)
+      .mockReturnValueOnce(userMessageStub as EmailMessage);
 
     await service.submitContactRequest(payload);
 
@@ -93,12 +93,12 @@ describe('ContactService', () => {
 
     expect(supportTextContent).toContain('Hello <b>there</b>');
     expect(supportHtmlContent).toContain('Hello &lt;b&gt;there&lt;/b&gt;');
-    expect(mailService.sendEmailViaSendGrid).toHaveBeenCalledWith({
+    expect(mailService.sendEmailWithFallback).toHaveBeenCalledWith({
       ...supportMessageStub,
       replyTo: { email: payload.email, name: payload.name },
     });
 
-    expect(mailService.sendEmailViaSendGrid).toHaveBeenCalledWith(
+    expect(mailService.sendEmailWithFallback).toHaveBeenCalledWith(
       userMessageStub,
     );
   });
@@ -119,9 +119,7 @@ describe('ContactService', () => {
       message: payload.message,
     });
 
-    mailService.generateEmailMessageObject.mockReturnValue(
-      {} as SendGridMessage,
-    );
+    mailService.generateEmailMessageObject.mockReturnValue({} as EmailMessage);
 
     await service.submitContactRequest(payload);
 
