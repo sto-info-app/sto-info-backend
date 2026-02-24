@@ -7,6 +7,7 @@ export default {
   moduleNameMapper: {
     '^src/(.*)$': '<rootDir>/src/$1',
   },
+  setupFilesAfterEnv: ['<rootDir>/test/setup.ts'],
   collectCoverage: true,
   reporters: ['default', 'jest-junit'],
   coverageReporters: [
@@ -105,4 +106,6 @@ export default {
     },
   },
   coverageDirectory: '<rootDir>/reports/coverage',
+  testPathIgnorePatterns: ['/node_modules/', '/.stryker-tmp/'],
+  modulePathIgnorePatterns: ['<rootDir>/.stryker-tmp/'],
 };
