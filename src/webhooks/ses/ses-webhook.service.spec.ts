@@ -414,6 +414,46 @@ describe('SesWebhookService', () => {
   });
 
   // --------------------------------------------------------------------------
+  // isValidSnsSubscribeUrl
+  // --------------------------------------------------------------------------
+  describe('isValidSnsSubscribeUrl', () => {
+    it('should return true for valid regional SNS URLs', () => {
+      expect(
+        service.isValidSnsSubscribeUrl(
+          'https://sns.us-east-1.amazonaws.com/confirm',
+        ),
+      ).toBe(true);
+    });
+
+    it('should return true for valid global SNS URLs', () => {
+      expect(
+        service.isValidSnsSubscribeUrl('https://sns.amazonaws.com/confirm'),
+      ).toBe(true);
+    });
+
+    it('should return false for malformed URLs', () => {
+      expect(service.isValidSnsSubscribeUrl('not-a-url')).toBe(false);
+    });
+
+    it('should return false for non-HTTPS protocols', () => {
+      expect(service.isValidSnsSubscribeUrl('http://sns.amazonaws.com/')).toBe(
+        false,
+      );
+    });
+
+    it('should return false for suspicious hostnames', () => {
+      expect(service.isValidSnsSubscribeUrl('https://sns.attacker.com/')).toBe(
+        false,
+      );
+      expect(
+        service.isValidSnsSubscribeUrl(
+          'https://sns.us-east-1.amazonaws.com.attacker.com/',
+        ),
+      ).toBe(false);
+    });
+  });
+
+  // --------------------------------------------------------------------------
   // hashEmail — secret fallbacks
   // --------------------------------------------------------------------------
   describe('hashEmail (via isSuppressed)', () => {
