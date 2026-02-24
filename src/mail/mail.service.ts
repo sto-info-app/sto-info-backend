@@ -43,7 +43,9 @@ export class MailService {
 
   /**
    * Validate required environment variables.
+   *
    * @throws Error if any required environment variable is not set.
+   * @returns void
    */
   private validateEnvironmentVariables() {
     const requiredEnvVars = [
@@ -62,6 +64,8 @@ export class MailService {
 
   /**
    * Initialise the mail service by setting the SendGrid API key.
+   *
+   * @returns A promise that resolves when initialisation is complete.
    */
   async onModuleInit() {
     await this.init();
@@ -69,6 +73,8 @@ export class MailService {
 
   /**
    * Initialise the mail service — fetches secrets for the SendGrid fallback.
+   *
+   * @returns A promise that resolves when primary initialisation is complete.
    */
   private async init() {
     const secretObject = await this.secretsService.getSecret(
@@ -101,8 +107,10 @@ export class MailService {
 
   /**
    * Send a verification email to the user.
-   * @param email The recipient's email address.
-   * @param token The verification token.
+   *
+   * @param email - The recipient's email address.
+   * @param token - The verification token.
+   * @returns A promise that resolves when the email has been sent.
    */
   async sendVerificationEmail(email: string, token: string) {
     if (!this.validateEmailFormat(email)) {
@@ -127,9 +135,11 @@ export class MailService {
 
   /**
    * Send a password reset email to the user.
-   * @param email The recipient's email address.
-   * @param token The password reset token.
-   * @param firstName The recipient's first name.
+   *
+   * @param email - The recipient's email address.
+   * @param token - The password reset token.
+   * @param firstName - The recipient's first name.
+   * @returns A promise that resolves when the email has been sent.
    */
   async sendPasswordResetEmail(
     email: string,
@@ -159,8 +169,10 @@ export class MailService {
 
   /**
    * Send a password changed notification email to the user.
-   * @param email The recipient's email address.
-   * @param firstName The recipient's first name.
+   *
+   * @param email - The recipient's email address.
+   * @param firstName - The recipient's first name.
+   * @returns A promise that resolves when the email has been sent.
    */
   async sendPasswordChangedEmail(email: string, firstName: string) {
     const { emailHtmlContent, emailTextContent } =
@@ -183,8 +195,10 @@ export class MailService {
 
   /**
    * Send a user logged in notification email to the user.
-   * @param email The recipient's email address.
-   * @param firstName The recipient's first name.
+   *
+   * @param email - The recipient's email address.
+   * @param firstName - The recipient's first name.
+   * @returns A promise that resolves when the email has been sent.
    */
   async sendUserLoggedInNotification(email: string, firstName: string) {
     const { emailHtmlContent, emailTextContent } =
@@ -207,10 +221,12 @@ export class MailService {
 
   /**
    * Send a generic email to a user.
-   * @param toEmail The recipient's email address.
-   * @param subject The subject of the email.
-   * @param textContent The plain text content of the email.
-   * @param htmlContent The HTML content of the email.
+   *
+   * @param toEmail - The recipient's email address.
+   * @param subject - The subject of the email.
+   * @param textContent - The plain text content of the email.
+   * @param htmlContent - The HTML content of the email.
+   * @returns A promise that resolves when the email has been sent.
    */
   async sendEmailToUser(
     toEmail: string,
@@ -230,7 +246,9 @@ export class MailService {
 
   /**
    * Send an email via Amazon SES (primary), falling back to SendGrid on failure.
-   * @param message The email message to send.
+   *
+   * @param message - The email message to send.
+   * @returns A promise that resolves when the email has been sent (via either provider).
    */
   async sendEmailWithFallback(message: EmailMessage): Promise<void> {
     try {
@@ -246,7 +264,9 @@ export class MailService {
 
   /**
    * Send an email via Amazon SES using the NestJS mailer service (nodemailer SES transport).
-   * @param message The email message to send.
+   *
+   * @param message - The email message to send.
+   * @returns A promise that resolves when the email has been successfully queued/sent by SES.
    */
   async sendEmailViaSES(message: EmailMessage): Promise<void> {
     // `ses` is a nodemailer SES-transport passthrough field for provider-specific
@@ -276,7 +296,9 @@ export class MailService {
 
   /**
    * Send an email via SendGrid (fallback).
-   * @param msg The SendGrid email message to send.
+   *
+   * @param message - The SendGrid email message to send.
+   * @returns A promise that resolves when the email has been sent via SendGrid.
    */
   async sendEmailViaSendGrid(message: sgMail.MailDataRequired) {
     try {
@@ -293,7 +315,8 @@ export class MailService {
 
   /**
    * Convert an internal EmailMessage to a SendGrid MailDataRequired object.
-   * @param message The internal email message.
+   *
+   * @param message - The internal email message.
    * @returns A SendGrid MailDataRequired object.
    */
   toSendGridMessage(message: EmailMessage): sgMail.MailDataRequired {
@@ -308,9 +331,10 @@ export class MailService {
   }
 
   /**
-   * Validate email format.
-   * @param email The email address to validate.
-   * @returns True if the email format is valid, false otherwise.
+   * Validate email format using the internal validators service.
+   *
+   * @param email - The email address to validate.
+   * @returns `true` if the email format is valid; `false` otherwise.
    */
   validateEmailFormat(email: string | null | undefined): boolean {
     if (!email) {
@@ -320,12 +344,13 @@ export class MailService {
   }
 
   /**
-   * Generate an email message object.
-   * @param to The recipient's email address.
-   * @param subject The subject of the email.
-   * @param text The plain text content of the email.
-   * @param html The HTML content of the email.
-   * @returns The email message object.
+   * Generate an internal email message object from raw parts.
+   *
+   * @param to - The recipient's email address.
+   * @param subject - The subject of the email.
+   * @param text - The plain text content of the email.
+   * @param html - The HTML content of the email.
+   * @returns An EmailMessage object ready for use by SES or SendGrid.
    */
   generateEmailMessageObject(
     to: string,
