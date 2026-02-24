@@ -10,9 +10,10 @@ import { Injectable } from '@nestjs/common';
 @Injectable()
 export class ValidatorsService {
   /**
-   * Validate UUID against regex pattern.
-   * @param uuid UUID to validate.
-   * @returns True if UUID is valid, false otherwise.
+   * Validates if a string is a correctly formatted UUID.
+   *
+   * @param uuid - The UUID string to validate.
+   * @returns `true` if the UUID is valid; `false` otherwise.
    */
   validateUuid(uuid: string): boolean {
     const uuidRegex = UUID_PATTERN;
@@ -20,9 +21,10 @@ export class ValidatorsService {
   }
 
   /**
-   * Validate email address against regex pattern.
-   * @param email address to validate.
-   * @returns True if email is valid, false otherwise.
+   * Validates if a string is a correctly formatted email address.
+   *
+   * @param email - The email address string to validate.
+   * @returns `true` if the email is valid; `false` otherwise.
    */
   validateEmail(email: string): boolean {
     const emailRegex = EMAIL_PATTERN;
@@ -30,9 +32,10 @@ export class ValidatorsService {
   }
 
   /**
-   * Validate username against regex pattern.
-   * @param username Username to validate.
-   * @returns True if username is valid, false otherwise.
+   * Validates if a string is a correctly formatted username.
+   *
+   * @param username - The username string to validate.
+   * @returns `true` if the username is valid; `false` otherwise.
    */
   validateUsername(username: string): boolean {
     const usernameRegex = USERNAME_PATTERN;
@@ -40,9 +43,10 @@ export class ValidatorsService {
   }
 
   /**
-   * Validate password against regex pattern.
-   * @param password Password to validate.
-   * @returns True if password is valid, false otherwise.
+   * Validates if a string meets the required password complexity rules.
+   *
+   * @param password - The password string to validate.
+   * @returns `true` if the password is valid; `false` otherwise.
    */
   validatePassword(password: string): boolean {
     const passwordRegex = PASSWORD_PATTERN;

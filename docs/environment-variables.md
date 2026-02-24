@@ -17,18 +17,14 @@ Note: the app reads `config/environments/.env` at startup (see `src/main.ts`).
 - `NODE_ENV`: `local` | `dev` | `staging` | `prod`
 - `LOG_LEVEL`: `error` | `warn` | `log` | `debug` | `verbose` (optionally comma-separated)
 - `APP_PORT`: Port the HTTP server listens on (default used by code is `3000`)
-- `APP_FRONTEND_URL`: Base URL used for CORS and links in emails
-- `APP_TITLE`: Used in email templates and user-facing copy
-
-> TODO: Document the exact prod/dev values for `APP_FRONTEND_URL` and where they are configured (Render service env vars vs local `.env`).
+- `APP_FRONTEND_URL`: Base URL used for CORS and links in emails (e.g. `https://startrekonline.info` in production).
+- `APP_TITLE`: Used in email templates and user-facing copy.
 
 ### Authentication
 
-- `AUTH_SALT_ROUNDS`: bcrypt rounds used for password hashing and refresh token hashing
-- `AUTH_TOKEN_EXPIRES_IN`: Access token expiry in seconds
-- `AUTH_REFRESH_TOKEN_EXPIRES_IN`: Refresh token expiry in seconds
-
-> TODO: Record the chosen production values for `AUTH_SALT_ROUNDS`, `AUTH_TOKEN_EXPIRES_IN`, and `AUTH_REFRESH_TOKEN_EXPIRES_IN`.
+- `AUTH_SALT_ROUNDS`: bcrypt rounds for password hashing (Policy: `10` or higher).
+- `AUTH_TOKEN_EXPIRES_IN`: Access token expiry in seconds (Policy: `3600` / 1 hour).
+- `AUTH_REFRESH_TOKEN_EXPIRES_IN`: Refresh token expiry in seconds (Policy: `14400` / 4 hours).
 
 ### Database (TypeORM)
 
@@ -50,16 +46,20 @@ Note: the app reads `config/environments/.env` at startup (see `src/main.ts`).
 
 ### Email
 
-- `SENDGRID_NOREPLY_SENDER`: From address for outbound email
+- `EMAIL_NOREPLY_SENDER`: From address for all outbound email (used by both SES and SendGrid fallback)
 
 ### AWS Secrets Manager
 
-- `AWS_ACCESS_KEY_ID`: Used to access Secrets Manager
-- `AWS_SECRET_ACCESS_KEY`: Used to access Secrets Manager
-- `AWS_REGION`: Region for Secrets Manager
+- `AWS_ACCESS_KEY_ID`: Used to access Secrets Manager and SES
+- `AWS_SECRET_ACCESS_KEY`: Used to access Secrets Manager and SES
+- `AWS_REGION`: Region for Secrets Manager and SES
 - `AWS_SECRET_NAME`: Name/ARN of the Secrets Manager secret containing application secrets
+- `AWS_SNS_TOPIC_ARN`: Full ARN of the SNS topic that receives SES bounce/complaint/delivery feedback (used to validate incoming webhook notifications at `POST /webhooks/ses`)
+- `AWS_SES_CONFIGURATION_SET`: Name of the SES Configuration Set attached to this identity; routes events to the SNS topic above
 
-> TODO: Document the actual secret name/ARN used per environment and who has access to manage/rotate it.
+### SES Audit Email Privacy
+
+- `sesEmailHmacSecret` (in **AWS Secrets**): Secret key used to compute HMAC-SHA256 hashes of recipient email addresses. Retrieve this from the secret defined by `AWS_SECRET_NAME`. **Policy**: Key must be a random string of 32-64 bytes. Rotate carefully — changing this key invalidates all existing suppression records.
 
 ### Cloudflare
 
@@ -79,9 +79,9 @@ Note: the app reads `config/environments/.env` at startup (see `src/main.ts`).
 - `AUDIT_DATA_NUKE_THRESHOLD_DAYS`: Delete audit/audit-login-attempt rows older than this many days
 - `AUDIT_IP_NUKE_THRESHOLD_DAYS`: Null out `ipAddress` in audit/audit-login-attempt rows older than this many days
 - `CONTACT_REQUEST_EMAIL_MASK_RETENTION_DAYS`: Null out masked contact emails older than this many days
-- `CONTACT_REQUEST_RECORD_RETENTION_DAYS`: Delete contact requests older than this many days
+- `CONTACT_REQUEST_RECORD_RETENTION_DAYS`: Delete contact requests older than this many days.
 
-> TODO: Confirm the retention thresholds used in production and the rationale (privacy/compliance requirements).
+**Ownership**: Environment variables are managed by Developers (local) and SRE/DevOps (Production - e.g. Render Dashboard). Secrets are managed via the AWS Console or AWS CLI.
 
 ## Optional
 
@@ -104,7 +104,7 @@ The secret referenced by `AWS_SECRET_NAME` is expected to be JSON with at least:
 
 - `jwtSecret`: Used to sign JWT access tokens
 - `dbPassword`: Used as the PostgreSQL password for TypeORM
-- `sendGridApiKey`: Used by SendGrid for outbound email
+- `sendGridApiKey`: Used by SendGrid for outbound email (fallback when SES fails)
 - `cloudflareR2AccessKey`: Used to write objects to Cloudflare R2
 - `cloudflareR2Secret`: Used to write objects to Cloudflare R2
 - `cloudflareImagesAccountId`: Used for Cloudflare Images uploads

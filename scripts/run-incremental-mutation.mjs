@@ -34,9 +34,11 @@ function isRelevantMutationFile(filePath) {
   const excludedSuffixes = [
     '.d.ts',
     '.spec.ts',
+    '.fuzz.spec.ts',
     '.module.ts',
-    '.model.ts',
-    '.models.ts',
+    '.dto.ts',
+    '.entity.ts',
+    '.entities.ts',
     '.interface.ts',
     '.interfaces.ts',
     '.enum.ts',
@@ -46,7 +48,11 @@ function isRelevantMutationFile(filePath) {
 
   if (excludedSuffixes.some(suffix => filePath.endsWith(suffix))) return false;
   if (filePath.includes('environments/')) return false;
+  if (filePath.includes('database/migrations/')) return false;
+  if (filePath.includes('views/')) return false;
   if (filePath.endsWith('main.ts')) return false;
+  if (filePath.endsWith('index.ts')) return false;
+  if (filePath.endsWith('express.d.ts')) return false;
 
   return true;
 }

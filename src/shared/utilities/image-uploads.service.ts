@@ -37,16 +37,19 @@ export class ImageUploadsService {
   }
 
   /**
-   * Initialise the image upload service.
+   * NestJS lifecycle hook called when the module is initialised.
+   *
+   * @returns A promise that resolves when the service is fully initialised.
    */
   async onModuleInit() {
     await this.init();
   }
 
   /**
-   * Initialise the image uploads service.
-   * @throws BadRequestException if the Cloudflare R2 access key or secret is missing
-   * @throws BadRequestException if the Cloudmersive API key is missing
+   * Internal initialisation method that fetches secrets from AWS.
+   *
+   * @throws BadRequestException if the Cloudflare R2 or Cloudmersive secrets are missing.
+   * @returns A promise that resolves when initialisation is complete.
    */
   private async init() {
     const secretObject = await this.secretsService.getSecret(
@@ -80,9 +83,11 @@ export class ImageUploadsService {
   }
 
   /**
-   * Scan the file for viruses using Cloudmersive.
-   * @param fileBuffer The buffer of the file to scan
-   * @throws BadRequestException if the file is infected
+   * Scan a file buffer for viruses using the Cloudmersive Scan API.
+   *
+   * @param fileBuffer - The buffer containing the raw file data to scan.
+   * @throws BadRequestException if a virus is detected or the scan fails.
+   * @returns A promise that resolves if the file is clean.
    */
   private async scanFileForViruses(fileBuffer: Buffer): Promise<void> {
     this.logger.debug(
@@ -142,11 +147,12 @@ export class ImageUploadsService {
   }
 
   /**
-   * Upload an image to Cloudflare R2.
-   * @param userId The user ID
-   * @param file The image to upload
-   * @param characterId The character ID (optional)
-   * @returns The URL of the uploaded image
+   * Upload an image to Cloudflare R2 bucket.
+   *
+   * @param userId - The ID of the user uploading the image.
+   * @param file - The Multer file object containing the image.
+   * @param characterId - Optional character ID to use in the storage path.
+   * @returns A promise that resolves to the storage key of the uploaded image.
    */
   async uploadImageToCloudflareR2(
     userId: string,
@@ -206,9 +212,10 @@ export class ImageUploadsService {
 
   /**
    * Delete an image from the Cloudflare R2 bucket.
-   * @param userId The user ID
-   * @param imageUrl The URL of the image to delete
-   * @returns The key of the deleted image
+   *
+   * @param userId - The user ID associated with the image.
+   * @param imageUrl - The full URL or key of the image to delete.
+   * @returns A promise that resolves to the key of the deleted image.
    */
   async deleteImageFromCloudflareR2(userId: string, imageUrl: string) {
     if (!userId) {
@@ -235,12 +242,13 @@ export class ImageUploadsService {
   }
 
   /**
-   * Upload an image to Cloudflare Images.
-   * @param userId The user ID
-   * @param file The image to upload
-   * @param entityType Optional entity type (e.g., 'user', 'character')
-   * @param entityId Optional entity ID
-   * @returns The URL of the uploaded image
+   * Upload an image to the Cloudflare Images service.
+   *
+   * @param userId - The ID of the uploading user.
+   * @param file - The image file to upload.
+   * @param entityType - Optional category for the image (e.g., 'user', 'character').
+   * @param entityId - Optional ID of the related entity.
+   * @returns A promise that resolves to the unique Cloudflare Image ID.
    */
   async uploadImageToCloudflareImages(
     userId: string,
@@ -402,8 +410,10 @@ export class ImageUploadsService {
 
   /**
    * Delete an image from Cloudflare Images.
-   * @param imageId The ID of the image to delete
-   * @returns The ID of the deleted image
+   *
+   * @param imageId - The unique ID of the image to delete.
+   * @returns A promise that resolves to the ID of the deleted image.
+   * @throws BadRequestException if the deletion fails.
    */
   async deleteImageFromCloudflareImages(imageId: string) {
     if (!imageId) {
@@ -429,10 +439,14 @@ export class ImageUploadsService {
   }
 
   /**
-   * Validate and sanitise images to upload to Cloudflare R2 or Cloudflare Images.
-   * @param userId The user ID
-   * @param file The image to upload
-   * @returns The URL of the uploaded image
+   * Validates and sanitises a file before upload.
+   *
+   * Checks for valid mimetype, file size, virus presence, and santises the filename.
+   *
+   * @param userId - The ID of the user owning the file.
+   * @param file - The Multer file object to validate.
+   * @returns A promise that resolves to an object containing the cleaned buffer and safe filename.
+   * @throws BadRequestException if the file is invalid, too large, or infected.
    */
   private async validateAndSanitiseFile(
     userId: string,

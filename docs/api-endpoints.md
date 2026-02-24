@@ -358,6 +358,89 @@ List species.
 
 **Query (optional):** `factionId=<uuid>`, `recruitTypeId=<uuid>`
 
+## Contact Endpoint
+
+### POST /contact
+
+Submit a contact request. Rate-limited to prevent spam.
+
+**No Authentication Required**
+
+**Request:**
+
+```json
+{
+  "name": "Jean-Luc Picard",
+  "email": "captain.picard@starfleet.example",
+  "message": "I need assistance."
+}
+```
+
+**Response:** `200 OK` (no body)
+
+**Rate Limit:** Expensive operations limit (50 requests per 15 minutes)
+
+## Webhook Endpoints
+
+### POST /webhooks/ses
+
+Receives SNS HTTP notifications for SES bounce, complaint, and delivery events.
+
+**No Authentication Required** (secured by `TopicArn` validation against `AWS_SNS_TOPIC_ARN`)
+
+**Content-Type:** `application/json` or `text/plain; charset=UTF-8` (SNS sends both)
+
+**SNS Subscription Confirmation Request:**
+
+```json
+{
+  "Type": "SubscriptionConfirmation",
+  "MessageId": "<uuid>",
+  "TopicArn": "arn:aws:sns:eu-west-2:...:sto-info-ses-bounces",
+  "SubscribeURL": "https://sns.amazonaws.com/...",
+  "Timestamp": "2025-01-01T00:00:00.000Z",
+  "SignatureVersion": "1",
+  "Signature": "...",
+  "SigningCertURL": "https://..."
+}
+```
+
+The application automatically confirms the subscription by performing an HTTPS GET on `SubscribeURL`.
+
+**SES Notification Request:**
+
+```json
+{
+  "Type": "Notification",
+  "MessageId": "<uuid>",
+  "TopicArn": "arn:aws:sns:eu-west-2:...:sto-info-ses-bounces",
+  "Message": "{\"notificationType\":\"Bounce\",\"mail\":{...},\"bounce\":{...}}",
+  "Timestamp": "2025-01-01T00:00:00.000Z",
+  "SignatureVersion": "1",
+  "Signature": "...",
+  "SigningCertURL": "https://..."
+}
+```
+
+`Message` is a JSON-encoded string containing the SES event payload.
+
+**Supported `notificationType` values:**
+
+| Type                              | Effect                               |
+| --------------------------------- | ------------------------------------ |
+| `Bounce` (Permanent)              | Persists event with `suppress=true`  |
+| `Bounce` (Transient/Undetermined) | Persists event with `suppress=false` |
+| `Complaint`                       | Persists event with `suppress=true`  |
+| `Delivery`                        | Persists event with `suppress=false` |
+
+**Response:** `200 OK` (no body — SNS requires a 2xx to avoid retries)
+
+**Security:** Requests with a `TopicArn` that does not match `AWS_SNS_TOPIC_ARN` are rejected with `403 Forbidden`.
+
+**Idempotency:** Duplicate SNS messages (same `MessageId`) are silently skipped.
+
+**Rate Limiting:** This endpoint is excluded from rate limiting (it receives server-to-server calls from AWS).
+
 ## Health Check Endpoints
 
 ### GET /health/ready

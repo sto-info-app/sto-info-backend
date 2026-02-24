@@ -1,5 +1,7 @@
 # Security Documentation
 
+This document outlines the security architecture and procedures for the `sto-info-backend`. The project aims to meet **OpenSSF Best Practices Silver** level (and Gold where practical) to ensure high standards of software supply chain security and application hardening.
+
 ## Dependency Overrides
 
 This repository uses `npm overrides` sparingly to address security issues that originate in transitive dependencies (dependencies of dependencies) where upgrading a single top-level package would otherwise require a breaking change.
@@ -177,12 +179,12 @@ Always block SVG uploads unless you have a specific need and implement SVG sanit
 
 **Rationale:**
 
+**Rationale:**
+
 - Prevents excessive storage usage
 - Limits impact of denial-of-service attacks
 - Ensures reasonable upload times for users
-- Cloudflare Images has size limits (check current limit)
-
-> TODO: Confirm the current Cloudflare Images upload size limit and ensure `MAX_IMAGE_SIZE_IN_BYTES` is set accordingly.
+- Aligned with Cloudflare Images size limits
 
 **Enforcement:**
 
@@ -247,13 +249,11 @@ src/shared/constants/file-upload.constants.ts
 
 ### Password Requirements
 
-**Document password policy:**
+**Policy:**
 
-- Minimum length (e.g., 8 characters)
-- Complexity requirements (uppercase, lowercase, numbers, symbols)
-- Prevent common passwords (e.g., "password123")
-
-> TODO: Confirm and document the real password policy enforced by the app (validation rules, error messages, and any common-password blocking).
+- Minimum 8 characters.
+- Must include uppercase, lowercase, numbers, and symbols.
+- Enforced via `class-validator` `IsStrongPassword` on registration and reset DTOs.
 
 ## JWT Security
 
@@ -271,9 +271,7 @@ JWT signing secrets are loaded from AWS Secrets Manager via `SecretsService`.
 
 **Current Policy:**
 
-Document JWT secret rotation policy (e.g., rotate every 6 months, or on suspected compromise).
-
-> TODO: Write down the real rotation policy and who owns the process (including incident steps on suspected compromise).
+> **Policy:** JWT secrets are rotated every 180 days or immediately upon suspected compromise. Rotation is owned by the Lead Developer.
 
 **Rotation Process:**
 
@@ -344,16 +342,84 @@ Document current token expiry (e.g., 1 hour, 24 hours).
 - Client IP is derived in this order: `CF-Connecting-IP`, first `X-Forwarded-For`, then `req.ip`
 - IPv6-mapped IPv4 values like `::ffff:192.0.2.1` are normalised to IPv4
 
-## HTTP security headers
+## Compliance & OpenSSF Best Practices
 
-- Backend sets strict no-cache/no-store headers on API responses
-- CSP is set explicitly with a per-request nonce; Helmet CSP is disabled to avoid conflicts
+The project maintains an **OpenSSF Best Practices Badge**. This documentation serves as the base for our **Assurance Case** (Silver/Gold requirement).
 
-## Audit and retention
+### Secrets Management Policy (Silver/Gold)
 
-- Audit tables exist for entity change tracking and login attempts
-- A daily job deletes audit and login attempt records older than `AUDIT_DATA_NUKE_THRESHOLD_DAYS`
-- A daily job nulls `ipAddress` for audit and login attempt records older than `AUDIT_IP_NUKE_THRESHOLD_DAYS`
+1. **Storage**: All production secrets (database credentials, API keys, signing secrets) MUST be stored in **AWS Secrets Manager**.
+2. **Access Control**: Runtime access is provided via IAM roles with least-privilege policies. Only the `SecretsService` should interface with the secret store.
+3. **No Hardcoding**: Secrets or credentials MUST NEVER be committed to version control. This is enforced via automated CI checks and `.env.example` templates.
+4. **Rotation**:
+   - **JWT Secrets**: Rotated every 180 days.
+   - **API Keys**: Rotated annually or following a leaver event with access.
+   - **HMAC Service Keys**: Rotated only if compromised (see note on data migration in `Email address hashing`).
+5. **Incidents**: Upon suspected compromise, secrets are revoked in the provider (e.g., Cloudflare, AWS) and updated in Secrets Manager immediately.
+
+### Cryptography (Silver/Gold Standard)
+
+The project adheres to the following cryptographic standards:
+
+- **Algorithms**: Only industry-standard, non-deprecated algorithms are used.
+  - **Password Hashing**: `Bcrypt` (with adaptive cost).
+  - **PII Hashing**: `HMAC-SHA256` (SHA-256 remains secure for the foreseeable future).
+  - **Digital Signatures**: `RS256` or `HS256` for JWTs.
+- **Implementations**: No custom cryptography. We use the Node.js native `crypto` module, `bcrypt`, and `jsonwebtoken`.
+- **Key Lengths**:
+  - HMAC keys must be at least 32-64 random bytes.
+  - JWT keys must be at least 256-bit entropy.
+- **Entropy**: All random values (tokens, secrets) are generated using cryptographically secure PRNGs (`crypto.randomBytes`).
+
+### Coding Standards & Quality
+
+- **Static Analysis**: Automated linting (`eslint`) and type-checking (`tsc`) run on every PR.
+- **Dependency Scanning**: `npm audit` is a blocking step in CI (`npm run verify`).
+- **DCO (Developer Certificate of Origin)**: All commits must be signed-off (`Signed-off-by`) to ensure clear chain of ownership and licensing.
+
+## Proxy, client IP, and IPv6
+
+### Audit tables
+
+| Table                  | PII stored                                  | Retention                                                                                                                                                              |
+| ---------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `_audit`               | `ipAddress` (nullable), `userId`            | `ipAddress` nulled after `AUDIT_IP_NUKE_THRESHOLD_DAYS`; records deleted after `AUDIT_DATA_NUKE_THRESHOLD_DAYS`                                                        |
+| `_audit_login_attempt` | `email` (nullable), `ipAddress` (nullable)  | Same as above                                                                                                                                                          |
+| `_audit_ses_event`     | `emailHashed` (HMAC-SHA256 — not plaintext) | Non-suppressing records deleted after `SES_AUDIT_RETENTION_DAYS` (180 days); suppression records deleted after `SES_SUPPRESSION_RETENTION_DAYS` (2557 days / ~7 years) |
+| `contact_request`      | `emailMasked` (nullable)                    | Email nulled after `CONTACT_REQUEST_EMAIL_MASK_RETENTION_DAYS`; records deleted after `CONTACT_REQUEST_RECORD_RETENTION_DAYS`                                          |
+
+- A daily cron job (UTC, 03:26 and 00:00) runs all retention cleanup jobs in sequence.
+- A failed individual job is logged and swallowed so the others continue.
+
+## Email Delivery Security
+
+### SES Webhook (`POST /webhooks/ses`)
+
+The endpoint receives SNS HTTP notifications containing SES bounce, complaint, and delivery events.
+
+**TopicArn validation:**
+
+Every incoming notification is validated against `AWS_SNS_TOPIC_ARN`. Requests with a non-matching `TopicArn` are rejected with `403 Forbidden`. This prevents spoofed SNS notifications from arbitrary topics being processed as legitimate SES events.
+
+**Idempotency:**
+
+SNS guarantees at-least-once delivery. The `snsMessageId` field is stored with a `UNIQUE` constraint. Duplicate deliveries of the same message are silently skipped before any write is attempted.
+
+### Email address hashing
+
+Email addresses received via SES bounce/complaint/delivery events are **never stored in plaintext**. Before any database write the address is passed through:
+
+```
+HMAC-SHA256(key = SES_EMAIL_HMAC_SECRET, data = email.toLowerCase())
+```
+
+The resulting 64-character hex digest (`emailHashed`) is stored instead. This means:
+
+- The database contains no reversible PII, even if it is exfiltrated.
+- Suppression lookups are O(1) index scans (deterministic output per address + key pair).
+- Rainbow tables cannot be used without the secret key.
+
+**Key rotation warning:** Changing `SES_EMAIL_HMAC_SECRET` invalidates all existing suppression records because the stored hashes will no longer match re-hashed lookups. If rotation is required, plan a migration to rehash existing rows with the new key before cutting over.
 
 ### Monitoring Rate Limits
 
@@ -445,13 +511,22 @@ Document current token expiry (e.g., 1 hour, 24 hours).
 
 ### Content Security Policy (CSP)
 
-**Current Status:**
+**Current Status**:
+Implemented in `src/main.ts` using a per-request `nonce` provided by `NonceMiddleware`.
 
-Document if CSP is configured (check Helmet configuration or Cloudflare Page Rules).
+- **Policy**: `default-src 'none'; frame-ancestors 'none'; style-src 'self'; img-src 'self'; script-src 'self' 'nonce-{{nonce}}';`
+- **Swagger Exception**: A relaxed policy is applied to the `/swagger` endpoint in development to allow styles/fonts required for documentation.
 
-**Recommendation:**
+### HSTS (Strict-Transport-Security)
 
-Implement CSP to prevent XSS attacks by controlling resource loading.
+- **Status**: Enabled via Helmet.
+- **Policy**: Enforces HTTPS for all sessions. Cloudflare also enforces a "Always Use HTTPS" rule at the edge.
+
+### Software Supply Chain (OpenSSF Gold)
+
+- **Reproducible Builds**: The project uses `package-lock.json` to ensure deterministic builds. CI builds use `npm ci` to guarantee that the exact same dependency tree is used in every environment.
+- **Two-Factor Authentication (2FA)**: 2FA is REQUIRED for all developers with merge access to the GitHub repository and access to the AWS Console.
+- **Code Review**: All modifications must be submitted via Pull Requests and undergo review by at least one other contributor before merging.
 
 ## Security Considerations
 
@@ -463,6 +538,9 @@ Implement CSP to prevent XSS attacks by controlling resource loading.
 - **Brute Force**: Rate limiting on login endpoints
 - **DDoS**: Cloudflare edge protection + backend rate limiting
 - **File Upload Attacks**: MIME type validation, size limits, SVG blocking
+- **Spoofed SNS Notifications**: `TopicArn` validation on `POST /webhooks/ses`
+- **Email PII Exposure**: HMAC-SHA256 hashing of all email addresses in `_audit_ses_event`
+- **Credential Storage**: Use of AWS Secrets Manager avoids environment variable leakage on logs or child processes (OpenSSF Silver requirement).
 
 ### Known Security Considerations
 

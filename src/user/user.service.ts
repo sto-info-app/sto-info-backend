@@ -26,6 +26,13 @@ export class UserService {
     private readonly imageUploadsService: ImageUploadsService,
   ) {}
 
+  /**
+   * Create a new user account.
+   *
+   * @param createUserDto - Data for the new user, including email and password.
+   * @returns A promise that resolves to the newly created UserEntity.
+   * @throws HttpException if the email is invalid, the password is missing, or the email is already in use.
+   */
   async create(createUserDto: CreateUserDto): Promise<UserEntity> {
     this.logger.debug(
       `[create] Creating new user - Email: ${createUserDto.email}`,
@@ -72,6 +79,14 @@ export class UserService {
     return newUser;
   }
 
+  /**
+   * Update an existing user's basic account data.
+   *
+   * @param id - The UUID of the user to update.
+   * @param post - The updated user data.
+   * @returns A promise that resolves to the updated UserEntity.
+   * @throws HttpException if the ID is invalid or the user is not found after update.
+   */
   async update(id: string, post: UpdateUserDto): Promise<UserEntity> {
     if (!id || !this.validatorsService.validateUuid(id)) {
       throw new HttpException(
@@ -94,6 +109,13 @@ export class UserService {
     );
   }
 
+  /**
+   * Soft-delete a user account by ID.
+   *
+   * @param id - The UUID of the user to delete.
+   * @returns A promise that resolves when the deletion is complete.
+   * @throws HttpException if the ID is invalid or no user was affected by the deletion.
+   */
   async delete(id: string) {
     if (!id || !this.validatorsService.validateUuid(id)) {
       throw new HttpException(
@@ -111,6 +133,13 @@ export class UserService {
     }
   }
 
+  /**
+   * Find a user by their unique ID, including their profile relations.
+   *
+   * @param id - The UUID string of the user.
+   * @returns A promise that resolves to the UserEntity.
+   * @throws HttpException if the ID is invalid or the user is not found.
+   */
   async findById(id: string): Promise<UserEntity> {
     if (!id || !this.validatorsService.validateUuid(id)) {
       throw new HttpException(
@@ -138,6 +167,12 @@ export class UserService {
     return user;
   }
 
+  /**
+   * Find a user by their email address, including their profile relation.
+   *
+   * @param email - The email address to search for.
+   * @returns A promise that resolves to the UserEntity or null if not found.
+   */
   async findByEmail(email: string): Promise<UserEntity | null> {
     return await this.userRepository.findOne({
       where: { email: email },
@@ -145,6 +180,14 @@ export class UserService {
     });
   }
 
+  /**
+   * Update the email verification status for a user.
+   *
+   * @param email - The email address of the user.
+   * @param verified - The new verification status.
+   * @returns A promise that resolves when the update is complete.
+   * @throws HttpException if the user is not found.
+   */
   async updateUserEmailVerifiedStatus(
     email: string,
     verified: boolean,
@@ -158,6 +201,12 @@ export class UserService {
     await this.userRepository.save(user);
   }
 
+  /**
+   * Validate if an email string has a correct format.
+   *
+   * @param email - The email string to validate.
+   * @returns `true` if the email is valid; `false` otherwise.
+   */
   validateEmailUsername(email: string): boolean {
     if (!email) {
       return false;
@@ -165,6 +214,14 @@ export class UserService {
     return this.validatorsService.validateEmail(email);
   }
 
+  /**
+   * Update a user's profile information.
+   *
+   * @param userId - The UUID of the user owning the profile.
+   * @param userProfileData - The updated profile details.
+   * @returns A promise resolving to the number of affected rows and the updated UserProfileEntity.
+   * @throws HttpException if the user or profile is not found, or if the username already exists.
+   */
   async updateUserProfile(
     userId: string,
     userProfileData: UpdateUserProfileDto,
@@ -265,10 +322,14 @@ export class UserService {
   }
 
   /**
-   * Uploads a profile picture for a user.
+   * Uploads a profile picture for a user to Cloudflare Images.
+   *
+   * Automatically deletes the old profile picture from Cloudflare if one existed.
+   *
    * @param userId - The ID of the user.
    * @param file - The file to be uploaded.
-   * @returns An object containing the result of the upload.
+   * @returns A promise that resolves to the updated user profile result object.
+   * @throws HttpException if the user is not found or the upload fails.
    */
   async uploadProfilePicture(
     userId: string,

@@ -72,6 +72,11 @@ export class AuthController {
     description:
       'Rate limit exceeded for authentication endpoints (brute-force protection).',
   })
+  /**
+   * Registers a new user account.
+   * @param createUserDto - The data for creating the new user.
+   * @returns A promise that resolves to the newly created UserEntity.
+   */
   async register(@Body() createUserDto: CreateUserDto) {
     return this.authService.register(createUserDto);
   }
@@ -101,6 +106,11 @@ export class AuthController {
     description:
       'Rate limit exceeded for authentication endpoints (brute-force protection).',
   })
+  /**
+   * Logs in a user and provides access and refresh tokens.
+   * @param userLoginDto - The user's login credentials.
+   * @returns A promise that resolves to an AuthLoginResultDto.
+   */
   async login(@Body() userLoginDto: UserLoginDto) {
     return this.authService.login(userLoginDto);
   }
@@ -135,6 +145,11 @@ export class AuthController {
     description:
       'Missing or invalid access token (Optional for logout if tokenId is provided).',
   })
+  /**
+   * Logs out the current session by revoking a refresh token.
+   * @param body - The body containing the tokenId to revoke.
+   * @returns A promise that resolves when logout is complete.
+   */
   async logout(@Body() body: { tokenId: string }): Promise<void> {
     await this.refreshTokenService.revokeUserRefreshToken(body.tokenId);
   }
@@ -159,6 +174,11 @@ export class AuthController {
     description:
       'Rate limit exceeded for authentication endpoints (brute-force protection).',
   })
+  /**
+   * Verifies a user's email address using a verification token.
+   * @param verifyEmailDto - The body containing the verification token.
+   * @returns A promise that resolves to the verified UserEntity.
+   */
   async verifyEmail(@Body() verifyEmailDto: VerifyEmailDto) {
     return this.authService.verifyEmail(verifyEmailDto.token);
   }
@@ -183,6 +203,11 @@ export class AuthController {
     description:
       'Rate limit exceeded for authentication endpoints (brute-force protection).',
   })
+  /**
+   * Resends a verification email to an unverified account.
+   * @param resendVerificationEmailDto - The body containing the verification token.
+   * @returns A promise that resolves when the email has been re-sent.
+   */
   async resendVerificationEmail(
     @Body() resendVerificationEmailDto: ResendVerificationEmailDto,
   ) {
@@ -209,6 +234,11 @@ export class AuthController {
     description:
       'Rate limit exceeded for authentication endpoints (brute-force protection).',
   })
+  /**
+   * Requests a password reset email for a user.
+   * @param requestPasswordResetDto - The body containing the user's email.
+   * @returns A promise that resolves when the request has been processed.
+   */
   async requestPasswordReset(
     @Body() requestPasswordResetDto: RequestPasswordResetDto,
   ): Promise<void> {
@@ -236,6 +266,11 @@ export class AuthController {
     description:
       'Rate limit exceeded for authentication endpoints (brute-force protection).',
   })
+  /**
+   * Resets a user's password using a password reset token.
+   * @param resetPasswordDto - The body containing the token and new password.
+   * @returns A promise that resolves when the password has been reset.
+   */
   async resetPassword(
     @Body() resetPasswordDto: ResetPasswordDto,
   ): Promise<void> {
@@ -268,6 +303,11 @@ export class AuthController {
     description:
       'Rate limit exceeded for authentication endpoints (brute-force protection).',
   })
+  /**
+   * Refreshes access and refresh tokens using an existing refresh token.
+   * @param refreshTokenDto - The body containing the refresh token.
+   * @returns A promise that resolves to an AuthRefreshResultDto.
+   */
   async refresh(@Body() refreshTokenDto: UserRefreshTokenDto) {
     return this.authService.refreshToken(refreshTokenDto.refresh_token);
   }
@@ -288,6 +328,12 @@ export class AuthController {
     description:
       'Missing or invalid access token, or the refresh token cannot be revoked.',
   })
+  /**
+   * Revokes the refresh token associated with the current authenticated user.
+   * @param userId - The ID of the authenticated user.
+   * @param req - The request object containing the user and token details.
+   * @returns A promise that resolves when the token has been revoked.
+   */
   async revoke(@UserId() userId: string, @Req() req: Request): Promise<void> {
     const tokenId = (req as any).user?.tokenId as string;
     await this.authService.revokeToken(userId, tokenId);

@@ -10,12 +10,24 @@ export class SecretsService {
   private cache: { [key: string]: any } = {};
   private readonly logger = new Logger(SecretsService.name);
 
+  /**
+   * Creates an instance of SecretsService and initialises the AWS Secrets Manager client.
+   */
   constructor() {
     this.secretsManager = new SecretsManagerClient({
       region: process.env.AWS_REGION,
     });
   }
 
+  /**
+   * Retrieves a secret from AWS Secrets Manager by name.
+   *
+   * Results are cached locally for subsequent calls to improve performance.
+   *
+   * @param secretName - The name or ARN of the secret to retrieve.
+   * @returns A promise that resolves to the parsed secret object, or undefined if not found.
+   * @throws Will rethrow any error encountered during retrieval from AWS.
+   */
   async getSecret(secretName: string): Promise<any> {
     try {
       // Check the cache first
