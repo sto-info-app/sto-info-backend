@@ -355,7 +355,7 @@ describe('SesWebhookService', () => {
       jest.restoreAllMocks();
     });
 
-    it('should resolve when the HTTPS GET succeeds', async () => {
+    it('should resolve when the HTTPS GET succeeds for a valid SNS URL', async () => {
       const mockReq = new EventEmitter() as any;
       const mockRes = { statusCode: 200 } as any;
       (https.get as jest.Mock).mockImplementation(
@@ -367,16 +367,46 @@ describe('SesWebhookService', () => {
 
       await expect(
         service.confirmSubscription(
-          'https://sns.amazonaws.com/confirm?token=abc',
+          'https://sns.us-east-1.amazonaws.com/confirm?token=abc',
         ),
       ).resolves.toBeUndefined();
+      expect(https.get).toHaveBeenCalled();
     });
 
-    it('should reject when the HTTPS GET emits an error', async () => {
+    it('should reject and return early for an invalid protocol', async () => {
+      await service.confirmSubscription('http://sns.amazonaws.com/confirm');
+      expect(https.get).not.toHaveBeenCalled();
+    });
+
+    it('should reject and return early for a malformed URL', async () => {
+      await service.confirmSubscription('not-a-url');
+      expect(https.get).not.toHaveBeenCalled();
+    });
+
+    it('should reject and return early for a non-AWS hostname', async () => {
+      await service.confirmSubscription('https://attacker.com/confirm');
+      expect(https.get).not.toHaveBeenCalled();
+    });
+
+    it('should reject and return early for an AWS hostname without sns label', async () => {
+      await service.confirmSubscription('https://ec2.amazonaws.com/confirm');
+      expect(https.get).not.toHaveBeenCalled();
+    });
+
+    it('should reject and return early for non-standard ports', async () => {
+      await service.confirmSubscription(
+        'https://sns.us-east-1.amazonaws.com:8080/confirm',
+      );
+      expect(https.get).not.toHaveBeenCalled();
+    });
+
+    it('should reject when the HTTPS GET emits an error for a valid URL', async () => {
       const mockReq = new EventEmitter() as any;
       (https.get as jest.Mock).mockImplementation(() => mockReq);
 
-      const promise = service.confirmSubscription('https://bad-url');
+      const promise = service.confirmSubscription(
+        'https://sns.eu-west-2.amazonaws.com/confirm',
+      );
       mockReq.emit('error', new Error('Network failure'));
       await expect(promise).rejects.toThrow('Network failure');
     });

@@ -43,6 +43,13 @@ export class SesWebhookService {
    * @param subscribeUrl - The `SubscribeURL` value from the SNS envelope.
    */
   async confirmSubscription(subscribeUrl: string): Promise<void> {
+    if (!this.isAllowedSnsSubscribeUrl(subscribeUrl)) {
+      this.logger.error(
+        'Rejected SNS subscription confirmation due to invalid SubscribeURL',
+      );
+      return;
+    }
+
     this.logger.log(`Confirming SNS subscription: ${subscribeUrl}`);
 
     await new Promise<void>((resolve, reject) => {
@@ -151,6 +158,41 @@ export class SesWebhookService {
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
+
+  /**
+   * Validates that the provided SubscribeURL points to an expected AWS SNS
+   * endpoint and uses HTTPS. This helps prevent SSRF via a spoofed SNS message.
+   */
+  private isAllowedSnsSubscribeUrl(subscribeUrl: string): boolean {
+    let url: URL;
+    try {
+      url = new URL(subscribeUrl);
+    } catch {
+      return false;
+    }
+
+    if (url.protocol !== 'https:') {
+      return false;
+    }
+
+    const hostname = url.hostname.toLowerCase();
+
+    // Require a standard AWS SNS hostname such as "sns.us-east-1.amazonaws.com".
+    const isAmazonAws = hostname.endsWith('.amazonaws.com');
+    // Check if 'sns' is one of the labels in the hostname.
+    const isSns = hostname.split('.').includes('sns');
+
+    if (!isAmazonAws || !isSns) {
+      return false;
+    }
+
+    // Only allow default HTTPS port (443). url.port is empty if default.
+    if (url.port && url.port !== '443') {
+      return false;
+    }
+
+    return true;
+  }
 
   /**
    * Computes a deterministic HMAC-SHA256 hash of the given email address.
