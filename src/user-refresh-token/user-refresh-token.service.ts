@@ -24,6 +24,13 @@ export class UserRefreshTokenService {
     private readonly secretsService: SecretsService,
   ) {}
 
+  /**
+   * Verified and decodes a raw refresh token using the JWT secret.
+   *
+   * @param rawRefreshToken - The raw refresh token string.
+   * @returns A promise that resolves to the decoded JWT payload.
+   * @throws UnauthorizedException if verification fails or secrets are missing.
+   */
   private async verifyAndDecodeRefreshToken(
     rawRefreshToken: string,
   ): Promise<jwt.JwtPayload> {
@@ -49,6 +56,13 @@ export class UserRefreshTokenService {
     return verified;
   }
 
+  /**
+   * Create a new refresh token record in the database.
+   *
+   * @param refreshTokenDto - Data for the new refresh token.
+   * @returns A promise that resolves to the saved UserRefreshTokenEntity.
+   * @throws BadRequestException if data is missing.
+   */
   async create(
     refreshTokenDto: CreateUserRefreshTokenDto,
   ): Promise<UserRefreshTokenEntity> {
@@ -79,6 +93,13 @@ export class UserRefreshTokenService {
     return this.refreshTokenRepository.save(refreshToken);
   }
 
+  /**
+   * Find a refresh token record by its hashed token ID.
+   *
+   * @param tokenId - The hashed token value.
+   * @returns A promise that resolves to the UserRefreshTokenEntity or null if not found.
+   * @throws BadRequestException if the Token ID is missing.
+   */
   async findByTokenId(tokenId: string): Promise<UserRefreshTokenEntity | null> {
     if (!tokenId) {
       throw new BadRequestException('Token ID is required');
@@ -89,6 +110,14 @@ export class UserRefreshTokenService {
     });
   }
 
+  /**
+   * Creates and persists a new refresh token for a specific user.
+   *
+   * @param user - The user entity for whom to create the token.
+   * @param refreshToken - The raw JWT refresh token string.
+   * @returns A promise that resolves to the saved UserRefreshTokenEntity.
+   * @throws BadRequestException if parameters are missing or the token is invalid.
+   */
   async createUserRefreshToken(
     user: UserEntity,
     refreshToken: string,
@@ -230,6 +259,11 @@ export class UserRefreshTokenService {
     );
   }
 
+  /**
+   * Background task to clean up expired or revoked tokens from the database.
+   *
+   * @returns A promise that resolves when the cleanup is complete.
+   */
   @Cron(CronExpression.EVERY_DAY_AT_3AM)
   async cleanupExpiredAndRevokedTokens(): Promise<void> {
     const now = new Date();
