@@ -43,7 +43,7 @@ export class SesWebhookService {
    * @param subscribeUrl - The `SubscribeURL` value from the SNS envelope.
    */
   async confirmSubscription(subscribeUrl: string): Promise<void> {
-    if (!this.isAllowedSnsSubscribeUrl(subscribeUrl)) {
+    if (!this.isValidSnsSubscribeUrl(subscribeUrl)) {
       this.logger.error(
         'Rejected SNS subscription confirmation due to invalid SubscribeURL',
       );
@@ -163,7 +163,7 @@ export class SesWebhookService {
    * Validates that the provided SubscribeURL points to an expected AWS SNS
    * endpoint and uses HTTPS. This helps prevent SSRF via a spoofed SNS message.
    */
-  private isAllowedSnsSubscribeUrl(subscribeUrl: string): boolean {
+  isValidSnsSubscribeUrl(subscribeUrl: string): boolean {
     let url: URL;
     try {
       url = new URL(subscribeUrl);

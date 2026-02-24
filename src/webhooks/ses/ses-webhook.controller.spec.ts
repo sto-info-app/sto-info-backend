@@ -9,7 +9,10 @@ describe('SesWebhookController', () => {
   let service: jest.Mocked<
     Pick<
       SesWebhookService,
-      'validateTopicArn' | 'confirmSubscription' | 'processNotification'
+      | 'validateTopicArn'
+      | 'confirmSubscription'
+      | 'processNotification'
+      | 'isValidSnsSubscribeUrl'
     >
   >;
 
@@ -32,6 +35,7 @@ describe('SesWebhookController', () => {
       validateTopicArn: jest.fn().mockReturnValue(true),
       confirmSubscription: jest.fn().mockResolvedValue(undefined),
       processNotification: jest.fn().mockResolvedValue(undefined),
+      isValidSnsSubscribeUrl: jest.fn().mockReturnValue(true),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -71,6 +75,19 @@ describe('SesWebhookController', () => {
 
     it('should do nothing when SubscriptionConfirmation is missing SubscribeURL', async () => {
       const envelope = makeEnvelope({ Type: 'SubscriptionConfirmation' });
+      await controller.handleSnsNotification(
+        'SubscriptionConfirmation',
+        envelope,
+      );
+      expect(service.confirmSubscription).not.toHaveBeenCalled();
+    });
+
+    it('should do nothing when SubscribeURL is invalid (SSRF protection)', async () => {
+      service.isValidSnsSubscribeUrl.mockReturnValue(false);
+      const envelope = makeEnvelope({
+        Type: 'SubscriptionConfirmation',
+        SubscribeURL: 'https://attacker.com/confirm',
+      });
       await controller.handleSnsNotification(
         'SubscriptionConfirmation',
         envelope,

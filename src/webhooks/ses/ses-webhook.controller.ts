@@ -58,11 +58,21 @@ export class SesWebhookController {
     const type = messageType ?? envelope.Type;
 
     if (type === 'SubscriptionConfirmation') {
-      if (!envelope.SubscribeURL) {
+      const url = envelope.SubscribeURL;
+      if (!url) {
         this.logger.error('SubscriptionConfirmation missing SubscribeURL');
         return;
       }
-      await this.sesWebhookService.confirmSubscription(envelope.SubscribeURL);
+
+      // Early validation to satisfy security scanners and defense-in-depth
+      if (!this.sesWebhookService.isValidSnsSubscribeUrl(url)) {
+        this.logger.error(
+          `Rejected SNS subscription confirmation due to invalid SubscribeURL: ${url}`,
+        );
+        return;
+      }
+
+      await this.sesWebhookService.confirmSubscription(url);
       return;
     }
 
