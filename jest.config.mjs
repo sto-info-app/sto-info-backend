@@ -106,6 +106,6 @@ export default {
     },
   },
   coverageDirectory: '<rootDir>/reports/coverage',
-  testPathIgnorePatterns: ['/node_modules/', '/.stryker-tmp/'],
-  modulePathIgnorePatterns: ['<rootDir>/.stryker-tmp/'],
+  testPathIgnorePatterns: ['/node_modules/'],
+  modulePathIgnorePatterns: [],
 };
