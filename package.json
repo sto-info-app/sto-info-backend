@@ -123,7 +123,6 @@
     "eslint-plugin-prettier": "^5.5.5",
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "fast-check": "^4.5.3",
-    "glob": "^13.0.6",
     "globals": "^17.3.0",
     "husky": "^9.0.0",
     "jest": "^30.2.0",
@@ -139,13 +138,14 @@
     "typescript": "^5.5.3"
   },
   "overrides": {
-    "minimatch": "10.2.1",
-    "test-exclude": {
-      "minimatch": "3.1.2",
-      "glob": {
-        "minimatch": "3.1.2"
-      }
-    }
+    "ajv": "^8.18.0",
+    "eslint": {
+      "ajv": "^6.12.4"
+    },
+    "minimatch": "^10.2.2",
+    "test-exclude": "^7.0.1",
+    "glob": "^11.1.0",
+    "html-minifier": "npm:html-minifier-terser@^7.2.0"
   },
   "eslintConfig": {
     "root": true,
