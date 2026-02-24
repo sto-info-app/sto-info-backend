@@ -6,8 +6,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Public } from 'src/auth/public.decorator';
-import { ContactRequestDto } from './dto/contact-request.dto';
 import { ContactService } from './contact.service';
+import { ContactRequestDto } from './dto/contact-request.dto';
 
 @ApiTags('Contact')
 @Controller('contact')
@@ -16,6 +16,9 @@ export class ContactController {
 
   /**
    * Submit a contact request and send it to the support inbox.
+   *
+   * @param payload - The data for the contact request.
+   * @returns A promise that resolves when the contact request has been processed.
    */
   @Public()
   @Post()
