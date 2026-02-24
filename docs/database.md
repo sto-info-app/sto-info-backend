@@ -6,13 +6,19 @@ The database uses PostgreSQL with TypeORM for object-relational mapping.
 
 ### Main Entities
 
-**Document the key entities here once confirmed:**
-
-> TODO: Replace this placeholder list with the actual entity list from `src/**/entities/*` and the tables they map to.
-
-- **User/Account**: User authentication and profile
-- **Character**: Character profiles linked to users
-- **Other entities**: Document as applicable
+| Entity                    | Table                  | Description                                                                   |
+| ------------------------- | ---------------------- | ----------------------------------------------------------------------------- |
+| `UserEntity`              | `user`                 | User accounts, credentials, and profile                                       |
+| `UserRefreshTokenEntity`  | `user_refresh_token`   | Active refresh tokens (revoked/expired cleaned nightly)                       |
+| `AuditEntity`             | `_audit`               | General entity change audit log                                               |
+| `AuditLoginAttemptEntity` | `_audit_login_attempt` | Login attempt history (email + IP + success flag)                             |
+| `SesEventEntity`          | `_audit_ses_event`     | SES bounce/complaint/delivery audit events (email stored as HMAC-SHA256 hash) |
+| `ContactRequestEntity`    | `contact_request`      | Contact form submissions                                                      |
+| `PlatformEntity`          | `platform`             | STO platform reference data                                                   |
+| `LauncherEntity`          | `launcher`             | STO launcher reference data                                                   |
+| `PlatformLauncherEntity`  | `platform_launcher`    | Platform/launcher mapping                                                     |
+| `AccountEntity`           | `account`              | STO in-game account records                                                   |
+| `CharacterEntity`         | `character`            | STO character profiles linked to accounts                                     |
 
 ### Entity Relationships
 
@@ -135,11 +141,27 @@ Currently: Review if any triggers are in use.
 
 **Current behaviour in code:**
 
-- Audit data is stored in `_audit` and `_audit_login_attempt`
-- A daily job deletes audit and login attempt records older than `AUDIT_DATA_NUKE_THRESHOLD_DAYS`
-- A daily job nulls `ipAddress` for audit and login attempt records older than `AUDIT_IP_NUKE_THRESHOLD_DAYS`
-- Refresh token records are stored in `user_refresh_token`
-- A daily job deletes refresh tokens that are expired or revoked
+| Table                                 | Retention behaviour                                                                                                                    |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `_audit`                              | Records deleted after `AUDIT_DATA_NUKE_THRESHOLD_DAYS` days; `ipAddress` nulled after `AUDIT_IP_NUKE_THRESHOLD_DAYS` days              |
+| `_audit_login_attempt`                | Records deleted after `AUDIT_DATA_NUKE_THRESHOLD_DAYS` days; `ipAddress` nulled after `AUDIT_IP_NUKE_THRESHOLD_DAYS` days              |
+| `_audit_ses_event` (`suppress=false`) | Delivery and soft bounce records deleted after `SES_AUDIT_RETENTION_DAYS` days (policy: **180 days**)                                  |
+| `_audit_ses_event` (`suppress=true`)  | Hard bounce and complaint records deleted after `SES_SUPPRESSION_RETENTION_DAYS` days (policy: **7 years / 2557 days**)                |
+| `contact_request`                     | Email masked after `CONTACT_REQUEST_EMAIL_MASK_RETENTION_DAYS` days; record deleted after `CONTACT_REQUEST_RECORD_RETENTION_DAYS` days |
+| `user_refresh_token`                  | Expired and revoked tokens deleted nightly                                                                                             |
+
+### SES Audit Storage & Ownership
+
+It is important to note that **Amazon SES does not store this audit data long-term.**
+
+1. **Origin**: SES generates events (Bounce, Complaint, Delivery, Reject).
+2. **Transit**: Events are pushed immediately via **AWS SNS** to the application's `/webhooks/ses` endpoint.
+3. **Storage**: The application processes the event and persists it to the `_audit_ses_event` table in the local PostgreSQL database (storing only HMAC-SHA256 hashes of email addresses).
+4. **Retention**: The application's daily maintenance job handles the deletion of these records according to the privacy policy.
+
+For full consistency with the privacy policy, ensure any CloudWatch Log Groups associated with SES reputation metrics are also configured with a retention period of **no more than 180 days** in the AWS Console.
+
+> Note: The `_audit_ses_event` table never stores plaintext email addresses. The `emailHashed` column holds an HMAC-SHA256 digest keyed by `SES_EMAIL_HMAC_SECRET`. See `docs/environment-variables.md` for rotation implications.
 
 **Define project rules here:**
 
