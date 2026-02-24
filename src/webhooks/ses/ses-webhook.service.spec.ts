@@ -450,6 +450,18 @@ describe('SesWebhookService', () => {
           'https://sns.us-east-1.amazonaws.com.attacker.com/',
         ),
       ).toBe(false);
+      // Hostname without sns prefix
+      expect(
+        service.isValidSnsSubscribeUrl('https://ec2.us-east-1.amazonaws.com/'),
+      ).toBe(false);
+    });
+
+    it('should return false for non-standard ports', () => {
+      expect(
+        service.isValidSnsSubscribeUrl(
+          'https://sns.us-east-1.amazonaws.com:8080/',
+        ),
+      ).toBe(false);
     });
   });
 
