@@ -1,7 +1,10 @@
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { createHmac } from 'node:crypto';
+import { EventEmitter } from 'node:events';
+import * as https from 'node:https';
 import { Repository } from 'typeorm';
 import { SecretsService } from '../../shared/secrets/secrets.service';
 import {
@@ -10,6 +13,8 @@ import {
 } from './dto/sns-notification.interfaces';
 import { SesEventEntity } from './entities/ses-event.entity';
 import { SesWebhookService } from './ses-webhook.service';
+
+jest.mock('node:https');
 
 type MockRepo = jest.Mocked<
   Pick<Repository<SesEventEntity>, 'findOne' | 'count' | 'create' | 'save'>
@@ -236,6 +241,73 @@ describe('SesWebhookService', () => {
     });
 
     // -------------------------------------------------------------------------
+    // Reject handling
+    // -------------------------------------------------------------------------
+    describe('Reject', () => {
+      const rejectNotification: SesNotification = {
+        notificationType: 'Reject',
+        mail: {
+          messageId: 'ses-004',
+          source: 'no-reply@test.local',
+          destination: ['rejected@example.com'],
+          timestamp: '',
+        },
+        reject: { reason: 'Bad content' },
+      };
+
+      beforeEach(() => {
+        repo.findOne.mockResolvedValue(null);
+      });
+
+      it('should persist a Reject event as a hard bounce with suppress=true', async () => {
+        await service.processNotification('msg-reject-001', rejectNotification);
+        expect(repo.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            eventType: 'Bounce',
+            bounceType: 'Permanent',
+            bounceSubType: 'Rejected',
+            suppress: true,
+            reason: 'Bad content',
+          }),
+        );
+        expect(repo.save).toHaveBeenCalledTimes(1);
+      });
+
+      it('should use SES_REJECTED as reason when reject is undefined', async () => {
+        const noRejectField: SesNotification = {
+          ...rejectNotification,
+          reject: undefined,
+        };
+        await service.processNotification('msg-reject-002', noRejectField);
+        expect(repo.create).toHaveBeenCalledWith(
+          expect.objectContaining({ reason: 'SES_REJECTED' }),
+        );
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // Unknown notification type
+    // -------------------------------------------------------------------------
+    it('should log a warning for unrecognised notification type', async () => {
+      repo.findOne.mockResolvedValue(null);
+      const warnSpy = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+
+      const unknown = {
+        notificationType: 'Unknown' as any,
+        mail: { messageId: 'x', source: '', destination: [], timestamp: '' },
+      } as SesNotification;
+
+      await service.processNotification('msg-unknown-001', unknown);
+      expect(repo.save).not.toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Unrecognised SES notification type'),
+      );
+      warnSpy.mockRestore();
+    });
+
+    // -------------------------------------------------------------------------
     // Delivery handling
     // -------------------------------------------------------------------------
     describe('Delivery', () => {
@@ -271,6 +343,71 @@ describe('SesWebhookService', () => {
             suppress: false,
           }),
         );
+      });
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // confirmSubscription
+  // --------------------------------------------------------------------------
+  describe('confirmSubscription', () => {
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('should resolve when the HTTPS GET succeeds', async () => {
+      const mockReq = new EventEmitter() as any;
+      const mockRes = { statusCode: 200 } as any;
+      (https.get as jest.Mock).mockImplementation(
+        (_url: string, cb: (res: any) => void) => {
+          cb(mockRes);
+          return mockReq;
+        },
+      );
+
+      await expect(
+        service.confirmSubscription(
+          'https://sns.amazonaws.com/confirm?token=abc',
+        ),
+      ).resolves.toBeUndefined();
+    });
+
+    it('should reject when the HTTPS GET emits an error', async () => {
+      const mockReq = new EventEmitter() as any;
+      (https.get as jest.Mock).mockImplementation(() => mockReq);
+
+      const promise = service.confirmSubscription('https://bad-url');
+      mockReq.emit('error', new Error('Network failure'));
+      await expect(promise).rejects.toThrow('Network failure');
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // hashEmail — secret fallbacks
+  // --------------------------------------------------------------------------
+  describe('hashEmail (via isSuppressed)', () => {
+    it('should hash with empty key when AWS_SECRET_NAME is not configured', async () => {
+      configService.get.mockReturnValue(undefined);
+      repo.count.mockResolvedValue(0);
+      await service.isSuppressed('user@example.com');
+      const expectedHash = createHmac('sha256', '') //NOSONAR - test data
+        .update('user@example.com')
+        .digest('hex');
+      expect(repo.count).toHaveBeenCalledWith({
+        where: { emailHashed: expectedHash, suppress: true },
+      });
+    });
+
+    it('should hash with empty key when sesEmailHmacSecret is absent from secrets', async () => {
+      configService.get.mockReturnValue('some-secret-name');
+      secretsService.getSecret.mockResolvedValueOnce({} as any);
+      repo.count.mockResolvedValue(0);
+      await service.isSuppressed('user@example.com');
+      const expectedHash = createHmac('sha256', '') //NOSONAR - test data
+        .update('user@example.com')
+        .digest('hex');
+      expect(repo.count).toHaveBeenCalledWith({
+        where: { emailHashed: expectedHash, suppress: true },
       });
     });
   });
