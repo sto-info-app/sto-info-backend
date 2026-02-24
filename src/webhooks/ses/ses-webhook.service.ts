@@ -43,18 +43,26 @@ export class SesWebhookService {
    * @param subscribeUrl - The `SubscribeURL` value from the SNS envelope.
    */
   async confirmSubscription(subscribeUrl: string): Promise<void> {
-    if (!this.isValidSnsSubscribeUrl(subscribeUrl)) {
+    let url: URL;
+    try {
+      url = new URL(subscribeUrl);
+    } catch {
+      this.logger.error(`Invalid SNS subscription URL format: ${subscribeUrl}`);
+      return;
+    }
+
+    if (!this.isSafeSnsUrl(url)) {
       this.logger.error(
-        'Rejected SNS subscription confirmation due to invalid SubscribeURL',
+        `Rejected SNS subscription confirmation due to invalid URL: ${subscribeUrl}`,
       );
       return;
     }
 
-    this.logger.log(`Confirming SNS subscription: ${subscribeUrl}`);
+    this.logger.log(`Confirming SNS subscription: ${url.href}`);
 
     await new Promise<void>((resolve, reject) => {
       https
-        .get(subscribeUrl, res => {
+        .get(url, res => {
           this.logger.log(
             `SNS subscription confirmed. HTTP status: ${res.statusCode}`,
           );
@@ -164,25 +172,31 @@ export class SesWebhookService {
    * endpoint and uses HTTPS. This helps prevent SSRF via a spoofed SNS message.
    */
   isValidSnsSubscribeUrl(subscribeUrl: string): boolean {
-    let url: URL;
     try {
-      url = new URL(subscribeUrl);
+      return this.isSafeSnsUrl(new URL(subscribeUrl));
     } catch {
       return false;
     }
+  }
 
+  /**
+   * Strict validation for SNS URLs to satisfy security scanners and provide
+   * defense-in-depth against SSRF.
+   */
+  private isSafeSnsUrl(url: URL): boolean {
     if (url.protocol !== 'https:') {
       return false;
     }
 
     const hostname = url.hostname.toLowerCase();
 
-    // Require a standard AWS SNS hostname such as "sns.us-east-1.amazonaws.com".
-    const isAmazonAws = hostname.endsWith('.amazonaws.com');
-    // Check if 'sns' is one of the labels in the hostname.
-    const isSns = hostname.split('.').includes('sns');
+    // Require a standard AWS SNS hostname such as "sns.us-east-1.amazonaws.com"
+    // or the legacy "sns.amazonaws.com". We use a strict regex to ensure
+    // we only communicate with legitimate AWS SNS endpoints.
+    const snsHostnamePattern =
+      /^sns\.[a-z0-9-]+\.amazonaws\.com$|^sns\.amazonaws\.com$/;
 
-    if (!isAmazonAws || !isSns) {
+    if (!snsHostnamePattern.test(hostname)) {
       return false;
     }
 
