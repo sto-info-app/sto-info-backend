@@ -1,3 +1,4 @@
+import { MailerService } from '@nestjs-modules/mailer';
 import { Injectable, Logger } from '@nestjs/common';
 import * as sgMail from '@sendgrid/mail';
 import * as ejs from 'ejs';
@@ -6,13 +7,23 @@ import * as path from 'node:path';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
 
+/** Shape of an internal email message used for both SES and SendGrid */
+export interface EmailMessage {
+  to: string;
+  from: { name: string; email: string };
+  subject: string;
+  text: string;
+  html: string;
+  replyTo?: { email: string; name?: string };
+}
+
 @Injectable()
 export class MailService {
   private readonly logger = new Logger('MailService');
 
   private readonly noReplyEmailFromSender: { name: string; email: string } = {
     name: process.env.APP_TITLE!,
-    email: process.env.SENDGRID_NOREPLY_SENDER!,
+    email: process.env.EMAIL_NOREPLY_SENDER!,
   };
 
   private readonly emailTemplatePath = path.join(
@@ -25,6 +36,7 @@ export class MailService {
   constructor(
     private readonly secretsService: SecretsService,
     private readonly validatorsService: ValidatorsService,
+    private readonly mailerService: MailerService,
   ) {
     this.validateEnvironmentVariables();
   }
@@ -36,9 +48,10 @@ export class MailService {
   private validateEnvironmentVariables() {
     const requiredEnvVars = [
       'APP_TITLE',
-      'SENDGRID_NOREPLY_SENDER',
+      'EMAIL_NOREPLY_SENDER',
       'APP_FRONTEND_URL',
       'AWS_SECRET_NAME',
+      'AWS_SES_CONFIGURATION_SET',
     ];
     for (const envVar of requiredEnvVars) {
       if (!process.env[envVar]) {
@@ -55,7 +68,7 @@ export class MailService {
   }
 
   /**
-   * Initialise the mail service.
+   * Initialise the mail service — fetches secrets for the SendGrid fallback.
    */
   private async init() {
     const secretObject = await this.secretsService.getSecret(
@@ -109,7 +122,7 @@ export class MailService {
       emailHtmlContent,
     );
 
-    await this.sendEmailViaSendGrid(msg);
+    await this.sendEmailWithFallback(msg);
   }
 
   /**
@@ -141,7 +154,7 @@ export class MailService {
       emailHtmlContent,
     );
 
-    await this.sendEmailViaSendGrid(msg);
+    await this.sendEmailWithFallback(msg);
   }
 
   /**
@@ -165,11 +178,11 @@ export class MailService {
       emailHtmlContent,
     );
 
-    await this.sendEmailViaSendGrid(msg);
+    await this.sendEmailWithFallback(msg);
   }
 
   /**
-   * Send a password changed notification email to the user.
+   * Send a user logged in notification email to the user.
    * @param email The recipient's email address.
    * @param firstName The recipient's first name.
    */
@@ -189,7 +202,7 @@ export class MailService {
       emailHtmlContent,
     );
 
-    await this.sendEmailViaSendGrid(msg);
+    await this.sendEmailWithFallback(msg);
   }
 
   /**
@@ -212,12 +225,58 @@ export class MailService {
       htmlContent,
     );
 
-    await this.sendEmailViaSendGrid(msg);
+    await this.sendEmailWithFallback(msg);
   }
 
   /**
-   * Send an email via SendGrid.
-   * @param msg The email message to send.
+   * Send an email via Amazon SES (primary), falling back to SendGrid on failure.
+   * @param message The email message to send.
+   */
+  async sendEmailWithFallback(message: EmailMessage): Promise<void> {
+    try {
+      await this.sendEmailViaSES(message);
+    } catch (sesError) {
+      this.logger.warn(
+        'Amazon SES sending failed — falling back to SendGrid.',
+        sesError instanceof Error ? sesError.message : String(sesError),
+      );
+      await this.sendEmailViaSendGrid(this.toSendGridMessage(message));
+    }
+  }
+
+  /**
+   * Send an email via Amazon SES using the NestJS mailer service (nodemailer SES transport).
+   * @param message The email message to send.
+   */
+  async sendEmailViaSES(message: EmailMessage): Promise<void> {
+    // `ses` is a nodemailer SES-transport passthrough field for provider-specific
+    // options (e.g. ConfigurationSetName). ISendMailOptions doesn't expose it in
+    // its TypeScript definition, so we widen to unknown before the call.
+    const mailOptions = {
+      to: message.to,
+      from: `"${message.from.name}" <${message.from.email}>`,
+      subject: message.subject,
+      text: message.text,
+      html: message.html,
+      ...(message.replyTo
+        ? {
+            replyTo: `"${message.replyTo.name ?? ''}" <${message.replyTo.email}>`,
+          }
+        : {}),
+      // Route bounce/complaint/delivery events through the SES configuration set
+      // so they are published to the SNS topic consumed by POST /webhooks/ses.
+      ses: {
+        ConfigurationSetName:
+          process.env.AWS_SES_CONFIGURATION_SET ?? undefined,
+      },
+    };
+
+    await this.mailerService.sendMail(mailOptions as any);
+  }
+
+  /**
+   * Send an email via SendGrid (fallback).
+   * @param msg The SendGrid email message to send.
    */
   async sendEmailViaSendGrid(message: sgMail.MailDataRequired) {
     try {
@@ -230,6 +289,22 @@ export class MailService {
         this.logger.error(err);
       }
     }
+  }
+
+  /**
+   * Convert an internal EmailMessage to a SendGrid MailDataRequired object.
+   * @param message The internal email message.
+   * @returns A SendGrid MailDataRequired object.
+   */
+  toSendGridMessage(message: EmailMessage): sgMail.MailDataRequired {
+    return {
+      to: message.to,
+      from: message.from,
+      subject: message.subject,
+      text: message.text,
+      html: message.html,
+      ...(message.replyTo ? { replyTo: message.replyTo } : {}),
+    };
   }
 
   /**
@@ -250,15 +325,14 @@ export class MailService {
    * @param subject The subject of the email.
    * @param text The plain text content of the email.
    * @param html The HTML content of the email.
-   * @returns The email message object
-   * @see https://sendgrid.com/docs/API_Reference/Web_API_v3/Mail/index.html
+   * @returns The email message object.
    */
   generateEmailMessageObject(
     to: string,
     subject: string,
     text: string,
     html: string,
-  ): sgMail.MailDataRequired {
+  ): EmailMessage {
     if (!this.validateEmailFormat(to)) {
       throw new Error('Invalid email format');
     }
