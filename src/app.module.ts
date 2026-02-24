@@ -18,8 +18,8 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { UserIdMiddleware } from './auth/user-id.middleware';
 import { RequestIdMiddleware } from './common/http/request-id.middleware';
-import { ContactModule } from './contact/contact.module';
 import { ConfigCheckService } from './config-check/config-check.service';
+import { ContactModule } from './contact/contact.module';
 import { CronModule } from './cron/cron.module';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
@@ -36,6 +36,7 @@ import { PlatformLauncherModule } from './sto/platform-launcher/platform-launche
 import { PlatformModule } from './sto/platform/platform.module';
 import { UserRefreshTokenModule } from './user-refresh-token/user-refresh-token.module';
 import { UserModule } from './user/user.module';
+import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
 
 @Module({
   imports: [
@@ -90,6 +91,7 @@ import { UserModule } from './user/user.module';
     DatabaseModule,
     CronModule,
     HealthModule,
+    SesWebhookModule,
   ],
   controllers: [AppController],
   providers: [
