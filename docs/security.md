@@ -2,29 +2,30 @@
 
 This document outlines the security architecture and procedures for the `sto-info-backend`. The project aims to meet **OpenSSF Best Practices Silver** level (and Gold where practical) to ensure high standards of software supply chain security and application hardening.
 
-## Dependency Overrides
+### Dependency Overrides
 
-This repository uses `npm overrides` sparingly to address security issues that originate in transitive dependencies (dependencies of dependencies) where upgrading a single top-level package would otherwise require a breaking change.
+This repository uses `npm overrides` to address security issues that originate in transitive dependencies where upgrading a top-level package is not yet possible or would require a breaking change.
 
-### `minimatch` override
-
-**Why it exists**
-
-- `minimatch < 10.2.1` has a high-severity ReDoS advisory (GHSA-3ppc-4f35-3m26) triggered by certain patterns (for example repeated wildcards with a non-matching literal).
-- In this repo, `minimatch` is brought in transitively via packages such as Sentry (`@sentry/node`), TypeORM's dependency chain (`glob`), and tooling dependencies.
-- Rather than forcing a breaking upgrade of top-level packages solely to pull in a patched transitive version, we pin `minimatch` to a known-fixed version using:
+Current overrides in `package.json`:
 
 ```json
 "overrides": {
-  "minimatch": "10.2.1",
-  "test-exclude": {
-    "minimatch": "3.1.2",
-    "glob": {
-      "minimatch": "3.1.2"
-    }
-  }
+  "ajv": "^8.18.0",
+  "eslint": {
+    "ajv": "^6.14.0"
+  },
+  "minimatch": "^10.2.2",
+  "test-exclude": "^8.0.0",
+  "glob": "^13.0.0",
+  "html-minifier": "npm:html-minifier-terser@^7.2.0"
 }
 ```
+
+#### `minimatch`, `glob`, and `test-exclude`
+
+- **Vulnerability**: `minimatch < 10.2.2` and `glob < 11` have high-severity ReDoS or security advisories.
+- **Solution**: We pin `minimatch` to `^10.2.2` and `glob` to `^13.0.0`.
+- **Compatibility**: To maintain compatibility with Istanbul coverage reporting, we also override `test-exclude` to `^8.0.0`, which is natively compatible with these newer major versions, preventing the `TypeError: minimatch is not a function` error during Jest execution.
 
 **Why the `test-exclude` exception exists**
 
@@ -58,15 +59,16 @@ If the audit gate fails after removing the overrides, keep them and instead upgr
 
 Overrides reduce exposure to known vulnerabilities quickly, but they also change the dependency tree independently of what upstream packages tested. Keep overrides minimal, and prefer removing them once upstream dependencies have caught up.
 
-### Moderate `npm audit` findings (dev-only)
+#### `ajv` overrides
 
-Occasionally `npm audit --audit-level=moderate` will report moderate vulnerabilities in **development/tooling** dependencies.
+- **Vulnerability**: `ajv < 8.18.0` contains a ReDoS vulnerability (GHSA-2g4f-4pwh-qvx6) when using the `$data` option.
+- **Solution**: We pin the global `ajv` to `^8.18.0`.
+- **Tooling Compatibility**: ESLint (v10.x) strictly requires `ajv@6`. To prevent linting from breaking while keeping the rest of the tree safe, we provide a nested override for ESLint to use `ajv@6.14.0` (the last safe v6 release).
 
-As of Feb 2026, the remaining moderate findings are associated with the `ajv < 8.18.0` advisory (GHSA-2g4f-4pwh-qvx6) and are pulled in via tooling packages (for example ESLint and Nest CLI chains). These findings do **not** impact the runtime dependency set as verified by:
+#### `html-minifier`
 
-- `npm audit --omit=dev --audit-level=moderate`
-
-We deliberately do **not** force an `ajv` override because different toolchains depend on different major versions of `ajv` (for example `ajv@6` vs `ajv@8`), and overriding across majors is likely to break the affected tools. Instead, we rely on upstream upgrades to resolve the advisory in tooling over time.
+- **Maintenance**: The original `html-minifier` is unmaintained and has several security debt issues.
+- **Solution**: We alias it to `html-minifier-terser`, which is actively maintained and compatible.
 
 ## CORS Configuration
 
