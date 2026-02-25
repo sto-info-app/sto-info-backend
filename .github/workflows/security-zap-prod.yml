@@ -1,0 +1,127 @@
+name: 'Security: ZAP (Prod API)'
+
+on:
+  push:
+    branches:
+      - production
+    paths:
+      - 'package.json'
+
+  schedule:
+    # Monthly full scan on the 1st of every month at 04:00 UTC
+    - cron: '0 4 1 * *'
+
+  workflow_dispatch:
+    inputs:
+      zap_scan_type:
+        description: 'ZAP scan type (baseline or full)'
+        required: false
+        default: 'full'
+
+permissions: {}
+
+env:
+  NODE_VERSION: 24
+  PROD_API_BASE_URL: 'https://api.startrekonline.info'
+  PROD_API_HEALTH_URL: 'https://api.startrekonline.info/health'
+  PROD_API_VERSION_URL: 'https://api.startrekonline.info/version'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  zap:
+    name: 'OWASP ZAP DAST scan (Prod API)'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: |
+      github.repository_owner == 'sto-info-app' &&
+      (github.event_name != 'push' || 
+        github.event.head_commit.author.name == 'github-actions[bot]' ||
+        contains(github.event.head_commit.message, 'Merge pull request')
+      )
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Wait for deployment (production push)
+        if: github.event_name == 'push'
+        run: sleep 600 # 10 minutes for production deployment
+
+      - name: Verify deployed version matches repo
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+
+          expected_version=$(node -p "require('./package.json').version")
+          echo "Expected repo version: ${expected_version}"
+
+          max_attempts=30
+          delay_seconds=30 # Longer delay for prod (Total: 15 mins + 10 mins sleep = 25 mins)
+
+          echo "Waiting for API to be reachable..."
+          for attempt in $(seq 1 $max_attempts); do
+            status_hook=$(curl -s -o /dev/null -w "%{http_code}" --proto '=https' --proto-redir '=https' "${PROD_API_HEALTH_URL}/live" || echo "000")
+            if [ "$status_hook" = "200" ]; then
+              echo "API is live ($status_hook)"
+              break
+            fi
+            echo "Attempt ${attempt}/${max_attempts}: API not reachable yet (status: $status_hook)"
+            if [ "${attempt}" -lt "${max_attempts}" ]; then
+              sleep "${delay_seconds}"
+            fi
+          done
+
+          for attempt in $(seq 1 $max_attempts); do
+            actual_version=$(curl -fsSL --proto '=https' --proto-redir '=https' "${PROD_API_VERSION_URL}" 2>/dev/null | tr -d '\r\n' || echo "")
+            
+            if [ -n "${actual_version}" ]; then
+              echo "Deployed API version: ${actual_version}"
+              if [ "${actual_version}" = "${expected_version}" ]; then
+                echo "Version check OK (${actual_version})"
+                exit 0
+              fi
+              echo "Attempt ${attempt}/${max_attempts}: version mismatch (Actual: $actual_version)"
+            else
+              echo "Attempt ${attempt}/${max_attempts}: /version returned empty or errored"
+            fi
+
+            if [ "${attempt}" -lt "${max_attempts}" ]; then
+              echo "Retrying in ${delay_seconds}s..."
+              sleep "${delay_seconds}"
+            fi
+          done
+
+          echo "Version mismatch or API not updated after retries."
+          echo "Expected: ${expected_version}"
+          echo "Actual: ${actual_version:-<empty>}"
+          exit 1
+
+      - name: Run ZAP baseline scan
+        if: github.event_name == 'push' || github.event.inputs.zap_scan_type == 'baseline'
+        uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # v0.15.0
+        with:
+          target: ${{ env.PROD_API_HEALTH_URL }}/live
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a -j -m 3 -T 900'
+          allow_issue_writing: false
+          artifact_name: zap-baseline-report-prod-api
+
+      - name: Run ZAP full scan
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.zap_scan_type == 'full')
+        uses: zaproxy/action-full-scan@3c58388149901b9a03b7718852c5ba889646c27c # v0.13.0
+        with:
+          target: ${{ env.PROD_API_BASE_URL }}
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a -j -m 3 -T 1800'
+          allow_issue_writing: false
+          artifact_name: zap-full-scan-report-prod-api
