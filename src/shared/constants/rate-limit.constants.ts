@@ -73,5 +73,6 @@ export const EXPENSIVE_RATE_LIMITED_ROUTES = [
 
 /**
  * Paths that should be excluded from rate limiting
+ * (e.g. health/version used by orchestration and CI)
  */
-export const RATE_LIMIT_EXCLUDED_PATHS = ['/health/'] as const;
+export const RATE_LIMIT_EXCLUDED_PATHS = ['/health/', '/version'] as const;

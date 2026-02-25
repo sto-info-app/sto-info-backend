@@ -82,9 +82,12 @@ jobs:
           done
 
           for attempt in $(seq 1 $max_attempts); do
-            actual_version=$(curl -fsSL --proto '=https' --proto-redir '=https' "${PROD_API_VERSION_URL}" 2>/dev/null | tr -d '\r\n' || echo "")
-            
-            if [ -n "${actual_version}" ]; then
+            # Use -w to capture HTTP code; -f would hide body on 4xx/5xx
+            version_response=$(curl -sSL -w "\n%{http_code}" --proto '=https' --proto-redir '=https' "${PROD_API_VERSION_URL}" 2>/dev/null || true)
+            http_code=$(echo "${version_response}" | tail -n1)
+            actual_version=$(echo "${version_response}" | sed '$d' | tr -d '\r\n')
+
+            if [ "${http_code}" = "200" ] && [ -n "${actual_version}" ]; then
               echo "Deployed API version: ${actual_version}"
               if [ "${actual_version}" = "${expected_version}" ]; then
                 echo "Version check OK (${actual_version})"
@@ -92,7 +95,10 @@ jobs:
               fi
               echo "Attempt ${attempt}/${max_attempts}: version mismatch (Actual: $actual_version)"
             else
-              echo "Attempt ${attempt}/${max_attempts}: /version returned empty or errored"
+              echo "Attempt ${attempt}/${max_attempts}: /version returned empty or errored (HTTP ${http_code})"
+              if [ "${attempt}" -eq "${max_attempts}" ]; then
+                echo "Final diagnostic: GET ${PROD_API_VERSION_URL} -> HTTP ${http_code}, body length: $(echo -n "${actual_version}" | wc -c)"
+              fi
             fi
 
             if [ "${attempt}" -lt "${max_attempts}" ]; then

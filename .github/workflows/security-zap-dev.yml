@@ -84,12 +84,13 @@ jobs:
             fi
           done
 
-          # Now verify version
+          # Now verify version (capture HTTP code so we see 404/500/429 etc. when it fails)
           for attempt in $(seq 1 $max_attempts); do
-            # Capture actual version, allowing for errors to be diagnosed
-            actual_version=$(curl -fsSL --proto '=https' --proto-redir '=https' "${DEV_API_VERSION_URL}" 2>/dev/null | tr -d '\r\n' || echo "")
-            
-            if [ -n "${actual_version}" ]; then
+            version_response=$(curl -sSL -w "\n%{http_code}" --proto '=https' --proto-redir '=https' "${DEV_API_VERSION_URL}" 2>/dev/null || true)
+            http_code=$(echo "${version_response}" | tail -n1)
+            actual_version=$(echo "${version_response}" | sed '$d' | tr -d '\r\n')
+
+            if [ "${http_code}" = "200" ] && [ -n "${actual_version}" ]; then
               echo "Deployed API version: ${actual_version}"
               if [ "${actual_version}" = "${expected_version}" ]; then
                 echo "Version check OK (${actual_version})"
@@ -97,11 +98,10 @@ jobs:
               fi
               echo "Attempt ${attempt}/${max_attempts}: version mismatch (Actual: $actual_version)"
             else
-              echo "Attempt ${attempt}/${max_attempts}: /version returned empty or errored"
-              # Diagnostic: show one verbose curl on failure
+              echo "Attempt ${attempt}/${max_attempts}: /version returned empty or errored (HTTP ${http_code})"
               if [ "${attempt}" -eq "${max_attempts}" ]; then
-                echo "Final diagnostic check:"
-                curl -v --proto '=https' --proto-redir '=https' "${DEV_API_VERSION_URL}" 2>&1 | head -n 30 || true
+                echo "Final diagnostic: GET ${DEV_API_VERSION_URL} -> HTTP ${http_code}, body length: $(echo -n "${actual_version}" | wc -c)"
+                curl -v --proto '=https' --proto-redir '=https' "${DEV_API_VERSION_URL}" 2>&1 | head -n 40 || true
               fi
             fi
 
