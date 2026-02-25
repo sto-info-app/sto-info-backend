@@ -4,6 +4,7 @@ on:
   push:
     branches: [production]
 
+# Declare default permissions as read only.
 permissions: {}
 
 env:
@@ -18,8 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      contents: write
-      pull-requests: write
+      contents: write # To create and push tags
+      pull-requests: write # To unmask the last version bump PR
 
     steps:
       - name: Checkout repo
@@ -56,7 +57,7 @@ jobs:
 
       - name: Unmask last version bump in release notes
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT_REPO_TOKEN || github.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           echo "Finding PR for version $VERSION..."
@@ -70,3 +71,14 @@ jobs:
           else
             echo "No matching version bump PR found for version $VERSION."
           fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Release v${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
