@@ -87,6 +87,7 @@ Note: the app reads `config/environments/.env` at startup (see `src/main.ts`).
 
 - `TRUST_PROXY_HOPS`: Express trust proxy hops (default is `1` when not provided)
 - `STARTUP_DIAGNOSTICS`: `true` | `false` (default `false`). When `true`, logs process memory usage (RSS/heap/external) at key startup stages to help diagnose intermittent memory jumps.
+- `FUZZ_NUM_RUNS`: Number of iterations for property-based fuzz tests (default `100` for light tests, `1000` for full tests). Used by `fast-check`.
 
 ## Optional (dev-only seeding)
 
