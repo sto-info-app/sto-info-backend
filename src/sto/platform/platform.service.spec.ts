@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   InternalServerErrorException,
+  NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
@@ -76,6 +77,12 @@ describe('PlatformService', () => {
     it('should throw BadRequestException if id is missing', async () => {
       await expect(service.findOne('')).rejects.toThrow(BadRequestException);
     });
+
+    it('should throw NotFoundException if platform not found', async () => {
+      (repository.findOne as jest.Mock).mockResolvedValue(null);
+
+      await expect(service.findOne('1')).rejects.toThrow(NotFoundException);
+    });
   });
 
   describe('findOneByName', () => {
@@ -94,6 +101,14 @@ describe('PlatformService', () => {
     it('should throw BadRequestException if name is missing', async () => {
       await expect(service.findOneByName('')).rejects.toThrow(
         BadRequestException,
+      );
+    });
+
+    it('should throw NotFoundException if platform not found', async () => {
+      (repository.findOne as jest.Mock).mockResolvedValue(null);
+
+      await expect(service.findOneByName('Windows')).rejects.toThrow(
+        NotFoundException,
       );
     });
   });

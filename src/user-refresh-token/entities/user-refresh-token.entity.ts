@@ -15,17 +15,17 @@ export class UserRefreshTokenEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ unique: true, nullable: true })
-  tokenId: string;
+  @Column({ type: 'varchar', unique: true, nullable: true })
+  tokenId: string | null;
 
   @Index()
-  @Column({ unique: true })
+  @Column({ type: 'varchar', unique: true })
   jwtId: string;
 
-  @Column()
+  @Column({ type: 'timestamp' })
   expiresAt: Date;
 
-  @Column({ default: false })
+  @Column({ type: 'boolean', default: false })
   isRevoked: boolean;
 
   @CreateDateColumn()
@@ -41,6 +41,6 @@ export class UserRefreshTokenEntity {
   user: UserEntity;
 
   @Index()
-  @Column()
+  @Column({ type: 'uuid' })
   userId: string;
 }

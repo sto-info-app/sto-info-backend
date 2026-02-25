@@ -71,7 +71,7 @@ describe('FileSizeExceptionFilter', () => {
         expectedMessage: 'Too many fields uploaded.',
       },
       {
-        code: 'LIMIT_FIELD_SIZE' as const,
+        code: 'LIMIT_FIELD_VALUE' as const,
         expectedMessage:
           'Field content is too large. Maximum allowed size is 5242880 bytes.',
       },

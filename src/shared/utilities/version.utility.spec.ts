@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getAppVersion } from './version.utility';
 
@@ -9,10 +9,17 @@ describe('getAppVersion', () => {
   const mockReadFileSync = readFileSync as jest.MockedFunction<
     typeof readFileSync
   >;
+  const mockExistsSync = existsSync as jest.MockedFunction<typeof existsSync>;
   const mockJoin = join as jest.MockedFunction<typeof join>;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockExistsSync.mockReturnValue(true); // Default to exists for most tests
+    jest.spyOn(console, 'debug').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it('should return version from package.json', () => {
@@ -56,20 +63,23 @@ describe('getAppVersion', () => {
     });
   });
 
-  it('should throw error if package.json cannot be read', () => {
+  it('should throw error if package.json cannot be read/found', () => {
     mockJoin.mockReturnValue('/path/to/package.json');
-    mockReadFileSync.mockImplementation(() => {
-      throw new Error('ENOENT: no such file or directory');
-    });
+    mockExistsSync.mockReturnValue(false); // File doesn't exist
 
-    expect(() => getAppVersion()).toThrow('ENOENT: no such file or directory');
+    expect(() => getAppVersion()).toThrow(
+      'Unable to find or parse package.json',
+    );
   });
 
   it('should throw error if package.json is invalid JSON', () => {
     mockJoin.mockReturnValue('/path/to/package.json');
+    mockExistsSync.mockReturnValue(true);
     mockReadFileSync.mockReturnValue('{ invalid json');
 
-    expect(() => getAppVersion()).toThrow();
+    expect(() => getAppVersion()).toThrow(
+      'Unable to find or parse package.json',
+    );
   });
 
   it('should return version even if package.json has minimal fields', () => {
@@ -97,5 +107,42 @@ describe('getAppVersion', () => {
 
       expect(result).toBe(version);
     });
+  });
+  it('should handle package.json missing version field by trying next path', () => {
+    mockJoin
+      .mockReturnValueOnce('/first/package.json')
+      .mockReturnValueOnce('/second/package.json');
+    mockExistsSync.mockReturnValue(true);
+
+    // First one missing version, second one has it
+    mockReadFileSync
+      .mockReturnValueOnce(JSON.stringify({ name: 'no-version' }))
+      .mockReturnValueOnce(JSON.stringify({ version: '2.0.0' }));
+
+    const result = getAppVersion();
+
+    expect(result).toBe('2.0.0');
+    expect(mockReadFileSync).toHaveBeenCalledTimes(2);
+  });
+
+  it('should continue to next path if parsing fails for one package.json', () => {
+    mockJoin
+      .mockReturnValueOnce('/invalid/package.json')
+      .mockReturnValueOnce('/valid/package.json');
+    mockExistsSync.mockReturnValue(true);
+
+    // First one is invalid JSON, second one is valid
+    mockReadFileSync
+      .mockReturnValueOnce('invalid-json')
+      .mockReturnValueOnce(JSON.stringify({ version: '3.0.0' }));
+
+    const result = getAppVersion();
+
+    expect(result).toBe('3.0.0');
+    expect(console.debug).toHaveBeenCalledWith(
+      expect.stringContaining('Found package.json at /invalid/package.json'),
+      expect.any(Error),
+    );
+    expect(mockReadFileSync).toHaveBeenCalledTimes(2);
   });
 });

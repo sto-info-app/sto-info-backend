@@ -73,7 +73,7 @@ export class UserIdMiddleware implements NestMiddleware {
   ): Promise<void> {
     try {
       const secretObject = await this.secretsService.getSecret(
-        this.configService.get('AWS_SECRET_NAME'),
+        this.configService.get<string>('AWS_SECRET_NAME')!,
       );
       if (secretObject?.jwtSecret) {
         const decoded = jwt.verify(token, secretObject.jwtSecret) as JwtPayload;

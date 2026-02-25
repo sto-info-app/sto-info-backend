@@ -13,15 +13,15 @@ export class AuditLoginAttemptEntity {
 
   @IsNotEmpty()
   @IsEmail()
-  @Column({ length: 255, nullable: true, default: null })
-  email: string;
+  @Column({ type: 'varchar', length: 255, nullable: true, default: null })
+  email: string | null;
 
   @IsOptional()
   @IsIP()
-  @Column({ nullable: true, default: null })
-  ipAddress: string;
+  @Column({ type: 'varchar', nullable: true, default: null })
+  ipAddress: string | null;
 
-  @Column()
+  @Column({ type: 'boolean' })
   success: boolean;
 
   @CreateDateColumn()

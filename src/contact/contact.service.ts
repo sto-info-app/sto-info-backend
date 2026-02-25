@@ -15,6 +15,13 @@ export class ContactService {
     private readonly contactRequestRepository: Repository<ContactRequestEntity>,
   ) {}
 
+  /**
+   * Submit a contact request, persists it to the database, and sends
+   * notification emails to both the support team and the requester.
+   *
+   * @param payload - The data for the contact request.
+   * @returns A promise that resolves when the request has been processed and emails sent.
+   */
   async submitContactRequest(payload: ContactRequestDto): Promise<void> {
     const maskedEmail = this.maskEmail(payload.email);
     const contactRequest = this.contactRequestRepository.create({
@@ -36,7 +43,7 @@ export class ContactService {
       supportHtmlContent,
     );
 
-    await this.mailService.sendEmailViaSendGrid({
+    await this.mailService.sendEmailWithFallback({
       ...supportMessage,
       replyTo: {
         email: payload.email,
@@ -54,9 +61,15 @@ export class ContactService {
       userHtmlContent,
     );
 
-    await this.mailService.sendEmailViaSendGrid(userMessage);
+    await this.mailService.sendEmailWithFallback(userMessage);
   }
 
+  /**
+   * Build the plain text content for the support notification email.
+   *
+   * @param payload - The contact request data.
+   * @returns The formatted plain text content.
+   */
   private buildSupportTextContent(payload: ContactRequestDto): string {
     return [
       `Name: ${payload.name}`,
@@ -67,6 +80,12 @@ export class ContactService {
     ].join('\n');
   }
 
+  /**
+   * Build the HTML content for the support notification email.
+   *
+   * @param payload - The contact request data.
+   * @returns The formatted HTML string.
+   */
   private buildSupportHtmlContent(payload: ContactRequestDto): string {
     const name = this.escapeHtml(payload.name);
     const email = this.escapeHtml(payload.email);
@@ -84,6 +103,12 @@ export class ContactService {
     `.trim();
   }
 
+  /**
+   * Build the plain text content for the user's confirmation email.
+   *
+   * @param payload - The contact request data.
+   * @returns The formatted plain text content.
+   */
   private buildUserTextContent(payload: ContactRequestDto): string {
     const appTitle = process.env.APP_TITLE ?? 'our team';
     return [
@@ -97,6 +122,12 @@ export class ContactService {
     ].join('\n');
   }
 
+  /**
+   * Build the HTML content for the user's confirmation email.
+   *
+   * @param payload - The contact request data.
+   * @returns The formatted HTML string.
+   */
   private buildUserHtmlContent(payload: ContactRequestDto): string {
     const appTitle = this.escapeHtml(process.env.APP_TITLE ?? 'our team');
     const name = this.escapeHtml(payload.name);
@@ -114,6 +145,12 @@ export class ContactService {
     `.trim();
   }
 
+  /**
+   * Mask an email address to protect privacy in the database.
+   *
+   * @param email - The raw email address.
+   * @returns The masked email address (e.g., "jo**@example.com").
+   */
   private maskEmail(email: string): string {
     const atIndex = email.lastIndexOf('@');
     if (atIndex <= 0) {
@@ -126,6 +163,12 @@ export class ContactService {
     return `${maskedLocal}@${domain}`;
   }
 
+  /**
+   * Mask the local part of an email address.
+   *
+   * @param localPart - The part of the email before the "@" symbol.
+   * @returns The masked local part string.
+   */
   private maskLocalPart(localPart: string): string {
     if (localPart.length <= 2) {
       return '*'.repeat(localPart.length);
@@ -144,6 +187,12 @@ export class ContactService {
     return `${prefix}${'*'.repeat(maskedLength)}${suffix}`;
   }
 
+  /**
+   * Escapes HTML special characters in a string to prevent XSS.
+   *
+   * @param value - The raw string to escape.
+   * @returns The escaped HTML string.
+   */
   private escapeHtml(value: string): string {
     return value
       .replaceAll('&', '&amp;')

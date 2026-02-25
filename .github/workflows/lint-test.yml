@@ -13,9 +13,7 @@ on:
       - development
       - production
 
-permissions:
-  contents: read
-  actions: read
+permissions: {}
 
 env:
   NODE_VERSION: 24
@@ -25,7 +23,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  check_changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      src_changed: ${{ steps.filter.outputs.src_changed }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          filters: |
+            src_changed:
+              - 'src/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'nx.json'
+              - 'tsconfig.json'
+              - 'jest.config.mjs'
+
   dependabot_note:
+    needs: check_changes
     if: github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -79,10 +98,16 @@ jobs:
             }
 
   lint_and_test:
-    # Don't run for draft PRs (but still run for pushes)
-    # Skip version bump PRs from github-actions bot or with version bump branch pattern
+    name: 'Lint and Test'
+    needs: check_changes
+    # Skip if dependabot
+    # Skip draft PRs
+    # Skip version bump PRs
+    # ONLY RUN if src_changed is true OR if it's a push (to keep badges updated)
     if: |
       github.actor != 'dependabot[bot]' &&
+      github.actor != 'github-actions[bot]' &&
+      (needs.check_changes.outputs.src_changed == 'true' || github.event_name == 'push') &&
       (github.event_name != 'pull_request' || github.event.pull_request.draft == false) &&
       !(github.event_name == 'pull_request' && (
         (github.event.pull_request.user.login == 'github-actions[bot]' && startsWith(github.event.pull_request.title, 'chore: bump version to')) ||
@@ -93,6 +118,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: write
 
     steps:
       - name: Checkout Repo
@@ -132,6 +158,24 @@ jobs:
       - name: Verify coverage exists
         run: test -f reports/coverage/lcov.info
 
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        with:
+          files: reports/coverage/lcov.info
+          fail_ci_if_error: false
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        with:
+          files: reports/junit/junit.xml
+          report_type: test_results
+          fail_ci_if_error: false
+
       - name: SonarQube Cloud Scan
         # Skip for Dependabot PRs (no code changes, avoids errors)
         if: github.actor != 'dependabot[bot]'
@@ -154,6 +198,19 @@ jobs:
             -Dsonar.issue.ignore.multicriteria.e2.ruleKey=secrets:S6684
             -Dsonar.issue.ignore.multicriteria.e2.resourceKey=**/*.spec.ts,**/*.test.ts,**/__tests__/**,**/test/**,**/tests/**
 
+      - name: Summarize Results
+        if: always()
+        run: npm run summary:ci
+        env:
+          CI_SUMMARY_FILE: ci-summary.md
+
+      - name: Post PR Comment
+        if: always() && github.event_name == 'pull_request'
+        uses: mshick/add-pr-comment@b8f338c590a895d50bcbfa6c5859251edc8952fc # v2.8.2
+        with:
+          message-path: ci-summary.md
+          allow-repeats: true
+
       - name: Restore Stryker incremental cache
         # Only run on PRs, skip for Dependabot
         if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
@@ -173,34 +230,8 @@ jobs:
           # Fetch the base branch to compare against
           git fetch origin ${{ github.base_ref }} --depth=1
 
-          # Get changed files in src/ that match mutation criteria (exclude specs, modules, static pages, etc.)
-          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | \
-            grep '^src/.*\.ts$' | \
-            grep -v '\.d\.ts$' | \
-            grep -v '\.spec\.ts$' | \
-            grep -v '\.module\.ts$' | \
-            grep -v 'environments/' | \
-            grep -v '\.model\.ts$' | \
-            grep -v '\.models\.ts$' | \
-            grep -v '\.interface\.ts$' | \
-            grep -v '\.interfaces\.ts$' | \
-            grep -v '\.enum\.ts$' | \
-            grep -v '\.constant\.ts$' | \
-            grep -v '\.constants\.ts$' | \
-            grep -v 'main.ts' | \
-            tr '\n' ',' | sed 's/,$//' || true)
-
-          if [ -z "$CHANGED_FILES" ]; then
-            echo "No relevant source files changed. Skipping mutation testing."
-          else
-            echo "Mutating files: $CHANGED_FILES"
-            # Run with incremental mode and limited concurrency
-            npx stryker run \
-              --mutate "$CHANGED_FILES" \
-              --concurrency 2 \
-              --incremental \
-              --force
-          fi
+          # Compute and run incremental mutation testing (exits 0 when nothing to mutate)
+          BASE_REF=origin/${{ github.base_ref }} npm run test:mutation:incremental
 
       - name: Build (push only)
         if: github.event_name == 'push'

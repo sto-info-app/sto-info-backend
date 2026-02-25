@@ -60,6 +60,23 @@ describe('AppService', () => {
     loggerErrorSpy.mockRestore();
   });
 
+  it('getJwtSecret should handle non-Error thrown values', async () => {
+    secretsServiceMock.getSecret.mockRejectedValue('boom');
+
+    const loggerErrorSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined as any);
+
+    await expect(service.getJwtSecret()).rejects.toBe('boom');
+
+    expect(loggerErrorSpy).toHaveBeenCalledWith(
+      'Failed to get JWT secret',
+      undefined,
+    );
+
+    loggerErrorSpy.mockRestore();
+  });
+
   it('getHello should return greeting with NODE_ENV when set', () => {
     const originalNodeEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = 'test-env';

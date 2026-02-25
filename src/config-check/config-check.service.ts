@@ -108,7 +108,7 @@ class EnvironmentVariables {
 
   @IsNotEmpty()
   @IsEmail()
-  SENDGRID_NOREPLY_SENDER: string;
+  EMAIL_NOREPLY_SENDER: string;
 
   @IsNotEmpty()
   @IsString()
@@ -125,6 +125,22 @@ class EnvironmentVariables {
   @IsNotEmpty()
   @IsString()
   AWS_SECRET_NAME: string;
+
+  @IsNotEmpty()
+  @IsString()
+  AWS_SNS_TOPIC_ARN: string;
+
+  @IsNotEmpty()
+  @IsString()
+  AWS_SES_CONFIGURATION_SET: string;
+
+  @IsNotEmpty()
+  @IsNumber()
+  SES_AUDIT_RETENTION_DAYS: number;
+
+  @IsNotEmpty()
+  @IsNumber()
+  SES_SUPPRESSION_RETENTION_DAYS: number;
 
   @IsOptional()
   @IsEmail()
@@ -214,7 +230,8 @@ export class ConfigCheckService {
     return config;
   }
 
-  get(key: string): string {
-    return process.env[key];
+  get(key: string): string | undefined {
+    const value = process.env[key];
+    return typeof value === 'string' ? value : undefined;
   }
 }

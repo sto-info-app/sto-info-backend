@@ -1,6 +1,5 @@
 import { BadRequestException, HttpException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import type { Multer } from 'multer';
 import { UserController } from './user.controller';
 import { UserService } from './user.service';
 
@@ -80,10 +79,10 @@ describe('UserController', () => {
   describe('updateUserProfilePic', () => {
     it('should upload profile picture', async () => {
       const fileStub: Pick<
-        Multer.File,
+        Express.Multer.File,
         'fieldname' | 'originalname' | 'mimetype'
       > &
-        Partial<Multer.File> = {
+        Partial<Express.Multer.File> = {
         fieldname: 'profilePicture',
         originalname: 'test.png',
         mimetype: 'image/png',

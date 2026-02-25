@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
+  NotFoundException,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -31,6 +32,11 @@ export class PlatformService {
         id: id,
       },
     });
+
+    if (!platform) {
+      throw new NotFoundException('Platform not found');
+    }
+
     return platform;
   }
 
@@ -42,6 +48,11 @@ export class PlatformService {
     const platform = await this.platformRepository.findOne({
       where: { name: name },
     });
+
+    if (!platform) {
+      throw new NotFoundException('Platform not found');
+    }
+
     return platform;
   }
 
@@ -65,11 +76,10 @@ export class PlatformService {
     try {
       await this.platformRepository.save(newPlatform);
       return newPlatform;
-    } catch (error) {
-      throw new InternalServerErrorException(
-        'Failed to save a new platform',
-        error,
-      );
+    } catch (error: unknown) {
+      throw new InternalServerErrorException('Failed to save a new platform', {
+        cause: error,
+      });
     }
   }
 
@@ -93,11 +103,10 @@ export class PlatformService {
     try {
       await this.platformRepository.save(updatedPlatform);
       return updatedPlatform;
-    } catch (error) {
-      throw new InternalServerErrorException(
-        'Failed to update platform',
-        error,
-      );
+    } catch (error: unknown) {
+      throw new InternalServerErrorException('Failed to update platform', {
+        cause: error,
+      });
     }
   }
 
@@ -109,11 +118,10 @@ export class PlatformService {
     const platform = await this.findOne(id);
     try {
       await this.platformRepository.remove(platform);
-    } catch (error) {
-      throw new InternalServerErrorException(
-        'Failed to delete platform',
-        error,
-      );
+    } catch (error: unknown) {
+      throw new InternalServerErrorException('Failed to delete platform', {
+        cause: error,
+      });
     }
   }
 
@@ -125,11 +133,10 @@ export class PlatformService {
     const platform = await this.findOne(id);
     try {
       await this.platformRepository.softDelete(platform.id);
-    } catch (error) {
-      throw new InternalServerErrorException(
-        'Failed to soft delete platform',
-        error,
-      );
+    } catch (error: unknown) {
+      throw new InternalServerErrorException('Failed to soft delete platform', {
+        cause: error,
+      });
     }
   }
 
@@ -139,10 +146,10 @@ export class PlatformService {
     for (const platform of platforms) {
       try {
         await this.remove(platform.id);
-      } catch (error) {
+      } catch (error: unknown) {
         throw new InternalServerErrorException(
           `Failed to hard delete platform #${platform.id}`,
-          error,
+          { cause: error },
         );
       }
     }

@@ -24,8 +24,9 @@ export class AppService {
     try {
       const secretObject = await this._secretsService.getSecret('mySecret');
       return secretObject.jwtSecret;
-    } catch (err) {
-      this._logger.error('Failed to get JWT secret', err.stack);
+    } catch (err: unknown) {
+      const stack = err instanceof Error ? err.stack : undefined;
+      this._logger.error('Failed to get JWT secret', stack);
       throw err;
     }
   }

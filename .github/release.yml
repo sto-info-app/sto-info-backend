@@ -1,0 +1,23 @@
+changelog:
+  exclude:
+    labels:
+      - version-bump
+    authors:
+      - github-actions[bot]
+  categories:
+    - title: 🚀 Features
+      labels:
+        - enhancement
+        - feature
+    - title: 🐛 Bug Fixes
+      labels:
+        - bug
+        - fix
+    - title: 🧹 Maintenance
+      labels:
+        - chore
+        - refactor
+    - title: 🧪 Testing
+      labels:
+        - test
+        - testing

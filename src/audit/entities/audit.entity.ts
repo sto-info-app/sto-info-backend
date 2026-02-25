@@ -18,15 +18,15 @@ export class AuditEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({ type: 'varchar' })
   @IsString()
   entity: string;
 
-  @Column()
+  @Column({ type: 'varchar' })
   @IsString()
   action: string;
 
-  @Column()
+  @Column({ type: 'varchar' })
   @IsString()
   @Validate(
     (value: any) => isUUID(value, '4') || !Number.isNaN(Number(value)),
@@ -46,13 +46,13 @@ export class AuditEntity {
 
   @IsOptional()
   @IsUUID()
-  @Column({ nullable: true, default: null })
-  userId: string;
+  @Column({ type: 'varchar', nullable: true, default: null })
+  userId: string | null;
 
   @IsOptional()
   @IsIP()
-  @Column({ nullable: true, default: null })
-  ipAddress: string;
+  @Column({ type: 'varchar', nullable: true, default: null })
+  ipAddress: string | null;
 
   @CreateDateColumn()
   createdAt: Date;

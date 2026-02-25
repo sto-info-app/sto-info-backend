@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { randomBytes } from 'node:crypto';
 import { UserRefreshTokenService } from 'src/user-refresh-token/user-refresh-token.service';
 
 import { AuthController } from './auth.controller';
@@ -81,8 +82,9 @@ describe('AuthController', () => {
   });
 
   it('should call authService.resetPassword', async () => {
-    await controller.resetPassword({ token: 't', password: 'p' } as any);
-    expect(authService.resetPassword).toHaveBeenCalledWith('t', 'p');
+    const password = randomBytes(16).toString('hex');
+    await controller.resetPassword({ token: 't', password } as any);
+    expect(authService.resetPassword).toHaveBeenCalledWith('t', password);
   });
 
   it('should call authService.refreshToken', async () => {
@@ -94,5 +96,11 @@ describe('AuthController', () => {
     const req = { user: { userId: '1', tokenId: '2' } };
     await controller.revoke('1', req as any);
     expect(authService.revokeToken).toHaveBeenCalledWith('1', '2');
+  });
+
+  it('should call authService.revokeToken with undefined tokenId if req.user missing', async () => {
+    const req = {};
+    await controller.revoke('1', req as any);
+    expect(authService.revokeToken).toHaveBeenCalledWith('1', undefined);
   });
 });

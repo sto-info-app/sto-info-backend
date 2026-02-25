@@ -15,12 +15,12 @@ import { ImageUploadsService } from './utilities/image-uploads.service';
         configService: ConfigService,
         secretsService: SecretsService,
       ) => {
-        const secretName = configService.get<string>('AWS_SECRET_NAME');
+        const secretName = configService.get<string>('AWS_SECRET_NAME')!;
         const secretObject = await secretsService.getSecret(secretName);
 
         return new S3Client({
           region: 'auto',
-          endpoint: configService.get<string>('CLOUDFLARE_R2_ENDPOINT'),
+          endpoint: configService.get<string>('CLOUDFLARE_R2_ENDPOINT')!,
           credentials: {
             accessKeyId: secretObject.cloudflareR2AccessKey,
             secretAccessKey: secretObject.cloudflareR2Secret,

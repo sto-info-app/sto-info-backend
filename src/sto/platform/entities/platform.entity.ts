@@ -17,7 +17,7 @@ export class PlatformEntity {
   @IsUUID()
   id: string;
 
-  @Column({ length: 50, nullable: false, unique: true })
+  @Column({ type: 'varchar', length: 50, nullable: false, unique: true })
   name: string;
 
   @CreateDateColumn()

@@ -1,5 +1,3 @@
-import type { File as MulterFile } from 'multer';
-
 describe('ImageUploadsService SAFE_FILENAME_PATTERN branch', () => {
   it('should throw when sanitised filename fails SAFE_FILENAME_PATTERN', async () => {
     jest.resetModules();
@@ -107,12 +105,12 @@ describe('ImageUploadsService SAFE_FILENAME_PATTERN branch', () => {
     const service = moduleRef.get(ImageUploadsService);
     await service.onModuleInit();
 
-    const file: MulterFile = {
+    const file: Express.Multer.File = {
       buffer: Buffer.from('fake image'),
       mimetype: 'image/png',
       size: 100,
       originalname: 'test.png',
-    } as unknown as MulterFile;
+    } as unknown as Express.Multer.File;
 
     const uploadPromise = service.uploadImageToCloudflareR2('user-1', file);
 

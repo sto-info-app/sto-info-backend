@@ -60,17 +60,20 @@ describe('JwtStrategy', () => {
       // In passport-jwt, it's stored on the instance as _secretOrKeyProvider
       const secretOrKeyProvider = (strategy as any)._secretOrKeyProvider;
 
-      if (typeof secretOrKeyProvider === 'function') {
-        await secretOrKeyProvider(null, null, done);
-        expect(configService.get).toHaveBeenCalledWith('AWS_SECRET_NAME');
-        expect(secretsService.getSecret).toHaveBeenCalledWith(
-          'dummy-secret-name',
-        );
-        expect(done).toHaveBeenCalledWith(null, 'dummy-secret');
-      } else {
-        // Fallback for debugging if it's not where we expect
-        throw new Error('secretOrKeyProvider not found on strategy instance');
-      }
+      expect(typeof secretOrKeyProvider).toBe('function');
+
+      await new Promise<void>(resolve => {
+        secretOrKeyProvider(null, null, (...args: unknown[]) => {
+          done(...args);
+          resolve();
+        });
+      });
+
+      expect(configService.get).toHaveBeenCalledWith('AWS_SECRET_NAME');
+      expect(secretsService.getSecret).toHaveBeenCalledWith(
+        'dummy-secret-name',
+      );
+      expect(done).toHaveBeenCalledWith(null, 'dummy-secret');
     });
 
     it('should call done with error on failure', async () => {
@@ -79,10 +82,16 @@ describe('JwtStrategy', () => {
       (secretsService.getSecret as jest.Mock).mockRejectedValue(error);
       const secretOrKeyProvider = (strategy as any)._secretOrKeyProvider;
 
-      if (typeof secretOrKeyProvider === 'function') {
-        await secretOrKeyProvider(null, null, done);
-        expect(done).toHaveBeenCalledWith(error, null);
-      }
+      expect(typeof secretOrKeyProvider).toBe('function');
+
+      await new Promise<void>(resolve => {
+        secretOrKeyProvider(null, null, (...args: unknown[]) => {
+          done(...args);
+          resolve();
+        });
+      });
+
+      expect(done).toHaveBeenCalledWith(error);
     });
   });
 

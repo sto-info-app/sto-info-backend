@@ -1,8 +1,55 @@
-# sto-info-backend [![Uptime status](https://img.shields.io/uptimerobot/status/m802169058-d230a9a973c1eef1de28ed63.svg)](https://status.startrekonline.info/) [![Uptime 30 days](https://img.shields.io/uptimerobot/ratio/m802169058-d230a9a973c1eef1de28ed63.svg)](https://status.startrekonline.info/)
+# sto-info-backend
+
+## Security posture
+
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/11991/badge)](https://www.bestpractices.dev/projects/11991)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/sto-info-app/sto-info-backend/badge)](https://securityscorecards.dev/viewer/?uri=github.com/sto-info-app/sto-info-backend)
+[![Security Policy](https://img.shields.io/badge/security%20policy-SECURITY.md-informational)](https://github.com/sto-info-app/sto-info-backend/blob/development/SECURITY.md)
+
+[![CodeQL Analysis](https://github.com/sto-info-app/sto-info-backend/actions/workflows/codeql.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/codeql.yml)
+[![Dependency Review](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dependency-review.yml)
+[![npm audit](https://github.com/sto-info-app/sto-info-backend/actions/workflows/audit.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/audit.yml)
+[![DCO Enforcement](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dco.yml/badge.svg)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dco.yml)
+[![Security: Fuzz](https://github.com/sto-info-app/sto-info-backend/actions/workflows/security-fuzz.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/security-fuzz.yml)
+[![Security: ZAP (Dev API)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/security-zap-dev.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/security-zap-dev.yml)
+
+## CI and delivery
+
+[![Lint and Test](https://github.com/sto-info-app/sto-info-backend/actions/workflows/lint-test.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/lint-test.yml)
+[![Version bump](https://github.com/sto-info-app/sto-info-backend/actions/workflows/version-bump.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/version-bump.yml)
+[![Tag release](https://github.com/sto-info-app/sto-info-backend/actions/workflows/tag-release.yml/badge.svg?branch=production)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/tag-release.yml)
+[![Uptime status](https://img.shields.io/uptimerobot/status/m802169058-d230a9a973c1eef1de28ed63.svg)](https://status.startrekonline.info/)
+[![Uptime 30 days](https://img.shields.io/uptimerobot/ratio/m802169058-d230a9a973c1eef1de28ed63.svg)](https://status.startrekonline.info/)
+
+## Quality and testing
+
+[![Mutation testing](https://github.com/sto-info-app/sto-info-backend/actions/workflows/mutation-testing.yml/badge.svg)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/mutation-testing.yml)
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=coverage)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
+[![codecov](https://codecov.io/gh/sto-info-app/sto-info-backend/graph/badge.svg?token=ZX5Y9GQ3ZR)](https://codecov.io/gh/sto-info-app/sto-info-backend)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
+
+## Code metrics
+
+[![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
+[![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
+[![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
+
+## Release and project
+
+[![Release](https://img.shields.io/github/v/release/sto-info-app/sto-info-backend?display_name=tag&sort=semver)](https://github.com/sto-info-app/sto-info-backend/releases)
+[![Licence](https://img.shields.io/github/license/sto-info-app/sto-info-backend)](https://github.com/sto-info-app/sto-info-backend/blob/development/LICENCE)
+[![All Contributors](https://img.shields.io/github/all-contributors/sto-info-app/sto-info-backend?label=all%20contributors)](https://github.com/sto-info-app/sto-info-backend#contributors)
+[![NestJS](https://img.shields.io/github/package-json/dependency-version/sto-info-app/sto-info-backend/@nestjs/core?label=nestjs&branch=development)](https://github.com/sto-info-app/sto-info-backend/blob/development/package.json)
+[![Node](https://img.shields.io/badge/node-24.x-informational)](https://github.com/sto-info-app/sto-info-backend/blob/development/package.json)
 
 ## Project Overview
 
-The `sto-info-backend` is a backend service designed to provide information related to STO (Star Trek Online) player's accounts, characters and fleets. It is built using modern web technologies and follows best practices for API development.
+The `sto-info-backend` is a NestJS-based REST API that powers the STO Info platform. It provides structured, secure endpoints for player accounts, characters, fleets, authentication, and related operational data. This backend enables the frontend application and integrations to retrieve, validate, and manage Star Trek Online-related information reliably.
 
 ## Features
 
@@ -10,7 +57,7 @@ The `sto-info-backend` is a backend service designed to provide information rela
 - Authentication and authorisation
 - Data validation and error handling
 - Integration with external services
-- _Coming soon:_ Comprehensive logging and monitoring
+- Comprehensive logging and monitoring
 
 ## Documentation
 
@@ -23,12 +70,14 @@ Documentation is in [docs/](docs/).
 - [docs/backend.md](docs/backend.md)
 - [docs/frontend.md](docs/frontend.md) (frontend integration expectations)
 - [docs/api-endpoints.md](docs/api-endpoints.md)
+- [docs/github/SECURITY-AUTOMATION.md](docs/github/SECURITY-AUTOMATION.md)
+- [docs/github/QUALITY-AUTOMATION.md](docs/github/QUALITY-AUTOMATION.md)
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js (version 22.x or higher)
+- Node.js (version 24.x)
 - npm (version 10.x or higher)
 - PostgreSQL database (version 14.x or higher)
 - Redis (version 6.x or higher)
@@ -101,6 +150,80 @@ npm test
 
 This will execute all the unit tests and provide a summary of the test results.
 
+### Mutation testing
+
+This project uses Stryker for mutation testing.
+
+```sh
+npm run test:mutation
+```
+
+For PR-style incremental mutation testing (only mutates relevant changed `src/**/*.ts` files), you can run:
+
+```sh
+BASE_REF=origin/development npm run test:mutation:incremental
+```
+
+### Local verify (CI-style check)
+
+To run the same kind of checks expected by CI (audit, lint, tests with coverage, lightweight fuzz tests, and a build), run:
+
+```sh
+npm run verify
+```
+
+## Security Testing
+
+### Property-based fuzz testing
+
+This project uses [fast-check](https://github.com/dubzzz/fast-check) for property-based fuzz testing to ensure robustness against unexpected inputs.
+
+**Run locally (lightweight):**
+
+```bash
+npm run test:fuzz
+```
+
+**Run locally (comprehensive):**
+
+```bash
+npm run test:fuzz:full
+```
+
+**Customise iteration count:**
+
+Set the `FUZZ_NUM_RUNS` environment variable to control the number of test iterations:
+
+```bash
+FUZZ_NUM_RUNS=500 npm run test:fuzz
+```
+
+Default: 100 iterations (if not set)
+
+**CI behaviour:**
+
+- **Pull requests**: Runs lightweight fuzz tests (50 iterations) to catch obvious issues quickly
+- **Weekly schedule**: Runs comprehensive fuzz tests (1000 iterations) for deeper analysis
+
+### OWASP ZAP DAST scanning
+
+Dynamic Application Security Testing (DAST) is performed using OWASP ZAP to identify security vulnerabilities in the running API.
+
+**CI behaviour:**
+
+- **Development version bumps**: Runs a ZAP baseline scan against the dev API `/health` endpoint (after a short deployment wait)
+- **Weekly schedule**: Runs a ZAP full scan against the dev API base URL
+- **Manual trigger**: Can run baseline or full scan via workflow_dispatch
+- **Scan reports**: Available as workflow artifacts for 30 days
+
+**Limitations:**
+
+- Scans run against unauthenticated endpoints only
+- Authenticated endpoints require valid JWT tokens (not currently tested)
+- False positives can be tuned via `.zap/rules.tsv`
+
+See [SECURITY.md](SECURITY.md) for more details.
+
 ### Deployment
 
 To deploy the application, follow these steps:
@@ -146,9 +269,10 @@ Install the [SonarQube IDE](https://www.sonarsource.com/products/sonarlint/) and
 
 The analysis results will be available on the SonarQube dashboard.
 
-### Current SonarQube Analysis
+## Contributors
 
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=alert_status&token=112872819709705c46aa22a30dbc9cb78546a38e)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend) [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=bugs&token=112872819709705c46aa22a30dbc9cb78546a38e)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend) [![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=code_smells&token=112872819709705c46aa22a30dbc9cb78546a38e)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend) [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=sto-info-app_sto-info-backend&metric=duplicated_lines_density&token=112872819709705c46aa22a30dbc9cb78546a38e)](https://sonarcloud.io/summary/new_code?id=sto-info-app_sto-info-backend)
+<!-- README_CONTRIBUTORS -->
+<!-- README_CONTRIBUTORS -->
 
 ## Licence
 

@@ -6,7 +6,10 @@
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
-    "target": "es2017",
+    "strict": true,
+    "strictPropertyInitialization": false,
+    "target": "es2021",
+
     "lib": ["es2021"],
     "sourceMap": true,
     "outDir": "./dist",
@@ -20,5 +23,6 @@
     "noFallthroughCasesInSwitch": false,
     "noUnusedLocals": true,
     "noUnusedParameters": true
-  }
+  },
+  "include": ["src/**/*"]
 }

@@ -19,21 +19,21 @@ export class UpdateUserProfileDto {
   })
   userId: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'First name for the user profile.',
     example: 'Jean-Luc',
   })
-  readonly firstName: string;
+  readonly firstName: string | null;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Last name for the user profile.',
     example: 'Picard',
   })
-  readonly lastName: string;
+  readonly lastName: string | null;
 
   @IsNotEmpty()
   @IsString()
@@ -53,7 +53,7 @@ export class UpdateUserProfileDto {
       'Cloudflare Images id for the profile picture, if present. Typically set via the upload endpoint.',
     example: 'd3e2f1a0-b9c8-47d6-a5b4-3c2d1e0f9a8b',
   })
-  profilePictureId: string;
+  profilePictureId: string | null;
 
   @IsOptional()
   @IsBoolean()

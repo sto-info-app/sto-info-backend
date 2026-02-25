@@ -30,50 +30,50 @@ export class UserEntity {
 
   @IsEmail()
   @IsNotEmpty()
-  @Column({ length: 255, nullable: false, unique: true })
+  @Column({ type: 'varchar', length: 255, nullable: false, unique: true })
   email: string;
 
   @Exclude()
   @IsString()
   @IsNotEmpty()
-  @Column({ length: 255, nullable: false })
+  @Column({ type: 'varchar', length: 255, nullable: false })
   password: string;
 
-  @Column({ default: false })
+  @Column({ type: 'boolean', default: false })
   emailVerified: boolean;
 
   @Exclude()
-  @Column({ nullable: true })
-  emailVerificationToken: string;
+  @Column({ type: 'varchar', nullable: true })
+  emailVerificationToken: string | null;
 
   @Exclude()
-  @Column({ nullable: true })
-  emailVerificationTokenExpiry: Date;
+  @Column({ type: 'timestamp', nullable: true })
+  emailVerificationTokenExpiry: Date | null;
 
-  @Column({ nullable: true })
-  lastLoginAt: Date;
+  @Column({ type: 'timestamp', nullable: true })
+  lastLoginAt: Date | null;
 
-  @Column({ nullable: true })
-  lastPasswordReset: Date;
-
-  @Exclude()
-  @Column({ nullable: true })
-  passwordResetToken: string;
+  @Column({ type: 'timestamp', nullable: true })
+  lastPasswordReset: Date | null;
 
   @Exclude()
-  @Column({ nullable: true })
-  passwordResetTokenExpiry: Date;
+  @Column({ type: 'varchar', nullable: true })
+  passwordResetToken: string | null;
 
-  @Column({ default: false })
+  @Exclude()
+  @Column({ type: 'timestamp', nullable: true })
+  passwordResetTokenExpiry: Date | null;
+
+  @Column({ type: 'boolean', default: false })
   isAccountDisabled: boolean;
 
   @Exclude()
-  @Column({ nullable: true })
-  provider: string;
+  @Column({ type: 'varchar', nullable: true })
+  provider: string | null;
 
   @Exclude()
-  @Column({ nullable: true })
-  providerId: string;
+  @Column({ type: 'varchar', nullable: true })
+  providerId: string | null;
 
   @CreateDateColumn()
   createdAt: Date;
@@ -82,7 +82,7 @@ export class UserEntity {
   updatedAt: Date;
 
   @DeleteDateColumn()
-  deletedAt: Date;
+  deletedAt: Date | null;
 
   @BeforeInsert()
   generateUuid() {

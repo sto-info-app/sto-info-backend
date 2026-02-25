@@ -8,10 +8,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Not, Repository } from 'typeorm';
-
-import { File as MulterFile } from 'multer';
+import { stringifyError } from 'src/shared/utilities/error.utility';
 import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
+
+import { Not, Repository } from 'typeorm';
 import { AccountEntity } from '../account/entities/account.entity';
 import { CreateCharacterDto } from './dto/create-character.dto';
 import { UpdateCharacterDto } from './dto/update-character.dto';
@@ -140,11 +140,10 @@ export class CharacterService {
     try {
       await this.characterRepository.save(newCharacter);
       return newCharacter;
-    } catch (error) {
-      throw new InternalServerErrorException(
-        'Failed to save a new character',
-        error,
-      );
+    } catch (error: unknown) {
+      throw new InternalServerErrorException('Failed to save a new character', {
+        cause: error,
+      });
     }
   }
 
@@ -302,19 +301,9 @@ export class CharacterService {
   async uploadProfileImage(
     id: string,
     userId: string,
-    file: MulterFile,
+    file: Express.Multer.File,
   ): Promise<CharacterEntity> {
-    if (!id) {
-      throw new BadRequestException('Character ID is required');
-    }
-
-    if (!userId) {
-      throw new BadRequestException('User ID is required');
-    }
-
-    if (!file) {
-      throw new BadRequestException('File is required');
-    }
+    this.assertUploadProfileImageArgs(id, userId, file);
 
     this.logger.debug(
       `[uploadProfileImage] Starting upload - CharacterId: ${id}, UserId: ${userId}`,
@@ -361,32 +350,64 @@ export class CharacterService {
         `[uploadProfileImage] Character saved successfully - CharacterId: ${id}, ProfilePictureId: ${updatedCharacter.profilePictureId}`,
       );
 
-      if (existingProfilePictureId) {
-        this.logger.debug(
-          `[uploadProfileImage] Deleting old image - ProfilePictureId: ${existingProfilePictureId}`,
-        );
-        try {
-          await this.imageUploadsService.deleteImageFromCloudflareImages(
-            existingProfilePictureId,
-          );
-          this.logger.debug(
-            `[uploadProfileImage] Old image deleted - ProfilePictureId: ${existingProfilePictureId}`,
-          );
-        } catch (error) {
-          this.logger.error(
-            `[uploadProfileImage] Failed to delete old profile image from Cloudflare Images - ProfilePictureId: ${existingProfilePictureId}, Error: ${error.message}`,
-            error.stack,
-          );
-        }
-      }
+      await this.tryDeleteOldProfileImage(existingProfilePictureId);
 
       return updatedCharacter;
-    } catch (error) {
+    } catch (error: unknown) {
+      const message = stringifyError(error);
+
+      const stack = error instanceof Error ? error.stack : undefined;
       this.logger.error(
-        `[uploadProfileImage] Upload failed - CharacterId: ${id}, UserId: ${userId}, Error: ${error.message}`,
-        error.stack,
+        `[uploadProfileImage] Upload failed - CharacterId: ${id}, UserId: ${userId}, Error: ${message}`,
+        stack,
       );
       throw error;
+    }
+  }
+
+  private assertUploadProfileImageArgs(
+    id: string,
+    userId: string,
+    file: Express.Multer.File,
+  ): void {
+    if (!id) {
+      throw new BadRequestException('Character ID is required');
+    }
+
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+  }
+
+  private async tryDeleteOldProfileImage(
+    existingProfilePictureId: string | null | undefined,
+  ): Promise<void> {
+    if (!existingProfilePictureId) {
+      return;
+    }
+
+    this.logger.debug(
+      `[uploadProfileImage] Deleting old image - ProfilePictureId: ${existingProfilePictureId}`,
+    );
+    try {
+      await this.imageUploadsService.deleteImageFromCloudflareImages(
+        existingProfilePictureId,
+      );
+      this.logger.debug(
+        `[uploadProfileImage] Old image deleted - ProfilePictureId: ${existingProfilePictureId}`,
+      );
+    } catch (error: unknown) {
+      const message = stringifyError(error);
+
+      const stack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(
+        `[uploadProfileImage] Failed to delete old profile image from Cloudflare Images - ProfilePictureId: ${existingProfilePictureId}, Error: ${message}`,
+        stack,
+      );
     }
   }
 

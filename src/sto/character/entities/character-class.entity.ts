@@ -6,7 +6,7 @@ export class CharacterClassEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ length: 50, unique: true })
+  @Column({ type: 'varchar', length: 50, unique: true })
   name: string; // Tactical, Engineering, Science
 
   @OneToMany('CharacterEntity', 'class')

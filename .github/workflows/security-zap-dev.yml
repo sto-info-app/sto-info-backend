@@ -1,0 +1,137 @@
+name: 'Security: ZAP (Dev API)'
+
+on:
+  push:
+    branches:
+      - development
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+
+  schedule:
+    # Weekly scan every Monday at 03:00 UTC
+    - cron: '0 3 * * 1'
+
+  workflow_dispatch:
+    inputs:
+      zap_scan_type:
+        description: 'ZAP scan type (baseline or full)'
+        required: false
+        default: 'full'
+
+permissions: {}
+
+env:
+  NODE_VERSION: 24
+  DEV_API_BASE_URL: 'https://dev-api.startrekonline.info'
+  DEV_API_HEALTH_URL: 'https://dev-api.startrekonline.info/health'
+  DEV_API_VERSION_URL: 'https://dev-api.startrekonline.info/version'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  zap:
+    name: 'OWASP ZAP DAST scan (Dev API)'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: |
+      github.repository_owner == 'sto-info-app' &&
+      (github.event_name != 'push' || 
+        startsWith(github.event.head_commit.message, 'chore: bump version to ') ||
+        contains(github.event.head_commit.message, 'Automated version bump from') ||
+        (contains(github.event.head_commit.message, 'Merge pull request') && contains(github.event.head_commit.message, 'chore/bump-version-to'))
+      )
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Wait for deployment (development push)
+        if: github.event_name == 'push'
+        run: sleep 420 # Increased to 7 minutes to allow deployment to settle
+
+      - name: Verify deployed version matches repo (development push)
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+
+          expected_version=$(node -p "require('./package.json').version")
+          echo "Expected repo version: ${expected_version}"
+
+          max_attempts=30
+          delay_seconds=20
+
+          # First, wait for ANY response from health endpoint
+          echo "Waiting for API to be reachable..."
+          for attempt in $(seq 1 $max_attempts); do
+            status_hook=$(curl -s -o /dev/null -w "%{http_code}" --proto '=https' --proto-redir '=https' "${DEV_API_HEALTH_URL}/live" || echo "000")
+            if [ "$status_hook" = "200" ]; then
+              echo "API is live ($status_hook)"
+              break
+            fi
+            echo "Attempt ${attempt}/${max_attempts}: API not reachable yet (status: $status_hook)"
+            if [ "${attempt}" -lt "${max_attempts}" ]; then
+              sleep "${delay_seconds}"
+            fi
+          done
+
+          # Now verify version
+          for attempt in $(seq 1 $max_attempts); do
+            # Capture actual version, allowing for errors to be diagnosed
+            actual_version=$(curl -fsSL --proto '=https' --proto-redir '=https' "${DEV_API_VERSION_URL}" 2>/dev/null | tr -d '\r\n' || echo "")
+            
+            if [ -n "${actual_version}" ]; then
+              echo "Deployed API version: ${actual_version}"
+              if [ "${actual_version}" = "${expected_version}" ]; then
+                echo "Version check OK (${actual_version})"
+                exit 0
+              fi
+              echo "Attempt ${attempt}/${max_attempts}: version mismatch (Actual: $actual_version)"
+            else
+              echo "Attempt ${attempt}/${max_attempts}: /version returned empty or errored"
+              # Diagnostic: show one verbose curl on failure
+              if [ "${attempt}" -eq "${max_attempts}" ]; then
+                echo "Final diagnostic check:"
+                curl -v --proto '=https' --proto-redir '=https' "${DEV_API_VERSION_URL}" 2>&1 | head -n 30 || true
+              fi
+            fi
+
+            if [ "${attempt}" -lt "${max_attempts}" ]; then
+              echo "Retrying in ${delay_seconds}s..."
+              sleep "${delay_seconds}"
+            fi
+          done
+
+          echo "Version mismatch or API not updated after retries."
+          echo "Expected: ${expected_version}"
+          echo "Actual: ${actual_version:-<empty>}"
+          exit 1
+
+      - name: Run ZAP baseline scan
+        if: github.event_name == 'push' || github.event.inputs.zap_scan_type == 'baseline'
+        uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # v0.15.0
+        with:
+          target: ${{ env.DEV_API_HEALTH_URL }}/live
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a -j -m 3 -T 900'
+          allow_issue_writing: false
+          artifact_name: zap-baseline-report-dev-api
+
+      - name: Run ZAP full scan
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.zap_scan_type == 'full')
+        uses: zaproxy/action-full-scan@3c58388149901b9a03b7718852c5ba889646c27c # v0.13.0
+        with:
+          target: ${{ env.DEV_API_BASE_URL }}
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a -j -m 3 -T 1800'
+          allow_issue_writing: false
+          artifact_name: zap-full-scan-report-dev-api

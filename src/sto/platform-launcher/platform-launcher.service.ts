@@ -30,10 +30,10 @@ export class PlatformLauncherService {
     try {
       await this.platformLauncherRepository.save(platformLauncher);
       return platformLauncher;
-    } catch (error) {
+    } catch (error: unknown) {
       throw new InternalServerErrorException(
         'Failed to add new platform-launcher relation',
-        error,
+        { cause: error },
       );
     }
   }
@@ -55,10 +55,10 @@ export class PlatformLauncherService {
     }
     try {
       await this.platformLauncherRepository.remove(platformLauncher);
-    } catch (error) {
+    } catch (error: unknown) {
       throw new InternalServerErrorException(
         'Failed to remove platform-launcher relation',
-        error,
+        { cause: error },
       );
     }
   }
@@ -97,6 +97,11 @@ export class PlatformLauncherService {
     const platformLauncher = await this.platformLauncherRepository.findOne({
       where: { platformId: platformId, launcherId: launcherId },
     });
+
+    if (!platformLauncher) {
+      throw new NotFoundException(`PlatformLauncherEntity relation not found`);
+    }
+
     return platformLauncher;
   }
 }

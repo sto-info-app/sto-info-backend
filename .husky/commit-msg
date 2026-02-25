@@ -1,0 +1,18 @@
+#!/usr/bin/env sh
+
+msg_file="$1"
+
+# Skip merge commits (CI DCO check skips merges as well)
+if grep -qE '^Merge ' "$msg_file"; then
+  exit 0
+fi
+
+# Require a DCO sign-off trailer
+if grep -qiE '^Signed-off-by: .+ <[^<>[:space:]]+@[^<>[:space:]]+>$' "$msg_file"; then
+  exit 0
+fi
+
+echo "DCO sign-off missing in commit message." >&2
+echo "Add a 'Signed-off-by: Your Name <you@example.com>' line." >&2
+echo "Tip: use 'git commit -s' (this repo has format.signoff=true enabled)." >&2
+exit 1

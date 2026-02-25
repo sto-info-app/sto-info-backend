@@ -37,11 +37,16 @@ describe('ConfigCheckService', () => {
       TYPEORM_LOGGING: 'false',
       TYPEORM_ENTITIES: 'dist/**/*.entity.js',
       TYPEORM_MIGRATIONS: 'dist/database/migrations/*.js',
-      SENDGRID_NOREPLY_SENDER: 'noreply@test.com',
+      EMAIL_NOREPLY_SENDER: 'noreply@test.com',
       AWS_ACCESS_KEY_ID: 'test-key-id',
       AWS_SECRET_ACCESS_KEY: 'test-secret',
       AWS_REGION: 'us-east-1',
       AWS_SECRET_NAME: 'test-secret',
+      AWS_SNS_TOPIC_ARN:
+        'arn:aws:sns:eu-west-2:123456789012:sto-info-ses-bounces',
+      AWS_SES_CONFIGURATION_SET: 'sto-info-app',
+      SES_AUDIT_RETENTION_DAYS: '90',
+      SES_SUPPRESSION_RETENTION_DAYS: '2557',
       CLOUDFLARE_R2_ENDPOINT: 'https://endpoint.r2.cloudflarestorage.com',
       CLOUDFLARE_R2_BUCKET_NAME: 'test-bucket',
       CLOUDFLARE_CDN_ROOT_URL: 'https://cdn.test.com',
@@ -63,7 +68,7 @@ describe('ConfigCheckService', () => {
 
     it('should throw error for missing required field', () => {
       const invalidConfig = { ...validConfig };
-      delete invalidConfig.NODE_ENV;
+      delete (invalidConfig as any).NODE_ENV;
 
       expect(() => service.validateInput(invalidConfig)).toThrow(
         'Validation error',
@@ -81,7 +86,7 @@ describe('ConfigCheckService', () => {
     it('should throw error for invalid email', () => {
       const invalidConfig = {
         ...validConfig,
-        SENDGRID_NOREPLY_SENDER: 'invalid-email',
+        EMAIL_NOREPLY_SENDER: 'invalid-email',
       };
 
       expect(() => service.validateInput(invalidConfig)).toThrow(
@@ -172,7 +177,7 @@ describe('ConfigCheckService', () => {
 
     it('should throw error for missing REDIS_URL', () => {
       const invalidConfig = { ...validConfig };
-      delete invalidConfig.REDIS_URL;
+      delete (invalidConfig as any).REDIS_URL;
 
       expect(() => service.validateInput(invalidConfig)).toThrow(
         'Validation error',

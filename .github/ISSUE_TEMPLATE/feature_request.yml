@@ -1,0 +1,49 @@
+name: 'Feature Request'
+description: 'Suggest a new idea or improvement.'
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea for a new feature? We'd love to hear it!
+  - type: input
+    id: summary
+    attributes:
+      label: 'Summary'
+      description: 'A clear and concise summary of the feature request.'
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: 'Component'
+      description: 'Which part of the system would this benefit?'
+      options:
+        - 'API (General)'
+        - 'Authentication / Auth'
+        - 'Cron / Background Jobs'
+        - 'Database / Migrations'
+        - 'External Integrations'
+        - 'Frontend Integration'
+        - 'Other'
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: 'Description'
+      description: "Describe the feature and why it's needed."
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 'Alternatives Considered'
+      description: 'Have you considered any alternative solutions or workarounds?'
+  - type: checkboxes
+    id: security_confirmation
+    attributes:
+      label: 'Security Check'
+      options:
+        - label: 'I confirm that I have not included any secrets or sensitive credentials in this request.'
+          required: true

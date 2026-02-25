@@ -1,18 +1,27 @@
 export default {
   moduleFileExtensions: ['js', 'json', 'ts'],
-  testRegex: String.raw`.*\.spec\.ts$`,
+  testRegex: String.raw`\.spec\.ts$`,
   transform: {
     [String.raw`^.+\.(t|j)s$`]: 'ts-jest',
   },
   moduleNameMapper: {
     '^src/(.*)$': '<rootDir>/src/$1',
   },
+  setupFilesAfterEnv: ['<rootDir>/test/setup.ts'],
   collectCoverage: true,
-  coverageReporters: ['text-summary', 'text', 'lcov', 'cobertura'],
+  reporters: ['default', 'jest-junit'],
+  coverageReporters: [
+    'text-summary',
+    'text',
+    'lcov',
+    'cobertura',
+    'json-summary',
+  ],
   collectCoverageFrom: [
     'src/**/*.(t|j)s',
     // Exclude test files
     '!**/*.spec.(t|j)s',
+    '!**/*.fuzz.spec.(t|j)s',
     // Exclude NestJS module files
     '!**/*.module.(t|j)s',
     // Exclude main entry point
@@ -97,4 +106,6 @@ export default {
     },
   },
   coverageDirectory: '<rootDir>/reports/coverage',
+  testPathIgnorePatterns: ['/node_modules/'],
+  modulePathIgnorePatterns: [],
 };

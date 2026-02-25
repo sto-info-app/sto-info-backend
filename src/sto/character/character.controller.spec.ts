@@ -183,6 +183,38 @@ describe('CharacterController', () => {
         controller.uploadProfileImage('user-1', 'char-1', file),
       ).rejects.toThrow(error);
     });
+
+    it('should log and rethrow non-Error thrown values from service', async () => {
+      const file = { buffer: Buffer.from('test') } as any;
+      jest.spyOn(service, 'uploadProfileImage').mockRejectedValue('boom');
+
+      await expect(
+        controller.uploadProfileImage('user-1', 'char-1', file),
+      ).rejects.toBe('boom');
+
+      const loggerErrorSpy = Logger.prototype.error as unknown as jest.Mock;
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[uploadProfileImage] Failed to upload image'),
+        undefined,
+      );
+    });
+
+    it('should handle undefined userId or id in logger', async () => {
+      const file = {
+        buffer: Buffer.from('test'),
+        originalname: 'a.png',
+      } as any;
+      await controller.uploadProfileImage(
+        undefined as any,
+        undefined as any,
+        file,
+      );
+      expect(service.uploadProfileImage).toHaveBeenCalledWith(
+        undefined,
+        undefined,
+        file,
+      );
+    });
   });
 
   describe('imageFileFilter', () => {

@@ -20,17 +20,17 @@ export class ContactRequestEntity {
 
   @IsNotEmpty()
   @IsString()
-  @Column({ length: 100, nullable: false })
+  @Column({ type: 'varchar', length: 100, nullable: false })
   name: string;
 
   @IsOptional()
   @IsEmail()
-  @Column({ length: 320, nullable: true, default: null })
+  @Column({ type: 'varchar', length: 320, nullable: true, default: null })
   emailMasked: string | null;
 
   @IsNotEmpty()
   @IsString()
-  @Column({ length: 50, nullable: false })
+  @Column({ type: 'varchar', length: 50, nullable: false })
   topic: string;
 
   @IsNotEmpty()

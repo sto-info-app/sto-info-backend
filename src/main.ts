@@ -115,7 +115,13 @@ async function bootstrap() {
   }
 
   const configCheckService = new ConfigCheckService();
-  configCheckService.validateInput(process.env); // Validate the environment variables
+  const envVars = Object.fromEntries(
+    Object.entries(process.env).filter((entry): entry is [string, string] => {
+      const value = entry[1];
+      return typeof value === 'string';
+    }),
+  );
+  configCheckService.validateInput(envVars); // Validate the environment variables
 
   // Initialize Redis store for rate limiting
   const redisUrl = process.env.REDIS_URL;
@@ -368,7 +374,7 @@ async function bootstrap() {
   }
 
   // Start listening for requests on the specified port
-  await app.listen(Number.parseInt(process.env.APP_PORT) || 3000);
+  await app.listen(Number.parseInt(process.env.APP_PORT ?? '', 10) || 3000);
 
   if (startupDiagnosticsEnabled) {
     logStartup(`listening (+${(performance.now() - startTime).toFixed(0)}ms)`);
