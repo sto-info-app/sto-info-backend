@@ -26,13 +26,13 @@
 # reports but (depending on scan configuration) are less likely to fail CI.
 
 # X-Frame-Options Header Missing (clickjacking protection; typically less relevant for pure APIs)
-10020	WARN	https://dev-api\.sto-info\.com/.*
+10020	WARN	https://(dev-)?api\.sto-info\.com/.*
 
 # Content Security Policy (CSP) Header Not Set (primarily for browsers; not typical for APIs)
-10038	WARN	https://dev-api\.sto-info\.com/.*
+10038	WARN	https://(dev-)?api\.sto-info\.com/.*
 
 # CSP Scanner (Policy Errors) (often noisy when CSP is not used)
-10055	WARN	https://dev-api\.sto-info\.com/.*
+10055	WARN	https://(dev-)?api\.sto-info\.com/.*
 
 # Content Cacheability (often flagged on APIs; treat as warning until tuned per endpoint)
-10049	WARN	https://dev-api\.sto-info\.com/.*
+10049	WARN	https://(dev-)?api\.sto-info\.com/.*

@@ -1,16 +1,15 @@
-name: 'Security: ZAP (Dev API)'
+name: 'Security: ZAP (Prod API)'
 
 on:
   push:
     branches:
-      - development
+      - production
     paths:
       - 'package.json'
-      - 'package-lock.json'
 
   schedule:
-    # Weekly scan every Monday at 03:00 UTC
-    - cron: '0 3 * * 1'
+    # Monthly full scan on the 1st of every month at 04:00 UTC
+    - cron: '0 4 1 * *'
 
   workflow_dispatch:
     inputs:
@@ -23,9 +22,9 @@ permissions: {}
 
 env:
   NODE_VERSION: 24
-  DEV_API_BASE_URL: 'https://dev-api.startrekonline.info'
-  DEV_API_HEALTH_URL: 'https://dev-api.startrekonline.info/health'
-  DEV_API_VERSION_URL: 'https://dev-api.startrekonline.info/version'
+  PROD_API_BASE_URL: 'https://api.startrekonline.info'
+  PROD_API_HEALTH_URL: 'https://api.startrekonline.info/health'
+  PROD_API_VERSION_URL: 'https://api.startrekonline.info/version'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -33,15 +32,14 @@ concurrency:
 
 jobs:
   zap:
-    name: 'OWASP ZAP DAST scan (Dev API)'
+    name: 'OWASP ZAP DAST scan (Prod API)'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     if: |
       github.repository_owner == 'sto-info-app' &&
       (github.event_name != 'push' || 
-        startsWith(github.event.head_commit.message, 'chore: bump version to ') ||
-        contains(github.event.head_commit.message, 'Automated version bump from') ||
-        (contains(github.event.head_commit.message, 'Merge pull request') && contains(github.event.head_commit.message, 'chore/bump-version-to'))
+        github.event.head_commit.author.name == 'github-actions[bot]' ||
+        contains(github.event.head_commit.message, 'Merge pull request')
       )
     permissions:
       contents: read
@@ -55,11 +53,11 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Wait for deployment (development push)
+      - name: Wait for deployment (production push)
         if: github.event_name == 'push'
-        run: sleep 420 # Increased to 7 minutes to allow deployment to settle
+        run: sleep 600 # 10 minutes for production deployment
 
-      - name: Verify deployed version matches repo (development push)
+      - name: Verify deployed version matches repo
         if: github.event_name == 'push'
         run: |
           set -euo pipefail
@@ -68,12 +66,11 @@ jobs:
           echo "Expected repo version: ${expected_version}"
 
           max_attempts=30
-          delay_seconds=20
+          delay_seconds=30 # Longer delay for prod (Total: 15 mins + 10 mins sleep = 25 mins)
 
-          # First, wait for ANY response from health endpoint
           echo "Waiting for API to be reachable..."
           for attempt in $(seq 1 $max_attempts); do
-            status_hook=$(curl -s -o /dev/null -w "%{http_code}" --proto '=https' --proto-redir '=https' "${DEV_API_HEALTH_URL}/live" || echo "000")
+            status_hook=$(curl -s -o /dev/null -w "%{http_code}" --proto '=https' --proto-redir '=https' "${PROD_API_HEALTH_URL}/live" || echo "000")
             if [ "$status_hook" = "200" ]; then
               echo "API is live ($status_hook)"
               break
@@ -84,10 +81,8 @@ jobs:
             fi
           done
 
-          # Now verify version
           for attempt in $(seq 1 $max_attempts); do
-            # Capture actual version, allowing for errors to be diagnosed
-            actual_version=$(curl -fsSL --proto '=https' --proto-redir '=https' "${DEV_API_VERSION_URL}" 2>/dev/null | tr -d '\r\n' || echo "")
+            actual_version=$(curl -fsSL --proto '=https' --proto-redir '=https' "${PROD_API_VERSION_URL}" 2>/dev/null | tr -d '\r\n' || echo "")
             
             if [ -n "${actual_version}" ]; then
               echo "Deployed API version: ${actual_version}"
@@ -98,11 +93,6 @@ jobs:
               echo "Attempt ${attempt}/${max_attempts}: version mismatch (Actual: $actual_version)"
             else
               echo "Attempt ${attempt}/${max_attempts}: /version returned empty or errored"
-              # Diagnostic: show one verbose curl on failure
-              if [ "${attempt}" -eq "${max_attempts}" ]; then
-                echo "Final diagnostic check:"
-                curl -v --proto '=https' --proto-redir '=https' "${DEV_API_VERSION_URL}" 2>&1 | head -n 30 || true
-              fi
             fi
 
             if [ "${attempt}" -lt "${max_attempts}" ]; then
@@ -120,18 +110,18 @@ jobs:
         if: github.event_name == 'push' || github.event.inputs.zap_scan_type == 'baseline'
         uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # v0.15.0
         with:
-          target: ${{ env.DEV_API_HEALTH_URL }}/live
+          target: ${{ env.PROD_API_HEALTH_URL }}/live
           rules_file_name: '.zap/rules.tsv'
           cmd_options: '-a -j -m 3 -T 900'
           allow_issue_writing: false
-          artifact_name: zap-baseline-report-dev-api
+          artifact_name: zap-baseline-report-prod-api
 
       - name: Run ZAP full scan
         if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.zap_scan_type == 'full')
         uses: zaproxy/action-full-scan@3c58388149901b9a03b7718852c5ba889646c27c # v0.13.0
         with:
-          target: ${{ env.DEV_API_BASE_URL }}
+          target: ${{ env.PROD_API_BASE_URL }}
           rules_file_name: '.zap/rules.tsv'
           cmd_options: '-a -j -m 3 -T 1800'
           allow_issue_writing: false
-          artifact_name: zap-full-scan-report-dev-api
+          artifact_name: zap-full-scan-report-prod-api
