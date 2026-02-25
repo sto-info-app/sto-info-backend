@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -14,8 +14,37 @@ import { join } from 'node:path';
  * ```
  */
 export function getAppVersion(): string {
-  const packageJsonPath = join(process.cwd(), 'package.json');
-  const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+  const pathsToTry = [
+    join(process.cwd(), 'package.json'),
+    join(__dirname, '..', '..', '..', 'package.json'), // Relative to dist/src/shared/utilities/
+    join(__dirname, '..', '..', 'package.json'), // Relative to src/shared/utilities/ (local dev)
+  ];
 
-  return packageJson.version;
+  for (const packageJsonPath of pathsToTry) {
+    if (!existsSync(packageJsonPath)) {
+      continue;
+    }
+
+    try {
+      const packageJson = JSON.parse(
+        readFileSync(packageJsonPath, 'utf-8'),
+      ) as {
+        version?: string;
+      };
+      if (packageJson?.version) {
+        return packageJson.version;
+      }
+    } catch (error) {
+      // If we found a file but it's invalid JSON, log a debug message.
+      // We still continue to try other paths just in case.
+      console.debug(
+        `Found package.json at ${packageJsonPath} but failed to parse it.`,
+        error,
+      );
+    }
+  }
+
+  throw new Error(
+    `Unable to find or parse package.json in any of the expected locations: ${pathsToTry.join(', ')}`,
+  );
 }
