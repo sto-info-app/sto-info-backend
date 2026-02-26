@@ -47,7 +47,7 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.997.0",
+    "@aws-sdk/client-s3": "^3.998.0",
     "@aws-sdk/client-secrets-manager": "^3.997.0",
     "@aws-sdk/client-sesv2": "^3.997.0",
     "@nestjs-modules/mailer": "^2.0.2",
