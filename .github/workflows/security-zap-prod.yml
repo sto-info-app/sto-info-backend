@@ -53,12 +53,42 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Wait for deployment (production push)
+      - name: Check version (production push)
+        id: check_version
         if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          expected_version=$(node -p "require('./package.json').version")
+          echo "Expected repo version: ${expected_version}"
+          echo "version_matched=false" >> "$GITHUB_OUTPUT"
+
+          status_hook=$(curl -s -o /dev/null -w "%{http_code}" --proto '=https' --proto-redir '=https' "${PROD_API_HEALTH_URL}/live" --max-time 10 || echo "000")
+          if [ "$status_hook" = "403" ]; then
+            echo "::error::403 Forbidden: Requests from GitHub Actions are being blocked. Allow GitHub Actions IP ranges for ${PROD_API_HEALTH_URL}. See https://docs.github.com/en/actions/security-guides/using-github-actions-from-github-hosted-runners#ip-addresses-for-github-hosted-runners"
+            exit 1
+          fi
+          if [ "$status_hook" != "200" ]; then
+            echo "API not yet reachable (status: $status_hook); will wait for deployment."
+            exit 0
+          fi
+
+          version_response=$(curl -sSL -w "\n%{http_code}" --proto '=https' --proto-redir '=https' "${PROD_API_VERSION_URL}" --max-time 10 2>/dev/null || true)
+          http_code=$(echo "${version_response}" | tail -n1)
+          actual_version=$(echo "${version_response}" | sed '$d' | tr -d '\r\n')
+
+          if [ "${http_code}" = "200" ] && [ -n "${actual_version}" ] && [ "${actual_version}" = "${expected_version}" ]; then
+            echo "Deployed version already matches (${actual_version}). Skipping deployment wait."
+            echo "version_matched=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Version mismatch or unreachable (HTTP ${http_code}, actual: ${actual_version:-<empty>}). Will wait for deployment then re-check."
+
+      - name: Wait for deployment (production push)
+        if: github.event_name == 'push' && steps.check_version.outputs.version_matched != 'true'
         run: sleep 600 # 10 minutes for production deployment
 
       - name: Verify deployed version matches repo
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && steps.check_version.outputs.version_matched != 'true'
         run: |
           set -euo pipefail
 
@@ -66,7 +96,7 @@ jobs:
           echo "Expected repo version: ${expected_version}"
 
           max_attempts=30
-          delay_seconds=30 # Longer delay for prod (Total: 15 mins + 10 mins sleep = 25 mins)
+          delay_seconds=30
 
           echo "Waiting for API to be reachable..."
           for attempt in $(seq 1 $max_attempts); do
@@ -76,13 +106,16 @@ jobs:
               break
             fi
             echo "Attempt ${attempt}/${max_attempts}: API not reachable yet (status: $status_hook)"
+            if [ "$status_hook" = "403" ]; then
+              echo "::error::403 Forbidden: Requests from GitHub Actions are being blocked. Allow GitHub Actions IP ranges for ${PROD_API_HEALTH_URL}. See https://docs.github.com/en/actions/security-guides/using-github-actions-from-github-hosted-runners#ip-addresses-for-github-hosted-runners"
+              exit 1
+            fi
             if [ "${attempt}" -lt "${max_attempts}" ]; then
               sleep "${delay_seconds}"
             fi
           done
 
           for attempt in $(seq 1 $max_attempts); do
-            # Use -w to capture HTTP code; -f would hide body on 4xx/5xx
             version_response=$(curl -sSL -w "\n%{http_code}" --proto '=https' --proto-redir '=https' "${PROD_API_VERSION_URL}" 2>/dev/null || true)
             http_code=$(echo "${version_response}" | tail -n1)
             actual_version=$(echo "${version_response}" | sed '$d' | tr -d '\r\n')
