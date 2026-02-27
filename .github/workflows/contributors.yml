@@ -20,18 +20,19 @@ jobs:
     if: github.repository_owner == 'sto-info-app' || github.event.repository.fork == false
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Update Contributors
+      - name: Update Contributors (CONTRIBUTORS.md)
         uses: akhilmhdh/contributors-readme-action@83ea0b4f1ac928fbfe88b9e8460a932a528eb79f # v2.3.11
         with:
           image_size: 100
+          readme_path: CONTRIBUTORS.md
           commit_message: |
             docs: update contributors [skip ci]
 
             Signed-off-by: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
-          # Updates both README.md and CONTRIBUTORS.md if markers are present
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

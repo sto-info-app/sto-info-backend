@@ -1,7 +1,7 @@
 name: DCO Enforcement
 
 on:
-  pull_request:
+  pull_request_target:
     branches: [production, development]
     types: [opened, synchronize, reopened]
 
