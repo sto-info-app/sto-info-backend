@@ -79,7 +79,7 @@
     "html-to-text": "^9.0.5",
     "ioredis": "^5.9.3",
     "jsonwebtoken": "^9.0.3",
-    "multer": "^2.0.2",
+    "multer": "^2.1.0",
     "nestjs-cls": "^6.2.0",
     "nodemailer": "^8.0.1",
     "passport": "^0.7.0",
