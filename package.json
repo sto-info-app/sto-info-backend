@@ -146,7 +146,7 @@
     "test-exclude": "^8.0.0",
     "glob": "^13.0.0",
     "html-minifier": "npm:html-minifier-terser@^7.2.0",
-    "fast-xml-parser": "^5.3.8",
+    "fast-xml-parser": "^5.4.1",
     "mjml": "^5.0.0-alpha.11"
   },
   "eslintConfig": {
