@@ -24,6 +24,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          token: ${{ secrets.GH_PAT_REPO_TOKEN || github.token }}
+          fetch-depth: 0
+
+      - name: Create branch for contributors update
+        run: |
+          BRANCH_NAME="chore/update-contributors-${{ github.run_id }}"
+          git checkout -b "$BRANCH_NAME"
+          echo "BRANCH_NAME=$BRANCH_NAME" >> "$GITHUB_ENV"
 
       - name: Update Contributors (CONTRIBUTORS.md)
         uses: akhilmhdh/contributors-readme-action@83ea0b4f1ac928fbfe88b9e8460a932a528eb79f # v2.3.11
@@ -31,8 +40,25 @@ jobs:
           image_size: 100
           readme_path: CONTRIBUTORS.md
           commit_message: |
-            docs: update contributors [skip ci]
+            docs: update contributors
 
             Signed-off-by: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT_REPO_TOKEN || github.token }}
+
+      - name: Create Pull Request
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT_REPO_TOKEN || github.token }}
+        run: |
+          # If there are any commits on the current branch that are not in development
+          if [ $(git rev-list --count origin/development..HEAD) -gt 0 ]; then
+            git push origin "$BRANCH_NAME"
+            gh pr create \
+              --title "docs: update contributors" \
+              --body "Automated contributors update for CONTRIBUTORS.md" \
+              --label "chore" \
+              --base development \
+              --head "$BRANCH_NAME" || echo "PR already exists"
+          else
+            echo "No changes detected, skipping PR creation."
+          fi
