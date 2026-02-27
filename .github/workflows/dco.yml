@@ -48,7 +48,11 @@ jobs:
               const sha = c.sha;
               const message = (c.commit && c.commit.message) ? c.commit.message : '';
               const isMerge = c.parents && c.parents.length > 1;
-              const isBot = c.author && c.author.type === 'Bot';
+              const isBot = (c.author && c.author.type === 'Bot') || 
+                            (c.commit && c.commit.author && (
+                              (c.commit.author.name && c.commit.author.name.includes('[bot]')) ||
+                              (c.commit.author.email && c.commit.author.email.includes('[bot]'))
+                            ));
 
               if (isMerge || isBot) {
                 continue;
