@@ -151,7 +151,7 @@ jobs:
         with:
           target: ${{ env.PROD_API_HEALTH_URL }}
           rules_file_name: '.zap/rules.tsv'
-          cmd_options: '-H "User-Agent: Mozilla/5.0" -a -j -m 3 -T 900'
+          cmd_options: '-z "-config network.connection.defaultUserAgent=Mozilla/5.0" -a -j -m 3 -T 900'
           allow_issue_writing: false
           artifact_name: zap-baseline-report-prod-api
 
@@ -161,6 +161,6 @@ jobs:
         with:
           target: ${{ env.PROD_API_BASE_URL }}
           rules_file_name: '.zap/rules.tsv'
-          cmd_options: '-H "User-Agent: Mozilla/5.0" -a -j -m 3 -T 1800'
+          cmd_options: '-z "-config network.connection.defaultUserAgent=Mozilla/5.0" -a -j -m 3 -T 1800'
           allow_issue_writing: false
           artifact_name: zap-full-scan-report-prod-api
