@@ -9,7 +9,6 @@
 [![CodeQL Analysis](https://github.com/sto-info-app/sto-info-backend/actions/workflows/codeql.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/codeql.yml)
 [![Dependency Review](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dependency-review.yml)
 [![npm audit](https://github.com/sto-info-app/sto-info-backend/actions/workflows/audit.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/audit.yml)
-[![DCO Enforcement](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dco.yml/badge.svg)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dco.yml)
 [![Security: Fuzz](https://github.com/sto-info-app/sto-info-backend/actions/workflows/security-fuzz.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/security-fuzz.yml)
 [![Security: ZAP (Dev API)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/security-zap-dev.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/security-zap-dev.yml)
 
@@ -212,9 +211,10 @@ Dynamic Application Security Testing (DAST) is performed using OWASP ZAP to iden
 
 **CI behaviour:**
 
-- **Development version bumps**: Runs a ZAP baseline scan against the dev API `/health` endpoint (after a short deployment wait)
+- **Development version bumps**: Runs a ZAP baseline scan against the dev API `/health/live` endpoint (using a smart polling loop for up to 10 minutes to wait for deployment)
 - **Weekly schedule**: Runs a ZAP full scan against the dev API base URL
 - **Manual trigger**: Can run baseline or full scan via workflow_dispatch
+- **WAF Bypass**: Scans and connectivity checks use a custom `User-Agent` to bypass edge protection
 - **Scan reports**: Available as workflow artifacts for 30 days
 
 **Limitations:**
