@@ -50,8 +50,14 @@ jobs:
               const isMerge = c.parents && c.parents.length > 1;
               const isBot = (c.author && c.author.type === 'Bot') || 
                             (c.commit && c.commit.author && (
-                              (c.commit.author.name && c.commit.author.name.includes('[bot]')) ||
-                              (c.commit.author.email && c.commit.author.email.includes('[bot]'))
+                              (c.commit.author.name && (
+                                c.commit.author.name.includes('[bot]') || 
+                                c.commit.author.name.includes('github-actions')
+                              )) ||
+                              (c.commit.author.email && (
+                                c.commit.author.email.includes('[bot]') || 
+                                c.commit.author.email.includes('github-actions')
+                              ))
                             ));
 
               if (isMerge || isBot) {
