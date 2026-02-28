@@ -3,10 +3,7 @@
   "projectOwner": "sto-info-app",
   "repoType": "github",
   "repoHost": "https://github.com",
-  "files": [
-    "README.md",
-    "CONTRIBUTORS.md"
-  ],
+  "files": ["README.md", "CONTRIBUTORS.md"],
   "imageSize": 100,
   "commit": false,
   "contributors": [
@@ -15,20 +12,21 @@
       "name": "Steve Roberts",
       "avatar_url": "https://avatars.githubusercontent.com/u/10255381?v=4",
       "profile": "https://github.com/steverobertsuk",
-      "contributions": [
-        "code",
-        "maintenance",
-        "doc"
-      ]
+      "contributions": ["code", "maintenance", "doc"]
     },
     {
       "login": "ShadowComputers",
       "name": "Shadow Computers",
       "avatar_url": "https://avatars.githubusercontent.com/u/134551288?v=4",
       "profile": "https://github.com/ShadowComputers",
-      "contributions": [
-        "code"
-      ]
+      "contributions": ["code"]
+    },
+    {
+      "login": "Steve",
+      "name": "Steve Sanderson",
+      "avatar_url": "https://avatars.githubusercontent.com/u/296?v=4",
+      "profile": "http://stevesanderson.com/",
+      "contributions": ["code"]
     }
   ],
   "contributorsPerLine": 7,
@@ -36,3 +34,4 @@
   "commitConvention": "none",
   "skipCi": true
 }
+
