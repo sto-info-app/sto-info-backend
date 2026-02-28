@@ -23,7 +23,7 @@ permissions: {}
 env:
   NODE_VERSION: 24
   PROD_API_BASE_URL: 'https://api.startrekonline.info'
-  PROD_API_HEALTH_URL: 'https://api.startrekonline.info/health'
+  PROD_API_HEALTH_URL: 'https://api.startrekonline.info/health/live'
   PROD_API_VERSION_URL: 'https://api.startrekonline.info/version'
 
 concurrency:
@@ -62,7 +62,7 @@ jobs:
           echo "Expected repo version: ${expected_version}"
           echo "version_matched=false" >> "$GITHUB_OUTPUT"
 
-          status_hook=$(curl -s -o /dev/null -w "%{http_code}" --proto '=https' --proto-redir '=https' "${PROD_API_HEALTH_URL}/live" --max-time 10 || echo "000")
+          status_hook=$(curl -s -o /dev/null -w "%{http_code}" -H "User-Agent: Mozilla/5.0" --proto '=https' --proto-redir '=https' "${PROD_API_HEALTH_URL}" --max-time 10 || echo "000")
           if [ "$status_hook" = "403" ]; then
             echo "::error::403 Forbidden: Requests from GitHub Actions are being blocked. Allow GitHub Actions IP ranges for ${PROD_API_HEALTH_URL}. See https://docs.github.com/en/actions/security-guides/using-github-actions-from-github-hosted-runners#ip-addresses-for-github-hosted-runners"
             exit 1
@@ -72,7 +72,7 @@ jobs:
             exit 0
           fi
 
-          version_response=$(curl -sSL -w "\n%{http_code}" --proto '=https' --proto-redir '=https' "${PROD_API_VERSION_URL}" --max-time 10 2>/dev/null || true)
+          version_response=$(curl -sSL -w "\n%{http_code}" -H "User-Agent: Mozilla/5.0" --proto '=https' --proto-redir '=https' "${PROD_API_VERSION_URL}" --max-time 10 2>/dev/null || true)
           http_code=$(echo "${version_response}" | tail -n1)
           actual_version=$(echo "${version_response}" | sed '$d' | tr -d '\r\n')
 
@@ -100,7 +100,7 @@ jobs:
 
           echo "Waiting for API to be reachable..."
           for attempt in $(seq 1 $max_attempts); do
-            status_hook=$(curl -s -o /dev/null -w "%{http_code}" --proto '=https' --proto-redir '=https' "${PROD_API_HEALTH_URL}/live" || echo "000")
+            status_hook=$(curl -s -o /dev/null -w "%{http_code}" -H "User-Agent: Mozilla/5.0" --proto '=https' --proto-redir '=https' "${PROD_API_HEALTH_URL}" || echo "000")
             if [ "$status_hook" = "200" ]; then
               echo "API is live ($status_hook)"
               break
@@ -116,7 +116,7 @@ jobs:
           done
 
           for attempt in $(seq 1 $max_attempts); do
-            version_response=$(curl -sSL -w "\n%{http_code}" --proto '=https' --proto-redir '=https' "${PROD_API_VERSION_URL}" 2>/dev/null || true)
+            version_response=$(curl -sSL -w "\n%{http_code}" -H "User-Agent: Mozilla/5.0" --proto '=https' --proto-redir '=https' "${PROD_API_VERSION_URL}" 2>/dev/null || true)
             http_code=$(echo "${version_response}" | tail -n1)
             actual_version=$(echo "${version_response}" | sed '$d' | tr -d '\r\n')
 
@@ -149,9 +149,9 @@ jobs:
         if: github.event_name == 'push' || github.event.inputs.zap_scan_type == 'baseline'
         uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # v0.15.0
         with:
-          target: ${{ env.PROD_API_HEALTH_URL }}/live
+          target: ${{ env.PROD_API_HEALTH_URL }}
           rules_file_name: '.zap/rules.tsv'
-          cmd_options: '-a -j -m 3 -T 900'
+          cmd_options: '-H "User-Agent: Mozilla/5.0" -a -j -m 3 -T 900'
           allow_issue_writing: false
           artifact_name: zap-baseline-report-prod-api
 
@@ -161,6 +161,6 @@ jobs:
         with:
           target: ${{ env.PROD_API_BASE_URL }}
           rules_file_name: '.zap/rules.tsv'
-          cmd_options: '-a -j -m 3 -T 1800'
+          cmd_options: '-H "User-Agent: Mozilla/5.0" -a -j -m 3 -T 1800'
           allow_issue_writing: false
           artifact_name: zap-full-scan-report-prod-api
