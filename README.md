@@ -9,7 +9,7 @@
 [![CodeQL Analysis](https://github.com/sto-info-app/sto-info-backend/actions/workflows/codeql.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/codeql.yml)
 [![Dependency Review](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dependency-review.yml)
 [![npm audit](https://github.com/sto-info-app/sto-info-backend/actions/workflows/audit.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/audit.yml)
-[![DCO Enforcement](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dco.yml/badge.svg?branch=development&event=pull_request_target)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dco.yml)
+[![DCO Enforcement](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dco.yml/badge.svg)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/dco.yml)
 [![Security: Fuzz](https://github.com/sto-info-app/sto-info-backend/actions/workflows/security-fuzz.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/security-fuzz.yml)
 [![Security: ZAP (Dev API)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/security-zap-dev.yml/badge.svg?branch=development)](https://github.com/sto-info-app/sto-info-backend/actions/workflows/security-zap-dev.yml)
 
@@ -42,7 +42,7 @@
 ## Release and project
 
 [![Release](https://img.shields.io/github/v/release/sto-info-app/sto-info-backend?display_name=tag&sort=semver)](https://github.com/sto-info-app/sto-info-backend/releases)
-[![Licence](https://img.shields.io/github/license/sto-info-app/sto-info-backend?branch=development&label=licence)](https://github.com/sto-info-app/sto-info-backend/blob/development/LICENSE)
+[![Licence](https://img.shields.io/github/license/sto-info-app/sto-info-backend?label=licence)](https://github.com/sto-info-app/sto-info-backend/blob/development/LICENSE)
 [![All Contributors](https://img.shields.io/github/all-contributors/sto-info-app/sto-info-backend?label=all%20contributors)](CONTRIBUTORS.md)
 [![NestJS](https://img.shields.io/github/package-json/dependency-version/sto-info-app/sto-info-backend/@nestjs/core?label=nestjs&branch=development)](https://github.com/sto-info-app/sto-info-backend/blob/development/package.json)
 [![Node](https://img.shields.io/badge/node-24.x-informational)](https://github.com/sto-info-app/sto-info-backend/blob/development/package.json)
