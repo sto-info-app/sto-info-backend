@@ -333,9 +333,9 @@ Document current token expiry (e.g., 1 hour, 24 hours).
 
 - Authenticated users might have higher limits
 - Trusted IPs (e.g., internal services) might bypass limits
-- Document any bypass rules
+- **Automated Bots**: Known CI runners (e.g., GitHub Actions) can bypass certain WAF and rate limiting blocks by providing a custom `User-Agent: Mozilla/5.0`. This is used for automated health and version checks.
 
-> TODO: Document any rate-limit bypass rules (trusted IPs, admin tooling, health checks) and where they are configured (Cloudflare vs backend).
+> TODO: Document any additional rate-limit bypass rules (trusted IPs, admin tooling) and where they are configured (Cloudflare vs backend).
 
 ## Proxy, client IP, and IPv6
 
