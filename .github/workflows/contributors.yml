@@ -36,6 +36,30 @@ jobs:
           git checkout -b "$BRANCH_NAME"
           echo "BRANCH_NAME=$BRANCH_NAME" >> "$GITHUB_ENV"
 
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Update .all-contributorsrc
+        run: |
+          # Install all-contributors CLI
+          npm install -g all-contributors-cli
+
+          # Get unique human contributors (excluding bots)
+          # Format: name|login
+          contributors=$(git log --format='%an|%al' | sort -u | grep -v '\[bot\]' | grep -v 'github-actions')
+
+          while IFS='|' read -r name login; do
+            echo "Processing $name ($login)..."
+            # Try to add the contributor for 'code'. 
+            # If they already exist, this will gracefully fail/warn but we continue.
+            all-contributors add "$login" code || echo "$login already added or failed to add"
+          done <<< "$contributors"
+
+          # Generate/Update the contributors files
+          all-contributors generate
+
       - name: Update Contributors (CONTRIBUTORS.md)
         uses: akhilmhdh/contributors-readme-action@83ea0b4f1ac928fbfe88b9e8460a932a528eb79f # v2.3.11
         with:
@@ -52,12 +76,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT_REPO_TOKEN || github.token }}
         run: |
-          # If there are any commits on the current branch that are not in development
-          if [ $(git rev-list --count origin/development..HEAD) -gt 0 ]; then
+          # If there are any changes in the working directory
+          if [ -n "$(git status --porcelain)" ]; then
+            git add .
+            git commit -m "docs: update contributors [skip ci]" -m "Signed-off-by: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
             git push origin "$BRANCH_NAME"
             gh pr create \
               --title "docs: update contributors" \
-              --body "Automated contributors update for CONTRIBUTORS.md" \
+              --body "Automated update for CONTRIBUTORS.md and .all-contributorsrc" \
               --label "chore" \
               --base development \
               --head "$BRANCH_NAME" || echo "PR already exists"
