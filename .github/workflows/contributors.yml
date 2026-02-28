@@ -13,11 +13,50 @@ env:
 permissions: {}
 
 jobs:
+  check_eligibility:
+    name: Check eligibility
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      should_run: ${{ steps.decide.outputs.should_run }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Decide whether to run
+        id: decide
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT_REPO_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+
+          # 1. Skip if it's a version bump or contributors commit (mutual exclusion)
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          if [[ "$COMMIT_MSG" == *"chore: bump version to"* ]] || [[ "$COMMIT_MSG" == *"docs: update contributors"* ]]; then
+            echo "Skipping: restricted commit message detected."
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # 2. Skip if a contributors PR is already open
+          EXISTING_PR=$(gh pr list --base development --search "docs: update contributors in:title" --json number --jq '.[0].number' || echo "")
+          if [ -n "$EXISTING_PR" ] && [ "$EXISTING_PR" != "null" ]; then
+            echo "Skipping: PR #$EXISTING_PR is already open."
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "should_run=true" >> "$GITHUB_OUTPUT"
+
   update-contributors:
     name: Update Contributors
+    needs: check_eligibility
+    if: |
+      needs.check_eligibility.outputs.should_run == 'true' &&
+      (github.repository_owner == 'sto-info-app' || github.event.repository.fork == false)
     runs-on: ubuntu-latest
-    # Run only on the canonical repository
-    if: github.repository_owner == 'sto-info-app' || github.event.repository.fork == false
     permissions:
       contents: write
       pull-requests: write
@@ -32,8 +71,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          BRANCH_NAME="chore/update-contributors-${{ github.run_id }}"
-          git checkout -b "$BRANCH_NAME"
+          BRANCH_NAME="chore/update-contributors"
+          git checkout -B "$BRANCH_NAME"
           echo "BRANCH_NAME=$BRANCH_NAME" >> "$GITHUB_ENV"
 
       - name: Setup Node.js
