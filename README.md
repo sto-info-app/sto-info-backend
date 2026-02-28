@@ -43,7 +43,7 @@
 
 [![Release](https://img.shields.io/github/v/release/sto-info-app/sto-info-backend?display_name=tag&sort=semver)](https://github.com/sto-info-app/sto-info-backend/releases)
 [![Licence](https://img.shields.io/github/license/sto-info-app/sto-info-backend?label=licence)](https://github.com/sto-info-app/sto-info-backend/blob/development/LICENSE)
-[![All Contributors](https://img.shields.io/github/all-contributors/sto-info-app/sto-info-backend?label=all%20contributors)](CONTRIBUTORS.md)
+[![Contributors](https://img.shields.io/github/contributors/sto-info-app/sto-info-backend?label=all%20contributors)](CONTRIBUTORS.md)
 [![NestJS](https://img.shields.io/github/package-json/dependency-version/sto-info-app/sto-info-backend/@nestjs/core?label=nestjs&branch=development)](https://github.com/sto-info-app/sto-info-backend/blob/development/package.json)
 [![Node](https://img.shields.io/badge/node-24.x-informational)](https://github.com/sto-info-app/sto-info-backend/blob/development/package.json)
 [![Written language](https://img.shields.io/badge/written%20language-en--GB-informational)](https://github.com/sto-info-app/sto-info-backend/blob/development/README.md)
