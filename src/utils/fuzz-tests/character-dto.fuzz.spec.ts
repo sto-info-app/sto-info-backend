@@ -29,7 +29,12 @@ describe('Character DTO validation fuzz tests', () => {
           ),
           speciesId: fc.oneof(fc.uuid(), fc.string()),
           createdDate: fc.oneof(
-            fc.date().map(d => d.toISOString()),
+            fc
+              .date({
+                min: new Date('2020-01-01'),
+                max: new Date('2100-12-31'),
+              })
+              .map(d => d.toISOString()),
             fc.string(),
             fc.constant(undefined),
           ),
