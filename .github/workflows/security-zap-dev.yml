@@ -55,97 +55,47 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Check version (development push)
-        id: check_version
+      - name: Wait for deployment and verify version
         if: github.event_name == 'push'
         run: |
           set -euo pipefail
           expected_version=$(node -p "require('./package.json').version")
           echo "Expected repo version: ${expected_version}"
-          echo "version_matched=false" >> "$GITHUB_OUTPUT"
 
-          status_hook=$(curl -s -o /dev/null -w "%{http_code}" -H "User-Agent: Mozilla/5.0" --proto '=https' --proto-redir '=https' "${DEV_API_HEALTH_URL}" --max-time 10 || echo "000")
-          if [ "$status_hook" = "403" ]; then
-            echo "::warning::403 Forbidden: Requests from GitHub Actions are being blocked. Allow GitHub Actions IP ranges for ${DEV_API_HEALTH_URL}."
-            echo "Allowing workflow to proceed as this might be a generic bot block; ZAP might still be able to scan."
-          fi
-          if [ "$status_hook" != "200" ]; then
-            echo "API not yet reachable (status: $status_hook); will wait for deployment."
-            exit 0
-          fi
+          max_attempts=10
+          delay=60
 
-          version_response=$(curl -sSL -w "\n%{http_code}" -H "User-Agent: Mozilla/5.0" --proto '=https' --proto-redir '=https' "${DEV_API_VERSION_URL}" --max-time 10 2>/dev/null || true)
-          http_code=$(echo "${version_response}" | tail -n1)
-          actual_version=$(echo "${version_response}" | sed '$d' | tr -d '\r\n')
-
-          if [ "${http_code}" = "200" ] && [ -n "${actual_version}" ] && [ "${actual_version}" = "${expected_version}" ]; then
-            echo "Deployed version already matches (${actual_version}). Skipping deployment wait."
-            echo "version_matched=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "Version mismatch or unreachable (HTTP ${http_code}, actual: ${actual_version:-<empty>}). Will wait for deployment then re-check."
-
-      - name: Wait for deployment (development push)
-        if: github.event_name == 'push' && steps.check_version.outputs.version_matched != 'true'
-        run: sleep 420 # 7 minutes for deployment to settle
-
-      - name: Verify deployed version matches repo (development push)
-        if: github.event_name == 'push' && steps.check_version.outputs.version_matched != 'true'
-        run: |
-          set -euo pipefail
-
-          expected_version=$(node -p "require('./package.json').version")
-          echo "Expected repo version: ${expected_version}"
-
-          max_attempts=30
-          delay_seconds=20
-
-          echo "Waiting for API to be reachable..."
           for attempt in $(seq 1 $max_attempts); do
-            status_hook=$(curl -s -o /dev/null -w "%{http_code}" -H "User-Agent: Mozilla/5.0" --proto '=https' --proto-redir '=https' "${DEV_API_HEALTH_URL}" || echo "000")
-            if [ "$status_hook" = "200" ]; then
-              echo "API is live ($status_hook)"
-              break
-            fi
-            echo "Attempt ${attempt}/${max_attempts}: API not reachable yet (status: $status_hook)"
+            echo "Attempt $attempt of $max_attempts: Checking deployed version..."
+
+            # Perform a quick health check to signal status, but don't fail on 403
+            status_hook=$(curl -s -o /dev/null -w "%{http_code}" -H "User-Agent: Mozilla/5.0" --proto '=https' --proto-redir '=https' "${DEV_API_HEALTH_URL}" --max-time 10 || echo "000")
             if [ "$status_hook" = "403" ]; then
               echo "::warning::403 Forbidden: Requests from GitHub Actions are being blocked. Allow GitHub Actions IP ranges for ${DEV_API_HEALTH_URL}."
-              break
             fi
-            if [ "${attempt}" -lt "${max_attempts}" ]; then
-              sleep "${delay_seconds}"
-            fi
-          done
 
-          for attempt in $(seq 1 $max_attempts); do
-            version_response=$(curl -sSL -w "\n%{http_code}" -H "User-Agent: Mozilla/5.0" --proto '=https' --proto-redir '=https' "${DEV_API_VERSION_URL}" 2>/dev/null || true)
+            # Check actual version
+            version_response=$(curl -sSL -w "\n%{http_code}" -H "User-Agent: Mozilla/5.0" --proto '=https' --proto-redir '=https' "${DEV_API_VERSION_URL}" --max-time 15 2>/dev/null || true)
             http_code=$(echo "${version_response}" | tail -n1)
             actual_version=$(echo "${version_response}" | sed '$d' | tr -d '\r\n')
 
             if [ "${http_code}" = "200" ] && [ -n "${actual_version}" ]; then
-              echo "Deployed API version: ${actual_version}"
               if [ "${actual_version}" = "${expected_version}" ]; then
-                echo "Version check OK (${actual_version})"
+                echo "Success: Deployed version matches (${actual_version}). Proceeding to scan."
                 exit 0
               fi
-              echo "Attempt ${attempt}/${max_attempts}: version mismatch (Actual: $actual_version)"
+              echo "Version mismatch: expected ${expected_version}, found ${actual_version}."
             else
-              echo "Attempt ${attempt}/${max_attempts}: /version returned empty or errored (HTTP ${http_code})"
-              if [ "${attempt}" -eq "${max_attempts}" ]; then
-                echo "Final diagnostic: GET ${DEV_API_VERSION_URL} -> HTTP ${http_code}, body length: $(echo -n "${actual_version}" | wc -c)"
-                curl -v --proto '=https' --proto-redir '=https' "${DEV_API_VERSION_URL}" 2>&1 | head -n 40 || true
-              fi
+              echo "API or version endpoint unreachable (HTTP ${http_code})."
             fi
 
             if [ "${attempt}" -lt "${max_attempts}" ]; then
-              echo "Retrying in ${delay_seconds}s..."
-              sleep "${delay_seconds}"
+              echo "Waiting ${delay}s before next attempt..."
+              sleep "${delay}"
             fi
           done
 
-          echo "Version mismatch or API not updated after retries."
-          echo "Expected: ${expected_version}"
-          echo "Actual: ${actual_version:-<empty>}"
+          echo "Error: Timed out waiting for version ${expected_version} to be deployed after 10 minutes."
           exit 1
 
       - name: Run ZAP baseline scan
