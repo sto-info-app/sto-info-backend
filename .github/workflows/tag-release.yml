@@ -93,6 +93,129 @@ jobs:
             fi
           done
 
+      - name: Compute tag range for release notes
+        id: tag_range
+        run: |
+          CURRENT_TAG="v${{ steps.version.outputs.version }}"
+          PREVIOUS_TAG=$(git tag --list 'v*' --sort=-v:refname | grep -v "^${CURRENT_TAG}$" | head -n 1)
+
+          if [ -z "${PREVIOUS_TAG}" ]; then
+            echo "No previous tag found; cannot generate release notes range." >&2
+            exit 1
+          fi
+
+          CURRENT_DATE=$(git log -1 --format=%cI "$CURRENT_TAG")
+          PREVIOUS_DATE=$(git log -1 --format=%cI "$PREVIOUS_TAG")
+
+          echo "current=${CURRENT_TAG}" >> "$GITHUB_OUTPUT"
+          echo "previous=${PREVIOUS_TAG}" >> "$GITHUB_OUTPUT"
+          echo "current_date=${CURRENT_DATE}" >> "$GITHUB_OUTPUT"
+          echo "previous_date=${PREVIOUS_DATE}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate release notes markdown
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          CURRENT_TAG: ${{ steps.tag_range.outputs.current }}
+          PREVIOUS_TAG: ${{ steps.tag_range.outputs.previous }}
+          CURRENT_DATE: ${{ steps.tag_range.outputs.current_date }}
+          PREVIOUS_DATE: ${{ steps.tag_range.outputs.previous_date }}
+          CURRENT_VERSION: ${{ steps.version.outputs.version }}
+        with:
+          script: |
+            const fs = require('node:fs');
+
+            const currentTag = process.env.CURRENT_TAG;
+            const previousTag = process.env.PREVIOUS_TAG;
+            const currentDate = new Date(process.env.CURRENT_DATE);
+            const previousDate = new Date(process.env.PREVIOUS_DATE);
+            const currentVersion = process.env.CURRENT_VERSION;
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            const excludedAuthors = new Set(['github-actions[bot]']);
+            const excludedLabels = new Set(['version-bump']);
+
+            const isCurrentVersionBump = (title) => {
+              const t = String(title || '').toLowerCase();
+              return t.includes(`bump version to ${currentVersion}`);
+            };
+
+            const classify = (title) => {
+              const t = String(title || '').trim().toLowerCase();
+              if (t.startsWith('feat')) return '🚀 Features';
+              if (t.startsWith('fix')) return '🐛 Bug Fixes';
+              if (t.startsWith('docs')) return '📖 Documentation';
+              if (t.startsWith('ci')) return '⚙️ CI/CD';
+              if (t.startsWith('test')) return '🧪 Testing';
+              return '🧹 Maintenance';
+            };
+
+            const formatPrLine = (pr) => {
+              const login = pr.user?.login ? `@${pr.user.login}` : '@unknown';
+              return `* ${pr.title} by ${login} in ${pr.html_url}`;
+            };
+
+            const allClosedIntoDevelopment = await github.paginate(github.rest.pulls.list, {
+              owner,
+              repo,
+              state: 'closed',
+              base: 'development',
+              per_page: 100,
+              sort: 'updated',
+              direction: 'desc',
+            });
+
+            const prsInRange = allClosedIntoDevelopment
+              .filter((pr) => pr.merged_at)
+              .filter((pr) => {
+                const mergedAt = new Date(pr.merged_at);
+                return mergedAt > previousDate && mergedAt <= currentDate;
+              })
+              .filter((pr) => !excludedAuthors.has(pr.user?.login || ''))
+              .filter((pr) => {
+                const labels = (pr.labels || []).map((l) => (typeof l === 'string' ? l : l.name)).filter(Boolean);
+                const hasExcludedLabel = labels.some((l) => excludedLabels.has(String(l)));
+                return !hasExcludedLabel || isCurrentVersionBump(pr.title);
+              });
+
+            // Keep deterministic order: oldest -> newest
+            prsInRange.sort((a, b) => new Date(a.merged_at) - new Date(b.merged_at));
+
+            const buckets = new Map();
+            for (const pr of prsInRange) {
+              const category = classify(pr.title);
+              if (!buckets.has(category)) buckets.set(category, []);
+              buckets.get(category).push(pr);
+            }
+
+            const orderedCategories = [
+              '🚀 Features',
+              '🐛 Bug Fixes',
+              '📖 Documentation',
+              '⚙️ CI/CD',
+              '🧪 Testing',
+              '🧹 Maintenance',
+            ];
+
+            let md = '';
+            md += `<!-- Release notes generated using configuration in .github/release.yml at ${currentTag} -->\n\n`;
+            md += `## What's Changed\n`;
+
+            for (const category of orderedCategories) {
+              const items = buckets.get(category);
+              if (!items || items.length === 0) continue;
+              md += `### ${category}\n`;
+              for (const pr of items) {
+                md += `${formatPrLine(pr)}\n`;
+              }
+              md += `\n`;
+            }
+
+            md += `\n**Full Changelog**: https://github.com/${owner}/${repo}/compare/${previousTag}...${currentTag}\n`;
+
+            fs.writeFileSync('release-notes.md', md);
+
       - name: Create Release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
         env:
@@ -100,6 +223,7 @@ jobs:
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: Release v${{ steps.version.outputs.version }}
-          generate_release_notes: true
+          generate_release_notes: false
+          body_path: release-notes.md
           draft: false
           prerelease: false
