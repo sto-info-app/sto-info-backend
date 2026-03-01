@@ -48,38 +48,36 @@ jobs:
               const sha = c.sha;
               const message = (c.commit && c.commit.message) ? c.commit.message : '';
               const isMerge = c.parents && c.parents.length > 1;
-              const isBot = (c.author && c.author.type === 'Bot') ||
-                            (c.committer && c.committer.type === 'Bot') ||
-                            (c.author && c.author.login && c.author.login.toLowerCase().includes('[bot]')) ||
-                            (c.committer && c.committer.login && c.committer.login.toLowerCase().includes('[bot]')) ||
-                            (c.commit && c.commit.author && (
-                              (c.commit.author.name && (
-                                c.commit.author.name.toLowerCase().includes('[bot]') || 
-                                c.commit.author.name.toLowerCase().includes('github-actions')
-                              )) ||
-                              (c.commit.author.email && (
-                                c.commit.author.email.toLowerCase().includes('[bot]') || 
-                                c.commit.author.email.toLowerCase().includes('github-actions')
-                              ))
-                            )) ||
-                            (c.commit && c.commit.committer && (
-                              (c.commit.committer.name && (
-                                c.commit.committer.name.toLowerCase().includes('[bot]') || 
-                                c.commit.committer.name.toLowerCase().includes('github-actions')
-                              )) ||
-                              (c.commit.committer.email && (
-                                c.commit.committer.email.toLowerCase().includes('[bot]') || 
-                                c.commit.committer.email.toLowerCase().includes('github-actions')
-                              ))
-                            ));
+              
+              const authorData = (c.commit && c.commit.author) ? c.commit.author : {};
+              const committerData = (c.commit && c.commit.committer) ? c.commit.committer : {};
+              const authorEmail = (authorData.email || '').toLowerCase();
+              const committerEmail = (committerData.email || '').toLowerCase();
+              const authorName = (authorData.name || '').toLowerCase();
+
+              // Detect if the commit is from a bot (GitHub bot or email convention)
+              const isBot = (c.author && c.author.type === 'Bot') || 
+                            authorEmail.includes('[bot]') || 
+                            committerEmail.includes('[bot]') || 
+                            authorName.includes('[bot]') ||
+                            authorEmail === 'github-actions[bot]@users.noreply.github.com';
 
               if (isMerge || isBot) {
                 continue;
               }
 
-              const signoffs = getSignoffs(message);
-              if (signoffs.length === 0) {
+              const signoffs = getSignoffs(message).filter(sig => 
+                !sig.email.includes('[bot]') && 
+                !sig.name.toLowerCase().includes('[bot]') &&
+                sig.email !== 'github-actions[bot]@users.noreply.github.com'
+              );
+              
+              if (signoffs.length === 0 && !isBot) {
                 failures.push(`- ${sha}: The sign-off is missing.`);
+                continue;
+              }
+              
+              if (isBot) {
                 continue;
               }
 
