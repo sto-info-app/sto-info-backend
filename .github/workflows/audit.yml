@@ -49,13 +49,8 @@ jobs:
     # Run if pkg_changed or push or schedule/dispatch
     if: |
       github.actor != 'dependabot[bot]' &&
-      github.actor != 'github-actions[bot]' &&
       (needs.check_changes.outputs.pkg_changed == 'true' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'push') &&
-      (github.event_name != 'pull_request' || github.event.pull_request.draft == false) &&
-      !(github.event_name == 'pull_request' && (
-        (github.event.pull_request.user.login == 'github-actions[bot]' && startsWith(github.event.pull_request.title, 'chore: bump version to')) ||
-        startsWith(github.event.pull_request.head.ref, 'chore/bump-version-to-')
-      ))
+      (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

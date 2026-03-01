@@ -17,7 +17,19 @@ changelog:
       labels:
         - chore
         - refactor
+        - dependencies
     - title: 🧪 Testing
       labels:
         - test
         - testing
+    - title: 📖 Documentation
+      labels:
+        - documentation
+        - docs
+    - title: ⚙️ CI/CD
+      labels:
+        - ci
+        - ci-cd
+        - github-actions
+    - title: 🔩 Other Changes
+      labels: []

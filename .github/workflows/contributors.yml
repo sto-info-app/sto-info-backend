@@ -13,25 +13,95 @@ env:
 permissions: {}
 
 jobs:
-  update-contributors:
-    name: Update Contributors
+  check_eligibility:
+    name: Check eligibility
     runs-on: ubuntu-latest
-    # Run only on the canonical repository
-    if: github.repository_owner == 'sto-info-app' || github.event.repository.fork == false
     permissions:
-      contents: write
+      contents: read
+      pull-requests: read
+    outputs:
+      should_run: ${{ steps.decide.outputs.should_run }}
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Update Contributors
+      - name: Decide whether to run
+        id: decide
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT_REPO_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+
+          # 1. Skip if it's a version bump or contributors commit (mutual exclusion)
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          if [[ "$COMMIT_MSG" == *"chore: bump version to"* ]] || [[ "$COMMIT_MSG" == *"docs: update contributors"* ]]; then
+            echo "Skipping: restricted commit message detected."
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # 2. Skip if a contributors PR is already open
+          EXISTING_PR=$(gh pr list --base development --search "docs: update contributors in:title" --json number --jq '.[0].number' || echo "")
+          if [ -n "$EXISTING_PR" ] && [ "$EXISTING_PR" != "null" ]; then
+            echo "Skipping: PR #$EXISTING_PR is already open."
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "should_run=true" >> "$GITHUB_OUTPUT"
+
+  update-contributors:
+    name: Update Contributors
+    needs: check_eligibility
+    if: |
+      needs.check_eligibility.outputs.should_run == 'true' &&
+      (github.repository_owner == 'sto-info-app' || github.event.repository.fork == false)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          token: ${{ secrets.GH_PAT_REPO_TOKEN || github.token }}
+          fetch-depth: 0
+
+      - name: Create branch for contributors update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          BRANCH_NAME="chore/update-contributors"
+          git checkout -B "$BRANCH_NAME"
+          echo "BRANCH_NAME=$BRANCH_NAME" >> "$GITHUB_ENV"
+
+      - name: Update Contributors (CONTRIBUTORS.md)
         uses: akhilmhdh/contributors-readme-action@83ea0b4f1ac928fbfe88b9e8460a932a528eb79f # v2.3.11
         with:
           image_size: 100
+          readme_path: CONTRIBUTORS.md
           commit_message: |
-            docs: update contributors [skip ci]
+            docs: update contributors
 
             Signed-off-by: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
-          # Updates both README.md and CONTRIBUTORS.md if markers are present
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT_REPO_TOKEN || github.token }}
+
+      - name: Create Pull Request
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT_REPO_TOKEN || github.token }}
+        run: |
+          # If there are any changes in the working directory
+          if [ -n "$(git status --porcelain)" ]; then
+            git add .
+            git commit -m "docs: update contributors [skip ci]" -m "Signed-off-by: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+            git push origin "$BRANCH_NAME"
+            gh pr create \
+              --title "docs: update contributors" \
+              --body "Automated update for CONTRIBUTORS.md" \
+              --label "chore" \
+              --base development \
+              --head "$BRANCH_NAME" || echo "PR already exists"
+          else
+            echo "No changes detected, skipping PR creation."
+          fi

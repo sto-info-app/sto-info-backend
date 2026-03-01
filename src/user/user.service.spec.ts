@@ -97,7 +97,7 @@ describe('UserService', () => {
     });
 
     it('should throw if email already exists', async () => {
-      const dto = { email: 'exist@e.com', password: 'p' };
+      const dto = { email: 'exist@e.com', password: 'p' }; // NOSONAR
       (userRepository.findOne as jest.Mock).mockResolvedValue({ id: '1' });
       await expect(service.create(dto as any)).rejects.toThrow(
         'Email already in use',
@@ -105,13 +105,13 @@ describe('UserService', () => {
     });
 
     it('should throw if email invalid', async () => {
-      const dto = { email: 'invalid', password: 'p' };
+      const dto = { email: 'invalid', password: 'p' }; // NOSONAR
       (validatorsService.validateEmail as jest.Mock).mockReturnValue(false);
       await expect(service.create(dto as any)).rejects.toThrow('Invalid email');
     });
 
     it('should throw if password missing', async () => {
-      const dto = { email: 'v@e.com', password: '' };
+      const dto = { email: 'v@e.com', password: '' }; // NOSONAR
       await expect(service.create(dto as any)).rejects.toThrow(
         'Invalid password',
       );

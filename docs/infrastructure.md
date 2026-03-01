@@ -311,7 +311,7 @@ Authorization: Bearer <Images API key/token (from AWS Secrets Manager)>
 
 - IP allow/block lists
 - Country blocking
-- User-Agent filtering
+- **User-Agent filtering**: Known automated bots (e.g., GitHub Actions runners) must use a custom `User-Agent: Mozilla/5.0` to bypass WAF blocks for health and version verification checks.
 - Rate limiting rules at edge
 
 **Current Rules:**

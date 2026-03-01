@@ -43,7 +43,8 @@ Generic fuzzing generates random inputs to test code robustness. In this repo, i
 The development API is scanned for active runtime vulnerabilities by OWASP ZAP.
 
 - **Trigger**: Runs automatically after automated version bumps are merged to `development`.
-- **Wait Time**: The workflow waits 7 minutes for the deployment to settle before starting.
+- **Deployment Wait**: The workflow uses a smart polling loop (checking the `/version` endpoint every 60 seconds) for up to 10 minutes to verify the new version is live before scanning.
+- **WAF Bypass**: To avoid 403 Forbidden errors from Cloudflare, the scan and connectivity checks identify themselves with a custom `User-Agent`.
 - **Reports**: HTML reports are uploaded as workflow artifacts.
 
 ## SonarCloud

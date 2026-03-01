@@ -1,7 +1,7 @@
 name: DCO Enforcement
 
 on:
-  pull_request:
+  pull_request_target:
     branches: [production, development]
     types: [opened, synchronize, reopened]
 
@@ -48,17 +48,39 @@ jobs:
               const sha = c.sha;
               const message = (c.commit && c.commit.message) ? c.commit.message : '';
               const isMerge = c.parents && c.parents.length > 1;
-              const isBot = c.author && c.author.type === 'Bot';
+              
+              const authorData = (c.commit && c.commit.author) ? c.commit.author : {};
+              const committerData = (c.commit && c.commit.committer) ? c.commit.committer : {};
+              const authorEmail = (authorData.email || '').toLowerCase();
+              const committerEmail = (committerData.email || '').toLowerCase();
+              const authorName = (authorData.name || '').toLowerCase();
+
+              const allSignoffs = getSignoffs(message);
+              const humanSignoffs = allSignoffs.filter(sig => 
+                !sig.email.toLowerCase().includes('[bot]') && 
+                !sig.name.toLowerCase().includes('[bot]') &&
+                !sig.email.toLowerCase().includes('github-actions') &&
+                !sig.email.toLowerCase().endsWith('@users.noreply.github.com')
+              );
+
+              // Detect if the commit is from a bot (GitHub bot, email convention, or PURELY bot sign-offs)
+              const isBot = (c.author && c.author.type === 'Bot') || 
+                            authorEmail.includes('[bot]') || 
+                            committerEmail.includes('[bot]') || 
+                            authorName.includes('[bot]') ||
+                            authorEmail === 'github-actions[bot]@users.noreply.github.com' ||
+                            (allSignoffs.length > 0 && humanSignoffs.length === 0);
 
               if (isMerge || isBot) {
                 continue;
               }
 
-              const signoffs = getSignoffs(message);
-              if (signoffs.length === 0) {
+              if (humanSignoffs.length === 0) {
                 failures.push(`- ${sha}: The sign-off is missing.`);
                 continue;
               }
+
+              const signoffs = humanSignoffs;
 
               const author = (c.commit && c.commit.author) ? c.commit.author : {};
               const committer = (c.commit && c.commit.committer) ? c.commit.committer : {};

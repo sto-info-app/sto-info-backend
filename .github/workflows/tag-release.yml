@@ -55,22 +55,43 @@ jobs:
           git tag -a "$TAG_NAME" -m "Release $TAG_NAME"
           git push origin "$TAG_NAME"
 
-      - name: Unmask last version bump in release notes
+      - name: Prepare PRs for release notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          echo "Finding PR for version $VERSION..."
+          echo "Processing PRs for version $VERSION..."
 
-          # Search for the merged version bump PR
-          PR_NUMBER=$(gh pr list --repo "${{ github.repository }}" --state merged --search "chore: bump version to $VERSION" --json number --jq '.[0].number' || echo "")
-
-          if [ -n "$PR_NUMBER" ]; then
-            echo "Removing 'version-bump' label from PR #$PR_NUMBER to include it in release notes."
-            gh pr edit "$PR_NUMBER" --repo "${{ github.repository }}" --remove-label version-bump || echo "Failed to remove label, but continuing..."
-          else
-            echo "No matching version bump PR found for version $VERSION."
+          # 1. Unmask the specific version bump PR for this release
+          BUMP_PR=$(gh pr list --repo "${{ github.repository }}" --state all --limit 1 --search "chore: bump version to $VERSION" --json number --jq '.[0].number' || echo "")
+          if [ -n "$BUMP_PR" ] && [ "$BUMP_PR" != "null" ]; then
+            echo "Unmasking version bump PR #$BUMP_PR (removing version-bump label)"
+            gh pr edit "$BUMP_PR" --repo "${{ github.repository }}" --remove-label version-bump || true
           fi
+
+          # 2. Auto-label unlabeled PRs based on Conventional Commit prefixes
+          # This ensures they are correctly categorised in the release notes
+          echo "Scanning recent PRs for missing labels..."
+          gh pr list --repo "${{ github.repository }}" --state merged --limit 50 --json number,title,labels --jq '.[] | select(.labels|length == 0) | "\(.number)|\(.title)"' | while read -r line; do
+            PR_NUM=$(echo "$line" | cut -d'|' -f1)
+            PR_TITLE=$(echo "$line" | cut -d'|' -f2)
+            
+            LABEL=""
+            case "${PR_TITLE,,}" in # Convert to lowercase for matching
+              feat*)     LABEL="feature" ;;
+              fix*)      LABEL="fix" ;;
+              chore*)    LABEL="chore" ;;
+              docs*)     LABEL="documentation" ;;
+              test*)     LABEL="test" ;;
+              ci*)       LABEL="ci" ;;
+              refactor*) LABEL="refactor" ;;
+            esac
+            
+            if [ -n "$LABEL" ]; then
+              echo "Auto-labeling PR #$PR_NUM as '$LABEL' based on title: $PR_TITLE"
+              gh pr edit "$PR_NUM" --repo "${{ github.repository }}" --add-label "$LABEL" || true
+            fi
+          done
 
       - name: Create Release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0

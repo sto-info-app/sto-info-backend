@@ -3,15 +3,6 @@ name: Version bump on merge to development
 on:
   push:
     branches: [development]
-    paths-ignore:
-      - 'docs/**'
-      - '.github/**'
-      - 'README.md'
-      - 'SECURITY.md'
-      - 'CONTRIBUTING.md'
-      - '.agent/**'
-      - '.vscode/**'
-      - 'LICENCE'
 
 permissions: {}
 
@@ -23,7 +14,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  check_changes:
+    name: Check for changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    outputs:
+      src_changed: ${{ steps.filter.outputs.src_changed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Check for source changes
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          base: ${{ github.event.before }}
+          ref: ${{ github.sha }}
+          filters: |
+            src_changed:
+              - '**'
+              - "!docs/**"
+              - "!.github/**"
+              - "!**/*.md"
+              - "!.agent/**"
+              - "!.vscode/**"
+              - "!LICENSE"
+
   bump_version:
+    name: Bump Version
+    needs: check_changes
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: Development
@@ -32,10 +55,14 @@ jobs:
       pull-requests: write
       actions: read
 
-    # Hardening: prevent infinite loops and unnecessary runs
+    # Smart skip: only run if source changed AND it's not a bot/self-merge
+    # By using a dependency on check_changes, we ensure the workflow triggers
+    # and reports success even when this job is skipped.
     if: |
+      needs.check_changes.outputs.src_changed == 'true' &&
       github.actor != 'github-actions[bot]' &&
       !startsWith(github.event.head_commit.message, 'chore: bump version to ') &&
+      !startsWith(github.event.head_commit.message, 'docs: update contributors') &&
       !contains(github.event.head_commit.message, 'Automated version bump from') &&
       !(contains(github.event.head_commit.message, 'Merge pull request') && contains(github.event.head_commit.message, 'chore/bump-version-to'))
 
@@ -44,7 +71,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
-          token: ${{ github.token }}
+          token: ${{ secrets.GH_PAT_REPO_TOKEN || github.token }}
 
       - name: Set up Node
         uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
@@ -58,8 +85,9 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Bump patch version and create PR
+        id: create_pr
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT_REPO_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT_REPO_TOKEN || github.token }}
         run: |
           # Configure git to use the bot's identity
           git config user.name "github-actions[bot]"
@@ -69,9 +97,23 @@ jobs:
           gh label create version-bump --color "ededed" --description "Automated version bump" || true
           gh label create chore --color "ededed" --description "Maintenance task" || true
 
-
           CURRENT_VERSION="$(node -p "require('./package.json').version")"
           echo "Current version: $CURRENT_VERSION"
+
+          # Compute the expected next patch version without touching the working tree,
+          # so we can detect an existing version bump PR and avoid creating a duplicate.
+          NEXT_VERSION="$(CURRENT_VERSION="$CURRENT_VERSION" node -e 'const v=process.env.CURRENT_VERSION||""; const m=v.match(/^(\d+)\.(\d+)\.(\d+)(?:[-+].+)?$/); if (m == null) { console.error("Unsupported version format: "+v); process.exit(1); } console.log([m[1], m[2], String(Number(m[3]) + 1)].join("."));' )"
+          echo "Next version would be: $NEXT_VERSION"
+
+          BRANCH_NAME="chore/bump-version-to-$NEXT_VERSION"
+
+          # Check if a PR already exists for this next version (no auto-merge; approve and merge)
+          EXISTING_PR_URL=$(gh pr list --repo "${{ github.repository }}" --base development --head "$BRANCH_NAME" --json url --jq '.[0].url' || echo "")
+
+          if [ -n "$EXISTING_PR_URL" ]; then
+            echo "PR already exists for version $NEXT_VERSION: $EXISTING_PR_URL (no duplicate created)"
+            exit 0
+          fi
 
           # Bump patch without creating a git tag
           npm version patch --no-git-tag-version
@@ -82,44 +124,23 @@ jobs:
           # Create a new branch for the version bump
           BRANCH_NAME="chore/bump-version-to-$NEW_VERSION"
 
-          # Check if a PR already exists for this version
-          EXISTING_PR=$(gh pr list --base development --head "$BRANCH_NAME" --json number --jq '.[0].number' || echo "")
-
-          if [ -n "$EXISTING_PR" ]; then
-            echo "PR #$EXISTING_PR already exists for version $NEW_VERSION. Skipping."
-            exit 0
-          fi
-
           # Delete the remote branch if it exists from a previous failed run
           git push origin --delete "$BRANCH_NAME" 2>/dev/null || echo "Branch $BRANCH_NAME does not exist remotely, continuing..."
 
           # Create the branch
           git checkout -b "$BRANCH_NAME"
 
-          # Commit the changes
+          # Commit the changes with DCO sign-off
           git add package.json package-lock.json
           git commit -s -m "chore: bump version to $NEW_VERSION"
 
           # Push the branch
           git push origin "$BRANCH_NAME"
 
-          # Create a pull request
-          PR_URL=$(gh pr create \
+          # Create a pull request (you approve and merge; no PAT or auto-merge due to branch protection)
+          gh pr create \
             --title "chore: bump version to $NEW_VERSION" \
             --body "Automated version bump from $CURRENT_VERSION to $NEW_VERSION" \
+            --label "version-bump,chore" \
             --base development \
-            --head "$BRANCH_NAME" \
-            --label "version-bump,chore")
-
-          echo "PR_URL=$PR_URL" >> "$GITHUB_ENV"
-
-      - name: Merge version bump
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT_REPO_TOKEN }}
-        run: |
-          sleep 5
-          gh pr merge "$PR_URL" \
-            --repo "${{ github.repository }}" \
-            --merge \
-            --admin \
-            --body "Automated version bump merge (bypassing review requirement)"
+            --head "$BRANCH_NAME"
