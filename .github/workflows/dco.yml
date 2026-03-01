@@ -55,31 +55,32 @@ jobs:
               const committerEmail = (committerData.email || '').toLowerCase();
               const authorName = (authorData.name || '').toLowerCase();
 
-              // Detect if the commit is from a bot (GitHub bot or email convention)
+              const allSignoffs = getSignoffs(message);
+              const humanSignoffs = allSignoffs.filter(sig => 
+                !sig.email.toLowerCase().includes('[bot]') && 
+                !sig.name.toLowerCase().includes('[bot]') &&
+                !sig.email.toLowerCase().includes('github-actions') &&
+                !sig.email.toLowerCase().endsWith('@users.noreply.github.com')
+              );
+
+              // Detect if the commit is from a bot (GitHub bot, email convention, or PURELY bot sign-offs)
               const isBot = (c.author && c.author.type === 'Bot') || 
                             authorEmail.includes('[bot]') || 
                             committerEmail.includes('[bot]') || 
                             authorName.includes('[bot]') ||
-                            authorEmail === 'github-actions[bot]@users.noreply.github.com';
+                            authorEmail === 'github-actions[bot]@users.noreply.github.com' ||
+                            (allSignoffs.length > 0 && humanSignoffs.length === 0);
 
               if (isMerge || isBot) {
                 continue;
               }
 
-              const signoffs = getSignoffs(message).filter(sig => 
-                !sig.email.includes('[bot]') && 
-                !sig.name.toLowerCase().includes('[bot]') &&
-                sig.email !== 'github-actions[bot]@users.noreply.github.com'
-              );
-              
-              if (signoffs.length === 0 && !isBot) {
+              if (humanSignoffs.length === 0) {
                 failures.push(`- ${sha}: The sign-off is missing.`);
                 continue;
               }
-              
-              if (isBot) {
-                continue;
-              }
+
+              const signoffs = humanSignoffs;
 
               const author = (c.commit && c.commit.author) ? c.commit.author : {};
               const committer = (c.commit && c.commit.committer) ? c.commit.committer : {};
