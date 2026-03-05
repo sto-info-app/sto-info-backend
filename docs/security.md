@@ -4,71 +4,121 @@ This document outlines the security architecture and procedures for the `sto-inf
 
 ### Dependency Overrides
 
-This repository uses `npm overrides` to address security issues that originate in transitive dependencies where upgrading a top-level package is not yet possible or would require a breaking change.
+This repository uses `npm overrides` in `package.json` to address security issues that originate in transitive dependencies where upgrading a top-level package is not yet possible or would require a breaking change.
+
+**General removal checklist** (apply to any override before removing it):
+
+1. Remove the entry from the `overrides` block in `package.json`.
+2. Run `npm install` to regenerate `package-lock.json`.
+3. Run `npm audit --omit=dev --audit-level=high` — this is the same gate used by `npm run verify` in CI.
+4. Run `npm run test:cov` to confirm coverage tooling is unaffected.
+5. If either check fails, restore the override and track the upstream fix instead.
+
+Overrides reduce exposure to known vulnerabilities quickly, but they change the dependency tree independently of what upstream packages tested against. Keep them minimal and prefer removing them as soon as upstream dependencies have caught up.
 
 Current overrides in `package.json`:
 
 ```json
 "overrides": {
+  "@nestjs/platform-express": {
+    "multer": "^2.1.1"
+  },
   "ajv": "^8.18.0",
+  "svgo": "^4.0.1",
   "eslint": {
     "ajv": "^6.14.0"
   },
-  "minimatch": "^10.2.2",
+  "minimatch": "^10.2.4",
   "test-exclude": "^8.0.0",
   "glob": "^13.0.0",
-  "html-minifier": "npm:html-minifier-terser@^7.2.0"
+  "fast-xml-parser": "^5.4.1",
+  "mjml": "^5.0.0-alpha.11",
+  "serialize-javascript": "^7.0.3"
 }
 ```
 
-#### `minimatch`, `glob`, and `test-exclude`
+#### `multer` (nested under `@nestjs/platform-express`)
 
-- **Vulnerability**: `minimatch < 10.2.2` and `glob < 11` have high-severity ReDoS or security advisories.
-- **Solution**: We pin `minimatch` to `^10.2.2` and `glob` to `^13.0.0`.
-- **Compatibility**: To maintain compatibility with Istanbul coverage reporting, we also override `test-exclude` to `^8.0.0`, which is natively compatible with these newer major versions, preventing the `TypeError: minimatch is not a function` error during Jest execution.
+- **Vulnerability**: [GHSA-5528-5vmv-3xc2](https://github.com/advisories/GHSA-5528-5vmv-3xc2) — Denial of Service via uncontrolled recursion in `multer < 2.1.1`.
+- **Root cause**: `@nestjs/platform-express` pins `multer` to an exact older version in its own `dependencies`, which npm installs as a nested copy rather than deduplicating with the safe top-level version.
+- **Override**: `"@nestjs/platform-express": { "multer": "^2.1.1" }` — targets only the nested copy inside `@nestjs/platform-express`.
+- **npm 11.x limitation**: npm 11.x does not apply nested overrides when the same package also exists as a direct dependency at the top level. As a result, the nested `multer` is patched automatically on every install by the `postinstall` hook (see below).
 
-**Why the `test-exclude` exception exists**
+**When it can be removed**: When `@nestjs/platform-express` updates its own `multer` dependency to `>= 2.1.1`. Check by running:
 
-Jest coverage in this repo relies on Istanbul's `test-exclude` via `babel-plugin-istanbul`. Some versions of `test-exclude`/`glob` expect `require('minimatch')` to return a callable function.
+```sh
+npm view @nestjs/platform-express@latest dependencies.multer
+```
 
-When `minimatch` is globally overridden to a newer major (for the security fix), that assumption can break and Jest will fail at transform/instrumentation time with an error like:
-
-- `TypeError: minimatch is not a function`
-
-To keep the security fix while preserving Jest coverage, we allow `test-exclude` (and its `glob` dependency) to continue using `minimatch@3.1.2`.
-
-**When it can be removed**
-
-Remove the override(s) once both of the following are true without them:
-
-- `npm audit --omit=dev --audit-level=high` reports 0 vulnerabilities
-- `npm run test:cov` runs without coverage instrumentation errors
-
-In practice, this means upstream packages must have updated to versions that (a) no longer pull in vulnerable `minimatch` versions and (b) remain compatible with `minimatch >= 10.2.1` where they consume it.
-
-Practical removal checklist:
-
-1. Remove the `overrides` entries from `package.json`.
-2. Run `npm install` to regenerate `package-lock.json`.
-3. Run `npm audit --omit=dev --audit-level=high` (matches the CI gate in `npm run verify`).
-4. Run `npm run test:cov` to ensure coverage still works.
-
-If the audit gate fails after removing the overrides, keep them and instead upgrade the top-level packages that introduce older `minimatch` constraints until the tree is clean.
-
-**Security/operational trade-offs**
-
-Overrides reduce exposure to known vulnerabilities quickly, but they also change the dependency tree independently of what upstream packages tested. Keep overrides minimal, and prefer removing them once upstream dependencies have caught up.
+If that returns `>= 2.1.1`, remove both the nested override and the `multer` patch entry from `scripts/patch-nested-packages.js`.
 
 #### `ajv` overrides
 
-- **Vulnerability**: `ajv < 8.18.0` contains a ReDoS vulnerability (GHSA-2g4f-4pwh-qvx6) when using the `$data` option.
+- **Vulnerability**: [GHSA-2g4f-4pwh-qvx6](https://github.com/advisories/GHSA-2g4f-4pwh-qvx6) — ReDoS in `ajv < 8.18.0` when using the `$data` option.
 - **Solution**: We pin the global `ajv` to `^8.18.0`.
-- **Tooling Compatibility**: ESLint (v10.x) strictly requires `ajv@6`. To prevent linting from breaking while keeping the rest of the tree safe, we provide a nested override for ESLint to use `ajv@6.14.0` (the last safe v6 release).
+- **Tooling Compatibility**: ESLint (v10.x) strictly requires `ajv@6`. To prevent linting from breaking while keeping the rest of the tree safe, we provide a nested override so ESLint continues to use `ajv@6.14.0` (the last safe v6 release).
 
-#### `html-minifier`
+**When it can be removed**: When all packages that transitively depend on `ajv` have updated to request `>= 8.18.0` natively. Verify by removing the override and checking `npm audit --omit=dev --audit-level=high`. The ESLint nested override can be removed when ESLint migrates away from `ajv@6`.
 
-- **Maintenance**: The original `html-minifier` is unmaintained and has several security debt issues.
-- **Solution**: We alias it to `html-minifier-terser`, which is actively maintained and compatible.
+#### `svgo`
+
+- **Vulnerability**: [GHSA-xpqw-6gx7-v673](https://github.com/advisories/GHSA-xpqw-6gx7-v673) — Denial of Service via entity expansion (Billion Laughs attack) in `svgo < 4.0.1`.
+- **Root cause**: `postcss-svgo` (a transitive dependency via `cssnano`) bundles `svgo@4.0.0`.
+- **Solution**: Override to `^4.0.1`.
+
+**When it can be removed**: When `postcss-svgo` updates its own `svgo` dependency to `>= 4.0.1`.
+
+#### `minimatch`, `glob`, and `test-exclude`
+
+- **Vulnerability**: `minimatch < 10.2.4` and `glob < 13` have high-severity ReDoS advisories.
+- **Solution**: Pin `minimatch` to `^10.2.4` and `glob` to `^13.0.0`. The key transitive offenders are `fork-ts-checker-webpack-plugin` (`minimatch@^3`) and the Jest reporter stack (`glob@^10`).
+- **Compatibility**: Istanbul's `babel-plugin-istanbul` pulls in `test-exclude@^6`, which expects an older `minimatch` API. Overriding `test-exclude` to `^8.0.0` keeps coverage tooling working with the newer `minimatch` and `glob` versions, preventing `TypeError: minimatch is not a function` errors during Jest runs.
+
+**When it can be removed**: When `fork-ts-checker-webpack-plugin`, the Jest packages, and `babel-plugin-istanbul` have all updated their own `minimatch`/`glob`/`test-exclude` dependencies to versions that satisfy the above ranges natively. Verify with `npm audit` and `npm run test:cov`.
+
+#### `fast-xml-parser`
+
+- **Root cause**: `@aws-sdk/xml-builder` pins `fast-xml-parser` to an exact older patch version.
+- **Solution**: Override to `^5.4.1` to ensure the latest patch is used.
+
+**When it can be removed**: When `@aws-sdk/xml-builder` updates its own `fast-xml-parser` dependency to `>= 5.4.1` using a range rather than an exact pin.
+
+#### `mjml`
+
+- **Purpose**: Forces `mjml` to `^5.0.0-alpha.11` (v5 prerelease) rather than the `^4.x` version that `@nestjs-modules/mailer` requests as an optional dependency.
+- **Reason**: mjml v5 is required for compatibility with the email template rendering pipeline.
+
+**When it can be removed**: When `@nestjs-modules/mailer` officially supports and requests `mjml@^5` in its own dependencies, or when the project migrates away from mjml.
+
+#### `serialize-javascript`
+
+- **Root cause**: `terser-webpack-plugin` requests `serialize-javascript@^6`, which has known vulnerabilities.
+- **Solution**: Override to `^7.0.3`.
+
+**When it can be removed**: When `terser-webpack-plugin` updates its own `serialize-javascript` dependency to `>= 7.0.3`.
+
+---
+
+### Postinstall Patch (`scripts/patch-nested-packages.js`)
+
+This script runs automatically after every `npm install` and `npm ci` via the `postinstall` hook.
+
+**Why it exists**: npm 11.x has a bug where nested overrides (e.g. `"A": { "B": "^x.y.z" }`) are not applied when package `B` is also a direct top-level dependency. In these cases, npm installs the older nested version even though the override is declared. The script works around this by:
+
+1. Detecting any nested package install that is behind the required version.
+2. Replacing it in `node_modules` by copying the safe top-level version.
+3. Updating `package-lock.json` so that `npm audit` reports the correct version.
+
+**Adding a new patch entry**: Edit the `patches` array in `scripts/patch-nested-packages.js`:
+
+```js
+const patches = [
+  // [ 'path/within/node_modules/to/nested/package', 'top-level-package-name' ]
+  ['@nestjs/platform-express/node_modules/multer', 'multer'],
+];
+```
+
+**Removing a patch entry**: When the upstream package fixes its own dependency so the nested install no longer appears (or already uses the safe version), remove the corresponding entry from the `patches` array. Also remove the matching nested override from `package.json` if it is no longer needed.
 
 ## CORS Configuration
 
