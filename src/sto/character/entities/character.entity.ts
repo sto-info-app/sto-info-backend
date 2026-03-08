@@ -297,6 +297,10 @@ export class CharacterEntity {
         ? `Level ${rankEntry.levelFrom}`
         : `Level ${rankEntry.levelFrom} - ${rankEntry.levelTo}`;
 
-    return { title: rankEntry.rankTitle, iconUrl: rankEntry.iconUrl, levelRange };
+    return {
+      title: rankEntry.rankTitle,
+      iconUrl: rankEntry.iconUrl,
+      levelRange,
+    };
   }
 }
