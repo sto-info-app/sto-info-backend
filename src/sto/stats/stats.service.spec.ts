@@ -106,9 +106,7 @@ describe('StatsService', () => {
               find: jest
                 .fn()
                 .mockImplementation((entity: any) =>
-                  Promise.resolve(
-                    REFERENCE_DATA[entity.name as string] ?? [],
-                  ),
+                  Promise.resolve(REFERENCE_DATA[entity.name as string] ?? []),
                 ),
             },
           },
@@ -121,9 +119,7 @@ describe('StatsService', () => {
               find: jest
                 .fn()
                 .mockImplementation((entity: any) =>
-                  Promise.resolve(
-                    REFERENCE_DATA[entity.name as string] ?? [],
-                  ),
+                  Promise.resolve(REFERENCE_DATA[entity.name as string] ?? []),
                 ),
             },
           },
@@ -400,7 +396,9 @@ describe('StatsService', () => {
 
       const result = await service.getStats('user-1');
 
-      expect(result.byLevelRange).toEqual([{ name: 'Level 10 - 20', count: 3 }]);
+      expect(result.byLevelRange).toEqual([
+        { name: 'Level 10 - 20', count: 3 },
+      ]);
     });
 
     it('should scope the level range query to the given account', async () => {
