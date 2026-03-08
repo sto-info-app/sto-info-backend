@@ -33,7 +33,8 @@ Current overrides in `package.json`:
   "glob": "^13.0.0",
   "fast-xml-parser": "^5.4.1",
   "mjml": "^5.0.0-alpha.11",
-  "serialize-javascript": "^7.0.3"
+  "serialize-javascript": "^7.0.3",
+  "underscore": "^1.13.8"
 }
 ```
 
@@ -44,13 +45,15 @@ Current overrides in `package.json`:
 - **Override**: `"@nestjs/platform-express": { "multer": "^2.1.1" }` — targets only the nested copy inside `@nestjs/platform-express`.
 - **npm 11.x limitation**: npm 11.x does not apply nested overrides when the same package also exists as a direct dependency at the top level. As a result, the nested `multer` is patched automatically on every install by the `postinstall` hook (see below).
 
-**When it can be removed**: When `@nestjs/platform-express` updates its own `multer` dependency to `>= 2.1.1`. Check by running:
+**When it can be removed**: When `@nestjs/platform-express` updates its own `multer` dependency to a range `>= 2.1.1` (not an exact pin). Check by running:
 
 ```sh
 npm view @nestjs/platform-express@latest dependencies.multer
 ```
 
-If that returns `>= 2.1.1`, remove both the nested override and the `multer` patch entry from `scripts/patch-nested-packages.js`.
+> **Current status (as of v11.1.16):** `@nestjs/platform-express` now pins `multer` to exactly `2.1.1` (the safe version), so the security vulnerability is addressed upstream. The override is kept in place so future patch releases of `multer` are picked up automatically rather than being locked to a single exact version. The postinstall patch in `scripts/patch-nested-packages.js` remains in place for the same reason.
+
+Remove both the nested override and the `multer` patch entry from `scripts/patch-nested-packages.js` when `@nestjs/platform-express` switches from an exact pin to a range `>= 2.1.1`.
 
 #### `ajv` overrides
 
@@ -96,6 +99,19 @@ If that returns `>= 2.1.1`, remove both the nested override and the `multer` pat
 - **Solution**: Override to `^7.0.3`.
 
 **When it can be removed**: When `terser-webpack-plugin` updates its own `serialize-javascript` dependency to `>= 7.0.3`.
+
+#### `underscore`
+
+- **Vulnerability**: [GHSA-qpx9-hpmf-5gmw](https://github.com/advisories/GHSA-qpx9-hpmf-5gmw) — Denial of Service via uncontrolled recursion in `underscore < 1.13.8`. The `_.flatten` and `_.isEqual` functions have no recursion depth limit; a deeply nested input (~4,500+ levels) triggers a `RangeError: Maximum call stack size exceeded`, crashing the process. CVSS 8.2 (High).
+- **Root cause**: `@stryker-mutator/core` (devDependency) pulls in `typed-rest-client ~2.2.0`, which depends on `underscore ^1.12.1`, resolving to `1.13.7`.
+- **Scope**: devDependency chain only — this vulnerability is not present in the production dependency tree and would not be flagged by `npm audit --omit=dev`. It is flagged by GitHub's OSV/Scorecard scanner, which scans the full lock file.
+- **Solution**: Override to `^1.13.8`.
+
+**When it can be removed**: When `typed-rest-client` updates its own `underscore` dependency to `>= 1.13.8`. Check by running:
+
+```sh
+npm view typed-rest-client@latest dependencies.underscore
+```
 
 ---
 

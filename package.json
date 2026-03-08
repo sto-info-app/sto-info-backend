@@ -154,7 +154,8 @@
     "glob": "^13.0.0",
     "fast-xml-parser": "^5.4.1",
     "mjml": "^5.0.0-alpha.11",
-    "serialize-javascript": "^7.0.3"
+    "serialize-javascript": "^7.0.3",
+    "underscore": "^1.13.8"
   },
   "eslintConfig": {
     "root": true,
