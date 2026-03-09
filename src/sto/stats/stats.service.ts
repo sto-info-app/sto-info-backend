@@ -15,7 +15,7 @@ import { SexEntity } from 'src/sto/character/entities/sex.entity';
 import { SpeciesEntity } from 'src/sto/character/entities/species.entity';
 import { LauncherEntity } from 'src/sto/launcher/entities/launcher.entity';
 import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
-import { IsNull, Repository } from 'typeorm';
+import { IsNull, Repository, SelectQueryBuilder } from 'typeorm';
 import { CountItemDto, StatsResponseDto } from './dto/stats-response.dto';
 
 /** Faction name used as the source of truth for level-range tier definitions. */
@@ -133,6 +133,61 @@ export class StatsService {
   }
 
   /**
+   * Creates a QueryBuilder for the character table pre-filtered to the given
+   * user's accounts and optionally scoped to a single account.
+   *
+   * Centralises the repeated `innerJoin + where + optional andWhere` setup
+   * that every character sub-query requires.
+   *
+   * @param userId Owner user ID.
+   * @param accountId Optional account ID to restrict to one account.
+   * @returns A fluent QueryBuilder ready for further composition.
+   */
+  private characterBaseQb(
+    userId: string,
+    accountId?: string,
+  ): SelectQueryBuilder<CharacterEntity> {
+    const qb = this.characterRepository
+      .createQueryBuilder('c')
+      .innerJoin('c.account', 'a')
+      .where('a.userId = :userId', { userId });
+
+    if (accountId) {
+      qb.andWhere('c.accountId = :accountId', { accountId });
+    }
+
+    return qb;
+  }
+
+  /**
+   * Clones a character base query and adds a GROUP BY on a single relation,
+   * returning raw `{ name, count }` rows sorted descending by count.
+   *
+   * Centralises the repeated clone → leftJoin → select → groupBy → orderBy
+   * pattern used for each categorical character dimension.
+   *
+   * @param base Pre-built character QueryBuilder (see {@link characterBaseQb}).
+   * @param join Relation path to left-join, e.g. `'c.species'`.
+   * @param alias Query builder alias for the joined relation.
+   * @returns Raw GROUP BY results sorted descending by count.
+   */
+  private characterDimensionQuery(
+    base: SelectQueryBuilder<CharacterEntity>,
+    join: string,
+    alias: string,
+  ): Promise<{ name: string; count: string }[]> {
+    return base
+      .clone()
+      .leftJoin(join, alias)
+      .select(
+        `COALESCE(${alias}.name, 'Unknown') AS name, COUNT(c.id) AS count`,
+      )
+      .groupBy(`COALESCE(${alias}.name, 'Unknown')`)
+      .orderBy('count', 'DESC')
+      .getRawMany<{ name: string; count: string }>();
+  }
+
+  /**
    * Queries character level aggregates for all non-deleted characters belonging
    * to the user's accounts, optionally scoped to a single account.
    *
@@ -151,20 +206,12 @@ export class StatsService {
     minLevel: number;
     maxLevel: number;
   }> {
-    const qb = this.characterRepository
-      .createQueryBuilder('c')
-      .innerJoin('c.account', 'a')
-      .where('a.userId = :userId', { userId })
-      .select([
-        'COUNT(c.id) AS "characterCount"',
-        'ROUND(AVG(c.level) FILTER (WHERE c.level > 0)) AS "avgLevel"',
-        'MIN(c.level) AS "minLevel"',
-        'MAX(c.level) AS "maxLevel"',
-      ]);
-
-    if (accountId) {
-      qb.andWhere('c.accountId = :accountId', { accountId });
-    }
+    const qb = this.characterBaseQb(userId, accountId).select([
+      'COUNT(c.id) AS "characterCount"',
+      'ROUND(AVG(c.level) FILTER (WHERE c.level > 0)) AS "avgLevel"',
+      'MIN(c.level) AS "minLevel"',
+      'MAX(c.level) AS "maxLevel"',
+    ]);
 
     const raw = await qb.getRawOne<{
       characterCount: string;
@@ -214,15 +261,7 @@ export class StatsService {
     bySex: CountItemDto[];
     byRecruitType: CountItemDto[];
   }> {
-    const base = this.characterRepository
-      .createQueryBuilder('c')
-      .innerJoin('c.account', 'a')
-      .where('a.userId = :userId', { userId });
-
-    if (accountId) {
-      base.andWhere('c.accountId = :accountId', { accountId });
-    }
-
+    const base = this.characterBaseQb(userId, accountId);
     const mgr = this.characterRepository.manager;
 
     const [
@@ -239,50 +278,12 @@ export class StatsService {
       allSexNames,
       allRecruitTypeNames,
     ] = await Promise.all([
-      base
-        .clone()
-        .leftJoin('c.species', 'species')
-        .select(
-          "COALESCE(species.name, 'Unknown') AS name, COUNT(c.id) AS count",
-        )
-        .groupBy("COALESCE(species.name, 'Unknown')")
-        .orderBy('count', 'DESC')
-        .getRawMany<{ name: string; count: string }>(),
-      base
-        .clone()
-        .leftJoin('c.generalFaction', 'gf')
-        .select("COALESCE(gf.name, 'Unknown') AS name, COUNT(c.id) AS count")
-        .groupBy("COALESCE(gf.name, 'Unknown')")
-        .orderBy('count', 'DESC')
-        .getRawMany<{ name: string; count: string }>(),
-      base
-        .clone()
-        .leftJoin('c.faction', 'f')
-        .select("COALESCE(f.name, 'Unknown') AS name, COUNT(c.id) AS count")
-        .groupBy("COALESCE(f.name, 'Unknown')")
-        .orderBy('count', 'DESC')
-        .getRawMany<{ name: string; count: string }>(),
-      base
-        .clone()
-        .leftJoin('c.class', 'cls')
-        .select("COALESCE(cls.name, 'Unknown') AS name, COUNT(c.id) AS count")
-        .groupBy("COALESCE(cls.name, 'Unknown')")
-        .orderBy('count', 'DESC')
-        .getRawMany<{ name: string; count: string }>(),
-      base
-        .clone()
-        .leftJoin('c.sex', 'sex')
-        .select("COALESCE(sex.name, 'Unknown') AS name, COUNT(c.id) AS count")
-        .groupBy("COALESCE(sex.name, 'Unknown')")
-        .orderBy('count', 'DESC')
-        .getRawMany<{ name: string; count: string }>(),
-      base
-        .clone()
-        .leftJoin('c.recruitType', 'rt')
-        .select("COALESCE(rt.name, 'Unknown') AS name, COUNT(c.id) AS count")
-        .groupBy("COALESCE(rt.name, 'Unknown')")
-        .orderBy('count', 'DESC')
-        .getRawMany<{ name: string; count: string }>(),
+      this.characterDimensionQuery(base, 'c.species', 'species'),
+      this.characterDimensionQuery(base, 'c.generalFaction', 'gf'),
+      this.characterDimensionQuery(base, 'c.faction', 'f'),
+      this.characterDimensionQuery(base, 'c.class', 'cls'),
+      this.characterDimensionQuery(base, 'c.sex', 'sex'),
+      this.characterDimensionQuery(base, 'c.recruitType', 'rt'),
       mgr
         .find(SpeciesEntity, { select: { name: true } })
         .then(es => es.map(e => e.name)),
@@ -381,17 +382,10 @@ export class StatsService {
     userId: string,
     accountId?: string,
   ): Promise<CountItemDto[]> {
-    const charQb = this.characterRepository
-      .createQueryBuilder('c')
-      .innerJoin('c.account', 'a')
-      .where('a.userId = :userId', { userId })
+    const charQb = this.characterBaseQb(userId, accountId)
       .andWhere('c.level IS NOT NULL')
       .select(['c.level AS level', 'COUNT(c.id) AS count'])
       .groupBy('c.level');
-
-    if (accountId) {
-      charQb.andWhere('c.accountId = :accountId', { accountId });
-    }
 
     const [tiers, levelCounts] = await Promise.all([
       this.characterRankRepository
