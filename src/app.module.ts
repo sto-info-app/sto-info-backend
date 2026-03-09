@@ -32,6 +32,7 @@ import { ValidatorsService } from './shared/utilities/validators.service';
 import { AccountModule } from './sto/account/account.module';
 import { CharacterModule } from './sto/character/character.module';
 import { LauncherModule } from './sto/launcher/launcher.module';
+import { StatsModule } from './sto/stats/stats.module';
 import { PlatformLauncherModule } from './sto/platform-launcher/platform-launcher.module';
 import { PlatformModule } from './sto/platform/platform.module';
 import { UserRefreshTokenModule } from './user-refresh-token/user-refresh-token.module';
@@ -85,6 +86,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     ContactModule,
     AccountModule,
     CharacterModule,
+    StatsModule,
     PlatformModule,
     LauncherModule,
     PlatformLauncherModule,

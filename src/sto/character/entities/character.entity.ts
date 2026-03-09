@@ -271,7 +271,11 @@ export class CharacterEntity {
   }
 
   @Expose()
-  get rank(): { title: string; iconUrl: string | null } | null {
+  get rank(): {
+    title: string;
+    iconUrl: string | null;
+    levelRange: string;
+  } | null {
     if (
       !this.faction?.ranks ||
       this.level === null ||
@@ -284,8 +288,19 @@ export class CharacterEntity {
       r => this.level >= r.levelFrom && this.level <= r.levelTo,
     );
 
-    return rankEntry
-      ? { title: rankEntry.rankTitle, iconUrl: rankEntry.iconUrl }
-      : null;
+    if (!rankEntry) {
+      return null;
+    }
+
+    const levelRange =
+      rankEntry.levelFrom === rankEntry.levelTo
+        ? `Level ${rankEntry.levelFrom}`
+        : `Level ${rankEntry.levelFrom} - ${rankEntry.levelTo}`;
+
+    return {
+      title: rankEntry.rankTitle,
+      iconUrl: rankEntry.iconUrl,
+      levelRange,
+    };
   }
 }
