@@ -255,6 +255,10 @@ export class CharacterService {
 
     const character = await this.findOneForUser(id, userId);
 
+    const updateData: Partial<CharacterEntity> = {
+      ...updateCharacterDto,
+    } as Partial<CharacterEntity>;
+
     if (
       typeof updateCharacterDto.handle === 'string' &&
       updateCharacterDto.handle !== character.handle
@@ -265,16 +269,14 @@ export class CharacterService {
         character.id,
       );
 
-      character.fullHandle = `${updateCharacterDto.handle}@${character.account.handle}`;
-      character.fullHandleNormalized = this.normalizeHandle(
-        character.fullHandle,
-      );
-      character.fullHandleSlug = this.generateSlug(character.fullHandle);
+      const fullHandle = `${updateCharacterDto.handle}@${character.account.handle}`;
+      updateData.fullHandle = fullHandle;
+      updateData.fullHandleNormalized = this.normalizeHandle(fullHandle);
+      updateData.fullHandleSlug = this.generateSlug(fullHandle);
     }
 
-    Object.assign(character, updateCharacterDto);
-    await this.characterRepository.save(character);
-    return character;
+    await this.characterRepository.update(id, updateData);
+    return this.findOneForUser(id, userId);
   }
 
   async removeForUser(id: string, userId: string): Promise<void> {
