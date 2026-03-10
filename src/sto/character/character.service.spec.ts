@@ -41,6 +41,7 @@ describe('CharacterService', () => {
           useValue: {
             create: jest.fn(),
             save: jest.fn(),
+            update: jest.fn(),
             find: jest.fn(),
             findOne: jest.fn(),
             softDelete: jest.fn(),
@@ -345,31 +346,86 @@ describe('CharacterService', () => {
   });
 
   describe('updateForUser', () => {
-    it('should update an owned character', async () => {
-      const character = {
+    it('should update an owned character and return the re-fetched entity', async () => {
+      const existingCharacter = {
         id: 'char-1',
         handle: 'Old',
+        accountId: 'acc-1',
+        account: { handle: 'Acc', userId: 'user-1' },
+      };
+      const updatedCharacter = {
+        id: 'char-1',
+        handle: 'New',
+        fullHandle: 'New@Acc',
+        fullHandleNormalized: 'new@acc',
+        fullHandleSlug: 'New@Acc',
         accountId: 'acc-1',
         account: { handle: 'Acc', userId: 'user-1' },
       };
       const updateDto = { handle: 'New' };
 
       (characterRepository.findOne as jest.Mock)
-        .mockResolvedValueOnce(character) // For findOneForUser
-        .mockResolvedValueOnce(null); // For assertHandleUniqueForAccount
-      (characterRepository.save as jest.Mock).mockImplementation(val =>
-        Promise.resolve(val),
-      );
+        .mockResolvedValueOnce(existingCharacter) // findOneForUser (initial load)
+        .mockResolvedValueOnce(null) // assertHandleUniqueForAccount
+        .mockResolvedValueOnce(updatedCharacter); // findOneForUser (re-fetch)
+      (characterRepository.update as jest.Mock).mockResolvedValue({
+        affected: 1,
+      });
 
       const result = await service.updateForUser(
         'char-1',
         'user-1',
         updateDto as any,
       );
-      expect(result.handle).toBe('New');
-      expect(result.fullHandle).toBe('New@Acc');
-      expect(result.fullHandleSlug).toBe('New@Acc');
-      expect(characterRepository.save).toHaveBeenCalled();
+
+      expect(result).toEqual(updatedCharacter);
+      expect(characterRepository.update).toHaveBeenCalledWith(
+        'char-1',
+        expect.objectContaining({
+          handle: 'New',
+          fullHandle: 'New@Acc',
+          fullHandleNormalized: 'new@acc',
+          fullHandleSlug: 'New@Acc',
+        }),
+      );
+      expect(characterRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('should persist FK field changes via update() not save()', async () => {
+      const existingCharacter = {
+        id: 'char-1',
+        handle: "K'Rana",
+        accountId: 'acc-1',
+        account: { handle: 'Acc', userId: 'user-1' },
+        recruitTypeId: 'old-recruit-type-id',
+        recruitType: { id: 'old-recruit-type-id', name: 'Standard' },
+      };
+      const refetchedCharacter = {
+        ...existingCharacter,
+        recruitTypeId: 'new-recruit-type-id',
+        recruitType: { id: 'new-recruit-type-id', name: 'Elite' },
+      };
+      const updateDto = { recruitTypeId: 'new-recruit-type-id' };
+
+      (characterRepository.findOne as jest.Mock)
+        .mockResolvedValueOnce(existingCharacter) // findOneForUser (initial load)
+        .mockResolvedValueOnce(refetchedCharacter); // findOneForUser (re-fetch)
+      (characterRepository.update as jest.Mock).mockResolvedValue({
+        affected: 1,
+      });
+
+      const result = await service.updateForUser(
+        'char-1',
+        'user-1',
+        updateDto as any,
+      );
+
+      expect(characterRepository.update).toHaveBeenCalledWith(
+        'char-1',
+        expect.objectContaining({ recruitTypeId: 'new-recruit-type-id' }),
+      );
+      expect(result.recruitTypeId).toBe('new-recruit-type-id');
+      expect(characterRepository.save).not.toHaveBeenCalled();
     });
 
     it('should skip handle uniqueness check if handle is same', async () => {
@@ -381,14 +437,22 @@ describe('CharacterService', () => {
       };
       const updateDto = { handle: 'Same', notes: 'new notes' };
 
-      (characterRepository.findOne as jest.Mock).mockResolvedValue(character);
-      (characterRepository.save as jest.Mock).mockImplementation(val =>
-        Promise.resolve(val),
-      );
+      (characterRepository.findOne as jest.Mock)
+        .mockResolvedValueOnce(character) // findOneForUser (initial load)
+        .mockResolvedValueOnce(character); // findOneForUser (re-fetch)
+      (characterRepository.update as jest.Mock).mockResolvedValue({
+        affected: 1,
+      });
 
       await service.updateForUser('char-1', 'user-1', updateDto as any);
-      expect(characterRepository.findOne).toHaveBeenCalledTimes(1); // Only for findOneForUser
-      expect(characterRepository.save).toHaveBeenCalled();
+
+      // 2 calls: initial load + re-fetch (no uniqueness check since handle unchanged)
+      expect(characterRepository.findOne).toHaveBeenCalledTimes(2);
+      expect(characterRepository.update).toHaveBeenCalledWith(
+        'char-1',
+        expect.objectContaining({ notes: 'new notes' }),
+      );
+      expect(characterRepository.save).not.toHaveBeenCalled();
     });
 
     it('should handle partial updates without handle', async () => {
@@ -400,14 +464,22 @@ describe('CharacterService', () => {
       };
       const updateDto = { notes: 'only notes' };
 
-      (characterRepository.findOne as jest.Mock).mockResolvedValue(character);
-      (characterRepository.save as jest.Mock).mockImplementation(val =>
-        Promise.resolve(val),
-      );
+      (characterRepository.findOne as jest.Mock)
+        .mockResolvedValueOnce(character) // findOneForUser (initial load)
+        .mockResolvedValueOnce(character); // findOneForUser (re-fetch)
+      (characterRepository.update as jest.Mock).mockResolvedValue({
+        affected: 1,
+      });
 
       await service.updateForUser('char-1', 'user-1', updateDto as any);
-      expect(characterRepository.findOne).toHaveBeenCalledTimes(1);
-      expect(characterRepository.save).toHaveBeenCalled();
+
+      // 2 calls: initial load + re-fetch (no handle in dto)
+      expect(characterRepository.findOne).toHaveBeenCalledTimes(2);
+      expect(characterRepository.update).toHaveBeenCalledWith(
+        'char-1',
+        expect.objectContaining({ notes: 'only notes' }),
+      );
+      expect(characterRepository.save).not.toHaveBeenCalled();
     });
 
     it('should throw BadRequestException if id is missing', async () => {
