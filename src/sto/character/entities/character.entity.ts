@@ -37,7 +37,7 @@ import { SpeciesEntity } from './species.entity';
     where: '"deletedAt" IS NULL',
   },
 )
-@Index('UX_character_full_handle_slug', ['fullHandleSlug'], {
+@Index('UX_character_full_handle_slug', ['accountId', 'fullHandleSlug'], {
   unique: true,
   where: '"deletedAt" IS NULL',
 })

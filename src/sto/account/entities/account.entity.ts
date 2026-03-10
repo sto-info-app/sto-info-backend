@@ -31,7 +31,7 @@ import { CharacterEntity } from '../../character/entities/character.entity';
   unique: true,
   where: '"deletedAt" IS NULL',
 })
-@Index('UX_account_handle_slug', ['handleSlug'], {
+@Index('UX_account_handle_slug', ['handleSlug', 'userId'], {
   unique: true,
   where: '"deletedAt" IS NULL',
 })
