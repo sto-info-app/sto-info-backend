@@ -57,12 +57,14 @@ describe('CharacterService', () => {
           provide: getRepositoryToken(GeneralFactionEntity),
           useValue: {
             find: jest.fn(),
+            createQueryBuilder: jest.fn(),
           },
         },
         {
           provide: getRepositoryToken(FactionEntity),
           useValue: {
             find: jest.fn(),
+            createQueryBuilder: jest.fn(),
           },
         },
         {
@@ -81,6 +83,7 @@ describe('CharacterService', () => {
           provide: getRepositoryToken(RecruitTypeEntity),
           useValue: {
             find: jest.fn(),
+            createQueryBuilder: jest.fn(),
           },
         },
         {
@@ -527,18 +530,6 @@ describe('CharacterService', () => {
   });
 
   describe('Reference Data Lookups', () => {
-    it('should get general factions', async () => {
-      const data = [{ name: 'Fed' }];
-      (generalFactionRepository.find as jest.Mock).mockResolvedValue(data);
-      expect(await service.getGeneralFactions()).toEqual(data);
-    });
-
-    it('should get factions', async () => {
-      const data = [{ name: 'Fac' }];
-      (factionRepository.find as jest.Mock).mockResolvedValue(data);
-      expect(await service.getFactions()).toEqual(data);
-    });
-
     it('should get sexes', async () => {
       const data = [{ name: 'Male' }];
       (sexRepository.find as jest.Mock).mockResolvedValue(data);
@@ -551,10 +542,97 @@ describe('CharacterService', () => {
       expect(await service.getClasses()).toEqual(data);
     });
 
-    it('should get recruit types', async () => {
-      const data = [{ name: 'Std' }];
-      (recruitTypeRepository.find as jest.Mock).mockResolvedValue(data);
-      expect(await service.getRecruitTypes()).toEqual(data);
+    describe('getGeneralFactions', () => {
+      let queryBuilder: any;
+
+      beforeEach(() => {
+        queryBuilder = {
+          innerJoin: jest.fn().mockReturnThis(),
+          orderBy: jest.fn().mockReturnThis(),
+          getMany: jest.fn().mockResolvedValue([{ name: 'Federation' }]),
+        };
+        (
+          generalFactionRepository.createQueryBuilder as jest.Mock
+        ).mockReturnValue(queryBuilder);
+      });
+
+      it('should get all general factions when no filter', async () => {
+        const result = await service.getGeneralFactions();
+        expect(result).toEqual([{ name: 'Federation' }]);
+        expect(queryBuilder.innerJoin).not.toHaveBeenCalled();
+      });
+
+      it('should filter by factionId', async () => {
+        await service.getGeneralFactions('fac-1');
+        expect(queryBuilder.innerJoin).toHaveBeenCalledWith(
+          'generalFaction.factions',
+          'faction',
+          'faction.id = :factionId',
+          { factionId: 'fac-1' },
+        );
+      });
+    });
+
+    describe('getFactions', () => {
+      let queryBuilder: any;
+
+      beforeEach(() => {
+        queryBuilder = {
+          innerJoin: jest.fn().mockReturnThis(),
+          orderBy: jest.fn().mockReturnThis(),
+          getMany: jest.fn().mockResolvedValue([{ name: 'Starfleet' }]),
+        };
+        (factionRepository.createQueryBuilder as jest.Mock).mockReturnValue(
+          queryBuilder,
+        );
+      });
+
+      it('should get all factions when no filter', async () => {
+        const result = await service.getFactions();
+        expect(result).toEqual([{ name: 'Starfleet' }]);
+        expect(queryBuilder.innerJoin).not.toHaveBeenCalled();
+      });
+
+      it('should filter by generalFactionId', async () => {
+        await service.getFactions('gen-1');
+        expect(queryBuilder.innerJoin).toHaveBeenCalledWith(
+          'faction.generalFactions',
+          'generalFaction',
+          'generalFaction.id = :generalFactionId',
+          { generalFactionId: 'gen-1' },
+        );
+      });
+    });
+
+    describe('getRecruitTypes', () => {
+      let queryBuilder: any;
+
+      beforeEach(() => {
+        queryBuilder = {
+          innerJoin: jest.fn().mockReturnThis(),
+          orderBy: jest.fn().mockReturnThis(),
+          getMany: jest.fn().mockResolvedValue([{ name: 'Standard' }]),
+        };
+        (recruitTypeRepository.createQueryBuilder as jest.Mock).mockReturnValue(
+          queryBuilder,
+        );
+      });
+
+      it('should get all recruit types when no filter', async () => {
+        const result = await service.getRecruitTypes();
+        expect(result).toEqual([{ name: 'Standard' }]);
+        expect(queryBuilder.innerJoin).not.toHaveBeenCalled();
+      });
+
+      it('should filter by factionId', async () => {
+        await service.getRecruitTypes('fac-1');
+        expect(queryBuilder.innerJoin).toHaveBeenCalledWith(
+          'recruitType.factions',
+          'faction',
+          'faction.id = :factionId',
+          { factionId: 'fac-1' },
+        );
+      });
     });
 
     describe('getSpecies', () => {
