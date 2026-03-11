@@ -415,12 +415,37 @@ export class CharacterService {
 
   // --- Reference Data Methods ---
 
-  async getGeneralFactions(): Promise<GeneralFactionEntity[]> {
-    return this.generalFactionRepository.find({ order: { name: 'ASC' } });
+  async getGeneralFactions(
+    factionId?: string,
+  ): Promise<GeneralFactionEntity[]> {
+    const query =
+      this.generalFactionRepository.createQueryBuilder('generalFaction');
+
+    if (factionId) {
+      query.innerJoin(
+        'generalFaction.factions',
+        'faction',
+        'faction.id = :factionId',
+        { factionId },
+      );
+    }
+
+    return query.orderBy('generalFaction.name', 'ASC').getMany();
   }
 
-  async getFactions(): Promise<FactionEntity[]> {
-    return this.factionRepository.find({ order: { name: 'ASC' } });
+  async getFactions(generalFactionId?: string): Promise<FactionEntity[]> {
+    const query = this.factionRepository.createQueryBuilder('faction');
+
+    if (generalFactionId) {
+      query.innerJoin(
+        'faction.generalFactions',
+        'generalFaction',
+        'generalFaction.id = :generalFactionId',
+        { generalFactionId },
+      );
+    }
+
+    return query.orderBy('faction.name', 'ASC').getMany();
   }
 
   async getSexes(): Promise<SexEntity[]> {
@@ -431,8 +456,19 @@ export class CharacterService {
     return this.classRepository.find({ order: { name: 'ASC' } });
   }
 
-  async getRecruitTypes(): Promise<RecruitTypeEntity[]> {
-    return this.recruitTypeRepository.find({ order: { name: 'ASC' } });
+  async getRecruitTypes(factionId?: string): Promise<RecruitTypeEntity[]> {
+    const query = this.recruitTypeRepository.createQueryBuilder('recruitType');
+
+    if (factionId) {
+      query.innerJoin(
+        'recruitType.factions',
+        'faction',
+        'faction.id = :factionId',
+        { factionId },
+      );
+    }
+
+    return query.orderBy('recruitType.name', 'ASC').getMany();
   }
 
   /**
