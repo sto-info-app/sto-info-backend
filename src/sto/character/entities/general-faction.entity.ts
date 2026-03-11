@@ -1,5 +1,12 @@
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  ManyToMany,
+  OneToMany,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 import { CharacterEntity } from './character.entity';
+import type { FactionEntity } from './faction.entity';
 
 @Entity({ name: 'character_general_faction' })
 export class GeneralFactionEntity {
@@ -11,4 +18,7 @@ export class GeneralFactionEntity {
 
   @OneToMany('CharacterEntity', 'generalFaction')
   characters: CharacterEntity[];
+
+  @ManyToMany('FactionEntity', 'generalFactions')
+  factions: FactionEntity[];
 }
