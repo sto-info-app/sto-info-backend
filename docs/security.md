@@ -20,9 +20,7 @@ Current overrides in `package.json`:
 
 ```json
 "overrides": {
-  "@nestjs/platform-express": {
-    "multer": "^2.1.1"
-  },
+  "file-type": "^21.3.1",
   "ajv": "^8.18.0",
   "svgo": "^4.0.1",
   "eslint": {
@@ -38,22 +36,28 @@ Current overrides in `package.json`:
 }
 ```
 
-#### `multer` (nested under `@nestjs/platform-express`)
+#### `file-type`
+
+- **Vulnerability**: [GHSA-5v7r-6r5c-r473](https://github.com/advisories/GHSA-5v7r-6r5c-r473) — Infinite loop in the ASF parser on malformed input with a zero-size sub-header in `file-type 13.0.0 – 21.3.0`.
+- **Root cause**: `@nestjs/common` depends on `file-type` and resolves to `21.3.0`, which falls within the affected range. `npm audit fix --force` would downgrade `@nestjs/common` to `11.0.15`, which is a breaking change. The patched release `21.3.1` resolves the issue without touching the NestJS version.
+- **Override**: `"file-type": "^21.3.1"` — forces the patched release across the entire tree.
+
+**When it can be removed**: When `@nestjs/common` updates its own `file-type` dependency to `>= 21.3.1` natively. Verify by removing the override and running `npm audit --omit=dev --audit-level=high`. Check the upstream version with:
+
+```sh
+npm view @nestjs/common@latest dependencies.file-type
+```
+
+#### `multer` (nested under `@nestjs/platform-express`) — **removed from overrides**
 
 - **Vulnerability**: [GHSA-5528-5vmv-3xc2](https://github.com/advisories/GHSA-5528-5vmv-3xc2) — Denial of Service via uncontrolled recursion in `multer < 2.1.1`.
-- **Root cause**: `@nestjs/platform-express` pins `multer` to an exact older version in its own `dependencies`, which npm installs as a nested copy rather than deduplicating with the safe top-level version.
-- **Override**: `"@nestjs/platform-express": { "multer": "^2.1.1" }` — targets only the nested copy inside `@nestjs/platform-express`.
-- **npm 11.x limitation**: npm 11.x does not apply nested overrides when the same package also exists as a direct dependency at the top level. As a result, the nested `multer` is patched automatically on every install by the `postinstall` hook (see below).
+- **Removed**: As of `@nestjs/platform-express@11.1.16`, the package pins `multer` to exactly `2.1.1` in its own `dependencies`. npm deduplicates this against the top-level install, so no nested copy is installed and the override had no effect. The nested override has been removed from `package.json`.
 
-**When it can be removed**: When `@nestjs/platform-express` updates its own `multer` dependency to a range `>= 2.1.1` (not an exact pin). Check by running:
+**Postinstall patch**: The `multer` entry in `scripts/patch-nested-packages.js` is kept as a safety net. It exits immediately when no nested install is found, so it is currently a no-op. Remove the entry from the script when `@nestjs/platform-express` switches its `multer` dependency from an exact pin to a semver range `>= 2.1.1`, after which the patch will never be triggered. Verify with:
 
 ```sh
 npm view @nestjs/platform-express@latest dependencies.multer
 ```
-
-> **Current status (as of v11.1.16):** `@nestjs/platform-express` now pins `multer` to exactly `2.1.1` (the safe version), so the security vulnerability is addressed upstream. The override is kept in place so future patch releases of `multer` are picked up automatically rather than being locked to a single exact version. The postinstall patch in `scripts/patch-nested-packages.js` remains in place for the same reason.
-
-Remove both the nested override and the `multer` patch entry from `scripts/patch-nested-packages.js` when `@nestjs/platform-express` switches from an exact pin to a range `>= 2.1.1`.
 
 #### `ajv` overrides
 
