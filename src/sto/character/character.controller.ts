@@ -235,25 +235,27 @@ export class CharacterController {
   }
 
   /**
-   * Retrieves a list of general factions.
+   * Retrieves a list of general factions, optionally filtered by faction.
    *
+   * @param factionId Optional faction ID filter.
    * @returns List of general factions.
    */
   @Get('lookup/general-factions')
   @ApiOkResponse({ description: 'Successfully retrieved general factions.' })
-  getGeneralFactions() {
-    return this.characterService.getGeneralFactions();
+  getGeneralFactions(@Query('factionId') factionId?: string) {
+    return this.characterService.getGeneralFactions(factionId);
   }
 
   /**
-   * Retrieves a list of specific factions.
+   * Retrieves a list of specific factions, optionally filtered by general faction.
    *
+   * @param generalFactionId Optional general faction ID filter.
    * @returns List of factions.
    */
   @Get('lookup/factions')
   @ApiOkResponse({ description: 'Successfully retrieved factions.' })
-  getFactions() {
-    return this.characterService.getFactions();
+  getFactions(@Query('generalFactionId') generalFactionId?: string) {
+    return this.characterService.getFactions(generalFactionId);
   }
 
   /**
@@ -279,14 +281,15 @@ export class CharacterController {
   }
 
   /**
-   * Retrieves a list of character recruit types.
+   * Retrieves a list of character recruit types, optionally filtered by faction.
    *
+   * @param factionId Optional faction ID filter.
    * @returns List of recruit types.
    */
   @Get('lookup/recruit-types')
   @ApiOkResponse({ description: 'Successfully retrieved recruit types.' })
-  getRecruitTypes() {
-    return this.characterService.getRecruitTypes();
+  getRecruitTypes(@Query('factionId') factionId?: string) {
+    return this.characterService.getRecruitTypes(factionId);
   }
 
   /**

@@ -41,6 +41,7 @@ describe('CharacterService', () => {
           useValue: {
             create: jest.fn(),
             save: jest.fn(),
+            update: jest.fn(),
             find: jest.fn(),
             findOne: jest.fn(),
             softDelete: jest.fn(),
@@ -56,12 +57,14 @@ describe('CharacterService', () => {
           provide: getRepositoryToken(GeneralFactionEntity),
           useValue: {
             find: jest.fn(),
+            createQueryBuilder: jest.fn(),
           },
         },
         {
           provide: getRepositoryToken(FactionEntity),
           useValue: {
             find: jest.fn(),
+            createQueryBuilder: jest.fn(),
           },
         },
         {
@@ -80,6 +83,7 @@ describe('CharacterService', () => {
           provide: getRepositoryToken(RecruitTypeEntity),
           useValue: {
             find: jest.fn(),
+            createQueryBuilder: jest.fn(),
           },
         },
         {
@@ -345,31 +349,86 @@ describe('CharacterService', () => {
   });
 
   describe('updateForUser', () => {
-    it('should update an owned character', async () => {
-      const character = {
+    it('should update an owned character and return the re-fetched entity', async () => {
+      const existingCharacter = {
         id: 'char-1',
         handle: 'Old',
+        accountId: 'acc-1',
+        account: { handle: 'Acc', userId: 'user-1' },
+      };
+      const updatedCharacter = {
+        id: 'char-1',
+        handle: 'New',
+        fullHandle: 'New@Acc',
+        fullHandleNormalized: 'new@acc',
+        fullHandleSlug: 'New@Acc',
         accountId: 'acc-1',
         account: { handle: 'Acc', userId: 'user-1' },
       };
       const updateDto = { handle: 'New' };
 
       (characterRepository.findOne as jest.Mock)
-        .mockResolvedValueOnce(character) // For findOneForUser
-        .mockResolvedValueOnce(null); // For assertHandleUniqueForAccount
-      (characterRepository.save as jest.Mock).mockImplementation(val =>
-        Promise.resolve(val),
-      );
+        .mockResolvedValueOnce(existingCharacter) // findOneForUser (initial load)
+        .mockResolvedValueOnce(null) // assertHandleUniqueForAccount
+        .mockResolvedValueOnce(updatedCharacter); // findOneForUser (re-fetch)
+      (characterRepository.update as jest.Mock).mockResolvedValue({
+        affected: 1,
+      });
 
       const result = await service.updateForUser(
         'char-1',
         'user-1',
         updateDto as any,
       );
-      expect(result.handle).toBe('New');
-      expect(result.fullHandle).toBe('New@Acc');
-      expect(result.fullHandleSlug).toBe('New@Acc');
-      expect(characterRepository.save).toHaveBeenCalled();
+
+      expect(result).toEqual(updatedCharacter);
+      expect(characterRepository.update).toHaveBeenCalledWith(
+        'char-1',
+        expect.objectContaining({
+          handle: 'New',
+          fullHandle: 'New@Acc',
+          fullHandleNormalized: 'new@acc',
+          fullHandleSlug: 'New@Acc',
+        }),
+      );
+      expect(characterRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('should persist FK field changes via update() not save()', async () => {
+      const existingCharacter = {
+        id: 'char-1',
+        handle: "K'Rana",
+        accountId: 'acc-1',
+        account: { handle: 'Acc', userId: 'user-1' },
+        recruitTypeId: 'old-recruit-type-id',
+        recruitType: { id: 'old-recruit-type-id', name: 'Standard' },
+      };
+      const refetchedCharacter = {
+        ...existingCharacter,
+        recruitTypeId: 'new-recruit-type-id',
+        recruitType: { id: 'new-recruit-type-id', name: 'Elite' },
+      };
+      const updateDto = { recruitTypeId: 'new-recruit-type-id' };
+
+      (characterRepository.findOne as jest.Mock)
+        .mockResolvedValueOnce(existingCharacter) // findOneForUser (initial load)
+        .mockResolvedValueOnce(refetchedCharacter); // findOneForUser (re-fetch)
+      (characterRepository.update as jest.Mock).mockResolvedValue({
+        affected: 1,
+      });
+
+      const result = await service.updateForUser(
+        'char-1',
+        'user-1',
+        updateDto as any,
+      );
+
+      expect(characterRepository.update).toHaveBeenCalledWith(
+        'char-1',
+        expect.objectContaining({ recruitTypeId: 'new-recruit-type-id' }),
+      );
+      expect(result.recruitTypeId).toBe('new-recruit-type-id');
+      expect(characterRepository.save).not.toHaveBeenCalled();
     });
 
     it('should skip handle uniqueness check if handle is same', async () => {
@@ -381,14 +440,22 @@ describe('CharacterService', () => {
       };
       const updateDto = { handle: 'Same', notes: 'new notes' };
 
-      (characterRepository.findOne as jest.Mock).mockResolvedValue(character);
-      (characterRepository.save as jest.Mock).mockImplementation(val =>
-        Promise.resolve(val),
-      );
+      (characterRepository.findOne as jest.Mock)
+        .mockResolvedValueOnce(character) // findOneForUser (initial load)
+        .mockResolvedValueOnce(character); // findOneForUser (re-fetch)
+      (characterRepository.update as jest.Mock).mockResolvedValue({
+        affected: 1,
+      });
 
       await service.updateForUser('char-1', 'user-1', updateDto as any);
-      expect(characterRepository.findOne).toHaveBeenCalledTimes(1); // Only for findOneForUser
-      expect(characterRepository.save).toHaveBeenCalled();
+
+      // 2 calls: initial load + re-fetch (no uniqueness check since handle unchanged)
+      expect(characterRepository.findOne).toHaveBeenCalledTimes(2);
+      expect(characterRepository.update).toHaveBeenCalledWith(
+        'char-1',
+        expect.objectContaining({ notes: 'new notes' }),
+      );
+      expect(characterRepository.save).not.toHaveBeenCalled();
     });
 
     it('should handle partial updates without handle', async () => {
@@ -400,14 +467,22 @@ describe('CharacterService', () => {
       };
       const updateDto = { notes: 'only notes' };
 
-      (characterRepository.findOne as jest.Mock).mockResolvedValue(character);
-      (characterRepository.save as jest.Mock).mockImplementation(val =>
-        Promise.resolve(val),
-      );
+      (characterRepository.findOne as jest.Mock)
+        .mockResolvedValueOnce(character) // findOneForUser (initial load)
+        .mockResolvedValueOnce(character); // findOneForUser (re-fetch)
+      (characterRepository.update as jest.Mock).mockResolvedValue({
+        affected: 1,
+      });
 
       await service.updateForUser('char-1', 'user-1', updateDto as any);
-      expect(characterRepository.findOne).toHaveBeenCalledTimes(1);
-      expect(characterRepository.save).toHaveBeenCalled();
+
+      // 2 calls: initial load + re-fetch (no handle in dto)
+      expect(characterRepository.findOne).toHaveBeenCalledTimes(2);
+      expect(characterRepository.update).toHaveBeenCalledWith(
+        'char-1',
+        expect.objectContaining({ notes: 'only notes' }),
+      );
+      expect(characterRepository.save).not.toHaveBeenCalled();
     });
 
     it('should throw BadRequestException if id is missing', async () => {
@@ -455,18 +530,6 @@ describe('CharacterService', () => {
   });
 
   describe('Reference Data Lookups', () => {
-    it('should get general factions', async () => {
-      const data = [{ name: 'Fed' }];
-      (generalFactionRepository.find as jest.Mock).mockResolvedValue(data);
-      expect(await service.getGeneralFactions()).toEqual(data);
-    });
-
-    it('should get factions', async () => {
-      const data = [{ name: 'Fac' }];
-      (factionRepository.find as jest.Mock).mockResolvedValue(data);
-      expect(await service.getFactions()).toEqual(data);
-    });
-
     it('should get sexes', async () => {
       const data = [{ name: 'Male' }];
       (sexRepository.find as jest.Mock).mockResolvedValue(data);
@@ -479,10 +542,97 @@ describe('CharacterService', () => {
       expect(await service.getClasses()).toEqual(data);
     });
 
-    it('should get recruit types', async () => {
-      const data = [{ name: 'Std' }];
-      (recruitTypeRepository.find as jest.Mock).mockResolvedValue(data);
-      expect(await service.getRecruitTypes()).toEqual(data);
+    describe('getGeneralFactions', () => {
+      let queryBuilder: any;
+
+      beforeEach(() => {
+        queryBuilder = {
+          innerJoin: jest.fn().mockReturnThis(),
+          orderBy: jest.fn().mockReturnThis(),
+          getMany: jest.fn().mockResolvedValue([{ name: 'Federation' }]),
+        };
+        (
+          generalFactionRepository.createQueryBuilder as jest.Mock
+        ).mockReturnValue(queryBuilder);
+      });
+
+      it('should get all general factions when no filter', async () => {
+        const result = await service.getGeneralFactions();
+        expect(result).toEqual([{ name: 'Federation' }]);
+        expect(queryBuilder.innerJoin).not.toHaveBeenCalled();
+      });
+
+      it('should filter by factionId', async () => {
+        await service.getGeneralFactions('fac-1');
+        expect(queryBuilder.innerJoin).toHaveBeenCalledWith(
+          'generalFaction.factions',
+          'faction',
+          'faction.id = :factionId',
+          { factionId: 'fac-1' },
+        );
+      });
+    });
+
+    describe('getFactions', () => {
+      let queryBuilder: any;
+
+      beforeEach(() => {
+        queryBuilder = {
+          innerJoin: jest.fn().mockReturnThis(),
+          orderBy: jest.fn().mockReturnThis(),
+          getMany: jest.fn().mockResolvedValue([{ name: 'Starfleet' }]),
+        };
+        (factionRepository.createQueryBuilder as jest.Mock).mockReturnValue(
+          queryBuilder,
+        );
+      });
+
+      it('should get all factions when no filter', async () => {
+        const result = await service.getFactions();
+        expect(result).toEqual([{ name: 'Starfleet' }]);
+        expect(queryBuilder.innerJoin).not.toHaveBeenCalled();
+      });
+
+      it('should filter by generalFactionId', async () => {
+        await service.getFactions('gen-1');
+        expect(queryBuilder.innerJoin).toHaveBeenCalledWith(
+          'faction.generalFactions',
+          'generalFaction',
+          'generalFaction.id = :generalFactionId',
+          { generalFactionId: 'gen-1' },
+        );
+      });
+    });
+
+    describe('getRecruitTypes', () => {
+      let queryBuilder: any;
+
+      beforeEach(() => {
+        queryBuilder = {
+          innerJoin: jest.fn().mockReturnThis(),
+          orderBy: jest.fn().mockReturnThis(),
+          getMany: jest.fn().mockResolvedValue([{ name: 'Standard' }]),
+        };
+        (recruitTypeRepository.createQueryBuilder as jest.Mock).mockReturnValue(
+          queryBuilder,
+        );
+      });
+
+      it('should get all recruit types when no filter', async () => {
+        const result = await service.getRecruitTypes();
+        expect(result).toEqual([{ name: 'Standard' }]);
+        expect(queryBuilder.innerJoin).not.toHaveBeenCalled();
+      });
+
+      it('should filter by factionId', async () => {
+        await service.getRecruitTypes('fac-1');
+        expect(queryBuilder.innerJoin).toHaveBeenCalledWith(
+          'recruitType.factions',
+          'faction',
+          'faction.id = :factionId',
+          { factionId: 'fac-1' },
+        );
+      });
     });
 
     describe('getSpecies', () => {

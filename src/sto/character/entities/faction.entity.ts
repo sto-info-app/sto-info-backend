@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import type { CharacterRankEntity } from './character-rank.entity';
 import { CharacterEntity } from './character.entity';
+import type { GeneralFactionEntity } from './general-faction.entity';
 import type { RecruitTypeEntity } from './recruit-type.entity';
 import type { SpeciesEntity } from './species.entity';
 
@@ -33,6 +34,14 @@ export class FactionEntity {
     inverseJoinColumn: { name: 'speciesId', referencedColumnName: 'id' },
   })
   species: SpeciesEntity[];
+
+  @ManyToMany('GeneralFactionEntity', 'factions')
+  @JoinTable({
+    name: 'faction_general_faction_mapping',
+    joinColumn: { name: 'factionId', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'generalFactionId', referencedColumnName: 'id' },
+  })
+  generalFactions: GeneralFactionEntity[];
 
   @ManyToMany('RecruitTypeEntity', 'factions')
   recruitTypes: RecruitTypeEntity[];
