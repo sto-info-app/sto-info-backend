@@ -1,6 +1,6 @@
 {
   "name": "sto-info-backend",
-  "version": "1.0.136",
+  "version": "1.0.138",
   "description": "Star Trek Online Information APIs",
   "author": "Steve Roberts",
   "private": true,
@@ -49,8 +49,8 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1008.0",
-    "@aws-sdk/client-secrets-manager": "^3.1007.0",
-    "@aws-sdk/client-sesv2": "^3.1007.0",
+    "@aws-sdk/client-secrets-manager": "^3.1009.0",
+    "@aws-sdk/client-sesv2": "^3.1008.0",
     "@nestjs-modules/mailer": "^2.0.2",
     "@nestjs/common": "^11.1.16",
     "@nestjs/config": "^4.0.3",
