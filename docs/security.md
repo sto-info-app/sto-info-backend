@@ -20,13 +20,13 @@ Current overrides in `package.json`:
 
 ```json
 "overrides": {
-  "file-type": "^21.3.1",
+  "file-type": "^21.3.2",
+  "flatted": "^3.4.1",
   "ajv": "^8.18.0",
   "svgo": "^4.0.1",
   "eslint": {
     "ajv": "^6.14.0"
   },
-  "minimatch": "^10.2.4",
   "test-exclude": "^8.0.0",
   "glob": "^13.0.0",
   "fast-xml-parser": "^5.4.1",
@@ -38,11 +38,11 @@ Current overrides in `package.json`:
 
 #### `file-type`
 
-- **Vulnerability**: [GHSA-5v7r-6r5c-r473](https://github.com/advisories/GHSA-5v7r-6r5c-r473) — Infinite loop in the ASF parser on malformed input with a zero-size sub-header in `file-type 13.0.0 – 21.3.0`.
-- **Root cause**: `@nestjs/common` depends on `file-type` and resolves to `21.3.0`, which falls within the affected range. `npm audit fix --force` would downgrade `@nestjs/common` to `11.0.15`, which is a breaking change. The patched release `21.3.1` resolves the issue without touching the NestJS version.
-- **Override**: `"file-type": "^21.3.1"` — forces the patched release across the entire tree.
+- **Vulnerability**: [GHSA-j47w-4g3g-c36v](https://github.com/advisories/GHSA-j47w-4g3g-c36v) — ZIP decompression bomb DoS in `file-type >=20.0.0 <=21.3.1`.
+- **Root cause**: `@nestjs/common` requests `file-type@21.3.0`. `npm audit fix --force` would downgrade `@nestjs/common` to `11.0.15`, which is a breaking change.
+- **Override**: `"file-type": "^21.3.2"` — forces the patched release across the entire tree.
 
-**When it can be removed**: When `@nestjs/common` updates its own `file-type` dependency to `>= 21.3.1` natively. Verify by removing the override and running `npm audit --omit=dev --audit-level=high`. Check the upstream version with:
+**When it can be removed**: When `@nestjs/common` updates its own `file-type` dependency to `>= 21.3.2` natively. Verify by removing the override and running `npm audit --omit=dev --audit-level=high`. Check the upstream version with:
 
 ```sh
 npm view @nestjs/common@latest dependencies.file-type
@@ -67,6 +67,14 @@ npm view @nestjs/platform-express@latest dependencies.multer
 
 **When it can be removed**: When all packages that transitively depend on `ajv` have updated to request `>= 8.18.0` natively. Verify by removing the override and checking `npm audit --omit=dev --audit-level=high`. The ESLint nested override can be removed when ESLint migrates away from `ajv@6`.
 
+#### `flatted`
+
+- **Vulnerability**: [GHSA-25h7-pfq9-p65f](https://github.com/advisories/GHSA-25h7-pfq9-p65f) — unbounded recursion DoS in `flatted < 3.4.0`.
+- **Root cause**: ESLint's cache chain (`eslint -> file-entry-cache -> flat-cache`) previously resolved to `flatted@3.3.3`.
+- **Override**: `"flatted": "^3.4.1"` — forces a safe release in the full dependency tree.
+
+**When it can be removed**: When all transitive consumers request `flatted >= 3.4.0` natively. Verify by removing the override and running full `npm audit`.
+
 #### `svgo`
 
 - **Vulnerability**: [GHSA-xpqw-6gx7-v673](https://github.com/advisories/GHSA-xpqw-6gx7-v673) — Denial of Service via entity expansion (Billion Laughs attack) in `svgo < 4.0.1`.
@@ -75,13 +83,18 @@ npm view @nestjs/platform-express@latest dependencies.multer
 
 **When it can be removed**: When `postcss-svgo` updates its own `svgo` dependency to `>= 4.0.1`.
 
-#### `minimatch`, `glob`, and `test-exclude`
+#### `glob` and `test-exclude`
 
-- **Vulnerability**: `minimatch < 10.2.4` and `glob < 13` have high-severity ReDoS advisories.
-- **Solution**: Pin `minimatch` to `^10.2.4` and `glob` to `^13.0.0`. The key transitive offenders are `fork-ts-checker-webpack-plugin` (`minimatch@^3`) and the Jest reporter stack (`glob@^10`).
+- **Vulnerability**: `glob < 13` has high-severity ReDoS advisories.
+- **Solution**: Pin `glob` to `^13.0.0`. The key transitive offender is the Jest reporter stack (`glob@^10`).
 - **Compatibility**: Istanbul's `babel-plugin-istanbul` pulls in `test-exclude@^6`, which expects an older `minimatch` API. Overriding `test-exclude` to `^8.0.0` keeps coverage tooling working with the newer `minimatch` and `glob` versions, preventing `TypeError: minimatch is not a function` errors during Jest runs.
 
-**When it can be removed**: When `fork-ts-checker-webpack-plugin`, the Jest packages, and `babel-plugin-istanbul` have all updated their own `minimatch`/`glob`/`test-exclude` dependencies to versions that satisfy the above ranges natively. Verify with `npm audit` and `npm run test:cov`.
+**When it can be removed**: When Jest and Istanbul transitive dependencies request patched `glob`/`test-exclude` ranges natively. Verify with `npm audit` and `npm run test:cov`.
+
+#### `minimatch` — **removed from overrides**
+
+- **Removed**: The `minimatch` override was removed because the current resolved tree already installs `minimatch@10.2.4` natively.
+- **Validation**: `npm audit` and `npm run verify` remain clean after removal.
 
 #### `fast-xml-parser`
 
@@ -92,7 +105,7 @@ npm view @nestjs/platform-express@latest dependencies.multer
 
 #### `mjml`
 
-- **Purpose**: Forces `mjml` to `^5.0.0-alpha.11` (v5 prerelease) rather than the `^4.x` version that `@nestjs-modules/mailer` requests as an optional dependency.
+- **Purpose**: Forces `mjml` to `^5.0.0-beta.1` (v5 prerelease) rather than the `^4.x` version that `@nestjs-modules/mailer` requests as an optional dependency.
 - **Reason**: mjml v5 is required for compatibility with the email template rendering pipeline.
 
 **When it can be removed**: When `@nestjs-modules/mailer` officially supports and requests `mjml@^5` in its own dependencies, or when the project migrates away from mjml.
