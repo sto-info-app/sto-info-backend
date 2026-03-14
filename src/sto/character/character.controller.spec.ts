@@ -88,14 +88,28 @@ describe('CharacterController', () => {
   });
 
   describe('Lookups', () => {
-    it('should call getGeneralFactions', async () => {
-      await controller.getGeneralFactions();
-      expect(service.getGeneralFactions).toHaveBeenCalled();
+    describe('getGeneralFactions', () => {
+      it('should call service.getGeneralFactions with no filter', async () => {
+        await controller.getGeneralFactions();
+        expect(service.getGeneralFactions).toHaveBeenCalledWith(undefined);
+      });
+
+      it('should call service.getGeneralFactions with factionId', async () => {
+        await controller.getGeneralFactions('fac-1');
+        expect(service.getGeneralFactions).toHaveBeenCalledWith('fac-1');
+      });
     });
 
-    it('should call getFactions', async () => {
-      await controller.getFactions();
-      expect(service.getFactions).toHaveBeenCalled();
+    describe('getFactions', () => {
+      it('should call service.getFactions with no filter', async () => {
+        await controller.getFactions();
+        expect(service.getFactions).toHaveBeenCalledWith(undefined);
+      });
+
+      it('should call service.getFactions with generalFactionId', async () => {
+        await controller.getFactions('gen-1');
+        expect(service.getFactions).toHaveBeenCalledWith('gen-1');
+      });
     });
 
     it('should call getSexes', async () => {
@@ -108,9 +122,16 @@ describe('CharacterController', () => {
       expect(service.getClasses).toHaveBeenCalled();
     });
 
-    it('should call getRecruitTypes', async () => {
-      await controller.getRecruitTypes();
-      expect(service.getRecruitTypes).toHaveBeenCalled();
+    describe('getRecruitTypes', () => {
+      it('should call service.getRecruitTypes with no filter', async () => {
+        await controller.getRecruitTypes();
+        expect(service.getRecruitTypes).toHaveBeenCalledWith(undefined);
+      });
+
+      it('should call service.getRecruitTypes with factionId', async () => {
+        await controller.getRecruitTypes('fac-1');
+        expect(service.getRecruitTypes).toHaveBeenCalledWith('fac-1');
+      });
     });
 
     it('should call getSpecies with query params', async () => {

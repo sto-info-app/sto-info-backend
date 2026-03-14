@@ -334,11 +334,15 @@ Upload a character profile image.
 
 ### GET /character/lookup/general-factions
 
-List general factions.
+List general factions (e.g. Federation, Klingon).
+
+**Query (optional):** `factionId=<uuid>` — when supplied, returns only general factions associated with that specific faction.
 
 ### GET /character/lookup/factions
 
-List factions.
+List specific factions (e.g. Starfleet (2409), TOS Starfleet, KDF).
+
+**Query (optional):** `generalFactionId=<uuid>` — when supplied, returns only factions associated with that general faction.
 
 ### GET /character/lookup/sexes
 
@@ -346,11 +350,13 @@ List sexes.
 
 ### GET /character/lookup/classes
 
-List classes.
+List character classes.
 
 ### GET /character/lookup/recruit-types
 
 List recruit types.
+
+**Query (optional):** `factionId=<uuid>` — when supplied, returns only recruit types available for that faction.
 
 ### GET /character/lookup/species
 

@@ -2,6 +2,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 
@@ -35,6 +36,8 @@ export type SesBounceSubType =
  * (`_audit`, `_audit_login_attempt`).
  */
 @Entity({ name: '_audit_ses_event' })
+@Index('IDX__audit_ses_event_emailHashed_suppress', ['emailHashed', 'suppress'])
+@Index('IDX__audit_ses_event_suppress_createdAt', ['suppress', 'createdAt'])
 export class SesEventEntity {
   /** Auto-generated UUID primary key. */
   @PrimaryGeneratedColumn('uuid')

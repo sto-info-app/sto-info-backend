@@ -20,15 +20,13 @@ Current overrides in `package.json`:
 
 ```json
 "overrides": {
-  "@nestjs/platform-express": {
-    "multer": "^2.1.1"
-  },
+  "file-type": "^21.3.2",
+  "flatted": "^3.4.1",
   "ajv": "^8.18.0",
   "svgo": "^4.0.1",
   "eslint": {
     "ajv": "^6.14.0"
   },
-  "minimatch": "^10.2.4",
   "test-exclude": "^8.0.0",
   "glob": "^13.0.0",
   "fast-xml-parser": "^5.4.1",
@@ -38,22 +36,28 @@ Current overrides in `package.json`:
 }
 ```
 
-#### `multer` (nested under `@nestjs/platform-express`)
+#### `file-type`
+
+- **Vulnerability**: [GHSA-j47w-4g3g-c36v](https://github.com/advisories/GHSA-j47w-4g3g-c36v) — ZIP decompression bomb DoS in `file-type >=20.0.0 <=21.3.1`.
+- **Root cause**: `@nestjs/common` requests `file-type@21.3.0`. `npm audit fix --force` would downgrade `@nestjs/common` to `11.0.15`, which is a breaking change.
+- **Override**: `"file-type": "^21.3.2"` — forces the patched release across the entire tree.
+
+**When it can be removed**: When `@nestjs/common` updates its own `file-type` dependency to `>= 21.3.2` natively. Verify by removing the override and running `npm audit --omit=dev --audit-level=high`. Check the upstream version with:
+
+```sh
+npm view @nestjs/common@latest dependencies.file-type
+```
+
+#### `multer` (nested under `@nestjs/platform-express`) — **removed from overrides**
 
 - **Vulnerability**: [GHSA-5528-5vmv-3xc2](https://github.com/advisories/GHSA-5528-5vmv-3xc2) — Denial of Service via uncontrolled recursion in `multer < 2.1.1`.
-- **Root cause**: `@nestjs/platform-express` pins `multer` to an exact older version in its own `dependencies`, which npm installs as a nested copy rather than deduplicating with the safe top-level version.
-- **Override**: `"@nestjs/platform-express": { "multer": "^2.1.1" }` — targets only the nested copy inside `@nestjs/platform-express`.
-- **npm 11.x limitation**: npm 11.x does not apply nested overrides when the same package also exists as a direct dependency at the top level. As a result, the nested `multer` is patched automatically on every install by the `postinstall` hook (see below).
+- **Removed**: As of `@nestjs/platform-express@11.1.16`, the package pins `multer` to exactly `2.1.1` in its own `dependencies`. npm deduplicates this against the top-level install, so no nested copy is installed and the override had no effect. The nested override has been removed from `package.json`.
 
-**When it can be removed**: When `@nestjs/platform-express` updates its own `multer` dependency to a range `>= 2.1.1` (not an exact pin). Check by running:
+**Postinstall patch**: The `multer` entry in `scripts/patch-nested-packages.js` is kept as a safety net. It exits immediately when no nested install is found, so it is currently a no-op. Remove the entry from the script when `@nestjs/platform-express` switches its `multer` dependency from an exact pin to a semver range `>= 2.1.1`, after which the patch will never be triggered. Verify with:
 
 ```sh
 npm view @nestjs/platform-express@latest dependencies.multer
 ```
-
-> **Current status (as of v11.1.16):** `@nestjs/platform-express` now pins `multer` to exactly `2.1.1` (the safe version), so the security vulnerability is addressed upstream. The override is kept in place so future patch releases of `multer` are picked up automatically rather than being locked to a single exact version. The postinstall patch in `scripts/patch-nested-packages.js` remains in place for the same reason.
-
-Remove both the nested override and the `multer` patch entry from `scripts/patch-nested-packages.js` when `@nestjs/platform-express` switches from an exact pin to a range `>= 2.1.1`.
 
 #### `ajv` overrides
 
@@ -63,6 +67,14 @@ Remove both the nested override and the `multer` patch entry from `scripts/patch
 
 **When it can be removed**: When all packages that transitively depend on `ajv` have updated to request `>= 8.18.0` natively. Verify by removing the override and checking `npm audit --omit=dev --audit-level=high`. The ESLint nested override can be removed when ESLint migrates away from `ajv@6`.
 
+#### `flatted`
+
+- **Vulnerability**: [GHSA-25h7-pfq9-p65f](https://github.com/advisories/GHSA-25h7-pfq9-p65f) — unbounded recursion DoS in `flatted < 3.4.0`.
+- **Root cause**: ESLint's cache chain (`eslint -> file-entry-cache -> flat-cache`) previously resolved to `flatted@3.3.3`.
+- **Override**: `"flatted": "^3.4.1"` — forces a safe release in the full dependency tree.
+
+**When it can be removed**: When all transitive consumers request `flatted >= 3.4.0` natively. Verify by removing the override and running full `npm audit`.
+
 #### `svgo`
 
 - **Vulnerability**: [GHSA-xpqw-6gx7-v673](https://github.com/advisories/GHSA-xpqw-6gx7-v673) — Denial of Service via entity expansion (Billion Laughs attack) in `svgo < 4.0.1`.
@@ -71,13 +83,18 @@ Remove both the nested override and the `multer` patch entry from `scripts/patch
 
 **When it can be removed**: When `postcss-svgo` updates its own `svgo` dependency to `>= 4.0.1`.
 
-#### `minimatch`, `glob`, and `test-exclude`
+#### `glob` and `test-exclude`
 
-- **Vulnerability**: `minimatch < 10.2.4` and `glob < 13` have high-severity ReDoS advisories.
-- **Solution**: Pin `minimatch` to `^10.2.4` and `glob` to `^13.0.0`. The key transitive offenders are `fork-ts-checker-webpack-plugin` (`minimatch@^3`) and the Jest reporter stack (`glob@^10`).
+- **Vulnerability**: `glob < 13` has high-severity ReDoS advisories.
+- **Solution**: Pin `glob` to `^13.0.0`. The key transitive offender is the Jest reporter stack (`glob@^10`).
 - **Compatibility**: Istanbul's `babel-plugin-istanbul` pulls in `test-exclude@^6`, which expects an older `minimatch` API. Overriding `test-exclude` to `^8.0.0` keeps coverage tooling working with the newer `minimatch` and `glob` versions, preventing `TypeError: minimatch is not a function` errors during Jest runs.
 
-**When it can be removed**: When `fork-ts-checker-webpack-plugin`, the Jest packages, and `babel-plugin-istanbul` have all updated their own `minimatch`/`glob`/`test-exclude` dependencies to versions that satisfy the above ranges natively. Verify with `npm audit` and `npm run test:cov`.
+**When it can be removed**: When Jest and Istanbul transitive dependencies request patched `glob`/`test-exclude` ranges natively. Verify with `npm audit` and `npm run test:cov`.
+
+#### `minimatch` — **removed from overrides**
+
+- **Removed**: The `minimatch` override was removed because the current resolved tree already installs `minimatch@10.2.4` natively.
+- **Validation**: `npm audit` and `npm run verify` remain clean after removal.
 
 #### `fast-xml-parser`
 
@@ -88,7 +105,7 @@ Remove both the nested override and the `multer` patch entry from `scripts/patch
 
 #### `mjml`
 
-- **Purpose**: Forces `mjml` to `^5.0.0-alpha.11` (v5 prerelease) rather than the `^4.x` version that `@nestjs-modules/mailer` requests as an optional dependency.
+- **Purpose**: Forces `mjml` to `^5.0.0-beta.1` (v5 prerelease) rather than the `^4.x` version that `@nestjs-modules/mailer` requests as an optional dependency.
 - **Reason**: mjml v5 is required for compatibility with the email template rendering pipeline.
 
 **When it can be removed**: When `@nestjs-modules/mailer` officially supports and requests `mjml@^5` in its own dependencies, or when the project migrates away from mjml.
