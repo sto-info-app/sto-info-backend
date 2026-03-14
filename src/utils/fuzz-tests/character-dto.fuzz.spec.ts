@@ -34,6 +34,7 @@ describe('Character DTO validation fuzz tests', () => {
                 min: new Date('2020-01-01'),
                 max: new Date('2100-12-31'),
               })
+              .filter(d => !isNaN(d.getTime()))
               .map(d => d.toISOString()),
             fc.string(),
             fc.constant(undefined),
