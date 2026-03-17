@@ -20,8 +20,8 @@ Current overrides in `package.json`:
 
 ```json
 "overrides": {
-  "file-type": "^21.3.2",
-  "flatted": "^3.4.1",
+  "file-type": "^21.3.3",
+  "flatted": "^3.4.2",
   "ajv": "^8.18.0",
   "svgo": "^4.0.1",
   "eslint": {
@@ -29,9 +29,9 @@ Current overrides in `package.json`:
   },
   "test-exclude": "^8.0.0",
   "glob": "^13.0.0",
-  "fast-xml-parser": "^5.4.1",
-  "mjml": "^5.0.0-alpha.11",
-  "serialize-javascript": "^7.0.3",
+  "fast-xml-parser": "^5.5.6",
+  "mjml": "^5.0.0-beta.1",
+  "serialize-javascript": "^7.0.4",
   "underscore": "^1.13.8"
 }
 ```
@@ -40,9 +40,9 @@ Current overrides in `package.json`:
 
 - **Vulnerability**: [GHSA-j47w-4g3g-c36v](https://github.com/advisories/GHSA-j47w-4g3g-c36v) — ZIP decompression bomb DoS in `file-type >=20.0.0 <=21.3.1`.
 - **Root cause**: `@nestjs/common` requests `file-type@21.3.0`. `npm audit fix --force` would downgrade `@nestjs/common` to `11.0.15`, which is a breaking change.
-- **Override**: `"file-type": "^21.3.2"` — forces the patched release across the entire tree.
+- **Override**: `"file-type": "^21.3.3"` — forces the patched release across the entire tree.
 
-**When it can be removed**: When `@nestjs/common` updates its own `file-type` dependency to `>= 21.3.2` natively. Verify by removing the override and running `npm audit --omit=dev --audit-level=high`. Check the upstream version with:
+**When it can be removed**: When `@nestjs/common` updates its own `file-type` dependency to `>= 21.3.3` natively. Verify by removing the override and running `npm audit --omit=dev --audit-level=high`. Check the upstream version with:
 
 ```sh
 npm view @nestjs/common@latest dependencies.file-type
@@ -63,15 +63,15 @@ npm view @nestjs/platform-express@latest dependencies.multer
 
 - **Vulnerability**: [GHSA-2g4f-4pwh-qvx6](https://github.com/advisories/GHSA-2g4f-4pwh-qvx6) — ReDoS in `ajv < 8.18.0` when using the `$data` option.
 - **Solution**: We pin the global `ajv` to `^8.18.0`.
-- **Tooling Compatibility**: ESLint (v10.x) strictly requires `ajv@6`. To prevent linting from breaking while keeping the rest of the tree safe, we provide a nested override so ESLint continues to use `ajv@6.14.0` (the last safe v6 release).
+- **Tooling Compatibility**: ESLint (v10.x) strictly requires `ajv@6` and uses legacy import paths (`ajv/lib/refs/json-schema-draft-04.json`) that break when it resolves to `ajv@8`. Keep the nested override so ESLint always resolves `ajv@^6.14.0`.
 
-**When it can be removed**: When all packages that transitively depend on `ajv` have updated to request `>= 8.18.0` natively. Verify by removing the override and checking `npm audit --omit=dev --audit-level=high`. The ESLint nested override can be removed when ESLint migrates away from `ajv@6`.
+**When it can be removed**: When ESLint no longer depends on `ajv@6` internals and lint passes without the nested override.
 
 #### `flatted`
 
 - **Vulnerability**: [GHSA-25h7-pfq9-p65f](https://github.com/advisories/GHSA-25h7-pfq9-p65f) — unbounded recursion DoS in `flatted < 3.4.0`.
 - **Root cause**: ESLint's cache chain (`eslint -> file-entry-cache -> flat-cache`) previously resolved to `flatted@3.3.3`.
-- **Override**: `"flatted": "^3.4.1"` — forces a safe release in the full dependency tree.
+- **Override**: `"flatted": "^3.4.2"` — forces a safe release in the full dependency tree.
 
 **When it can be removed**: When all transitive consumers request `flatted >= 3.4.0` natively. Verify by removing the override and running full `npm audit`.
 
@@ -99,9 +99,9 @@ npm view @nestjs/platform-express@latest dependencies.multer
 #### `fast-xml-parser`
 
 - **Root cause**: `@aws-sdk/xml-builder` pins `fast-xml-parser` to an exact older patch version.
-- **Solution**: Override to `^5.4.1` to ensure the latest patch is used.
+- **Solution**: Override to `^5.5.6` to ensure the latest patch is used and to address [GHSA-8gc5-j5rx-235r](https://github.com/advisories/GHSA-8gc5-j5rx-235r).
 
-**When it can be removed**: When `@aws-sdk/xml-builder` updates its own `fast-xml-parser` dependency to `>= 5.4.1` using a range rather than an exact pin.
+**When it can be removed**: When `@aws-sdk/xml-builder` updates its own `fast-xml-parser` dependency to `>= 5.5.6` using a range rather than an exact pin.
 
 #### `mjml`
 
@@ -113,9 +113,9 @@ npm view @nestjs/platform-express@latest dependencies.multer
 #### `serialize-javascript`
 
 - **Root cause**: `terser-webpack-plugin` requests `serialize-javascript@^6`, which has known vulnerabilities.
-- **Solution**: Override to `^7.0.3`.
+- **Solution**: Override to `^7.0.4`.
 
-**When it can be removed**: When `terser-webpack-plugin` updates its own `serialize-javascript` dependency to `>= 7.0.3`.
+**When it can be removed**: When `terser-webpack-plugin` updates its own `serialize-javascript` dependency to `>= 7.0.4`.
 
 #### `underscore`
 
