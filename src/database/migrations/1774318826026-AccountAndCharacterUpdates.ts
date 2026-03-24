@@ -13,37 +13,31 @@ export class AccountAndCharacterUpdates1774318826026 implements MigrationInterfa
       UPDATE "sto_info_app"."character_faction" 
       SET "iconUrl" = 'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/a69420ff-952f-4776-ebed-ffcbfd634500/square100' 
       WHERE "name" = 'Klingon Defense Force' 
-      ON CONFLICT DO NOTHING;
     `);
     await queryRunner.query(`
       UPDATE "sto_info_app"."character_faction" 
       SET "iconUrl" = 'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/1f195b7b-301a-47b1-02a9-d52a2fb35800/square100' 
       WHERE "name" = 'Dominion' 
-      ON CONFLICT DO NOTHING;
     `);
     await queryRunner.query(`
       UPDATE "sto_info_app"."character_faction" 
       SET "iconUrl" = 'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/e8246159-ea6a-46bf-a756-efac4e9d5f00/square100' 
       WHERE "name" = 'Discovery Starfleet' 
-      ON CONFLICT DO NOTHING;
     `);
     await queryRunner.query(`
       UPDATE "sto_info_app"."character_faction" 
       SET "iconUrl" = 'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/276a6f60-18d0-457f-dfa5-f2041fd26200/square100' 
       WHERE "name" = 'Starfleet (2409)' 
-      ON CONFLICT DO NOTHING;
     `);
     await queryRunner.query(`
       UPDATE "sto_info_app"."character_faction" 
       SET "iconUrl" = 'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/aed972bf-8e47-4b85-35a0-31dacdb66300/square100' 
       WHERE "name" = 'Romulan Republic' 
-      ON CONFLICT DO NOTHING;
     `);
     await queryRunner.query(`
       UPDATE "sto_info_app"."character_faction" 
       SET "iconUrl" = 'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/d3f36f5b-e84c-40bf-6897-29f174a1aa00/square100' 
       WHERE "name" = 'TOS Starfleet' 
-      ON CONFLICT DO NOTHING;
     `);
 
     // Update faction allegiance icons
