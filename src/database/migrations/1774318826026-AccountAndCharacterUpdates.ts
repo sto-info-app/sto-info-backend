@@ -43,22 +43,22 @@ export class AccountAndCharacterUpdates1774318826026 implements MigrationInterfa
     // Update faction allegiance icons
     await queryRunner.query(`
       UPDATE "sto_info_app"."character_recruit_type" 
-      SET "iconUrl" = 'https://imagedelivery.net/jQ0uSdJ3ty-KasNpXGxyuA/22af6120-b106-4c84-6c7b-8de08aa0b100/square40' 
+      SET "iconUrl" = 'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/22af6120-b106-4c84-6c7b-8de08aa0b100/square40' 
       WHERE "name" = 'Klingon'
     `);
     await queryRunner.query(`
       UPDATE "sto_info_app"."character_recruit_type" 
-      SET "iconUrl" = 'https://imagedelivery.net/jQ0uSdJ3ty-KasNpXGxyuA/40106e2c-b42a-4d63-0164-a432286b8e00/square40' 
+      SET "iconUrl" = 'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/40106e2c-b42a-4d63-0164-a432286b8e00/square40' 
       WHERE "name" = 'Gamma'
     `);
     await queryRunner.query(`
       UPDATE "sto_info_app"."character_recruit_type" 
-      SET "iconUrl" = 'https://imagedelivery.net/jQ0uSdJ3ty-KasNpXGxyuA/96164c2e-a624-4c11-ce89-26f401e76700/square40' 
+      SET "iconUrl" = 'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/96164c2e-a624-4c11-ce89-26f401e76700/square40' 
       WHERE "name" = 'Temporal'
     `);
     await queryRunner.query(`
       UPDATE "sto_info_app"."character_recruit_type" 
-      SET "iconUrl" = 'https://imagedelivery.net/jQ0uSdJ3ty-KasNpXGxyuA/9641d7f7-c37b-4ab8-c5d9-4c09e2ee3300/square40' 
+      SET "iconUrl" = 'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/9641d7f7-c37b-4ab8-c5d9-4c09e2ee3300/square40' 
       WHERE "name" = 'Delta'
     `);
   }
