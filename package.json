@@ -32,7 +32,7 @@
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
     "lint:fix": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "cross-env TZ=UTC jest --testPathIgnorePatterns='.fuzz.spec.ts'",
-    "test:fuzz": "cross-env TZ=UTC FUZZ_NUM_RUNS=${FUZZ_NUM_RUNS:-50} jest --testRegex='.*\\.fuzz\\.spec\\.ts$' --coverage=false",
+    "test:fuzz": "cross-env TZ=UTC FUZZ_NUM_RUNS=${FUZZ_NUM_RUNS:-50} jest --config jest.config.mjs --testRegex='.*\\.fuzz\\.spec\\.ts$' --coverage=false",
     "test:fuzz:full": "cross-env TZ=UTC FUZZ_NUM_RUNS=${FUZZ_NUM_RUNS:-1000} jest --testRegex='.*\\.fuzz\\.spec\\.ts$' --coverage=false",
     "test:watch": "cross-env TZ=UTC jest --watch",
     "test:cov": "cross-env TZ=UTC jest --config jest.config.mjs --runInBand --coverage --coverageDirectory=reports/coverage --testPathIgnorePatterns='.fuzz.spec.ts'",
