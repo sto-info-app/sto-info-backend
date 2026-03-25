@@ -1,7 +1,7 @@
 import { S3Client } from '@aws-sdk/client-s3';
+import { jest } from '@jest/globals';
 import { BadRequestException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { jest } from '@jest/globals';
 import { Test } from '@nestjs/testing';
 import axios from 'axios';
 import { SecretsService } from '../secrets/secrets.service';

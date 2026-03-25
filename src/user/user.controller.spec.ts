@@ -1,5 +1,5 @@
-import { BadRequestException, HttpException } from '@nestjs/common';
 import { jest } from '@jest/globals';
+import { BadRequestException, HttpException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserController } from './user.controller';
 import { UserService } from './user.service';

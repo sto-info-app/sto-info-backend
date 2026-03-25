@@ -1,5 +1,5 @@
-import { ConsoleLogger, Logger } from '@nestjs/common';
 import { jest } from '@jest/globals';
+import { ConsoleLogger, Logger } from '@nestjs/common';
 
 /**
  * Global NestJS Logger configuration for tests.

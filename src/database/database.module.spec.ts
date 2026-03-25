@@ -1,5 +1,5 @@
-import { Logger } from '@nestjs/common';
 import { jest } from '@jest/globals';
+import { Logger } from '@nestjs/common';
 import { AccountSeederService } from './account-seeder/account-seeder.service';
 import { DatabaseModule } from './database.module';
 import { DatabaseService } from './database.service';
