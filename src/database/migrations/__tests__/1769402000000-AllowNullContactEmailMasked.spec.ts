@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { QueryRunner } from 'typeorm';
 import { AllowNullContactEmailMasked1769402000000 } from '../1769402000000-AllowNullContactEmailMasked';
 

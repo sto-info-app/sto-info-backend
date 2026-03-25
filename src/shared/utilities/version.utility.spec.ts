@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getAppVersion } from './version.utility';

@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import * as Sentry from '@sentry/nestjs';
 
 jest.mock('@sentry/nestjs', () => ({

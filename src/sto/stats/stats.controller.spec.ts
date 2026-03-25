@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { StatsResponseDto } from './dto/stats-response.dto';
 import { StatsController } from './stats.controller';

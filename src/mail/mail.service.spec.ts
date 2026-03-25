@@ -1,5 +1,6 @@
 import { MailerService } from '@nestjs-modules/mailer';
 import { Logger } from '@nestjs/common';
+import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as sgMail from '@sendgrid/mail';
 import * as ejs from 'ejs';

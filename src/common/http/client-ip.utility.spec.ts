@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import type { Request } from 'express';
 import { getClientIp } from './client-ip.utility';
 

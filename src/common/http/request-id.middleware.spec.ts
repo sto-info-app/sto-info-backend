@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/nestjs';
+import { jest } from '@jest/globals';
 import { randomUUID } from 'crypto';
 import type { NextFunction, Response } from 'express';
 import {

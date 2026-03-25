@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { AuditLoginAttemptEntity } from 'src/audit/entities/audit-login-attempt.entity';

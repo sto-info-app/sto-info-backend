@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { LauncherService } from 'src/sto/launcher/launcher.service';
 import { PlatformLauncherService } from 'src/sto/platform-launcher/platform-launcher.service';

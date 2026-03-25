@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import type { Request } from 'express';
 import { NextFunction, Response } from 'express';

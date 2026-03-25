@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { validateOrReject } from 'class-validator';
 import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
 import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';

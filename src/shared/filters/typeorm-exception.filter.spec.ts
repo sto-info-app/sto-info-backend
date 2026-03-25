@@ -1,4 +1,5 @@
 import { ArgumentsHost, HttpStatus, Logger } from '@nestjs/common';
+import { jest } from '@jest/globals';
 import * as Sentry from '@sentry/nestjs';
 import { TypeORMError } from 'typeorm';
 import { TypeOrmExceptionFilter } from './typeorm-exception.filter';

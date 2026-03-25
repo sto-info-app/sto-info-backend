@@ -1,4 +1,5 @@
 import { ForbiddenException } from '@nestjs/common';
+import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as fc from 'fast-check';
 import { SesWebhookController } from '../../webhooks/ses/ses-webhook.controller';
