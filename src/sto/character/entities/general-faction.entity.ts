@@ -16,6 +16,9 @@ export class GeneralFactionEntity {
   @Column({ type: 'varchar', length: 50, unique: true })
   name: string; // Federation, Klingon, Undecided
 
+  @Column({ type: 'varchar', length: 511, nullable: true })
+  iconUrl: string | null;
+
   @OneToMany('CharacterEntity', 'generalFaction')
   characters: CharacterEntity[];
 
