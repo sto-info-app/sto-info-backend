@@ -32,7 +32,14 @@ Current overrides in `package.json`:
   "fast-xml-parser": "^5.5.6",
   "mjml": "^5.0.0-beta.1",
   "serialize-javascript": "^7.0.4",
-  "underscore": "^1.13.8"
+  "underscore": "^1.13.8",
+  "picomatch": "^4.0.4",
+  "anymatch": {
+    "picomatch": "^2.3.2"
+  },
+  "micromatch": {
+    "picomatch": "^2.3.2"
+  }
 }
 ```
 
@@ -128,6 +135,26 @@ npm view @nestjs/platform-express@latest dependencies.multer
 
 ```sh
 npm view typed-rest-client@latest dependencies.underscore
+```
+
+#### `picomatch`
+
+- **Vulnerability**: ReDoS and incorrect glob matching in `picomatch < 2.3.2` (v2 branch) and `picomatch < 4.0.4` (v4 branch).
+- **Root cause**: Multiple packages install their own nested picomatch at vulnerable versions:
+  - `anymatch` and `micromatch` install `picomatch@2.3.1` (nested, v2 branch).
+  - `jest-haste-map` and related Jest internals install `picomatch@4.0.3` (nested, v4 branch).
+  - The root-level `picomatch` was at `4.0.2`.
+- **Solution**: Three override entries are used:
+  - `"picomatch": "^4.0.4"` — forces the root install and all v4-branch consumers to the patched release.
+  - `"anymatch": { "picomatch": "^2.3.2" }` — ensures `anymatch` receives the patched v2 release rather than being forced to the incompatible v4 API.
+  - `"micromatch": { "picomatch": "^2.3.2" }` — same reason as `anymatch`.
+
+**When it can be removed**: When `anymatch` and `micromatch` update their own `picomatch` dependency ranges to `>= 2.3.2`, and when `jest-haste-map` (and related Jest packages) update their ranges to `>= 4.0.4`. Verify with:
+
+```sh
+npm view anymatch@latest dependencies.picomatch
+npm view micromatch@latest dependencies.picomatch
+npm view jest-haste-map@latest dependencies.picomatch
 ```
 
 ---

@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import * as Sentry from '@sentry/nestjs';
 
 jest.mock('@sentry/nestjs', () => ({
@@ -49,7 +50,8 @@ describe('Sentry Initialization', () => {
     });
 
     expect(Sentry.init).toHaveBeenCalled();
-    const initCall = (Sentry.init as jest.Mock).mock.calls[0][0];
+    const initCall = (Sentry.init as jest.Mock<(...args: any[]) => any>).mock
+      .calls[0][0];
     const beforeSendTransaction = initCall.beforeSendTransaction;
 
     expect(beforeSendTransaction({ request: { url: '/health' } })).toBeNull();
@@ -82,7 +84,8 @@ describe('Sentry Initialization', () => {
       await import('./sentry.init');
     });
 
-    const initCall = (Sentry.init as jest.Mock).mock.calls[0][0];
+    const initCall = (Sentry.init as jest.Mock<(...args: any[]) => any>).mock
+      .calls[0][0];
     const beforeSend = initCall.beforeSend;
 
     // Full event with everything

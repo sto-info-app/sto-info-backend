@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { NextFunction, Request, Response } from 'express';
 
 import { NonceMiddleware } from './nonce.middleware';

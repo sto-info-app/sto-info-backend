@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import {
   BadRequestException,
   ConflictException,
@@ -24,14 +25,21 @@ import { AuthService } from './auth.service';
 
 jest.mock('bcrypt');
 jest.mock('class-validator', () => {
-  const actual = jest.requireActual('class-validator');
+  const actual = jest.requireActual('class-validator') as Record<
+    string,
+    unknown
+  >;
   return {
     ...actual,
-    validateOrReject: jest.fn().mockResolvedValue(true),
+    validateOrReject: jest
+      .fn<(...args: any[]) => Promise<any>>()
+      .mockResolvedValue(true),
   };
 });
 jest.mock('ejs', () => ({
-  renderFile: jest.fn().mockResolvedValue('<html></html>'),
+  renderFile: jest
+    .fn<(...args: any[]) => Promise<any>>()
+    .mockResolvedValue('<html></html>'),
 }));
 jest.mock('html-to-text', () => ({
   convert: jest.fn().mockReturnValue('text'),
@@ -46,7 +54,7 @@ describe('AuthService', () => {
   let userService: UserService;
   let mailService: MailService;
   let refreshTokenService: UserRefreshTokenService;
-  let consoleErrorSpy: jest.SpyInstance;
+  let consoleErrorSpy: jest.SpiedFunction<(...args: any[]) => any>;
 
   beforeAll(() => {
     // Suppress console.error during tests
@@ -152,12 +160,24 @@ describe('AuthService', () => {
     };
 
     it('should successfully register a user', async () => {
-      (userService.doesEmailExist as jest.Mock).mockResolvedValue(false);
-      (userService.doesUsernameExist as jest.Mock).mockResolvedValue(false);
-      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed');
+      (
+        userService.doesEmailExist as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(false);
+      (
+        userService.doesUsernameExist as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(false);
+      (
+        bcrypt.hash as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue('hashed');
       (userRepository.create as jest.Mock).mockReturnValue({});
       (userProfileRepository.create as jest.Mock).mockReturnValue({});
-      (userRepository.save as jest.Mock).mockResolvedValue({
+      (
+        userRepository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
         id: '1',
         email: dto.email,
       });
@@ -203,12 +223,16 @@ describe('AuthService', () => {
       ) => {
         expect(name).toBeDefined();
         const testDto = { ...dto, ...overrides };
-        (userService.doesEmailExist as jest.Mock).mockResolvedValue(
-          overrides.emailExist || false,
-        );
-        (userService.doesUsernameExist as jest.Mock).mockResolvedValue(
-          overrides.usernameExist || false,
-        );
+        (
+          userService.doesEmailExist as jest.Mock<
+            (...args: any[]) => Promise<any>
+          >
+        ).mockResolvedValue(overrides.emailExist || false);
+        (
+          userService.doesUsernameExist as jest.Mock<
+            (...args: any[]) => Promise<any>
+          >
+        ).mockResolvedValue(overrides.usernameExist || false);
 
         const promise = service.register(testDto);
         await expect(promise).rejects.toThrow(errorType);
@@ -217,9 +241,19 @@ describe('AuthService', () => {
     );
 
     it('should throw ConflictException if user already registered (DB conflict)', async () => {
-      (userService.doesEmailExist as jest.Mock).mockResolvedValue(false);
-      (userService.doesUsernameExist as jest.Mock).mockResolvedValue(false);
-      (userRepository.save as jest.Mock).mockRejectedValue(
+      (
+        userService.doesEmailExist as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(false);
+      (
+        userService.doesUsernameExist as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(false);
+      (
+        userRepository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockRejectedValue(
         new QueryFailedError('query', [], {
           message: 'duplicate key value',
         } as any),
@@ -231,11 +265,19 @@ describe('AuthService', () => {
     });
 
     it('should throw InternalServerErrorException on unexpected save error', async () => {
-      (userService.doesEmailExist as jest.Mock).mockResolvedValue(false);
-      (userService.doesUsernameExist as jest.Mock).mockResolvedValue(false);
-      (userRepository.save as jest.Mock).mockRejectedValue(
-        new Error('Unexpected'),
-      );
+      (
+        userService.doesEmailExist as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(false);
+      (
+        userService.doesUsernameExist as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(false);
+      (
+        userRepository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockRejectedValue(new Error('Unexpected'));
 
       await expect(service.register(dto as any)).rejects.toThrow(
         InternalServerErrorException,
@@ -243,9 +285,19 @@ describe('AuthService', () => {
     });
 
     it('should throw error if savedUser is null', async () => {
-      (userService.doesEmailExist as jest.Mock).mockResolvedValue(false);
-      (userService.doesUsernameExist as jest.Mock).mockResolvedValue(false);
-      (userRepository.save as jest.Mock).mockResolvedValue(null);
+      (
+        userService.doesEmailExist as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(false);
+      (
+        userService.doesUsernameExist as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(false);
+      (
+        userRepository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
 
       await expect(service.register(dto as any)).rejects.toThrow(
         InternalServerErrorException,
@@ -259,8 +311,12 @@ describe('AuthService', () => {
         email: 'test@example.com',
         emailVerificationTokenExpiry: new Date(Date.now() + 10000),
       };
-      (userRepository.findOne as jest.Mock).mockResolvedValue(user);
-      (userRepository.save as jest.Mock).mockResolvedValue(user);
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
+      (
+        userRepository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
 
       const result = await service.verifyEmail('token');
 
@@ -275,7 +331,9 @@ describe('AuthService', () => {
     });
 
     it('should throw NotFoundException if user not found', async () => {
-      (userRepository.findOne as jest.Mock).mockResolvedValue(null);
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
       await expect(service.verifyEmail('token')).rejects.toThrow(
         NotFoundException,
       );
@@ -285,7 +343,9 @@ describe('AuthService', () => {
       const user = {
         emailVerificationTokenExpiry: new Date(Date.now() - 10000),
       };
-      (userRepository.findOne as jest.Mock).mockResolvedValue(user);
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
       await expect(service.verifyEmail('token')).rejects.toThrow(
         BadRequestException,
       );
@@ -295,7 +355,9 @@ describe('AuthService', () => {
       const user = {
         emailVerificationTokenExpiry: null,
       };
-      (userRepository.findOne as jest.Mock).mockResolvedValue(user);
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
 
       await expect(service.verifyEmail('token')).rejects.toThrow(
         BadRequestException,
@@ -306,20 +368,26 @@ describe('AuthService', () => {
   describe('resendVerificationEmail', () => {
     it('should resend successfully', async () => {
       const user = { email: 'test@example.com', emailVerified: false };
-      (userRepository.findOne as jest.Mock).mockResolvedValue(user);
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
       await service.resendVerificationEmail('token');
       expect(mailService.sendVerificationEmail).toHaveBeenCalled();
     });
 
     it('should throw NotFoundException if token not found', async () => {
-      (userRepository.findOne as jest.Mock).mockResolvedValue(null);
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
       await expect(service.resendVerificationEmail('token')).rejects.toThrow(
         NotFoundException,
       );
     });
 
     it('should throw BadRequestException if already verified', async () => {
-      (userRepository.findOne as jest.Mock).mockResolvedValue({
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
         emailVerified: true,
       });
       await expect(service.resendVerificationEmail('token')).rejects.toThrow(
@@ -332,17 +400,27 @@ describe('AuthService', () => {
     it('should return user if valid', async () => {
       const user = {
         id: '1',
-        comparePassword: jest.fn().mockResolvedValue(true),
+        comparePassword: jest
+          .fn<(...args: any[]) => Promise<any>>()
+          .mockResolvedValue(true),
       };
-      (userService.findByEmail as jest.Mock).mockResolvedValue(user);
+      (
+        userService.findByEmail as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
 
       const result = await service.validateUser('e', 'p');
       expect(result).toBeDefined();
     });
 
     it('should return null if invalid password', async () => {
-      const user = { comparePassword: jest.fn().mockResolvedValue(false) };
-      (userService.findByEmail as jest.Mock).mockResolvedValue(user);
+      const user = {
+        comparePassword: jest
+          .fn<(...args: any[]) => Promise<any>>()
+          .mockResolvedValue(false),
+      };
+      (
+        userService.findByEmail as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
 
       const result = await service.validateUser('e', 'p');
       expect(result).toBeNull();
@@ -351,9 +429,13 @@ describe('AuthService', () => {
     it('should NOT set context if userUuid already set in validateUser', async () => {
       const user = {
         id: '1',
-        comparePassword: jest.fn().mockResolvedValue(true),
+        comparePassword: jest
+          .fn<(...args: any[]) => Promise<any>>()
+          .mockResolvedValue(true),
       };
-      (userService.findByEmail as jest.Mock).mockResolvedValue(user);
+      (
+        userService.findByEmail as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
       const spySet = jest.spyOn(CurrentContextHelper, 'userUuid', 'set');
       jest
         .spyOn(CurrentContextHelper, 'userUuid', 'get')
@@ -366,7 +448,9 @@ describe('AuthService', () => {
     });
 
     it('should return null if user not found', async () => {
-      (userService.findByEmail as jest.Mock).mockResolvedValue(null);
+      (
+        userService.findByEmail as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
       const result = await service.validateUser('e', 'p');
       expect(result).toBeNull();
     });
@@ -376,7 +460,9 @@ describe('AuthService', () => {
     it('should return user and set context if user exists', async () => {
       const user = { id: 'uuid-123', email: 'test@example.com' };
       const payload = { sub: 'uuid-123', email: 'test@example.com' };
-      (userRepository.findOne as jest.Mock).mockResolvedValue(user);
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
       const spySet = jest.spyOn(CurrentContextHelper, 'userUuid', 'set');
       jest.spyOn(CurrentContextHelper, 'userUuid', 'get').mockReturnValue(null);
 
@@ -390,7 +476,9 @@ describe('AuthService', () => {
     it('should NOT set context if userUuid already set in validateUserFromPayload', async () => {
       const user = { id: 'uuid-123', email: 'test@example.com' };
       const payload = { sub: 'uuid-123', email: 'test@example.com' };
-      (userRepository.findOne as jest.Mock).mockResolvedValue(user);
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
       const spySet = jest.spyOn(CurrentContextHelper, 'userUuid', 'set');
       jest
         .spyOn(CurrentContextHelper, 'userUuid', 'get')
@@ -403,7 +491,9 @@ describe('AuthService', () => {
     });
 
     it('should return null if user not found', async () => {
-      (userRepository.findOne as jest.Mock).mockResolvedValue(null);
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
       const result = await service.validateUserFromPayload({
         sub: '1',
         email: 'e',
@@ -518,7 +608,9 @@ describe('AuthService', () => {
   describe('requestPasswordReset', () => {
     it('should request reset successfully with fallback "Captain!"', async () => {
       const user = { email: 'test@example.com', profile: null };
-      (userService.findByEmail as jest.Mock).mockResolvedValue(user);
+      (
+        userService.findByEmail as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
       await service.requestPasswordReset('test@example.com');
       expect(mailService.sendPasswordResetEmail).toHaveBeenCalledWith(
         'test@example.com',
@@ -532,7 +624,9 @@ describe('AuthService', () => {
         email: 'test@example.com',
         profile: { firstName: 'James' },
       };
-      (userService.findByEmail as jest.Mock).mockResolvedValue(user);
+      (
+        userService.findByEmail as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
       await service.requestPasswordReset('test@example.com');
       expect(mailService.sendPasswordResetEmail).toHaveBeenCalledWith(
         'test@example.com',
@@ -548,7 +642,9 @@ describe('AuthService', () => {
     });
 
     it('should throw BadRequestException if user not found', async () => {
-      (userService.findByEmail as jest.Mock).mockResolvedValue(null);
+      (
+        userService.findByEmail as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
       await expect(
         service.requestPasswordReset('test@example.com'),
       ).rejects.toThrow(BadRequestException);
@@ -559,7 +655,9 @@ describe('AuthService', () => {
         passwordResetToken: 't',
         passwordResetTokenExpiry: new Date(Date.now() + 10000),
       };
-      (userService.findByEmail as jest.Mock).mockResolvedValue(user);
+      (
+        userService.findByEmail as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
       await expect(
         service.requestPasswordReset('test@example.com'),
       ).rejects.toThrow(BadRequestException);
@@ -574,8 +672,12 @@ describe('AuthService', () => {
         passwordResetTokenExpiry: new Date(Date.now() + 10000),
         profile: null,
       };
-      (userRepository.findOne as jest.Mock).mockResolvedValue(user);
-      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed');
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
+      (
+        bcrypt.hash as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue('hashed');
 
       await service.resetPassword('token', 'newpass');
       expect(userRepository.save).toHaveBeenCalled();
@@ -592,8 +694,12 @@ describe('AuthService', () => {
         passwordResetTokenExpiry: new Date(Date.now() + 10000),
         profile: { firstName: 'Bones' },
       };
-      (userRepository.findOne as jest.Mock).mockResolvedValue(user);
-      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed');
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
+      (
+        bcrypt.hash as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue('hashed');
 
       await service.resetPassword('token', 'newpass');
       expect(mailService.sendPasswordChangedEmail).toHaveBeenCalledWith(
@@ -608,7 +714,9 @@ describe('AuthService', () => {
       ['invalid token', 't', 'p', NotFoundException], // user not found
     ])('should throw for %s', async (name, token, pass, errorType) => {
       if (name === 'invalid token')
-        (userRepository.findOne as jest.Mock).mockResolvedValue(null);
+        (
+          userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+        ).mockResolvedValue(null);
       await expect(service.resetPassword(token, pass)).rejects.toThrow(
         errorType,
       );
@@ -616,7 +724,9 @@ describe('AuthService', () => {
 
     it('should throw BadRequestException if token expired', async () => {
       const user = { passwordResetTokenExpiry: new Date(Date.now() - 10000) };
-      (userRepository.findOne as jest.Mock).mockResolvedValue(user);
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
       await expect(service.resetPassword('token', 'pass')).rejects.toThrow(
         BadRequestException,
       );
@@ -624,7 +734,9 @@ describe('AuthService', () => {
 
     it('should throw BadRequestException if passwordResetTokenExpiry is missing', async () => {
       const user = { passwordResetTokenExpiry: null };
-      (userRepository.findOne as jest.Mock).mockResolvedValue(user);
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
 
       await expect(service.resetPassword('token', 'pass')).rejects.toThrow(
         BadRequestException,
@@ -638,8 +750,12 @@ describe('AuthService', () => {
       (jwtService.verify as jest.Mock).mockReturnValue(payload);
       const token = { isRevoked: false, jwtId: 'jti', tokenId: 'hashed' };
       const user = { id: '1', email: 'e', refreshTokens: [token] };
-      (userRepository.findOne as jest.Mock).mockResolvedValue(user);
-      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
+      (
+        bcrypt.compare as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(true);
       (jwtService.sign as jest.Mock).mockReturnValue('new-token');
 
       const result = await service.refreshToken('old-token');
@@ -655,7 +771,9 @@ describe('AuthService', () => {
         sub: '1',
         jti: 'jti',
       });
-      (userRepository.findOne as jest.Mock).mockRejectedValue('boom');
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockRejectedValue('boom');
 
       await expect(service.refreshToken('t')).rejects.toThrow(
         UnauthorizedException,
@@ -669,7 +787,9 @@ describe('AuthService', () => {
 
     it('should throw UnauthorizedException if user not found', async () => {
       (jwtService.verify as jest.Mock).mockReturnValue({ sub: '1' });
-      (userRepository.findOne as jest.Mock).mockResolvedValue(null);
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
       await expect(service.refreshToken('t')).rejects.toThrow(
         UnauthorizedException,
       );
@@ -684,7 +804,9 @@ describe('AuthService', () => {
         id: '1',
         refreshTokens: [{ isRevoked: false, jwtId: 'wrong' }],
       };
-      (userRepository.findOne as jest.Mock).mockResolvedValue(user);
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
       await expect(service.refreshToken('t')).rejects.toThrow(
         UnauthorizedException,
       );
@@ -699,8 +821,12 @@ describe('AuthService', () => {
         id: '1',
         refreshTokens: [{ isRevoked: false, jwtId: 'jti', tokenId: 'h' }],
       };
-      (userRepository.findOne as jest.Mock).mockResolvedValue(user);
-      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
+      (
+        bcrypt.compare as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(false);
       await expect(service.refreshToken('t')).rejects.toThrow(
         UnauthorizedException,
       );
@@ -709,13 +835,17 @@ describe('AuthService', () => {
 
   describe('revokeToken', () => {
     it('should revoke token', async () => {
-      (userRepository.findOne as jest.Mock).mockResolvedValue({});
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({});
       await service.revokeToken('1', 't');
       expect(refreshTokenService.revokeToken).toHaveBeenCalled();
     });
 
     it('should throw NotFound if user not found', async () => {
-      (userRepository.findOne as jest.Mock).mockResolvedValue(null);
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
       await expect(service.revokeToken('1', 't')).rejects.toThrow(
         HttpException,
       );

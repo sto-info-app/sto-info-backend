@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import {
   BadRequestException,
   InternalServerErrorException,
@@ -50,7 +51,9 @@ describe('PlatformLauncherService', () => {
         platformId: 'platform-1',
         launcherId: 'launcher-1',
       };
-      (repository.save as jest.Mock).mockResolvedValue(relation);
+      (
+        repository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(relation);
 
       const result = await service.addPlatformLauncherRelation(
         'platform-1',
@@ -63,7 +66,9 @@ describe('PlatformLauncherService', () => {
     });
 
     it('should throw InternalServerErrorException on save failure', async () => {
-      (repository.save as jest.Mock).mockRejectedValue(new Error('DB Error'));
+      (
+        repository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockRejectedValue(new Error('DB Error'));
 
       await expect(
         service.addPlatformLauncherRelation('platform-1', 'launcher-1'),
@@ -90,8 +95,12 @@ describe('PlatformLauncherService', () => {
         platformId: 'platform-1',
         launcherId: 'launcher-1',
       };
-      (repository.findOne as jest.Mock).mockResolvedValue(relation);
-      (repository.remove as jest.Mock).mockResolvedValue(relation);
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(relation);
+      (
+        repository.remove as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(relation);
 
       await service.removePlatformLauncherRelation('platform-1', 'launcher-1');
 
@@ -102,7 +111,9 @@ describe('PlatformLauncherService', () => {
     });
 
     it('should throw NotFoundException if relation not found', async () => {
-      (repository.findOne as jest.Mock).mockResolvedValue(null);
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
 
       await expect(
         service.removePlatformLauncherRelation('platform-1', 'launcher-1'),
@@ -111,8 +122,12 @@ describe('PlatformLauncherService', () => {
 
     it('should throw InternalServerErrorException on remove failure', async () => {
       const relation = { id: '1' };
-      (repository.findOne as jest.Mock).mockResolvedValue(relation);
-      (repository.remove as jest.Mock).mockRejectedValue(new Error('DB Error'));
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(relation);
+      (
+        repository.remove as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockRejectedValue(new Error('DB Error'));
 
       await expect(
         service.removePlatformLauncherRelation('platform-1', 'launcher-1'),
@@ -143,7 +158,9 @@ describe('PlatformLauncherService', () => {
           launcher: { name: 'Steam' },
         },
       ];
-      (repository.find as jest.Mock).mockResolvedValue(relations);
+      (
+        repository.find as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(relations);
 
       const result = await service.findAll();
 
@@ -160,7 +177,9 @@ describe('PlatformLauncherService', () => {
         { id: '1', platformId: 'platform-1', launcherId: 'launcher-1' },
         { id: '2', platformId: 'platform-1', launcherId: 'launcher-2' },
       ];
-      (repository.find as jest.Mock).mockResolvedValue(launchers);
+      (
+        repository.find as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(launchers);
 
       const result = await service.findAllLaunchersForPlatform('platform-1');
 
@@ -184,7 +203,9 @@ describe('PlatformLauncherService', () => {
         platformId: 'platform-1',
         launcherId: 'launcher-1',
       };
-      (repository.findOne as jest.Mock).mockResolvedValue(relation);
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(relation);
 
       const result = await service.findOne('platform-1', 'launcher-1');
 
@@ -195,7 +216,9 @@ describe('PlatformLauncherService', () => {
     });
 
     it('should throw NotFoundException if relation not found', async () => {
-      (repository.findOne as jest.Mock).mockResolvedValue(null);
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
 
       await expect(service.findOne('platform-1', 'launcher-1')).rejects.toThrow(
         NotFoundException,

@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
@@ -8,7 +9,7 @@ import { ContactRequestCleanupService } from './contact-request-cleanup.service'
 describe('ContactRequestCleanupService', () => {
   let service: ContactRequestCleanupService;
   let repository: Repository<ContactRequestEntity>;
-  let loggerLogSpy: jest.SpyInstance;
+  let loggerLogSpy: jest.SpiedFunction<(...args: any[]) => any>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -48,8 +49,12 @@ describe('ContactRequestCleanupService', () => {
     it('should clear masked email addresses older than retention', async () => {
       const deleteResult = { affected: 2 };
       const updateResult = { affected: 4 };
-      (repository.delete as jest.Mock).mockResolvedValue(deleteResult);
-      (repository.update as jest.Mock).mockResolvedValue(updateResult);
+      (
+        repository.delete as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(deleteResult);
+      (
+        repository.update as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(updateResult);
 
       await service.cleanup();
 
@@ -66,8 +71,12 @@ describe('ContactRequestCleanupService', () => {
     it('should handle case with no records to update', async () => {
       const deleteResult = { affected: 0 };
       const updateResult = { affected: 0 };
-      (repository.delete as jest.Mock).mockResolvedValue(deleteResult);
-      (repository.update as jest.Mock).mockResolvedValue(updateResult);
+      (
+        repository.delete as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(deleteResult);
+      (
+        repository.update as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(updateResult);
 
       await service.cleanup();
 

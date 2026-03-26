@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import type { NextFunction, Request, Response } from 'express';
 import { clientIpMiddleware } from './client-ip.middleware';
 import * as clientIpUtility from './client-ip.utility';
@@ -8,11 +9,11 @@ describe('clientIpMiddleware', () => {
   let mockReq: Partial<Request>;
   let mockRes: Partial<Response>;
   let mockNext: NextFunction;
-  let getClientIpSpy: jest.SpyInstance;
+  let getClientIpSpy: jest.SpiedFunction<(...args: any[]) => any>;
 
   beforeEach(() => {
     mockReq = {
-      header: jest.fn(),
+      header: jest.fn<(...args: any[]) => any>(),
       ip: '127.0.0.1',
     };
     mockRes = {};

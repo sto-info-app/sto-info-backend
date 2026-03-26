@@ -1,9 +1,10 @@
+import { jest } from '@jest/globals';
 describe('ImageUploadsService SAFE_FILENAME_PATTERN branch', () => {
   it('should throw when sanitised filename fails SAFE_FILENAME_PATTERN', async () => {
     jest.resetModules();
 
-    const mockS3Send = jest.fn();
-    const mockScanFile = jest.fn();
+    const mockS3Send = jest.fn<(...args: any[]) => Promise<any>>();
+    const mockScanFile = jest.fn<(...args: any[]) => any>();
 
     jest.doMock('../constants/regex-patterns.constants', () => {
       const actual: typeof import('../constants/regex-patterns.constants') =
@@ -74,23 +75,27 @@ describe('ImageUploadsService SAFE_FILENAME_PATTERN branch', () => {
         {
           provide: SecretsService,
           useValue: {
-            getSecret: jest.fn().mockResolvedValue({
-              cloudflareR2AccessKey: 'key',
-              cloudflareR2Secret: 'secret',
-              cloudmersiveApiKey: 'cv-key',
-              cloudflareImagesAccountId: 'acc-id',
-              cloudflareImagesApiKey: 'cf-key',
-            }),
+            getSecret: jest
+              .fn<(...args: any[]) => Promise<any>>()
+              .mockResolvedValue({
+                cloudflareR2AccessKey: 'key',
+                cloudflareR2Secret: 'secret',
+                cloudmersiveApiKey: 'cv-key',
+                cloudflareImagesAccountId: 'acc-id',
+                cloudflareImagesApiKey: 'cf-key',
+              }),
           } satisfies { getSecret: (name: string) => Promise<unknown> },
         },
         {
           provide: ConfigService,
           useValue: {
-            get: jest.fn().mockImplementation((key: string) => {
-              if (key === 'CLOUDFLARE_R2_BUCKET_NAME') return 'bucket';
-              if (key === 'NODE_ENV') return 'test';
-              return null;
-            }),
+            get: jest
+              .fn<(...args: any[]) => any>()
+              .mockImplementation((key: string) => {
+                if (key === 'CLOUDFLARE_R2_BUCKET_NAME') return 'bucket';
+                if (key === 'NODE_ENV') return 'test';
+                return null;
+              }),
           } satisfies { get: (key: string) => string | null },
         },
         {
