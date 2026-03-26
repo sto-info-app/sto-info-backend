@@ -8,7 +8,9 @@ import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 import { StatsService } from './stats.service';
 
 /** Returns a fully-chainable query-builder stub. */
-function makeQb(terminalOverrides: Record<string, jest.Mock> = {}) {
+function makeQb(
+  terminalOverrides: Record<string, jest.Mock<(...args: any[]) => any>> = {},
+) {
   return {
     innerJoin: jest.fn().mockReturnThis(),
     leftJoin: jest.fn().mockReturnThis(),
@@ -18,9 +20,13 @@ function makeQb(terminalOverrides: Record<string, jest.Mock> = {}) {
     groupBy: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
     clone: jest.fn().mockReturnThis(),
-    getRawOne: jest.fn().mockResolvedValue(null),
-    getRawMany: jest.fn().mockResolvedValue([]),
-    getMany: jest.fn().mockResolvedValue([]),
+    getRawOne: jest
+      .fn<(...args: any[]) => Promise<any>>()
+      .mockResolvedValue(null),
+    getRawMany: jest
+      .fn<(...args: any[]) => Promise<any>>()
+      .mockResolvedValue([]),
+    getMany: jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue([]),
     ...terminalOverrides,
   };
 }
@@ -67,7 +73,7 @@ describe('StatsService', () => {
      *   call 3 → getLevelRangeStats → levelRangeCharQb (uses getRawMany)
      */
     levelStatsQb = makeQb({
-      getRawOne: jest.fn().mockResolvedValue({
+      getRawOne: jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
         characterCount: '5',
         avgLevel: '40',
         minLevel: '10',
@@ -76,22 +82,28 @@ describe('StatsService', () => {
     });
 
     groupStatsQb = makeQb({
-      getRawMany: jest.fn().mockResolvedValue([]),
+      getRawMany: jest
+        .fn<(...args: any[]) => Promise<any>>()
+        .mockResolvedValue([]),
     });
 
     levelRangeCharQb = makeQb({
-      getRawMany: jest.fn().mockResolvedValue([]),
+      getRawMany: jest
+        .fn<(...args: any[]) => Promise<any>>()
+        .mockResolvedValue([]),
     });
 
     rankQb = makeQb({
-      getMany: jest.fn().mockResolvedValue([
+      getMany: jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue([
         { levelFrom: 1, levelTo: 9 },
         { levelFrom: 10, levelTo: 19 },
       ]),
     });
 
     accountQb = makeQb({
-      getRawMany: jest.fn().mockResolvedValue([]),
+      getRawMany: jest
+        .fn<(...args: any[]) => Promise<any>>()
+        .mockResolvedValue([]),
     });
 
     const module: TestingModule = await Test.createTestingModule({
@@ -100,8 +112,12 @@ describe('StatsService', () => {
         {
           provide: getRepositoryToken(AccountEntity),
           useValue: {
-            count: jest.fn().mockResolvedValue(2),
-            findOne: jest.fn().mockResolvedValue(null),
+            count: jest
+              .fn<(...args: any[]) => Promise<any>>()
+              .mockResolvedValue(2),
+            findOne: jest
+              .fn<(...args: any[]) => Promise<any>>()
+              .mockResolvedValue(null),
             createQueryBuilder: jest.fn(),
             manager: {
               find: jest

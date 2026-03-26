@@ -15,8 +15,8 @@ jest.mock('jsonwebtoken');
 describe('UserIdMiddleware', () => {
   let middleware: UserIdMiddleware;
   let secretsService: SecretsService;
-  let loggerErrorSpy: jest.SpyInstance;
-  let loggerWarnSpy: jest.SpyInstance;
+  let loggerErrorSpy: jest.SpiedFunction<(...args: any[]) => any>;
+  let loggerWarnSpy: jest.SpiedFunction<(...args: any[]) => any>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -32,7 +32,7 @@ describe('UserIdMiddleware', () => {
           provide: SecretsService,
           useValue: {
             getSecret: jest
-              .fn()
+              .fn<(...args: any[]) => Promise<any>>()
               .mockResolvedValue({ jwtSecret: 'dummy-secret' }),
           },
         },
@@ -167,7 +167,9 @@ describe('UserIdMiddleware', () => {
         .spyOn(CurrentContextHelper, 'userUuid', 'get')
         .mockReturnValue(null);
       req.headers!.authorization = 'Bearer valid-token';
-      (secretsService.getSecret as jest.Mock).mockResolvedValue({});
+      (
+        secretsService.getSecret as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({});
 
       await middleware.use(req as unknown as Request, res, next);
 
@@ -184,7 +186,9 @@ describe('UserIdMiddleware', () => {
         .spyOn(CurrentContextHelper, 'userUuid', 'get')
         .mockReturnValue(null);
       req.headers!.authorization = 'Bearer valid-token';
-      (secretsService.getSecret as jest.Mock).mockResolvedValue(null);
+      (
+        secretsService.getSecret as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
 
       await middleware.use(req as unknown as Request, res, next);
 

@@ -106,11 +106,21 @@ describe('UserSeederService', () => {
     });
 
     it('should create user and profile if user does not exist', async () => {
-      (userService.findByEmail as jest.Mock).mockResolvedValue(null);
-      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
+      (
+        userService.findByEmail as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
+      (
+        bcrypt.hash as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue('hashed-password');
       const savedUser = { id: 'user-id', email: 'test@example.com' };
-      (userRepository.save as jest.Mock).mockResolvedValue(savedUser);
-      (userProfileRepository.save as jest.Mock).mockResolvedValue({});
+      (
+        userRepository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(savedUser);
+      (
+        userProfileRepository.save as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({});
 
       await (service as any).seedUsers();
 
@@ -129,7 +139,9 @@ describe('UserSeederService', () => {
 
     it('should not create user if user already exists', async () => {
       const existingUser = { id: 'existing-id', email: 'test@example.com' };
-      (userService.findByEmail as jest.Mock).mockResolvedValue(existingUser);
+      (
+        userService.findByEmail as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(existingUser);
 
       await (service as any).seedUsers();
 
@@ -139,9 +151,15 @@ describe('UserSeederService', () => {
     });
 
     it('should handle case when user is saved but returns falsy value', async () => {
-      (userService.findByEmail as jest.Mock).mockResolvedValue(null);
-      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
-      (userRepository.save as jest.Mock).mockResolvedValue(null);
+      (
+        userService.findByEmail as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
+      (
+        bcrypt.hash as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue('hashed-password');
+      (
+        userRepository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
 
       await (service as any).seedUsers();
 

@@ -40,7 +40,9 @@ describe('LauncherController', () => {
         { id: '1', name: 'Launcher 1' },
         { id: '2', name: 'Launcher 2' },
       ];
-      (service.findAll as jest.Mock).mockResolvedValue(expected);
+      (
+        service.findAll as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(expected);
 
       const result = await controller.findAll();
 

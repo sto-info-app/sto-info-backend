@@ -3,19 +3,20 @@ import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { SesEventEntity } from 'src/webhooks/ses/entities/ses-event.entity';
-import { Repository } from 'typeorm';
 import { SesAuditCleanupService } from './ses-audit-cleanup.service';
 
-type MockRepo = jest.Mocked<Pick<Repository<SesEventEntity>, 'delete'>>;
+type MockRepo = { delete: jest.Mock<(...args: any[]) => Promise<any>> };
 
 describe('SesAuditCleanupService', () => {
   let service: SesAuditCleanupService;
   let repository: MockRepo;
-  let loggerLogSpy: jest.SpyInstance;
+  let loggerLogSpy: jest.SpiedFunction<(...args: any[]) => any>;
 
   beforeEach(async () => {
     repository = {
-      delete: jest.fn().mockResolvedValue({ affected: 0, raw: [] }),
+      delete: jest
+        .fn<(...args: any[]) => Promise<any>>()
+        .mockResolvedValue({ affected: 0, raw: [] }),
     };
 
     const module: TestingModule = await Test.createTestingModule({

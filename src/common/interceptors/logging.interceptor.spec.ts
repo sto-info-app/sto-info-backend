@@ -25,12 +25,20 @@ describe('LoggingInterceptor', () => {
       getNext: jest.fn(),
     };
     mockExecutionContext = {
-      switchToHttp: jest.fn().mockReturnValue(mockHttp),
-      getClass: jest.fn().mockReturnValue({ name: 'TestController' }),
-      getHandler: jest.fn().mockReturnValue({ name: 'testHandler' }),
+      switchToHttp: jest
+        .fn<(...args: any[]) => any>()
+        .mockReturnValue(mockHttp),
+      getClass: jest
+        .fn<(...args: any[]) => any>()
+        .mockReturnValue({ name: 'TestController' }),
+      getHandler: jest
+        .fn<(...args: any[]) => any>()
+        .mockReturnValue({ name: 'testHandler' }),
     };
     mockCallHandler = {
-      handle: jest.fn().mockReturnValue(of('test-response')),
+      handle: jest
+        .fn<(...args: any[]) => any>()
+        .mockReturnValue(of('test-response')),
     };
   });
 
@@ -72,7 +80,9 @@ describe('LoggingInterceptor', () => {
       .spyOn((interceptor as any).logger, 'error')
       .mockImplementation(() => {});
     const error = new Error('Test error');
-    mockCallHandler.handle = jest.fn().mockReturnValue(throwError(() => error));
+    mockCallHandler.handle = jest
+      .fn<(...args: any[]) => any>()
+      .mockReturnValue(throwError(() => error));
 
     interceptor
       .intercept(

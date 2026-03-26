@@ -55,7 +55,9 @@ describe('LauncherService', () => {
   describe('findAll', () => {
     it('should return all launchers', async () => {
       const launchers = [{ id: '1', name: 'Steam' }];
-      (repository.find as jest.Mock).mockResolvedValue(launchers);
+      (
+        repository.find as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(launchers);
 
       const result = await service.findAll();
 
@@ -67,7 +69,9 @@ describe('LauncherService', () => {
   describe('findOne', () => {
     it('should return a launcher by id', async () => {
       const launcher = { id: '1', name: 'Steam' };
-      (repository.findOne as jest.Mock).mockResolvedValue(launcher);
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(launcher);
 
       const result = await service.findOne('1');
 
@@ -80,7 +84,9 @@ describe('LauncherService', () => {
     });
 
     it('should throw NotFoundException if launcher not found', async () => {
-      (repository.findOne as jest.Mock).mockResolvedValue(null);
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
 
       await expect(service.findOne('1')).rejects.toThrow(NotFoundException);
     });
@@ -89,7 +95,9 @@ describe('LauncherService', () => {
   describe('findOneByName', () => {
     it('should return a launcher by name', async () => {
       const launcher = { id: '1', name: 'Steam' };
-      (repository.findOne as jest.Mock).mockResolvedValue(launcher);
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(launcher);
 
       const result = await service.findOneByName('Steam');
 
@@ -106,7 +114,9 @@ describe('LauncherService', () => {
     });
 
     it('should throw NotFoundException if launcher not found', async () => {
-      (repository.findOne as jest.Mock).mockResolvedValue(null);
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
 
       await expect(service.findOneByName('Steam')).rejects.toThrow(
         NotFoundException,
@@ -120,7 +130,9 @@ describe('LauncherService', () => {
         { id: '1', name: 'OldLauncher', deletedAt: new Date('2020-01-01') },
       ];
       const queryBuilder = repository.createQueryBuilder();
-      (queryBuilder.getMany as jest.Mock).mockResolvedValue(launchers);
+      (
+        queryBuilder.getMany as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(launchers);
 
       const result = await service.findAllSoftDeletedOlderThanOneWeek();
 
@@ -137,7 +149,9 @@ describe('LauncherService', () => {
       const dto = { name: 'Epic' };
       const launcher = { id: '1', name: 'Epic' };
       (repository.create as jest.Mock).mockReturnValue(launcher);
-      (repository.save as jest.Mock).mockResolvedValue(launcher);
+      (
+        repository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(launcher);
 
       const result = await service.create(dto);
 
@@ -150,7 +164,9 @@ describe('LauncherService', () => {
       const dto = { name: 'Epic' };
       const launcher = { id: '1', name: 'Epic' };
       (repository.create as jest.Mock).mockReturnValue(launcher);
-      (repository.save as jest.Mock).mockRejectedValue(new Error('DB Error'));
+      (
+        repository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockRejectedValue(new Error('DB Error'));
 
       await expect(service.create(dto)).rejects.toThrow(
         InternalServerErrorException,
@@ -170,9 +186,13 @@ describe('LauncherService', () => {
       const dto = { name: 'Steam Updated' };
       const updated = { id: '1', name: 'Steam Updated' };
 
-      (repository.findOne as jest.Mock).mockResolvedValue(launcher);
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(launcher);
       (repository.merge as jest.Mock).mockReturnValue(updated);
-      (repository.save as jest.Mock).mockResolvedValue(updated);
+      (
+        repository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(updated);
 
       const result = await service.update('1', dto);
 
@@ -185,9 +205,13 @@ describe('LauncherService', () => {
       const launcher = { id: '1', name: 'Steam' };
       const dto = { name: 'Updated' };
 
-      (repository.findOne as jest.Mock).mockResolvedValue(launcher);
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(launcher);
       (repository.merge as jest.Mock).mockReturnValue(launcher);
-      (repository.save as jest.Mock).mockRejectedValue(new Error('DB Error'));
+      (
+        repository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockRejectedValue(new Error('DB Error'));
 
       await expect(service.update('1', dto)).rejects.toThrow(
         InternalServerErrorException,
@@ -208,8 +232,12 @@ describe('LauncherService', () => {
   describe('remove', () => {
     it('should hard delete a launcher', async () => {
       const launcher = { id: '1', name: 'Steam' };
-      (repository.findOne as jest.Mock).mockResolvedValue(launcher);
-      (repository.remove as jest.Mock).mockResolvedValue(launcher);
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(launcher);
+      (
+        repository.remove as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(launcher);
 
       await service.remove('1');
 
@@ -218,8 +246,12 @@ describe('LauncherService', () => {
 
     it('should throw InternalServerErrorException on remove failure', async () => {
       const launcher = { id: '1', name: 'Steam' };
-      (repository.findOne as jest.Mock).mockResolvedValue(launcher);
-      (repository.remove as jest.Mock).mockRejectedValue(new Error('DB Error'));
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(launcher);
+      (
+        repository.remove as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockRejectedValue(new Error('DB Error'));
 
       await expect(service.remove('1')).rejects.toThrow(
         InternalServerErrorException,
@@ -234,8 +266,12 @@ describe('LauncherService', () => {
   describe('softRemove', () => {
     it('should soft delete a launcher', async () => {
       const launcher = { id: '1', name: 'Steam' };
-      (repository.findOne as jest.Mock).mockResolvedValue(launcher);
-      (repository.softDelete as jest.Mock).mockResolvedValue({ affected: 1 });
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(launcher);
+      (
+        repository.softDelete as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ affected: 1 });
 
       await service.softRemove('1');
 
@@ -244,10 +280,12 @@ describe('LauncherService', () => {
 
     it('should throw InternalServerErrorException on soft delete failure', async () => {
       const launcher = { id: '1', name: 'Steam' };
-      (repository.findOne as jest.Mock).mockResolvedValue(launcher);
-      (repository.softDelete as jest.Mock).mockRejectedValue(
-        new Error('DB Error'),
-      );
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(launcher);
+      (
+        repository.softDelete as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockRejectedValue(new Error('DB Error'));
 
       await expect(service.softRemove('1')).rejects.toThrow(
         InternalServerErrorException,

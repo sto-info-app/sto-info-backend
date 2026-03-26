@@ -34,7 +34,9 @@ describe('DatabaseService', () => {
           {
             provide: DataSource,
             useValue: {
-              query: jest.fn().mockResolvedValue(undefined),
+              query: jest
+                .fn<(...args: any[]) => Promise<any>>()
+                .mockResolvedValue(undefined),
             },
           },
         ],

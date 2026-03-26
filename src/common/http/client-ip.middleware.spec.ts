@@ -9,11 +9,11 @@ describe('clientIpMiddleware', () => {
   let mockReq: Partial<Request>;
   let mockRes: Partial<Response>;
   let mockNext: NextFunction;
-  let getClientIpSpy: jest.SpyInstance;
+  let getClientIpSpy: jest.SpiedFunction<(...args: any[]) => any>;
 
   beforeEach(() => {
     mockReq = {
-      header: jest.fn(),
+      header: jest.fn<(...args: any[]) => any>(),
       ip: '127.0.0.1',
     };
     mockRes = {};

@@ -34,7 +34,7 @@ describe('JwtStrategy', () => {
           provide: SecretsService,
           useValue: {
             getSecret: jest
-              .fn()
+              .fn<(...args: any[]) => Promise<any>>()
               .mockResolvedValue({ jwtSecret: 'dummy-secret' }),
           },
         },
@@ -80,7 +80,9 @@ describe('JwtStrategy', () => {
     it('should call done with error on failure', async () => {
       const done = jest.fn();
       const error = new Error('Secret not found');
-      (secretsService.getSecret as jest.Mock).mockRejectedValue(error);
+      (
+        secretsService.getSecret as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockRejectedValue(error);
       const secretOrKeyProvider = (strategy as any)._secretOrKeyProvider;
 
       expect(typeof secretOrKeyProvider).toBe('function');
@@ -100,9 +102,11 @@ describe('JwtStrategy', () => {
     it('should return plain user object when validation succeeds', async () => {
       const payload = { sub: 'user-uuid', email: 'test@example.com' };
       const user = { id: 'user-uuid', email: 'test@example.com' };
-      (authService.validateUserFromPayload as jest.Mock).mockResolvedValue(
-        user,
-      );
+      (
+        authService.validateUserFromPayload as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(user);
 
       const result = await strategy.validate(payload as any);
 
@@ -110,9 +114,11 @@ describe('JwtStrategy', () => {
     });
 
     it('should throw UnauthorizedException when user not found', async () => {
-      (authService.validateUserFromPayload as jest.Mock).mockResolvedValue(
-        null,
-      );
+      (
+        authService.validateUserFromPayload as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(null);
       const payload = { sub: 'user-uuid', email: 'test@example.com' };
 
       await expect(strategy.validate(payload as any)).rejects.toThrow(
@@ -123,9 +129,11 @@ describe('JwtStrategy', () => {
     it('should set CurrentContextHelper.userUuid if not already set', async () => {
       const payload = { sub: 'new-uuid', email: 'test@example.com' };
       const user = { id: 'new-uuid', email: 'test@example.com' };
-      (authService.validateUserFromPayload as jest.Mock).mockResolvedValue(
-        user,
-      );
+      (
+        authService.validateUserFromPayload as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(user);
 
       const spySet = jest.spyOn(CurrentContextHelper, 'userUuid', 'set');
       const spyGet = jest
@@ -143,9 +151,11 @@ describe('JwtStrategy', () => {
     it('should NOT set CurrentContextHelper.userUuid if already set', async () => {
       const payload = { sub: 'new-uuid', email: 'test@example.com' };
       const user = { id: 'new-uuid', email: 'test@example.com' };
-      (authService.validateUserFromPayload as jest.Mock).mockResolvedValue(
-        user,
-      );
+      (
+        authService.validateUserFromPayload as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(user);
 
       const spySet = jest.spyOn(CurrentContextHelper, 'userUuid', 'set');
       const spyGet = jest

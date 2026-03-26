@@ -5,11 +5,12 @@ import { TypeORMError } from 'typeorm';
 import { TypeOrmExceptionFilter } from './typeorm-exception.filter';
 
 jest.mock('@sentry/nestjs', () => ({
-  withScope: jest.fn(callback =>
-    callback({
-      setTag: jest.fn(),
-      setContext: jest.fn(),
-    }),
+  withScope: jest.fn<(...args: any[]) => any>(
+    (callback: (...args: any[]) => any) =>
+      callback({
+        setTag: jest.fn(),
+        setContext: jest.fn(),
+      }),
   ),
   captureException: jest.fn(),
 }));
@@ -20,7 +21,7 @@ describe('TypeOrmExceptionFilter', () => {
   let mockResponse: any;
   let mockRequest: any;
   let mockCtx: any;
-  let loggerErrorSpy: jest.SpyInstance;
+  let loggerErrorSpy: jest.SpiedFunction<(...args: any[]) => any>;
 
   beforeEach(() => {
     filter = new TypeOrmExceptionFilter();
@@ -77,7 +78,9 @@ describe('TypeOrmExceptionFilter', () => {
       setTag: jest.fn(),
       setContext: jest.fn(),
     };
-    (Sentry.withScope as jest.Mock).mockImplementationOnce(callback =>
+    (
+      Sentry.withScope as jest.Mock<(...args: any[]) => any>
+    ).mockImplementationOnce((callback: (...args: any[]) => any) =>
       callback(mockScope),
     );
 
@@ -98,7 +101,9 @@ describe('TypeOrmExceptionFilter', () => {
       setTag: jest.fn(),
       setContext: jest.fn(),
     };
-    (Sentry.withScope as jest.Mock).mockImplementationOnce(callback =>
+    (
+      Sentry.withScope as jest.Mock<(...args: any[]) => any>
+    ).mockImplementationOnce((callback: (...args: any[]) => any) =>
       callback(mockScope),
     );
     mockRequest.headers['x-request-id'] = 'req-123';
@@ -114,7 +119,9 @@ describe('TypeOrmExceptionFilter', () => {
       setTag: jest.fn(),
       setContext: jest.fn(),
     };
-    (Sentry.withScope as jest.Mock).mockImplementationOnce(callback =>
+    (
+      Sentry.withScope as jest.Mock<(...args: any[]) => any>
+    ).mockImplementationOnce((callback: (...args: any[]) => any) =>
       callback(mockScope),
     );
     mockRequest.id = 'req-456';
@@ -130,7 +137,9 @@ describe('TypeOrmExceptionFilter', () => {
       setTag: jest.fn(),
       setContext: jest.fn(),
     };
-    (Sentry.withScope as jest.Mock).mockImplementationOnce(callback =>
+    (
+      Sentry.withScope as jest.Mock<(...args: any[]) => any>
+    ).mockImplementationOnce((callback: (...args: any[]) => any) =>
       callback(mockScope),
     );
 
@@ -159,7 +168,9 @@ describe('TypeOrmExceptionFilter', () => {
       setTag: jest.fn(),
       setContext: jest.fn(),
     };
-    (Sentry.withScope as jest.Mock).mockImplementationOnce(callback =>
+    (
+      Sentry.withScope as jest.Mock<(...args: any[]) => any>
+    ).mockImplementationOnce((callback: (...args: any[]) => any) =>
       callback(mockScope),
     );
     delete mockRequest.headers;

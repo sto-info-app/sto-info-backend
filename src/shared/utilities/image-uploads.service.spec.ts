@@ -7,7 +7,7 @@ import axios from 'axios';
 import { SecretsService } from '../secrets/secrets.service';
 import { ImageUploadsService } from './image-uploads.service';
 
-const mockS3Send = jest.fn();
+const mockS3Send = jest.fn<(...args: any[]) => Promise<any>>();
 jest.mock('@aws-sdk/client-s3', () => ({
   S3Client: jest.fn().mockImplementation(() => ({
     send: mockS3Send,
@@ -16,7 +16,7 @@ jest.mock('@aws-sdk/client-s3', () => ({
   DeleteObjectCommand: jest.fn().mockImplementation(args => args),
 }));
 jest.mock('axios');
-const mockScanFile = jest.fn();
+const mockScanFile = jest.fn<(...args: any[]) => any>();
 jest.mock('cloudmersive-virus-api-client', () => {
   const ApiClient = {
     instance: {
@@ -83,17 +83,21 @@ describe('ImageUploadsService', () => {
         {
           provide: SecretsService,
           useValue: {
-            getSecret: jest.fn().mockResolvedValue(secret),
+            getSecret: jest
+              .fn<(...args: any[]) => Promise<any>>()
+              .mockResolvedValue(secret),
           } satisfies Pick<SecretsService, 'getSecret'>,
         },
         {
           provide: ConfigService,
           useValue: {
-            get: jest.fn().mockImplementation((key: string) => {
-              if (key === 'CLOUDFLARE_R2_BUCKET_NAME') return 'bucket';
-              if (key === 'NODE_ENV') return 'test';
-              return null;
-            }),
+            get: jest
+              .fn<(...args: any[]) => any>()
+              .mockImplementation((key: string) => {
+                if (key === 'CLOUDFLARE_R2_BUCKET_NAME') return 'bucket';
+                if (key === 'NODE_ENV') return 'test';
+                return null;
+              }),
           } satisfies Pick<ConfigService, 'get'>,
         },
         {

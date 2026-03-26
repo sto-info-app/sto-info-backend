@@ -15,7 +15,9 @@ import { AuditSubscriber } from './audit.subscriber';
 
 // Mock class-validator to avoid decorator issues
 jest.mock('class-validator', () => ({
-  validateOrReject: jest.fn().mockResolvedValue(undefined),
+  validateOrReject: jest
+    .fn<(...args: any[]) => Promise<any>>()
+    .mockResolvedValue(undefined),
   IsNotEmpty: () => () => {},
   IsString: () => () => {},
   IsOptional: () => () => {},
@@ -46,16 +48,18 @@ describe('AuditSubscriber', () => {
   let subscriber: AuditSubscriber;
   let mockManager: Partial<EntityManager>;
   let mockRepository: Partial<Repository<AuditEntity>>;
-  let getUserUuidSpy: jest.SpyInstance;
-  let getIpSpy: jest.SpyInstance;
+  let getUserUuidSpy: jest.SpiedFunction<(...args: any[]) => any>;
+  let getIpSpy: jest.SpiedFunction<(...args: any[]) => any>;
 
   beforeEach(() => {
     subscriber = new AuditSubscriber();
     mockRepository = {
-      save: jest.fn(),
+      save: jest.fn<(...args: any[]) => Promise<any>>(),
     };
     mockManager = {
-      getRepository: jest.fn().mockReturnValue(mockRepository),
+      getRepository: jest
+        .fn<(...args: any[]) => any>()
+        .mockReturnValue(mockRepository),
     };
 
     getUserUuidSpy = jest
@@ -64,7 +68,9 @@ describe('AuditSubscriber', () => {
     getIpSpy = jest
       .spyOn(CurrentContextHelper, 'ip', 'get')
       .mockReturnValue('192.168.1.1');
-    (validateOrReject as jest.Mock).mockResolvedValue(undefined);
+    (
+      validateOrReject as jest.Mock<(...args: any[]) => Promise<any>>
+    ).mockResolvedValue(undefined);
   });
 
   afterEach(() => {
