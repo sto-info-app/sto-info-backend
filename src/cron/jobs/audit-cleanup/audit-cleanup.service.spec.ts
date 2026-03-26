@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
@@ -8,7 +9,7 @@ import { AuditCleanupService } from './audit-cleanup.service';
 describe('AuditCleanupService', () => {
   let service: AuditCleanupService;
   let repository: Repository<AuditEntity>;
-  let loggerLogSpy: jest.SpyInstance;
+  let loggerLogSpy: jest.SpiedFunction<(...args: any[]) => any>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -47,8 +48,12 @@ describe('AuditCleanupService', () => {
       const deleteResult = { affected: 10 };
       const updateResult = { affected: 5 };
 
-      (repository.delete as jest.Mock).mockResolvedValue(deleteResult);
-      (repository.update as jest.Mock).mockResolvedValue(updateResult);
+      (
+        repository.delete as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(deleteResult);
+      (
+        repository.update as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(updateResult);
 
       await service.cleanup();
 
@@ -66,8 +71,12 @@ describe('AuditCleanupService', () => {
       const deleteResult = { affected: 0 };
       const updateResult = { affected: 0 };
 
-      (repository.delete as jest.Mock).mockResolvedValue(deleteResult);
-      (repository.update as jest.Mock).mockResolvedValue(updateResult);
+      (
+        repository.delete as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(deleteResult);
+      (
+        repository.update as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(updateResult);
 
       await service.cleanup();
 
@@ -85,13 +94,21 @@ describe('AuditCleanupService', () => {
       const deleteResult = { affected: 3 };
       const updateResult = { affected: 2 };
 
-      (repository.delete as jest.Mock).mockResolvedValue(deleteResult);
-      (repository.update as jest.Mock).mockResolvedValue(updateResult);
+      (
+        repository.delete as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(deleteResult);
+      (
+        repository.update as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(updateResult);
 
       await service.cleanup();
 
-      const deleteCall = (repository.delete as jest.Mock).mock.calls[0][0];
-      const updateCall = (repository.update as jest.Mock).mock.calls[0][0];
+      const deleteCall = (
+        repository.delete as jest.Mock<(...args: any[]) => any>
+      ).mock.calls[0][0];
+      const updateCall = (
+        repository.update as jest.Mock<(...args: any[]) => any>
+      ).mock.calls[0][0];
 
       expect(deleteCall.createdAt).toBeDefined();
       expect(updateCall.createdAt).toBeDefined();

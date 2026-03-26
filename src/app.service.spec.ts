@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { readFileSync } from 'node:fs';
@@ -10,11 +11,13 @@ jest.mock('path');
 
 describe('AppService', () => {
   let service: AppService;
-  let secretsServiceMock: { getSecret: jest.Mock };
+  let secretsServiceMock: {
+    getSecret: jest.Mock<(...args: any[]) => Promise<any>>;
+  };
 
   beforeEach(async () => {
     secretsServiceMock = {
-      getSecret: jest.fn(),
+      getSecret: jest.fn<(...args: any[]) => Promise<any>>(),
     };
 
     const module: TestingModule = await Test.createTestingModule({

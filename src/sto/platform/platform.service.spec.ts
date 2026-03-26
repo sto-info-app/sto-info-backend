@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import {
   BadRequestException,
   InternalServerErrorException,
@@ -54,7 +55,9 @@ describe('PlatformService', () => {
   describe('findAll', () => {
     it('should return all platforms', async () => {
       const platforms = [{ id: '1', name: 'Windows' }];
-      (repository.find as jest.Mock).mockResolvedValue(platforms);
+      (
+        repository.find as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(platforms);
 
       const result = await service.findAll();
 
@@ -66,7 +69,9 @@ describe('PlatformService', () => {
   describe('findOne', () => {
     it('should return a platform by id', async () => {
       const platform = { id: '1', name: 'Windows' };
-      (repository.findOne as jest.Mock).mockResolvedValue(platform);
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(platform);
 
       const result = await service.findOne('1');
 
@@ -79,7 +84,9 @@ describe('PlatformService', () => {
     });
 
     it('should throw NotFoundException if platform not found', async () => {
-      (repository.findOne as jest.Mock).mockResolvedValue(null);
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
 
       await expect(service.findOne('1')).rejects.toThrow(NotFoundException);
     });
@@ -88,7 +95,9 @@ describe('PlatformService', () => {
   describe('findOneByName', () => {
     it('should return a platform by name', async () => {
       const platform = { id: '1', name: 'Windows' };
-      (repository.findOne as jest.Mock).mockResolvedValue(platform);
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(platform);
 
       const result = await service.findOneByName('Windows');
 
@@ -105,7 +114,9 @@ describe('PlatformService', () => {
     });
 
     it('should throw NotFoundException if platform not found', async () => {
-      (repository.findOne as jest.Mock).mockResolvedValue(null);
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
 
       await expect(service.findOneByName('Windows')).rejects.toThrow(
         NotFoundException,
@@ -119,7 +130,9 @@ describe('PlatformService', () => {
         { id: '1', name: 'OldPlatform', deletedAt: new Date('2020-01-01') },
       ];
       const queryBuilder = repository.createQueryBuilder();
-      (queryBuilder.getMany as jest.Mock).mockResolvedValue(platforms);
+      (
+        queryBuilder.getMany as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(platforms);
 
       const result = await service.findAllSoftDeletedOlderThanOneWeek();
 
@@ -136,7 +149,9 @@ describe('PlatformService', () => {
       const dto = { name: 'PlayStation' };
       const platform = { id: '1', name: 'PlayStation' };
       (repository.create as jest.Mock).mockReturnValue(platform);
-      (repository.save as jest.Mock).mockResolvedValue(platform);
+      (
+        repository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(platform);
 
       const result = await service.create(dto);
 
@@ -149,7 +164,9 @@ describe('PlatformService', () => {
       const dto = { name: 'PlayStation' };
       const platform = { id: '1', name: 'PlayStation' };
       (repository.create as jest.Mock).mockReturnValue(platform);
-      (repository.save as jest.Mock).mockRejectedValue(new Error('DB Error'));
+      (
+        repository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockRejectedValue(new Error('DB Error'));
 
       await expect(service.create(dto)).rejects.toThrow(
         InternalServerErrorException,
@@ -169,9 +186,13 @@ describe('PlatformService', () => {
       const dto = { name: 'Windows Updated' };
       const updated = { id: '1', name: 'Windows Updated' };
 
-      (repository.findOne as jest.Mock).mockResolvedValue(platform);
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(platform);
       (repository.merge as jest.Mock).mockReturnValue(updated);
-      (repository.save as jest.Mock).mockResolvedValue(updated);
+      (
+        repository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(updated);
 
       const result = await service.update('1', dto);
 
@@ -184,9 +205,13 @@ describe('PlatformService', () => {
       const platform = { id: '1', name: 'Windows' };
       const dto = { name: 'Updated' };
 
-      (repository.findOne as jest.Mock).mockResolvedValue(platform);
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(platform);
       (repository.merge as jest.Mock).mockReturnValue(platform);
-      (repository.save as jest.Mock).mockRejectedValue(new Error('DB Error'));
+      (
+        repository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockRejectedValue(new Error('DB Error'));
 
       await expect(service.update('1', dto)).rejects.toThrow(
         InternalServerErrorException,
@@ -207,8 +232,12 @@ describe('PlatformService', () => {
   describe('remove', () => {
     it('should hard delete a platform', async () => {
       const platform = { id: '1', name: 'Windows' };
-      (repository.findOne as jest.Mock).mockResolvedValue(platform);
-      (repository.remove as jest.Mock).mockResolvedValue(platform);
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(platform);
+      (
+        repository.remove as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(platform);
 
       await service.remove('1');
 
@@ -217,8 +246,12 @@ describe('PlatformService', () => {
 
     it('should throw InternalServerErrorException on remove failure', async () => {
       const platform = { id: '1', name: 'Windows' };
-      (repository.findOne as jest.Mock).mockResolvedValue(platform);
-      (repository.remove as jest.Mock).mockRejectedValue(new Error('DB Error'));
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(platform);
+      (
+        repository.remove as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockRejectedValue(new Error('DB Error'));
 
       await expect(service.remove('1')).rejects.toThrow(
         InternalServerErrorException,
@@ -233,8 +266,12 @@ describe('PlatformService', () => {
   describe('softRemove', () => {
     it('should soft delete a platform', async () => {
       const platform = { id: '1', name: 'Windows' };
-      (repository.findOne as jest.Mock).mockResolvedValue(platform);
-      (repository.softDelete as jest.Mock).mockResolvedValue({ affected: 1 });
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(platform);
+      (
+        repository.softDelete as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ affected: 1 });
 
       await service.softRemove('1');
 
@@ -243,10 +280,12 @@ describe('PlatformService', () => {
 
     it('should throw InternalServerErrorException on soft delete failure', async () => {
       const platform = { id: '1', name: 'Windows' };
-      (repository.findOne as jest.Mock).mockResolvedValue(platform);
-      (repository.softDelete as jest.Mock).mockRejectedValue(
-        new Error('DB Error'),
-      );
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(platform);
+      (
+        repository.softDelete as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockRejectedValue(new Error('DB Error'));
 
       await expect(service.softRemove('1')).rejects.toThrow(
         InternalServerErrorException,

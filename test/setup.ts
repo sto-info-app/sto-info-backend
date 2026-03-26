@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { ConsoleLogger, Logger } from '@nestjs/common';
 
 /**

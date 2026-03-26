@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as fc from 'fast-check';
@@ -12,8 +13,12 @@ describe('SesWebhookController Fuzz Tests', () => {
   beforeEach(async () => {
     service = {
       validateTopicArn: jest.fn().mockReturnValue(true),
-      confirmSubscription: jest.fn().mockResolvedValue(undefined),
-      processNotification: jest.fn().mockResolvedValue(undefined),
+      confirmSubscription: jest
+        .fn<(...args: any[]) => Promise<any>>()
+        .mockResolvedValue(undefined),
+      processNotification: jest
+        .fn<(...args: any[]) => Promise<any>>()
+        .mockResolvedValue(undefined),
     } as any;
 
     const module: TestingModule = await Test.createTestingModule({

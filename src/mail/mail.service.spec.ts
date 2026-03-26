@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { MailerService } from '@nestjs-modules/mailer';
 import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -33,7 +34,7 @@ describe('MailService', () => {
           provide: SecretsService,
           useValue: {
             getSecret: jest
-              .fn()
+              .fn<(...args: any[]) => Promise<any>>()
               .mockResolvedValue({ sendGridApiKey: 'test-key' }),
           },
         },
@@ -46,7 +47,9 @@ describe('MailService', () => {
         {
           provide: MailerService,
           useValue: {
-            sendMail: jest.fn().mockResolvedValue({}),
+            sendMail: jest
+              .fn<(...args: any[]) => Promise<any>>()
+              .mockResolvedValue({}),
           },
         },
       ],
@@ -58,9 +61,9 @@ describe('MailService', () => {
     mockMailerService = module.get<MailerService>(MailerService);
 
     // Mock ejs.renderFile and htmlToText
-    (ejs.renderFile as jest.Mock).mockResolvedValue(
-      '<html><body>Test</body></html>',
-    );
+    (
+      ejs.renderFile as jest.Mock<(...args: any[]) => Promise<any>>
+    ).mockResolvedValue('<html><body>Test</body></html>');
     (htmlToText as jest.Mock).mockReturnValue('Test text');
   });
 
@@ -146,9 +149,11 @@ describe('MailService', () => {
     });
 
     it('should fall back to SendGrid when SES fails', async () => {
-      (mockMailerService.sendMail as jest.Mock).mockRejectedValue(
-        new Error('SES error'),
-      );
+      (
+        mockMailerService.sendMail as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockRejectedValue(new Error('SES error'));
       const warnSpy = jest
         .spyOn(Logger.prototype, 'warn')
         .mockImplementation(() => undefined);
@@ -161,13 +166,17 @@ describe('MailService', () => {
     });
 
     it('should log SendGrid errors when both SES and SendGrid fail', async () => {
-      (mockMailerService.sendMail as jest.Mock).mockRejectedValue(
-        new Error('SES error'),
-      );
+      (
+        mockMailerService.sendMail as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockRejectedValue(new Error('SES error'));
       const sendGridError = {
         response: { body: { errors: ['SendGrid error'] } },
       };
-      (sgMail.send as jest.Mock).mockRejectedValue(sendGridError);
+      (
+        sgMail.send as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockRejectedValue(sendGridError);
       const warnSpy = jest
         .spyOn(Logger.prototype, 'warn')
         .mockImplementation(() => undefined);
@@ -185,9 +194,11 @@ describe('MailService', () => {
 
     it('should fall back to SendGrid and stringify non-Error sesError', async () => {
       // Exercises the `String(sesError)` branch (sesError is not an instance of Error)
-      (mockMailerService.sendMail as jest.Mock).mockRejectedValue(
-        'plain string error',
-      );
+      (
+        mockMailerService.sendMail as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockRejectedValue('plain string error');
       const warnSpy = jest
         .spyOn(Logger.prototype, 'warn')
         .mockImplementation(() => undefined);
@@ -290,7 +301,9 @@ describe('MailService', () => {
   describe('sendEmailViaSendGrid', () => {
     it('should log error if sending fails with response errors', async () => {
       const error = { response: { body: { errors: ['SendGrid error'] } } };
-      (sgMail.send as jest.Mock).mockRejectedValue(error);
+      (
+        sgMail.send as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockRejectedValue(error);
       const loggerSpy = jest
         .spyOn(Logger.prototype, 'error')
         .mockImplementation(() => undefined);
@@ -302,7 +315,9 @@ describe('MailService', () => {
 
     it('should log generic error if sending fails without response errors', async () => {
       const error = new Error('Generic error');
-      (sgMail.send as jest.Mock).mockRejectedValue(error);
+      (
+        sgMail.send as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockRejectedValue(error);
       const loggerSpy = jest
         .spyOn(Logger.prototype, 'error')
         .mockImplementation(() => undefined);
@@ -314,7 +329,9 @@ describe('MailService', () => {
 
     it('should log generic error if sending fails with partial response object', async () => {
       const error = { response: {} };
-      (sgMail.send as jest.Mock).mockRejectedValue(error);
+      (
+        sgMail.send as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockRejectedValue(error);
       const loggerSpy = jest
         .spyOn(Logger.prototype, 'error')
         .mockImplementation(() => undefined);
@@ -326,7 +343,9 @@ describe('MailService', () => {
 
     it('should log generic error if sending fails with partial response body object', async () => {
       const error = { response: { body: {} } };
-      (sgMail.send as jest.Mock).mockRejectedValue(error);
+      (
+        sgMail.send as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockRejectedValue(error);
       const loggerSpy = jest
         .spyOn(Logger.prototype, 'error')
         .mockImplementation(() => undefined);
@@ -337,7 +356,9 @@ describe('MailService', () => {
     });
 
     it('should log generic error if sending fails with null error', async () => {
-      (sgMail.send as jest.Mock).mockRejectedValue(null);
+      (
+        sgMail.send as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockRejectedValue(null);
       const loggerSpy = jest
         .spyOn(Logger.prototype, 'error')
         .mockImplementation(() => undefined);

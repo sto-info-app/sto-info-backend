@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import {
   HealthCheckResult,
   HealthCheckService,
@@ -13,13 +14,13 @@ describe('HealthController', () => {
   let dbIndicator: jest.Mocked<TypeOrmHealthIndicator>;
 
   beforeEach(async () => {
-    const healthCheckServiceMock: Partial<jest.Mocked<HealthCheckService>> = {
-      check: jest.fn(),
-    };
+    const healthCheckServiceMock = {
+      check: jest.fn<(...args: any[]) => Promise<any>>(),
+    } as unknown as jest.Mocked<HealthCheckService>;
 
-    const dbIndicatorMock: Partial<jest.Mocked<TypeOrmHealthIndicator>> = {
-      pingCheck: jest.fn(),
-    };
+    const dbIndicatorMock = {
+      pingCheck: jest.fn<(...args: any[]) => Promise<any>>(),
+    } as unknown as jest.Mocked<TypeOrmHealthIndicator>;
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [HealthController],
@@ -49,7 +50,9 @@ describe('HealthController', () => {
   it('live() should return app up status and call health check indicator', async () => {
     const expectedResult = { app: { status: 'up' } };
 
-    healthCheckService.check.mockImplementation(
+    (
+      healthCheckService.check as jest.Mock<(...args: any[]) => Promise<any>>
+    ).mockImplementation(
       async (
         indicators: HealthIndicatorFunction[],
       ): Promise<HealthCheckResult> => {
@@ -76,7 +79,9 @@ describe('HealthController', () => {
     const dbHealthResult = { database: { status: 'up' } };
 
     dbIndicator.pingCheck.mockResolvedValue(dbHealthResult as never);
-    healthCheckService.check.mockImplementation(
+    (
+      healthCheckService.check as jest.Mock<(...args: any[]) => Promise<any>>
+    ).mockImplementation(
       async (
         indicators: HealthIndicatorFunction[],
       ): Promise<HealthCheckResult> => {

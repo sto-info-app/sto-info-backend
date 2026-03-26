@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import {
   BadRequestException,
   ConflictException,
@@ -52,9 +53,13 @@ describe('AccountService', () => {
     it('should create and save a new account', async () => {
       const dto = { userId: 'user-1', handle: 'h' };
       const account = { id: '1', userId: 'user-1' };
-      (repository.findOne as jest.Mock).mockResolvedValue(null);
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
       (repository.create as jest.Mock).mockReturnValue(account);
-      (repository.save as jest.Mock).mockResolvedValue(account);
+      (
+        repository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(account);
 
       const result = await service.create(dto as any);
 
@@ -72,7 +77,9 @@ describe('AccountService', () => {
 
     it('should throw ConflictException if handle already exists for user', async () => {
       const dto = { userId: 'user-1', handle: 'dup' };
-      (repository.findOne as jest.Mock).mockResolvedValue({ id: 'existing' });
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: 'existing' });
 
       await expect(service.create(dto as any)).rejects.toThrow(
         ConflictException,
@@ -82,7 +89,9 @@ describe('AccountService', () => {
 
     it('should treat handle uniqueness as case-insensitive', async () => {
       const dto = { userId: 'user-1', handle: 'DuP' };
-      (repository.findOne as jest.Mock).mockResolvedValue({ id: 'existing' });
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: 'existing' });
 
       await expect(service.create(dto as any)).rejects.toThrow(
         ConflictException,
@@ -95,9 +104,13 @@ describe('AccountService', () => {
     it('should throw InternalServerErrorException on save failure', async () => {
       const dto = { userId: 'user-1', handle: 'h' };
       const account = { id: '1' };
-      (repository.findOne as jest.Mock).mockResolvedValue(null);
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
       (repository.create as jest.Mock).mockReturnValue(account);
-      (repository.save as jest.Mock).mockRejectedValue(new Error('DB Error'));
+      (
+        repository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockRejectedValue(new Error('DB Error'));
 
       await expect(service.create(dto as any)).rejects.toThrow(
         InternalServerErrorException,
@@ -108,7 +121,9 @@ describe('AccountService', () => {
       const dto = { userId: 'user-1', handle: '' };
       const account = { id: '1' };
       (repository.create as jest.Mock).mockReturnValue(account);
-      (repository.save as jest.Mock).mockResolvedValue(account);
+      (
+        repository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(account);
 
       const result = await service.create(dto as any);
 
@@ -135,7 +150,9 @@ describe('AccountService', () => {
         { id: '1', userId: 'user-1' },
         { id: '2', userId: 'user-1' },
       ];
-      (repository.find as jest.Mock).mockResolvedValue(accounts);
+      (
+        repository.find as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(accounts);
 
       const result = await service.findAllUsersAccounts('user-1');
 
@@ -156,7 +173,9 @@ describe('AccountService', () => {
   describe('findOne', () => {
     it('should return an account by id', async () => {
       const account = { id: '1', userId: 'user-1' };
-      (repository.findOne as jest.Mock).mockResolvedValue(account);
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(account);
 
       const result = await service.findOne('1');
 
@@ -172,7 +191,9 @@ describe('AccountService', () => {
   describe('findOneBySlug', () => {
     it('should return an account by slug', async () => {
       const account = { id: '1', handleSlug: 'Steve~1234' };
-      (repository.findOne as jest.Mock).mockResolvedValue(account);
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(account);
 
       const result = await service.findOneBySlug('Steve~1234');
 
@@ -183,7 +204,9 @@ describe('AccountService', () => {
     });
 
     it('should return null if account not found by slug', async () => {
-      (repository.findOne as jest.Mock).mockResolvedValue(null);
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
 
       const result = await service.findOneBySlug('non-existent');
 
@@ -200,7 +223,9 @@ describe('AccountService', () => {
   describe('findOneForUser', () => {
     it('should return an account by id for the given user', async () => {
       const account = { id: '1', userId: 'user-1' };
-      (repository.findOne as jest.Mock).mockResolvedValue(account);
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(account);
 
       const result = await service.findOneForUser('1', 'user-1');
 
@@ -209,7 +234,9 @@ describe('AccountService', () => {
     });
 
     it('should throw NotFoundException if account not found for user', async () => {
-      (repository.findOne as jest.Mock).mockResolvedValue(null);
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
 
       await expect(service.findOneForUser('1', 'user-1')).rejects.toThrow(
         NotFoundException,
@@ -217,7 +244,9 @@ describe('AccountService', () => {
     });
 
     it('should throw ForbiddenException if account is not owned by user', async () => {
-      (repository.findOne as jest.Mock).mockResolvedValue({
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
         id: '1',
         userId: 'other-user',
       });
@@ -244,8 +273,12 @@ describe('AccountService', () => {
     it('should update an account', async () => {
       const dto = { accountName: 'Updated Name' };
       const updated = { id: '1', accountName: 'Updated Name' };
-      (repository.update as jest.Mock).mockResolvedValue({ affected: 1 });
-      (repository.findOne as jest.Mock).mockResolvedValue(updated);
+      (
+        repository.update as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ affected: 1 });
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(updated);
 
       const result = await service.update('1', dto as any);
 
@@ -256,8 +289,12 @@ describe('AccountService', () => {
 
     it('should throw NotFoundException if account not found after update', async () => {
       const dto = { accountName: 'Updated' };
-      (repository.update as jest.Mock).mockResolvedValue({ affected: 1 });
-      (repository.findOne as jest.Mock).mockResolvedValue(null);
+      (
+        repository.update as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ affected: 1 });
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
 
       await expect(service.update('1', dto as any)).rejects.toThrow(
         NotFoundException,
@@ -281,10 +318,12 @@ describe('AccountService', () => {
     it('should update an account for the given user', async () => {
       const existing = { id: '1', userId: 'user-1', handle: 'old-handle' };
       const dto = { handle: 'new-handle' };
-      (repository.findOne as jest.Mock)
+      (repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>)
         .mockResolvedValueOnce(existing)
         .mockResolvedValueOnce(null);
-      (repository.save as jest.Mock).mockResolvedValue({ ...existing, ...dto });
+      (
+        repository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ ...existing, ...dto });
 
       const result = await service.updateForUser('1', 'user-1', dto as any);
 
@@ -312,7 +351,7 @@ describe('AccountService', () => {
     it('should throw ConflictException if new handle already exists for user', async () => {
       const existing = { id: '1', userId: 'user-1', handle: 'old-handle' };
       const dto = { handle: 'dup' };
-      (repository.findOne as jest.Mock)
+      (repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>)
         .mockResolvedValueOnce(existing)
         .mockResolvedValueOnce({ id: 'other' });
 
@@ -325,7 +364,7 @@ describe('AccountService', () => {
     it('should treat updated handle uniqueness as case-insensitive', async () => {
       const existing = { id: '1', userId: 'user-1', handle: 'old-handle' };
       const dto = { handle: 'DuP' };
-      (repository.findOne as jest.Mock)
+      (repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>)
         .mockResolvedValueOnce(existing)
         .mockResolvedValueOnce({ id: 'other' });
 
@@ -341,7 +380,9 @@ describe('AccountService', () => {
       });
     });
     it('should throw ForbiddenException if account is not owned by user', async () => {
-      (repository.findOne as jest.Mock).mockResolvedValue({
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
         id: '1',
         userId: 'other-user',
       });
@@ -354,8 +395,12 @@ describe('AccountService', () => {
     it('should skip handle uniqueness check if handle is same', async () => {
       const existing = { id: '1', userId: 'user-1', handle: 'same' };
       const dto = { handle: 'same' };
-      (repository.findOne as jest.Mock).mockResolvedValue(existing);
-      (repository.save as jest.Mock).mockResolvedValue({
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(existing);
+      (
+        repository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
         ...existing,
         notes: 'new',
       });
@@ -372,8 +417,12 @@ describe('AccountService', () => {
     it('should skip handle uniqueness check if handle is not provided', async () => {
       const existing = { id: '1', userId: 'user-1', handle: 'h' };
       const dto = { notes: 'only notes' };
-      (repository.findOne as jest.Mock).mockResolvedValue(existing);
-      (repository.save as jest.Mock).mockResolvedValue({ ...existing, ...dto });
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(existing);
+      (
+        repository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ ...existing, ...dto });
 
       await service.updateForUser('1', 'user-1', dto as any);
 
@@ -402,7 +451,9 @@ describe('AccountService', () => {
 
   describe('remove', () => {
     it('should soft delete an account', async () => {
-      (repository.softDelete as jest.Mock).mockResolvedValue({ affected: 1 });
+      (
+        repository.softDelete as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ affected: 1 });
 
       await service.remove('1');
 
@@ -410,7 +461,9 @@ describe('AccountService', () => {
     });
 
     it('should throw NotFoundException if account not found', async () => {
-      (repository.softDelete as jest.Mock).mockResolvedValue({ affected: 0 });
+      (
+        repository.softDelete as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ affected: 0 });
 
       await expect(service.remove('1')).rejects.toThrow(NotFoundException);
     });
@@ -422,11 +475,15 @@ describe('AccountService', () => {
 
   describe('removeForUser', () => {
     it('should soft delete an account for the given user', async () => {
-      (repository.findOne as jest.Mock).mockResolvedValue({
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
         id: '1',
         userId: 'user-1',
       });
-      (repository.softDelete as jest.Mock).mockResolvedValue({ affected: 1 });
+      (
+        repository.softDelete as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ affected: 1 });
 
       await service.removeForUser('1', 'user-1');
 
@@ -435,7 +492,9 @@ describe('AccountService', () => {
     });
 
     it('should throw ForbiddenException if account is not owned by user', async () => {
-      (repository.findOne as jest.Mock).mockResolvedValue({
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
         id: '1',
         userId: 'other-user',
       });
@@ -446,11 +505,15 @@ describe('AccountService', () => {
     });
 
     it('should throw NotFoundException if softDelete affected is 0', async () => {
-      (repository.findOne as jest.Mock).mockResolvedValue({
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
         id: '1',
         userId: 'user-1',
       });
-      (repository.softDelete as jest.Mock).mockResolvedValue({ affected: 0 });
+      (
+        repository.softDelete as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ affected: 0 });
 
       await expect(service.removeForUser('1', 'user-1')).rejects.toThrow(
         NotFoundException,
@@ -476,7 +539,9 @@ describe('AccountService', () => {
         { id: '1', deletedAt: new Date() },
         { id: '2', deletedAt: new Date() },
       ];
-      (repository.find as jest.Mock).mockResolvedValue(accounts);
+      (
+        repository.find as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(accounts);
 
       const result = await service.findAllSoftDeleted();
 
@@ -487,12 +552,16 @@ describe('AccountService', () => {
 
   describe('hardDeleteOlderThanOneWeek', () => {
     it('should hard delete accounts older than one week', async () => {
-      (repository.delete as jest.Mock).mockResolvedValue({ affected: 3 });
+      (
+        repository.delete as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ affected: 3 });
 
       await service.hardDeleteOlderThanOneWeek();
 
       expect(repository.delete).toHaveBeenCalled();
-      const deleteCall = (repository.delete as jest.Mock).mock.calls[0][0];
+      const deleteCall = (
+        repository.delete as jest.Mock<(...args: any[]) => any>
+      ).mock.calls[0][0];
       expect(deleteCall.deletedAt).toBeDefined();
     });
   });

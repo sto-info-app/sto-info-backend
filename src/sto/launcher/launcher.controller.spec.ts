@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { LauncherEntity } from './entities/launcher.entity';
@@ -39,7 +40,9 @@ describe('LauncherController', () => {
         { id: '1', name: 'Launcher 1' },
         { id: '2', name: 'Launcher 2' },
       ];
-      (service.findAll as jest.Mock).mockResolvedValue(expected);
+      (
+        service.findAll as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(expected);
 
       const result = await controller.findAll();
 
