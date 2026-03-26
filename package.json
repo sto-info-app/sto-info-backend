@@ -138,7 +138,7 @@
     "ts-loader": "^9.5.4",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^6.0.2"
+    "typescript": "^5.9.3"
   },
   "overrides": {
     "file-type": "^21.3.3",
@@ -153,7 +153,14 @@
     "fast-xml-parser": "^5.5.6",
     "mjml": "^5.0.0-beta.1",
     "serialize-javascript": "^7.0.4",
-    "underscore": "^1.13.8"
+    "underscore": "^1.13.8",
+    "picomatch": "^4.0.4",
+    "anymatch": {
+      "picomatch": "^2.3.2"
+    },
+    "micromatch": {
+      "picomatch": "^2.3.2"
+    }
   },
   "eslintConfig": {
     "root": true,
