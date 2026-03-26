@@ -3,8 +3,8 @@ import * as Sentry from '@sentry/nestjs';
 import { randomUUID } from 'crypto';
 import type { NextFunction, Response } from 'express';
 import {
-    RequestIdMiddleware,
-    type RequestWithId,
+  RequestIdMiddleware,
+  type RequestWithId,
 } from './request-id.middleware';
 
 jest.mock('crypto', () => ({

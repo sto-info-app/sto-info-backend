@@ -1,9 +1,9 @@
 import { jest } from '@jest/globals';
 import {
-    HealthCheckResult,
-    HealthCheckService,
-    HealthIndicatorFunction,
-    TypeOrmHealthIndicator,
+  HealthCheckResult,
+  HealthCheckService,
+  HealthIndicatorFunction,
+  TypeOrmHealthIndicator,
 } from '@nestjs/terminus';
 import { Test, TestingModule } from '@nestjs/testing';
 import { HealthController } from './health.controller';

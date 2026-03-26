@@ -9,8 +9,8 @@ import * as https from 'node:https';
 import { Repository } from 'typeorm';
 import { SecretsService } from '../../shared/secrets/secrets.service';
 import {
-    SesNotification,
-    SnsEnvelope,
+  SesNotification,
+  SnsEnvelope,
 } from './dto/sns-notification.interfaces';
 import { SesEventEntity } from './entities/ses-event.entity';
 import { SesWebhookService } from './ses-webhook.service';
