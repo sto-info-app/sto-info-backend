@@ -34,6 +34,7 @@ Current overrides in `package.json`:
   "serialize-javascript": "^7.0.4",
   "underscore": "^1.13.8",
   "picomatch": "^4.0.4",
+  "brace-expansion": "^5.0.5",
   "anymatch": {
     "picomatch": "^2.3.2"
   },
@@ -157,6 +158,20 @@ npm view micromatch@latest dependencies.picomatch
 npm view jest-haste-map@latest dependencies.picomatch
 ```
 
+#### `brace-expansion`
+
+- **Vulnerability**: [GHSA-f886-m6hf-6m8v](https://github.com/advisories/GHSA-f886-m6hf-6m8v) — Zero-step sequence (`{0..0}`) causes process hang and memory exhaustion in `brace-expansion < 5.0.5`. CVSS 6.5 (Moderate).
+- **Root cause**: `fork-ts-checker-webpack-plugin` (via `@nestjs/cli`) pins `minimatch@3.x`, which depends on `brace-expansion@1.x`. `mjml-cli` (via `mjml`) pins `minimatch@9.x`, which depends on `brace-expansion@2.x`. No patched release exists in the v1 or v2 branch — the fix only landed in v5.
+- **Override**: `"brace-expansion": "^5.0.5"`. Although v5 is an ESM package, it ships a `./dist/commonjs/index.js` entry (`"main"` field), so CJS consumers such as `minimatch@3.x` and `minimatch@9.x` can still `require()` it without changes.
+- **Scope**: The vulnerable code paths are in a build tool (`@nestjs/cli`) and an email template compiler (`mjml-cli`). Neither processes untrusted user-supplied glob patterns, so the practical risk is low.
+
+**When it can be removed**: When `fork-ts-checker-webpack-plugin` upgrades to a `minimatch` version that depends on `brace-expansion >= 5.0.5` natively, and when `mjml-cli` does the same. Verify with:
+
+```sh
+npm view fork-ts-checker-webpack-plugin@latest dependencies.minimatch
+npm view mjml-cli@latest dependencies.minimatch
+```
+
 ---
 
 ### Postinstall Patch (`scripts/patch-nested-packages.js`)
@@ -175,10 +190,23 @@ This script runs automatically after every `npm install` and `npm ci` via the `p
 const patches = [
   // [ 'path/within/node_modules/to/nested/package', 'top-level-package-name' ]
   ['@nestjs/platform-express/node_modules/multer', 'multer'],
+  ['preview-email/node_modules/nodemailer', 'nodemailer'],
 ];
 ```
 
 **Removing a patch entry**: When the upstream package fixes its own dependency so the nested install no longer appears (or already uses the safe version), remove the corresponding entry from the `patches` array. Also remove the matching nested override from `package.json` if it is no longer needed.
+
+#### `nodemailer` (nested under `preview-email`)
+
+- **Vulnerability**: [GHSA-c7w3-x93f-qmm8](https://github.com/advisories/GHSA-c7w3-x93f-qmm8) — SMTP command injection via unsanitised `envelope.size` parameter in `nodemailer < 8.0.4`. Severity: Low.
+- **Root cause**: `preview-email@3.1.1` (a dev-time email preview utility) pins `nodemailer@^7.0.12`, which resolves to `7.0.13`. The top-level `nodemailer@^8.0.4` is already a direct dependency, but npm 11.x's nested-override bug prevents the override from replacing the nested copy.
+- **Patch**: `['preview-email/node_modules/nodemailer', 'nodemailer']` in the patch script copies the safe top-level `nodemailer@8.0.4` over the nested `7.0.13` install after every `npm install` / `npm ci`.
+
+**When it can be removed**: When `preview-email` updates its own `nodemailer` dependency to `>= 8.0.4`. Verify with:
+
+```sh
+npm view preview-email@latest dependencies.nodemailer
+```
 
 ## CORS Configuration
 

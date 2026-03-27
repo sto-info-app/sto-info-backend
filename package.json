@@ -155,6 +155,7 @@
     "serialize-javascript": "^7.0.4",
     "underscore": "^1.13.8",
     "picomatch": "^4.0.4",
+    "brace-expansion": "^5.0.5",
     "anymatch": {
       "picomatch": "^2.3.2"
     },
