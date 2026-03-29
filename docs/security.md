@@ -31,8 +31,10 @@ Current overrides in `package.json`:
   "glob": "^13.0.0",
   "fast-xml-parser": "^5.5.6",
   "mjml": "^5.0.0-beta.1",
-  "serialize-javascript": "^7.0.4",
+  "serialize-javascript": "^7.0.5",
   "underscore": "^1.13.8",
+  "nodemailer": "^8.0.4",
+  "path-to-regexp": "^8.3.1",
   "picomatch": "^4.0.4",
   "brace-expansion": "^5.0.5",
   "anymatch": {
@@ -124,6 +126,31 @@ npm view @nestjs/platform-express@latest dependencies.multer
 - **Solution**: Override to `^7.0.4`.
 
 **When it can be removed**: When `terser-webpack-plugin` updates its own `serialize-javascript` dependency to `>= 7.0.4`.
+
+#### `nodemailer`
+
+- **Vulnerability**: [GHSA-c7w3-x93f-qmm8](https://github.com/advisories/GHSA-c7w3-x93f-qmm8) — SMTP command injection via unsanitised `envelope.size` parameter in `nodemailer < 8.0.4`.
+- **Root cause**: `@nestjs-modules/mailer` depends on `preview-email`, which bundles its own `nodemailer@7.x`. The top-level dependency already pins `nodemailer@^8.0.4`, but the nested copy inside `preview-email` is not deduped.
+- **Override**: `"nodemailer": "^8.0.4"` — forces the patched release across the entire tree, including the nested copy.
+
+**When it can be removed**: When `preview-email` updates its own `nodemailer` dependency to `>= 8.0.4` natively. Verify by removing the override and running `npm audit --omit=dev --audit-level=high`. Check with:
+
+```sh
+npm view preview-email@latest dependencies.nodemailer
+```
+
+#### `path-to-regexp`
+
+- **Vulnerability**: [GHSA-j3q9-mxjg-w52f](https://github.com/advisories/GHSA-j3q9-mxjg-w52f) and [GHSA-27v5-c462-wpq7](https://github.com/advisories/GHSA-27v5-c462-wpq7) — Denial of Service via sequential optional groups and multiple wildcards in `path-to-regexp 8.0.0 – 8.3.0`. CVSS High.
+- **Root cause**: `@nestjs/core`, `@nestjs/platform-express`, `@nestjs/swagger`, and `express` all resolve to `path-to-regexp@8.3.0`. `npm audit fix --force` would downgrade `@nestjs/platform-express` to `11.0.2`, which is a breaking change.
+- **Override**: `"path-to-regexp": "^8.3.1"` — forces the patched release across the entire tree without downgrading NestJS.
+
+**When it can be removed**: When `@nestjs/core` (and its dependants) update their own `path-to-regexp` dependency to `>= 8.3.1` natively. Verify by removing the override and running `npm audit --omit=dev --audit-level=high`. Check with:
+
+```sh
+npm view @nestjs/core@latest dependencies.path-to-regexp
+npm view express@latest dependencies.path-to-regexp
+```
 
 #### `underscore`
 
