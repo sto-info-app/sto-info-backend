@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { CronModule } from './cron.module';
 
 jest.mock('@nestjs/schedule', () => ({

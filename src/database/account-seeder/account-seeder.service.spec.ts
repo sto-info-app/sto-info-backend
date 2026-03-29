@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { LauncherService } from 'src/sto/launcher/launcher.service';
 import { PlatformLauncherService } from 'src/sto/platform-launcher/platform-launcher.service';
@@ -80,8 +81,14 @@ describe('AccountSeederService', () => {
 
   describe('seedPlatforms', () => {
     it('should create platforms that do not exist', async () => {
-      (platformService.findOneByName as jest.Mock).mockResolvedValue(null);
-      (platformService.create as jest.Mock).mockResolvedValue({});
+      (
+        platformService.findOneByName as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(null);
+      (
+        platformService.create as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({});
 
       await (service as any).seedPlatforms();
 
@@ -96,7 +103,11 @@ describe('AccountSeederService', () => {
     });
 
     it('should not create platforms that already exist', async () => {
-      (platformService.findOneByName as jest.Mock).mockResolvedValue({
+      (
+        platformService.findOneByName as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
         id: '1',
         name: 'Windows',
       });
@@ -110,8 +121,14 @@ describe('AccountSeederService', () => {
 
   describe('seedLaunchers', () => {
     it('should create launchers that do not exist', async () => {
-      (launcherService.findOneByName as jest.Mock).mockResolvedValue(null);
-      (launcherService.create as jest.Mock).mockResolvedValue({});
+      (
+        launcherService.findOneByName as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(null);
+      (
+        launcherService.create as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({});
 
       await (service as any).seedLaunchers();
 
@@ -123,7 +140,11 @@ describe('AccountSeederService', () => {
     });
 
     it('should not create launchers that already exist', async () => {
-      (launcherService.findOneByName as jest.Mock).mockResolvedValue({
+      (
+        launcherService.findOneByName as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
         id: '1',
         name: 'Steam',
       });
@@ -140,11 +161,25 @@ describe('AccountSeederService', () => {
       const platform = { id: 'platform-id', name: 'Windows' };
       const launcher = { id: 'launcher-id', name: 'Steam' };
 
-      (platformService.findOneByName as jest.Mock).mockResolvedValue(platform);
-      (launcherService.findOneByName as jest.Mock).mockResolvedValue(launcher);
-      (platformLauncherService.findOne as jest.Mock).mockResolvedValue(null);
       (
-        platformLauncherService.addPlatformLauncherRelation as jest.Mock
+        platformService.findOneByName as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(platform);
+      (
+        launcherService.findOneByName as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(launcher);
+      (
+        platformLauncherService.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(null);
+      (
+        platformLauncherService.addPlatformLauncherRelation as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
       ).mockResolvedValue({});
 
       await (service as any).seedPlatformLaunchers();
@@ -163,11 +198,21 @@ describe('AccountSeederService', () => {
       const launcher = { id: 'launcher-id', name: 'Steam' };
       const existingCombo = { id: 'combo-id' };
 
-      (platformService.findOneByName as jest.Mock).mockResolvedValue(platform);
-      (launcherService.findOneByName as jest.Mock).mockResolvedValue(launcher);
-      (platformLauncherService.findOne as jest.Mock).mockResolvedValue(
-        existingCombo,
-      );
+      (
+        platformService.findOneByName as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(platform);
+      (
+        launcherService.findOneByName as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(launcher);
+      (
+        platformLauncherService.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(existingCombo);
 
       await (service as any).seedPlatformLaunchers();
 
@@ -177,8 +222,16 @@ describe('AccountSeederService', () => {
     });
 
     it('should skip combinations if platform or launcher not found', async () => {
-      (platformService.findOneByName as jest.Mock).mockResolvedValue(null);
-      (launcherService.findOneByName as jest.Mock).mockResolvedValue({
+      (
+        platformService.findOneByName as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(null);
+      (
+        launcherService.findOneByName as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
         id: 'launcher-id',
       });
 

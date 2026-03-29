@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { HttpException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
@@ -87,9 +88,15 @@ describe('UserService', () => {
   describe('create', () => {
     it('should create a user successfully', async () => {
       const dto = { email: 'test@e.com', password: 'pass', username: 'user' }; // NOSONAR
-      (userRepository.findOne as jest.Mock).mockResolvedValue(null);
-      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed');
-      (userRepository.save as jest.Mock).mockResolvedValue({ id: '1', ...dto });
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
+      (
+        bcrypt.hash as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue('hashed');
+      (
+        userRepository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: '1', ...dto });
 
       const result = await service.create(dto as any);
       expect(result.id).toBe('1');
@@ -98,7 +105,9 @@ describe('UserService', () => {
 
     it('should throw if email already exists', async () => {
       const dto = { email: 'exist@e.com', password: 'p' }; // NOSONAR
-      (userRepository.findOne as jest.Mock).mockResolvedValue({ id: '1' });
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: '1' });
       await expect(service.create(dto as any)).rejects.toThrow(
         'Email already in use',
       );
@@ -121,8 +130,12 @@ describe('UserService', () => {
   describe('update', () => {
     it('should update a user successfully', async () => {
       const dto = { email: 'new@e.com' };
-      (userRepository.update as jest.Mock).mockResolvedValue({ affected: 1 });
-      (userRepository.findOne as jest.Mock).mockResolvedValue({
+      (
+        userRepository.update as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ affected: 1 });
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
         id: '1',
         ...dto,
       });
@@ -132,7 +145,9 @@ describe('UserService', () => {
     });
 
     it('should throw if update fails', async () => {
-      (userRepository.update as jest.Mock).mockResolvedValue({ affected: 0 });
+      (
+        userRepository.update as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ affected: 0 });
       await expect(service.update('1', {} as any)).rejects.toThrow(
         HttpException,
       );
@@ -147,7 +162,9 @@ describe('UserService', () => {
 
   describe('delete', () => {
     it('should delete a user successfully', async () => {
-      (userRepository.softDelete as jest.Mock).mockResolvedValue({
+      (
+        userRepository.softDelete as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
         affected: 1,
       });
       await service.delete('1');
@@ -155,7 +172,9 @@ describe('UserService', () => {
     });
 
     it('should throw if delete fails', async () => {
-      (userRepository.softDelete as jest.Mock).mockResolvedValue({
+      (
+        userRepository.softDelete as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
         affected: 0,
       });
       await expect(service.delete('1')).rejects.toThrow(HttpException);
@@ -168,13 +187,17 @@ describe('UserService', () => {
 
   describe('findById', () => {
     it('should find user by id', async () => {
-      (userRepository.findOne as jest.Mock).mockResolvedValue({ id: '1' });
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: '1' });
       const result = await service.findById('1');
       expect(result.id).toBe('1');
     });
 
     it('should throw if user not found', async () => {
-      (userRepository.findOne as jest.Mock).mockResolvedValue(null);
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
       await expect(service.findById('1')).rejects.toThrow(HttpException);
     });
 
@@ -186,7 +209,9 @@ describe('UserService', () => {
 
   describe('findByEmail', () => {
     it('should find user by email', async () => {
-      (userRepository.findOne as jest.Mock).mockResolvedValue({ email: 'e' });
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ email: 'e' });
       const result = await service.findByEmail('e');
       expect(result).not.toBeNull();
       if (!result) {
@@ -198,8 +223,12 @@ describe('UserService', () => {
 
   describe('updateUserEmailVerifiedStatus', () => {
     it('should update status', async () => {
-      (userRepository.findOne as jest.Mock).mockResolvedValue({ email: 'e' });
-      (userRepository.save as jest.Mock).mockResolvedValue({
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ email: 'e' });
+      (
+        userRepository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
         email: 'e',
         emailVerified: true,
       });
@@ -208,7 +237,9 @@ describe('UserService', () => {
     });
 
     it('should throw if no user affected', async () => {
-      (userRepository.update as jest.Mock).mockResolvedValue({ affected: 0 });
+      (
+        userRepository.update as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ affected: 0 });
       await expect(
         service.updateUserEmailVerifiedStatus('e', true),
       ).rejects.toThrow(HttpException);
@@ -232,14 +263,24 @@ describe('UserService', () => {
 
   describe('updateUserProfile', () => {
     it('should update profile', async () => {
-      (userRepository.findOne as jest.Mock).mockResolvedValue({
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
         id: '1',
         profile: { userId: '1' },
       });
-      (userProfileRepository.save as jest.Mock).mockResolvedValue({
+      (
+        userProfileRepository.save as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
         userId: '1',
       });
-      (userProfileRepository.findOne as jest.Mock).mockResolvedValue({
+      (
+        userProfileRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
         userId: '1',
       });
       const result = await service.updateUserProfile('1', {
@@ -250,7 +291,9 @@ describe('UserService', () => {
 
     it('should return affected 0 if profile unchanged', async () => {
       const profile = { userId: '1', username: 'u' };
-      (userRepository.findOne as jest.Mock).mockResolvedValue({
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
         id: '1',
         profile,
       });
@@ -262,13 +305,17 @@ describe('UserService', () => {
 
     it('should throw if username already exists', async () => {
       const profile = { userId: '1', username: 'old' };
-      (userRepository.findOne as jest.Mock).mockResolvedValue({
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
         id: '1',
         profile,
       });
 
       const qb = userProfileRepository.createQueryBuilder('u');
-      (qb.getCount as jest.Mock).mockResolvedValue(1);
+      (
+        qb.getCount as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(1);
 
       await expect(
         service.updateUserProfile('1', { username: 'new' } as any),
@@ -276,7 +323,9 @@ describe('UserService', () => {
     });
 
     it('should throw if user profile data is missing or mismatched', async () => {
-      (userRepository.findOne as jest.Mock).mockResolvedValue({
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
         id: '1',
         profile: { userId: 'wrong' },
       });
@@ -286,7 +335,9 @@ describe('UserService', () => {
     });
 
     it('should throw if user profile is missing', async () => {
-      (userRepository.findOne as jest.Mock).mockResolvedValue({
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
         id: '1',
         profile: null,
       });
@@ -296,18 +347,28 @@ describe('UserService', () => {
     });
 
     it('should throw if save fails', async () => {
-      (userRepository.findOne as jest.Mock).mockResolvedValue({
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
         id: '1',
         profile: { userId: '1' },
       });
-      (userProfileRepository.save as jest.Mock).mockResolvedValue(null);
+      (
+        userProfileRepository.save as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(null);
       await expect(
         service.updateUserProfile('1', { username: 'u' } as any),
       ).rejects.toThrow('User profile update failed');
     });
 
     it('should throw if not found', async () => {
-      (userProfileRepository.update as jest.Mock).mockResolvedValue({
+      (
+        userProfileRepository.update as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
         affected: 0,
       });
       await expect(service.updateUserProfile('1', {} as any)).rejects.toThrow(
@@ -316,14 +377,24 @@ describe('UserService', () => {
     });
 
     it('should throw if updatedProfile is missing after save', async () => {
-      (userRepository.findOne as jest.Mock).mockResolvedValue({
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
         id: '1',
         profile: { userId: '1', username: 'old' },
       });
-      (userProfileRepository.save as jest.Mock).mockResolvedValue({
+      (
+        userProfileRepository.save as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
         userId: '1',
       });
-      (userProfileRepository.findOne as jest.Mock).mockResolvedValue(null);
+      (
+        userProfileRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(null);
 
       await expect(
         service.updateUserProfile('1', { username: 'new' } as any),
@@ -341,12 +412,16 @@ describe('UserService', () => {
   describe('doesUsernameExist', () => {
     it('should return true if count > 0', async () => {
       const qb = userProfileRepository.createQueryBuilder('u');
-      (qb.getCount as jest.Mock).mockResolvedValue(1);
+      (
+        qb.getCount as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(1);
       expect(await service.doesUsernameExist('u')).toBe(true);
     });
     it('should return false if count is 0', async () => {
       const qb = userProfileRepository.createQueryBuilder('u');
-      (qb.getCount as jest.Mock).mockResolvedValue(0);
+      (
+        qb.getCount as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(0);
       expect(await service.doesUsernameExist('u')).toBe(false);
     });
   });
@@ -354,12 +429,16 @@ describe('UserService', () => {
   describe('doesEmailExist', () => {
     it('should return true if count > 0', async () => {
       const qb = userRepository.createQueryBuilder('u');
-      (qb.getCount as jest.Mock).mockResolvedValue(1);
+      (
+        qb.getCount as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(1);
       expect(await service.doesEmailExist('e')).toBe(true);
     });
     it('should return false if count is 0', async () => {
       const qb = userRepository.createQueryBuilder('u');
-      (qb.getCount as jest.Mock).mockResolvedValue(0);
+      (
+        qb.getCount as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(0);
       expect(await service.doesEmailExist('e')).toBe(false);
     });
   });
@@ -371,11 +450,19 @@ describe('UserService', () => {
         id: '1',
         profile: { profilePictureId: 'old' },
       };
-      (userRepository.findOne as jest.Mock).mockResolvedValue(user);
       (
-        imageUploadsService.uploadImageToCloudflareImages as jest.Mock
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
+      (
+        imageUploadsService.uploadImageToCloudflareImages as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
       ).mockResolvedValue('new');
-      (userProfileRepository.save as jest.Mock).mockResolvedValue({
+      (
+        userProfileRepository.save as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
         userId: '1',
         profilePictureId: 'new',
       });
@@ -396,11 +483,19 @@ describe('UserService', () => {
         id: '1',
         profile: { profilePictureId: null },
       };
-      (userRepository.findOne as jest.Mock).mockResolvedValue(user);
       (
-        imageUploadsService.uploadImageToCloudflareImages as jest.Mock
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
+      (
+        imageUploadsService.uploadImageToCloudflareImages as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
       ).mockResolvedValue('new');
-      (userProfileRepository.save as jest.Mock).mockResolvedValue({
+      (
+        userProfileRepository.save as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
         userId: '1',
         profilePictureId: 'new',
       });
@@ -417,9 +512,13 @@ describe('UserService', () => {
 
     it('should throw if upload fails (returns null)', async () => {
       const user = { id: '1', profile: {} };
-      (userRepository.findOne as jest.Mock).mockResolvedValue(user);
       (
-        imageUploadsService.uploadImageToCloudflareImages as jest.Mock
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
+      (
+        imageUploadsService.uploadImageToCloudflareImages as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
       ).mockResolvedValue(null);
 
       await expect(
@@ -428,7 +527,9 @@ describe('UserService', () => {
     });
 
     it('should throw if user not found', async () => {
-      (userRepository.findOne as jest.Mock).mockResolvedValue(null);
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
       await expect(
         service.uploadProfilePicture('1', {} as any),
       ).rejects.toThrow(HttpException);
@@ -443,11 +544,19 @@ describe('UserService', () => {
 
     it('should throw if save returns object without profilePictureId', async () => {
       const user = { id: '1', profile: {} };
-      (userRepository.findOne as jest.Mock).mockResolvedValue(user);
       (
-        imageUploadsService.uploadImageToCloudflareImages as jest.Mock
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
+      (
+        imageUploadsService.uploadImageToCloudflareImages as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
       ).mockResolvedValue('new');
-      (userProfileRepository.save as jest.Mock).mockResolvedValue({});
+      (
+        userProfileRepository.save as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({});
 
       await expect(
         service.uploadProfilePicture('1', {} as any),

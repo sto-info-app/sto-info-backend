@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { SnsEnvelope } from './dto/sns-notification.interfaces';
@@ -33,10 +34,22 @@ describe('SesWebhookController', () => {
   beforeEach(async () => {
     service = {
       validateTopicArn: jest.fn().mockReturnValue(true),
-      confirmSubscription: jest.fn().mockResolvedValue(undefined),
-      processNotification: jest.fn().mockResolvedValue(undefined),
+      confirmSubscription: jest
+        .fn<(...args: any[]) => Promise<any>>()
+        .mockResolvedValue(undefined),
+      processNotification: jest
+        .fn<(...args: any[]) => Promise<any>>()
+        .mockResolvedValue(undefined),
       isValidSnsSubscribeUrl: jest.fn().mockReturnValue(true),
-    };
+    } as unknown as jest.Mocked<
+      Pick<
+        SesWebhookService,
+        | 'validateTopicArn'
+        | 'confirmSubscription'
+        | 'processNotification'
+        | 'isValidSnsSubscribeUrl'
+      >
+    >;
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [SesWebhookController],

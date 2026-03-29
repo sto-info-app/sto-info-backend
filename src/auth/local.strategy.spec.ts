@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
@@ -27,13 +28,17 @@ describe('LocalStrategy', () => {
   });
 
   it('validate should return user when credentials are valid', async () => {
-    (authService.validateUser as jest.Mock).mockResolvedValue({ id: 'u1' });
+    (
+      authService.validateUser as jest.Mock<(...args: any[]) => Promise<any>>
+    ).mockResolvedValue({ id: 'u1' });
 
     await expect(strategy.validate('e', 'p')).resolves.toEqual({ id: 'u1' });
   });
 
   it('validate should throw UnauthorizedException when credentials are invalid', async () => {
-    (authService.validateUser as jest.Mock).mockResolvedValue(null);
+    (
+      authService.validateUser as jest.Mock<(...args: any[]) => Promise<any>>
+    ).mockResolvedValue(null);
 
     await expect(strategy.validate('e', 'p')).rejects.toThrow(
       UnauthorizedException,

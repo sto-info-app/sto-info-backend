@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { AccountController } from './account.controller';
@@ -55,7 +56,9 @@ describe('AccountController', () => {
       };
       const expectedCreate: CreateAccountDto = { ...dto, userId };
       const expected = { id: '1', ...expectedCreate };
-      (service.create as jest.Mock).mockResolvedValue(expected);
+      (
+        service.create as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(expected);
 
       const result = await controller.create(userId, dto);
 
@@ -68,7 +71,11 @@ describe('AccountController', () => {
     it("should find all user's accounts", async () => {
       const userId = 'user-123';
       const expected = [{ id: '1' }, { id: '2' }];
-      (service.findAllUsersAccounts as jest.Mock).mockResolvedValue(expected);
+      (
+        service.findAllUsersAccounts as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(expected);
 
       const result = await controller.findAllUsersAccounts(userId);
 
@@ -82,7 +89,9 @@ describe('AccountController', () => {
       const id = 'account-123';
       const userId = 'user-123';
       const expected = { id, handle: 'test-handle' };
-      (service.findOneForUser as jest.Mock).mockResolvedValue(expected);
+      (
+        service.findOneForUser as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(expected);
 
       const result = await controller.findOne(userId, id);
 
@@ -100,7 +109,9 @@ describe('AccountController', () => {
         notes: 'updated notes',
       };
       const expected = { id, ...dto };
-      (service.updateForUser as jest.Mock).mockResolvedValue(expected);
+      (
+        service.updateForUser as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(expected);
 
       const result = await controller.update(userId, id, dto);
 
@@ -114,7 +125,9 @@ describe('AccountController', () => {
       const id = 'account-123';
       const userId = 'user-123';
       const expected = { id };
-      (service.removeForUser as jest.Mock).mockResolvedValue(expected);
+      (
+        service.removeForUser as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(expected);
 
       const result = await controller.remove(userId, id);
 

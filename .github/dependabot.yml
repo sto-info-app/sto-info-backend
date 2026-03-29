@@ -1,4 +1,5 @@
 version: 2
+
 updates:
   # npm dependencies
   - package-ecosystem: 'npm'
@@ -13,31 +14,30 @@ updates:
     labels:
       - 'dependencies'
     groups:
-      angular:
+      minor-and-patch:
+        applies-to: version-updates
         patterns:
-          - '@angular/*'
-          - 'rxjs'
-          - 'zone.js'
-          - 'typescript'
-      tooling:
-        patterns:
-          - '@types/*'
-          - 'eslint*'
-          - '@eslint/*'
-          - 'prettier'
-          - 'jest*'
-          - '@jest/*'
-          - '@testing-library/*'
+          - '*'
+        update-types:
+          - 'minor'
+          - 'patch'
 
   # GitHub Actions updates
   - package-ecosystem: 'github-actions'
     directory: '/'
     schedule:
-      interval: 'weekly'
-      day: 'monday'
-      time: '15:00'
+      interval: 'daily'
+      time: '16:00'
       timezone: 'Europe/London'
     open-pull-requests-limit: 10
     labels:
       - 'dependencies'
       - 'github-actions'
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - '*'
+        update-types:
+          - 'minor'
+          - 'patch'

@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CronService } from './cron.service';
@@ -12,8 +13,8 @@ describe('CronService', () => {
   let auditLoginAttemptCleanupService: AuditLoginAttemptCleanupService;
   let contactRequestCleanupService: ContactRequestCleanupService;
   let sesAuditCleanupService: SesAuditCleanupService;
-  let loggerLogSpy: jest.SpyInstance;
-  let loggerErrorSpy: jest.SpyInstance;
+  let loggerLogSpy: jest.SpiedFunction<(...args: any[]) => any>;
+  let loggerErrorSpy: jest.SpiedFunction<(...args: any[]) => any>;
 
   beforeEach(async () => {
     const cleanupAuditMock: jest.MockedFunction<

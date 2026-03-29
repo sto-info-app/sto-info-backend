@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { Logger } from '@nestjs/common';
 import { AccountSeederService } from './account-seeder/account-seeder.service';
 import { DatabaseModule } from './database.module';
@@ -5,15 +6,15 @@ import { DatabaseService } from './database.service';
 import { UserSeederService } from './user-seeder/user-seeder.service';
 
 type MockedDatabaseService = {
-  setDatabaseTimezone: jest.Mock<Promise<void>, []>;
+  setDatabaseTimezone: jest.Mock<(...args: any[]) => Promise<any>>;
 };
 
 type MockedUserSeederService = {
-  seed: jest.Mock<Promise<void>, []>;
+  seed: jest.Mock<(...args: any[]) => Promise<any>>;
 };
 
 type MockedAccountSeederService = {
-  seed: jest.Mock<Promise<void>, []>;
+  seed: jest.Mock<(...args: any[]) => Promise<any>>;
 };
 
 describe('DatabaseModule', () => {
@@ -21,20 +22,26 @@ describe('DatabaseModule', () => {
   let databaseService: MockedDatabaseService;
   let userSeederService: MockedUserSeederService;
   let accountSeederService: MockedAccountSeederService;
-  let logSpy: jest.SpyInstance;
-  let errorSpy: jest.SpyInstance;
+  let logSpy: jest.SpiedFunction<(...args: any[]) => any>;
+  let errorSpy: jest.SpiedFunction<(...args: any[]) => any>;
 
   beforeEach(() => {
     databaseService = {
-      setDatabaseTimezone: jest.fn().mockResolvedValue(undefined),
+      setDatabaseTimezone: jest
+        .fn<(...args: any[]) => Promise<any>>()
+        .mockResolvedValue(undefined),
     };
 
     userSeederService = {
-      seed: jest.fn().mockResolvedValue(undefined),
+      seed: jest
+        .fn<(...args: any[]) => Promise<any>>()
+        .mockResolvedValue(undefined),
     };
 
     accountSeederService = {
-      seed: jest.fn().mockResolvedValue(undefined),
+      seed: jest
+        .fn<(...args: any[]) => Promise<any>>()
+        .mockResolvedValue(undefined),
     };
 
     logSpy = jest.spyOn(Logger, 'log').mockImplementation(() => undefined);

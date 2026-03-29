@@ -1,8 +1,9 @@
+import { jest } from '@jest/globals';
 import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { SecretsService } from './secrets.service';
 
-const mockSend = jest.fn();
+const mockSend = jest.fn<(...args: any[]) => Promise<any>>();
 jest.mock('@aws-sdk/client-secrets-manager', () => ({
   SecretsManagerClient: jest.fn().mockImplementation(() => ({
     send: mockSend,
@@ -12,7 +13,7 @@ jest.mock('@aws-sdk/client-secrets-manager', () => ({
 
 describe('SecretsService', () => {
   let service: SecretsService;
-  let loggerErrorSpy: jest.SpyInstance;
+  let loggerErrorSpy: jest.SpiedFunction<(...args: any[]) => any>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({

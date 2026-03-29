@@ -8,6 +8,7 @@
  * npm fixes the nested override behaviour, the relevant entry here can be removed.
  *
  * See: https://github.com/advisories/GHSA-5528-5vmv-3xc2 (multer < 2.1.1)
+ * See: https://github.com/advisories/GHSA-c7w3-x93f-qmm8 (nodemailer < 8.0.4)
  */
 
 'use strict';
@@ -70,7 +71,10 @@ function patchLockFile(nestedPath, topLevelName, newVersion) {
 }
 
 // Patches: [ nestedInstallPath, topLevelPackageName ]
-const patches = [['@nestjs/platform-express/node_modules/multer', 'multer']];
+const patches = [
+  ['@nestjs/platform-express/node_modules/multer', 'multer'],
+  ['preview-email/node_modules/nodemailer', 'nodemailer'],
+];
 
 for (const [nestedPath, topLevelName] of patches) {
   patchNestedPackage(nestedPath, topLevelName);

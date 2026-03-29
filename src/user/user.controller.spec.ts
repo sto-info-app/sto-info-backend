@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { BadRequestException, HttpException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserController } from './user.controller';
@@ -125,7 +126,7 @@ describe('UserController', () => {
 
   describe('imageFileFilter', () => {
     it('should allow valid mime types', () => {
-      const cb = jest.fn<void, [Error | null, boolean]>();
+      const cb = jest.fn<(error: Error | null, acceptFile: boolean) => void>();
       UserController.imageFileFilter(
         {} as any,
         { mimetype: 'image/png' } as any,
@@ -135,7 +136,7 @@ describe('UserController', () => {
     });
 
     it('should reject invalid mime types', () => {
-      const cb = jest.fn<void, [Error | null, boolean]>();
+      const cb = jest.fn<(error: Error | null, acceptFile: boolean) => void>();
       UserController.imageFileFilter(
         {} as any,
         { mimetype: 'text/plain' } as any,

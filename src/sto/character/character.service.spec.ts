@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import {
   BadRequestException,
   ConflictException,
@@ -161,10 +162,18 @@ describe('CharacterService', () => {
         fullHandle: 'Char1@Handle',
       };
 
-      (accountRepository.findOne as jest.Mock).mockResolvedValue(account);
-      (characterRepository.findOne as jest.Mock).mockResolvedValue(null);
+      (
+        accountRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(account);
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(null);
       (characterRepository.create as jest.Mock).mockReturnValue(character);
-      (characterRepository.save as jest.Mock).mockResolvedValue(character);
+      (
+        characterRepository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(character);
 
       const result = await service.create(createDto as any, 'user-1');
 
@@ -180,7 +189,9 @@ describe('CharacterService', () => {
     });
 
     it('should throw ForbiddenException if account is not owned by user', async () => {
-      (accountRepository.findOne as jest.Mock).mockResolvedValue({
+      (
+        accountRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
         id: 'account-1',
         userId: 'other',
       });
@@ -191,11 +202,17 @@ describe('CharacterService', () => {
     });
 
     it('should throw ConflictException if character handle already exists for account', async () => {
-      (accountRepository.findOne as jest.Mock).mockResolvedValue({
+      (
+        accountRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
         id: 'account-1',
         userId: 'user-1',
       });
-      (characterRepository.findOne as jest.Mock).mockResolvedValue({
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
         id: 'existing',
       });
 
@@ -205,7 +222,9 @@ describe('CharacterService', () => {
     });
 
     it('should throw NotFoundException if account does not exist', async () => {
-      (accountRepository.findOne as jest.Mock).mockResolvedValue(null);
+      (
+        accountRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
 
       await expect(service.create(createDto as any, 'user-1')).rejects.toThrow(
         NotFoundException,
@@ -214,11 +233,17 @@ describe('CharacterService', () => {
 
     it('should throw InternalServerErrorException if save fails', async () => {
       const account = { id: 'account-1', userId: 'user-1', handle: 'Handle' };
-      (accountRepository.findOne as jest.Mock).mockResolvedValue(account);
-      (characterRepository.findOne as jest.Mock).mockResolvedValue(null);
-      (characterRepository.save as jest.Mock).mockRejectedValue(
-        new Error('Save failed'),
-      );
+      (
+        accountRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(account);
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(null);
+      (
+        characterRepository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockRejectedValue(new Error('Save failed'));
 
       await expect(service.create(createDto as any, 'user-1')).rejects.toThrow(
         'Failed to save a new character',
@@ -249,8 +274,12 @@ describe('CharacterService', () => {
       const account = { id: 'account-1', userId: 'user-1' };
       const characters = [{ id: 'char-1' }];
 
-      (accountRepository.findOne as jest.Mock).mockResolvedValue(account);
-      (characterRepository.find as jest.Mock).mockResolvedValue(characters);
+      (
+        accountRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(account);
+      (
+        characterRepository.find as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(characters);
 
       const result = await service.findAllForAccount('account-1', 'user-1');
       expect(result).toEqual(characters);
@@ -282,7 +311,11 @@ describe('CharacterService', () => {
   describe('findOneBySlug', () => {
     it('should return a character by slug', async () => {
       const character = { id: 'char-1', fullHandleSlug: 'Char~1234@Acc' };
-      (characterRepository.findOne as jest.Mock).mockResolvedValue(character);
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(character);
 
       const result = await service.findOneBySlug('Char~1234@Acc');
 
@@ -296,7 +329,11 @@ describe('CharacterService', () => {
     });
 
     it('should return null if character not found by slug', async () => {
-      (characterRepository.findOne as jest.Mock).mockResolvedValue(null);
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(null);
 
       const result = await service.findOneBySlug('non-existent');
 
@@ -313,14 +350,22 @@ describe('CharacterService', () => {
   describe('findOneForUser', () => {
     it('should return an owned character', async () => {
       const character = { id: 'char-1', account: { userId: 'user-1' } };
-      (characterRepository.findOne as jest.Mock).mockResolvedValue(character);
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(character);
 
       const result = await service.findOneForUser('char-1', 'user-1');
       expect(result).toEqual(character);
     });
 
     it('should throw NotFoundException if character does not exist', async () => {
-      (characterRepository.findOne as jest.Mock).mockResolvedValue(null);
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(null);
       await expect(service.findOneForUser('char-1', 'user-1')).rejects.toThrow(
         NotFoundException,
       );
@@ -328,7 +373,11 @@ describe('CharacterService', () => {
 
     it('should throw ForbiddenException if character is not owned by user', async () => {
       const character = { id: 'char-1', account: { userId: 'other' } };
-      (characterRepository.findOne as jest.Mock).mockResolvedValue(character);
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(character);
 
       await expect(service.findOneForUser('char-1', 'user-1')).rejects.toThrow(
         ForbiddenException,
@@ -367,11 +416,19 @@ describe('CharacterService', () => {
       };
       const updateDto = { handle: 'New' };
 
-      (characterRepository.findOne as jest.Mock)
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      )
         .mockResolvedValueOnce(existingCharacter) // findOneForUser (initial load)
         .mockResolvedValueOnce(null) // assertHandleUniqueForAccount
         .mockResolvedValueOnce(updatedCharacter); // findOneForUser (re-fetch)
-      (characterRepository.update as jest.Mock).mockResolvedValue({
+      (
+        characterRepository.update as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
         affected: 1,
       });
 
@@ -410,10 +467,18 @@ describe('CharacterService', () => {
       };
       const updateDto = { recruitTypeId: 'new-recruit-type-id' };
 
-      (characterRepository.findOne as jest.Mock)
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      )
         .mockResolvedValueOnce(existingCharacter) // findOneForUser (initial load)
         .mockResolvedValueOnce(refetchedCharacter); // findOneForUser (re-fetch)
-      (characterRepository.update as jest.Mock).mockResolvedValue({
+      (
+        characterRepository.update as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
         affected: 1,
       });
 
@@ -440,10 +505,18 @@ describe('CharacterService', () => {
       };
       const updateDto = { handle: 'Same', notes: 'new notes' };
 
-      (characterRepository.findOne as jest.Mock)
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      )
         .mockResolvedValueOnce(character) // findOneForUser (initial load)
         .mockResolvedValueOnce(character); // findOneForUser (re-fetch)
-      (characterRepository.update as jest.Mock).mockResolvedValue({
+      (
+        characterRepository.update as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
         affected: 1,
       });
 
@@ -467,10 +540,18 @@ describe('CharacterService', () => {
       };
       const updateDto = { notes: 'only notes' };
 
-      (characterRepository.findOne as jest.Mock)
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      )
         .mockResolvedValueOnce(character) // findOneForUser (initial load)
         .mockResolvedValueOnce(character); // findOneForUser (re-fetch)
-      (characterRepository.update as jest.Mock).mockResolvedValue({
+      (
+        characterRepository.update as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
         affected: 1,
       });
 
@@ -507,8 +588,16 @@ describe('CharacterService', () => {
   describe('removeForUser', () => {
     it('should soft delete an owned character', async () => {
       const character = { id: 'char-1', account: { userId: 'user-1' } };
-      (characterRepository.findOne as jest.Mock).mockResolvedValue(character);
-      (characterRepository.softDelete as jest.Mock).mockResolvedValue({
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(character);
+      (
+        characterRepository.softDelete as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
         affected: 1,
       });
 
@@ -532,13 +621,17 @@ describe('CharacterService', () => {
   describe('Reference Data Lookups', () => {
     it('should get sexes', async () => {
       const data = [{ name: 'Male' }];
-      (sexRepository.find as jest.Mock).mockResolvedValue(data);
+      (
+        sexRepository.find as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(data);
       expect(await service.getSexes()).toEqual(data);
     });
 
     it('should get classes', async () => {
       const data = [{ name: 'Tac' }];
-      (classRepository.find as jest.Mock).mockResolvedValue(data);
+      (
+        classRepository.find as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(data);
       expect(await service.getClasses()).toEqual(data);
     });
 
@@ -549,7 +642,9 @@ describe('CharacterService', () => {
         queryBuilder = {
           innerJoin: jest.fn().mockReturnThis(),
           orderBy: jest.fn().mockReturnThis(),
-          getMany: jest.fn().mockResolvedValue([{ name: 'Federation' }]),
+          getMany: jest
+            .fn<(...args: any[]) => Promise<any>>()
+            .mockResolvedValue([{ name: 'Federation' }]),
         };
         (
           generalFactionRepository.createQueryBuilder as jest.Mock
@@ -580,7 +675,9 @@ describe('CharacterService', () => {
         queryBuilder = {
           innerJoin: jest.fn().mockReturnThis(),
           orderBy: jest.fn().mockReturnThis(),
-          getMany: jest.fn().mockResolvedValue([{ name: 'Starfleet' }]),
+          getMany: jest
+            .fn<(...args: any[]) => Promise<any>>()
+            .mockResolvedValue([{ name: 'Starfleet' }]),
         };
         (factionRepository.createQueryBuilder as jest.Mock).mockReturnValue(
           queryBuilder,
@@ -611,7 +708,9 @@ describe('CharacterService', () => {
         queryBuilder = {
           innerJoin: jest.fn().mockReturnThis(),
           orderBy: jest.fn().mockReturnThis(),
-          getMany: jest.fn().mockResolvedValue([{ name: 'Standard' }]),
+          getMany: jest
+            .fn<(...args: any[]) => Promise<any>>()
+            .mockResolvedValue([{ name: 'Standard' }]),
         };
         (recruitTypeRepository.createQueryBuilder as jest.Mock).mockReturnValue(
           queryBuilder,
@@ -642,7 +741,9 @@ describe('CharacterService', () => {
         queryBuilder = {
           innerJoin: jest.fn().mockReturnThis(),
           orderBy: jest.fn().mockReturnThis(),
-          getMany: jest.fn().mockResolvedValue([{ name: 'Human' }]),
+          getMany: jest
+            .fn<(...args: any[]) => Promise<any>>()
+            .mockResolvedValue([{ name: 'Human' }]),
         };
         (speciesRepository.createQueryBuilder as jest.Mock).mockReturnValue(
           queryBuilder,
@@ -711,16 +812,26 @@ describe('CharacterService', () => {
         account: { userId: 'user-1' },
         profilePictureId: 'old-img-id',
       };
-      (characterRepository.findOne as jest.Mock).mockResolvedValue(character);
       (
-        imageUploadsService.uploadImageToCloudflareImages as jest.Mock
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(character);
+      (
+        imageUploadsService.uploadImageToCloudflareImages as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
       ).mockResolvedValue('new-img-id');
-      (characterRepository.save as jest.Mock).mockResolvedValue({
+      (
+        characterRepository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
         ...character,
         profilePictureId: 'new-img-id',
       });
       (
-        imageUploadsService.deleteImageFromCloudflareImages as jest.Mock
+        imageUploadsService.deleteImageFromCloudflareImages as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
       ).mockResolvedValue('old-img-id');
 
       const result = await service.uploadProfileImage(
@@ -740,9 +851,15 @@ describe('CharacterService', () => {
 
     it('should throw InternalServerErrorException if upload returns no key', async () => {
       const character = { id: 'char-1', account: { userId: 'user-1' } };
-      (characterRepository.findOne as jest.Mock).mockResolvedValue(character);
       (
-        imageUploadsService.uploadImageToCloudflareImages as jest.Mock
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(character);
+      (
+        imageUploadsService.uploadImageToCloudflareImages as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
       ).mockResolvedValue(null);
 
       await expect(
@@ -751,7 +868,11 @@ describe('CharacterService', () => {
     });
 
     it('should log and rethrow non-Error thrown values from the upload flow', async () => {
-      (characterRepository.findOne as jest.Mock).mockRejectedValue('boom');
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockRejectedValue('boom');
 
       await expect(
         service.uploadProfileImage('char-1', 'user-1', mockFile),
@@ -770,16 +891,26 @@ describe('CharacterService', () => {
         account: { userId: 'user-1' },
         profilePictureId: 'old-img-id',
       };
-      (characterRepository.findOne as jest.Mock).mockResolvedValue(character);
       (
-        imageUploadsService.uploadImageToCloudflareImages as jest.Mock
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(character);
+      (
+        imageUploadsService.uploadImageToCloudflareImages as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
       ).mockResolvedValue('new-img-id');
-      (characterRepository.save as jest.Mock).mockResolvedValue({
+      (
+        characterRepository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
         ...character,
         profilePictureId: 'new-img-id',
       });
       (
-        imageUploadsService.deleteImageFromCloudflareImages as jest.Mock
+        imageUploadsService.deleteImageFromCloudflareImages as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
       ).mockRejectedValue(new Error('Delete failed'));
 
       const result = await service.uploadProfileImage(
@@ -797,16 +928,26 @@ describe('CharacterService', () => {
         account: { userId: 'user-1' },
         profilePictureId: 'old-img-id',
       };
-      (characterRepository.findOne as jest.Mock).mockResolvedValue(character);
       (
-        imageUploadsService.uploadImageToCloudflareImages as jest.Mock
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(character);
+      (
+        imageUploadsService.uploadImageToCloudflareImages as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
       ).mockResolvedValue('new-img-id');
-      (characterRepository.save as jest.Mock).mockResolvedValue({
+      (
+        characterRepository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
         ...character,
         profilePictureId: 'new-img-id',
       });
       (
-        imageUploadsService.deleteImageFromCloudflareImages as jest.Mock
+        imageUploadsService.deleteImageFromCloudflareImages as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
       ).mockRejectedValue('Delete failed');
 
       const result = await service.uploadProfileImage(
@@ -824,11 +965,19 @@ describe('CharacterService', () => {
         account: { userId: 'user-1' },
         profilePictureId: null,
       };
-      (characterRepository.findOne as jest.Mock).mockResolvedValue(character);
       (
-        imageUploadsService.uploadImageToCloudflareImages as jest.Mock
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(character);
+      (
+        imageUploadsService.uploadImageToCloudflareImages as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
       ).mockResolvedValue('new-img-id');
-      (characterRepository.save as jest.Mock).mockResolvedValue({
+      (
+        characterRepository.save as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
         ...character,
         profilePictureId: 'new-img-id',
       });

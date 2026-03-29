@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -5,7 +6,6 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { createHmac } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import * as https from 'node:https';
-import { Repository } from 'typeorm';
 import { SecretsService } from '../../shared/secrets/secrets.service';
 import {
   SesNotification,
@@ -16,9 +16,12 @@ import { SesWebhookService } from './ses-webhook.service';
 
 jest.mock('node:https');
 
-type MockRepo = jest.Mocked<
-  Pick<Repository<SesEventEntity>, 'findOne' | 'count' | 'create' | 'save'>
->;
+type MockRepo = {
+  findOne: jest.Mock<(...args: any[]) => Promise<any>>;
+  count: jest.Mock<(...args: any[]) => Promise<any>>;
+  create: jest.Mock<(...args: any[]) => any>;
+  save: jest.Mock<(...args: any[]) => Promise<any>>;
+};
 
 /** Compute the expected HMAC-SHA256 hash using the same logic as the service. */
 const hmac = (email: string, secret = '') =>
@@ -37,14 +40,16 @@ describe('SesWebhookService', () => {
 
   beforeEach(async () => {
     repo = {
-      findOne: jest.fn(),
-      count: jest.fn(),
+      findOne: jest.fn<(...args: any[]) => Promise<any>>(),
+      count: jest.fn<(...args: any[]) => Promise<any>>(),
       create: jest
-        .fn()
+        .fn<(...args: any[]) => any>()
         .mockImplementation(
           (data: Partial<SesEventEntity>) => data as SesEventEntity,
         ),
-      save: jest.fn().mockResolvedValue(savedEntity),
+      save: jest
+        .fn<(...args: any[]) => Promise<any>>()
+        .mockResolvedValue(savedEntity),
     };
 
     configService = {
@@ -52,7 +57,7 @@ describe('SesWebhookService', () => {
     } as any;
 
     secretsService = {
-      getSecret: jest.fn().mockResolvedValue({
+      getSecret: jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
         sesEmailHmacSecret: testHmacSecret,
       }),
     } as any;
@@ -359,7 +364,7 @@ describe('SesWebhookService', () => {
     it('should resolve when the HTTPS GET succeeds for a valid SNS URL', async () => {
       const mockReq = new EventEmitter() as any;
       const mockRes = { statusCode: 200 } as any;
-      (https.get as jest.Mock).mockImplementation(
+      (https.get as jest.Mock<(...args: any[]) => any>).mockImplementation(
         (_url: string, cb: (res: any) => void) => {
           cb(mockRes);
           return mockReq;
@@ -403,7 +408,9 @@ describe('SesWebhookService', () => {
 
     it('should reject when the HTTPS GET emits an error for a valid URL', async () => {
       const mockReq = new EventEmitter() as any;
-      (https.get as jest.Mock).mockImplementation(() => mockReq);
+      (https.get as jest.Mock<(...args: any[]) => any>).mockImplementation(
+        () => mockReq,
+      );
 
       const promise = service.confirmSubscription(
         'https://sns.eu-west-2.amazonaws.com/confirm',

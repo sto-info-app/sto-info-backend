@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DataSource } from 'typeorm';
 import { DatabaseService } from './database.service';
@@ -33,7 +34,9 @@ describe('DatabaseService', () => {
           {
             provide: DataSource,
             useValue: {
-              query: jest.fn().mockResolvedValue(undefined),
+              query: jest
+                .fn<(...args: any[]) => Promise<any>>()
+                .mockResolvedValue(undefined),
             },
           },
         ],

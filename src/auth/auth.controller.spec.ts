@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { randomBytes } from 'node:crypto';
 import { UserRefreshTokenService } from 'src/user-refresh-token/user-refresh-token.service';

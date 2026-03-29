@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { StatsResponseDto } from './dto/stats-response.dto';
 import { StatsController } from './stats.controller';
@@ -52,7 +53,9 @@ describe('StatsController', () => {
 
   describe('getStats', () => {
     it('should return stats for the authenticated user without an accountId', async () => {
-      (service.getStats as jest.Mock).mockResolvedValue(mockStats);
+      (
+        service.getStats as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(mockStats);
 
       const result = await controller.getStats('user-1');
 
@@ -61,7 +64,9 @@ describe('StatsController', () => {
     });
 
     it('should pass accountId to the service when provided', async () => {
-      (service.getStats as jest.Mock).mockResolvedValue(mockStats);
+      (
+        service.getStats as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(mockStats);
 
       const result = await controller.getStats('user-1', 'account-1');
 

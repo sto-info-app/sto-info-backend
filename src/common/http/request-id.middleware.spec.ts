@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import * as Sentry from '@sentry/nestjs';
 import { randomUUID } from 'crypto';
 import type { NextFunction, Response } from 'express';
@@ -24,10 +25,10 @@ describe('RequestIdMiddleware', () => {
   beforeEach(() => {
     middleware = new RequestIdMiddleware();
     mockReq = {
-      header: jest.fn(),
+      header: jest.fn<(...args: any[]) => any>(),
     };
     mockRes = {
-      setHeader: jest.fn(),
+      setHeader: jest.fn<(...args: any[]) => any>(),
     };
     mockNext = jest.fn();
     (randomUUID as jest.Mock).mockReturnValue(mockUuid);

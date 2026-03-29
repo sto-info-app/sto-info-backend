@@ -20,19 +20,28 @@ Current overrides in `package.json`:
 
 ```json
 "overrides": {
-  "file-type": "^21.3.2",
-  "flatted": "^3.4.1",
+  "file-type": "^21.3.3",
+  "flatted": "^3.4.2",
   "ajv": "^8.18.0",
-  "svgo": "^4.0.1",
   "eslint": {
     "ajv": "^6.14.0"
   },
   "test-exclude": "^8.0.0",
   "glob": "^13.0.0",
-  "fast-xml-parser": "^5.4.1",
-  "mjml": "^5.0.0-alpha.11",
-  "serialize-javascript": "^7.0.3",
-  "underscore": "^1.13.8"
+  "fast-xml-parser": "^5.5.6",
+  "mjml": "^5.0.0-beta.1",
+  "serialize-javascript": "^7.0.5",
+  "underscore": "^1.13.8",
+  "nodemailer": "^8.0.4",
+  "path-to-regexp": "^8.3.1",
+  "picomatch": "^4.0.4",
+  "brace-expansion": "^5.0.5",
+  "anymatch": {
+    "picomatch": "^2.3.2"
+  },
+  "micromatch": {
+    "picomatch": "^2.3.2"
+  }
 }
 ```
 
@@ -40,9 +49,9 @@ Current overrides in `package.json`:
 
 - **Vulnerability**: [GHSA-j47w-4g3g-c36v](https://github.com/advisories/GHSA-j47w-4g3g-c36v) — ZIP decompression bomb DoS in `file-type >=20.0.0 <=21.3.1`.
 - **Root cause**: `@nestjs/common` requests `file-type@21.3.0`. `npm audit fix --force` would downgrade `@nestjs/common` to `11.0.15`, which is a breaking change.
-- **Override**: `"file-type": "^21.3.2"` — forces the patched release across the entire tree.
+- **Override**: `"file-type": "^21.3.3"` — forces the patched release across the entire tree.
 
-**When it can be removed**: When `@nestjs/common` updates its own `file-type` dependency to `>= 21.3.2` natively. Verify by removing the override and running `npm audit --omit=dev --audit-level=high`. Check the upstream version with:
+**When it can be removed**: When `@nestjs/common` updates its own `file-type` dependency to `>= 21.3.3` natively. Verify by removing the override and running `npm audit --omit=dev --audit-level=high`. Check the upstream version with:
 
 ```sh
 npm view @nestjs/common@latest dependencies.file-type
@@ -63,25 +72,22 @@ npm view @nestjs/platform-express@latest dependencies.multer
 
 - **Vulnerability**: [GHSA-2g4f-4pwh-qvx6](https://github.com/advisories/GHSA-2g4f-4pwh-qvx6) — ReDoS in `ajv < 8.18.0` when using the `$data` option.
 - **Solution**: We pin the global `ajv` to `^8.18.0`.
-- **Tooling Compatibility**: ESLint (v10.x) strictly requires `ajv@6`. To prevent linting from breaking while keeping the rest of the tree safe, we provide a nested override so ESLint continues to use `ajv@6.14.0` (the last safe v6 release).
+- **Tooling Compatibility**: ESLint (v10.x) strictly requires `ajv@6` and uses legacy import paths (`ajv/lib/refs/json-schema-draft-04.json`) that break when it resolves to `ajv@8`. Keep the nested override so ESLint always resolves `ajv@^6.14.0`.
 
-**When it can be removed**: When all packages that transitively depend on `ajv` have updated to request `>= 8.18.0` natively. Verify by removing the override and checking `npm audit --omit=dev --audit-level=high`. The ESLint nested override can be removed when ESLint migrates away from `ajv@6`.
+**When it can be removed**: When ESLint no longer depends on `ajv@6` internals and lint passes without the nested override.
 
 #### `flatted`
 
 - **Vulnerability**: [GHSA-25h7-pfq9-p65f](https://github.com/advisories/GHSA-25h7-pfq9-p65f) — unbounded recursion DoS in `flatted < 3.4.0`.
 - **Root cause**: ESLint's cache chain (`eslint -> file-entry-cache -> flat-cache`) previously resolved to `flatted@3.3.3`.
-- **Override**: `"flatted": "^3.4.1"` — forces a safe release in the full dependency tree.
+- **Override**: `"flatted": "^3.4.2"` — forces a safe release in the full dependency tree.
 
 **When it can be removed**: When all transitive consumers request `flatted >= 3.4.0` natively. Verify by removing the override and running full `npm audit`.
 
-#### `svgo`
+#### `svgo` — **removed from overrides**
 
 - **Vulnerability**: [GHSA-xpqw-6gx7-v673](https://github.com/advisories/GHSA-xpqw-6gx7-v673) — Denial of Service via entity expansion (Billion Laughs attack) in `svgo < 4.0.1`.
-- **Root cause**: `postcss-svgo` (a transitive dependency via `cssnano`) bundles `svgo@4.0.0`.
-- **Solution**: Override to `^4.0.1`.
-
-**When it can be removed**: When `postcss-svgo` updates its own `svgo` dependency to `>= 4.0.1`.
+- **Removed**: `postcss-svgo@7.1.1` now natively specifies `svgo@^4.0.1` in its own `dependencies`. npm resolves to `svgo@4.0.1` without the override, making the entry redundant.
 
 #### `glob` and `test-exclude`
 
@@ -99,9 +105,9 @@ npm view @nestjs/platform-express@latest dependencies.multer
 #### `fast-xml-parser`
 
 - **Root cause**: `@aws-sdk/xml-builder` pins `fast-xml-parser` to an exact older patch version.
-- **Solution**: Override to `^5.4.1` to ensure the latest patch is used.
+- **Solution**: Override to `^5.5.6` to ensure the latest patch is used and to address [GHSA-8gc5-j5rx-235r](https://github.com/advisories/GHSA-8gc5-j5rx-235r).
 
-**When it can be removed**: When `@aws-sdk/xml-builder` updates its own `fast-xml-parser` dependency to `>= 5.4.1` using a range rather than an exact pin.
+**When it can be removed**: When `@aws-sdk/xml-builder` updates its own `fast-xml-parser` dependency to `>= 5.5.6` using a range rather than an exact pin.
 
 #### `mjml`
 
@@ -113,9 +119,34 @@ npm view @nestjs/platform-express@latest dependencies.multer
 #### `serialize-javascript`
 
 - **Root cause**: `terser-webpack-plugin` requests `serialize-javascript@^6`, which has known vulnerabilities.
-- **Solution**: Override to `^7.0.3`.
+- **Solution**: Override to `^7.0.4`.
 
-**When it can be removed**: When `terser-webpack-plugin` updates its own `serialize-javascript` dependency to `>= 7.0.3`.
+**When it can be removed**: When `terser-webpack-plugin` updates its own `serialize-javascript` dependency to `>= 7.0.4`.
+
+#### `nodemailer`
+
+- **Vulnerability**: [GHSA-c7w3-x93f-qmm8](https://github.com/advisories/GHSA-c7w3-x93f-qmm8) — SMTP command injection via unsanitised `envelope.size` parameter in `nodemailer < 8.0.4`.
+- **Root cause**: `@nestjs-modules/mailer` depends on `preview-email`, which bundles its own `nodemailer@7.x`. The top-level dependency already pins `nodemailer@^8.0.4`, but the nested copy inside `preview-email` is not deduped.
+- **Override**: `"nodemailer": "^8.0.4"` — forces the patched release across the entire tree, including the nested copy.
+
+**When it can be removed**: When `preview-email` updates its own `nodemailer` dependency to `>= 8.0.4` natively. Verify by removing the override and running `npm audit --omit=dev --audit-level=high`. Check with:
+
+```sh
+npm view preview-email@latest dependencies.nodemailer
+```
+
+#### `path-to-regexp`
+
+- **Vulnerability**: [GHSA-j3q9-mxjg-w52f](https://github.com/advisories/GHSA-j3q9-mxjg-w52f) and [GHSA-27v5-c462-wpq7](https://github.com/advisories/GHSA-27v5-c462-wpq7) — Denial of Service via sequential optional groups and multiple wildcards in `path-to-regexp 8.0.0 – 8.3.0`. CVSS High.
+- **Root cause**: `@nestjs/core`, `@nestjs/platform-express`, `@nestjs/swagger`, and `express` all resolve to `path-to-regexp@8.3.0`. `npm audit fix --force` would downgrade `@nestjs/platform-express` to `11.0.2`, which is a breaking change.
+- **Override**: `"path-to-regexp": "^8.3.1"` — forces the patched release across the entire tree without downgrading NestJS.
+
+**When it can be removed**: When `@nestjs/core` (and its dependants) update their own `path-to-regexp` dependency to `>= 8.3.1` natively. Verify by removing the override and running `npm audit --omit=dev --audit-level=high`. Check with:
+
+```sh
+npm view @nestjs/core@latest dependencies.path-to-regexp
+npm view express@latest dependencies.path-to-regexp
+```
 
 #### `underscore`
 
@@ -128,6 +159,40 @@ npm view @nestjs/platform-express@latest dependencies.multer
 
 ```sh
 npm view typed-rest-client@latest dependencies.underscore
+```
+
+#### `picomatch`
+
+- **Vulnerability**: ReDoS and incorrect glob matching in `picomatch < 2.3.2` (v2 branch) and `picomatch < 4.0.4` (v4 branch).
+- **Root cause**: Multiple packages install their own nested picomatch at vulnerable versions:
+  - `anymatch` and `micromatch` install `picomatch@2.3.1` (nested, v2 branch).
+  - `jest-haste-map` and related Jest internals install `picomatch@4.0.3` (nested, v4 branch).
+  - The root-level `picomatch` was at `4.0.2`.
+- **Solution**: Three override entries are used:
+  - `"picomatch": "^4.0.4"` — forces the root install and all v4-branch consumers to the patched release.
+  - `"anymatch": { "picomatch": "^2.3.2" }` — ensures `anymatch` receives the patched v2 release rather than being forced to the incompatible v4 API.
+  - `"micromatch": { "picomatch": "^2.3.2" }` — same reason as `anymatch`.
+
+**When it can be removed**: When `anymatch` and `micromatch` update their own `picomatch` dependency ranges to `>= 2.3.2`, and when `jest-haste-map` (and related Jest packages) update their ranges to `>= 4.0.4`. Verify with:
+
+```sh
+npm view anymatch@latest dependencies.picomatch
+npm view micromatch@latest dependencies.picomatch
+npm view jest-haste-map@latest dependencies.picomatch
+```
+
+#### `brace-expansion`
+
+- **Vulnerability**: [GHSA-f886-m6hf-6m8v](https://github.com/advisories/GHSA-f886-m6hf-6m8v) — Zero-step sequence (`{0..0}`) causes process hang and memory exhaustion in `brace-expansion < 5.0.5`. CVSS 6.5 (Moderate).
+- **Root cause**: `fork-ts-checker-webpack-plugin` (via `@nestjs/cli`) pins `minimatch@3.x`, which depends on `brace-expansion@1.x`. `mjml-cli` (via `mjml`) pins `minimatch@9.x`, which depends on `brace-expansion@2.x`. No patched release exists in the v1 or v2 branch — the fix only landed in v5.
+- **Override**: `"brace-expansion": "^5.0.5"`. Although v5 is an ESM package, it ships a `./dist/commonjs/index.js` entry (`"main"` field), so CJS consumers such as `minimatch@3.x` and `minimatch@9.x` can still `require()` it without changes.
+- **Scope**: The vulnerable code paths are in a build tool (`@nestjs/cli`) and an email template compiler (`mjml-cli`). Neither processes untrusted user-supplied glob patterns, so the practical risk is low.
+
+**When it can be removed**: When `fork-ts-checker-webpack-plugin` upgrades to a `minimatch` version that depends on `brace-expansion >= 5.0.5` natively, and when `mjml-cli` does the same. Verify with:
+
+```sh
+npm view fork-ts-checker-webpack-plugin@latest dependencies.minimatch
+npm view mjml-cli@latest dependencies.minimatch
 ```
 
 ---
@@ -148,10 +213,23 @@ This script runs automatically after every `npm install` and `npm ci` via the `p
 const patches = [
   // [ 'path/within/node_modules/to/nested/package', 'top-level-package-name' ]
   ['@nestjs/platform-express/node_modules/multer', 'multer'],
+  ['preview-email/node_modules/nodemailer', 'nodemailer'],
 ];
 ```
 
 **Removing a patch entry**: When the upstream package fixes its own dependency so the nested install no longer appears (or already uses the safe version), remove the corresponding entry from the `patches` array. Also remove the matching nested override from `package.json` if it is no longer needed.
+
+#### `nodemailer` (nested under `preview-email`)
+
+- **Vulnerability**: [GHSA-c7w3-x93f-qmm8](https://github.com/advisories/GHSA-c7w3-x93f-qmm8) — SMTP command injection via unsanitised `envelope.size` parameter in `nodemailer < 8.0.4`. Severity: Low.
+- **Root cause**: `preview-email@3.1.1` (a dev-time email preview utility) pins `nodemailer@^7.0.12`, which resolves to `7.0.13`. The top-level `nodemailer@^8.0.4` is already a direct dependency, but npm 11.x's nested-override bug prevents the override from replacing the nested copy.
+- **Patch**: `['preview-email/node_modules/nodemailer', 'nodemailer']` in the patch script copies the safe top-level `nodemailer@8.0.4` over the nested `7.0.13` install after every `npm install` / `npm ci`.
+
+**When it can be removed**: When `preview-email` updates its own `nodemailer` dependency to `>= 8.0.4`. Verify with:
+
+```sh
+npm view preview-email@latest dependencies.nodemailer
+```
 
 ## CORS Configuration
 

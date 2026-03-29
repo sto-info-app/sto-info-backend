@@ -18,6 +18,9 @@ export class RecruitTypeEntity {
   @Column({ type: 'varchar', length: 50, unique: true })
   name: string; // Standard, Delta, Temporal, Gamma, Klingon
 
+  @Column({ type: 'varchar', length: 511, nullable: true })
+  iconUrl: string | null;
+
   @OneToMany('CharacterEntity', 'recruitType')
   characters: CharacterEntity[];
 
