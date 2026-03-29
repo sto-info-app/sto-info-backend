@@ -23,7 +23,6 @@ Current overrides in `package.json`:
   "file-type": "^21.3.3",
   "flatted": "^3.4.2",
   "ajv": "^8.18.0",
-  "svgo": "^4.0.1",
   "eslint": {
     "ajv": "^6.14.0"
   },
@@ -85,13 +84,10 @@ npm view @nestjs/platform-express@latest dependencies.multer
 
 **When it can be removed**: When all transitive consumers request `flatted >= 3.4.0` natively. Verify by removing the override and running full `npm audit`.
 
-#### `svgo`
+#### `svgo` — **removed from overrides**
 
 - **Vulnerability**: [GHSA-xpqw-6gx7-v673](https://github.com/advisories/GHSA-xpqw-6gx7-v673) — Denial of Service via entity expansion (Billion Laughs attack) in `svgo < 4.0.1`.
-- **Root cause**: `postcss-svgo` (a transitive dependency via `cssnano`) bundles `svgo@4.0.0`.
-- **Solution**: Override to `^4.0.1`.
-
-**When it can be removed**: When `postcss-svgo` updates its own `svgo` dependency to `>= 4.0.1`.
+- **Removed**: `postcss-svgo@7.1.1` now natively specifies `svgo@^4.0.1` in its own `dependencies`. npm resolves to `svgo@4.0.1` without the override, making the entry redundant.
 
 #### `glob` and `test-exclude`
 
