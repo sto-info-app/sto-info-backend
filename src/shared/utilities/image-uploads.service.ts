@@ -8,7 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import * as Cloudmersive from 'cloudmersive-virus-api-client';
 
-import * as FormData from 'form-data';
+import FormData from 'form-data';
 import {
   SAFE_FILENAME_PATTERN,
   UNSAFE_FILENAME_PATTERN,
