@@ -142,7 +142,7 @@
   },
   "overrides": {
     "file-type": "^21.3.3",
-    "flatted": "^3.4.2",
+    "lodash": "^4.18.1",
     "ajv": "^8.18.0",
     "eslint": {
       "ajv": "^6.14.0"
@@ -162,6 +162,9 @@
     },
     "micromatch": {
       "picomatch": "^2.3.2"
+    },
+    "@nestjs/swagger": {
+      "@nestjs/mapped-types": "^2.1.1"
     }
   },
   "eslintConfig": {
