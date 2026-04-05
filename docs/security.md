@@ -21,7 +21,7 @@ Current overrides in `package.json`:
 ```json
 "overrides": {
   "file-type": "^21.3.3",
-  "flatted": "^3.4.2",
+  "lodash": "^4.18.1",
   "ajv": "^8.18.0",
   "eslint": {
     "ajv": "^6.14.0"
@@ -41,6 +41,9 @@ Current overrides in `package.json`:
   },
   "micromatch": {
     "picomatch": "^2.3.2"
+  },
+  "@nestjs/swagger": {
+    "@nestjs/mapped-types": "^2.1.1"
   }
 }
 ```
@@ -55,6 +58,21 @@ Current overrides in `package.json`:
 
 ```sh
 npm view @nestjs/common@latest dependencies.file-type
+```
+
+#### `lodash`
+
+- **Vulnerabilities**:
+  - [GHSA-r5fr-rjxr-66jc](https://github.com/advisories/GHSA-r5fr-rjxr-66jc) — Code Injection via `_.template` imports key names in `lodash <= 4.17.23`. CVSS High.
+  - [GHSA-f23m-r3pf-42rh](https://github.com/advisories/GHSA-f23m-r3pf-42rh) — Prototype Pollution via array path bypass in `_.unset` and `_.omit` in `lodash <= 4.17.23`. CVSS High.
+- **Root cause**: `@nestjs/config` and `@nestjs/swagger` both depend on `lodash@4.17.23`. `npm audit fix --force` would downgrade `@nestjs/config` to `1.1.5`, which is a breaking change.
+- **Override**: `"lodash": "^4.18.1"` — forces the patched release (4.18.0+ fixes both advisories) across the entire tree.
+
+**When it can be removed**: When `@nestjs/config` and `@nestjs/swagger` update their own `lodash` dependency to `>= 4.17.24` natively, or stop depending on lodash. Verify by removing the override and running `npm audit --omit=dev --audit-level=high`. Check with:
+
+```sh
+npm view @nestjs/config@latest dependencies.lodash
+npm view @nestjs/swagger@latest dependencies.lodash
 ```
 
 #### `multer` (nested under `@nestjs/platform-express`) — **removed from overrides**
@@ -76,13 +94,10 @@ npm view @nestjs/platform-express@latest dependencies.multer
 
 **When it can be removed**: When ESLint no longer depends on `ajv@6` internals and lint passes without the nested override.
 
-#### `flatted`
+#### `flatted` — **removed from overrides**
 
 - **Vulnerability**: [GHSA-25h7-pfq9-p65f](https://github.com/advisories/GHSA-25h7-pfq9-p65f) — unbounded recursion DoS in `flatted < 3.4.0`.
-- **Root cause**: ESLint's cache chain (`eslint -> file-entry-cache -> flat-cache`) previously resolved to `flatted@3.3.3`.
-- **Override**: `"flatted": "^3.4.2"` — forces a safe release in the full dependency tree.
-
-**When it can be removed**: When all transitive consumers request `flatted >= 3.4.0` natively. Verify by removing the override and running full `npm audit`.
+- **Removed**: `flat-cache@4.0.1` (used by `eslint -> file-entry-cache -> flat-cache`) now requests `flatted@^3.2.9`, which npm resolves naturally to `3.4.2` — the latest 3.x release and the first safe version. The override is redundant.
 
 #### `svgo` — **removed from overrides**
 
@@ -115,6 +130,8 @@ npm view @nestjs/platform-express@latest dependencies.multer
 - **Reason**: mjml v5 is required for compatibility with the email template rendering pipeline.
 
 **When it can be removed**: When `@nestjs-modules/mailer` officially supports and requests `mjml@^5` in its own dependencies, or when the project migrates away from mjml.
+
+> **Note**: `mjml-core` (pulled in transitively by this override) has a known unfixed directory traversal vulnerability (CVE-2025-67898). See the `mjml-core` section below for the risk assessment and monitoring instructions.
 
 #### `serialize-javascript`
 
@@ -193,6 +210,30 @@ npm view jest-haste-map@latest dependencies.picomatch
 ```sh
 npm view fork-ts-checker-webpack-plugin@latest dependencies.minimatch
 npm view mjml-cli@latest dependencies.minimatch
+```
+
+#### `@nestjs/swagger` → `@nestjs/mapped-types`
+
+- **Root cause**: `@nestjs/swagger@11.2.6` bundles `@nestjs/mapped-types@2.1.0` as a nested dependency. That version declares a `peerOptional` of `class-validator@^0.13.0 || ^0.14.0`, which excludes `0.15.x`. Our root install uses `class-validator@^0.15.1`, causing npm to emit an `ERESOLVE` peer-conflict warning on every `npm install`.
+- **Override**: `"@nestjs/swagger": { "@nestjs/mapped-types": "^2.1.1" }` — forces the nested copy to `2.1.1`, which extends the peer range to include `^0.15.0`, eliminating the warning.
+
+**When it can be removed**: When `@nestjs/swagger` updates its own bundled `@nestjs/mapped-types` to `>= 2.1.1`. Verify with:
+
+```sh
+npm view @nestjs/swagger@latest dependencies.@nestjs/mapped-types
+```
+
+#### `mjml-core` — no override available (known vulnerability, no upstream fix)
+
+- **Vulnerability**: [SNYK-JS-MJMLCORE-14417285](https://security.snyk.io/vuln/SNYK-JS-MJMLCORE-14417285) / CVE-2025-67898 — Directory Traversal via the `ignoreIncludes` parameter in `mjml-core`. CVSS Medium. **Fixed in: Not Fixed** (as of 2026-04-04).
+- **Root cause**: `@nestjs-modules/mailer` depends on `mjml`, which pulls in `mjml-core@5.0.0-beta.2` (forced by the `mjml` override). No patched release exists in any branch.
+- **Risk assessment**: Exploitation requires an attacker to supply crafted input to the `ignoreIncludes` parameter. This project only processes internally authored email templates; no user-controlled content is passed to mjml. Practical exploitation risk is **low**.
+- **No override action**: A version override cannot help because there is no patched release. `npm audit` does not flag this advisory (it is Snyk-specific).
+
+**When it can be remediated**: When a patched `mjml-core` release is published. Monitor [CVE-2025-67898](https://www.cve.org/CVERecord?id=CVE-2025-67898) and the [mjml changelog](https://github.com/mjmlio/mjml/blob/master/CHANGELOG.md) for a fix. Verify with:
+
+```sh
+npm view mjml-core@latest version
 ```
 
 ---
