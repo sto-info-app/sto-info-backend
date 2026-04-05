@@ -162,6 +162,9 @@
     },
     "micromatch": {
       "picomatch": "^2.3.2"
+    },
+    "@nestjs/swagger": {
+      "@nestjs/mapped-types": "^2.1.1"
     }
   },
   "eslintConfig": {
