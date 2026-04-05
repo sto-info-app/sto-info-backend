@@ -21,7 +21,7 @@ Current overrides in `package.json`:
 ```json
 "overrides": {
   "file-type": "^21.3.3",
-  "flatted": "^3.4.2",
+  "lodash": "^4.18.1",
   "ajv": "^8.18.0",
   "eslint": {
     "ajv": "^6.14.0"
@@ -57,6 +57,21 @@ Current overrides in `package.json`:
 npm view @nestjs/common@latest dependencies.file-type
 ```
 
+#### `lodash`
+
+- **Vulnerabilities**:
+  - [GHSA-r5fr-rjxr-66jc](https://github.com/advisories/GHSA-r5fr-rjxr-66jc) — Code Injection via `_.template` imports key names in `lodash <= 4.17.23`. CVSS High.
+  - [GHSA-f23m-r3pf-42rh](https://github.com/advisories/GHSA-f23m-r3pf-42rh) — Prototype Pollution via array path bypass in `_.unset` and `_.omit` in `lodash <= 4.17.23`. CVSS High.
+- **Root cause**: `@nestjs/config` and `@nestjs/swagger` both depend on `lodash@4.17.23`. `npm audit fix --force` would downgrade `@nestjs/config` to `1.1.5`, which is a breaking change.
+- **Override**: `"lodash": "^4.18.1"` — forces the patched release (4.18.0+ fixes both advisories) across the entire tree.
+
+**When it can be removed**: When `@nestjs/config` and `@nestjs/swagger` update their own `lodash` dependency to `>= 4.17.24` natively, or stop depending on lodash. Verify by removing the override and running `npm audit --omit=dev --audit-level=high`. Check with:
+
+```sh
+npm view @nestjs/config@latest dependencies.lodash
+npm view @nestjs/swagger@latest dependencies.lodash
+```
+
 #### `multer` (nested under `@nestjs/platform-express`) — **removed from overrides**
 
 - **Vulnerability**: [GHSA-5528-5vmv-3xc2](https://github.com/advisories/GHSA-5528-5vmv-3xc2) — Denial of Service via uncontrolled recursion in `multer < 2.1.1`.
@@ -76,13 +91,10 @@ npm view @nestjs/platform-express@latest dependencies.multer
 
 **When it can be removed**: When ESLint no longer depends on `ajv@6` internals and lint passes without the nested override.
 
-#### `flatted`
+#### `flatted` — **removed from overrides**
 
 - **Vulnerability**: [GHSA-25h7-pfq9-p65f](https://github.com/advisories/GHSA-25h7-pfq9-p65f) — unbounded recursion DoS in `flatted < 3.4.0`.
-- **Root cause**: ESLint's cache chain (`eslint -> file-entry-cache -> flat-cache`) previously resolved to `flatted@3.3.3`.
-- **Override**: `"flatted": "^3.4.2"` — forces a safe release in the full dependency tree.
-
-**When it can be removed**: When all transitive consumers request `flatted >= 3.4.0` natively. Verify by removing the override and running full `npm audit`.
+- **Removed**: `flat-cache@4.0.1` (used by `eslint -> file-entry-cache -> flat-cache`) now requests `flatted@^3.2.9`, which npm resolves naturally to `3.4.2` — the latest 3.x release and the first safe version. The override is redundant.
 
 #### `svgo` — **removed from overrides**
 
