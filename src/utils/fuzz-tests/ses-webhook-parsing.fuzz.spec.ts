@@ -8,6 +8,7 @@ import { SesWebhookService } from '../../webhooks/ses/ses-webhook.service';
 describe('SesWebhookController Fuzz Tests', () => {
   let controller: SesWebhookController;
   let service: jest.Mocked<SesWebhookService>;
+  let module: TestingModule;
   const numRuns = Number(process.env['FUZZ_NUM_RUNS']) || 100;
 
   beforeEach(async () => {
@@ -21,12 +22,16 @@ describe('SesWebhookController Fuzz Tests', () => {
         .mockResolvedValue(undefined),
     } as any;
 
-    const module: TestingModule = await Test.createTestingModule({
+    module = await Test.createTestingModule({
       controllers: [SesWebhookController],
       providers: [{ provide: SesWebhookService, useValue: service }],
     }).compile();
 
     controller = module.get<SesWebhookController>(SesWebhookController);
+  });
+
+  afterEach(async () => {
+    await module.close();
   });
 
   it('should handle arbitrary bodies and headers without crashing', async () => {
