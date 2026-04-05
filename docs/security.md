@@ -26,16 +26,10 @@ Current overrides in `package.json`:
   "eslint": {
     "ajv": "^6.14.0"
   },
-  "test-exclude": "^8.0.0",
-  "glob": "^13.0.0",
-  "fast-xml-parser": "^5.5.6",
-  "mjml": "^5.0.0-beta.1",
-  "serialize-javascript": "^7.0.5",
   "underscore": "^1.13.8",
   "nodemailer": "^8.0.4",
   "path-to-regexp": "^8.3.1",
   "picomatch": "^4.0.4",
-  "brace-expansion": "^5.0.5",
   "anymatch": {
     "picomatch": "^2.3.2"
   },
@@ -75,17 +69,6 @@ npm view @nestjs/config@latest dependencies.lodash
 npm view @nestjs/swagger@latest dependencies.lodash
 ```
 
-#### `multer` (nested under `@nestjs/platform-express`) — **removed from overrides**
-
-- **Vulnerability**: [GHSA-5528-5vmv-3xc2](https://github.com/advisories/GHSA-5528-5vmv-3xc2) — Denial of Service via uncontrolled recursion in `multer < 2.1.1`.
-- **Removed**: As of `@nestjs/platform-express@11.1.16`, the package pins `multer` to exactly `2.1.1` in its own `dependencies`. npm deduplicates this against the top-level install, so no nested copy is installed and the override had no effect. The nested override has been removed from `package.json`.
-
-**Postinstall patch**: The `multer` entry in `scripts/patch-nested-packages.js` is kept as a safety net. It exits immediately when no nested install is found, so it is currently a no-op. Remove the entry from the script when `@nestjs/platform-express` switches its `multer` dependency from an exact pin to a semver range `>= 2.1.1`, after which the patch will never be triggered. Verify with:
-
-```sh
-npm view @nestjs/platform-express@latest dependencies.multer
-```
-
 #### `ajv` overrides
 
 - **Vulnerability**: [GHSA-2g4f-4pwh-qvx6](https://github.com/advisories/GHSA-2g4f-4pwh-qvx6) — ReDoS in `ajv < 8.18.0` when using the `$data` option.
@@ -93,52 +76,6 @@ npm view @nestjs/platform-express@latest dependencies.multer
 - **Tooling Compatibility**: ESLint (v10.x) strictly requires `ajv@6` and uses legacy import paths (`ajv/lib/refs/json-schema-draft-04.json`) that break when it resolves to `ajv@8`. Keep the nested override so ESLint always resolves `ajv@^6.14.0`.
 
 **When it can be removed**: When ESLint no longer depends on `ajv@6` internals and lint passes without the nested override.
-
-#### `flatted` — **removed from overrides**
-
-- **Vulnerability**: [GHSA-25h7-pfq9-p65f](https://github.com/advisories/GHSA-25h7-pfq9-p65f) — unbounded recursion DoS in `flatted < 3.4.0`.
-- **Removed**: `flat-cache@4.0.1` (used by `eslint -> file-entry-cache -> flat-cache`) now requests `flatted@^3.2.9`, which npm resolves naturally to `3.4.2` — the latest 3.x release and the first safe version. The override is redundant.
-
-#### `svgo` — **removed from overrides**
-
-- **Vulnerability**: [GHSA-xpqw-6gx7-v673](https://github.com/advisories/GHSA-xpqw-6gx7-v673) — Denial of Service via entity expansion (Billion Laughs attack) in `svgo < 4.0.1`.
-- **Removed**: `postcss-svgo@7.1.1` now natively specifies `svgo@^4.0.1` in its own `dependencies`. npm resolves to `svgo@4.0.1` without the override, making the entry redundant.
-
-#### `glob` and `test-exclude`
-
-- **Vulnerability**: `glob < 13` has high-severity ReDoS advisories.
-- **Solution**: Pin `glob` to `^13.0.0`. The key transitive offender is the Jest reporter stack (`glob@^10`).
-- **Compatibility**: Istanbul's `babel-plugin-istanbul` pulls in `test-exclude@^6`, which expects an older `minimatch` API. Overriding `test-exclude` to `^8.0.0` keeps coverage tooling working with the newer `minimatch` and `glob` versions, preventing `TypeError: minimatch is not a function` errors during Jest runs.
-
-**When it can be removed**: When Jest and Istanbul transitive dependencies request patched `glob`/`test-exclude` ranges natively. Verify with `npm audit` and `npm run test:cov`.
-
-#### `minimatch` — **removed from overrides**
-
-- **Removed**: The `minimatch` override was removed because the current resolved tree already installs `minimatch@10.2.4` natively.
-- **Validation**: `npm audit` and `npm run verify` remain clean after removal.
-
-#### `fast-xml-parser`
-
-- **Root cause**: `@aws-sdk/xml-builder` pins `fast-xml-parser` to an exact older patch version.
-- **Solution**: Override to `^5.5.6` to ensure the latest patch is used and to address [GHSA-8gc5-j5rx-235r](https://github.com/advisories/GHSA-8gc5-j5rx-235r).
-
-**When it can be removed**: When `@aws-sdk/xml-builder` updates its own `fast-xml-parser` dependency to `>= 5.5.6` using a range rather than an exact pin.
-
-#### `mjml`
-
-- **Purpose**: Forces `mjml` to `^5.0.0-beta.1` (v5 prerelease) rather than the `^4.x` version that `@nestjs-modules/mailer` requests as an optional dependency.
-- **Reason**: mjml v5 is required for compatibility with the email template rendering pipeline.
-
-**When it can be removed**: When `@nestjs-modules/mailer` officially supports and requests `mjml@^5` in its own dependencies, or when the project migrates away from mjml.
-
-> **Note**: `mjml-core` (pulled in transitively by this override) has a known unfixed directory traversal vulnerability (CVE-2025-67898). See the `mjml-core` section below for the risk assessment and monitoring instructions.
-
-#### `serialize-javascript`
-
-- **Root cause**: `terser-webpack-plugin` requests `serialize-javascript@^6`, which has known vulnerabilities.
-- **Solution**: Override to `^7.0.4`.
-
-**When it can be removed**: When `terser-webpack-plugin` updates its own `serialize-javascript` dependency to `>= 7.0.4`.
 
 #### `nodemailer`
 
@@ -198,20 +135,6 @@ npm view micromatch@latest dependencies.picomatch
 npm view jest-haste-map@latest dependencies.picomatch
 ```
 
-#### `brace-expansion`
-
-- **Vulnerability**: [GHSA-f886-m6hf-6m8v](https://github.com/advisories/GHSA-f886-m6hf-6m8v) — Zero-step sequence (`{0..0}`) causes process hang and memory exhaustion in `brace-expansion < 5.0.5`. CVSS 6.5 (Moderate).
-- **Root cause**: `fork-ts-checker-webpack-plugin` (via `@nestjs/cli`) pins `minimatch@3.x`, which depends on `brace-expansion@1.x`. `mjml-cli` (via `mjml`) pins `minimatch@9.x`, which depends on `brace-expansion@2.x`. No patched release exists in the v1 or v2 branch — the fix only landed in v5.
-- **Override**: `"brace-expansion": "^5.0.5"`. Although v5 is an ESM package, it ships a `./dist/commonjs/index.js` entry (`"main"` field), so CJS consumers such as `minimatch@3.x` and `minimatch@9.x` can still `require()` it without changes.
-- **Scope**: The vulnerable code paths are in a build tool (`@nestjs/cli`) and an email template compiler (`mjml-cli`). Neither processes untrusted user-supplied glob patterns, so the practical risk is low.
-
-**When it can be removed**: When `fork-ts-checker-webpack-plugin` upgrades to a `minimatch` version that depends on `brace-expansion >= 5.0.5` natively, and when `mjml-cli` does the same. Verify with:
-
-```sh
-npm view fork-ts-checker-webpack-plugin@latest dependencies.minimatch
-npm view mjml-cli@latest dependencies.minimatch
-```
-
 #### `@nestjs/swagger` → `@nestjs/mapped-types`
 
 - **Root cause**: `@nestjs/swagger@11.2.6` bundles `@nestjs/mapped-types@2.1.0` as a nested dependency. That version declares a `peerOptional` of `class-validator@^0.13.0 || ^0.14.0`, which excludes `0.15.x`. Our root install uses `class-validator@^0.15.1`, causing npm to emit an `ERESOLVE` peer-conflict warning on every `npm install`.
@@ -223,10 +146,23 @@ npm view mjml-cli@latest dependencies.minimatch
 npm view @nestjs/swagger@latest dependencies.@nestjs/mapped-types
 ```
 
+#### Recently Removed Overrides
+
+Overrides removed on **2026-04-05** as part of the TypeScript 6 upgrade review — all were found to be redundant because the dependency tree now resolves naturally to safe versions:
+
+| Override | Previously forced | Reason for removal |
+|---|---|---|
+| `glob` | `^13.0.0` | All consumers (jest, rimraf, typeorm, @nestjs/cli, ts-jest) resolve naturally to `13.x` |
+| `test-exclude` | `^8.0.0` | Resolves naturally to `8.0.0` via `babel-plugin-istanbul` |
+| `brace-expansion` | `^5.0.5` | Resolves naturally to `5.0.5` via `minimatch` across the tree; `npm audit` clean without it |
+| `fast-xml-parser` | `^5.5.6` | `@aws-sdk/xml-builder` now resolves naturally to `5.5.9` |
+| `mjml` | `^5.0.0-beta.1` | `@nestjs-modules/mailer` now pulls `mjml@5.0.0-beta.2` directly |
+| `serialize-javascript` | `^7.0.5` | No longer installed anywhere in the dependency tree (`terser-webpack-plugin` no longer requires it) |
+
 #### `mjml-core` — no override available (known vulnerability, no upstream fix)
 
 - **Vulnerability**: [SNYK-JS-MJMLCORE-14417285](https://security.snyk.io/vuln/SNYK-JS-MJMLCORE-14417285) / CVE-2025-67898 — Directory Traversal via the `ignoreIncludes` parameter in `mjml-core`. CVSS Medium. **Fixed in: Not Fixed** (as of 2026-04-04).
-- **Root cause**: `@nestjs-modules/mailer` depends on `mjml`, which pulls in `mjml-core@5.0.0-beta.2` (forced by the `mjml` override). No patched release exists in any branch.
+- **Root cause**: `@nestjs-modules/mailer` depends on `mjml`, which pulls in `mjml-core@5.0.0-beta.2`. No patched release exists in any branch.
 - **Risk assessment**: Exploitation requires an attacker to supply crafted input to the `ignoreIncludes` parameter. This project only processes internally authored email templates; no user-controlled content is passed to mjml. Practical exploitation risk is **low**.
 - **No override action**: A version override cannot help because there is no patched release. `npm audit` does not flag this advisory (it is Snyk-specific).
 
