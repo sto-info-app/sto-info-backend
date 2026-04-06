@@ -1,6 +1,7 @@
 import { MailerService } from '@nestjs-modules/mailer';
 import { Injectable, Logger } from '@nestjs/common';
-import * as sgMail from '@sendgrid/mail';
+import sgMail from '@sendgrid/mail';
+import type { MailDataRequired } from '@sendgrid/mail';
 import * as ejs from 'ejs';
 import { convert as htmlToText } from 'html-to-text';
 import * as path from 'node:path';
@@ -300,7 +301,7 @@ export class MailService {
    * @param message - The SendGrid email message to send.
    * @returns A promise that resolves when the email has been sent via SendGrid.
    */
-  async sendEmailViaSendGrid(message: sgMail.MailDataRequired) {
+  async sendEmailViaSendGrid(message: MailDataRequired) {
     try {
       await sgMail.send(message);
     } catch (error) {
@@ -319,7 +320,7 @@ export class MailService {
    * @param message - The internal email message.
    * @returns A SendGrid MailDataRequired object.
    */
-  toSendGridMessage(message: EmailMessage): sgMail.MailDataRequired {
+  toSendGridMessage(message: EmailMessage): MailDataRequired {
     return {
       to: message.to,
       from: message.from,
