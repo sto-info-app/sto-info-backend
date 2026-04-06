@@ -48,9 +48,9 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1023.0",
-    "@aws-sdk/client-secrets-manager": "^3.1023.0",
-    "@aws-sdk/client-sesv2": "^3.1023.0",
+    "@aws-sdk/client-s3": "^3.1024.0",
+    "@aws-sdk/client-secrets-manager": "^3.1024.0",
+    "@aws-sdk/client-sesv2": "^3.1024.0",
     "@nestjs-modules/mailer": "^2.3.4",
     "@nestjs/common": "^11.1.18",
     "@nestjs/config": "^4.0.3",
@@ -71,7 +71,7 @@
     "cloudmersive-virus-api-client": "^1.4.0",
     "cross-env": "^10.1.0",
     "crypto": "^1.0.1",
-    "dotenv": "^17.4.0",
+    "dotenv": "^17.4.1",
     "ejs": "^5.0.1",
     "express": "^5.2.1",
     "express-rate-limit": "^8.3.2",
@@ -97,7 +97,7 @@
     "uuidv4": "^6.2.13"
   },
   "devDependencies": {
-    "@eslint/config-array": "^0.23.3",
+    "@eslint/config-array": "^0.23.4",
     "@eslint/object-schema": "^3.0.3",
     "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
     "@nestjs/cli": "^11.0.17",
@@ -120,7 +120,7 @@
     "@typescript-eslint/eslint-plugin": "^8.58.0",
     "@typescript-eslint/parser": "^8.57.1",
     "cssnano": "^7.1.4",
-    "eslint": "^10.1.0",
+    "eslint": "^10.2.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
     "eslint-plugin-simple-import-sort": "^12.1.1",
