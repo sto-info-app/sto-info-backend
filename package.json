@@ -48,9 +48,9 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1024.0",
-    "@aws-sdk/client-secrets-manager": "^3.1024.0",
-    "@aws-sdk/client-sesv2": "^3.1024.0",
+    "@aws-sdk/client-s3": "^3.1025.0",
+    "@aws-sdk/client-secrets-manager": "^3.1025.0",
+    "@aws-sdk/client-sesv2": "^3.1025.0",
     "@nestjs-modules/mailer": "^2.3.4",
     "@nestjs/common": "^11.1.18",
     "@nestjs/config": "^4.0.3",
@@ -100,7 +100,7 @@
     "@eslint/config-array": "^0.23.4",
     "@eslint/object-schema": "^3.0.3",
     "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
-    "@nestjs/cli": "^11.0.17",
+    "@nestjs/cli": "^11.0.18",
     "@nestjs/schematics": "^11.0.10",
     "@nestjs/testing": "^11.1.18",
     "@stryker-mutator/core": "^9.6.0",
