@@ -48,9 +48,9 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1025.0",
-    "@aws-sdk/client-secrets-manager": "^3.1025.0",
-    "@aws-sdk/client-sesv2": "^3.1025.0",
+    "@aws-sdk/client-s3": "^3.1026.0",
+    "@aws-sdk/client-secrets-manager": "^3.1026.0",
+    "@aws-sdk/client-sesv2": "^3.1026.0",
     "@nestjs-modules/mailer": "^2.3.4",
     "@nestjs/common": "^11.1.18",
     "@nestjs/config": "^4.0.3",
@@ -97,7 +97,7 @@
     "uuidv4": "^6.2.13"
   },
   "devDependencies": {
-    "@eslint/config-array": "^0.23.4",
+    "@eslint/config-array": "^0.23.5",
     "@eslint/object-schema": "^3.0.3",
     "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
     "@nestjs/cli": "^11.0.18",
@@ -117,7 +117,7 @@
     "@types/passport-jwt": "^4.0.1",
     "@types/passport-local": "^1.0.38",
     "@types/supertest": "^7.2.0",
-    "@typescript-eslint/eslint-plugin": "^8.58.0",
+    "@typescript-eslint/eslint-plugin": "^8.58.1",
     "@typescript-eslint/parser": "^8.57.1",
     "cssnano": "^7.1.4",
     "eslint": "^10.2.0",
@@ -129,7 +129,7 @@
     "husky": "^9.1.7",
     "jest": "^30.3.0",
     "jest-junit": "^16.0.0",
-    "postcss": "^8.5.8",
+    "postcss": "^8.5.9",
     "prettier": "^3.8.1",
     "rimraf": "^6.1.3",
     "source-map-support": "^0.5.21",
