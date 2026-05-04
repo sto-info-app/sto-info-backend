@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { LauncherService } from 'src/sto/launcher/launcher.service';
 import { PlatformLauncherService } from 'src/sto/platform-launcher/platform-launcher.service';
@@ -85,7 +86,7 @@ describe('AccountSeederService', () => {
         platformService.findOneByName as jest.Mock<
           (...args: any[]) => Promise<any>
         >
-      ).mockResolvedValue(null);
+      ).mockRejectedValue(new NotFoundException('Platform not found'));
       (
         platformService.create as jest.Mock<(...args: any[]) => Promise<any>>
       ).mockResolvedValue({});
@@ -125,7 +126,7 @@ describe('AccountSeederService', () => {
         launcherService.findOneByName as jest.Mock<
           (...args: any[]) => Promise<any>
         >
-      ).mockResolvedValue(null);
+      ).mockRejectedValue(new NotFoundException('Launcher not found'));
       (
         launcherService.create as jest.Mock<(...args: any[]) => Promise<any>>
       ).mockResolvedValue({});
@@ -175,7 +176,9 @@ describe('AccountSeederService', () => {
         platformLauncherService.findOne as jest.Mock<
           (...args: any[]) => Promise<any>
         >
-      ).mockResolvedValue(null);
+      ).mockRejectedValue(
+        new NotFoundException('PlatformLauncherEntity relation not found'),
+      );
       (
         platformLauncherService.addPlatformLauncherRelation as jest.Mock<
           (...args: any[]) => Promise<any>
@@ -226,7 +229,7 @@ describe('AccountSeederService', () => {
         platformService.findOneByName as jest.Mock<
           (...args: any[]) => Promise<any>
         >
-      ).mockResolvedValue(null);
+      ).mockRejectedValue(new NotFoundException('Platform not found'));
       (
         launcherService.findOneByName as jest.Mock<
           (...args: any[]) => Promise<any>
