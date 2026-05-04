@@ -6,6 +6,7 @@ import { DatabaseService } from './database.service';
 import { UserSeederService } from './user-seeder/user-seeder.service';
 
 type MockedDatabaseService = {
+  assertDatabaseReadyForSeeding: jest.Mock<(...args: any[]) => Promise<any>>;
   setDatabaseTimezone: jest.Mock<(...args: any[]) => Promise<any>>;
 };
 
@@ -27,6 +28,9 @@ describe('DatabaseModule', () => {
 
   beforeEach(() => {
     databaseService = {
+      assertDatabaseReadyForSeeding: jest
+        .fn<(...args: any[]) => Promise<any>>()
+        .mockResolvedValue(undefined),
       setDatabaseTimezone: jest
         .fn<(...args: any[]) => Promise<any>>()
         .mockResolvedValue(undefined),
@@ -65,10 +69,17 @@ describe('DatabaseModule', () => {
   it('should set database timezone and run all seeders on module init', async () => {
     await databaseModule.onModuleInit();
 
+    expect(databaseService.assertDatabaseReadyForSeeding).toHaveBeenCalledTimes(
+      1,
+    );
     expect(databaseService.setDatabaseTimezone).toHaveBeenCalledTimes(1);
     expect(userSeederService.seed).toHaveBeenCalledTimes(1);
     expect(accountSeederService.seed).toHaveBeenCalledTimes(1);
 
+    expect(logSpy).toHaveBeenCalledWith(
+      'Database readiness check passed.',
+      'DatabaseModule',
+    );
     expect(logSpy).toHaveBeenCalledWith(
       'Database timezone set successfully.',
       'DatabaseModule',
@@ -97,6 +108,24 @@ describe('DatabaseModule', () => {
     );
     expect(userSeederService.seed).toHaveBeenCalledTimes(1);
     expect(accountSeederService.seed).toHaveBeenCalledTimes(1);
+  });
+
+  it('should stop startup if database is not ready for seeding', async () => {
+    const readinessError = new Error('run migrations first');
+    databaseService.assertDatabaseReadyForSeeding.mockRejectedValueOnce(
+      readinessError,
+    );
+
+    await expect(databaseModule.onModuleInit()).rejects.toThrow(readinessError);
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Database is not ready for seeding:',
+      readinessError,
+      'DatabaseModule',
+    );
+    expect(databaseService.setDatabaseTimezone).not.toHaveBeenCalled();
+    expect(userSeederService.seed).not.toHaveBeenCalled();
+    expect(accountSeederService.seed).not.toHaveBeenCalled();
   });
 
   it('should log an error if user seeding fails but continue with account seeding', async () => {
