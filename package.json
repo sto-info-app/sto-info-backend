@@ -87,7 +87,7 @@
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
     "pg": "^8.20.0",
-    "rate-limit-redis": "^4.3.1",
+    "rate-limit-redis": "^5.0.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "superagent": "^10.3.0",
