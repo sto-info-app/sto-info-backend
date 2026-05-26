@@ -166,7 +166,7 @@ describe('PlatformLauncherService', () => {
 
       expect(result).toEqual(relations);
       expect(repository.find).toHaveBeenCalledWith({
-        relations: ['platform', 'launcher'],
+        relations: { platform: true, launcher: true },
       });
     });
   });
