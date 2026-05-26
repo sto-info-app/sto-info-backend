@@ -93,7 +93,7 @@
     "superagent": "^10.3.0",
     "swagger-ui-express": "^5.0.1",
     "swagger-ui-themes": "^3.0.1",
-    "typeorm": "^0.3.29",
+    "typeorm": "^1.0.0",
     "uuidv4": "^6.2.13"
   },
   "devDependencies": {
