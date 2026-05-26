@@ -163,15 +163,14 @@ export class CharacterService {
 
     return this.characterRepository.find({
       where: { accountId },
-      relations: [
-        'generalFaction',
-        'faction',
-        'faction.ranks',
-        'sex',
-        'class',
-        'recruitType',
-        'species',
-      ],
+      relations: {
+        generalFaction: true,
+        faction: { ranks: true },
+        sex: true,
+        class: true,
+        recruitType: true,
+        species: true,
+      },
       order: { handle: 'ASC' },
     });
   }
@@ -189,16 +188,15 @@ export class CharacterService {
 
     return this.characterRepository.findOne({
       where: { fullHandleSlug: handleSlug },
-      relations: [
-        'account',
-        'generalFaction',
-        'faction',
-        'faction.ranks',
-        'sex',
-        'class',
-        'recruitType',
-        'species',
-      ],
+      relations: {
+        account: true,
+        generalFaction: true,
+        faction: { ranks: true },
+        sex: true,
+        class: true,
+        recruitType: true,
+        species: true,
+      },
     });
   }
 
@@ -213,16 +211,15 @@ export class CharacterService {
 
     const character = await this.characterRepository.findOne({
       where: { id },
-      relations: [
-        'account',
-        'generalFaction',
-        'faction',
-        'faction.ranks',
-        'sex',
-        'class',
-        'recruitType',
-        'species',
-      ],
+      relations: {
+        account: true,
+        generalFaction: true,
+        faction: { ranks: true },
+        sex: true,
+        class: true,
+        recruitType: true,
+        species: true,
+      },
     });
 
     if (!character) {

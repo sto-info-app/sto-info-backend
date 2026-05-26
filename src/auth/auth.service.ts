@@ -437,7 +437,7 @@ export class AuthService {
 
     const user = await this.userRepository.findOne({
       where: { passwordResetToken: token },
-      relations: ['profile'],
+      relations: { profile: true },
     });
 
     if (!user) {
@@ -487,7 +487,7 @@ export class AuthService {
       // Load the user with their refresh tokens using the user ID
       const user = await this.userRepository.findOne({
         where: { id: payload.sub },
-        relations: ['refreshTokens'],
+        relations: { refreshTokens: true },
       });
 
       if (!user) {

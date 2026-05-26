@@ -65,7 +65,7 @@ export class PlatformLauncherService {
 
   async findAll(): Promise<PlatformLauncherEntity[]> {
     return await this.platformLauncherRepository.find({
-      relations: ['platform', 'launcher'],
+      relations: { platform: true, launcher: true },
     });
   }
 

@@ -53,3 +53,27 @@ If you find a bug or have a feature request, please open an issue on GitHub.
 Please ensure that your changes do not break any existing tests and add new tests for new features.
 
 Thank you for your contributions!
+
+## Troubleshooting
+
+### `npm install` or `npm audit` fails with `UNABLE_TO_VERIFY_LEAF_SIGNATURE`
+
+Some antivirus or internet-security software (e.g. Norton Web/Mail Shield, Avast, Kaspersky) performs HTTPS inspection — it intercepts SSL traffic and re-signs certificates with its own CA. That CA is trusted by Windows, but not by Node.js's built-in certificate bundle, so Node.js rejects the connection.
+
+You can confirm this is the cause by running:
+
+```sh
+node -e "require('https').get('https://registry.npmjs.org', r => console.log(r.socket.getPeerCertificate().issuer))"
+```
+
+If the `CN` in the output is your security software (e.g. `Norton Web/Mail Shield Root`) rather than a standard CA (DigiCert, Let's Encrypt, etc.), apply the fix below.
+
+**Fix:** Tell Node.js to use the Windows system certificate store, which already trusts your security software's CA. Set this once as a persistent user environment variable:
+
+```powershell
+[System.Environment]::SetEnvironmentVariable("NODE_OPTIONS", "--use-system-ca", "User")
+```
+
+Then open a new terminal — the setting takes effect immediately for all subsequent Node.js processes, including `npm`.
+
+> This flag (`--use-system-ca`) requires Node.js 24 or later. GitHub Actions runners are unaffected because they connect to the npm registry directly without any SSL interception.
