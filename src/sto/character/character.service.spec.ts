@@ -286,11 +286,11 @@ describe('CharacterService', () => {
       expect(characterRepository.find).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { accountId: 'account-1' },
-          relations: expect.arrayContaining([
-            'generalFaction',
-            'faction',
-            'species',
-          ]),
+          relations: expect.objectContaining({
+            generalFaction: true,
+            faction: expect.objectContaining({ ranks: true }),
+            species: true,
+          }),
         }),
       );
     });
@@ -323,7 +323,10 @@ describe('CharacterService', () => {
       expect(characterRepository.findOne).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { fullHandleSlug: 'Char~1234@Acc' },
-          relations: expect.arrayContaining(['account', 'species']),
+          relations: expect.objectContaining({
+            account: true,
+            species: true,
+          }),
         }),
       );
     });

@@ -152,12 +152,7 @@ export class UserService {
       where: {
         id: id,
       },
-      relations: [
-        'profile',
-        // 'accounts',
-        // 'accounts.platform',
-        // 'accounts.launcher',
-      ],
+      relations: { profile: true },
     });
 
     if (!user) {
@@ -176,7 +171,7 @@ export class UserService {
   async findByEmail(email: string): Promise<UserEntity | null> {
     return await this.userRepository.findOne({
       where: { email: email },
-      relations: ['profile'],
+      relations: { profile: true },
     });
   }
 
@@ -232,7 +227,7 @@ export class UserService {
 
     const user = await this.userRepository.findOne({
       where: { id: userId },
-      relations: ['profile'],
+      relations: { profile: true },
     });
 
     if (!user) {
@@ -341,7 +336,7 @@ export class UserService {
 
     const user = await this.userRepository.findOne({
       where: { id: userId },
-      relations: ['profile'],
+      relations: { profile: true },
     });
 
     if (!user) {
