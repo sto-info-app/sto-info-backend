@@ -343,6 +343,10 @@ export class UserService {
       throw new HttpException('User not found', HttpStatus.NOT_FOUND);
     }
 
+    if (!user.profile?.userId || user.profile.userId !== userId) {
+      throw new HttpException('User data not found', HttpStatus.NOT_FOUND);
+    }
+
     const existingProfilePictureId = user.profile.profilePictureId;
 
     user.profile.profilePictureId =
