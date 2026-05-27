@@ -448,7 +448,7 @@ describe('UserService', () => {
       const file = { buffer: Buffer.from(''), mimetype: 'image/png' };
       const user = {
         id: '1',
-        profile: { profilePictureId: 'old' },
+        profile: { userId: '1', profilePictureId: 'old' },
       };
       (
         userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
@@ -481,7 +481,7 @@ describe('UserService', () => {
       const file = { buffer: Buffer.from(''), mimetype: 'image/png' };
       const user = {
         id: '1',
-        profile: { profilePictureId: null },
+        profile: { userId: '1', profilePictureId: null },
       };
       (
         userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
@@ -511,7 +511,7 @@ describe('UserService', () => {
     });
 
     it('should throw if upload fails (returns null)', async () => {
-      const user = { id: '1', profile: {} };
+      const user = { id: '1', profile: { userId: '1' } };
       (
         userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
       ).mockResolvedValue(user);
@@ -535,6 +535,17 @@ describe('UserService', () => {
       ).rejects.toThrow(HttpException);
     });
 
+    it('should throw if profile relation is missing', async () => {
+      const user = { id: '1', profile: null };
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
+
+      await expect(
+        service.uploadProfilePicture('1', {} as any),
+      ).rejects.toThrow(HttpException);
+    });
+
     it('should throw if id invalid', async () => {
       (validatorsService.validateUuid as jest.Mock).mockReturnValue(false);
       await expect(
@@ -543,7 +554,7 @@ describe('UserService', () => {
     });
 
     it('should throw if save returns object without profilePictureId', async () => {
-      const user = { id: '1', profile: {} };
+      const user = { id: '1', profile: { userId: '1' } };
       (
         userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
       ).mockResolvedValue(user);
