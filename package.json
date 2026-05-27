@@ -72,7 +72,7 @@
     "cross-env": "^10.1.0",
     "crypto": "^1.0.1",
     "dotenv": "^17.4.2",
-    "ejs": "^5.0.2",
+    "ejs": "^6.0.1",
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
     "fast-glob": "^3.3.3",
