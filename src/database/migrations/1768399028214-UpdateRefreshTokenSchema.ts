@@ -3,6 +3,11 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 export class UpdateRefreshTokenSchema1768399028214 implements MigrationInterface {
   name = 'UpdateRefreshTokenSchema1768399028214';
 
+  /**
+   * Applies the migration to the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       `ALTER TABLE "sto_info_app"."character_rank" DROP CONSTRAINT "FK_character_rank_faction"`,
@@ -33,6 +38,11 @@ export class UpdateRefreshTokenSchema1768399028214 implements MigrationInterface
     );
   }
 
+  /**
+   * Reverts the migration from the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       `ALTER TABLE "sto_info_app"."character_rank" DROP CONSTRAINT "FK_58a3f2f865032186b258c38ba6e"`,

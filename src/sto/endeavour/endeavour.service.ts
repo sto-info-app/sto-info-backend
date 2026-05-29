@@ -27,6 +27,13 @@ export interface EndeavourSummary {
 
 @Injectable()
 export class EndeavourService {
+  /**
+   * Creates an instance of EndeavourService.
+   *
+   * @param perkRepository - The perk repository.
+   * @param progressRepository - The progress repository.
+   * @param accountRepository - The account repository.
+   */
   constructor(
     @InjectRepository(EndeavourPerkEntity)
     private readonly perkRepository: Repository<EndeavourPerkEntity>,
@@ -36,6 +43,13 @@ export class EndeavourService {
     private readonly accountRepository: Repository<AccountEntity>,
   ) {}
 
+  /**
+   * Ensures the account belongs to the authenticated user.
+   *
+   * @param accountId - The account id.
+   * @param userId - The user id.
+   * @returns A promise that resolves when the operation completes.
+   */
   private async requireOwnedAccount(
     accountId: string,
     userId: string,
@@ -55,6 +69,12 @@ export class EndeavourService {
     return account;
   }
 
+  /**
+   * Gets endeavour perks.
+   *
+   * @param category - The category.
+   * @returns A promise that resolves when the operation completes.
+   */
   async getPerks(
     category?: 'Space' | 'Ground',
   ): Promise<EndeavourPerkEntity[]> {
@@ -65,6 +85,14 @@ export class EndeavourService {
     });
   }
 
+  /**
+   * Gets endeavour progress.
+   *
+   * @param accountId - The account id.
+   * @param userId - The user id.
+   * @param query - The query.
+   * @returns A promise that resolves when the operation completes.
+   */
   async getProgress(
     accountId: string,
     userId: string,
@@ -117,6 +145,15 @@ export class EndeavourService {
     return results;
   }
 
+  /**
+   * Updates endeavour progress.
+   *
+   * @param accountId - The account id.
+   * @param userId - The user id.
+   * @param perkId - The perk id.
+   * @param dto - The dto.
+   * @returns A promise that resolves when the operation completes.
+   */
   async updateProgress(
     accountId: string,
     userId: string,
@@ -153,6 +190,13 @@ export class EndeavourService {
     return progress;
   }
 
+  /**
+   * Gets the endeavour summary.
+   *
+   * @param accountId - The account id.
+   * @param userId - The user id.
+   * @returns A promise that resolves when the operation completes.
+   */
   async getSummary(
     accountId: string,
     userId: string,

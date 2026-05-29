@@ -10,6 +10,13 @@ import { TypeORMError } from 'typeorm';
 
 @Catch(TypeORMError)
 export class TypeOrmExceptionFilter implements ExceptionFilter {
+  /**
+   * Handles the thrown exception.
+   *
+   * @param exception - The exception.
+   * @param host - The execution host.
+   * @returns The result of the operation.
+   */
   catch(exception: TypeORMError, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse();

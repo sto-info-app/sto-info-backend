@@ -45,6 +45,11 @@ import { UpdateCharacterDto } from './dto/update-character.dto';
 export class CharacterController {
   private readonly logger = new Logger(CharacterController.name);
 
+  /**
+   * Creates an instance of CharacterController.
+   *
+   * @param characterService - The character service.
+   */
   constructor(private readonly characterService: CharacterService) {}
 
   /**

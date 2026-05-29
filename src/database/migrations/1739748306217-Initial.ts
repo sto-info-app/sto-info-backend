@@ -3,6 +3,11 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 export class Initial1739748306217 implements MigrationInterface {
   name = 'Initial1739748306217';
 
+  /**
+   * Applies the migration to the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async up(queryRunner: QueryRunner): Promise<void> {
     const queries = [
       `CREATE SCHEMA IF NOT EXISTS "sto_info_app"`,
@@ -25,6 +30,11 @@ export class Initial1739748306217 implements MigrationInterface {
     await this.executeQueries(queryRunner, queries);
   }
 
+  /**
+   * Reverts the migration from the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async down(queryRunner: QueryRunner): Promise<void> {
     const queries = [
       `ALTER TABLE "sto_info_app"."user_profile" DROP CONSTRAINT "FK_51cb79b5555effaf7d69ba1cff9"`,
@@ -46,6 +56,12 @@ export class Initial1739748306217 implements MigrationInterface {
     await this.executeQueries(queryRunner, queries);
   }
 
+  /**
+   * Handles execute queries.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   * @param queries - The queries.
+   */
   private async executeQueries(
     queryRunner: QueryRunner,
     queries: string[],

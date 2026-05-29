@@ -18,6 +18,12 @@ const DIST_TEMPLATES_DIR = path.resolve(
   'email-templates',
 );
 
+/**
+ * Copies files and directories recursively.
+ *
+ * @param src - The src.
+ * @param dest - The dest.
+ */
 function copyRecursive(src: string, dest: string): void {
   if (!fs.existsSync(dest)) {
     fs.mkdirSync(dest, { recursive: true });

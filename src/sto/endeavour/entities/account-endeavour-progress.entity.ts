@@ -54,6 +54,11 @@ export class AccountEndeavourProgressEntity {
   endeavourPerk: EndeavourPerkEntity;
 
   @Expose()
+  /**
+   * Gets the progress status.
+   *
+   * @returns The result of the operation.
+   */
   get status(): 'not_started' | 'in_progress' | 'complete' {
     if (!this.endeavourPerk) return 'not_started';
     if (this.currentNodes === 0) return 'not_started';
@@ -62,12 +67,22 @@ export class AccountEndeavourProgressEntity {
   }
 
   @Expose()
+  /**
+   * Gets the completion percentage.
+   *
+   * @returns The result of the operation.
+   */
   get completionPercentage(): number {
     if (!this.endeavourPerk || this.endeavourPerk.maxNodes === 0) return 0;
     return Math.round((this.currentNodes / this.endeavourPerk.maxNodes) * 100);
   }
 
   @Expose()
+  /**
+   * Gets the total boost earned.
+   *
+   * @returns The result of the operation.
+   */
   get totalBoostEarned(): number {
     if (!this.endeavourPerk) return 0;
     return (

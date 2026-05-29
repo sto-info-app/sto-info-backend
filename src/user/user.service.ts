@@ -15,6 +15,14 @@ import { UserEntity } from './entities/user.entity';
 export class UserService {
   private readonly logger = new Logger(UserService.name);
 
+  /**
+   * Creates an instance of UserService.
+   *
+   * @param userRepository - The user repository.
+   * @param userProfileRepository - The user profile repository.
+   * @param validatorsService - The validators service.
+   * @param imageUploadsService - The image uploads service.
+   */
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,

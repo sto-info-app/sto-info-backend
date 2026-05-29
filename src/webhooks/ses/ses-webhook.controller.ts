@@ -26,10 +26,21 @@ import { SesWebhookService } from './ses-webhook.service';
 export class SesWebhookController {
   private readonly logger = new Logger(SesWebhookController.name);
 
+  /**
+   * Creates an instance of SesWebhookController.
+   *
+   * @param sesWebhookService - The ses webhook service.
+   */
   constructor(private readonly sesWebhookService: SesWebhookService) {}
 
   @Post()
   @HttpCode(HttpStatus.OK)
+  /**
+   * Handles sns notification.
+   *
+   * @param messageType - The message type.
+   * @param body - The request body.
+   */
   async handleSnsNotification(
     @Headers('x-amz-sns-message-type') messageType: string,
     @Body() body: unknown,

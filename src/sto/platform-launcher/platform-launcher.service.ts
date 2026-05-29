@@ -10,11 +10,23 @@ import { PlatformLauncherEntity } from './entities/platform-launcher.entity';
 
 @Injectable()
 export class PlatformLauncherService {
+  /**
+   * Creates an instance of PlatformLauncherService.
+   *
+   * @param platformLauncherRepository - The platform launcher repository.
+   */
   constructor(
     @InjectRepository(PlatformLauncherEntity)
     private readonly platformLauncherRepository: Repository<PlatformLauncherEntity>,
   ) {}
 
+  /**
+   * Adds a platform-launcher relation.
+   *
+   * @param platformId - The platform id.
+   * @param launcherId - The launcher id.
+   * @returns A promise that resolves when the operation completes.
+   */
   async addPlatformLauncherRelation(platformId: string, launcherId: string) {
     if (!platformId) {
       throw new BadRequestException('Platform ID is required');
@@ -38,6 +50,13 @@ export class PlatformLauncherService {
     }
   }
 
+  /**
+   * Removes a platform-launcher relation.
+   *
+   * @param platformId - The platform id.
+   * @param launcherId - The launcher id.
+   * @returns A promise that resolves when the operation completes.
+   */
   async removePlatformLauncherRelation(platformId: string, launcherId: string) {
     if (!platformId) {
       throw new BadRequestException('Platform ID is required');
@@ -63,12 +82,23 @@ export class PlatformLauncherService {
     }
   }
 
+  /**
+   * Finds all.
+   *
+   * @returns A promise that resolves when the operation completes.
+   */
   async findAll(): Promise<PlatformLauncherEntity[]> {
     return await this.platformLauncherRepository.find({
       relations: { platform: true, launcher: true },
     });
   }
 
+  /**
+   * Finds all launchers for the given platform.
+   *
+   * @param platformId - The platform id.
+   * @returns A promise that resolves when the operation completes.
+   */
   async findAllLaunchersForPlatform(
     platformId: string,
   ): Promise<PlatformLauncherEntity[]> {
@@ -82,6 +112,13 @@ export class PlatformLauncherService {
     return launchers;
   }
 
+  /**
+   * Finds one.
+   *
+   * @param platformId - The platform id.
+   * @param launcherId - The launcher id.
+   * @returns A promise that resolves when the operation completes.
+   */
   async findOne(
     platformId: string,
     launcherId: string,

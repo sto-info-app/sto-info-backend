@@ -3,6 +3,11 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 export class AccountAndCharacterUpdates1774318826026 implements MigrationInterface {
   name = 'AccountAndCharacterUpdates1774318826026';
 
+  /**
+   * Applies the migration to the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Add iconUrl column to tables
     await queryRunner.query(
@@ -79,6 +84,11 @@ export class AccountAndCharacterUpdates1774318826026 implements MigrationInterfa
     `);
   }
 
+  /**
+   * Reverts the migration from the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       `ALTER TABLE "sto_info_app"."character_recruit_type" DROP COLUMN "iconUrl"`,

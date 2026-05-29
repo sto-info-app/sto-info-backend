@@ -3,6 +3,11 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 export class CreateCharacterRank1767566000000 implements MigrationInterface {
   name = 'CreateCharacterRank1767566000000';
 
+  /**
+   * Applies the migration to the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       CREATE TABLE "sto_info_app"."character_rank" (
@@ -245,6 +250,11 @@ export class CreateCharacterRank1767566000000 implements MigrationInterface {
     }
   }
 
+  /**
+   * Reverts the migration from the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`DROP TABLE "sto_info_app"."character_rank"`);
   }

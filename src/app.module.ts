@@ -114,6 +114,12 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
   ],
 })
 export class AppModule implements NestModule {
+  /**
+   * Configures the application middleware.
+   *
+   * @param consumer - The consumer.
+   * @returns The result of the operation.
+   */
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(RequestIdMiddleware, UserIdMiddleware).forRoutes('*');
   }

@@ -3,6 +3,11 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 export class AddHandleSlugToAccountAndCharacter1767507578970 implements MigrationInterface {
   name = 'AddHandleSlugToAccountAndCharacter1767507578970';
 
+  /**
+   * Applies the migration to the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       `ALTER TABLE "sto_info_app"."account" ADD "handleSlug" character varying(255)`,
@@ -156,6 +161,11 @@ export class AddHandleSlugToAccountAndCharacter1767507578970 implements Migratio
     );
   }
 
+  /**
+   * Reverts the migration from the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       `ALTER TABLE "sto_info_app"."faction_species_mapping" DROP CONSTRAINT "FK_5ccb53fef7d36c8dacb75e52577"`,

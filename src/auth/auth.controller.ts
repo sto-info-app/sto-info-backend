@@ -44,6 +44,12 @@ import { UserId } from './user-id.decorator';
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
+  /**
+   * Creates an instance of AuthController.
+   *
+   * @param authService - The auth service.
+   * @param refreshTokenService - The refresh token service.
+   */
   constructor(
     private readonly authService: AuthService,
     private readonly refreshTokenService: UserRefreshTokenService,

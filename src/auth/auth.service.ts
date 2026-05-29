@@ -38,6 +38,17 @@ import { JwtPayloadInterface } from './entities/jwt-payload.entity';
  */
 @Injectable()
 export class AuthService {
+  /**
+   * Creates an instance of AuthService.
+   *
+   * @param userRepository - The user repository.
+   * @param userProfileRepository - The user profile repository.
+   * @param loginAttemptRepository - The login attempt repository.
+   * @param jwtService - The jwt service.
+   * @param userService - The user service.
+   * @param mailService - The mail service.
+   * @param refreshTokenService - The refresh token service.
+   */
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,

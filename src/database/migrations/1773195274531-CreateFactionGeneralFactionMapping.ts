@@ -3,6 +3,11 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 export class CreateFactionGeneralFactionMapping1773195274531 implements MigrationInterface {
   name = 'CreateFactionGeneralFactionMapping1773195274531';
 
+  /**
+   * Applies the migration to the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       `CREATE TABLE "sto_info_app"."faction_general_faction_mapping" ("factionId" uuid NOT NULL, "generalFactionId" uuid NOT NULL, CONSTRAINT "PK_0b2ce24829716188f550b49db4a" PRIMARY KEY ("factionId", "generalFactionId"))`,
@@ -73,6 +78,11 @@ export class CreateFactionGeneralFactionMapping1773195274531 implements Migratio
     `);
   }
 
+  /**
+   * Reverts the migration from the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       `ALTER TABLE "sto_info_app"."faction_general_faction_mapping" DROP CONSTRAINT "FK_ac98ec22dd6350b6ed12c843752"`,

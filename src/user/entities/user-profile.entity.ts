@@ -55,6 +55,11 @@ export class UserProfileEntity {
   user: UserEntity;
 
   // Set base URL for the profile image stored on Cloudflare Images
+  /**
+   * Gets the profile picture URL.
+   *
+   * @returns The result of the operation.
+   */
   get profilePictureUrl(): string | null {
     if (!this.profilePictureId) {
       return null;
@@ -69,11 +74,21 @@ export class UserProfileEntity {
   }
 
   @Expose()
+  /**
+   * Gets the profile picture URL.
+   *
+   * @returns The result of the operation.
+   */
   get profilePicture(): string | null {
     return this.profilePictureUrl;
   }
 
   @Expose()
+  /**
+   * Gets the 300px profile picture URL.
+   *
+   * @returns The result of the operation.
+   */
   get profilePicture300(): string | null {
     if (!this.profilePictureId) {
       return null;
@@ -88,6 +103,11 @@ export class UserProfileEntity {
   }
 
   @Expose()
+  /**
+   * Gets the 100px profile picture URL.
+   *
+   * @returns The result of the operation.
+   */
   get profilePicture100(): string | null {
     if (!this.profilePictureId) {
       return null;

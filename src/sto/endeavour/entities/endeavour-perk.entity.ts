@@ -85,6 +85,11 @@ export class EndeavourPerkEntity {
     description: 'Display-formatted boost per rank',
     example: '+0.50%',
   })
+  /**
+   * Gets the boost per rank display value.
+   *
+   * @returns The result of the operation.
+   */
   get boostPerRankDisplay(): string {
     return this.boostUnit === 'percent'
       ? `+${this.boostPerRank}%`
@@ -95,6 +100,11 @@ export class EndeavourPerkEntity {
     description: 'Display-formatted maximum boost',
     example: '+12.50%',
   })
+  /**
+   * Gets the maximum boost display value.
+   *
+   * @returns The result of the operation.
+   */
   get boostMaxDisplay(): string {
     return this.boostUnit === 'percent'
       ? `+${this.boostMax}%`

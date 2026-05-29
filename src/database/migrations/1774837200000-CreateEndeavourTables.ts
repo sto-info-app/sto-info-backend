@@ -3,6 +3,11 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 export class CreateEndeavourTables1774837200000 implements MigrationInterface {
   name = 'CreateEndeavourTables1774837200000';
 
+  /**
+   * Applies the migration to the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async up(queryRunner: QueryRunner): Promise<void> {
     // --- endeavour_perk table ---
     await queryRunner.query(`
@@ -120,6 +125,11 @@ export class CreateEndeavourTables1774837200000 implements MigrationInterface {
     `);
   }
 
+  /**
+   * Reverts the migration from the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       `DROP INDEX "sto_info_app"."IDX_account_endeavour_progress_perkId"`,

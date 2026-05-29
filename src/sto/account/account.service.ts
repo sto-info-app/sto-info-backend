@@ -15,11 +15,22 @@ import { AccountEntity } from './entities/account.entity';
 
 @Injectable()
 export class AccountService {
+  /**
+   * Creates an instance of AccountService.
+   *
+   * @param accountRepository - The account repository.
+   */
   constructor(
     @InjectRepository(AccountEntity)
     private readonly accountRepository: Repository<AccountEntity>,
   ) {}
 
+  /**
+   * Normalizes the supplied handle.
+   *
+   * @param handle - The handle.
+   * @returns The result of the operation.
+   */
   private normalizeHandle(handle: string): string {
     return handle.trim().toLowerCase();
   }

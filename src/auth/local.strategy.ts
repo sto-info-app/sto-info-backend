@@ -6,10 +6,22 @@ import { AuthService } from './auth.service';
 
 @Injectable()
 export class LocalStrategy extends PassportStrategy(Strategy) {
+  /**
+   * Creates an instance of LocalStrategy.
+   *
+   * @param authService - The auth service.
+   */
   constructor(private readonly authService: AuthService) {
     super({ usernameField: 'email' }); // Use 'email' instead of the default 'username'
   }
 
+  /**
+   * Validates the supplied input.
+   *
+   * @param email - The email.
+   * @param password - The password.
+   * @returns A promise that resolves when the operation completes.
+   */
   async validate(email: string, password: string): Promise<any> {
     const user = await this.authService.validateUser(email, password);
     if (!user) {

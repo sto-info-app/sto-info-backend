@@ -7,6 +7,14 @@ export type RequestWithId = Request & { requestId: string };
 
 @Injectable()
 export class RequestIdMiddleware implements NestMiddleware {
+  /**
+   * Runs the middleware.
+   *
+   * @param req - The request object.
+   * @param res - The response object.
+   * @param next - The next middleware function.
+   * @returns The result of the operation.
+   */
   use(req: RequestWithId, res: Response, next: NextFunction) {
     const inbound = req.header('x-request-id');
     const requestId =

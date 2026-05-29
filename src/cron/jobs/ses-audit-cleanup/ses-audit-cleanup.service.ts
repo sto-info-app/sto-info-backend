@@ -31,6 +31,11 @@ import { LessThan, Repository } from 'typeorm';
 export class SesAuditCleanupService {
   private readonly logger = new Logger(SesAuditCleanupService.name);
 
+  /**
+   * Creates an instance of SesAuditCleanupService.
+   *
+   * @param sesEventRepository - The ses event repository.
+   */
   constructor(
     @InjectRepository(SesEventEntity)
     private readonly sesEventRepository: Repository<SesEventEntity>,

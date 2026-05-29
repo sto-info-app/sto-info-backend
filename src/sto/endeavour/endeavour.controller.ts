@@ -26,11 +26,22 @@ import { EndeavourService } from './endeavour.service';
 @UseGuards(JwtAuthGuard)
 @Controller('endeavour')
 export class EndeavourController {
+  /**
+   * Creates an instance of EndeavourController.
+   *
+   * @param endeavourService - The endeavour service.
+   */
   constructor(private readonly endeavourService: EndeavourService) {}
 
   @Get('perks')
   @ApiOkResponse({ description: 'Successfully retrieved endeavour perks.' })
   @HttpCode(HttpStatus.OK)
+  /**
+   * Gets endeavour perks.
+   *
+   * @param category - The category.
+   * @returns The result of the operation.
+   */
   getPerks(@Query('category') category?: 'Space' | 'Ground') {
     return this.endeavourService.getPerks(category);
   }
@@ -39,6 +50,14 @@ export class EndeavourController {
   @ApiOkResponse({ description: 'Successfully retrieved endeavour progress.' })
   @ApiBadRequestResponse({ description: 'Failed to retrieve progress.' })
   @HttpCode(HttpStatus.OK)
+  /**
+   * Gets endeavour progress.
+   *
+   * @param userId - The user id.
+   * @param accountId - The account id.
+   * @param query - The query.
+   * @returns The result of the operation.
+   */
   getProgress(
     @UserId() userId: string,
     @Param('accountId') accountId: string,
@@ -51,6 +70,13 @@ export class EndeavourController {
   @ApiOkResponse({ description: 'Successfully retrieved endeavour summary.' })
   @ApiBadRequestResponse({ description: 'Failed to retrieve summary.' })
   @HttpCode(HttpStatus.OK)
+  /**
+   * Gets the endeavour summary.
+   *
+   * @param userId - The user id.
+   * @param accountId - The account id.
+   * @returns The result of the operation.
+   */
   getSummary(@UserId() userId: string, @Param('accountId') accountId: string) {
     return this.endeavourService.getSummary(accountId, userId);
   }
@@ -59,6 +85,15 @@ export class EndeavourController {
   @ApiOkResponse({ description: 'Successfully updated endeavour progress.' })
   @ApiBadRequestResponse({ description: 'Failed to update progress.' })
   @HttpCode(HttpStatus.OK)
+  /**
+   * Updates endeavour progress.
+   *
+   * @param userId - The user id.
+   * @param accountId - The account id.
+   * @param perkId - The perk id.
+   * @param dto - The dto.
+   * @returns The result of the operation.
+   */
   updateProgress(
     @UserId() userId: string,
     @Param('accountId') accountId: string,

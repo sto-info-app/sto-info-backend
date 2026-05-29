@@ -23,6 +23,13 @@ const LEVEL_RANGE_FACTION = 'Starfleet (2409)';
 
 @Injectable()
 export class StatsService {
+  /**
+   * Creates an instance of StatsService.
+   *
+   * @param accountRepository - The account repository.
+   * @param characterRepository - The character repository.
+   * @param characterRankRepository - The character rank repository.
+   */
   constructor(
     @InjectRepository(AccountEntity)
     private readonly accountRepository: Repository<AccountEntity>,

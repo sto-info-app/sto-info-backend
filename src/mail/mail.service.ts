@@ -34,6 +34,13 @@ export class MailService {
     'email-templates',
   );
 
+  /**
+   * Creates an instance of MailService.
+   *
+   * @param secretsService - The secrets service.
+   * @param validatorsService - The validators service.
+   * @param mailerService - The mailer service.
+   */
   constructor(
     private readonly secretsService: SecretsService,
     private readonly validatorsService: ValidatorsService,
