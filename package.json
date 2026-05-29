@@ -48,9 +48,9 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1055.0",
-    "@aws-sdk/client-secrets-manager": "^3.1055.0",
-    "@aws-sdk/client-sesv2": "^3.1055.0",
+    "@aws-sdk/client-s3": "^3.1056.0",
+    "@aws-sdk/client-secrets-manager": "^3.1056.0",
+    "@aws-sdk/client-sesv2": "^3.1056.0",
     "@nestjs-modules/mailer": "^2.3.6",
     "@nestjs/common": "^11.1.24",
     "@nestjs/config": "^4.0.4",
@@ -82,7 +82,7 @@
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",
     "nestjs-cls": "^6.2.1",
-    "nodemailer": "^8.0.9",
+    "nodemailer": "^8.0.10",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
@@ -135,7 +135,7 @@
     "source-map-support": "^0.5.21",
     "supertest": "^7.2.2",
     "ts-jest": "^29.4.11",
-    "ts-loader": "^9.5.7",
+    "ts-loader": "^9.6.0",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^6.0.3"
