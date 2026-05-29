@@ -31,6 +31,7 @@ import { SharedModule } from './shared/shared.module';
 import { ValidatorsService } from './shared/utilities/validators.service';
 import { AccountModule } from './sto/account/account.module';
 import { CharacterModule } from './sto/character/character.module';
+import { EndeavourModule } from './sto/endeavour/endeavour.module';
 import { LauncherModule } from './sto/launcher/launcher.module';
 import { StatsModule } from './sto/stats/stats.module';
 import { PlatformLauncherModule } from './sto/platform-launcher/platform-launcher.module';
@@ -86,6 +87,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     ContactModule,
     AccountModule,
     CharacterModule,
+    EndeavourModule,
     StatsModule,
     PlatformModule,
     LauncherModule,
