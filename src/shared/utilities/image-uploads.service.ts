@@ -469,7 +469,7 @@ export class ImageUploadsService {
   /**
    * Validates and sanitises a file before upload.
    *
-   * Checks for valid mimetype, file size, virus presence, and santises the filename.
+   * Checks for valid mimetype, file size, virus presence, and sanitises the filename.
    *
    * @param userId - The ID of the user owning the file.
    * @param file - The Multer file object to validate.
