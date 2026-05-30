@@ -107,13 +107,7 @@ export class StatsService {
         })
         .then(es => es.map(e => e.name))
         .then(names =>
-          this.getAccountGroupStats(
-            userId,
-            'platform',
-            'p',
-            names,
-            accountId,
-          ),
+          this.getAccountGroupStats(userId, 'platform', 'p', names, accountId),
         ),
       mgr
         .find(LauncherEntity, {
@@ -122,13 +116,7 @@ export class StatsService {
         })
         .then(es => es.map(e => e.name))
         .then(names =>
-          this.getAccountGroupStats(
-            userId,
-            'launcher',
-            'l',
-            names,
-            accountId,
-          ),
+          this.getAccountGroupStats(userId, 'launcher', 'l', names, accountId),
         ),
       this.getEndeavourStats(userId, accountId, accountCount),
     ]);
