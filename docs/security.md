@@ -20,24 +20,17 @@ Current overrides in `package.json`:
 
 ```json
 "overrides": {
-  "file-type": "^21.3.3",
   "lodash": "^4.18.1",
   "ajv": "^8.18.0",
   "eslint": {
     "ajv": "^6.14.0"
   },
-  "underscore": "^1.13.8",
-  "nodemailer": "^8.0.4",
-  "path-to-regexp": "^8.3.1",
-  "picomatch": "^4.0.4",
+  "mailparser": "^3.9.8",
   "anymatch": {
     "picomatch": "^2.3.2"
   },
   "micromatch": {
     "picomatch": "^2.3.2"
-  },
-  "@nestjs/swagger": {
-    "@nestjs/mapped-types": "^2.1.1"
   }
 }
 ```
@@ -158,6 +151,12 @@ Overrides removed on **2026-04-05** as part of the TypeScript 6 upgrade review â
 | `fast-xml-parser` | `^5.5.6` | `@aws-sdk/xml-builder` now resolves naturally to `5.5.9` |
 | `mjml` | `^5.0.0-beta.1` | `@nestjs-modules/mailer` now pulls `mjml@5.0.0-beta.2` directly |
 | `serialize-javascript` | `^7.0.5` | No longer installed anywhere in the dependency tree (`terser-webpack-plugin` no longer requires it) |
+
+Override removed on **2026-05-30** during dependency tree review:
+
+| Override | Previously forced | Reason for removal |
+|---|---|---|
+| `uuid` | `^11.1.1` | No longer required as an override pin; removing it avoids forcing a cross-tree version and keeps transitive consumers on their own compatible ranges |
 
 #### `mjml-core` â€” no override available (known vulnerability, no upstream fix)
 
