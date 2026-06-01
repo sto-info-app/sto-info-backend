@@ -16,9 +16,30 @@ The database uses PostgreSQL with TypeORM for object-relational mapping.
 | `ContactRequestEntity`    | `contact_request`      | Contact form submissions                                                      |
 | `PlatformEntity`          | `platform`             | STO platform reference data                                                   |
 | `LauncherEntity`          | `launcher`             | STO launcher reference data                                                   |
-| `PlatformLauncherEntity`  | `platform_launcher`    | Platform/launcher mapping                                                     |
+| `PlatformLauncherEntity`  | `platform_launcher`    | Platform/launcher mapping and account background image URL rules              |
 | `AccountEntity`           | `account`              | STO in-game account records                                                   |
 | `CharacterEntity`         | `character`            | STO character profiles linked to accounts                                     |
+
+### Platform Launcher Image Mapping
+
+The `platform_launcher` table now stores account background image URL rules used by
+the account list API.
+
+- `id` (uuid): Surrogate primary key.
+- `platformId` (nullable): Platform-specific match target.
+- `launcherId` (nullable): Launcher-specific match target.
+- `backgroundImageUrl` (nullable): Cloudflare Images delivery URL.
+
+Resolution precedence used by the API:
+
+1. Exact platform + launcher row.
+2. Platform default row (`platformId` + `launcherId=NULL`).
+3. Launcher default row (`platformId=NULL` + `launcherId`).
+4. Global default row (`platformId=NULL` + `launcherId=NULL`).
+5. Static fallback URL in service code.
+
+Uniqueness is enforced using partial unique indexes per mapping pattern,
+instead of a single `(platformId, launcherId)` unique constraint.
 
 ### Entity Relationships
 

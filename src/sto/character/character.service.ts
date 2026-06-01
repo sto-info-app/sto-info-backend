@@ -8,6 +8,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { isValidCloudflareImageUrl } from 'src/shared/constants/image.constants';
 import { stringifyError } from 'src/shared/utilities/error.utility';
 import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
 
@@ -68,6 +69,71 @@ export class CharacterService {
    */
   private normalizeHandle(handle: string): string {
     return handle.trim().toLowerCase();
+  }
+
+  /**
+   * Sanitizes a Cloudflare image URL from persisted data.
+   *
+   * @param imageUrl - Candidate image URL.
+   * @returns A valid Cloudflare image URL, or `null` when invalid.
+   */
+  private sanitizeCloudflareImageUrl(imageUrl?: string | null): string | null {
+    if (!isValidCloudflareImageUrl(imageUrl)) {
+      return null;
+    }
+
+    return imageUrl;
+  }
+
+  /**
+   * Sanitizes icon URL fields on character relation data.
+   *
+   * @param character - Character to sanitize in-place.
+   * @returns The sanitized character.
+   */
+  private sanitizeCharacterImageUrls(
+    character: CharacterEntity,
+  ): CharacterEntity {
+    if (character.generalFaction) {
+      character.generalFaction.iconUrl = this.sanitizeCloudflareImageUrl(
+        character.generalFaction.iconUrl,
+      );
+    }
+
+    if (character.faction) {
+      character.faction.iconUrl = this.sanitizeCloudflareImageUrl(
+        character.faction.iconUrl,
+      );
+
+      if (Array.isArray(character.faction.ranks)) {
+        character.faction.ranks.forEach(rank => {
+          rank.iconUrl = this.sanitizeCloudflareImageUrl(rank.iconUrl);
+        });
+      }
+    }
+
+    if (character.recruitType) {
+      character.recruitType.iconUrl = this.sanitizeCloudflareImageUrl(
+        character.recruitType.iconUrl,
+      );
+    }
+
+    return character;
+  }
+
+  /**
+   * Sanitizes icon URL fields on lookup entities that expose `iconUrl`.
+   *
+   * @param entities - Lookup entities to sanitize.
+   * @returns The sanitized entities.
+   */
+  private sanitizeLookupImageUrls<T extends { iconUrl: string | null }>(
+    entities: T[],
+  ): T[] {
+    return entities.map(entity => {
+      entity.iconUrl = this.sanitizeCloudflareImageUrl(entity.iconUrl);
+      return entity;
+    });
   }
 
   /**
@@ -214,7 +280,7 @@ export class CharacterService {
 
     await this.requireOwnedAccount(accountId, userId);
 
-    return this.characterRepository.find({
+    const characters = await this.characterRepository.find({
       where: { accountId },
       relations: {
         generalFaction: true,
@@ -226,6 +292,10 @@ export class CharacterService {
       },
       order: { handle: 'ASC' },
     });
+
+    return characters.map(character =>
+      this.sanitizeCharacterImageUrls(character),
+    );
   }
 
   /**
@@ -239,7 +309,7 @@ export class CharacterService {
       throw new BadRequestException('Handle slug is required');
     }
 
-    return this.characterRepository.findOne({
+    const character = await this.characterRepository.findOne({
       where: { fullHandleSlug: handleSlug },
       relations: {
         account: true,
@@ -251,6 +321,12 @@ export class CharacterService {
         species: true,
       },
     });
+
+    if (!character) {
+      return null;
+    }
+
+    return this.sanitizeCharacterImageUrls(character);
   }
 
   /**
@@ -290,7 +366,7 @@ export class CharacterService {
       throw new ForbiddenException('You do not have access to this character');
     }
 
-    return character;
+    return this.sanitizeCharacterImageUrls(character);
   }
 
   /**
@@ -519,7 +595,11 @@ export class CharacterService {
       );
     }
 
-    return query.orderBy('generalFaction.name', 'ASC').getMany();
+    const generalFactions = await query
+      .orderBy('generalFaction.name', 'ASC')
+      .getMany();
+
+    return this.sanitizeLookupImageUrls(generalFactions);
   }
 
   /**
@@ -540,7 +620,9 @@ export class CharacterService {
       );
     }
 
-    return query.orderBy('faction.name', 'ASC').getMany();
+    const factions = await query.orderBy('faction.name', 'ASC').getMany();
+
+    return this.sanitizeLookupImageUrls(factions);
   }
 
   /**
@@ -579,7 +661,11 @@ export class CharacterService {
       );
     }
 
-    return query.orderBy('recruitType.name', 'ASC').getMany();
+    const recruitTypes = await query
+      .orderBy('recruitType.name', 'ASC')
+      .getMany();
+
+    return this.sanitizeLookupImageUrls(recruitTypes);
   }
 
   /**

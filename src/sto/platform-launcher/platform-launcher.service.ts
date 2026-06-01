@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { isValidCloudflareImageUrl } from 'src/shared/constants/image.constants';
 import { Repository } from 'typeorm';
 import { PlatformLauncherEntity } from './entities/platform-launcher.entity';
 
@@ -19,6 +20,22 @@ export class PlatformLauncherService {
     @InjectRepository(PlatformLauncherEntity)
     private readonly platformLauncherRepository: Repository<PlatformLauncherEntity>,
   ) {}
+
+  /**
+   * Returns a relation with a validated background image URL.
+   *
+   * @param relation - The relation to sanitize.
+   * @returns The same relation with an invalid background URL set to `null`.
+   */
+  private sanitizeBackgroundImageUrl(
+    relation: PlatformLauncherEntity,
+  ): PlatformLauncherEntity {
+    if (!isValidCloudflareImageUrl(relation.backgroundImageUrl)) {
+      relation.backgroundImageUrl = null;
+    }
+
+    return relation;
+  }
 
   /**
    * Adds a platform-launcher relation.
@@ -88,9 +105,11 @@ export class PlatformLauncherService {
    * @returns A promise that resolves when the operation completes.
    */
   async findAll(): Promise<PlatformLauncherEntity[]> {
-    return await this.platformLauncherRepository.find({
+    const relations = await this.platformLauncherRepository.find({
       relations: { platform: true, launcher: true },
     });
+
+    return relations.map(relation => this.sanitizeBackgroundImageUrl(relation));
   }
 
   /**
@@ -109,7 +128,7 @@ export class PlatformLauncherService {
     const launchers = await this.platformLauncherRepository.find({
       where: { platformId: platformId },
     });
-    return launchers;
+    return launchers.map(relation => this.sanitizeBackgroundImageUrl(relation));
   }
 
   /**
@@ -139,6 +158,6 @@ export class PlatformLauncherService {
       throw new NotFoundException(`PlatformLauncherEntity relation not found`);
     }
 
-    return platformLauncher;
+    return this.sanitizeBackgroundImageUrl(platformLauncher);
   }
 }

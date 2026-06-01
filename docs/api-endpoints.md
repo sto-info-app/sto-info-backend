@@ -250,6 +250,9 @@ List all STO launchers.
 
 List platform/launcher mappings.
 
+Response includes optional `backgroundImageUrl` mapping values.
+Invalid Cloudflare image URLs are sanitised to `null` before returning.
+
 **No Authentication Required**
 
 ## Account Endpoints
@@ -265,6 +268,10 @@ Create a new account for the current user.
 ### GET /account
 
 List all accounts for the current user.
+
+Response includes `accountTypeImageUrl`, resolved from `platform_launcher`
+mapping rows (exact match -> platform default -> launcher default -> global default).
+Returned URL values are verified as valid Cloudflare Images delivery URLs.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -336,11 +343,15 @@ Upload a character profile image.
 
 List general factions (e.g. Federation, Klingon).
 
+`iconUrl` fields are validated as Cloudflare Images URLs; invalid values are returned as `null`.
+
 **Query (optional):** `factionId=<uuid>` — when supplied, returns only general factions associated with that specific faction.
 
 ### GET /character/lookup/factions
 
 List specific factions (e.g. Starfleet (2409), TOS Starfleet, KDF).
+
+`iconUrl` fields are validated as Cloudflare Images URLs; invalid values are returned as `null`.
 
 **Query (optional):** `generalFactionId=<uuid>` — when supplied, returns only factions associated with that general faction.
 
@@ -355,6 +366,8 @@ List character classes.
 ### GET /character/lookup/recruit-types
 
 List recruit types.
+
+`iconUrl` fields are validated as Cloudflare Images URLs; invalid values are returned as `null`.
 
 **Query (optional):** `factionId=<uuid>` — when supplied, returns only recruit types available for that faction.
 
