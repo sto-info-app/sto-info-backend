@@ -31,6 +31,9 @@ Current overrides in `package.json`:
   },
   "micromatch": {
     "picomatch": "^2.3.2"
+  },
+  "preview-email": {
+    "uuid": "^11.1.1"
   }
 }
 ```
@@ -80,6 +83,18 @@ npm view @nestjs/swagger@latest dependencies.lodash
 
 ```sh
 npm view preview-email@latest dependencies.nodemailer
+```
+
+#### `preview-email` → `uuid`
+
+- **Vulnerability**: [GHSA-w5hq-g745-h8pq](https://github.com/advisories/GHSA-w5hq-g745-h8pq) — Missing buffer bounds check in UUID v3/v5/v6 when `buf` is provided (`uuid < 11.1.1`). Severity: Moderate.
+- **Root cause**: `@nestjs-modules/mailer` includes optional `preview-email@3.1.3`, which pins `uuid@^9.0.1`.
+- **Override**: `"preview-email": { "uuid": "^11.1.1" }` — keeps the fix scoped to the nested `preview-email` chain rather than forcing all `uuid` consumers globally.
+
+**When it can be removed**: When `preview-email` updates its own `uuid` dependency to `>= 11.1.1` natively. Verify by removing the override and running `npm audit --omit=dev --audit-level=high`. Check with:
+
+```sh
+npm view preview-email@latest dependencies.uuid
 ```
 
 #### `path-to-regexp`
@@ -156,7 +171,7 @@ Override removed on **2026-05-30** during dependency tree review:
 
 | Override | Previously forced | Reason for removal |
 |---|---|---|
-| `uuid` | `^11.1.1` | No longer required as an override pin; removing it avoids forcing a cross-tree version and keeps transitive consumers on their own compatible ranges |
+| `uuid` | `^11.1.1` | Removed as a global override; replaced by a scoped nested override under `preview-email` to address GHSA-w5hq-g745-h8pq without forcing all consumers |
 
 #### `mjml-core` — no override available (known vulnerability, no upstream fix)
 
@@ -190,6 +205,7 @@ const patches = [
   // [ 'path/within/node_modules/to/nested/package', 'top-level-package-name' ]
   ['@nestjs/platform-express/node_modules/multer', 'multer'],
   ['preview-email/node_modules/nodemailer', 'nodemailer'],
+  ['preview-email/node_modules/uuid', 'uuid'],
 ];
 ```
 
@@ -205,6 +221,18 @@ const patches = [
 
 ```sh
 npm view preview-email@latest dependencies.nodemailer
+```
+
+#### `uuid` (nested under `preview-email`)
+
+- **Vulnerability**: [GHSA-w5hq-g745-h8pq](https://github.com/advisories/GHSA-w5hq-g745-h8pq) — Missing buffer bounds check in UUID v3/v5/v6 when `buf` is provided (`uuid < 11.1.1`). Severity: Moderate.
+- **Root cause**: `preview-email@3.1.3` pins `uuid@^9.0.1`. Because `uuid` is also a top-level dependency, npm 11.x can leave the nested vulnerable copy in place even when a nested override is declared.
+- **Patch**: `['preview-email/node_modules/uuid', 'uuid']` in the patch script copies the safe top-level `uuid@11.1.1` over the nested `uuid@9.0.1` install after every `npm install` / `npm ci`.
+
+**When it can be removed**: When `preview-email` updates its own `uuid` dependency to `>= 11.1.1`. Verify with:
+
+```sh
+npm view preview-email@latest dependencies.uuid
 ```
 
 ## CORS Configuration
