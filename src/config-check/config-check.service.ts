@@ -215,8 +215,17 @@ class EnvironmentVariables {
 
 @Injectable()
 export class ConfigCheckService {
+  /**
+   * Creates an instance of ConfigCheckService.
+   */
   constructor() {}
 
+  /**
+   * Validates the supplied environment configuration.
+   *
+   * @param envConfig - The env config.
+   * @returns The result of the operation.
+   */
   validateInput(envConfig: Record<string, string>) {
     const config = plainToClass(EnvironmentVariables, envConfig, {
       enableImplicitConversion: true,
@@ -230,6 +239,12 @@ export class ConfigCheckService {
     return config;
   }
 
+  /**
+   * Gets the value.
+   *
+   * @param key - The key.
+   * @returns The result of the operation.
+   */
   get(key: string): string | undefined {
     const value = process.env[key];
     return typeof value === 'string' ? value : undefined;

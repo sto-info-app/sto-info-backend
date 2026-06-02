@@ -38,6 +38,17 @@ import { JwtPayloadInterface } from './entities/jwt-payload.entity';
  */
 @Injectable()
 export class AuthService {
+  /**
+   * Creates an instance of AuthService.
+   *
+   * @param userRepository - The user repository.
+   * @param userProfileRepository - The user profile repository.
+   * @param loginAttemptRepository - The login attempt repository.
+   * @param jwtService - The jwt service.
+   * @param userService - The user service.
+   * @param mailService - The mail service.
+   * @param refreshTokenService - The refresh token service.
+   */
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
@@ -84,10 +95,11 @@ export class AuthService {
     const hashedPassword = await this.getHashedPassword(
       userRegistration.password,
     );
+    const verificationToken = this.generateToken();
     const newUser = this.userRepository.create({
       email: userRegistration.email,
       password: hashedPassword,
-      emailVerificationToken: this.generateToken(),
+      emailVerificationToken: verificationToken,
       emailVerificationTokenExpiry: this.generateTokenExpiryDate(),
     });
 
@@ -98,29 +110,21 @@ export class AuthService {
       lastName: userRegistration.lastName,
     });
 
-    const verificationToken = this.generateToken();
-    newUser.emailVerificationToken = verificationToken;
-    newUser.emailVerificationTokenExpiry = this.generateTokenExpiryDate();
-
     newUser.profile = newUserProfile;
 
     try {
       const savedUser = await this.userRepository.save(newUser);
 
-      if (savedUser) {
-        const verificationToken = this.generateToken();
-        savedUser.emailVerificationToken = verificationToken;
-        await this.userRepository.save(savedUser);
-
-        await this.mailService.sendVerificationEmail(
-          savedUser.email,
-          verificationToken,
-        );
-
-        return savedUser;
-      } else {
+      if (!savedUser) {
         throw new Error('User could not be saved');
       }
+
+      await this.mailService.sendVerificationEmail(
+        savedUser.email,
+        verificationToken,
+      );
+
+      return savedUser;
     } catch (error) {
       if (
         error instanceof QueryFailedError &&
@@ -154,13 +158,7 @@ export class AuthService {
       throw new NotFoundException('Invalid token');
     }
 
-    if (!user.emailVerificationTokenExpiry) {
-      throw new BadRequestException('Token expired');
-    }
-
-    if (new Date() > user.emailVerificationTokenExpiry) {
-      throw new BadRequestException('Token expired');
-    }
+    this.assertTokenNotExpired(user.emailVerificationTokenExpiry);
 
     user.emailVerified = true;
     user.emailVerificationToken = null;
@@ -298,26 +296,39 @@ export class AuthService {
     const user = await this.validateUser(userLogin.email, userLogin.password);
 
     if (!user) {
-      await this.logLoginAttempt(userLogin.email, userIpAddress, false);
-      throw new HttpException(
+      await this.logAndThrowLoginFailure(
+        userLogin.email,
+        userIpAddress,
         'Invalid login credentials',
         HttpStatus.UNAUTHORIZED,
       );
     }
 
     if (user.isAccountDisabled) {
-      await this.logLoginAttempt(userLogin.email, userIpAddress, false);
-      throw new HttpException('Account disabled', HttpStatus.FORBIDDEN);
+      await this.logAndThrowLoginFailure(
+        userLogin.email,
+        userIpAddress,
+        'Account disabled',
+        HttpStatus.FORBIDDEN,
+      );
     }
 
     if (user.deletedAt) {
-      await this.logLoginAttempt(userLogin.email, userIpAddress, false);
-      throw new HttpException('Account deleted', HttpStatus.FORBIDDEN);
+      await this.logAndThrowLoginFailure(
+        userLogin.email,
+        userIpAddress,
+        'Account deleted',
+        HttpStatus.FORBIDDEN,
+      );
     }
 
     if (!user.emailVerified) {
-      await this.logLoginAttempt(userLogin.email, userIpAddress, false);
-      throw new HttpException('Email not verified', HttpStatus.UNAUTHORIZED);
+      await this.logAndThrowLoginFailure(
+        userLogin.email,
+        userIpAddress,
+        'Email not verified',
+        HttpStatus.UNAUTHORIZED,
+      );
     }
 
     await this.logLoginAttempt(userLogin.email, userIpAddress, true);
@@ -326,23 +337,7 @@ export class AuthService {
       email: user.email,
       sub: user.id,
     };
-
-    const expiryHours = this.getRefreshTokenExpiryHours();
-
-    const jwtId = this.generateToken();
-    const newUserRefreshToken = this.jwtService.sign(payload, {
-      expiresIn: `${expiryHours}h`,
-      jwtid: jwtId,
-    });
-
-    // Save the new refresh token (hashed)
-    await this.refreshTokenService.create({
-      user,
-      tokenId: newUserRefreshToken,
-      jwtId: jwtId,
-      isRevoked: false,
-      expiresAt: this.calculateExpiryTime(expiryHours),
-    });
+    const newUserRefreshToken = await this.issueRefreshToken(user);
 
     // Update last login time
     user.lastLoginAt = new Date();
@@ -444,13 +439,7 @@ export class AuthService {
       throw new NotFoundException('Invalid token');
     }
 
-    if (!user.passwordResetTokenExpiry) {
-      throw new BadRequestException('Token expired');
-    }
-
-    if (new Date() > user.passwordResetTokenExpiry) {
-      throw new BadRequestException('Token expired');
-    }
+    this.assertTokenNotExpired(user.passwordResetTokenExpiry);
 
     const hashedPassword = await this.getHashedPassword(newPassword);
     user.password = hashedPassword;
@@ -494,48 +483,18 @@ export class AuthService {
         throw new UnauthorizedException('User not found');
       }
 
-      // Find a non-revoked refresh token that matches both the JWT ID
-      // and the raw refresh token value using bcrypt comparison.
-      const matchingToken = await (async () => {
-        for (const token of user.refreshTokens) {
-          if (
-            token.isRevoked ||
-            token.jwtId !== payload.jti ||
-            !token.tokenId
-          ) {
-            continue;
-          }
-
-          const matches = await bcrypt.compare(refreshToken, token.tokenId);
-          if (matches) {
-            return token;
-          }
-        }
-
-        return null;
-      })();
-
-      if (!matchingToken) {
+      if (
+        !(await this.hasMatchingRefreshToken(
+          refreshToken,
+          payload.jti,
+          user.refreshTokens,
+        ))
+      ) {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
-      const expiryHours = this.getRefreshTokenExpiryHours();
-
-      const jwtId = this.generateToken();
       const newPayload = { email: user.email, sub: user.id };
-      const newUserRefreshToken = this.jwtService.sign(newPayload, {
-        expiresIn: `${expiryHours}h`,
-        jwtid: jwtId,
-      });
-
-      // Save the new refresh token (hashed in the service layer)
-      await this.refreshTokenService.create({
-        user,
-        tokenId: newUserRefreshToken,
-        jwtId: jwtId,
-        isRevoked: false,
-        expiresAt: this.calculateExpiryTime(expiryHours),
-      });
+      const newUserRefreshToken = await this.issueRefreshToken(user);
 
       // Revoke the old refresh token
       await this.refreshTokenService.revokeToken(user.id, refreshToken);
@@ -602,6 +561,72 @@ export class AuthService {
   }
 
   /**
+   * Validates that a token expiry value exists and is still valid.
+   *
+   * @param expiry Token expiry timestamp.
+   * @throws BadRequestException if missing or expired.
+   */
+  private assertTokenNotExpired(expiry: Date | null | undefined): void {
+    if (!expiry || new Date() > expiry) {
+      throw new BadRequestException('Token expired');
+    }
+  }
+
+  /**
+   * Generates, signs and persists a refresh token for a user.
+   */
+  private async issueRefreshToken(
+    user: Pick<UserEntity, 'id' | 'email'>,
+  ): Promise<string> {
+    const expiryHours = this.getRefreshTokenExpiryHours();
+    const jwtId = this.generateToken();
+
+    const token = this.jwtService.sign(
+      { email: user.email, sub: user.id },
+      {
+        expiresIn: `${expiryHours}h`,
+        jwtid: jwtId,
+      },
+    );
+
+    await this.refreshTokenService.create({
+      user: user as UserEntity,
+      tokenId: token,
+      jwtId,
+      isRevoked: false,
+      expiresAt: this.calculateExpiryTime(expiryHours),
+    });
+
+    return token;
+  }
+
+  /**
+   * Checks whether any stored refresh token matches the given raw token and JWT ID.
+   */
+  private async hasMatchingRefreshToken(
+    rawToken: string,
+    jwtId: string | undefined,
+    refreshTokens: Array<{
+      isRevoked: boolean;
+      jwtId: string | null;
+      tokenId: string | null;
+    }>,
+  ): Promise<boolean> {
+    for (const token of refreshTokens) {
+      if (token.isRevoked || token.jwtId !== jwtId || !token.tokenId) {
+        continue;
+      }
+
+      const matches = await bcrypt.compare(rawToken, token.tokenId);
+      if (matches) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
    * Logs a login attempt.
    * @param email - The user's email.
    * @param ipAddress - The user's IP address.
@@ -620,5 +645,18 @@ export class AuthService {
 
     await validateOrReject(loginAttemptRecord);
     await this.loginAttemptRepository.save(loginAttemptRecord);
+  }
+
+  /**
+   * Records a failed login attempt and throws an HTTP exception.
+   */
+  private async logAndThrowLoginFailure(
+    email: string,
+    ipAddress: string | null,
+    message: string,
+    status: HttpStatus,
+  ): Promise<never> {
+    await this.logLoginAttempt(email, ipAddress, false);
+    throw new HttpException(message, status);
   }
 }

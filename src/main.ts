@@ -36,16 +36,36 @@ import {
 import { SWAGGER_UI_DARK_THEME_CSS } from './shared/constants/swagger.constants';
 import { getAppVersion } from './shared/utilities/version.utility';
 
+/**
+ * Converts bytes to megabytes.
+ *
+ * @param bytes - The bytes.
+ * @returns The result of the operation.
+ */
 function toMb(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
 }
 
+/**
+ * Formats the startup memory summary.
+ *
+ * @param message - The message.
+ * @returns The result of the operation.
+ */
 function formatStartupMemory(message: string) {
   const mem = process.memoryUsage();
 
   return `[startup] ${message} | rss=${toMb(mem.rss)} heapUsed=${toMb(mem.heapUsed)} heapTotal=${toMb(mem.heapTotal)} external=${toMb(mem.external)} arrayBuffers=${toMb(mem.arrayBuffers)}`;
 }
 
+/**
+ * Creates a rate limiter with the supplied configuration.
+ *
+ * @param options - The options.
+ * @param redis - The redis.
+ * @param prefix - The prefix.
+ * @returns The result of the operation.
+ */
 function createRateLimiter(
   options: {
     windowMins: number;
@@ -98,6 +118,11 @@ function createRateLimiter(
   });
 }
 
+/**
+ * Bootstraps the application.
+ *
+ * @returns A promise that resolves when the operation completes.
+ */
 async function bootstrap() {
   const startupDiagnosticsEnabled =
     (process.env.STARTUP_DIAGNOSTICS ?? '').toLowerCase() === 'true';

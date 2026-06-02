@@ -123,6 +123,20 @@ export class AccountEntity {
   characters: CharacterEntity[];
 
   /**
+   * The total endeavour nodes spent across all perks for this account.
+   */
+  @ApiProperty({
+    description:
+      'The total endeavour nodes spent across all perks for this account.',
+    example: 512,
+  })
+  @VirtualColumn({
+    query: alias =>
+      `SELECT COALESCE(SUM("currentNodes"), 0) FROM "sto_info_app"."account_endeavour_progress" WHERE "accountId" = ${alias}.id`,
+  })
+  endeavourTotalNodes: number;
+
+  /**
    * The number of non-deleted characters associated with this specific account.
    */
   @ApiProperty({

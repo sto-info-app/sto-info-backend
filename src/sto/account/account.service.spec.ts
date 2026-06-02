@@ -9,12 +9,14 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { PlatformLauncherEntity } from '../platform-launcher/entities/platform-launcher.entity';
 import { AccountService } from './account.service';
 import { AccountEntity } from './entities/account.entity';
 
 describe('AccountService', () => {
   let service: AccountService;
   let repository: Repository<AccountEntity>;
+  let platformLauncherRepository: Repository<PlatformLauncherEntity>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -32,12 +34,21 @@ describe('AccountService', () => {
             delete: jest.fn(),
           },
         },
+        {
+          provide: getRepositoryToken(PlatformLauncherEntity),
+          useValue: {
+            find: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
     service = module.get<AccountService>(AccountService);
     repository = module.get<Repository<AccountEntity>>(
       getRepositoryToken(AccountEntity),
+    );
+    platformLauncherRepository = module.get<Repository<PlatformLauncherEntity>>(
+      getRepositoryToken(PlatformLauncherEntity),
     );
   });
 
@@ -145,27 +156,219 @@ describe('AccountService', () => {
   });
 
   describe('findAllUsersAccounts', () => {
-    it('should return all accounts for a user', async () => {
+    it('should return all accounts for a user with account type image URLs', async () => {
+      process.env.CLOUDFLARE_CDN_ROOT_URL = 'https://cdn.startrekonline.info';
+      process.env.CLOUDFLARE_IMAGES_HASH = 'jQ0uSdJ3ty-KasNpXGxyuA';
+
       const accounts = [
-        { id: '1', userId: 'user-1' },
-        { id: '2', userId: 'user-1' },
+        {
+          id: '1',
+          userId: 'user-1',
+          platformId: 'platform-win',
+          launcherId: 'launcher-steam',
+          platform: { name: 'Windows' },
+          launcher: { name: 'Steam' },
+        },
+        {
+          id: '2',
+          userId: 'user-1',
+          platformId: 'platform-ps',
+          launcherId: null,
+          platform: { name: 'PlayStation' },
+          launcher: null,
+        },
       ];
+
+      const mappings = [
+        {
+          platformId: 'platform-win',
+          launcherId: 'launcher-steam',
+          backgroundImageUrl:
+            'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/3e4517f1-6a07-4b68-bf80-710a70d8ff00/public',
+        },
+        {
+          platformId: 'platform-ps',
+          launcherId: null,
+          backgroundImageUrl:
+            'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/4a3443c5-1430-4139-0167-3eb19d135a00/public',
+        },
+      ];
+
       (
         repository.find as jest.Mock<(...args: any[]) => Promise<any>>
       ).mockResolvedValue(accounts);
+      (
+        platformLauncherRepository.find as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(mappings);
 
       const result = await service.findAllUsersAccounts('user-1');
 
-      expect(result).toEqual(accounts);
+      expect(result).toEqual([
+        {
+          ...accounts[0],
+          accountTypeImageUrl:
+            'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/3e4517f1-6a07-4b68-bf80-710a70d8ff00/public',
+        },
+        {
+          ...accounts[1],
+          accountTypeImageUrl:
+            'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/4a3443c5-1430-4139-0167-3eb19d135a00/public',
+        },
+      ]);
+
       expect(repository.find).toHaveBeenCalledWith({
         where: { user: { id: 'user-1' } },
+        relations: { platform: true, launcher: true },
         order: { handle: 'ASC', username: 'ASC', createdAt: 'ASC' },
+      });
+      expect(platformLauncherRepository.find).toHaveBeenCalledWith({
+        select: {
+          platformId: true,
+          launcherId: true,
+          backgroundImageUrl: true,
+        },
       });
     });
 
     it('should throw BadRequestException if userId is missing', async () => {
       await expect(service.findAllUsersAccounts('')).rejects.toThrow(
         BadRequestException,
+      );
+    });
+
+    it('should ignore invalid mapping URLs and fall back to default image URL', async () => {
+      process.env.CLOUDFLARE_CDN_ROOT_URL = 'https://cdn.startrekonline.info';
+      process.env.CLOUDFLARE_IMAGES_HASH = 'jQ0uSdJ3ty-KasNpXGxyuA';
+
+      const accounts = [
+        {
+          id: '1',
+          userId: 'user-1',
+          platformId: 'platform-win',
+          launcherId: 'launcher-steam',
+        },
+      ];
+
+      (
+        repository.find as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(accounts);
+      (
+        platformLauncherRepository.find as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue([
+        {
+          platformId: 'platform-win',
+          launcherId: 'launcher-steam',
+          backgroundImageUrl: 'https://example.com/not-cloudflare.jpg',
+        },
+      ]);
+
+      const result = await service.findAllUsersAccounts('user-1');
+
+      expect(result[0].accountTypeImageUrl).toBe(
+        'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/8ab52131-6f11-408a-d9df-3c1acaa46d00/public',
+      );
+    });
+
+    it('should use platform default mapping when exact mapping is missing', async () => {
+      const accounts = [
+        {
+          id: '1',
+          userId: 'user-1',
+          platformId: 'platform-win',
+          launcherId: 'launcher-epic',
+        },
+      ];
+
+      (
+        repository.find as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(accounts);
+      (
+        platformLauncherRepository.find as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue([
+        {
+          platformId: 'platform-win',
+          launcherId: null,
+          backgroundImageUrl:
+            'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/11111111-2222-4333-8444-555555555555/public',
+        },
+      ]);
+
+      const result = await service.findAllUsersAccounts('user-1');
+
+      expect(result[0].accountTypeImageUrl).toBe(
+        'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/11111111-2222-4333-8444-555555555555/public',
+      );
+    });
+
+    it('should use launcher default mapping when exact and platform mappings are missing', async () => {
+      const accounts = [
+        {
+          id: '1',
+          userId: 'user-1',
+          platformId: 'platform-unknown',
+          launcherId: 'launcher-steam',
+        },
+      ];
+
+      (
+        repository.find as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(accounts);
+      (
+        platformLauncherRepository.find as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue([
+        {
+          platformId: null,
+          launcherId: 'launcher-steam',
+          backgroundImageUrl:
+            'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/22222222-3333-4444-8555-666666666666/public',
+        },
+      ]);
+
+      const result = await service.findAllUsersAccounts('user-1');
+
+      expect(result[0].accountTypeImageUrl).toBe(
+        'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/22222222-3333-4444-8555-666666666666/public',
+      );
+    });
+
+    it('should use global default mapping when only global mapping is available', async () => {
+      const accounts = [
+        {
+          id: '1',
+          userId: 'user-1',
+          platformId: 'platform-unknown',
+          launcherId: 'launcher-unknown',
+        },
+      ];
+
+      (
+        repository.find as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(accounts);
+      (
+        platformLauncherRepository.find as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue([
+        {
+          platformId: null,
+          launcherId: null,
+          backgroundImageUrl:
+            'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/33333333-4444-4555-8666-777777777777/public',
+        },
+      ]);
+
+      const result = await service.findAllUsersAccounts('user-1');
+
+      expect(result[0].accountTypeImageUrl).toBe(
+        'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/33333333-4444-4555-8666-777777777777/public',
       );
     });
   });

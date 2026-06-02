@@ -3,6 +3,11 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 export class RefactorCharacterToNormalizedTables1767459660259 implements MigrationInterface {
   name = 'RefactorCharacterToNormalizedTables1767459660259';
 
+  /**
+   * Applies the migration to the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       CREATE TABLE "sto_info_app"."character_class" (
@@ -409,6 +414,11 @@ export class RefactorCharacterToNormalizedTables1767459660259 implements Migrati
     `);
   }
 
+  /**
+   * Reverts the migration from the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       ALTER TABLE "sto_info_app"."faction_species_mapping" 

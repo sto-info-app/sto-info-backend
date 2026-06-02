@@ -10,6 +10,14 @@ import { SesAuditCleanupService } from './jobs/ses-audit-cleanup/ses-audit-clean
 export class CronService {
   private readonly logger = new Logger(CronService.name);
 
+  /**
+   * Creates an instance of CronService.
+   *
+   * @param auditCleanupService - The audit cleanup service.
+   * @param auditLoginAttemptCleanupService - The audit login attempt cleanup service.
+   * @param contactRequestCleanupService - The contact request cleanup service.
+   * @param sesAuditCleanupService - The ses audit cleanup service.
+   */
   constructor(
     private readonly auditCleanupService: AuditCleanupService,
     private readonly auditLoginAttemptCleanupService: AuditLoginAttemptCleanupService,

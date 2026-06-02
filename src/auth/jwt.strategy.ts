@@ -13,6 +13,13 @@ import { JwtPayloadInterface } from './entities/jwt-payload.entity';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
+  /**
+   * Creates an instance of JwtStrategy.
+   *
+   * @param authService - The auth service.
+   * @param configService - The config service.
+   * @param secretsService - The secrets service.
+   */
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,

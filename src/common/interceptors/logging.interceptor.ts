@@ -14,6 +14,13 @@ import { tap } from 'rxjs/operators';
 export class LoggingInterceptor implements NestInterceptor {
   private readonly logger = new Logger('HTTP');
 
+  /**
+   * Intercepts the request pipeline.
+   *
+   * @param context - The execution context.
+   * @param next - The next middleware function.
+   * @returns The result of the operation.
+   */
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const ctx = context.switchToHttp();
     const request = ctx.getRequest<Request>();

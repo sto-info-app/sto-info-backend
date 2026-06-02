@@ -85,6 +85,11 @@ export class UserEntity {
   deletedAt: Date | null;
 
   @BeforeInsert()
+  /**
+   * Generates a UUID for the entity.
+   *
+   * @returns The result of the operation.
+   */
   generateUuid() {
     this.id = uuid();
   }
@@ -98,6 +103,12 @@ export class UserEntity {
   @OneToOne(() => UserProfileEntity, profile => profile.user, { cascade: true })
   profile: UserProfileEntity;
 
+  /**
+   * Compares a password against the stored hash.
+   *
+   * @param password - The password.
+   * @returns A promise that resolves when the operation completes.
+   */
   async comparePassword(password: string): Promise<boolean> {
     return bcrypt.compare(password, this.password);
   }

@@ -28,6 +28,11 @@ import { UpdateAccountDto } from './dto/update-account.dto';
 @UseGuards(JwtAuthGuard)
 @Controller('account')
 export class AccountController {
+  /**
+   * Creates an instance of AccountController.
+   *
+   * @param accountService - The account service.
+   */
   constructor(private readonly accountService: AccountService) {}
 
   /**

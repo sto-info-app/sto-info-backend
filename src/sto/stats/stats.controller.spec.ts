@@ -24,6 +24,12 @@ describe('StatsController', () => {
     byLevelRange: [],
     byPlatform: [],
     byLauncher: [],
+    endeavourTotalNodes: 25,
+    endeavourMaxNodes: 50,
+    byEndeavourPerk: [],
+    byEndeavourPerkAvg: [],
+    byEndeavourCategory: [],
+    byEndeavourCategoryPct: [],
   };
 
   beforeEach(async () => {

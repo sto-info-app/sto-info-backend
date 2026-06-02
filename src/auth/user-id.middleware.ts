@@ -17,6 +17,12 @@ interface JwtPayload {
  */
 @Injectable()
 export class UserIdMiddleware implements NestMiddleware {
+  /**
+   * Creates an instance of UserIdMiddleware.
+   *
+   * @param configService - The config service.
+   * @param secretsService - The secrets service.
+   */
   constructor(
     private readonly configService: ConfigService,
     private readonly secretsService: SecretsService,

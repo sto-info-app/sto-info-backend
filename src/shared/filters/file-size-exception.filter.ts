@@ -8,6 +8,13 @@ import { MulterError } from 'multer';
 
 @Catch(MulterError)
 export class FileSizeExceptionFilter implements ExceptionFilter {
+  /**
+   * Handles the thrown exception.
+   *
+   * @param exception - The exception.
+   * @param host - The execution host.
+   * @returns The result of the operation.
+   */
   catch(exception: MulterError, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse();

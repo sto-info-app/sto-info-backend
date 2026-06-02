@@ -34,6 +34,9 @@ describe('CharacterService', () => {
   let imageUploadsService: ImageUploadsService;
 
   beforeEach(async () => {
+    process.env.CLOUDFLARE_CDN_ROOT_URL = 'https://cdn.startrekonline.info';
+    process.env.CLOUDFLARE_IMAGES_HASH = 'jQ0uSdJ3ty-KasNpXGxyuA';
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CharacterService,
@@ -398,6 +401,63 @@ describe('CharacterService', () => {
         BadRequestException,
       );
     });
+
+    it('should sanitize invalid related icon URLs', async () => {
+      const character = {
+        id: 'char-1',
+        account: { userId: 'user-1' },
+        generalFaction: { iconUrl: 'https://example.com/not-cloudflare.jpg' },
+        faction: {
+          iconUrl:
+            'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/468b8117-7cc6-493c-cb0b-57f37b418100/public',
+          ranks: [{ iconUrl: 'https://example.com/not-cloudflare-rank.jpg' }],
+        },
+        recruitType: {
+          iconUrl:
+            'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/22af6120-b106-4c84-6c7b-8de08aa0b100/square40',
+        },
+      };
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(character);
+
+      const result = await service.findOneForUser('char-1', 'user-1');
+
+      expect(result.generalFaction.iconUrl).toBeNull();
+      expect(result.faction.iconUrl).toBe(
+        'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/468b8117-7cc6-493c-cb0b-57f37b418100/public',
+      );
+      expect(result.faction.ranks[0].iconUrl).toBeNull();
+      expect(result.recruitType.iconUrl).toBe(
+        'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/22af6120-b106-4c84-6c7b-8de08aa0b100/square40',
+      );
+    });
+
+    it('should skip rank sanitization when faction ranks is not an array', async () => {
+      const character = {
+        id: 'char-2',
+        account: { userId: 'user-1' },
+        faction: {
+          iconUrl:
+            'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/468b8117-7cc6-493c-cb0b-57f37b418100/public',
+          ranks: null,
+        },
+      };
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(character);
+
+      const result = await service.findOneForUser('char-2', 'user-1');
+
+      expect(result.faction.iconUrl).toBe(
+        'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/468b8117-7cc6-493c-cb0b-57f37b418100/public',
+      );
+      expect(result.faction.ranks).toBeNull();
+    });
   });
 
   describe('updateForUser', () => {
@@ -656,8 +716,24 @@ describe('CharacterService', () => {
 
       it('should get all general factions when no filter', async () => {
         const result = await service.getGeneralFactions();
-        expect(result).toEqual([{ name: 'Federation' }]);
+        expect(result).toEqual([{ name: 'Federation', iconUrl: null }]);
         expect(queryBuilder.innerJoin).not.toHaveBeenCalled();
+      });
+
+      it('should preserve valid Cloudflare icon URLs', async () => {
+        queryBuilder.getMany.mockResolvedValue([
+          {
+            name: 'Federation',
+            iconUrl:
+              'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/ec44375e-a4a2-4738-1465-1a93343ef500/square40',
+          },
+        ]);
+
+        const result = await service.getGeneralFactions();
+
+        expect(result[0].iconUrl).toBe(
+          'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/ec44375e-a4a2-4738-1465-1a93343ef500/square40',
+        );
       });
 
       it('should filter by factionId', async () => {
@@ -689,7 +765,7 @@ describe('CharacterService', () => {
 
       it('should get all factions when no filter', async () => {
         const result = await service.getFactions();
-        expect(result).toEqual([{ name: 'Starfleet' }]);
+        expect(result).toEqual([{ name: 'Starfleet', iconUrl: null }]);
         expect(queryBuilder.innerJoin).not.toHaveBeenCalled();
       });
 
@@ -722,7 +798,7 @@ describe('CharacterService', () => {
 
       it('should get all recruit types when no filter', async () => {
         const result = await service.getRecruitTypes();
-        expect(result).toEqual([{ name: 'Standard' }]);
+        expect(result).toEqual([{ name: 'Standard', iconUrl: null }]);
         expect(queryBuilder.innerJoin).not.toHaveBeenCalled();
       });
 

@@ -14,6 +14,11 @@ describe('PlatformLauncherService', () => {
   let service: PlatformLauncherService;
   let repository: Repository<PlatformLauncherEntity>;
 
+  beforeAll(() => {
+    process.env.CLOUDFLARE_CDN_ROOT_URL = 'https://cdn.startrekonline.info';
+    process.env.CLOUDFLARE_IMAGES_HASH = 'jQ0uSdJ3ty-KasNpXGxyuA';
+  });
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -169,6 +174,24 @@ describe('PlatformLauncherService', () => {
         relations: { platform: true, launcher: true },
       });
     });
+
+    it('should null invalid background image URLs', async () => {
+      const relations = [
+        {
+          id: '1',
+          platformId: 'p1',
+          launcherId: 'l1',
+          backgroundImageUrl: 'https://example.com/not-cloudflare.jpg',
+        },
+      ];
+      (
+        repository.find as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(relations);
+
+      const result = await service.findAll();
+
+      expect(result[0].backgroundImageUrl).toBeNull();
+    });
   });
 
   describe('findAllLaunchersForPlatform', () => {
@@ -202,6 +225,8 @@ describe('PlatformLauncherService', () => {
         id: '1',
         platformId: 'platform-1',
         launcherId: 'launcher-1',
+        backgroundImageUrl:
+          'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/8ab52131-6f11-408a-d9df-3c1acaa46d00/public',
       };
       (
         repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
@@ -213,6 +238,22 @@ describe('PlatformLauncherService', () => {
       expect(repository.findOne).toHaveBeenCalledWith({
         where: { platformId: 'platform-1', launcherId: 'launcher-1' },
       });
+    });
+
+    it('should null an invalid background image URL', async () => {
+      const relation = {
+        id: '1',
+        platformId: 'platform-1',
+        launcherId: 'launcher-1',
+        backgroundImageUrl: 'https://example.com/not-cloudflare.jpg',
+      };
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(relation);
+
+      const result = await service.findOne('platform-1', 'launcher-1');
+
+      expect(result.backgroundImageUrl).toBeNull();
     });
 
     it('should throw NotFoundException if relation not found', async () => {

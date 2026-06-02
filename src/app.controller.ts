@@ -12,6 +12,11 @@ import { getAppVersion } from './shared/utilities/version.utility';
 @ApiTags('Core APIs')
 @Controller()
 export class AppController {
+  /**
+   * Creates an instance of AppController.
+   *
+   * @param _appService - The app service.
+   */
   constructor(private readonly _appService: AppService) {}
 
   /**

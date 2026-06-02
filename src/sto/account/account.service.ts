@@ -8,18 +8,47 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LessThan, Not, Repository } from 'typeorm';
+import {
+  buildCloudflareImageUrl,
+  isValidCloudflareImageUrl,
+} from 'src/shared/constants/image.constants';
+import { PlatformLauncherEntity } from '../platform-launcher/entities/platform-launcher.entity';
 
 import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
 import { AccountEntity } from './entities/account.entity';
 
+/**
+ * Account list API shape enriched with resolved account background image URL.
+ */
+export type AccountListItem = AccountEntity & {
+  accountTypeImageUrl: string;
+};
+
 @Injectable()
 export class AccountService {
+  private static readonly fallbackAccountTypeImageId =
+    '8ab52131-6f11-408a-d9df-3c1acaa46d00';
+
+  /**
+   * Creates an instance of AccountService.
+   *
+   * @param accountRepository - The account repository.
+   * @param platformLauncherRepository - The platform-launcher repository.
+   */
   constructor(
     @InjectRepository(AccountEntity)
     private readonly accountRepository: Repository<AccountEntity>,
+    @InjectRepository(PlatformLauncherEntity)
+    private readonly platformLauncherRepository: Repository<PlatformLauncherEntity>,
   ) {}
 
+  /**
+   * Normalizes the supplied handle.
+   *
+   * @param handle - The handle.
+   * @returns The result of the operation.
+   */
   private normalizeHandle(handle: string): string {
     return handle.trim().toLowerCase();
   }
@@ -32,6 +61,75 @@ export class AccountService {
    */
   private generateSlug(handle: string): string {
     return handle.trim().replaceAll('#', '~');
+  }
+
+  /**
+   * Builds a deterministic lookup key for platform-launcher mappings.
+   *
+   * @param platformId - Optional platform ID.
+   * @param launcherId - Optional launcher ID.
+   * @returns A deterministic key in the format `<platformId>|<launcherId>`.
+   */
+  private buildPlatformLauncherLookupKey(
+    platformId?: string | null,
+    launcherId?: string | null,
+  ): string {
+    return `${platformId ?? ''}|${launcherId ?? ''}`;
+  }
+
+  /**
+   * Resolves the account card background URL from platform-launcher mappings.
+   *
+   * Resolution order:
+   * 1) Exact platform + launcher
+   * 2) Platform default (platform + null launcher)
+   * 3) Launcher default (null platform + launcher)
+   * 4) Global default (null platform + null launcher)
+   * 5) Static fallback URL
+   *
+   * @param account - The account to resolve for.
+   * @param backgroundImageLookup - A mapping from lookup key to URL.
+   * @returns The selected account background image URL.
+   */
+  private resolveAccountTypeImageUrl(
+    account: AccountEntity,
+    backgroundImageLookup: Map<string, string>,
+  ): string {
+    const exact = backgroundImageLookup.get(
+      this.buildPlatformLauncherLookupKey(
+        account.platformId,
+        account.launcherId,
+      ),
+    );
+    if (exact) {
+      return exact;
+    }
+
+    const platformDefault = backgroundImageLookup.get(
+      this.buildPlatformLauncherLookupKey(account.platformId, null),
+    );
+    if (platformDefault) {
+      return platformDefault;
+    }
+
+    const launcherDefault = backgroundImageLookup.get(
+      this.buildPlatformLauncherLookupKey(null, account.launcherId),
+    );
+    if (launcherDefault) {
+      return launcherDefault;
+    }
+
+    const globalDefault = backgroundImageLookup.get(
+      this.buildPlatformLauncherLookupKey(null, null),
+    );
+    if (globalDefault) {
+      return globalDefault;
+    }
+
+    return buildCloudflareImageUrl(
+      AccountService.fallbackAccountTypeImageId,
+      'public',
+    );
   }
 
   /**
@@ -113,19 +211,52 @@ export class AccountService {
    * @param userId Owner user ID.
    * @returns List of the user's accounts.
    */
-  async findAllUsersAccounts(userId: string): Promise<AccountEntity[]> {
+  async findAllUsersAccounts(userId: string): Promise<AccountListItem[]> {
     if (!userId) {
       throw new BadRequestException('User ID is required');
     }
 
-    return this.accountRepository.find({
+    const accounts = await this.accountRepository.find({
       where: {
         user: {
           id: userId,
         },
       },
+      relations: {
+        platform: true,
+        launcher: true,
+      },
       order: { handle: 'ASC', username: 'ASC', createdAt: 'ASC' },
     });
+
+    const platformLaunchers = await this.platformLauncherRepository.find({
+      select: {
+        platformId: true,
+        launcherId: true,
+        backgroundImageUrl: true,
+      },
+    });
+
+    const backgroundImageLookup = new Map<string, string>();
+    for (const mapping of platformLaunchers) {
+      if (!isValidCloudflareImageUrl(mapping.backgroundImageUrl)) {
+        continue;
+      }
+
+      const key = this.buildPlatformLauncherLookupKey(
+        mapping.platformId,
+        mapping.launcherId,
+      );
+      backgroundImageLookup.set(key, mapping.backgroundImageUrl);
+    }
+
+    return accounts.map(account => ({
+      ...account,
+      accountTypeImageUrl: this.resolveAccountTypeImageUrl(
+        account,
+        backgroundImageLookup,
+      ),
+    }));
   }
 
   /**

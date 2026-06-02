@@ -3,6 +3,11 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 export class AddStandardRecruitTosSpeciesMapping1773196000000 implements MigrationInterface {
   name = 'AddStandardRecruitTosSpeciesMapping1773196000000';
 
+  /**
+   * Applies the migration to the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Standard recruits were missing the 23c species, leaving TOS Starfleet
     // with no selectable species when recruit type is Standard.
@@ -16,6 +21,11 @@ export class AddStandardRecruitTosSpeciesMapping1773196000000 implements Migrati
     `);
   }
 
+  /**
+   * Reverts the migration from the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       DELETE FROM "sto_info_app"."recruit_type_species_mapping"

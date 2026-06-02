@@ -5,6 +5,8 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { CharacterRankEntity } from 'src/sto/character/entities/character-rank.entity';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
+import { AccountEndeavourProgressEntity } from 'src/sto/endeavour/entities/account-endeavour-progress.entity';
+import { EndeavourPerkEntity } from 'src/sto/endeavour/entities/endeavour-perk.entity';
 import { StatsService } from './stats.service';
 
 /** Returns a fully-chainable query-builder stub. */
@@ -53,6 +55,7 @@ describe('StatsService', () => {
   let accountRepository: any;
   let characterRepository: any;
   let characterRankRepository: any;
+  let progressRepository: any;
 
   // Query-builder stubs created fresh for each test
   let levelStatsQb: ReturnType<typeof makeQb>;
@@ -60,6 +63,7 @@ describe('StatsService', () => {
   let levelRangeCharQb: ReturnType<typeof makeQb>;
   let rankQb: ReturnType<typeof makeQb>;
   let accountQb: ReturnType<typeof makeQb>;
+  let progressQb: ReturnType<typeof makeQb>;
 
   beforeEach(async () => {
     /*
@@ -106,6 +110,15 @@ describe('StatsService', () => {
         .mockResolvedValue([]),
     });
 
+    progressQb = makeQb({
+      getRawMany: jest
+        .fn<(...args: any[]) => Promise<any>>()
+        .mockResolvedValue([]),
+      getRawOne: jest
+        .fn<(...args: any[]) => Promise<any>>()
+        .mockResolvedValue({ activeCount: '0' }),
+    });
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         StatsService,
@@ -147,6 +160,33 @@ describe('StatsService', () => {
             createQueryBuilder: jest.fn(),
           },
         },
+        {
+          provide: getRepositoryToken(AccountEndeavourProgressEntity),
+          useValue: {
+            createQueryBuilder: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(EndeavourPerkEntity),
+          useValue: {
+            find: jest
+              .fn<(...args: any[]) => Promise<any>>()
+              .mockResolvedValue([
+                {
+                  name: 'Space Perk',
+                  category: 'Space',
+                  maxNodes: 10,
+                  sortOrder: 1,
+                },
+                {
+                  name: 'Ground Perk',
+                  category: 'Ground',
+                  maxNodes: 15,
+                  sortOrder: 2,
+                },
+              ]),
+          },
+        },
       ],
     }).compile();
 
@@ -155,6 +195,9 @@ describe('StatsService', () => {
     characterRepository = module.get(getRepositoryToken(CharacterEntity));
     characterRankRepository = module.get(
       getRepositoryToken(CharacterRankEntity),
+    );
+    progressRepository = module.get(
+      getRepositoryToken(AccountEndeavourProgressEntity),
     );
 
     // Wire up QB factories with per-call returns in execution order
@@ -169,6 +212,10 @@ describe('StatsService', () => {
 
     (accountRepository.createQueryBuilder as jest.Mock).mockReturnValue(
       accountQb,
+    );
+
+    (progressRepository.createQueryBuilder as jest.Mock).mockReturnValue(
+      progressQb,
     );
   });
 
@@ -257,6 +304,12 @@ describe('StatsService', () => {
         byLevelRange: expect.any(Array),
         byPlatform: expect.any(Array),
         byLauncher: expect.any(Array),
+        endeavourTotalNodes: expect.any(Number),
+        endeavourMaxNodes: expect.any(Number),
+        byEndeavourPerk: expect.any(Array),
+        byEndeavourPerkAvg: expect.any(Array),
+        byEndeavourCategory: expect.any(Array),
+        byEndeavourCategoryPct: expect.any(Array),
       });
     });
   });
@@ -522,6 +575,88 @@ describe('StatsService', () => {
       expect(accountQb.andWhere).toHaveBeenCalledWith('a.id = :accountId', {
         accountId: 'acc-1',
       });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // getEndeavourStats (exercised via getStats)
+  // ---------------------------------------------------------------------------
+
+  describe('getEndeavourStats', () => {
+    it('should compute endeavour averages and category percentages when active accounts exist', async () => {
+      progressQb.getRawMany
+        .mockResolvedValueOnce([
+          { name: 'Space Perk', count: '8' },
+          { name: 'Ground Perk', count: '4' },
+        ])
+        .mockResolvedValueOnce([
+          { name: 'Space', count: '8' },
+          { name: 'Ground', count: '4' },
+        ]);
+      progressQb.getRawOne.mockResolvedValue({ activeCount: '2' });
+
+      const result = await service.getStats('user-1');
+
+      expect(result.endeavourTotalNodes).toBe(12);
+      expect(result.endeavourMaxNodes).toBe(50);
+      expect(result.byEndeavourPerkAvg).toEqual([
+        { name: 'Space Perk', count: 4 },
+        { name: 'Ground Perk', count: 2 },
+      ]);
+      expect(result.byEndeavourCategoryPct).toEqual([
+        { name: 'Space', count: 40 },
+        { name: 'Ground', count: 13 },
+      ]);
+    });
+
+    it('should default active account count to zero when the active-account query returns undefined', async () => {
+      progressQb.getRawMany
+        .mockResolvedValueOnce([{ name: 'Space Perk', count: '6' }])
+        .mockResolvedValueOnce([{ name: 'Space', count: '6' }]);
+      progressQb.getRawOne.mockResolvedValue(undefined);
+
+      const result = await service.getStats('user-1');
+
+      expect(result.byEndeavourPerkAvg).toEqual([
+        { name: 'Space Perk', count: 0 },
+        { name: 'Ground Perk', count: 0 },
+      ]);
+      expect(result.byEndeavourCategoryPct).toEqual([
+        { name: 'Space', count: 0 },
+        { name: 'Ground', count: 0 },
+      ]);
+    });
+
+    it('should handle missing category max values by falling back to zero', async () => {
+      const originalMapGet = Map.prototype.get;
+      const mapGetSpy = jest
+        .spyOn(Map.prototype, 'get')
+        .mockImplementation(function (this: Map<any, any>, key: any) {
+          if (
+            this.size === 2 &&
+            this.has('Space') &&
+            this.has('Ground') &&
+            (key === 'Space' || key === 'Ground')
+          ) {
+            return undefined;
+          }
+
+          return originalMapGet.call(this, key);
+        });
+
+      progressQb.getRawMany
+        .mockResolvedValueOnce([{ name: 'Space Perk', count: '3' }])
+        .mockResolvedValueOnce([{ name: 'Space', count: '3' }]);
+      progressQb.getRawOne.mockResolvedValue({ activeCount: '1' });
+
+      const result = await service.getStats('user-1');
+
+      expect(result.byEndeavourCategoryPct).toEqual([
+        { name: 'Space', count: 0 },
+        { name: 'Ground', count: 0 },
+      ]);
+
+      mapGetSpy.mockRestore();
     });
   });
 });

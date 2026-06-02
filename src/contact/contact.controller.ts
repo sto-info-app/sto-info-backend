@@ -12,6 +12,11 @@ import { ContactRequestDto } from './dto/contact-request.dto';
 @ApiTags('Contact')
 @Controller('contact')
 export class ContactController {
+  /**
+   * Creates an instance of ContactController.
+   *
+   * @param contactService - The contact service.
+   */
   constructor(private readonly contactService: ContactService) {}
 
   /**

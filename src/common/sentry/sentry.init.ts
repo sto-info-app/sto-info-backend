@@ -16,6 +16,12 @@ if (process.env.SENTRY_DSN) {
     tracesSampleRate: 0.2,
 
     // Drop noisy endpoints from performance data
+    /**
+     * Sanitizes a transaction before it is sent to Sentry.
+     *
+     * @param event - The event.
+     * @returns The result of the operation.
+     */
     beforeSendTransaction(event) {
       const url = event.request?.url ?? '';
       if (url.includes('/health') || url.includes('/metrics')) return null;
@@ -26,6 +32,12 @@ if (process.env.SENTRY_DSN) {
     ignoreErrors: ['ResizeObserver loop limit exceeded'],
 
     // Redaction / filtering
+    /**
+     * Sanitizes an event before it is sent to Sentry.
+     *
+     * @param event - The event.
+     * @returns The result of the operation.
+     */
     beforeSend(event) {
       // Strip sensitive headers if present
       if (event.request?.headers) {

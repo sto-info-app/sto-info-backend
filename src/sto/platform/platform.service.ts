@@ -13,15 +13,31 @@ import { PlatformEntity } from './entities/platform.entity';
 
 @Injectable()
 export class PlatformService {
+  /**
+   * Creates an instance of PlatformService.
+   *
+   * @param platformRepository - The platform repository.
+   */
   constructor(
     @InjectRepository(PlatformEntity)
     private readonly platformRepository: Repository<PlatformEntity>,
   ) {}
 
+  /**
+   * Finds all.
+   *
+   * @returns A promise that resolves when the operation completes.
+   */
   async findAll() {
     return await this.platformRepository.find();
   }
 
+  /**
+   * Finds one.
+   *
+   * @param id - The id.
+   * @returns A promise that resolves when the operation completes.
+   */
   async findOne(id: string): Promise<PlatformEntity> {
     if (!id) {
       throw new BadRequestException('Platform ID is required');
@@ -40,6 +56,12 @@ export class PlatformService {
     return platform;
   }
 
+  /**
+   * Finds a record by name.
+   *
+   * @param name - The name.
+   * @returns A promise that resolves when the operation completes.
+   */
   async findOneByName(name: string): Promise<PlatformEntity> {
     if (!name) {
       throw new BadRequestException('Platform name is required');
@@ -56,6 +78,11 @@ export class PlatformService {
     return platform;
   }
 
+  /**
+   * Finds records soft-deleted more than one week ago.
+   *
+   * @returns A promise that resolves when the operation completes.
+   */
   async findAllSoftDeletedOlderThanOneWeek(): Promise<PlatformEntity[]> {
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
@@ -67,6 +94,12 @@ export class PlatformService {
       .getMany();
   }
 
+  /**
+   * Creates the value.
+   *
+   * @param createPlatformDto - The create platform dto.
+   * @returns A promise that resolves when the operation completes.
+   */
   async create(createPlatformDto: CreatePlatformDto): Promise<PlatformEntity> {
     if (!createPlatformDto) {
       throw new BadRequestException('Platform data is required');
@@ -83,6 +116,13 @@ export class PlatformService {
     }
   }
 
+  /**
+   * Updates the value.
+   *
+   * @param id - The id.
+   * @param updatePlatformDto - The update platform dto.
+   * @returns A promise that resolves when the operation completes.
+   */
   async update(
     id: string,
     updatePlatformDto: UpdatePlatformDto,
@@ -110,6 +150,11 @@ export class PlatformService {
     }
   }
 
+  /**
+   * Removes the value.
+   *
+   * @param id - The id.
+   */
   async remove(id: string): Promise<void> {
     if (!id) {
       throw new BadRequestException('Platform ID is required');
@@ -125,6 +170,11 @@ export class PlatformService {
     }
   }
 
+  /**
+   * Handles soft remove.
+   *
+   * @param id - The id.
+   */
   async softRemove(id: string): Promise<void> {
     if (!id) {
       throw new BadRequestException('Platform ID is required');
@@ -141,6 +191,11 @@ export class PlatformService {
   }
 
   @Cron(CronExpression.EVERY_DAY_AT_6AM)
+  /**
+   * Runs the scheduled cron job.
+   *
+   * @returns A promise that resolves when the operation completes.
+   */
   async handleCron() {
     const platforms = await this.findAllSoftDeletedOlderThanOneWeek();
     for (const platform of platforms) {
