@@ -80,7 +80,7 @@ jobs:
       # Initialises the CodeQL tools for scanning.
       - name: Initialise CodeQL
         if: steps.codeql-default-setup.outputs.enabled != 'true'
-        uses: github/codeql-action/init@87557b9c84dde89fdd9b10e88954ac2f4248e463 # v4.36.1.4.36.12.4.36.1
+        uses: github/codeql-action/init@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2.4.36.22.4.36.2
         with:
           languages: ${{ matrix.language }}
           # If you wish to specify custom queries, you can do so here or in a config file.
@@ -92,11 +92,11 @@ jobs:
       # but this step still helps in preparing the environment).
       - name: Autobuild
         if: steps.codeql-default-setup.outputs.enabled != 'true'
-        uses: github/codeql-action/autobuild@87557b9c84dde89fdd9b10e88954ac2f4248e463 # v4.36.1.4.36.12.4.36.1
+        uses: github/codeql-action/autobuild@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2.4.36.22.4.36.2
 
       - name: Perform CodeQL Analysis
         if: steps.codeql-default-setup.outputs.enabled != 'true'
-        uses: github/codeql-action/analyze@87557b9c84dde89fdd9b10e88954ac2f4248e463 # v4.36.1.4.36.12.4.36.1
+        uses: github/codeql-action/analyze@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2.4.36.22.4.36.2
         with:
           category: '/language:${{matrix.language}}'
 
