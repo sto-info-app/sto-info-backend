@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import * as bcrypt from 'bcrypt';
+import { randomUUID } from 'crypto';
 import { Exclude } from 'class-transformer';
 import { IsEmail, IsNotEmpty, IsString, IsUUID } from 'class-validator';
 import {
@@ -15,7 +16,6 @@ import {
   UpdateDateColumn,
   VirtualColumn,
 } from 'typeorm';
-import { v4 as uuid } from 'uuid';
 import { AccountEntity } from '../../sto/account/entities/account.entity';
 import { UserRefreshTokenEntity } from '../../user-refresh-token/entities/user-refresh-token.entity';
 import { UserProfileEntity } from './user-profile.entity';
@@ -91,7 +91,7 @@ export class UserEntity {
    * @returns The result of the operation.
    */
   generateUuid() {
-    this.id = uuid();
+    this.id = randomUUID();
   }
 
   @OneToMany(() => UserRefreshTokenEntity, refreshToken => refreshToken.user)
