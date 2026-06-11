@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import * as bcrypt from 'bcrypt';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import { Exclude } from 'class-transformer';
 import { IsEmail, IsNotEmpty, IsString, IsUUID } from 'class-validator';
 import {
