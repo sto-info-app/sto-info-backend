@@ -7,7 +7,7 @@ on:
     - cron: '0 0 * * 0' # Sundays at 00:00 UTC
 
 env:
-  NODE_VERSION: 24
+  NODE_VERSION: 24.15.0
 
 # Declare default permissions as none.
 permissions: {}

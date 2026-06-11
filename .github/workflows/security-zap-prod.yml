@@ -21,7 +21,7 @@ on:
 permissions: {}
 
 env:
-  NODE_VERSION: 24
+  NODE_VERSION: 24.15.0
   PROD_API_BASE_URL: 'https://api.startrekonline.info'
   PROD_API_HEALTH_URL: 'https://api.startrekonline.info/health/live'
   PROD_API_VERSION_URL: 'https://api.startrekonline.info/version'

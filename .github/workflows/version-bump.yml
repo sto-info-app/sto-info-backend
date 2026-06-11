@@ -7,7 +7,7 @@ on:
 permissions: {}
 
 env:
-  NODE_VERSION: 24
+  NODE_VERSION: 24.15.0
 
 concurrency:
   group: version-bump-development
