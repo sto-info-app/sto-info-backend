@@ -22,7 +22,7 @@ on:
 permissions: {}
 
 env:
-  NODE_VERSION: 24
+  NODE_VERSION: 24.15.0
   DEV_API_BASE_URL: 'https://dev-api.startrekonline.info'
   DEV_API_HEALTH_URL: 'https://dev-api.startrekonline.info/health/live'
   DEV_API_VERSION_URL: 'https://dev-api.startrekonline.info/version'

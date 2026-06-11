@@ -5,7 +5,7 @@ on:
     branches: ['development', 'production']
 
 env:
-  NODE_VERSION: 24
+  NODE_VERSION: 24.15.0
 
 permissions: {}
 
