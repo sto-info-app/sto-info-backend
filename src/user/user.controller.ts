@@ -48,6 +48,11 @@ import { UserService } from './user.service';
 @UseGuards(JwtAuthGuard)
 @Controller('user')
 export class UserController {
+  /**
+   * Creates an instance of UserController.
+   *
+   * @param userService - The user service.
+   */
   constructor(private readonly userService: UserService) {}
 
   /**

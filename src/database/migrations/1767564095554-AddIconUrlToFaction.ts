@@ -3,6 +3,11 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 export class AddIconUrlToFaction1767564095554 implements MigrationInterface {
   name = 'AddIconUrlToFaction1767564095554';
 
+  /**
+   * Applies the migration to the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       `ALTER TABLE "sto_info_app"."character_faction" ADD "iconUrl" character varying(511)`,
@@ -44,6 +49,11 @@ export class AddIconUrlToFaction1767564095554 implements MigrationInterface {
     }
   }
 
+  /**
+   * Reverts the migration from the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       `ALTER TABLE "sto_info_app"."character_faction" DROP COLUMN "iconUrl"`,

@@ -8,6 +8,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { isValidCloudflareImageUrl } from 'src/shared/constants/image.constants';
 import { stringifyError } from 'src/shared/utilities/error.utility';
 import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
 
@@ -27,6 +28,19 @@ import { SpeciesEntity } from './entities/species.entity';
 export class CharacterService {
   private readonly logger = new Logger(CharacterService.name);
 
+  /**
+   * Creates an instance of CharacterService.
+   *
+   * @param characterRepository - The character repository.
+   * @param accountRepository - The account repository.
+   * @param generalFactionRepository - The general faction repository.
+   * @param factionRepository - The faction repository.
+   * @param sexRepository - The sex repository.
+   * @param classRepository - The class repository.
+   * @param recruitTypeRepository - The recruit type repository.
+   * @param speciesRepository - The species repository.
+   * @param imageUploadsService - The image uploads service.
+   */
   constructor(
     @InjectRepository(CharacterEntity)
     private readonly characterRepository: Repository<CharacterEntity>,
@@ -47,14 +61,98 @@ export class CharacterService {
     private readonly imageUploadsService: ImageUploadsService,
   ) {}
 
+  /**
+   * Normalizes the supplied handle.
+   *
+   * @param handle - The handle.
+   * @returns The result of the operation.
+   */
   private normalizeHandle(handle: string): string {
     return handle.trim().toLowerCase();
   }
 
+  /**
+   * Sanitizes a Cloudflare image URL from persisted data.
+   *
+   * @param imageUrl - Candidate image URL.
+   * @returns A valid Cloudflare image URL, or `null` when invalid.
+   */
+  private sanitizeCloudflareImageUrl(imageUrl?: string | null): string | null {
+    if (!isValidCloudflareImageUrl(imageUrl)) {
+      return null;
+    }
+
+    return imageUrl;
+  }
+
+  /**
+   * Sanitizes icon URL fields on character relation data.
+   *
+   * @param character - Character to sanitize in-place.
+   * @returns The sanitized character.
+   */
+  private sanitizeCharacterImageUrls(
+    character: CharacterEntity,
+  ): CharacterEntity {
+    if (character.generalFaction) {
+      character.generalFaction.iconUrl = this.sanitizeCloudflareImageUrl(
+        character.generalFaction.iconUrl,
+      );
+    }
+
+    if (character.faction) {
+      character.faction.iconUrl = this.sanitizeCloudflareImageUrl(
+        character.faction.iconUrl,
+      );
+
+      if (Array.isArray(character.faction.ranks)) {
+        character.faction.ranks.forEach(rank => {
+          rank.iconUrl = this.sanitizeCloudflareImageUrl(rank.iconUrl);
+        });
+      }
+    }
+
+    if (character.recruitType) {
+      character.recruitType.iconUrl = this.sanitizeCloudflareImageUrl(
+        character.recruitType.iconUrl,
+      );
+    }
+
+    return character;
+  }
+
+  /**
+   * Sanitizes icon URL fields on lookup entities that expose `iconUrl`.
+   *
+   * @param entities - Lookup entities to sanitize.
+   * @returns The sanitized entities.
+   */
+  private sanitizeLookupImageUrls<T extends { iconUrl: string | null }>(
+    entities: T[],
+  ): T[] {
+    return entities.map(entity => {
+      entity.iconUrl = this.sanitizeCloudflareImageUrl(entity.iconUrl);
+      return entity;
+    });
+  }
+
+  /**
+   * Generates a slug from the supplied handle.
+   *
+   * @param handle - The handle.
+   * @returns The result of the operation.
+   */
   private generateSlug(handle: string): string {
     return handle.trim().replaceAll('#', '~');
   }
 
+  /**
+   * Asserts that the handle is unique for the account.
+   *
+   * @param account - The account.
+   * @param handle - The handle.
+   * @param excludeCharacterId - The exclude character id.
+   */
   private async assertHandleUniqueForAccount(
     account: AccountEntity,
     handle: string | undefined,
@@ -84,6 +182,13 @@ export class CharacterService {
     }
   }
 
+  /**
+   * Ensures the account belongs to the authenticated user.
+   *
+   * @param accountId - The account id.
+   * @param userId - The user id.
+   * @returns A promise that resolves when the operation completes.
+   */
   private async requireOwnedAccount(
     accountId: string,
     userId: string,
@@ -103,6 +208,13 @@ export class CharacterService {
     return account;
   }
 
+  /**
+   * Creates the value.
+   *
+   * @param createCharacterDto - The create character dto.
+   * @param userId - The user id.
+   * @returns A promise that resolves when the operation completes.
+   */
   async create(
     createCharacterDto: CreateCharacterDto,
     userId: string,
@@ -147,6 +259,13 @@ export class CharacterService {
     }
   }
 
+  /**
+   * Finds all for account.
+   *
+   * @param accountId - The account id.
+   * @param userId - The user id.
+   * @returns A promise that resolves when the operation completes.
+   */
   async findAllForAccount(
     accountId: string,
     userId: string,
@@ -161,19 +280,22 @@ export class CharacterService {
 
     await this.requireOwnedAccount(accountId, userId);
 
-    return this.characterRepository.find({
+    const characters = await this.characterRepository.find({
       where: { accountId },
-      relations: [
-        'generalFaction',
-        'faction',
-        'faction.ranks',
-        'sex',
-        'class',
-        'recruitType',
-        'species',
-      ],
+      relations: {
+        generalFaction: true,
+        faction: { ranks: true },
+        sex: true,
+        class: true,
+        recruitType: true,
+        species: true,
+      },
       order: { handle: 'ASC' },
     });
+
+    return characters.map(character =>
+      this.sanitizeCharacterImageUrls(character),
+    );
   }
 
   /**
@@ -187,21 +309,33 @@ export class CharacterService {
       throw new BadRequestException('Handle slug is required');
     }
 
-    return this.characterRepository.findOne({
+    const character = await this.characterRepository.findOne({
       where: { fullHandleSlug: handleSlug },
-      relations: [
-        'account',
-        'generalFaction',
-        'faction',
-        'faction.ranks',
-        'sex',
-        'class',
-        'recruitType',
-        'species',
-      ],
+      relations: {
+        account: true,
+        generalFaction: true,
+        faction: { ranks: true },
+        sex: true,
+        class: true,
+        recruitType: true,
+        species: true,
+      },
     });
+
+    if (!character) {
+      return null;
+    }
+
+    return this.sanitizeCharacterImageUrls(character);
   }
 
+  /**
+   * Finds one for user.
+   *
+   * @param id - The id.
+   * @param userId - The user id.
+   * @returns A promise that resolves when the operation completes.
+   */
   async findOneForUser(id: string, userId: string): Promise<CharacterEntity> {
     if (!id) {
       throw new BadRequestException('Character ID is required');
@@ -213,16 +347,15 @@ export class CharacterService {
 
     const character = await this.characterRepository.findOne({
       where: { id },
-      relations: [
-        'account',
-        'generalFaction',
-        'faction',
-        'faction.ranks',
-        'sex',
-        'class',
-        'recruitType',
-        'species',
-      ],
+      relations: {
+        account: true,
+        generalFaction: true,
+        faction: { ranks: true },
+        sex: true,
+        class: true,
+        recruitType: true,
+        species: true,
+      },
     });
 
     if (!character) {
@@ -233,9 +366,17 @@ export class CharacterService {
       throw new ForbiddenException('You do not have access to this character');
     }
 
-    return character;
+    return this.sanitizeCharacterImageUrls(character);
   }
 
+  /**
+   * Updates for user.
+   *
+   * @param id - The id.
+   * @param userId - The user id.
+   * @param updateCharacterDto - The update character dto.
+   * @returns A promise that resolves when the operation completes.
+   */
   async updateForUser(
     id: string,
     userId: string,
@@ -279,6 +420,12 @@ export class CharacterService {
     return this.findOneForUser(id, userId);
   }
 
+  /**
+   * Removes for user.
+   *
+   * @param id - The id.
+   * @param userId - The user id.
+   */
   async removeForUser(id: string, userId: string): Promise<void> {
     if (!id) {
       throw new BadRequestException('Character ID is required');
@@ -367,6 +514,13 @@ export class CharacterService {
     }
   }
 
+  /**
+   * Validates the profile image upload arguments.
+   *
+   * @param id - The id.
+   * @param userId - The user id.
+   * @param file - The uploaded file.
+   */
   private assertUploadProfileImageArgs(
     id: string,
     userId: string,
@@ -385,6 +539,11 @@ export class CharacterService {
     }
   }
 
+  /**
+   * Deletes the previously stored profile image, if any.
+   *
+   * @param existingProfilePictureId - The existing profile picture id.
+   */
   private async tryDeleteOldProfileImage(
     existingProfilePictureId: string | null | undefined,
   ): Promise<void> {
@@ -415,6 +574,12 @@ export class CharacterService {
 
   // --- Reference Data Methods ---
 
+  /**
+   * Gets general factions.
+   *
+   * @param factionId - The faction id.
+   * @returns A promise that resolves when the operation completes.
+   */
   async getGeneralFactions(
     factionId?: string,
   ): Promise<GeneralFactionEntity[]> {
@@ -430,9 +595,19 @@ export class CharacterService {
       );
     }
 
-    return query.orderBy('generalFaction.name', 'ASC').getMany();
+    const generalFactions = await query
+      .orderBy('generalFaction.name', 'ASC')
+      .getMany();
+
+    return this.sanitizeLookupImageUrls(generalFactions);
   }
 
+  /**
+   * Gets factions.
+   *
+   * @param generalFactionId - The general faction id.
+   * @returns A promise that resolves when the operation completes.
+   */
   async getFactions(generalFactionId?: string): Promise<FactionEntity[]> {
     const query = this.factionRepository.createQueryBuilder('faction');
 
@@ -445,17 +620,35 @@ export class CharacterService {
       );
     }
 
-    return query.orderBy('faction.name', 'ASC').getMany();
+    const factions = await query.orderBy('faction.name', 'ASC').getMany();
+
+    return this.sanitizeLookupImageUrls(factions);
   }
 
+  /**
+   * Gets sexes.
+   *
+   * @returns A promise that resolves when the operation completes.
+   */
   async getSexes(): Promise<SexEntity[]> {
     return this.sexRepository.find({ order: { name: 'ASC' } });
   }
 
+  /**
+   * Gets character classes.
+   *
+   * @returns A promise that resolves when the operation completes.
+   */
   async getClasses(): Promise<CharacterClassEntity[]> {
     return this.classRepository.find({ order: { name: 'ASC' } });
   }
 
+  /**
+   * Gets recruit types.
+   *
+   * @param factionId - The faction id.
+   * @returns A promise that resolves when the operation completes.
+   */
   async getRecruitTypes(factionId?: string): Promise<RecruitTypeEntity[]> {
     const query = this.recruitTypeRepository.createQueryBuilder('recruitType');
 
@@ -468,7 +661,11 @@ export class CharacterService {
       );
     }
 
-    return query.orderBy('recruitType.name', 'ASC').getMany();
+    const recruitTypes = await query
+      .orderBy('recruitType.name', 'ASC')
+      .getMany();
+
+    return this.sanitizeLookupImageUrls(recruitTypes);
   }
 
   /**

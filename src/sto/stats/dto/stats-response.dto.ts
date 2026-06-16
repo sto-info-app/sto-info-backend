@@ -60,4 +60,42 @@ export class StatsResponseDto {
 
   @ApiProperty({ type: [CountItemDto] })
   byLauncher: CountItemDto[];
+
+  @ApiProperty({ example: 250 })
+  endeavourTotalNodes: number;
+
+  @ApiProperty({ example: 500 })
+  endeavourMaxNodes: number;
+
+  @ApiProperty({
+    description:
+      'Total nodes earned per endeavour perk, summed across all accounts in scope. ' +
+      'All known perks are present even if count is 0.',
+    type: [CountItemDto],
+  })
+  byEndeavourPerk: CountItemDto[];
+
+  @ApiProperty({
+    description:
+      'Average nodes earned per account per endeavour perk (0–25 scale). ' +
+      'All known perks are present even if count is 0.',
+    type: [CountItemDto],
+  })
+  byEndeavourPerkAvg: CountItemDto[];
+
+  @ApiProperty({
+    description:
+      'Total nodes earned per endeavour category (Space / Ground), ' +
+      'summed across all accounts in scope.',
+    type: [CountItemDto],
+  })
+  byEndeavourCategory: CountItemDto[];
+
+  @ApiProperty({
+    description:
+      'Completion percentage per endeavour category (Space / Ground), ' +
+      'averaged across all accounts in scope. Values are 0–100.',
+    type: [CountItemDto],
+  })
+  byEndeavourCategoryPct: CountItemDto[];
 }

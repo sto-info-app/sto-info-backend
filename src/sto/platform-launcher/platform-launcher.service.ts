@@ -5,16 +5,45 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { isValidCloudflareImageUrl } from 'src/shared/constants/image.constants';
 import { Repository } from 'typeorm';
 import { PlatformLauncherEntity } from './entities/platform-launcher.entity';
 
 @Injectable()
 export class PlatformLauncherService {
+  /**
+   * Creates an instance of PlatformLauncherService.
+   *
+   * @param platformLauncherRepository - The platform launcher repository.
+   */
   constructor(
     @InjectRepository(PlatformLauncherEntity)
     private readonly platformLauncherRepository: Repository<PlatformLauncherEntity>,
   ) {}
 
+  /**
+   * Returns a relation with a validated background image URL.
+   *
+   * @param relation - The relation to sanitize.
+   * @returns The same relation with an invalid background URL set to `null`.
+   */
+  private sanitizeBackgroundImageUrl(
+    relation: PlatformLauncherEntity,
+  ): PlatformLauncherEntity {
+    if (!isValidCloudflareImageUrl(relation.backgroundImageUrl)) {
+      relation.backgroundImageUrl = null;
+    }
+
+    return relation;
+  }
+
+  /**
+   * Adds a platform-launcher relation.
+   *
+   * @param platformId - The platform id.
+   * @param launcherId - The launcher id.
+   * @returns A promise that resolves when the operation completes.
+   */
   async addPlatformLauncherRelation(platformId: string, launcherId: string) {
     if (!platformId) {
       throw new BadRequestException('Platform ID is required');
@@ -38,6 +67,13 @@ export class PlatformLauncherService {
     }
   }
 
+  /**
+   * Removes a platform-launcher relation.
+   *
+   * @param platformId - The platform id.
+   * @param launcherId - The launcher id.
+   * @returns A promise that resolves when the operation completes.
+   */
   async removePlatformLauncherRelation(platformId: string, launcherId: string) {
     if (!platformId) {
       throw new BadRequestException('Platform ID is required');
@@ -63,12 +99,25 @@ export class PlatformLauncherService {
     }
   }
 
+  /**
+   * Finds all.
+   *
+   * @returns A promise that resolves when the operation completes.
+   */
   async findAll(): Promise<PlatformLauncherEntity[]> {
-    return await this.platformLauncherRepository.find({
-      relations: ['platform', 'launcher'],
+    const relations = await this.platformLauncherRepository.find({
+      relations: { platform: true, launcher: true },
     });
+
+    return relations.map(relation => this.sanitizeBackgroundImageUrl(relation));
   }
 
+  /**
+   * Finds all launchers for the given platform.
+   *
+   * @param platformId - The platform id.
+   * @returns A promise that resolves when the operation completes.
+   */
   async findAllLaunchersForPlatform(
     platformId: string,
   ): Promise<PlatformLauncherEntity[]> {
@@ -79,9 +128,16 @@ export class PlatformLauncherService {
     const launchers = await this.platformLauncherRepository.find({
       where: { platformId: platformId },
     });
-    return launchers;
+    return launchers.map(relation => this.sanitizeBackgroundImageUrl(relation));
   }
 
+  /**
+   * Finds one.
+   *
+   * @param platformId - The platform id.
+   * @param launcherId - The launcher id.
+   * @returns A promise that resolves when the operation completes.
+   */
   async findOne(
     platformId: string,
     launcherId: string,
@@ -102,6 +158,6 @@ export class PlatformLauncherService {
       throw new NotFoundException(`PlatformLauncherEntity relation not found`);
     }
 
-    return platformLauncher;
+    return this.sanitizeBackgroundImageUrl(platformLauncher);
   }
 }

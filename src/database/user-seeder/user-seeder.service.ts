@@ -10,6 +10,13 @@ import { Repository } from 'typeorm';
 
 @Injectable()
 export class UserSeederService {
+  /**
+   * Creates an instance of UserSeederService.
+   *
+   * @param userRepository - The user repository.
+   * @param userProfileRepository - The user profile repository.
+   * @param userService - The user service.
+   */
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
@@ -20,10 +27,20 @@ export class UserSeederService {
     private readonly userService: UserService,
   ) {}
 
+  /**
+   * Seeds the configured data.
+   *
+   * @returns A promise that resolves when the operation completes.
+   */
   async seed() {
     await this.seedUsers();
   }
 
+  /**
+   * Seeds the default users.
+   *
+   * @returns A promise that resolves when the operation completes.
+   */
   private async seedUsers() {
     const inProduction = process.env.NODE_ENV === 'prod';
     if (inProduction) return;

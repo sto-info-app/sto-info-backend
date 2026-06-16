@@ -13,15 +13,31 @@ import { LauncherEntity } from './entities/launcher.entity';
 
 @Injectable()
 export class LauncherService {
+  /**
+   * Creates an instance of LauncherService.
+   *
+   * @param launcherRepository - The launcher repository.
+   */
   constructor(
     @InjectRepository(LauncherEntity)
     private readonly launcherRepository: Repository<LauncherEntity>,
   ) {}
 
+  /**
+   * Finds all.
+   *
+   * @returns A promise that resolves when the operation completes.
+   */
   async findAll() {
     return await this.launcherRepository.find();
   }
 
+  /**
+   * Finds one.
+   *
+   * @param id - The id.
+   * @returns A promise that resolves when the operation completes.
+   */
   async findOne(id: string): Promise<LauncherEntity> {
     if (!id) {
       throw new BadRequestException('Launcher ID is required');
@@ -40,6 +56,12 @@ export class LauncherService {
     return launcher;
   }
 
+  /**
+   * Finds a record by name.
+   *
+   * @param name - The name.
+   * @returns A promise that resolves when the operation completes.
+   */
   async findOneByName(name: string): Promise<LauncherEntity> {
     if (!name) {
       throw new BadRequestException('Launcher name is required');
@@ -56,6 +78,11 @@ export class LauncherService {
     return launcher;
   }
 
+  /**
+   * Finds records soft-deleted more than one week ago.
+   *
+   * @returns A promise that resolves when the operation completes.
+   */
   async findAllSoftDeletedOlderThanOneWeek(): Promise<LauncherEntity[]> {
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
@@ -67,6 +94,12 @@ export class LauncherService {
       .getMany();
   }
 
+  /**
+   * Creates the value.
+   *
+   * @param createLauncherDto - The create launcher dto.
+   * @returns A promise that resolves when the operation completes.
+   */
   async create(createLauncherDto: CreateLauncherDto): Promise<LauncherEntity> {
     if (!createLauncherDto) {
       throw new BadRequestException('Launcher data is required');
@@ -83,6 +116,13 @@ export class LauncherService {
     }
   }
 
+  /**
+   * Updates the value.
+   *
+   * @param id - The id.
+   * @param updateLauncherDto - The update launcher dto.
+   * @returns A promise that resolves when the operation completes.
+   */
   async update(
     id: string,
     updateLauncherDto: UpdateLauncherDto,
@@ -110,6 +150,11 @@ export class LauncherService {
     }
   }
 
+  /**
+   * Removes the value.
+   *
+   * @param id - The id.
+   */
   async remove(id: string): Promise<void> {
     if (!id) {
       throw new BadRequestException('Launcher ID is required');
@@ -125,6 +170,11 @@ export class LauncherService {
     }
   }
 
+  /**
+   * Handles soft remove.
+   *
+   * @param id - The id.
+   */
   async softRemove(id: string): Promise<void> {
     if (!id) {
       throw new BadRequestException('Launcher ID is required');
@@ -141,6 +191,11 @@ export class LauncherService {
   }
 
   @Cron(CronExpression.EVERY_DAY_AT_6AM)
+  /**
+   * Runs the scheduled cron job.
+   *
+   * @returns A promise that resolves when the operation completes.
+   */
   async handleCron() {
     const launchers = await this.findAllSoftDeletedOlderThanOneWeek();
     for (const launcher of launchers) {

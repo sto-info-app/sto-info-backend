@@ -17,6 +17,13 @@ import { UserRefreshTokenEntity } from './entities/user-refresh-token.entity';
 
 @Injectable()
 export class UserRefreshTokenService {
+  /**
+   * Creates an instance of UserRefreshTokenService.
+   *
+   * @param refreshTokenRepository - The refresh token repository.
+   * @param configService - The config service.
+   * @param secretsService - The secrets service.
+   */
   constructor(
     @InjectRepository(UserRefreshTokenEntity)
     private readonly refreshTokenRepository: Repository<UserRefreshTokenEntity>,

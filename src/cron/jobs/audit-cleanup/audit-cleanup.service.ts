@@ -11,11 +11,19 @@ import { LessThan, Repository } from 'typeorm';
 export class AuditCleanupService {
   private readonly logger = new Logger(AuditCleanupService.name);
 
+  /**
+   * Creates an instance of AuditCleanupService.
+   *
+   * @param auditRepository - The audit repository.
+   */
   constructor(
     @InjectRepository(AuditEntity)
     private readonly auditRepository: Repository<AuditEntity>,
   ) {}
 
+  /**
+   * Removes stale records.
+   */
   async cleanup(): Promise<void> {
     // Delete audit records older than data threshold date
     const thresholdDate = new Date();

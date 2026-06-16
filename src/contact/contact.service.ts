@@ -9,6 +9,12 @@ const SUPPORT_EMAIL = 'support@startrekonline.info';
 
 @Injectable()
 export class ContactService {
+  /**
+   * Creates an instance of ContactService.
+   *
+   * @param mailService - The mail service.
+   * @param contactRequestRepository - The contact request repository.
+   */
   constructor(
     private readonly mailService: MailService,
     @InjectRepository(ContactRequestEntity)

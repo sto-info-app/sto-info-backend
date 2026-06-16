@@ -193,6 +193,11 @@ export class CharacterEntity {
 
   // Set base URL for the profile image
   // Supports both Cloudflare Images (new) and R2 (legacy)
+  /**
+   * Gets the profile picture URL.
+   *
+   * @returns The result of the operation.
+   */
   get profilePictureUrl(): string | null {
     if (!this.profilePictureId) {
       return null;
@@ -218,11 +223,21 @@ export class CharacterEntity {
   }
 
   @Expose()
+  /**
+   * Gets the profile picture URL.
+   *
+   * @returns The result of the operation.
+   */
   get profilePicture(): string | null {
     return this.profilePictureUrl;
   }
 
   @Expose()
+  /**
+   * Gets the 300px profile picture URL.
+   *
+   * @returns The result of the operation.
+   */
   get profilePicture300(): string | null {
     if (!this.profilePictureId) {
       return null;
@@ -247,6 +262,11 @@ export class CharacterEntity {
   }
 
   @Expose()
+  /**
+   * Gets the 100px profile picture URL.
+   *
+   * @returns The result of the operation.
+   */
   get profilePicture100(): string | null {
     if (!this.profilePictureId) {
       return null;
@@ -271,6 +291,11 @@ export class CharacterEntity {
   }
 
   @Expose()
+  /**
+   * Gets the rank.
+   *
+   * @returns The result of the operation.
+   */
   get rank(): {
     title: string;
     iconUrl: string | null;

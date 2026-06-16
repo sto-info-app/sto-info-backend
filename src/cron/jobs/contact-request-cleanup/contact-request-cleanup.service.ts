@@ -11,11 +11,19 @@ import { IsNull, LessThan, Not, Repository } from 'typeorm';
 export class ContactRequestCleanupService {
   private readonly logger = new Logger(ContactRequestCleanupService.name);
 
+  /**
+   * Creates an instance of ContactRequestCleanupService.
+   *
+   * @param contactRequestRepository - The contact request repository.
+   */
   constructor(
     @InjectRepository(ContactRequestEntity)
     private readonly contactRequestRepository: Repository<ContactRequestEntity>,
   ) {}
 
+  /**
+   * Removes stale records.
+   */
   async cleanup(): Promise<void> {
     const recordThresholdDate = new Date();
     recordThresholdDate.setDate(

@@ -22,6 +22,13 @@ import {
 export class SesWebhookService {
   private readonly logger = new Logger(SesWebhookService.name);
 
+  /**
+   * Creates an instance of SesWebhookService.
+   *
+   * @param sesEventRepository - The ses event repository.
+   * @param configService - The config service.
+   * @param secretsService - The secrets service.
+   */
   constructor(
     @InjectRepository(SesEventEntity)
     private readonly sesEventRepository: Repository<SesEventEntity>,

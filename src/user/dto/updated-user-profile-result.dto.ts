@@ -16,6 +16,12 @@ export class UpdatedUserProfileResultDto {
   })
   userProfileData: Partial<UserProfileEntity>;
 
+  /**
+   * Creates an instance of UpdatedUserProfileResultDto.
+   *
+   * @param affected - The affected.
+   * @param userProfileData - The user profile data.
+   */
   constructor(affected: number, userProfileData: Partial<UserProfileEntity>) {
     this.affected = affected;
     this.userProfileData = userProfileData;

@@ -3,6 +3,11 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 export class CreateSesEventTable1769500000000 implements MigrationInterface {
   name = 'CreateSesEventTable1769500000000';
 
+  /**
+   * Applies the migration to the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       `CREATE TABLE "sto_info_app"."_audit_ses_event" (` +
@@ -35,6 +40,11 @@ export class CreateSesEventTable1769500000000 implements MigrationInterface {
     );
   }
 
+  /**
+   * Reverts the migration from the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       `DROP INDEX "sto_info_app"."IDX__audit_ses_event_suppress_createdAt"`,

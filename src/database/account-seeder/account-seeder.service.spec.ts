@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { LauncherService } from 'src/sto/launcher/launcher.service';
 import { PlatformLauncherService } from 'src/sto/platform-launcher/platform-launcher.service';
@@ -85,7 +86,7 @@ describe('AccountSeederService', () => {
         platformService.findOneByName as jest.Mock<
           (...args: any[]) => Promise<any>
         >
-      ).mockResolvedValue(null);
+      ).mockRejectedValue(new NotFoundException('Platform not found'));
       (
         platformService.create as jest.Mock<(...args: any[]) => Promise<any>>
       ).mockResolvedValue({});
@@ -125,7 +126,7 @@ describe('AccountSeederService', () => {
         launcherService.findOneByName as jest.Mock<
           (...args: any[]) => Promise<any>
         >
-      ).mockResolvedValue(null);
+      ).mockRejectedValue(new NotFoundException('Launcher not found'));
       (
         launcherService.create as jest.Mock<(...args: any[]) => Promise<any>>
       ).mockResolvedValue({});
@@ -175,7 +176,9 @@ describe('AccountSeederService', () => {
         platformLauncherService.findOne as jest.Mock<
           (...args: any[]) => Promise<any>
         >
-      ).mockResolvedValue(null);
+      ).mockRejectedValue(
+        new NotFoundException('PlatformLauncherEntity relation not found'),
+      );
       (
         platformLauncherService.addPlatformLauncherRelation as jest.Mock<
           (...args: any[]) => Promise<any>
@@ -226,7 +229,7 @@ describe('AccountSeederService', () => {
         platformService.findOneByName as jest.Mock<
           (...args: any[]) => Promise<any>
         >
-      ).mockResolvedValue(null);
+      ).mockRejectedValue(new NotFoundException('Platform not found'));
       (
         launcherService.findOneByName as jest.Mock<
           (...args: any[]) => Promise<any>
@@ -241,6 +244,143 @@ describe('AccountSeederService', () => {
       expect(
         platformLauncherService.addPlatformLauncherRelation,
       ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('findPlatformByName', () => {
+    it('should return platform when found', async () => {
+      const platform = { id: 'platform-id', name: 'Windows' };
+      (
+        platformService.findOneByName as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(platform);
+
+      const result = await (service as any).findPlatformByName('Windows');
+
+      expect(result).toEqual(platform);
+      expect(platformService.findOneByName).toHaveBeenCalledWith('Windows');
+    });
+
+    it('should return null when platform not found', async () => {
+      (
+        platformService.findOneByName as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockRejectedValue(new NotFoundException('Platform not found'));
+
+      const result = await (service as any).findPlatformByName('Windows');
+
+      expect(result).toBeNull();
+    });
+
+    it('should rethrow non-NotFoundException errors', async () => {
+      const databaseError = new Error('Database connection failed');
+      (
+        platformService.findOneByName as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockRejectedValue(databaseError);
+
+      await expect(
+        (service as any).findPlatformByName('Windows'),
+      ).rejects.toThrow(databaseError);
+    });
+  });
+
+  describe('findLauncherByName', () => {
+    it('should return launcher when found', async () => {
+      const launcher = { id: 'launcher-id', name: 'Steam' };
+      (
+        launcherService.findOneByName as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(launcher);
+
+      const result = await (service as any).findLauncherByName('Steam');
+
+      expect(result).toEqual(launcher);
+      expect(launcherService.findOneByName).toHaveBeenCalledWith('Steam');
+    });
+
+    it('should return null when launcher not found', async () => {
+      (
+        launcherService.findOneByName as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockRejectedValue(new NotFoundException('Launcher not found'));
+
+      const result = await (service as any).findLauncherByName('Steam');
+
+      expect(result).toBeNull();
+    });
+
+    it('should rethrow non-NotFoundException errors', async () => {
+      const databaseError = new Error('Database connection failed');
+      (
+        launcherService.findOneByName as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockRejectedValue(databaseError);
+
+      await expect(
+        (service as any).findLauncherByName('Steam'),
+      ).rejects.toThrow(databaseError);
+    });
+  });
+
+  describe('findPlatformLauncherRelation', () => {
+    it('should return relation when found', async () => {
+      const relation = { platformId: 'platform-id', launcherId: 'launcher-id' };
+      (
+        platformLauncherService.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(relation);
+
+      const result = await (service as any).findPlatformLauncherRelation(
+        'platform-id',
+        'launcher-id',
+      );
+
+      expect(result).toEqual(relation);
+      expect(platformLauncherService.findOne).toHaveBeenCalledWith(
+        'platform-id',
+        'launcher-id',
+      );
+    });
+
+    it('should return null when relation not found', async () => {
+      (
+        platformLauncherService.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockRejectedValue(
+        new NotFoundException('PlatformLauncherEntity relation not found'),
+      );
+
+      const result = await (service as any).findPlatformLauncherRelation(
+        'platform-id',
+        'launcher-id',
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it('should rethrow non-NotFoundException errors', async () => {
+      const databaseError = new Error('Database connection failed');
+      (
+        platformLauncherService.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockRejectedValue(databaseError);
+
+      await expect(
+        (service as any).findPlatformLauncherRelation(
+          'platform-id',
+          'launcher-id',
+        ),
+      ).rejects.toThrow(databaseError);
     });
   });
 });

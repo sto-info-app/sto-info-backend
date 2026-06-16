@@ -7,6 +7,12 @@ import {
 
 @Controller('health')
 export class HealthController {
+  /**
+   * Creates an instance of HealthController.
+   *
+   * @param _health - The health.
+   * @param _db - The db.
+   */
   constructor(
     private readonly _health: HealthCheckService,
     private readonly _db: TypeOrmHealthIndicator,

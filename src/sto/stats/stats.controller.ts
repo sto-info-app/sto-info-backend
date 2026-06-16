@@ -22,6 +22,11 @@ import { StatsService } from './stats.service';
 @UseGuards(JwtAuthGuard)
 @Controller('stats')
 export class StatsController {
+  /**
+   * Creates an instance of StatsController.
+   *
+   * @param statsService - The stats service.
+   */
   constructor(private readonly statsService: StatsService) {}
 
   /**

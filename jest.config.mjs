@@ -2,7 +2,7 @@ export default {
   moduleFileExtensions: ['js', 'json', 'ts'],
   testRegex: String.raw`\.spec\.ts$`,
   transform: {
-    [String.raw`^.+\.(t|j)s$`]: 'ts-jest',
+    [String.raw`^.+\.(t|j)s$`]: ['ts-jest', { tsconfig: 'tsconfig.spec.json' }],
   },
   moduleNameMapper: {
     '^src/(.*)$': '<rootDir>/src/$1',

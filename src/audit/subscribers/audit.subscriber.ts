@@ -25,6 +25,11 @@ type AuditEventType = InsertEvent<any> | UpdateEvent<any> | RemoveEvent<any>;
  */
 @EventSubscriber()
 export class AuditSubscriber implements EntitySubscriberInterface {
+  /**
+   * Returns the entity type handled by this subscriber.
+   *
+   * @returns The result of the operation.
+   */
   listenTo() {
     return Object;
   }

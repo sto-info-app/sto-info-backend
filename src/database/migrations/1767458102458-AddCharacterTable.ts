@@ -3,6 +3,11 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 export class AddCharacterTable1767458102458 implements MigrationInterface {
   name = 'AddCharacterTable1767458102458';
 
+  /**
+   * Applies the migration to the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       CREATE TABLE "sto_info_app"."character" (
@@ -43,6 +48,11 @@ export class AddCharacterTable1767458102458 implements MigrationInterface {
     `);
   }
 
+  /**
+   * Reverts the migration from the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       `ALTER TABLE "sto_info_app"."character" DROP CONSTRAINT "FK_character_account"`,

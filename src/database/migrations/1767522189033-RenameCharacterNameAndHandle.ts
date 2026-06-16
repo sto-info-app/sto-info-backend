@@ -3,6 +3,11 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 export class RenameCharacterNameAndHandle1767522189033 implements MigrationInterface {
   name = 'RenameCharacterNameAndHandle1767522189033';
 
+  /**
+   * Applies the migration to the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Drop existing indices first
     await queryRunner.query(
@@ -35,6 +40,11 @@ export class RenameCharacterNameAndHandle1767522189033 implements MigrationInter
     );
   }
 
+  /**
+   * Reverts the migration from the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       `DROP INDEX "sto_info_app"."UX_character_account_handle_normalized"`,

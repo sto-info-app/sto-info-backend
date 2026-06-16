@@ -3,6 +3,11 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 export class AccountHandleCaseInsensitivePerUser1767328845121 implements MigrationInterface {
   name = 'AccountHandleCaseInsensitivePerUser1767328845121';
 
+  /**
+   * Applies the migration to the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       'ALTER TABLE "sto_info_app"."account" ADD COLUMN IF NOT EXISTS "handleNormalized" character varying(255)',
@@ -21,6 +26,11 @@ export class AccountHandleCaseInsensitivePerUser1767328845121 implements Migrati
     );
   }
 
+  /**
+   * Reverts the migration from the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       'DROP INDEX IF EXISTS "sto_info_app"."UX_account_user_handle_normalized"',

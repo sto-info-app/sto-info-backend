@@ -3,6 +3,11 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 export class FixKlingonRecruitAndKdfSpeciesMappings1773197000000 implements MigrationInterface {
   name = 'FixKlingonRecruitAndKdfSpeciesMappings1773197000000';
 
+  /**
+   * Applies the migration to the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Per the STO wiki, Klingon (Discovery) is a KDF faction species,
     // but was missing from the KDF faction_species_mapping (it was only
@@ -37,6 +42,11 @@ export class FixKlingonRecruitAndKdfSpeciesMappings1773197000000 implements Migr
     `);
   }
 
+  /**
+   * Reverts the migration from the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async down(queryRunner: QueryRunner): Promise<void> {
     // Remove Klingon (Discovery) from KDF faction_species_mapping
     await queryRunner.query(`

@@ -6,6 +6,7 @@
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
     "strict": true,
     "strictPropertyInitialization": false,
     "target": "es2021",
@@ -13,7 +14,9 @@
     "lib": ["es2021"],
     "sourceMap": true,
     "outDir": "./dist",
+    "types": ["node"],
     "baseUrl": "./",
+    "ignoreDeprecations": "6.0",
     "paths": {
       "src/*": ["src/*"]
     },

@@ -3,6 +3,11 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 export class AddLifetimeSubscriptionToAccount1767405776309 implements MigrationInterface {
   name = 'AddLifetimeSubscriptionToAccount1767405776309';
 
+  /**
+   * Applies the migration to the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       `ALTER TABLE "sto_info_app"."account" ADD "lifetimeSubscription" boolean NOT NULL DEFAULT false`,
@@ -24,6 +29,11 @@ export class AddLifetimeSubscriptionToAccount1767405776309 implements MigrationI
     );
   }
 
+  /**
+   * Reverts the migration from the database.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   */
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       `ALTER TABLE "sto_info_app"."account" DROP CONSTRAINT "FK_60328bf27019ff5498c4b977421"`,

@@ -8,7 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import * as Cloudmersive from 'cloudmersive-virus-api-client';
 
-import * as FormData from 'form-data';
+import FormData from 'form-data';
 import {
   SAFE_FILENAME_PATTERN,
   UNSAFE_FILENAME_PATTERN,
@@ -25,6 +25,13 @@ export class ImageUploadsService {
   private cloudflareImagesAccountId: string;
   private cloudflareImagesApiKey: string;
 
+  /**
+   * Creates an instance of ImageUploadsService.
+   *
+   * @param secretsService - The secrets service.
+   * @param configService - The config service.
+   * @param s3Client - The s3 client.
+   */
   constructor(
     private readonly secretsService: SecretsService,
     private readonly configService: ConfigService,
@@ -334,6 +341,14 @@ export class ImageUploadsService {
     }
   }
 
+  /**
+   * Builds the Cloudflare custom identifier.
+   *
+   * @param userId - The user id.
+   * @param entityType - The entity type.
+   * @param entityId - The entity id.
+   * @returns The result of the operation.
+   */
   private buildCloudflareCustomId(
     userId: string,
     entityType?: string,
@@ -352,6 +367,13 @@ export class ImageUploadsService {
     return parts.join('-');
   }
 
+  /**
+   * Extracts the Cloudflare image identifier from a URL.
+   *
+   * @param response - The response.
+   * @param errorMsgFailedUpload - The error msg failed upload.
+   * @returns The result of the operation.
+   */
   private extractCloudflareImageId(
     response: unknown,
     errorMsgFailedUpload: string,
@@ -398,6 +420,12 @@ export class ImageUploadsService {
     return id;
   }
 
+  /**
+   * Gets Cloudflare upload error details.
+   *
+   * @param error - The error.
+   * @returns The result of the operation.
+   */
   private getCloudflareUploadErrorDetails(error: unknown): unknown {
     if (axios.isAxiosError(error)) {
       return error.response?.data;
@@ -441,7 +469,7 @@ export class ImageUploadsService {
   /**
    * Validates and sanitises a file before upload.
    *
-   * Checks for valid mimetype, file size, virus presence, and santises the filename.
+   * Checks for valid mimetype, file size, virus presence, and sanitises the filename.
    *
    * @param userId - The ID of the user owning the file.
    * @param file - The Multer file object to validate.

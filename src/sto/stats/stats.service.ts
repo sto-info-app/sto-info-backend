@@ -13,6 +13,8 @@ import { GeneralFactionEntity } from 'src/sto/character/entities/general-faction
 import { RecruitTypeEntity } from 'src/sto/character/entities/recruit-type.entity';
 import { SexEntity } from 'src/sto/character/entities/sex.entity';
 import { SpeciesEntity } from 'src/sto/character/entities/species.entity';
+import { AccountEndeavourProgressEntity } from 'src/sto/endeavour/entities/account-endeavour-progress.entity';
+import { EndeavourPerkEntity } from 'src/sto/endeavour/entities/endeavour-perk.entity';
 import { LauncherEntity } from 'src/sto/launcher/entities/launcher.entity';
 import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
 import { IsNull, Repository, SelectQueryBuilder } from 'typeorm';
@@ -23,6 +25,13 @@ const LEVEL_RANGE_FACTION = 'Starfleet (2409)';
 
 @Injectable()
 export class StatsService {
+  /**
+   * Creates an instance of StatsService.
+   *
+   * @param accountRepository - The account repository.
+   * @param characterRepository - The character repository.
+   * @param characterRankRepository - The character rank repository.
+   */
   constructor(
     @InjectRepository(AccountEntity)
     private readonly accountRepository: Repository<AccountEntity>,
@@ -30,6 +39,10 @@ export class StatsService {
     private readonly characterRepository: Repository<CharacterEntity>,
     @InjectRepository(CharacterRankEntity)
     private readonly characterRankRepository: Repository<CharacterRankEntity>,
+    @InjectRepository(AccountEndeavourProgressEntity)
+    private readonly progressRepository: Repository<AccountEndeavourProgressEntity>,
+    @InjectRepository(EndeavourPerkEntity)
+    private readonly endeavourPerkRepository: Repository<EndeavourPerkEntity>,
   ) {}
 
   /**
@@ -76,42 +89,37 @@ export class StatsService {
 
     const mgr = this.accountRepository.manager;
 
-    const [levelStats, groupStats, byLevelRange, byPlatform, byLauncher] =
-      await Promise.all([
-        this.getLevelStats(userId, accountId),
-        this.getGroupStats(userId, accountId),
-        this.getLevelRangeStats(userId, accountId),
-        mgr
-          .find(PlatformEntity, {
-            where: { deletedAt: IsNull() },
-            select: { name: true },
-          })
-          .then(es => es.map(e => e.name))
-          .then(names =>
-            this.getAccountGroupStats(
-              userId,
-              'platform',
-              'p',
-              names,
-              accountId,
-            ),
-          ),
-        mgr
-          .find(LauncherEntity, {
-            where: { deletedAt: IsNull() },
-            select: { name: true },
-          })
-          .then(es => es.map(e => e.name))
-          .then(names =>
-            this.getAccountGroupStats(
-              userId,
-              'launcher',
-              'l',
-              names,
-              accountId,
-            ),
-          ),
-      ]);
+    const [
+      levelStats,
+      groupStats,
+      byLevelRange,
+      byPlatform,
+      byLauncher,
+      endeavourStats,
+    ] = await Promise.all([
+      this.getLevelStats(userId, accountId),
+      this.getGroupStats(userId, accountId),
+      this.getLevelRangeStats(userId, accountId),
+      mgr
+        .find(PlatformEntity, {
+          where: { deletedAt: IsNull() },
+          select: { name: true },
+        })
+        .then(es => es.map(e => e.name))
+        .then(names =>
+          this.getAccountGroupStats(userId, 'platform', 'p', names, accountId),
+        ),
+      mgr
+        .find(LauncherEntity, {
+          where: { deletedAt: IsNull() },
+          select: { name: true },
+        })
+        .then(es => es.map(e => e.name))
+        .then(names =>
+          this.getAccountGroupStats(userId, 'launcher', 'l', names, accountId),
+        ),
+      this.getEndeavourStats(userId, accountId, accountCount),
+    ]);
 
     return {
       accountCount,
@@ -129,6 +137,7 @@ export class StatsService {
       byLevelRange,
       byPlatform,
       byLauncher,
+      ...endeavourStats,
     };
   }
 
@@ -413,6 +422,136 @@ export class StatsService {
           : `Level ${tier.levelFrom} - ${tier.levelTo}`;
       return { name, count };
     });
+  }
+
+  /**
+   * Queries endeavour node totals grouped by perk and by category (Space /
+   * Ground) for the user's accounts, optionally scoped to a single account.
+   *
+   * Every known perk appears in `byEndeavourPerk` with a `count` of 0 when the
+   * user has no progress for it.  Both categories always appear in
+   * `byEndeavourCategory`.
+   *
+   * `endeavourMaxNodes` is the theoretical maximum: accountCount ×
+   * sum-of-all-perk-maxNodes.
+   *
+   * @param userId Owner user ID.
+   * @param accountId Optional account ID to restrict the query to one account.
+   * @param accountCount Pre-computed number of accounts in scope.
+   * @returns Aggregated endeavour stats.
+   */
+  private async getEndeavourStats(
+    userId: string,
+    accountId: string | undefined,
+    accountCount: number,
+  ): Promise<{
+    endeavourTotalNodes: number;
+    endeavourMaxNodes: number;
+    byEndeavourPerk: CountItemDto[];
+    byEndeavourPerkAvg: CountItemDto[];
+    byEndeavourCategory: CountItemDto[];
+    byEndeavourCategoryPct: CountItemDto[];
+  }> {
+    const allPerks = await this.endeavourPerkRepository.find({
+      select: { name: true, category: true, maxNodes: true, sortOrder: true },
+      order: { sortOrder: 'ASC' },
+    });
+
+    const qb = this.progressRepository
+      .createQueryBuilder('aep')
+      .innerJoin('aep.account', 'a')
+      .where('a.userId = :userId', { userId });
+
+    if (accountId) {
+      qb.andWhere('a.id = :accountId', { accountId });
+    }
+
+    const [byPerkRaw, byCategoryRaw, activeAccountCountRaw] = await Promise.all(
+      [
+        qb
+          .clone()
+          .innerJoin('aep.endeavourPerk', 'ep')
+          .select(['ep.name AS name', 'SUM(aep.currentNodes) AS count'])
+          .groupBy('ep.id, ep.name')
+          .getRawMany<{ name: string; count: string }>(),
+        qb
+          .clone()
+          .innerJoin('aep.endeavourPerk', 'ep')
+          .select(['ep.category AS name', 'SUM(aep.currentNodes) AS count'])
+          .groupBy('ep.category')
+          .getRawMany<{ name: string; count: string }>(),
+        qb
+          .clone()
+          .select('COUNT(DISTINCT aep.accountId) AS "activeCount"')
+          .getRawOne<{ activeCount: string }>(),
+      ],
+    );
+
+    // Only count accounts that have at least one endeavour record — accounts
+    // below level 60 haven't unlocked the system and would skew averages down.
+    const activeAccountCount = Number(activeAccountCountRaw?.activeCount ?? 0);
+
+    const totalNodes = byPerkRaw.reduce((sum, r) => sum + Number(r.count), 0);
+    const totalPerkMaxNodes = allPerks.reduce((sum, p) => sum + p.maxNodes, 0);
+
+    const categoryMaxPerAccount = new Map<string, number>([
+      [
+        'Space',
+        allPerks
+          .filter(p => p.category === 'Space')
+          .reduce((sum, p) => sum + p.maxNodes, 0),
+      ],
+      [
+        'Ground',
+        allPerks
+          .filter(p => p.category === 'Ground')
+          .reduce((sum, p) => sum + p.maxNodes, 0),
+      ],
+    ]);
+
+    const byEndeavourPerkAvg: CountItemDto[] = this.mergeWithAllNames(
+      byPerkRaw.map(r => ({
+        name: r.name,
+        count: String(
+          activeAccountCount > 0
+            ? Math.round(Number(r.count) / activeAccountCount)
+            : 0,
+        ),
+      })),
+      allPerks.map(p => p.name),
+    );
+
+    const byEndeavourCategoryPct: CountItemDto[] = ['Space', 'Ground'].map(
+      cat => {
+        const maxPerAccount = categoryMaxPerAccount.get(cat) ?? 0;
+        const totalCatNodes = Number(
+          byCategoryRaw.find(r => r.name === cat)?.count ?? 0,
+        );
+        const maxPossible = activeAccountCount * maxPerAccount;
+        return {
+          name: cat,
+          count:
+            maxPossible > 0
+              ? Math.round((totalCatNodes / maxPossible) * 100)
+              : 0,
+        };
+      },
+    );
+
+    return {
+      endeavourTotalNodes: totalNodes,
+      endeavourMaxNodes: accountCount * totalPerkMaxNodes,
+      byEndeavourPerk: this.mergeWithAllNames(
+        byPerkRaw,
+        allPerks.map(p => p.name),
+      ),
+      byEndeavourPerkAvg,
+      byEndeavourCategory: this.mergeWithAllNames(byCategoryRaw, [
+        'Space',
+        'Ground',
+      ]),
+      byEndeavourCategoryPct,
+    };
   }
 
   /**

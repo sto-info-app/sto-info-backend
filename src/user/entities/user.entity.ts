@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import * as bcrypt from 'bcrypt';
+import { randomUUID } from 'node:crypto';
 import { Exclude } from 'class-transformer';
 import { IsEmail, IsNotEmpty, IsString, IsUUID } from 'class-validator';
 import {
@@ -15,7 +16,6 @@ import {
   UpdateDateColumn,
   VirtualColumn,
 } from 'typeorm';
-import { v4 as uuid } from 'uuid';
 import { AccountEntity } from '../../sto/account/entities/account.entity';
 import { UserRefreshTokenEntity } from '../../user-refresh-token/entities/user-refresh-token.entity';
 import { UserProfileEntity } from './user-profile.entity';
@@ -85,8 +85,13 @@ export class UserEntity {
   deletedAt: Date | null;
 
   @BeforeInsert()
+  /**
+   * Generates a UUID for the entity.
+   *
+   * @returns The result of the operation.
+   */
   generateUuid() {
-    this.id = uuid();
+    this.id = randomUUID();
   }
 
   @OneToMany(() => UserRefreshTokenEntity, refreshToken => refreshToken.user)
@@ -98,6 +103,12 @@ export class UserEntity {
   @OneToOne(() => UserProfileEntity, profile => profile.user, { cascade: true })
   profile: UserProfileEntity;
 
+  /**
+   * Compares a password against the stored hash.
+   *
+   * @param password - The password.
+   * @returns A promise that resolves when the operation completes.
+   */
   async comparePassword(password: string): Promise<boolean> {
     return bcrypt.compare(password, this.password);
   }
