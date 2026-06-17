@@ -48,9 +48,9 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1069.0",
-    "@aws-sdk/client-secrets-manager": "^3.1069.0",
-    "@aws-sdk/client-sesv2": "^3.1069.0",
+    "@aws-sdk/client-s3": "^3.1070.0",
+    "@aws-sdk/client-secrets-manager": "^3.1070.0",
+    "@aws-sdk/client-sesv2": "^3.1070.0",
     "@nestjs-modules/mailer": "^2.3.6",
     "@nestjs/common": "^11.1.27",
     "@nestjs/config": "^4.0.4",
@@ -82,7 +82,7 @@
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.2.0",
     "nestjs-cls": "^6.2.1",
-    "nodemailer": "^9.0.0",
+    "nodemailer": "^9.0.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
