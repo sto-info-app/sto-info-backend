@@ -9,6 +9,7 @@
  *
  * See: https://github.com/advisories/GHSA-5528-5vmv-3xc2 (multer < 2.1.1)
  * See: https://github.com/advisories/GHSA-c7w3-x93f-qmm8 (nodemailer < 8.0.4)
+ * See: https://github.com/advisories/GHSA-p6gq-j5cr-w38f (nodemailer <= 9.0.0)
  * See: https://github.com/advisories/GHSA-w5hq-g745-h8pq (uuid < 11.1.1)
  */
 
@@ -74,6 +75,7 @@ function patchLockFile(nestedPath, topLevelName, newVersion) {
 // Patches: [ nestedInstallPath, topLevelPackageName ]
 const patches = [
   ['@nestjs/platform-express/node_modules/multer', 'multer'],
+  ['mailparser/node_modules/nodemailer', 'nodemailer'],
   ['preview-email/node_modules/nodemailer', 'nodemailer'],
   ['preview-email/node_modules/uuid', 'uuid'],
 ];

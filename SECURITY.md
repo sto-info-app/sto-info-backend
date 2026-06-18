@@ -128,6 +128,27 @@ Common scan IDs are documented in `.zap/rules.tsv`.
 
 Both fast-check and ZAP are updated regularly via Dependabot to ensure the latest vulnerability signatures and testing capabilities.
 
+## Known Dependency Advisory Follow-up
+
+The production audit gate (`npm audit --audit-level=high --omit=dev`) currently passes. There is one remaining moderate advisory to track:
+
+- Package: `js-yaml` (`<=4.1.1`)
+- Advisory: GHSA-h67p-54hq-rp68 (quadratic-complexity DoS in merge key handling)
+- Introduced via: `@nestjs/swagger@11.4.4`
+- Current impact: moderate severity only; does not fail the required high-severity CI audit gate
+
+### Non-breaking remediation strategy
+
+1. Prefer upstream patch adoption by monitoring new `@nestjs/swagger` releases that move off vulnerable `js-yaml` versions.
+2. Keep current NestJS major version alignment; do not use `npm audit fix --force` for this issue because it proposes breaking package jumps.
+3. Re-evaluate at each Dependabot PR and remove any temporary constraints/patches once a safe non-breaking path is available.
+
+### Verification command
+
+```bash
+npm audit --audit-level=high --omit=dev
+```
+
 ## Reporting a Vulnerability
 
 If you believe you have discovered a security vulnerability, please report it privately through one of the following channels:
