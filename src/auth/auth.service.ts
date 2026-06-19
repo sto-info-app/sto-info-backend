@@ -336,6 +336,7 @@ export class AuthService {
     const payload = {
       email: user.email,
       sub: user.id,
+      role: user.role,
     };
     const newUserRefreshToken = await this.issueRefreshToken(user);
 
@@ -493,7 +494,7 @@ export class AuthService {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
-      const newPayload = { email: user.email, sub: user.id };
+      const newPayload = { email: user.email, sub: user.id, role: user.role };
       const newUserRefreshToken = await this.issueRefreshToken(user);
 
       // Revoke the old refresh token
