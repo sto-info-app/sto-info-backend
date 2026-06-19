@@ -116,6 +116,21 @@ export class NotificationController {
     return this.notificationService.markRead(userId, id);
   }
 
+  /**
+   * Marks a single notification as unread.
+   *
+   * @param userId - The authenticated user's ID.
+   * @param id - The notification ID.
+   */
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Delete(':id/read')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Mark a notification as unread' })
+  markUnread(@UserId() userId: string, @Param('id') id: string) {
+    return this.notificationService.markUnread(userId, id);
+  }
+
   // ----- Admin: banners -----
 
   /**

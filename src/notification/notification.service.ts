@@ -212,6 +212,18 @@ export class NotificationService {
   }
 
   /**
+   * Marks a single notification as unread for a user (idempotent).
+   *
+   * @param userId - The authenticated user's ID.
+   * @param notificationId - The notification ID.
+   * @throws NotFoundException when the notification is not in the user's scope.
+   */
+  async markUnread(userId: string, notificationId: string): Promise<void> {
+    await this.assertNotificationInScope(userId, notificationId);
+    await this.notificationReadRepository.delete({ notificationId, userId });
+  }
+
+  /**
    * Marks every notification in a user's inbox as read.
    *
    * @param userId - The authenticated user's ID.
