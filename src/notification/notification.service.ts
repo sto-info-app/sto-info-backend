@@ -26,6 +26,11 @@ export interface PaginatedInbox {
   unreadCount: number;
 }
 
+export interface AppState {
+  banners: BannerEntity[];
+  unreadCount: number;
+}
+
 @Injectable()
 export class NotificationService {
   /**
@@ -60,6 +65,25 @@ export class NotificationService {
       .andWhere('(b."endsAt" IS NULL OR b."endsAt" >= :now)', { now })
       .orderBy('b."createdAt"', 'DESC')
       .getMany();
+  }
+
+  // ----- App state (public read, enriched when authenticated) -----
+
+  /**
+   * Returns the polled application state: the active site banners for everyone,
+   * plus the unread notification count for authenticated callers.
+   *
+   * Lets the client refresh banners and the unread badge on a single cadence
+   * instead of polling each separately. Anonymous callers get an unread count
+   * of zero since they have no inbox.
+   *
+   * @param userId - The authenticated user's ID, or `null` when anonymous.
+   * @returns The active banners and the caller's unread count.
+   */
+  async getAppState(userId: string | null): Promise<AppState> {
+    const banners = await this.findActiveBanners();
+    const unreadCount = userId ? await this.getUnreadCount(userId) : 0;
+    return { banners, unreadCount };
   }
 
   // ----- Banners (admin) -----

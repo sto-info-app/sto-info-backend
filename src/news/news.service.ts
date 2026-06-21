@@ -9,16 +9,21 @@ import { CreateNewsPostDto } from './dto/create-news-post.dto';
 import { NewsQueryDto } from './dto/news-query.dto';
 import { UpdateNewsPostDto } from './dto/update-news-post.dto';
 import { NewsPostEntity } from './entities/news-post.entity';
+import { NewsCategory } from './enums/news-category.enum';
 import { NewsStatus } from './enums/news-status.enum';
 
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
+
+export type NewsCategoryCounts = Partial<Record<NewsCategory, number>>;
 
 export interface PaginatedNews {
   items: NewsPostEntity[];
   total: number;
   page: number;
   pageSize: number;
+  /** Number of published posts per category, independent of the active filter. */
+  categoryCounts?: NewsCategoryCounts;
 }
 
 @Injectable()
@@ -53,7 +58,31 @@ export class NewsService {
       take: pageSize,
     });
 
-    return { items, total, page, pageSize };
+    const categoryCounts = await this.countPublishedByCategory();
+
+    return { items, total, page, pageSize, categoryCounts };
+  }
+
+  /**
+   * Counts published posts grouped by category, independent of any active
+   * filter, so clients can hide category chips that have no posts.
+   *
+   * @returns A map of category to published post count.
+   */
+  private async countPublishedByCategory(): Promise<NewsCategoryCounts> {
+    const rows = await this.newsRepository
+      .createQueryBuilder('post')
+      .select('post.category', 'category')
+      .addSelect('COUNT(*)', 'count')
+      .where('post.status = :status', { status: NewsStatus.PUBLISHED })
+      .groupBy('post.category')
+      .getRawMany<{ category: NewsCategory; count: string }>();
+
+    const counts: NewsCategoryCounts = {};
+    for (const row of rows) {
+      counts[row.category] = Number(row.count);
+    }
+    return counts;
   }
 
   /**
@@ -76,7 +105,11 @@ export class NewsService {
   }
 
   /**
-   * Lists all posts (including drafts) for administration, newest first.
+   * Lists all posts (including drafts) for administration. Drafts are listed
+   * first (the `news_status_enum` is defined DRAFT-before-PUBLISHED, so the
+   * enum's native ordering surfaces them ahead of published posts), then by
+   * `publishedAt` newest first, with `createdAt` as a tie-breaker for drafts
+   * that have no `publishedAt`.
    *
    * @param query - Pagination and category filter.
    * @returns A page of posts.
@@ -87,7 +120,7 @@ export class NewsService {
 
     const [items, total] = await this.newsRepository.findAndCount({
       where: query.category ? { category: query.category } : {},
-      order: { createdAt: 'DESC' },
+      order: { status: 'ASC', publishedAt: 'DESC', createdAt: 'DESC' },
       skip: (page - 1) * pageSize,
       take: pageSize,
     });

@@ -11,8 +11,27 @@ import { NewsService } from './news.service';
 describe('NewsService', () => {
   let service: NewsService;
   let repository: jest.Mocked<Repository<NewsPostEntity>>;
+  let queryBuilder: {
+    select: jest.Mock;
+    addSelect: jest.Mock;
+    where: jest.Mock;
+    groupBy: jest.Mock;
+    getRawMany: jest.Mock<
+      () => Promise<Array<{ category: NewsCategory; count: string }>>
+    >;
+  };
 
   beforeEach(async () => {
+    queryBuilder = {
+      select: jest.fn(() => queryBuilder),
+      addSelect: jest.fn(() => queryBuilder),
+      where: jest.fn(() => queryBuilder),
+      groupBy: jest.fn(() => queryBuilder),
+      getRawMany: jest.fn(() =>
+        Promise.resolve([] as Array<{ category: NewsCategory; count: string }>),
+      ),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         NewsService,
@@ -24,6 +43,7 @@ describe('NewsService', () => {
             create: jest.fn(),
             save: jest.fn(),
             softRemove: jest.fn(),
+            createQueryBuilder: jest.fn(() => queryBuilder),
           },
         },
       ],
@@ -43,7 +63,13 @@ describe('NewsService', () => {
 
       const result = await service.findPublished({});
 
-      expect(result).toEqual({ items: [], total: 0, page: 1, pageSize: 10 });
+      expect(result).toEqual({
+        items: [],
+        total: 0,
+        page: 1,
+        pageSize: 10,
+        categoryCounts: {},
+      });
       expect(repository.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { status: NewsStatus.PUBLISHED },
@@ -72,6 +98,21 @@ describe('NewsService', () => {
           take: 50,
         }),
       );
+    });
+
+    it('maps grouped category counts into a record', async () => {
+      repository.findAndCount.mockResolvedValue([[], 0]);
+      queryBuilder.getRawMany.mockResolvedValueOnce([
+        { category: NewsCategory.GENERAL, count: '3' },
+        { category: NewsCategory.RELEASE_NOTES, count: '1' },
+      ]);
+
+      const result = await service.findPublished({});
+
+      expect(result.categoryCounts).toEqual({
+        [NewsCategory.GENERAL]: 3,
+        [NewsCategory.RELEASE_NOTES]: 1,
+      });
     });
   });
 

@@ -105,6 +105,33 @@ describe('NotificationService', () => {
     });
   });
 
+  describe('getAppState', () => {
+    it('returns banners with the unread count for an authenticated user', async () => {
+      const banners = [{ id: 'b1' }] as BannerEntity[];
+      const bannerQb = createQbMock({ getMany: banners });
+      bannerRepo.createQueryBuilder.mockReturnValue(bannerQb as never);
+      const unreadQb = createQbMock({ getCount: 3 });
+      notificationRepo.createQueryBuilder.mockReturnValue(unreadQb as never);
+
+      await expect(service.getAppState('user-1')).resolves.toEqual({
+        banners,
+        unreadCount: 3,
+      });
+    });
+
+    it('returns banners with a zero count for an anonymous caller', async () => {
+      const banners = [{ id: 'b1' }] as BannerEntity[];
+      const bannerQb = createQbMock({ getMany: banners });
+      bannerRepo.createQueryBuilder.mockReturnValue(bannerQb as never);
+
+      await expect(service.getAppState(null)).resolves.toEqual({
+        banners,
+        unreadCount: 0,
+      });
+      expect(notificationRepo.createQueryBuilder).not.toHaveBeenCalled();
+    });
+  });
+
   describe('createBanner', () => {
     it('applies defaults for dismissible and active', async () => {
       (bannerRepo.create as jest.Mock).mockImplementation(
