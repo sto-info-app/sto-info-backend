@@ -126,7 +126,7 @@ describe('Error Utility', () => {
       const custom = new CustomError('Test');
       const result = ensureError(custom);
       expect(result).toBe(custom);
-      expect(result instanceof CustomError).toBe(true);
+      expect(result).toBeInstanceOf(CustomError);
     });
 
     it('handles arrays by stringifying them', () => {
