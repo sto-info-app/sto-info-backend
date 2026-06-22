@@ -484,7 +484,7 @@ describe('NewsService', () => {
       expect(result.slug).toBe('new-slug');
     });
 
-    it('updates summary when provided', async () => {
+    it('updates summary when provided (second summary scenario)', async () => {
       const existing = {
         id: '1',
         summary: 'Old summary',

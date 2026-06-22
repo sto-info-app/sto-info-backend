@@ -34,7 +34,6 @@ export const NEWS_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const COMBINING_DIACRITICS_PATTERN = /[̀-ͯ]/g;
 export const NON_ALPHANUMERIC_PATTERN = /[^a-z0-9]+/g;
 export const LEADING_HYPHENS_PATTERN = /^-+/;
-export const TRAILING_HYPHENS_PATTERN = /-+$/;
 
 // Formatting patterns
 export const NEWLINE_PATTERN = /\r?\n/g;

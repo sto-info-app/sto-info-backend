@@ -15,7 +15,6 @@ import {
   COMBINING_DIACRITICS_PATTERN,
   LEADING_HYPHENS_PATTERN,
   NON_ALPHANUMERIC_PATTERN,
-  TRAILING_HYPHENS_PATTERN,
 } from 'src/shared/constants/regex-patterns.constants';
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -277,17 +276,25 @@ export class NewsService {
    * @returns The slug.
    */
   private slugify(title: string): string {
-    const base = title
+    const normalized = title
       .toLowerCase()
       .normalize('NFKD')
       .replaceAll(COMBINING_DIACRITICS_PATTERN, '')
       .replaceAll(NON_ALPHANUMERIC_PATTERN, '-')
-      .replace(LEADING_HYPHENS_PATTERN, '')
-      .replace(TRAILING_HYPHENS_PATTERN, '')
-      .slice(0, 240);
+      .replace(LEADING_HYPHENS_PATTERN, '');
+
+    const base = this.trimTrailingHyphens(normalized).slice(0, 240);
 
     // Ensure uniqueness-friendliness and avoid empty slugs.
     const suffix = Date.now().toString(36);
     return base ? `${base}-${suffix}` : suffix;
+  }
+
+  private trimTrailingHyphens(value: string): string {
+    let end = value.length;
+    while (end > 0 && value[end - 1] === '-') {
+      end -= 1;
+    }
+    return value.slice(0, end);
   }
 }

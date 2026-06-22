@@ -168,7 +168,7 @@ describe('Error Utility', () => {
 
         expect(typeof stringified).toBe('string');
         expect(wrapped).toBeInstanceOf(Error);
-        expect(stringified).toBeTruthy();
+        expect(wrapped.message).toBe(stringified);
       });
     });
   });
