@@ -7,6 +7,7 @@ import { BannerEntity } from './entities/banner.entity';
 import { NotificationReadEntity } from './entities/notification-read.entity';
 import { NotificationEntity } from './entities/notification.entity';
 import { NotificationTarget } from './enums/notification-target.enum';
+import { NotificationSeverity } from './enums/notification-severity.enum';
 import { NotificationService } from './notification.service';
 
 /**
@@ -146,6 +147,56 @@ describe('NotificationService', () => {
       expect(result.dismissible).toBe(true);
       expect(result.active).toBe(true);
     });
+
+    it('applies null defaults for optional string fields', async () => {
+      (bannerRepo.create as jest.Mock).mockImplementation(
+        (v: unknown) => v as BannerEntity,
+      );
+      (bannerRepo.save as jest.Mock).mockImplementation(
+        async (v: unknown) => v as BannerEntity,
+      );
+
+      const result = await service.createBanner({ message: 'Hi' });
+
+      expect(result.title).toBeNull();
+      expect(result.linkUrl).toBeNull();
+      expect(result.linkLabel).toBeNull();
+      expect(result.startsAt).toBeNull();
+      expect(result.endsAt).toBeNull();
+    });
+
+    it('uses provided values when supplied', async () => {
+      (bannerRepo.create as jest.Mock).mockImplementation(
+        (v: unknown) => v as BannerEntity,
+      );
+      (bannerRepo.save as jest.Mock).mockImplementation(
+        async (v: unknown) => v as BannerEntity,
+      );
+
+      const startsAt = new Date('2026-01-01');
+      const endsAt = new Date('2026-01-02');
+      const result = await service.createBanner({
+        severity: NotificationSeverity.CRITICAL,
+        message: 'Error!',
+        title: 'Title',
+        linkUrl: 'https://example.com',
+        linkLabel: 'Link',
+        dismissible: false,
+        active: false,
+        startsAt,
+        endsAt,
+      });
+
+      expect(result.severity).toBe(NotificationSeverity.CRITICAL);
+      expect(result.message).toBe('Error!');
+      expect(result.title).toBe('Title');
+      expect(result.linkUrl).toBe('https://example.com');
+      expect(result.linkLabel).toBe('Link');
+      expect(result.dismissible).toBe(false);
+      expect(result.active).toBe(false);
+      expect(result.startsAt).toBe(startsAt);
+      expect(result.endsAt).toBe(endsAt);
+    });
   });
 
   describe('findBannerById', () => {
@@ -180,6 +231,86 @@ describe('NotificationService', () => {
       expect(result.items[0].isRead).toBe(true);
       expect(result.total).toBe(1);
       expect(result.unreadCount).toBe(0);
+      expect(result.page).toBe(1);
+    });
+
+    it('handles items without read state', async () => {
+      const notification = { id: 'n1' } as NotificationEntity;
+      const listQb = createQbMock({
+        getRawAndEntities: {
+          entities: [notification],
+          raw: [{ r_readAt: null }],
+        },
+      });
+      const countQb = createQbMock({ getCount: 1 });
+      const unreadQb = createQbMock({ getCount: 1 });
+      notificationRepo.createQueryBuilder
+        .mockReturnValueOnce(listQb as never)
+        .mockReturnValueOnce(countQb as never)
+        .mockReturnValueOnce(unreadQb as never);
+
+      const result = await service.getInbox('user-1', {});
+
+      expect(result.items[0].isRead).toBe(false);
+      expect(result.items[0].readAt).toBeNull();
+    });
+
+    it('applies unreadOnly filter when requested', async () => {
+      const qb = createQbMock();
+      const countQb = createQbMock({ getCount: 1 });
+      const unreadQb = createQbMock({ getCount: 1 });
+      notificationRepo.createQueryBuilder
+        .mockReturnValueOnce(qb as never)
+        .mockReturnValueOnce(countQb as never)
+        .mockReturnValueOnce(unreadQb as never);
+
+      await service.getInbox('user-1', { unreadOnly: true });
+
+      expect(qb.andWhere).toHaveBeenCalledWith('r.id IS NULL');
+    });
+
+    it('handles pagination with custom page and pageSize', async () => {
+      const qb = createQbMock();
+      const countQb = createQbMock({ getCount: 50 });
+      const unreadQb = createQbMock({ getCount: 10 });
+      notificationRepo.createQueryBuilder
+        .mockReturnValueOnce(qb as never)
+        .mockReturnValueOnce(countQb as never)
+        .mockReturnValueOnce(unreadQb as never);
+
+      await service.getInbox('user-1', { page: 3, pageSize: 20 });
+
+      expect(qb.skip).toHaveBeenCalledWith(40); // (3-1)*20
+      expect(qb.take).toHaveBeenCalledWith(20);
+    });
+
+    it('clamps page to 1 when invalid', async () => {
+      const qb = createQbMock();
+      const countQb = createQbMock({ getCount: 5 });
+      const unreadQb = createQbMock({ getCount: 2 });
+      notificationRepo.createQueryBuilder
+        .mockReturnValueOnce(qb as never)
+        .mockReturnValueOnce(countQb as never)
+        .mockReturnValueOnce(unreadQb as never);
+
+      const result = await service.getInbox('user-1', { page: 0 });
+
+      expect(result.page).toBe(1);
+      expect(qb.skip).toHaveBeenCalledWith(0);
+    });
+
+    it('clamps pageSize to default and max', async () => {
+      const qb = createQbMock();
+      const countQb = createQbMock({ getCount: 5 });
+      const unreadQb = createQbMock({ getCount: 2 });
+      notificationRepo.createQueryBuilder
+        .mockReturnValueOnce(qb as never)
+        .mockReturnValueOnce(countQb as never)
+        .mockReturnValueOnce(unreadQb as never);
+
+      await service.getInbox('user-1', { pageSize: 999 });
+
+      expect(qb.take).toHaveBeenCalledWith(100); // MAX_PAGE_SIZE
     });
   });
 
@@ -270,6 +401,78 @@ describe('NotificationService', () => {
       });
 
       expect(result.userId).toBe('user-9');
+      expect(result.target).toBe(NotificationTarget.USER);
+    });
+
+    it('applies default target of BROADCAST', async () => {
+      (notificationRepo.create as jest.Mock).mockImplementation(
+        (v: unknown) => v as NotificationEntity,
+      );
+      (notificationRepo.save as jest.Mock).mockImplementation(
+        async (v: unknown) => v as NotificationEntity,
+      );
+
+      const result = await service.createNotification({
+        title: 'T',
+        body: 'B',
+      });
+
+      expect(result.target).toBe(NotificationTarget.BROADCAST);
+    });
+
+    it('uses provided severity, title, body and linkUrl', async () => {
+      (notificationRepo.create as jest.Mock).mockImplementation(
+        (v: unknown) => v as NotificationEntity,
+      );
+      (notificationRepo.save as jest.Mock).mockImplementation(
+        async (v: unknown) => v as NotificationEntity,
+      );
+
+      const result = await service.createNotification({
+        severity: NotificationSeverity.WARNING,
+        title: 'Important',
+        body: 'Something happened',
+        linkUrl: 'https://example.com',
+      });
+
+      expect(result.severity).toBe('WARNING');
+      expect(result.title).toBe('Important');
+      expect(result.body).toBe('Something happened');
+      expect(result.linkUrl).toBe('https://example.com');
+    });
+
+    it('nulls linkUrl when not provided', async () => {
+      (notificationRepo.create as jest.Mock).mockImplementation(
+        (v: unknown) => v as NotificationEntity,
+      );
+      (notificationRepo.save as jest.Mock).mockImplementation(
+        async (v: unknown) => v as NotificationEntity,
+      );
+
+      const result = await service.createNotification({
+        title: 'T',
+        body: 'B',
+      });
+
+      expect(result.linkUrl).toBeNull();
+    });
+
+    it('nulls userId for USER target when not provided', async () => {
+      (notificationRepo.create as jest.Mock).mockImplementation(
+        (v: unknown) => v as NotificationEntity,
+      );
+      (notificationRepo.save as jest.Mock).mockImplementation(
+        async (v: unknown) => v as NotificationEntity,
+      );
+
+      const result = await service.createNotification({
+        target: NotificationTarget.USER,
+        title: 'T',
+        body: 'B',
+      });
+
+      expect(result.target).toBe(NotificationTarget.USER);
+      expect(result.userId).toBeNull();
     });
   });
 
@@ -363,12 +566,97 @@ describe('NotificationService', () => {
       expect(result.dismissible).toBe(false); // unchanged
     });
 
+    it('leaves fields unchanged when not provided in update', async () => {
+      const existing = {
+        id: 'b1',
+        title: 'Title',
+        linkUrl: 'https://example.com',
+        linkLabel: 'Label',
+        startsAt: new Date(),
+        endsAt: new Date(),
+      } as BannerEntity;
+      bannerRepo.findOne.mockResolvedValue(existing);
+      (bannerRepo.save as jest.Mock).mockImplementation(
+        async (v: unknown) => v,
+      );
+
+      const result = await service.updateBanner('b1', {});
+
+      expect(result.title).toBe('Title');
+      expect(result.linkUrl).toBe('https://example.com');
+      expect(result.linkLabel).toBe('Label');
+      expect(result.startsAt).toEqual(existing.startsAt);
+      expect(result.endsAt).toEqual(existing.endsAt);
+    });
+
+    it('updates severity when provided', async () => {
+      const existing = {
+        id: 'b1',
+        severity: NotificationSeverity.INFO,
+      } as BannerEntity;
+      bannerRepo.findOne.mockResolvedValue(existing);
+      (bannerRepo.save as jest.Mock).mockImplementation(
+        async (v: unknown) => v,
+      );
+
+      const result = await service.updateBanner('b1', {
+        severity: NotificationSeverity.CRITICAL,
+      });
+
+      expect(result.severity).toBe(NotificationSeverity.CRITICAL);
+    });
+
+    it('updates dismissible when provided', async () => {
+      const existing = {
+        id: 'b1',
+        dismissible: true,
+      } as BannerEntity;
+      bannerRepo.findOne.mockResolvedValue(existing);
+      (bannerRepo.save as jest.Mock).mockImplementation(
+        async (v: unknown) => v,
+      );
+
+      const result = await service.updateBanner('b1', { dismissible: false });
+
+      expect(result.dismissible).toBe(false);
+    });
+
     it('throws when banner not found', async () => {
       bannerRepo.findOne.mockResolvedValue(null);
 
       await expect(service.updateBanner('x', { message: 'M' })).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it('sets nullable fields to null when explicitly provided as null', async () => {
+      const existing = {
+        id: 'b1',
+        title: 'Title',
+        linkUrl: 'https://example.com',
+        linkLabel: 'Label',
+        startsAt: new Date('2024-01-01'),
+        endsAt: new Date('2024-12-31'),
+      } as BannerEntity;
+      bannerRepo.findOne.mockResolvedValue(existing);
+      (bannerRepo.save as jest.Mock).mockImplementation(
+        async (v: unknown) => v,
+      );
+
+      // Use 'as any' to pass null values, exercising the `?? null` fallback branches
+      const result = await service.updateBanner('b1', {
+        title: null as any,
+        linkUrl: null as any,
+        linkLabel: null as any,
+        startsAt: null as any,
+        endsAt: null as any,
+      });
+
+      expect(result.title).toBeNull();
+      expect(result.linkUrl).toBeNull();
+      expect(result.linkLabel).toBeNull();
+      expect(result.startsAt).toBeNull();
+      expect(result.endsAt).toBeNull();
     });
   });
 
@@ -423,6 +711,104 @@ describe('NotificationService', () => {
       notificationRepo.findOne.mockResolvedValue(entity);
       await service.removeNotification('n1');
       expect(notificationRepo.softRemove).toHaveBeenCalledWith(entity);
+    });
+  });
+
+  describe('private helpers via public interface', () => {
+    it('countInbox respects unreadOnly filter', async () => {
+      const qb = createQbMock({
+        getMany: [],
+        getRawAndEntities: { entities: [], raw: [] },
+      });
+      const countQb = createQbMock({ getCount: 5 });
+      const unreadQb = createQbMock({ getCount: 2 });
+      notificationRepo.createQueryBuilder
+        .mockReturnValueOnce(qb as never)
+        .mockReturnValueOnce(countQb as never)
+        .mockReturnValueOnce(unreadQb as never);
+
+      await service.getInbox('user-1', { unreadOnly: false });
+
+      expect(countQb.andWhere).not.toHaveBeenCalledWith('r.id IS NULL');
+    });
+
+    it('scopedInboxQuery filters broadcast and user-targeted notifications', async () => {
+      const qb = createQbMock({ getCount: 1 });
+      notificationRepo.createQueryBuilder.mockReturnValue(qb as never);
+
+      await service.getUnreadCount('user-1');
+
+      expect(qb.leftJoin).toHaveBeenCalledWith(
+        NotificationReadEntity,
+        expect.any(String),
+        expect.any(String),
+        expect.any(Object),
+      );
+    });
+
+    it('assertNotificationInScope throws when notification not in scope', async () => {
+      const scopeQb = createQbMock({ getExists: false });
+      notificationRepo.createQueryBuilder.mockReturnValue(scopeQb as never);
+
+      await expect(service.markRead('user-1', 'n-invalid')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('clampPageSize uses default when pageSize is undefined', async () => {
+      const qb = createQbMock();
+      const countQb = createQbMock({ getCount: 5 });
+      const unreadQb = createQbMock({ getCount: 2 });
+      notificationRepo.createQueryBuilder
+        .mockReturnValueOnce(qb as never)
+        .mockReturnValueOnce(countQb as never)
+        .mockReturnValueOnce(unreadQb as never);
+
+      await service.getInbox('user-1', {});
+
+      expect(qb.take).toHaveBeenCalledWith(20); // DEFAULT_PAGE_SIZE
+    });
+
+    it('clampPageSize uses default when pageSize is zero', async () => {
+      const qb = createQbMock();
+      const countQb = createQbMock({ getCount: 5 });
+      const unreadQb = createQbMock({ getCount: 2 });
+      notificationRepo.createQueryBuilder
+        .mockReturnValueOnce(qb as never)
+        .mockReturnValueOnce(countQb as never)
+        .mockReturnValueOnce(unreadQb as never);
+
+      await service.getInbox('user-1', { pageSize: 0 });
+
+      expect(qb.take).toHaveBeenCalledWith(20); // DEFAULT_PAGE_SIZE
+    });
+
+    it('clampPageSize uses default when pageSize is negative', async () => {
+      const qb = createQbMock();
+      const countQb = createQbMock({ getCount: 5 });
+      const unreadQb = createQbMock({ getCount: 2 });
+      notificationRepo.createQueryBuilder
+        .mockReturnValueOnce(qb as never)
+        .mockReturnValueOnce(countQb as never)
+        .mockReturnValueOnce(unreadQb as never);
+
+      await service.getInbox('user-1', { pageSize: -10 });
+
+      expect(qb.take).toHaveBeenCalledWith(20); // DEFAULT_PAGE_SIZE
+    });
+
+    it('clampPageSize clamps at maximum', async () => {
+      const qb = createQbMock();
+      const countQb = createQbMock({ getCount: 5 });
+      const unreadQb = createQbMock({ getCount: 2 });
+      notificationRepo.createQueryBuilder
+        .mockReturnValueOnce(qb as never)
+        .mockReturnValueOnce(countQb as never)
+        .mockReturnValueOnce(unreadQb as never);
+
+      await service.getInbox('user-1', { pageSize: 500 });
+
+      expect(qb.take).toHaveBeenCalledWith(100); // MAX_PAGE_SIZE
     });
   });
 });

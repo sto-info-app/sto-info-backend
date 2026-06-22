@@ -48,10 +48,6 @@ export default {
     '!**/express.d.ts',
     // Exclude Jest coverage directory
     '!**/reports/**',
-    // Exclude legacy areas pending dedicated high-fidelity tests
-    '!src/news/news.service.ts',
-    '!src/notification/notification.service.ts',
-    '!src/notification/notification.controller.ts',
   ],
   coveragePathIgnorePatterns: [
     '/node_modules/',
