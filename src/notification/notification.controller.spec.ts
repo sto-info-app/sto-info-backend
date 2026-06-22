@@ -19,6 +19,7 @@ describe('NotificationController', () => {
             getUnreadCount: jest.fn(),
             markAllRead: jest.fn(),
             markRead: jest.fn(),
+            markUnread: jest.fn(),
             findAllBanners: jest.fn(),
             findBannerById: jest.fn(),
             createBanner: jest.fn(),
@@ -69,6 +70,21 @@ describe('NotificationController', () => {
     expect(service.markRead).toHaveBeenCalledWith('user-1', 'n1');
   });
 
+  it('delegates mark unread', () => {
+    controller.markUnread('user-1', 'n1');
+    expect(service.markUnread).toHaveBeenCalledWith('user-1', 'n1');
+  });
+
+  it('lists all banners', () => {
+    controller.findAllBanners();
+    expect(service.findAllBanners).toHaveBeenCalled();
+  });
+
+  it('finds a banner by id', () => {
+    controller.findBanner('b1');
+    expect(service.findBannerById).toHaveBeenCalledWith('b1');
+  });
+
   it('delegates create banner', () => {
     controller.createBanner({ message: 'm' });
     expect(service.createBanner).toHaveBeenCalledWith({ message: 'm' });
@@ -82,6 +98,11 @@ describe('NotificationController', () => {
   it('delegates remove banner', () => {
     controller.removeBanner('b1');
     expect(service.removeBanner).toHaveBeenCalledWith('b1');
+  });
+
+  it('lists all notifications', () => {
+    controller.findAllNotifications();
+    expect(service.findAllNotifications).toHaveBeenCalled();
   });
 
   it('delegates create notification', () => {

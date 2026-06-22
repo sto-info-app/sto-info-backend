@@ -79,7 +79,7 @@ describe('NotificationService', () => {
         },
         {
           provide: getRepositoryToken(NotificationReadEntity),
-          useValue: { createQueryBuilder: jest.fn() },
+          useValue: { createQueryBuilder: jest.fn(), delete: jest.fn() },
         },
       ],
     }).compile();
@@ -270,6 +270,143 @@ describe('NotificationService', () => {
       });
 
       expect(result.userId).toBe('user-9');
+    });
+  });
+
+  describe('markUnread', () => {
+    it('deletes the read row when the notification is in scope', async () => {
+      const scopeQb = createQbMock({ getExists: true });
+      notificationRepo.createQueryBuilder.mockReturnValue(scopeQb as never);
+
+      await service.markUnread('user-1', 'n1');
+
+      expect(readRepo.delete).toHaveBeenCalledWith({
+        notificationId: 'n1',
+        userId: 'user-1',
+      });
+    });
+
+    it('throws when the notification is not in scope', async () => {
+      const scopeQb = createQbMock({ getExists: false });
+      notificationRepo.createQueryBuilder.mockReturnValue(scopeQb as never);
+
+      await expect(service.markUnread('user-1', 'n1')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('findAllBanners', () => {
+    it('returns all banners sorted by creation date descending', async () => {
+      const banners = [
+        { id: 'b1', createdAt: new Date('2026-01-02') },
+        { id: 'b2', createdAt: new Date('2026-01-01') },
+      ] as BannerEntity[];
+      bannerRepo.find.mockResolvedValue(banners);
+
+      const result = await service.findAllBanners();
+
+      expect(result).toBe(banners);
+      expect(bannerRepo.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          order: { createdAt: 'DESC' },
+        }),
+      );
+    });
+  });
+
+  describe('findBannerById', () => {
+    it('returns the banner when found', async () => {
+      const banner = { id: 'b1' } as BannerEntity;
+      bannerRepo.findOne.mockResolvedValue(banner);
+
+      const result = await service.findBannerById('b1');
+
+      expect(result).toBe(banner);
+    });
+
+    it('throws when not found', async () => {
+      bannerRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.findBannerById('x')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('updateBanner', () => {
+    it('updates all provided fields', async () => {
+      const existing = {
+        id: 'b1',
+        severity: 'INFO',
+        title: 'Old',
+        message: 'Old message',
+        linkUrl: null,
+        dismissible: false,
+        active: false,
+      } as BannerEntity;
+      bannerRepo.findOne.mockResolvedValue(existing);
+      (bannerRepo.save as jest.Mock).mockImplementation(
+        async (v: unknown) => v,
+      );
+
+      const result = await service.updateBanner('b1', {
+        title: 'New',
+        message: 'New message',
+        active: true,
+      });
+
+      expect(result.title).toBe('New');
+      expect(result.message).toBe('New message');
+      expect(result.active).toBe(true);
+      expect(result.severity).toBe('INFO'); // unchanged
+      expect(result.dismissible).toBe(false); // unchanged
+    });
+
+    it('throws when banner not found', async () => {
+      bannerRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.updateBanner('x', { message: 'M' })).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('removeBanner', () => {
+    it('soft removes when found', async () => {
+      const banner = { id: 'b1' } as BannerEntity;
+      bannerRepo.findOne.mockResolvedValue(banner);
+
+      await service.removeBanner('b1');
+
+      expect(bannerRepo.softRemove).toHaveBeenCalledWith(banner);
+    });
+
+    it('throws when not found', async () => {
+      bannerRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.removeBanner('x')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('findAllNotifications', () => {
+    it('returns all notifications sorted by creation date descending', async () => {
+      const notifications = [
+        { id: 'n1', createdAt: new Date('2026-01-02') },
+        { id: 'n2', createdAt: new Date('2026-01-01') },
+      ] as NotificationEntity[];
+      notificationRepo.find.mockResolvedValue(notifications);
+
+      const result = await service.findAllNotifications();
+
+      expect(result).toBe(notifications);
+      expect(notificationRepo.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          order: { createdAt: 'DESC' },
+        }),
+      );
     });
   });
 
