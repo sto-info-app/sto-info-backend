@@ -10,6 +10,7 @@ import {
 } from 'class-validator';
 import { NewsCategory } from '../enums/news-category.enum';
 import { NewsStatus } from '../enums/news-status.enum';
+import { NEWS_SLUG_PATTERN } from 'src/shared/constants/regex-patterns.constants';
 
 export class CreateNewsPostDto {
   @ApiProperty({ description: 'Post title.' })
@@ -27,7 +28,7 @@ export class CreateNewsPostDto {
   @IsOptional()
   @IsString()
   @MaxLength(280)
-  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
+  @Matches(NEWS_SLUG_PATTERN, {
     message: 'slug must contain only lowercase letters, numbers and hyphens',
   })
   readonly slug?: string;

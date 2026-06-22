@@ -13,6 +13,10 @@ import {
   ValidateIf,
   validateSync,
 } from 'class-validator';
+import {
+  LOG_LEVEL_PATTERN,
+  REDIS_URL_PATTERN,
+} from 'src/shared/constants/regex-patterns.constants';
 
 //NOTE: Define ALL environment variables in this class.
 //NOTE: The app will throw an error when it starts up if missing/invalid.
@@ -23,13 +27,10 @@ class EnvironmentVariables {
 
   @IsNotEmpty()
   @IsString()
-  @Matches(
-    /^(error|warn|log|debug|verbose)(,(error|warn|log|debug|verbose))*$/,
-    {
-      message:
-        'LOG_LEVEL must be one of error,warn,log,debug,verbose (optionally comma-separated)',
-    },
-  )
+  @Matches(LOG_LEVEL_PATTERN, {
+    message:
+      'LOG_LEVEL must be one of error,warn,log,debug,verbose (optionally comma-separated)',
+  })
   LOG_LEVEL: string;
 
   @IsNotEmpty()
@@ -206,7 +207,7 @@ class EnvironmentVariables {
 
   @IsNotEmpty()
   @IsString()
-  @Matches(/^rediss?:\/\/.+/, {
+  @Matches(REDIS_URL_PATTERN, {
     message:
       'REDIS_URL must be a valid Redis connection string (redis:// or rediss://)',
   })

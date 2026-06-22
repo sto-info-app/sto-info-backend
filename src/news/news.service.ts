@@ -11,6 +11,12 @@ import { UpdateNewsPostDto } from './dto/update-news-post.dto';
 import { NewsPostEntity } from './entities/news-post.entity';
 import { NewsCategory } from './enums/news-category.enum';
 import { NewsStatus } from './enums/news-status.enum';
+import {
+  COMBINING_DIACRITICS_PATTERN,
+  LEADING_HYPHENS_PATTERN,
+  NON_ALPHANUMERIC_PATTERN,
+  TRAILING_HYPHENS_PATTERN,
+} from 'src/shared/constants/regex-patterns.constants';
 
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
@@ -274,9 +280,10 @@ export class NewsService {
     const base = title
       .toLowerCase()
       .normalize('NFKD')
-      .replaceAll(/[̀-ͯ]/g, '') // strip combining diacritics
-      .replaceAll(/[^a-z0-9]+/g, '-')
-      .replaceAll(/^-+|-+$/g, '')
+      .replaceAll(COMBINING_DIACRITICS_PATTERN, '')
+      .replaceAll(NON_ALPHANUMERIC_PATTERN, '-')
+      .replace(LEADING_HYPHENS_PATTERN, '')
+      .replace(TRAILING_HYPHENS_PATTERN, '')
       .slice(0, 240);
 
     // Ensure uniqueness-friendliness and avoid empty slugs.

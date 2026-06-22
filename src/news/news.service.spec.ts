@@ -181,6 +181,40 @@ describe('NewsService', () => {
         service.create({ title: 'T', body: 'b' }, 'a'),
       ).rejects.toThrow(ConflictException);
     });
+
+    it('removes leading and trailing hyphens from generated slug input', async () => {
+      (repository.create as jest.Mock).mockImplementation(
+        (value: unknown) => value,
+      );
+      (repository.save as jest.Mock).mockImplementation(
+        async (v: unknown) => v,
+      );
+
+      const result = await service.create(
+        { title: '---Hello World---', body: 'b' },
+        'author-2',
+      );
+
+      expect(result.slug).toMatch(/^hello-world-/);
+      expect(result.slug).not.toContain('--hello-world');
+    });
+
+    it('falls back to suffix when slug base becomes empty after trimming', async () => {
+      (repository.create as jest.Mock).mockImplementation(
+        (value: unknown) => value,
+      );
+      (repository.save as jest.Mock).mockImplementation(
+        async (v: unknown) => v,
+      );
+
+      const result = await service.create(
+        { title: '-----', body: 'b' },
+        'author-3',
+      );
+
+      expect(result.slug).toMatch(/^[a-z0-9]+$/);
+      expect(result.slug).not.toContain('-');
+    });
   });
 
   describe('update', () => {

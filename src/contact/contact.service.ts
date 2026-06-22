@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { MailService } from 'src/mail/mail.service';
 import { Repository } from 'typeorm';
+import { NEWLINE_PATTERN } from 'src/shared/constants/regex-patterns.constants';
 import { ContactRequestDto } from './dto/contact-request.dto';
 import { ContactRequestEntity } from './entities/contact-request.entity';
 
@@ -97,7 +98,7 @@ export class ContactService {
     const email = this.escapeHtml(payload.email);
     const topic = this.escapeHtml(payload.topic);
     const message = this.escapeHtml(payload.message).replaceAll(
-      /\r?\n/g,
+      NEWLINE_PATTERN,
       '<br />',
     );
 
@@ -139,7 +140,7 @@ export class ContactService {
     const name = this.escapeHtml(payload.name);
     const topic = this.escapeHtml(payload.topic);
     const message = this.escapeHtml(payload.message).replaceAll(
-      /\r?\n/g,
+      NEWLINE_PATTERN,
       '<br />',
     );
 
