@@ -18,6 +18,7 @@ import {
 } from 'typeorm';
 import { AccountEntity } from '../../sto/account/entities/account.entity';
 import { UserRefreshTokenEntity } from '../../user-refresh-token/entities/user-refresh-token.entity';
+import { UserRole } from '../enums/user-role.enum';
 import { UserProfileEntity } from './user-profile.entity';
 
 @Entity({ name: 'user' })
@@ -66,6 +67,19 @@ export class UserEntity {
 
   @Column({ type: 'boolean', default: false })
   isAccountDisabled: boolean;
+
+  @ApiProperty({
+    description: 'Authorisation role for the user.',
+    enum: UserRole,
+    example: UserRole.USER,
+  })
+  @Column({
+    type: 'enum',
+    enum: UserRole,
+    enumName: 'user_role_enum',
+    default: UserRole.USER,
+  })
+  role: UserRole;
 
   @Exclude()
   @Column({ type: 'varchar', nullable: true })
