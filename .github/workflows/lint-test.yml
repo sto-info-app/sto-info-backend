@@ -209,7 +209,7 @@ jobs:
       - name: Restore Stryker incremental cache
         # Only run on PRs, skip for Dependabot
         if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
         with:
           path: .stryker-tmp/incremental.json
           key: stryker-incremental-${{ github.base_ref }}-${{ hashFiles('src/**/*.ts') }}
