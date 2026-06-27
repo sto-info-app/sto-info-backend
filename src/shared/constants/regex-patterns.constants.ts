@@ -25,3 +25,20 @@ export const CHARACTER_NAME_PATTERN =
   /^[A-Za-z'.-]([A-Za-z' .-]*[A-Za-z'.-])?$/;
 
 export const STO_HANDLE_PATTERN = /^[a-zA-Z][a-zA-Z0-9._-]{2,15}(#\d{4,})?$/;
+
+// Token and credential patterns
+export const HEX_TOKEN_PATTERN = /^[0-9a-f]{64}$/;
+
+// News/slug-related patterns
+export const NEWS_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+export const COMBINING_DIACRITICS_PATTERN = /[̀-ͯ]/g;
+export const NON_ALPHANUMERIC_PATTERN = /[^a-z0-9]+/g;
+export const LEADING_HYPHENS_PATTERN = /^-+/;
+
+// Formatting patterns
+export const NEWLINE_PATTERN = /\r?\n/g;
+
+// Configuration patterns
+export const LOG_LEVEL_PATTERN =
+  /^(error|warn|log|debug|verbose)(,(error|warn|log|debug|verbose))*$/;
+export const REDIS_URL_PATTERN = /^rediss?:\/\/.+/;
