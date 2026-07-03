@@ -10,11 +10,9 @@ describe('NotificationModule', () => {
       NotificationModule,
     ) as unknown[] | undefined;
     const providers = Reflect.getMetadata('providers', NotificationModule) as
-      | unknown[]
-      | undefined;
+      unknown[] | undefined;
     const exportsList = Reflect.getMetadata('exports', NotificationModule) as
-      | unknown[]
-      | undefined;
+      unknown[] | undefined;
 
     expect(controllers).toContain(NotificationController);
     expect(controllers).toContain(AppStateController);
