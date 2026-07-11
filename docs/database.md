@@ -170,6 +170,7 @@ Currently: Review if any triggers are in use.
 | `_audit_ses_event` (`suppress=true`)  | Hard bounce and complaint records deleted after `SES_SUPPRESSION_RETENTION_DAYS` days (policy: **7 years / 2557 days**)                |
 | `contact_request`                     | Email masked after `CONTACT_REQUEST_EMAIL_MASK_RETENTION_DAYS` days; record deleted after `CONTACT_REQUEST_RECORD_RETENTION_DAYS` days |
 | `user_refresh_token`                  | Expired and revoked tokens deleted nightly                                                                                             |
+| `user`, `user_profile`, `account`, `character` | Soft-deleted immediately on account closure; hard-deleted by cron after `CLOSED_ACCOUNT_RETENTION_DAYS` (validated to be >= `AUDIT_DATA_NUKE_THRESHOLD_DAYS`) |
 
 ### SES Audit Storage & Ownership
 
@@ -186,8 +187,8 @@ For full consistency with the privacy policy, ensure any CloudWatch Log Groups a
 
 **Define project rules here:**
 
-- User account data: retained until deletion is requested
-- Character data: retained until user deletes it or account is deleted
+- User account data: retained until deletion is requested, then soft-deleted immediately
+- Character/account/profile data: soft-deleted on account closure; hard-deleted after closed-account retention window
 - Uploaded images: define whether deletions remove the backing object from R2/Cloudflare Images
 - Backups: define Render backup retention and restoration expectations
 

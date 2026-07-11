@@ -9,6 +9,14 @@ export const CONTACT_REQUEST_RECORD_RETENTION_DAYS =
   +process.env.CONTACT_REQUEST_RECORD_RETENTION_DAYS!;
 
 /**
+ * How many days to retain user records after account closure before
+ * permanent deletion. This value is intentionally kept >= audit retention
+ * so user records can outlive security/audit events that may reference them.
+ */
+export const CLOSED_ACCOUNT_RETENTION_DAYS =
+  +process.env.CLOSED_ACCOUNT_RETENTION_DAYS!;
+
+/**
  * How many days to retain audit_ses_event records that do NOT suppress
  * (i.e. soft bounces and deliveries). These are informational only and
  * can be pruned relatively quickly.

@@ -201,6 +201,10 @@ class EnvironmentVariables {
   @IsNumber()
   CONTACT_REQUEST_RECORD_RETENTION_DAYS: number;
 
+  @IsNotEmpty()
+  @IsNumber()
+  CLOSED_ACCOUNT_RETENTION_DAYS: number;
+
   @IsOptional()
   @IsNumber()
   TRUST_PROXY_HOPS: number;
@@ -235,6 +239,15 @@ export class ConfigCheckService {
 
     if (errors.length > 0) {
       throw new Error(`Validation error: ${errors}`);
+    }
+
+    if (
+      config.CLOSED_ACCOUNT_RETENTION_DAYS <
+      config.AUDIT_DATA_NUKE_THRESHOLD_DAYS
+    ) {
+      throw new Error(
+        `Validation error: CLOSED_ACCOUNT_RETENTION_DAYS (${config.CLOSED_ACCOUNT_RETENTION_DAYS}) must be greater than or equal to AUDIT_DATA_NUKE_THRESHOLD_DAYS (${config.AUDIT_DATA_NUKE_THRESHOLD_DAYS}).`,
+      );
     }
 
     return config;

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpException,
@@ -103,6 +104,32 @@ export class UserController {
   @HttpCode(HttpStatus.OK)
   async findUser(@UserId() userId: string): Promise<UserEntity> {
     return await this.userService.findById(userId);
+  }
+
+  /**
+   * Closes the authenticated user's account.
+   *
+   * Marks user-linked data as deleted immediately and schedules permanent
+   * deletion via retention cron jobs.
+   *
+   * @param userId Authenticated user ID (injected).
+   */
+  @ApiOperation({
+    summary: 'Close the current user account',
+    description:
+      'Marks user-linked data as deleted and revokes active sessions. Permanent deletion is performed later by scheduled retention jobs.',
+  })
+  @ApiOkResponse({ description: 'Account closure has been accepted.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid access token.' })
+  @ApiNotFoundResponse({
+    description:
+      'User does not exist, or the authenticated user id is invalid.',
+  })
+  @Delete('close-account')
+  @HttpCode(HttpStatus.OK)
+  async closeAccount(@UserId() userId: string): Promise<{ success: true }> {
+    await this.userService.closeAccount(userId);
+    return { success: true };
   }
 
   /**

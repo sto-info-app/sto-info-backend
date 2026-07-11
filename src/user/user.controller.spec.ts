@@ -17,6 +17,8 @@ describe('UserController', () => {
     const uploadProfilePictureMock: jest.MockedFunction<
       UserService['uploadProfilePicture']
     > = jest.fn();
+    const closeAccountMock: jest.MockedFunction<UserService['closeAccount']> =
+      jest.fn();
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UserController],
@@ -27,6 +29,7 @@ describe('UserController', () => {
             findById: findByIdMock,
             updateUserProfile: updateUserProfileMock,
             uploadProfilePicture: uploadProfilePictureMock,
+            closeAccount: closeAccountMock,
           },
         },
       ],
@@ -121,6 +124,29 @@ describe('UserController', () => {
       await expect(
         controller.updateUserProfilePic('1', undefined as unknown as any),
       ).rejects.toThrow(HttpException);
+    });
+  });
+
+  describe('closeAccount', () => {
+    it('should close account successfully', async () => {
+      jest
+        .spyOn(userService, 'closeAccount')
+        .mockResolvedValue(
+          undefined as Awaited<ReturnType<UserService['closeAccount']>>,
+        );
+
+      await expect(controller.closeAccount('1')).resolves.toEqual({
+        success: true,
+      });
+      expect(userService.closeAccount).toHaveBeenCalledWith('1');
+    });
+
+    it('should throw when service throws', async () => {
+      jest
+        .spyOn(userService, 'closeAccount')
+        .mockRejectedValue(new HttpException('boom', 500));
+
+      await expect(controller.closeAccount('1')).rejects.toThrow(HttpException);
     });
   });
 
