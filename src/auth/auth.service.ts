@@ -17,6 +17,7 @@ import * as ejs from 'ejs';
 import { convert as htmlToText } from 'html-to-text';
 import * as crypto from 'node:crypto';
 import * as path from 'node:path';
+import { AuditEntity } from 'src/audit/entities/audit.entity';
 import { AuditLoginAttemptEntity } from 'src/audit/entities/audit-login-attempt.entity';
 import { MailService } from 'src/mail/mail.service';
 import { EMAIL_PATTERN } from 'src/shared/constants/regex-patterns.constants';
@@ -58,6 +59,9 @@ export class AuthService {
 
     @InjectRepository(AuditLoginAttemptEntity)
     private readonly _loginAttemptRepository: Repository<AuditLoginAttemptEntity>,
+
+    @InjectRepository(AuditEntity)
+    private readonly _auditRepository: Repository<AuditEntity>,
 
     private readonly _jwtService: JwtService,
     private readonly _userService: UserService,
@@ -453,12 +457,13 @@ export class AuthService {
 
     await this._userRepository.save(user);
 
+    await this._refreshTokenService.revokeAllTokensForUser(user.id);
+    await this.logPasswordResetSessionInvalidation(user);
+
     await this._mailService.sendPasswordChangedEmail(
       user.email,
       user.profile?.firstName || 'Captain!',
     );
-
-    await this._refreshTokenService.revokeAllTokensForUser(user.id);
   }
 
   /**
@@ -662,5 +667,28 @@ export class AuthService {
   ): Promise<never> {
     await this.logLoginAttempt(email, ipAddress, false);
     throw new HttpException(message, status);
+  }
+
+  /**
+   * Creates an explicit security audit record when password reset invalidates all sessions.
+   */
+  private async logPasswordResetSessionInvalidation(
+    user: Pick<UserEntity, 'id' | 'email'>,
+  ): Promise<void> {
+    const audit = new AuditEntity();
+    audit.entity = 'AuthSession';
+    audit.action = 'PASSWORD_RESET_GLOBAL_LOGOUT';
+    audit.entityId = user.id;
+    audit.oldValue = null;
+    audit.newValue = {
+      reason: 'password_reset',
+      forcedReauthentication: true,
+      userEmail: user.email,
+    };
+    audit.userId = user.id;
+    audit.ipAddress = CurrentContextHelper.ip;
+
+    await validateOrReject(audit);
+    await this._auditRepository.save(audit);
   }
 }
