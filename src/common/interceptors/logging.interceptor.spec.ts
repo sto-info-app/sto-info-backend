@@ -52,7 +52,7 @@ describe('LoggingInterceptor', () => {
 
   it('should log the successful request and set Sentry tags', done => {
     const loggerSpy = jest
-      .spyOn((interceptor as any).logger, 'log')
+      .spyOn((interceptor as any)._logger, 'log')
       .mockImplementation(() => {});
 
     interceptor
@@ -77,7 +77,7 @@ describe('LoggingInterceptor', () => {
 
   it('should log failed requests and capture exception in Sentry', done => {
     const loggerSpy = jest
-      .spyOn((interceptor as any).logger, 'error')
+      .spyOn((interceptor as any)._logger, 'error')
       .mockImplementation(() => {});
     const error = new Error('Test error');
     mockCallHandler.handle = jest

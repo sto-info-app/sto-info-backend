@@ -15,9 +15,9 @@ export class ContactController {
   /**
    * Creates an instance of ContactController.
    *
-   * @param contactService - The contact service.
+   * @param _contactService - The contact service.
    */
-  constructor(private readonly contactService: ContactService) {}
+  constructor(private readonly _contactService: ContactService) {}
 
   /**
    * Submit a contact request and send it to the support inbox.
@@ -34,6 +34,6 @@ export class ContactController {
     description: 'The contact request has been sent.',
   })
   async submitContact(@Body() payload: ContactRequestDto): Promise<void> {
-    await this.contactService.submitContactRequest(payload);
+    await this._contactService.submitContactRequest(payload);
   }
 }

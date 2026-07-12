@@ -29,16 +29,16 @@ import { LessThan, Repository } from 'typeorm';
  */
 @Injectable()
 export class SesAuditCleanupService {
-  private readonly logger = new Logger(SesAuditCleanupService.name);
+  private readonly _logger = new Logger(SesAuditCleanupService.name);
 
   /**
    * Creates an instance of SesAuditCleanupService.
    *
-   * @param sesEventRepository - The ses event repository.
+   * @param _sesEventRepository - The ses event repository.
    */
   constructor(
     @InjectRepository(SesEventEntity)
-    private readonly sesEventRepository: Repository<SesEventEntity>,
+    private readonly _sesEventRepository: Repository<SesEventEntity>,
   ) {}
 
   /**
@@ -64,12 +64,12 @@ export class SesAuditCleanupService {
     const threshold = new Date();
     threshold.setDate(threshold.getDate() - SES_AUDIT_RETENTION_DAYS);
 
-    const result = await this.sesEventRepository.delete({
+    const result = await this._sesEventRepository.delete({
       suppress: false,
       createdAt: LessThan(threshold),
     });
 
-    this.logger.log(
+    this._logger.log(
       `Deleted ${result.affected ?? 0} non-suppressing SES audit records older than ${SES_AUDIT_RETENTION_DAYS} days.`,
     );
   }
@@ -87,12 +87,12 @@ export class SesAuditCleanupService {
     const threshold = new Date();
     threshold.setDate(threshold.getDate() - SES_SUPPRESSION_RETENTION_DAYS);
 
-    const result = await this.sesEventRepository.delete({
+    const result = await this._sesEventRepository.delete({
       suppress: true,
       createdAt: LessThan(threshold),
     });
 
-    this.logger.log(
+    this._logger.log(
       `Deleted ${result.affected ?? 0} suppression SES audit records older than ${SES_SUPPRESSION_RETENTION_DAYS} days.`,
     );
   }

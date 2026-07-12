@@ -10,7 +10,7 @@ export class SeedStoInfoNewsAndNotificationsUpdate1782518400000 implements Migra
   /**
    * The STO Info post to seed. Body is authored as Markdown.
    */
-  private readonly posts: {
+  private readonly _posts: {
     slug: string;
     title: string;
     summary: string;
@@ -71,7 +71,7 @@ This news post covers the following releases:
    * @param queryRunner - The TypeORM query runner.
    */
   public async up(queryRunner: QueryRunner): Promise<void> {
-    for (const post of this.posts) {
+    for (const post of this._posts) {
       await queryRunner.query(
         `
           INSERT INTO "sto_info_app"."news_post"
@@ -105,7 +105,7 @@ This news post covers the following releases:
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       `DELETE FROM "sto_info_app"."news_post" WHERE "slug" = ANY($1)`,
-      [this.posts.map(post => post.slug)],
+      [this._posts.map(post => post.slug)],
     );
   }
 }

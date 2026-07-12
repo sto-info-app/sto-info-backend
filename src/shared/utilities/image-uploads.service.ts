@@ -18,9 +18,9 @@ import { ensureError, stringifyError } from './error.utility';
 
 @Injectable()
 export class ImageUploadsService {
-  private readonly logger = new Logger(ImageUploadsService.name);
-  private readonly bucketName: string;
-  private readonly environment: string;
+  private readonly _logger = new Logger(ImageUploadsService.name);
+  private readonly _bucketName: string;
+  private readonly _environment: string;
   private cloudmersiveApiKey: string;
   private cloudflareImagesAccountId: string;
   private cloudflareImagesApiKey: string;
@@ -28,19 +28,19 @@ export class ImageUploadsService {
   /**
    * Creates an instance of ImageUploadsService.
    *
-   * @param secretsService - The secrets service.
-   * @param configService - The config service.
-   * @param s3Client - The s3 client.
+   * @param _secretsService - The secrets service.
+   * @param _configService - The config service.
+   * @param _s3Client - The s3 client.
    */
   constructor(
-    private readonly secretsService: SecretsService,
-    private readonly configService: ConfigService,
-    private readonly s3Client: S3Client,
+    private readonly _secretsService: SecretsService,
+    private readonly _configService: ConfigService,
+    private readonly _s3Client: S3Client,
   ) {
-    this.bucketName = this.configService.get<string>(
+    this._bucketName = this._configService.get<string>(
       'CLOUDFLARE_R2_BUCKET_NAME',
     )!;
-    this.environment = this.configService.get<string>('NODE_ENV')!;
+    this._environment = this._configService.get<string>('NODE_ENV')!;
   }
 
   /**
@@ -59,7 +59,7 @@ export class ImageUploadsService {
    * @returns A promise that resolves when initialisation is complete.
    */
   private async init() {
-    const secretObject = await this.secretsService.getSecret(
+    const secretObject = await this._secretsService.getSecret(
       process.env.AWS_SECRET_NAME!,
     );
 
@@ -97,7 +97,7 @@ export class ImageUploadsService {
    * @returns A promise that resolves if the file is clean.
    */
   private async scanFileForViruses(fileBuffer: Buffer): Promise<void> {
-    this.logger.debug(
+    this._logger.debug(
       `[scanFileForViruses] Starting virus scan - BufferSize: ${fileBuffer.length} bytes`,
     );
 
@@ -133,7 +133,7 @@ export class ImageUploadsService {
           (v: Cloudmersive.VirusFound) => v.VirusName,
         ).join(', ');
 
-        this.logger.error(
+        this._logger.error(
           `[scanFileForViruses] Viruses detected: ${virusNames}`,
         );
         throw new BadRequestException(
@@ -141,11 +141,11 @@ export class ImageUploadsService {
         );
       }
 
-      this.logger.debug(
+      this._logger.debug(
         '[scanFileForViruses] Virus scan passed - No threats found',
       );
     } catch (error: unknown) {
-      this.logger.error(
+      this._logger.error(
         `[scanFileForViruses] Virus scan failed - Error: ${(error as Error).message}`,
         (error as Error).stack,
       );
@@ -166,7 +166,7 @@ export class ImageUploadsService {
     file: Express.Multer.File,
     characterId?: string,
   ) {
-    this.logger.debug(
+    this._logger.debug(
       `[uploadImageToCloudflareR2] Starting upload - UserId: ${userId}, CharacterId: ${characterId}, FileName: ${file?.originalname}, FileSize: ${file?.size} bytes`,
     );
 
@@ -176,31 +176,31 @@ export class ImageUploadsService {
         file,
       );
 
-      this.logger.debug(
+      this._logger.debug(
         `[uploadImageToCloudflareR2] File validated - OriginalName: ${file.originalname}, SafeName: ${safeFileName}, BufferSize: ${fileBuffer.length} bytes`,
       );
 
       // Prepare the Cloudflare key (path and filename within the bucket)
       const folderPath = characterId ? `${userId}/${characterId}` : userId;
-      const fileKey = `${this.environment}/${folderPath}/${safeFileName}`;
+      const fileKey = `${this._environment}/${folderPath}/${safeFileName}`;
 
-      this.logger.debug(
-        `[uploadImageToCloudflareR2] Prepared for R2 - FileKey: ${fileKey}, Bucket: ${this.bucketName}`,
+      this._logger.debug(
+        `[uploadImageToCloudflareR2] Prepared for R2 - FileKey: ${fileKey}, Bucket: ${this._bucketName}`,
       );
 
       // Prepare the command to upload the file to R2
       const command = new PutObjectCommand({
-        Bucket: this.bucketName,
+        Bucket: this._bucketName,
         Key: fileKey,
         Body: fileBuffer,
         ContentType: file.mimetype,
       });
 
       // Upload to Cloudflare R2
-      this.logger.debug('[uploadImageToCloudflareR2] Sending to R2...');
-      await this.s3Client.send(command);
+      this._logger.debug('[uploadImageToCloudflareR2] Sending to R2...');
+      await this._s3Client.send(command);
 
-      this.logger.log(
+      this._logger.log(
         `[uploadImageToCloudflareR2] Successfully uploaded to R2 - FileKey: ${fileKey}`,
       );
 
@@ -209,7 +209,7 @@ export class ImageUploadsService {
       const message = stringifyError(error);
 
       const stack = error instanceof Error ? error.stack : undefined;
-      this.logger.error(
+      this._logger.error(
         `[uploadImageToCloudflareR2] Upload failed - UserId: ${userId}, CharacterId: ${characterId}, Error: ${message}`,
         stack,
       );
@@ -239,11 +239,11 @@ export class ImageUploadsService {
     );
 
     const command = new DeleteObjectCommand({
-      Bucket: this.bucketName,
+      Bucket: this._bucketName,
       Key: fileKey,
     });
 
-    await this.s3Client.send(command);
+    await this._s3Client.send(command);
 
     return fileKey;
   }
@@ -263,7 +263,7 @@ export class ImageUploadsService {
     entityType?: string,
     entityId?: string,
   ) {
-    this.logger.debug(
+    this._logger.debug(
       `[uploadImageToCloudflareImages] Starting upload - UserId: ${userId}, EntityType: ${entityType || 'none'}, EntityId: ${entityId || 'none'}, FileName: ${file?.originalname}`,
     );
 
@@ -282,7 +282,7 @@ export class ImageUploadsService {
 
     const customId = this.buildCloudflareCustomId(userId, entityType, entityId);
 
-    this.logger.debug(
+    this._logger.debug(
       `[uploadImageToCloudflareImages] Generated custom ID: ${customId}`,
     );
 
@@ -293,7 +293,7 @@ export class ImageUploadsService {
     const metadata = {
       userId,
       originalFileName: safeFileName,
-      env: this.environment,
+      env: this._environment,
       uploadedAt: new Date().toISOString(),
       ...(entityType && { entityType }),
       ...(entityId && { entityId }),
@@ -301,7 +301,7 @@ export class ImageUploadsService {
 
     formData.append('metadata', JSON.stringify(metadata));
 
-    this.logger.debug(
+    this._logger.debug(
       `[uploadImageToCloudflareImages] Metadata: ${JSON.stringify(metadata)}`,
     );
 
@@ -323,7 +323,7 @@ export class ImageUploadsService {
         errorMsgFailedUpload,
       );
 
-      this.logger.log(
+      this._logger.log(
         `[uploadImageToCloudflareImages] Successfully uploaded - ImageId: ${imageId}`,
       );
 
@@ -333,7 +333,7 @@ export class ImageUploadsService {
 
       const errorDetails = this.getCloudflareUploadErrorDetails(error);
 
-      this.logger.error(
+      this._logger.error(
         `[uploadImageToCloudflareImages] Upload failed - Error: ${errorMessage}`,
         errorDetails,
       );
@@ -356,7 +356,7 @@ export class ImageUploadsService {
   ): string {
     // Format: env-userId-entityType-entityId-timestamp
     const timestamp = Date.now();
-    const parts = [this.environment, userId];
+    const parts = [this._environment, userId];
     if (entityType) {
       parts.push(entityType);
     }
@@ -379,7 +379,7 @@ export class ImageUploadsService {
     errorMsgFailedUpload: string,
   ): string {
     if (!response || typeof response !== 'object') {
-      this.logger.error(
+      this._logger.error(
         '[uploadImageToCloudflareImages] Response is missing or invalid',
       );
       throw new BadRequestException(errorMsgFailedUpload);
@@ -387,7 +387,7 @@ export class ImageUploadsService {
 
     const status = (response as { status?: unknown }).status;
     if (status !== 200) {
-      this.logger.error(
+      this._logger.error(
         `[uploadImageToCloudflareImages] Upload failed with status ${stringifyError(status)}`,
       );
 
@@ -396,14 +396,14 @@ export class ImageUploadsService {
 
     const data = (response as { data?: any }).data;
     if (!data) {
-      this.logger.error(
+      this._logger.error(
         '[uploadImageToCloudflareImages] Response data is missing',
       );
       throw new BadRequestException(errorMsgFailedUpload);
     }
 
     if (!data.result) {
-      this.logger.error(
+      this._logger.error(
         '[uploadImageToCloudflareImages] Response result is missing',
       );
       throw new BadRequestException(errorMsgFailedUpload);
@@ -411,7 +411,7 @@ export class ImageUploadsService {
 
     const id = data.result.id as unknown;
     if (typeof id !== 'string' || id.length === 0) {
-      this.logger.error(
+      this._logger.error(
         '[uploadImageToCloudflareImages] Response result ID is missing',
       );
       throw new BadRequestException(errorMsgFailedUpload);
@@ -480,28 +480,28 @@ export class ImageUploadsService {
     userId: string,
     file: Express.Multer.File,
   ): Promise<{ fileBuffer: Buffer; safeFileName: string }> {
-    this.logger.debug(
+    this._logger.debug(
       `[validateAndSanitiseFile] Starting validation - UserId: ${userId}, FileName: ${file?.originalname}, FileSize: ${file?.size} bytes, MimeType: ${file?.mimetype}`,
     );
 
     if (!userId) {
-      this.logger.error('[validateAndSanitiseFile] User ID is missing');
+      this._logger.error('[validateAndSanitiseFile] User ID is missing');
       throw new BadRequestException('User ID is missing');
     }
 
     if (!file) {
-      this.logger.error('[validateAndSanitiseFile] File is missing');
+      this._logger.error('[validateAndSanitiseFile] File is missing');
       throw new BadRequestException('File is missing');
     }
 
     if (!file.mimetype) {
-      this.logger.error('[validateAndSanitiseFile] File mimetype is missing');
+      this._logger.error('[validateAndSanitiseFile] File mimetype is missing');
       throw new BadRequestException('File mimetype is missing');
     }
 
     // Validate file type and size (allow only jpeg, jpg, or png)
     if (!['image/jpeg', 'image/jpg', 'image/png'].includes(file.mimetype)) {
-      this.logger.error(
+      this._logger.error(
         `[validateAndSanitiseFile] Invalid mimetype - MimeType: ${file.mimetype}`,
       );
       throw new BadRequestException(
@@ -511,30 +511,30 @@ export class ImageUploadsService {
 
     const maxSize = +process.env.MAX_IMAGE_SIZE_IN_BYTES!;
     if (file.size > maxSize) {
-      this.logger.error(
+      this._logger.error(
         `[validateAndSanitiseFile] File too large - Size: ${file.size} bytes, MaxSize: ${maxSize} bytes`,
       );
       throw new BadRequestException('File too large');
     }
 
     if (!file.buffer) {
-      this.logger.error('[validateAndSanitiseFile] File buffer is missing');
+      this._logger.error('[validateAndSanitiseFile] File buffer is missing');
       throw new BadRequestException('File buffer is missing');
     }
 
     if (!file.filename && !file.originalname) {
-      this.logger.error('[validateAndSanitiseFile] File name is missing');
+      this._logger.error('[validateAndSanitiseFile] File name is missing');
       throw new BadRequestException('File name is missing');
     }
 
     const fileBuffer = file.buffer;
 
     if (!fileBuffer || fileBuffer.length === 0) {
-      this.logger.error('[validateAndSanitiseFile] No image data provided');
+      this._logger.error('[validateAndSanitiseFile] No image data provided');
       throw new BadRequestException('No image data provided');
     }
 
-    this.logger.debug(
+    this._logger.debug(
       `[validateAndSanitiseFile] File structure validated - BufferSize: ${fileBuffer.length} bytes`,
     );
 
@@ -549,13 +549,13 @@ export class ImageUploadsService {
     );
     /* istanbul ignore next */
     if (!SAFE_FILENAME_PATTERN.test(safeFileName)) {
-      this.logger.error(
+      this._logger.error(
         `[validateAndSanitiseFile] Invalid characters in filename - OriginalName: ${originalFileName}, SafeName: ${safeFileName}`,
       );
       throw new BadRequestException('Invalid characters in file name');
     }
 
-    this.logger.debug(
+    this._logger.debug(
       `[validateAndSanitiseFile] Validation complete - OriginalName: ${originalFileName}, SafeName: ${safeFileName}`,
     );
 

@@ -20,14 +20,14 @@ export interface EmailMessage {
 
 @Injectable()
 export class MailService {
-  private readonly logger = new Logger('MailService');
+  private readonly _logger = new Logger('MailService');
 
-  private readonly noReplyEmailFromSender: { name: string; email: string } = {
+  private readonly _noReplyEmailFromSender: { name: string; email: string } = {
     name: process.env.APP_TITLE!,
     email: process.env.EMAIL_NOREPLY_SENDER!,
   };
 
-  private readonly emailTemplatePath = path.join(
+  private readonly _emailTemplatePath = path.join(
     __dirname,
     '..',
     'views',
@@ -37,14 +37,14 @@ export class MailService {
   /**
    * Creates an instance of MailService.
    *
-   * @param secretsService - The secrets service.
-   * @param validatorsService - The validators service.
-   * @param mailerService - The mailer service.
+   * @param _secretsService - The secrets service.
+   * @param _validatorsService - The validators service.
+   * @param _mailerService - The mailer service.
    */
   constructor(
-    private readonly secretsService: SecretsService,
-    private readonly validatorsService: ValidatorsService,
-    private readonly mailerService: MailerService,
+    private readonly _secretsService: SecretsService,
+    private readonly _validatorsService: ValidatorsService,
+    private readonly _mailerService: MailerService,
   ) {
     this.validateEnvironmentVariables();
   }
@@ -85,7 +85,7 @@ export class MailService {
    * @returns A promise that resolves when primary initialisation is complete.
    */
   private async init() {
-    const secretObject = await this.secretsService.getSecret(
+    const secretObject = await this._secretsService.getSecret(
       process.env.AWS_SECRET_NAME!,
     );
 
@@ -103,7 +103,7 @@ export class MailService {
     templateData: any,
   ): Promise<{ emailHtmlContent: string; emailTextContent: string }> {
     const emailHtmlContent: string = await ejs.renderFile(
-      path.join(this.emailTemplatePath, templateName),
+      path.join(this._emailTemplatePath, templateName),
       templateData,
     );
     const emailTextContent: string = htmlToText(emailHtmlContent, {
@@ -287,7 +287,7 @@ export class MailService {
     try {
       await this.sendEmailViaSES(message);
     } catch (sesError) {
-      this.logger.warn(
+      this._logger.warn(
         'Amazon SES sending failed — falling back to SendGrid.',
         sesError instanceof Error ? sesError.message : String(sesError),
       );
@@ -324,7 +324,7 @@ export class MailService {
       },
     };
 
-    const result = (await this.mailerService.sendMail(mailOptions as any)) as {
+    const result = (await this._mailerService.sendMail(mailOptions as any)) as {
       rejected?: string[];
       pending?: string[];
       accepted?: string[];
@@ -359,9 +359,9 @@ export class MailService {
     } catch (error) {
       const err = error as any;
       if (err?.response?.body?.errors) {
-        this.logger.error(err.response.body.errors);
+        this._logger.error(err.response.body.errors);
       } else {
-        this.logger.error(err);
+        this._logger.error(err);
       }
     }
   }
@@ -393,7 +393,7 @@ export class MailService {
     if (!email) {
       return false;
     }
-    return this.validatorsService.validateEmail(email);
+    return this._validatorsService.validateEmail(email);
   }
 
   /**
@@ -422,7 +422,7 @@ export class MailService {
 
     return {
       to,
-      from: this.noReplyEmailFromSender,
+      from: this._noReplyEmailFromSender,
       subject: finalSubject,
       text,
       html,

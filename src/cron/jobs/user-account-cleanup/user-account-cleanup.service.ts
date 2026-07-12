@@ -9,28 +9,28 @@ import { LessThan, Repository } from 'typeorm';
 
 @Injectable()
 export class UserAccountCleanupService {
-  private readonly logger = new Logger(UserAccountCleanupService.name);
+  private readonly _logger = new Logger(UserAccountCleanupService.name);
 
   /**
    * Creates an instance of UserAccountCleanupService.
    *
-   * @param userRepository - User repository.
-   * @param userProfileRepository - User profile repository.
-   * @param userRefreshTokenRepository - User refresh token repository.
-   * @param accountRepository - Account repository.
+   * @param _userRepository - User repository.
+   * @param _userProfileRepository - User profile repository.
+   * @param _userRefreshTokenRepository - User refresh token repository.
+   * @param _accountRepository - Account repository.
    */
   constructor(
     @InjectRepository(UserEntity)
-    private readonly userRepository: Repository<UserEntity>,
+    private readonly _userRepository: Repository<UserEntity>,
 
     @InjectRepository(UserProfileEntity)
-    private readonly userProfileRepository: Repository<UserProfileEntity>,
+    private readonly _userProfileRepository: Repository<UserProfileEntity>,
 
     @InjectRepository(UserRefreshTokenEntity)
-    private readonly userRefreshTokenRepository: Repository<UserRefreshTokenEntity>,
+    private readonly _userRefreshTokenRepository: Repository<UserRefreshTokenEntity>,
 
     @InjectRepository(AccountEntity)
-    private readonly accountRepository: Repository<AccountEntity>,
+    private readonly _accountRepository: Repository<AccountEntity>,
   ) {}
 
   /**
@@ -43,14 +43,14 @@ export class UserAccountCleanupService {
       thresholdDate.getDate() - CLOSED_ACCOUNT_RETENTION_DAYS,
     );
 
-    const usersToDelete = await this.userRepository.find({
+    const usersToDelete = await this._userRepository.find({
       where: { deletedAt: LessThan(thresholdDate) },
       withDeleted: true,
       select: { id: true },
     });
 
     if (!usersToDelete.length) {
-      this.logger.log(
+      this._logger.log(
         `No closed accounts eligible for hard deletion (threshold: ${CLOSED_ACCOUNT_RETENTION_DAYS} days).`,
       );
       return;
@@ -59,13 +59,13 @@ export class UserAccountCleanupService {
     const userIds = usersToDelete.map(user => user.id);
 
     // Purge dependent records with non-cascading FKs first.
-    await this.userRefreshTokenRepository
+    await this._userRefreshTokenRepository
       .createQueryBuilder()
       .delete()
       .where('"userId" IN (:...userIds)', { userIds })
       .execute();
 
-    await this.userProfileRepository
+    await this._userProfileRepository
       .createQueryBuilder()
       .delete()
       .where('"userId" IN (:...userIds)', { userIds })
@@ -73,19 +73,19 @@ export class UserAccountCleanupService {
 
     // Account rows are cascade-linked to user and remove characters/endeavour
     // rows automatically at the DB level on hard delete.
-    await this.accountRepository
+    await this._accountRepository
       .createQueryBuilder()
       .delete()
       .where('"userId" IN (:...userIds)', { userIds })
       .execute();
 
-    await this.userRepository
+    await this._userRepository
       .createQueryBuilder()
       .delete()
       .where('id IN (:...userIds)', { userIds })
       .execute();
 
-    this.logger.log(
+    this._logger.log(
       `Hard deleted ${userIds.length} closed user account(s) older than ${CLOSED_ACCOUNT_RETENTION_DAYS} days.`,
     );
   }

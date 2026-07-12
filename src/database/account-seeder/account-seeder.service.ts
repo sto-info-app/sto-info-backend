@@ -23,14 +23,14 @@ export class AccountSeederService {
   /**
    * Creates an instance of AccountSeederService.
    *
-   * @param platformService - Service for managing platform entities.
-   * @param launcherService - Service for managing launcher entities.
-   * @param platformLauncherService - Service for managing platform-launcher relationships.
+   * @param _platformService - Service for managing platform entities.
+   * @param _launcherService - Service for managing launcher entities.
+   * @param _platformLauncherService - Service for managing platform-launcher relationships.
    */
   constructor(
-    private readonly platformService: PlatformService,
-    private readonly launcherService: LauncherService,
-    private readonly platformLauncherService: PlatformLauncherService,
+    private readonly _platformService: PlatformService,
+    private readonly _launcherService: LauncherService,
+    private readonly _platformLauncherService: PlatformLauncherService,
   ) {}
 
   /**
@@ -69,7 +69,7 @@ export class AccountSeederService {
     for (const platform of platforms) {
       const existingPlatform = await this.findPlatformByName(platform);
       if (!existingPlatform) {
-        await this.platformService.create({ name: platform });
+        await this._platformService.create({ name: platform });
       }
     }
   }
@@ -89,7 +89,7 @@ export class AccountSeederService {
     for (const launcher of launchers) {
       const existingLauncher = await this.findLauncherByName(launcher);
       if (!existingLauncher) {
-        await this.launcherService.create({ name: launcher });
+        await this._launcherService.create({ name: launcher });
       }
     }
   }
@@ -128,7 +128,7 @@ export class AccountSeederService {
           launcher.id,
         );
         if (!existingCombo) {
-          await this.platformLauncherService.addPlatformLauncherRelation(
+          await this._platformLauncherService.addPlatformLauncherRelation(
             platform.id,
             launcher.id,
           );
@@ -152,7 +152,7 @@ export class AccountSeederService {
     name: string,
   ): Promise<PlatformEntity | null> {
     try {
-      return await this.platformService.findOneByName(name);
+      return await this._platformService.findOneByName(name);
     } catch (error) {
       if (error instanceof NotFoundException) {
         return null;
@@ -177,7 +177,7 @@ export class AccountSeederService {
     name: string,
   ): Promise<LauncherEntity | null> {
     try {
-      return await this.launcherService.findOneByName(name);
+      return await this._launcherService.findOneByName(name);
     } catch (error) {
       if (error instanceof NotFoundException) {
         return null;
@@ -204,7 +204,10 @@ export class AccountSeederService {
     launcherId: string,
   ) {
     try {
-      return await this.platformLauncherService.findOne(platformId, launcherId);
+      return await this._platformLauncherService.findOne(
+        platformId,
+        launcherId,
+      );
     } catch (error) {
       if (error instanceof NotFoundException) {
         return null;

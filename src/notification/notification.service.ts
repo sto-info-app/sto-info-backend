@@ -36,17 +36,17 @@ export class NotificationService {
   /**
    * Creates an instance of NotificationService.
    *
-   * @param bannerRepository - The banner repository.
-   * @param notificationRepository - The notification repository.
-   * @param notificationReadRepository - The per-user read-state repository.
+   * @param _bannerRepository - The banner repository.
+   * @param _notificationRepository - The notification repository.
+   * @param _notificationReadRepository - The per-user read-state repository.
    */
   constructor(
     @InjectRepository(BannerEntity)
-    private readonly bannerRepository: Repository<BannerEntity>,
+    private readonly _bannerRepository: Repository<BannerEntity>,
     @InjectRepository(NotificationEntity)
-    private readonly notificationRepository: Repository<NotificationEntity>,
+    private readonly _notificationRepository: Repository<NotificationEntity>,
     @InjectRepository(NotificationReadEntity)
-    private readonly notificationReadRepository: Repository<NotificationReadEntity>,
+    private readonly _notificationReadRepository: Repository<NotificationReadEntity>,
   ) {}
 
   // ----- Banners (public read) -----
@@ -58,7 +58,7 @@ export class NotificationService {
    */
   async findActiveBanners(): Promise<BannerEntity[]> {
     const now = new Date();
-    return this.bannerRepository
+    return this._bannerRepository
       .createQueryBuilder('b')
       .where('b.active = :active', { active: true })
       .andWhere('(b."startsAt" IS NULL OR b."startsAt" <= :now)', { now })
@@ -94,7 +94,7 @@ export class NotificationService {
    * @returns All banners.
    */
   findAllBanners(): Promise<BannerEntity[]> {
-    return this.bannerRepository.find({ order: { createdAt: 'DESC' } });
+    return this._bannerRepository.find({ order: { createdAt: 'DESC' } });
   }
 
   /**
@@ -105,7 +105,7 @@ export class NotificationService {
    * @throws NotFoundException when not found.
    */
   async findBannerById(id: string): Promise<BannerEntity> {
-    const banner = await this.bannerRepository.findOne({ where: { id } });
+    const banner = await this._bannerRepository.findOne({ where: { id } });
     if (!banner) {
       throw new NotFoundException('Banner not found');
     }
@@ -119,7 +119,7 @@ export class NotificationService {
    * @returns The created banner.
    */
   createBanner(dto: CreateBannerDto): Promise<BannerEntity> {
-    const banner = this.bannerRepository.create({
+    const banner = this._bannerRepository.create({
       severity: dto.severity,
       title: dto.title ?? null,
       message: dto.message,
@@ -130,7 +130,7 @@ export class NotificationService {
       startsAt: dto.startsAt ?? null,
       endsAt: dto.endsAt ?? null,
     });
-    return this.bannerRepository.save(banner);
+    return this._bannerRepository.save(banner);
   }
 
   /**
@@ -152,7 +152,7 @@ export class NotificationService {
     if (dto.active !== undefined) banner.active = dto.active;
     if (dto.startsAt !== undefined) banner.startsAt = dto.startsAt ?? null;
     if (dto.endsAt !== undefined) banner.endsAt = dto.endsAt ?? null;
-    return this.bannerRepository.save(banner);
+    return this._bannerRepository.save(banner);
   }
 
   /**
@@ -163,7 +163,7 @@ export class NotificationService {
    */
   async removeBanner(id: string): Promise<void> {
     const banner = await this.findBannerById(id);
-    await this.bannerRepository.softRemove(banner);
+    await this._bannerRepository.softRemove(banner);
   }
 
   // ----- Inbox notifications (user) -----
@@ -227,7 +227,7 @@ export class NotificationService {
    */
   async markRead(userId: string, notificationId: string): Promise<void> {
     await this.assertNotificationInScope(userId, notificationId);
-    await this.notificationReadRepository
+    await this._notificationReadRepository
       .createQueryBuilder()
       .insert()
       .values({ notificationId, userId })
@@ -244,7 +244,7 @@ export class NotificationService {
    */
   async markUnread(userId: string, notificationId: string): Promise<void> {
     await this.assertNotificationInScope(userId, notificationId);
-    await this.notificationReadRepository.delete({ notificationId, userId });
+    await this._notificationReadRepository.delete({ notificationId, userId });
   }
 
   /**
@@ -262,7 +262,7 @@ export class NotificationService {
       return 0;
     }
 
-    await this.notificationReadRepository
+    await this._notificationReadRepository
       .createQueryBuilder()
       .insert()
       .values(unread.map(n => ({ notificationId: n.id, userId })))
@@ -282,7 +282,7 @@ export class NotificationService {
    */
   createNotification(dto: CreateNotificationDto): Promise<NotificationEntity> {
     const target = dto.target ?? NotificationTarget.BROADCAST;
-    const notification = this.notificationRepository.create({
+    const notification = this._notificationRepository.create({
       target,
       userId: target === NotificationTarget.USER ? (dto.userId ?? null) : null,
       severity: dto.severity,
@@ -290,7 +290,7 @@ export class NotificationService {
       body: dto.body,
       linkUrl: dto.linkUrl ?? null,
     });
-    return this.notificationRepository.save(notification);
+    return this._notificationRepository.save(notification);
   }
 
   /**
@@ -299,7 +299,7 @@ export class NotificationService {
    * @returns All notifications.
    */
   findAllNotifications(): Promise<NotificationEntity[]> {
-    return this.notificationRepository.find({ order: { createdAt: 'DESC' } });
+    return this._notificationRepository.find({ order: { createdAt: 'DESC' } });
   }
 
   /**
@@ -309,13 +309,13 @@ export class NotificationService {
    * @throws NotFoundException when not found.
    */
   async removeNotification(id: string): Promise<void> {
-    const notification = await this.notificationRepository.findOne({
+    const notification = await this._notificationRepository.findOne({
       where: { id },
     });
     if (!notification) {
       throw new NotFoundException('Notification not found');
     }
-    await this.notificationRepository.softRemove(notification);
+    await this._notificationRepository.softRemove(notification);
   }
 
   // ----- Helpers -----
@@ -328,7 +328,7 @@ export class NotificationService {
    * @returns A configured query builder.
    */
   private scopedInboxQuery(userId: string) {
-    return this.notificationRepository
+    return this._notificationRepository
       .createQueryBuilder('n')
       .leftJoin(
         NotificationReadEntity,

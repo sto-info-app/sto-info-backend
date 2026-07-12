@@ -8,9 +8,9 @@ export class LauncherController {
   /**
    * Creates an instance of LauncherController.
    *
-   * @param launcherService - The launcher service.
+   * @param _launcherService - The launcher service.
    */
-  constructor(private readonly launcherService: LauncherService) {}
+  constructor(private readonly _launcherService: LauncherService) {}
 
   @Get()
   /**
@@ -19,6 +19,6 @@ export class LauncherController {
    * @returns The result of the operation.
    */
   findAll() {
-    return this.launcherService.findAll();
+    return this._launcherService.findAll();
   }
 }

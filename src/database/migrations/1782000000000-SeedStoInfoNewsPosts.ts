@@ -11,7 +11,7 @@ export class SeedStoInfoNewsPosts1782000000000 implements MigrationInterface {
   /**
    * The STO Info posts to seed, oldest first. Bodies are authored as Markdown.
    */
-  private readonly posts: {
+  private readonly _posts: {
     slug: string;
     title: string;
     summary: string;
@@ -261,7 +261,7 @@ The app remains an ongoing community project, with future work planned around br
    * @param queryRunner - The TypeORM query runner.
    */
   public async up(queryRunner: QueryRunner): Promise<void> {
-    for (const post of this.posts) {
+    for (const post of this._posts) {
       await queryRunner.query(
         `
           INSERT INTO "sto_info_app"."news_post"
@@ -295,7 +295,7 @@ The app remains an ongoing community project, with future work planned around br
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       `DELETE FROM "sto_info_app"."news_post" WHERE "slug" = ANY($1)`,
-      [this.posts.map(post => post.slug)],
+      [this._posts.map(post => post.slug)],
     );
   }
 }

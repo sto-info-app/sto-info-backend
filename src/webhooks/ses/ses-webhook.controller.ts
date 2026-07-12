@@ -24,14 +24,14 @@ import { SesWebhookService } from './ses-webhook.service';
  */
 @Controller('webhooks/ses')
 export class SesWebhookController {
-  private readonly logger = new Logger(SesWebhookController.name);
+  private readonly _logger = new Logger(SesWebhookController.name);
 
   /**
    * Creates an instance of SesWebhookController.
    *
-   * @param sesWebhookService - The ses webhook service.
+   * @param _sesWebhookService - The ses webhook service.
    */
-  constructor(private readonly sesWebhookService: SesWebhookService) {}
+  constructor(private readonly _sesWebhookService: SesWebhookService) {}
 
   @Post()
   @HttpCode(HttpStatus.OK)
@@ -54,13 +54,13 @@ export class SesWebhookController {
           ? (JSON.parse(body) as SnsEnvelope)
           : (body as SnsEnvelope);
     } catch {
-      this.logger.error('Failed to parse SNS request body');
+      this._logger.error('Failed to parse SNS request body');
       return;
     }
 
     // Validate the TopicArn to prevent spoofed notifications
-    if (!this.sesWebhookService.validateTopicArn(envelope)) {
-      this.logger.error(
+    if (!this._sesWebhookService.validateTopicArn(envelope)) {
+      this._logger.error(
         `Rejected SNS notification: unexpected TopicArn "${envelope.TopicArn}"`,
       );
       throw new ForbiddenException('Invalid SNS TopicArn');
@@ -71,7 +71,7 @@ export class SesWebhookController {
     if (type === 'SubscriptionConfirmation') {
       const subscribeUrl = envelope.SubscribeURL;
       if (!subscribeUrl) {
-        this.logger.error('SubscriptionConfirmation missing SubscribeURL');
+        this._logger.error('SubscriptionConfirmation missing SubscribeURL');
         return;
       }
 
@@ -93,19 +93,19 @@ export class SesWebhookController {
       }
 
       if (!isValid) {
-        this.logger.error(
+        this._logger.error(
           'Rejected SNS subscription confirmation due to invalid SubscribeURL format or domain',
         );
         return;
       }
 
-      await this.sesWebhookService.confirmSubscription(subscribeUrl);
+      await this._sesWebhookService.confirmSubscription(subscribeUrl);
       return;
     }
 
     if (type === 'Notification') {
       if (!envelope.Message) {
-        this.logger.warn('SNS Notification missing Message body — skipping');
+        this._logger.warn('SNS Notification missing Message body — skipping');
         return;
       }
 
@@ -113,19 +113,19 @@ export class SesWebhookController {
       try {
         notification = JSON.parse(envelope.Message) as SesNotification;
       } catch {
-        this.logger.error(
+        this._logger.error(
           'Failed to parse SES notification from SNS Message field',
         );
         return;
       }
 
-      await this.sesWebhookService.processNotification(
+      await this._sesWebhookService.processNotification(
         envelope.MessageId,
         notification,
       );
       return;
     }
 
-    this.logger.warn(`Unhandled SNS message type: ${type}`);
+    this._logger.warn(`Unhandled SNS message type: ${type}`);
   }
 }

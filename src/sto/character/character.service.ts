@@ -26,39 +26,39 @@ import { SpeciesEntity } from './entities/species.entity';
 
 @Injectable()
 export class CharacterService {
-  private readonly logger = new Logger(CharacterService.name);
+  private readonly _logger = new Logger(CharacterService.name);
 
   /**
    * Creates an instance of CharacterService.
    *
-   * @param characterRepository - The character repository.
-   * @param accountRepository - The account repository.
-   * @param generalFactionRepository - The general faction repository.
-   * @param factionRepository - The faction repository.
-   * @param sexRepository - The sex repository.
-   * @param classRepository - The class repository.
-   * @param recruitTypeRepository - The recruit type repository.
-   * @param speciesRepository - The species repository.
-   * @param imageUploadsService - The image uploads service.
+   * @param _characterRepository - The character repository.
+   * @param _accountRepository - The account repository.
+   * @param _generalFactionRepository - The general faction repository.
+   * @param _factionRepository - The faction repository.
+   * @param _sexRepository - The sex repository.
+   * @param _classRepository - The class repository.
+   * @param _recruitTypeRepository - The recruit type repository.
+   * @param _speciesRepository - The species repository.
+   * @param _imageUploadsService - The image uploads service.
    */
   constructor(
     @InjectRepository(CharacterEntity)
-    private readonly characterRepository: Repository<CharacterEntity>,
+    private readonly _characterRepository: Repository<CharacterEntity>,
     @InjectRepository(AccountEntity)
-    private readonly accountRepository: Repository<AccountEntity>,
+    private readonly _accountRepository: Repository<AccountEntity>,
     @InjectRepository(GeneralFactionEntity)
-    private readonly generalFactionRepository: Repository<GeneralFactionEntity>,
+    private readonly _generalFactionRepository: Repository<GeneralFactionEntity>,
     @InjectRepository(FactionEntity)
-    private readonly factionRepository: Repository<FactionEntity>,
+    private readonly _factionRepository: Repository<FactionEntity>,
     @InjectRepository(SexEntity)
-    private readonly sexRepository: Repository<SexEntity>,
+    private readonly _sexRepository: Repository<SexEntity>,
     @InjectRepository(CharacterClassEntity)
-    private readonly classRepository: Repository<CharacterClassEntity>,
+    private readonly _classRepository: Repository<CharacterClassEntity>,
     @InjectRepository(RecruitTypeEntity)
-    private readonly recruitTypeRepository: Repository<RecruitTypeEntity>,
+    private readonly _recruitTypeRepository: Repository<RecruitTypeEntity>,
     @InjectRepository(SpeciesEntity)
-    private readonly speciesRepository: Repository<SpeciesEntity>,
-    private readonly imageUploadsService: ImageUploadsService,
+    private readonly _speciesRepository: Repository<SpeciesEntity>,
+    private readonly _imageUploadsService: ImageUploadsService,
   ) {}
 
   /**
@@ -174,7 +174,7 @@ export class CharacterService {
       where.id = Not(excludeCharacterId);
     }
 
-    const existing = await this.characterRepository.findOne({ where });
+    const existing = await this._characterRepository.findOne({ where });
     if (existing) {
       throw new ConflictException(
         'Character handle already exists for this account',
@@ -193,7 +193,7 @@ export class CharacterService {
     accountId: string,
     userId: string,
   ): Promise<AccountEntity> {
-    const account = await this.accountRepository.findOne({
+    const account = await this._accountRepository.findOne({
       where: { id: accountId },
     });
 
@@ -242,7 +242,7 @@ export class CharacterService {
     const fullHandleNormalized = this.normalizeHandle(fullHandle);
     const fullHandleSlug = this.generateSlug(fullHandle);
 
-    const newCharacter = this.characterRepository.create({
+    const newCharacter = this._characterRepository.create({
       ...createCharacterDto,
       fullHandle,
       fullHandleNormalized,
@@ -250,7 +250,7 @@ export class CharacterService {
     });
 
     try {
-      await this.characterRepository.save(newCharacter);
+      await this._characterRepository.save(newCharacter);
       return newCharacter;
     } catch (error: unknown) {
       throw new InternalServerErrorException('Failed to save a new character', {
@@ -280,7 +280,7 @@ export class CharacterService {
 
     await this.requireOwnedAccount(accountId, userId);
 
-    const characters = await this.characterRepository.find({
+    const characters = await this._characterRepository.find({
       where: { accountId },
       relations: {
         generalFaction: true,
@@ -309,7 +309,7 @@ export class CharacterService {
       throw new BadRequestException('Handle slug is required');
     }
 
-    const character = await this.characterRepository.findOne({
+    const character = await this._characterRepository.findOne({
       where: { fullHandleSlug: handleSlug },
       relations: {
         account: true,
@@ -345,7 +345,7 @@ export class CharacterService {
       throw new BadRequestException('User ID is required');
     }
 
-    const character = await this.characterRepository.findOne({
+    const character = await this._characterRepository.findOne({
       where: { id },
       relations: {
         account: true,
@@ -416,7 +416,7 @@ export class CharacterService {
       updateData.fullHandleSlug = this.generateSlug(fullHandle);
     }
 
-    await this.characterRepository.update(id, updateData);
+    await this._characterRepository.update(id, updateData);
     return this.findOneForUser(id, userId);
   }
 
@@ -436,7 +436,7 @@ export class CharacterService {
     }
 
     const character = await this.findOneForUser(id, userId);
-    await this.characterRepository.softDelete(character.id);
+    await this._characterRepository.softDelete(character.id);
   }
 
   /**
@@ -454,48 +454,48 @@ export class CharacterService {
   ): Promise<CharacterEntity> {
     this.assertUploadProfileImageArgs(id, userId, file);
 
-    this.logger.debug(
+    this._logger.debug(
       `[uploadProfileImage] Starting upload - CharacterId: ${id}, UserId: ${userId}`,
     );
 
     try {
       const character = await this.findOneForUser(id, userId);
-      this.logger.debug(
+      this._logger.debug(
         `[uploadProfileImage] Character found - Handle: ${character.fullHandle}, ExistingProfilePictureId: ${character.profilePictureId || 'none'}`,
       );
 
       const existingProfilePictureId = character.profilePictureId;
 
-      this.logger.debug(
+      this._logger.debug(
         `[uploadProfileImage] Starting Cloudflare Images upload - CharacterId: ${id}, UserId: ${userId}`,
       );
 
       character.profilePictureId =
-        await this.imageUploadsService.uploadImageToCloudflareImages(
+        await this._imageUploadsService.uploadImageToCloudflareImages(
           userId,
           file,
           'character',
           id,
         );
 
-      this.logger.debug(
+      this._logger.debug(
         `[uploadProfileImage] Cloudflare Images upload complete - NewProfilePictureId: ${character.profilePictureId}`,
       );
 
       if (!character.profilePictureId) {
-        this.logger.error(
+        this._logger.error(
           `[uploadProfileImage] Upload returned null/undefined - CharacterId: ${id}`,
         );
         throw new InternalServerErrorException('Profile picture upload failed');
       }
 
-      this.logger.debug(
+      this._logger.debug(
         `[uploadProfileImage] Saving character to database - CharacterId: ${id}`,
       );
 
-      const updatedCharacter = await this.characterRepository.save(character);
+      const updatedCharacter = await this._characterRepository.save(character);
 
-      this.logger.log(
+      this._logger.log(
         `[uploadProfileImage] Character saved successfully - CharacterId: ${id}, ProfilePictureId: ${updatedCharacter.profilePictureId}`,
       );
 
@@ -506,7 +506,7 @@ export class CharacterService {
       const message = stringifyError(error);
 
       const stack = error instanceof Error ? error.stack : undefined;
-      this.logger.error(
+      this._logger.error(
         `[uploadProfileImage] Upload failed - CharacterId: ${id}, UserId: ${userId}, Error: ${message}`,
         stack,
       );
@@ -551,21 +551,21 @@ export class CharacterService {
       return;
     }
 
-    this.logger.debug(
+    this._logger.debug(
       `[uploadProfileImage] Deleting old image - ProfilePictureId: ${existingProfilePictureId}`,
     );
     try {
-      await this.imageUploadsService.deleteImageFromCloudflareImages(
+      await this._imageUploadsService.deleteImageFromCloudflareImages(
         existingProfilePictureId,
       );
-      this.logger.debug(
+      this._logger.debug(
         `[uploadProfileImage] Old image deleted - ProfilePictureId: ${existingProfilePictureId}`,
       );
     } catch (error: unknown) {
       const message = stringifyError(error);
 
       const stack = error instanceof Error ? error.stack : undefined;
-      this.logger.error(
+      this._logger.error(
         `[uploadProfileImage] Failed to delete old profile image from Cloudflare Images - ProfilePictureId: ${existingProfilePictureId}, Error: ${message}`,
         stack,
       );
@@ -584,7 +584,7 @@ export class CharacterService {
     factionId?: string,
   ): Promise<GeneralFactionEntity[]> {
     const query =
-      this.generalFactionRepository.createQueryBuilder('generalFaction');
+      this._generalFactionRepository.createQueryBuilder('generalFaction');
 
     if (factionId) {
       query.innerJoin(
@@ -609,7 +609,7 @@ export class CharacterService {
    * @returns A promise that resolves when the operation completes.
    */
   async getFactions(generalFactionId?: string): Promise<FactionEntity[]> {
-    const query = this.factionRepository.createQueryBuilder('faction');
+    const query = this._factionRepository.createQueryBuilder('faction');
 
     if (generalFactionId) {
       query.innerJoin(
@@ -631,7 +631,7 @@ export class CharacterService {
    * @returns A promise that resolves when the operation completes.
    */
   async getSexes(): Promise<SexEntity[]> {
-    return this.sexRepository.find({ order: { name: 'ASC' } });
+    return this._sexRepository.find({ order: { name: 'ASC' } });
   }
 
   /**
@@ -640,7 +640,7 @@ export class CharacterService {
    * @returns A promise that resolves when the operation completes.
    */
   async getClasses(): Promise<CharacterClassEntity[]> {
-    return this.classRepository.find({ order: { name: 'ASC' } });
+    return this._classRepository.find({ order: { name: 'ASC' } });
   }
 
   /**
@@ -650,7 +650,7 @@ export class CharacterService {
    * @returns A promise that resolves when the operation completes.
    */
   async getRecruitTypes(factionId?: string): Promise<RecruitTypeEntity[]> {
-    const query = this.recruitTypeRepository.createQueryBuilder('recruitType');
+    const query = this._recruitTypeRepository.createQueryBuilder('recruitType');
 
     if (factionId) {
       query.innerJoin(
@@ -675,7 +675,7 @@ export class CharacterService {
     factionId?: string,
     recruitTypeId?: string,
   ): Promise<SpeciesEntity[]> {
-    const query = this.speciesRepository.createQueryBuilder('species');
+    const query = this._speciesRepository.createQueryBuilder('species');
 
     if (factionId) {
       query.innerJoin(

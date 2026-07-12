@@ -27,20 +27,20 @@ export type AccountListItem = AccountEntity & {
 
 @Injectable()
 export class AccountService {
-  private static readonly fallbackAccountTypeImageId =
+  private static readonly _fallbackAccountTypeImageId =
     '8ab52131-6f11-408a-d9df-3c1acaa46d00';
 
   /**
    * Creates an instance of AccountService.
    *
-   * @param accountRepository - The account repository.
-   * @param platformLauncherRepository - The platform-launcher repository.
+   * @param _accountRepository - The account repository.
+   * @param _platformLauncherRepository - The platform-launcher repository.
    */
   constructor(
     @InjectRepository(AccountEntity)
-    private readonly accountRepository: Repository<AccountEntity>,
+    private readonly _accountRepository: Repository<AccountEntity>,
     @InjectRepository(PlatformLauncherEntity)
-    private readonly platformLauncherRepository: Repository<PlatformLauncherEntity>,
+    private readonly _platformLauncherRepository: Repository<PlatformLauncherEntity>,
   ) {}
 
   /**
@@ -127,7 +127,7 @@ export class AccountService {
     }
 
     return buildCloudflareImageUrl(
-      AccountService.fallbackAccountTypeImageId,
+      AccountService._fallbackAccountTypeImageId,
       'public',
     );
   }
@@ -158,7 +158,7 @@ export class AccountService {
       where.id = Not(excludeAccountId);
     }
 
-    const existing = await this.accountRepository.findOne({ where });
+    const existing = await this._accountRepository.findOne({ where });
     if (existing) {
       throw new ConflictException('Handle already exists');
     }
@@ -189,14 +189,14 @@ export class AccountService {
     const handleNormalized = this.normalizeHandle(createAccountDto.handle);
     const handleSlug = this.generateSlug(createAccountDto.handle);
 
-    const newAccount = this.accountRepository.create({
+    const newAccount = this._accountRepository.create({
       ...createAccountDto,
       handleNormalized,
       handleSlug,
     });
 
     try {
-      await this.accountRepository.save(newAccount);
+      await this._accountRepository.save(newAccount);
       return newAccount;
     } catch (error: unknown) {
       throw new InternalServerErrorException('Failed to save a new account', {
@@ -216,7 +216,7 @@ export class AccountService {
       throw new BadRequestException('User ID is required');
     }
 
-    const accounts = await this.accountRepository.find({
+    const accounts = await this._accountRepository.find({
       where: {
         user: {
           id: userId,
@@ -229,7 +229,7 @@ export class AccountService {
       order: { handle: 'ASC', username: 'ASC', createdAt: 'ASC' },
     });
 
-    const platformLaunchers = await this.platformLauncherRepository.find({
+    const platformLaunchers = await this._platformLauncherRepository.find({
       select: {
         platformId: true,
         launcherId: true,
@@ -272,7 +272,7 @@ export class AccountService {
       throw new BadRequestException('Account ID is required');
     }
 
-    const account = await this.accountRepository.findOne({
+    const account = await this._accountRepository.findOne({
       where: {
         id: id,
       },
@@ -291,7 +291,7 @@ export class AccountService {
       throw new BadRequestException('Handle slug is required');
     }
 
-    return this.accountRepository.findOne({
+    return this._accountRepository.findOne({
       where: { handleSlug },
     });
   }
@@ -309,7 +309,7 @@ export class AccountService {
     id: string,
     userId: string,
   ): Promise<AccountEntity> {
-    const account = await this.accountRepository.findOne({
+    const account = await this._accountRepository.findOne({
       where: {
         id,
       },
@@ -369,8 +369,8 @@ export class AccountService {
       throw new BadRequestException('Update data is required');
     }
 
-    await this.accountRepository.update(id, updateAccountDto);
-    const updatedAccount = await this.accountRepository.findOne({
+    await this._accountRepository.update(id, updateAccountDto);
+    const updatedAccount = await this._accountRepository.findOne({
       where: {
         id: id,
       },
@@ -428,7 +428,7 @@ export class AccountService {
     }
 
     Object.assign(account, updateAccountDto);
-    await this.accountRepository.save(account);
+    await this._accountRepository.save(account);
     return account;
   }
 
@@ -445,7 +445,7 @@ export class AccountService {
       throw new BadRequestException('Account ID is required');
     }
 
-    const deleteResponse = await this.accountRepository.softDelete(id);
+    const deleteResponse = await this._accountRepository.softDelete(id);
     if (!deleteResponse.affected) {
       throw new NotFoundException(`Account with ID "${id}" not found`);
     }
@@ -469,7 +469,7 @@ export class AccountService {
     }
 
     const account = await this.requireOwnedAccount(id, userId);
-    const deleteResponse = await this.accountRepository.softDelete(account.id);
+    const deleteResponse = await this._accountRepository.softDelete(account.id);
     if (!deleteResponse.affected) {
       throw new NotFoundException(`Account with ID "${id}" not found`);
     }
@@ -481,7 +481,7 @@ export class AccountService {
    * @returns Accounts, with soft-deleted rows included.
    */
   async findAllSoftDeleted(): Promise<AccountEntity[]> {
-    return this.accountRepository.find({ withDeleted: true });
+    return this._accountRepository.find({ withDeleted: true });
   }
 
   /**
@@ -491,6 +491,6 @@ export class AccountService {
    */
   async hardDeleteOlderThanOneWeek(): Promise<void> {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    await this.accountRepository.delete({ deletedAt: LessThan(sevenDaysAgo) });
+    await this._accountRepository.delete({ deletedAt: LessThan(sevenDaysAgo) });
   }
 }

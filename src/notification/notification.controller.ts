@@ -35,9 +35,9 @@ export class NotificationController {
   /**
    * Creates an instance of NotificationController.
    *
-   * @param notificationService - The notification service.
+   * @param _notificationService - The notification service.
    */
-  constructor(private readonly notificationService: NotificationService) {}
+  constructor(private readonly _notificationService: NotificationService) {}
 
   // ----- Public -----
 
@@ -51,7 +51,7 @@ export class NotificationController {
   @ApiOperation({ summary: 'List active site banners' })
   @ApiOkResponse({ description: 'The active banners.' })
   findActiveBanners() {
-    return this.notificationService.findActiveBanners();
+    return this._notificationService.findActiveBanners();
   }
 
   // ----- Authenticated user inbox -----
@@ -68,7 +68,7 @@ export class NotificationController {
   @Get()
   @ApiOperation({ summary: 'Get the current user inbox' })
   getInbox(@UserId() userId: string, @Query() query: InboxQueryDto) {
-    return this.notificationService.getInbox(userId, query);
+    return this._notificationService.getInbox(userId, query);
   }
 
   /**
@@ -83,7 +83,7 @@ export class NotificationController {
   @ApiOperation({ summary: 'Get the current user unread count' })
   async getUnreadCount(@UserId() userId: string) {
     return {
-      unreadCount: await this.notificationService.getUnreadCount(userId),
+      unreadCount: await this._notificationService.getUnreadCount(userId),
     };
   }
 
@@ -98,7 +98,7 @@ export class NotificationController {
   @Post('read-all')
   @ApiOperation({ summary: 'Mark all notifications as read' })
   async markAllRead(@UserId() userId: string) {
-    return { marked: await this.notificationService.markAllRead(userId) };
+    return { marked: await this._notificationService.markAllRead(userId) };
   }
 
   /**
@@ -113,7 +113,7 @@ export class NotificationController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Mark a notification as read' })
   markRead(@UserId() userId: string, @Param('id') id: string) {
-    return this.notificationService.markRead(userId, id);
+    return this._notificationService.markRead(userId, id);
   }
 
   /**
@@ -128,7 +128,7 @@ export class NotificationController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Mark a notification as unread' })
   markUnread(@UserId() userId: string, @Param('id') id: string) {
-    return this.notificationService.markUnread(userId, id);
+    return this._notificationService.markUnread(userId, id);
   }
 
   // ----- Admin: banners -----
@@ -144,7 +144,7 @@ export class NotificationController {
   @Get('admin/banners')
   @ApiOperation({ summary: 'List all banners (admin)' })
   findAllBanners() {
-    return this.notificationService.findAllBanners();
+    return this._notificationService.findAllBanners();
   }
 
   /**
@@ -159,7 +159,7 @@ export class NotificationController {
   @Get('admin/banners/:id')
   @ApiOperation({ summary: 'Get a banner (admin)' })
   findBanner(@Param('id') id: string) {
-    return this.notificationService.findBannerById(id);
+    return this._notificationService.findBannerById(id);
   }
 
   /**
@@ -174,7 +174,7 @@ export class NotificationController {
   @Post('admin/banners')
   @ApiOperation({ summary: 'Create a banner (admin)' })
   createBanner(@Body() dto: CreateBannerDto) {
-    return this.notificationService.createBanner(dto);
+    return this._notificationService.createBanner(dto);
   }
 
   /**
@@ -190,7 +190,7 @@ export class NotificationController {
   @Patch('admin/banners/:id')
   @ApiOperation({ summary: 'Update a banner (admin)' })
   updateBanner(@Param('id') id: string, @Body() dto: UpdateBannerDto) {
-    return this.notificationService.updateBanner(id, dto);
+    return this._notificationService.updateBanner(id, dto);
   }
 
   /**
@@ -205,7 +205,7 @@ export class NotificationController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a banner (admin)' })
   removeBanner(@Param('id') id: string) {
-    return this.notificationService.removeBanner(id);
+    return this._notificationService.removeBanner(id);
   }
 
   // ----- Admin: notifications -----
@@ -221,7 +221,7 @@ export class NotificationController {
   @Get('admin')
   @ApiOperation({ summary: 'List all notifications (admin)' })
   findAllNotifications() {
-    return this.notificationService.findAllNotifications();
+    return this._notificationService.findAllNotifications();
   }
 
   /**
@@ -236,7 +236,7 @@ export class NotificationController {
   @Post('admin')
   @ApiOperation({ summary: 'Create a notification (admin)' })
   createNotification(@Body() dto: CreateNotificationDto) {
-    return this.notificationService.createNotification(dto);
+    return this._notificationService.createNotification(dto);
   }
 
   /**
@@ -251,6 +251,6 @@ export class NotificationController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a notification (admin)' })
   removeNotification(@Param('id') id: string) {
-    return this.notificationService.removeNotification(id);
+    return this._notificationService.removeNotification(id);
   }
 }

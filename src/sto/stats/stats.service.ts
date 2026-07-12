@@ -28,21 +28,21 @@ export class StatsService {
   /**
    * Creates an instance of StatsService.
    *
-   * @param accountRepository - The account repository.
-   * @param characterRepository - The character repository.
-   * @param characterRankRepository - The character rank repository.
+   * @param _accountRepository - The account repository.
+   * @param _characterRepository - The character repository.
+   * @param _characterRankRepository - The character rank repository.
    */
   constructor(
     @InjectRepository(AccountEntity)
-    private readonly accountRepository: Repository<AccountEntity>,
+    private readonly _accountRepository: Repository<AccountEntity>,
     @InjectRepository(CharacterEntity)
-    private readonly characterRepository: Repository<CharacterEntity>,
+    private readonly _characterRepository: Repository<CharacterEntity>,
     @InjectRepository(CharacterRankEntity)
-    private readonly characterRankRepository: Repository<CharacterRankEntity>,
+    private readonly _characterRankRepository: Repository<CharacterRankEntity>,
     @InjectRepository(AccountEndeavourProgressEntity)
-    private readonly progressRepository: Repository<AccountEndeavourProgressEntity>,
+    private readonly _progressRepository: Repository<AccountEndeavourProgressEntity>,
     @InjectRepository(EndeavourPerkEntity)
-    private readonly endeavourPerkRepository: Repository<EndeavourPerkEntity>,
+    private readonly _endeavourPerkRepository: Repository<EndeavourPerkEntity>,
   ) {}
 
   /**
@@ -69,7 +69,7 @@ export class StatsService {
     let lifetimeSubCount: number;
 
     if (accountId) {
-      const account = await this.accountRepository.findOne({
+      const account = await this._accountRepository.findOne({
         where: { id: accountId, user: { id: userId } },
         select: { id: true, lifetimeSubscription: true },
       });
@@ -80,14 +80,14 @@ export class StatsService {
       lifetimeSubCount = account.lifetimeSubscription ? 1 : 0;
     } else {
       [accountCount, lifetimeSubCount] = await Promise.all([
-        this.accountRepository.count({ where: { user: { id: userId } } }),
-        this.accountRepository.count({
+        this._accountRepository.count({ where: { user: { id: userId } } }),
+        this._accountRepository.count({
           where: { user: { id: userId }, lifetimeSubscription: true },
         }),
       ]);
     }
 
-    const mgr = this.accountRepository.manager;
+    const mgr = this._accountRepository.manager;
 
     const [
       levelStats,
@@ -156,7 +156,7 @@ export class StatsService {
     userId: string,
     accountId?: string,
   ): SelectQueryBuilder<CharacterEntity> {
-    const qb = this.characterRepository
+    const qb = this._characterRepository
       .createQueryBuilder('c')
       .innerJoin('c.account', 'a')
       .where('a.userId = :userId', { userId });
@@ -271,7 +271,7 @@ export class StatsService {
     byRecruitType: CountItemDto[];
   }> {
     const base = this.characterBaseQb(userId, accountId);
-    const mgr = this.characterRepository.manager;
+    const mgr = this._characterRepository.manager;
 
     const [
       bySpeciesRaw,
@@ -351,7 +351,7 @@ export class StatsService {
     allNames: string[],
     accountId?: string,
   ): Promise<CountItemDto[]> {
-    const qb = this.accountRepository
+    const qb = this._accountRepository
       .createQueryBuilder('a')
       .leftJoin(`a.${relation}`, alias)
       .where('a.userId = :userId', { userId })
@@ -397,7 +397,7 @@ export class StatsService {
       .groupBy('c.level');
 
     const [tiers, levelCounts] = await Promise.all([
-      this.characterRankRepository
+      this._characterRankRepository
         .createQueryBuilder('cr')
         .innerJoin('cr.faction', 'f')
         .where('f.name = :name', { name: LEVEL_RANGE_FACTION })
@@ -452,12 +452,12 @@ export class StatsService {
     byEndeavourCategory: CountItemDto[];
     byEndeavourCategoryPct: CountItemDto[];
   }> {
-    const allPerks = await this.endeavourPerkRepository.find({
+    const allPerks = await this._endeavourPerkRepository.find({
       select: { name: true, category: true, maxNodes: true, sortOrder: true },
       order: { sortOrder: 'ASC' },
     });
 
-    const qb = this.progressRepository
+    const qb = this._progressRepository
       .createQueryBuilder('aep')
       .innerJoin('aep.account', 'a')
       .where('a.userId = :userId', { userId });

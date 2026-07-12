@@ -8,10 +8,10 @@ export class PlatformLauncherController {
   /**
    * Creates an instance of PlatformLauncherController.
    *
-   * @param platformLauncherService - The platform launcher service.
+   * @param _platformLauncherService - The platform launcher service.
    */
   constructor(
-    private readonly platformLauncherService: PlatformLauncherService,
+    private readonly _platformLauncherService: PlatformLauncherService,
   ) {}
 
   @Get()
@@ -21,6 +21,6 @@ export class PlatformLauncherController {
    * @returns The result of the operation.
    */
   findAll() {
-    return this.platformLauncherService.findAll();
+    return this._platformLauncherService.findAll();
   }
 }

@@ -19,7 +19,7 @@ export class DatabaseService {
    * @private
    * @readonly
    */
-  private static readonly requiredSeedTables = [
+  private static readonly _requiredSeedTables = [
     'user',
     'platform',
     'launcher',
@@ -29,9 +29,9 @@ export class DatabaseService {
   /**
    * Creates an instance of DatabaseService.
    *
-   * @param dataSource - The TypeORM DataSource for executing database queries.
+   * @param _dataSource - The TypeORM DataSource for executing database queries.
    */
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(private readonly _dataSource: DataSource) {}
 
   /**
    * Verifies that the database is ready for seeding operations.
@@ -53,7 +53,7 @@ export class DatabaseService {
    * ```
    */
   async assertDatabaseReadyForSeeding(): Promise<void> {
-    const [databaseRow] = (await this.dataSource.query(
+    const [databaseRow] = (await this._dataSource.query(
       'SELECT current_database() AS "databaseName"',
     )) as Array<{ databaseName?: string }>;
 
@@ -63,7 +63,7 @@ export class DatabaseService {
       );
     }
 
-    const tableRows = (await this.dataSource.query(
+    const tableRows = (await this._dataSource.query(
       `SELECT table_name AS "tableName"
        FROM information_schema.tables
        WHERE table_schema = 'sto_info_app'
@@ -76,7 +76,7 @@ export class DatabaseService {
         .filter((tableName): tableName is string => Boolean(tableName)),
     );
 
-    const missingTables = DatabaseService.requiredSeedTables.filter(
+    const missingTables = DatabaseService._requiredSeedTables.filter(
       tableName => !existingTables.has(tableName),
     );
 
@@ -104,6 +104,6 @@ export class DatabaseService {
    * ```
    */
   async setDatabaseTimezone(): Promise<void> {
-    await this.dataSource.query("SET TIME ZONE 'UTC'");
+    await this._dataSource.query("SET TIME ZONE 'UTC'");
   }
 }
