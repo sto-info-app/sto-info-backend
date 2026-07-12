@@ -52,6 +52,7 @@ describe('UserRefreshTokenService', () => {
             findOne: jest.fn(),
             find: jest.fn(),
             update: jest.fn(),
+            delete: jest.fn(),
             createQueryBuilder: jest.fn().mockReturnValue({
               delete: jest.fn().mockReturnThis(),
               where: jest.fn().mockReturnThis(),
@@ -360,6 +361,7 @@ describe('UserRefreshTokenService', () => {
     it('should update all tokens for user', async () => {
       await service.revokeAllTokensForUser('u1');
       expect(repo.update).toHaveBeenCalled();
+      expect(repo.delete).toHaveBeenCalledWith({ userId: 'u1' });
     });
 
     it('should throw BadRequestException if userId is missing', async () => {

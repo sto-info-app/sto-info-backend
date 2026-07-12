@@ -261,9 +261,12 @@ export class UserRefreshTokenService {
     }
 
     await this._refreshTokenRepository.update(
-      { user: { id: userId }, isRevoked: false },
+      { userId, isRevoked: false },
       { isRevoked: true },
     );
+
+    // Clear persisted refresh tokens so all active sessions are forced to re-authenticate.
+    await this._refreshTokenRepository.delete({ userId });
   }
 
   /**
