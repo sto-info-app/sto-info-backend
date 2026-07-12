@@ -5,6 +5,7 @@ import { AuditCleanupService } from './jobs/audit-cleanup/audit-cleanup.service'
 import { AuditLoginAttemptCleanupService } from './jobs/audit-login-attempt-cleanup/audit-login-attempt-cleanup.service';
 import { ContactRequestCleanupService } from './jobs/contact-request-cleanup/contact-request-cleanup.service';
 import { SesAuditCleanupService } from './jobs/ses-audit-cleanup/ses-audit-cleanup.service';
+import { UserAccountCleanupService } from './jobs/user-account-cleanup/user-account-cleanup.service';
 
 @Injectable()
 export class CronService {
@@ -17,12 +18,14 @@ export class CronService {
    * @param auditLoginAttemptCleanupService - The audit login attempt cleanup service.
    * @param contactRequestCleanupService - The contact request cleanup service.
    * @param sesAuditCleanupService - The ses audit cleanup service.
+   * @param userAccountCleanupService - The user account cleanup service.
    */
   constructor(
     private readonly auditCleanupService: AuditCleanupService,
     private readonly auditLoginAttemptCleanupService: AuditLoginAttemptCleanupService,
     private readonly contactRequestCleanupService: ContactRequestCleanupService,
     private readonly sesAuditCleanupService: SesAuditCleanupService,
+    private readonly userAccountCleanupService: UserAccountCleanupService,
   ) {}
 
   /**
@@ -45,6 +48,7 @@ export class CronService {
       await this.handleAuditLoginAttemptCleanup();
       await this.handleContactRequestCleanup();
       await this.handleSesAuditCleanup();
+      await this.handleUserAccountCleanup();
     } catch (error) {
       this.logger.error('Error running daily midnight jobs:', error);
     }
@@ -112,6 +116,20 @@ export class CronService {
       this.logger.log('SES audit cleanup job completed successfully.');
     } catch (error) {
       this.logger.error('Error running SES audit cleanup job:', error);
+    }
+  }
+
+  /**
+   * Invokes the user-account cleanup job for permanently deleting closed
+   * accounts once their retention period has elapsed.
+   */
+  private async handleUserAccountCleanup() {
+    this.logger.log('Starting user account cleanup job...');
+    try {
+      await this.userAccountCleanupService.cleanup();
+      this.logger.log('User account cleanup job completed successfully.');
+    } catch (error) {
+      this.logger.error('Error running user account cleanup job:', error);
     }
   }
 }

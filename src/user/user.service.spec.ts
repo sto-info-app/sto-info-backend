@@ -3,8 +3,12 @@ import { HttpException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
+import { MailService } from 'src/mail/mail.service';
 import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
+import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
+import { AccountEntity } from 'src/sto/account/entities/account.entity';
+import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 import { Repository } from 'typeorm';
 import { UserProfileEntity } from './entities/user-profile.entity';
 import { UserEntity } from './entities/user.entity';
@@ -18,6 +22,7 @@ describe('UserService', () => {
   let userProfileRepository: Repository<UserProfileEntity>;
   let validatorsService: ValidatorsService;
   let imageUploadsService: ImageUploadsService;
+  let mailService: Pick<MailService, 'sendAccountClosureEmail'>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -37,6 +42,9 @@ describe('UserService', () => {
               where: jest.fn().mockReturnThis(),
               getCount: jest.fn(),
             }),
+            manager: {
+              transaction: jest.fn(),
+            },
           },
         },
         {
@@ -67,6 +75,12 @@ describe('UserService', () => {
             deleteImageFromCloudflareImages: jest.fn(),
           },
         },
+        {
+          provide: MailService,
+          useValue: {
+            sendAccountClosureEmail: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -79,6 +93,8 @@ describe('UserService', () => {
     );
     validatorsService = module.get<ValidatorsService>(ValidatorsService);
     imageUploadsService = module.get<ImageUploadsService>(ImageUploadsService);
+    mailService =
+      module.get<Pick<MailService, 'sendAccountClosureEmail'>>(MailService);
   });
 
   it('should be defined', () => {
@@ -572,6 +588,151 @@ describe('UserService', () => {
       await expect(
         service.uploadProfilePicture('1', {} as any),
       ).rejects.toThrow(HttpException);
+    });
+  });
+
+  describe('closeAccount', () => {
+    it('should soft-delete user-linked data in a transaction', async () => {
+      const manager = {
+        update: jest.fn(async () => ({ affected: 1 })),
+        find: jest.fn(async () => [{ id: 'a1' }]),
+        softDelete: jest.fn(async () => ({ affected: 1 })),
+      };
+
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
+        id: '1',
+        email: 'captain@example.com',
+        profile: { firstName: 'Captain', userId: '1' },
+      });
+
+      (
+        (userRepository as any).manager.transaction as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockImplementation(
+        async (callback: (managerArg: any) => Promise<void>) => {
+          await callback(manager);
+        },
+      );
+
+      await service.closeAccount('1');
+
+      expect(manager.update).toHaveBeenCalledWith(
+        UserRefreshTokenEntity,
+        { userId: '1', isRevoked: false },
+        { isRevoked: true },
+      );
+      expect(manager.find).toHaveBeenCalledWith(AccountEntity, {
+        where: { userId: '1' },
+        select: { id: true },
+      });
+      expect(manager.softDelete).toHaveBeenCalledWith(CharacterEntity, {
+        accountId: expect.any(Object),
+      });
+      expect(manager.softDelete).toHaveBeenCalledWith(AccountEntity, {
+        userId: '1',
+      });
+      expect(manager.softDelete).toHaveBeenCalledWith(UserProfileEntity, {
+        userId: '1',
+      });
+      expect(manager.softDelete).toHaveBeenCalledWith(UserEntity, '1');
+      expect(mailService.sendAccountClosureEmail).toHaveBeenCalledWith(
+        'captain@example.com',
+        'Captain',
+      );
+    });
+
+    it('should throw if user id is invalid', async () => {
+      (validatorsService.validateUuid as jest.Mock).mockReturnValue(false);
+      await expect(service.closeAccount('invalid')).rejects.toThrow(
+        HttpException,
+      );
+    });
+
+    it('should throw if user is not found', async () => {
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
+
+      await expect(service.closeAccount('1')).rejects.toThrow('User not found');
+    });
+
+    it('should skip character soft-delete when no accounts are owned', async () => {
+      const manager = {
+        update: jest.fn(async () => ({ affected: 1 })),
+        find: jest.fn(async () => []),
+        softDelete: jest.fn(async () => ({ affected: 1 })),
+      };
+
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
+        id: '1',
+        email: 'captain@example.com',
+        profile: null,
+      });
+
+      (
+        (userRepository as any).manager.transaction as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockImplementation(
+        async (callback: (managerArg: any) => Promise<void>) => {
+          await callback(manager);
+        },
+      );
+
+      await service.closeAccount('1');
+
+      expect(manager.softDelete).not.toHaveBeenCalledWith(CharacterEntity, {
+        accountId: expect.any(Object),
+      });
+      expect(manager.softDelete).toHaveBeenCalledWith(AccountEntity, {
+        userId: '1',
+      });
+      expect(mailService.sendAccountClosureEmail).toHaveBeenCalledWith(
+        'captain@example.com',
+        'Captain!',
+      );
+    });
+
+    it('should send the closure email using pre-delete user details', async () => {
+      const manager = {
+        update: jest.fn(async () => ({ affected: 1 })),
+        find: jest.fn(async () => []),
+        softDelete: jest.fn(async () => ({ affected: 1 })),
+      };
+
+      const user = {
+        id: '1',
+        email: 'captain@example.com',
+        profile: { firstName: 'Captain', userId: '1' },
+      };
+
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(user);
+
+      (
+        (userRepository as any).manager.transaction as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockImplementation(
+        async (callback: (managerArg: any) => Promise<void>) => {
+          user.email = 'changed@example.com';
+          user.profile.firstName = 'Changed';
+          await callback(manager);
+        },
+      );
+
+      await service.closeAccount('1');
+
+      expect(mailService.sendAccountClosureEmail).toHaveBeenCalledWith(
+        'captain@example.com',
+        'Captain',
+      );
     });
   });
 });

@@ -202,6 +202,31 @@ export class MailService {
   }
 
   /**
+   * Send an account closure confirmation email to the user.
+   *
+   * @param email - The recipient's email address.
+   * @param firstName - The recipient's first name.
+   * @returns A promise that resolves when the email has been sent.
+   */
+  async sendAccountClosureEmail(email: string, firstName: string) {
+    const { emailHtmlContent, emailTextContent } =
+      await this.generateEmailContent('account-closure-email.ejs', {
+        appTitle: process.env.APP_TITLE,
+        firstName: firstName,
+        contactUsUrl: `${process.env.APP_FRONTEND_URL}/contact`,
+      });
+
+    const msg = this.generateEmailMessageObject(
+      email,
+      `Account closure for the ${process.env.APP_TITLE}`,
+      emailTextContent,
+      emailHtmlContent,
+    );
+
+    await this.sendEmailWithFallback(msg);
+  }
+
+  /**
    * Send a user logged in notification email to the user.
    *
    * @param email - The recipient's email address.
@@ -299,7 +324,27 @@ export class MailService {
       },
     };
 
-    await this.mailerService.sendMail(mailOptions as any);
+    const result = (await this.mailerService.sendMail(mailOptions as any)) as {
+      rejected?: string[];
+      pending?: string[];
+      accepted?: string[];
+      response?: string;
+    };
+
+    if ((result.rejected?.length ?? 0) > 0) {
+      throw new Error(
+        `SES rejected recipient(s): ${result.rejected!.join(', ')}`,
+      );
+    }
+
+    if (
+      (result.accepted?.length ?? 0) === 0 &&
+      (result.pending?.length ?? 0) > 0
+    ) {
+      throw new Error(
+        `SES left recipient(s) pending: ${result.pending!.join(', ')}`,
+      );
+    }
   }
 
   /**

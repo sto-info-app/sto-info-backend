@@ -1,9 +1,13 @@
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
+import { MailService } from 'src/mail/mail.service';
 import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
+import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
+import { AccountEntity } from 'src/sto/account/entities/account.entity';
+import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -32,6 +36,7 @@ export class UserService {
 
     private readonly validatorsService: ValidatorsService,
     private readonly imageUploadsService: ImageUploadsService,
+    private readonly mailService: MailService,
   ) {}
 
   /**
@@ -139,6 +144,63 @@ export class UserService {
         HttpStatus.NOT_FOUND,
       );
     }
+  }
+
+  /**
+   * Marks the authenticated user's account data as deleted.
+   *
+   * This performs a coordinated soft-delete across the user, profile,
+   * STO accounts, and STO characters, and revokes active refresh tokens
+   * immediately to terminate active sessions.
+   *
+   * @param userId - The authenticated user's UUID.
+   */
+  async closeAccount(userId: string): Promise<void> {
+    if (!userId || !this.validatorsService.validateUuid(userId)) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: { profile: true },
+    });
+
+    if (!user) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    const closureEmail = user.email;
+    const closureFirstName = user.profile?.firstName || 'Captain!';
+
+    await this.userRepository.manager.transaction(async manager => {
+      await manager.update(
+        UserRefreshTokenEntity,
+        { userId, isRevoked: false },
+        { isRevoked: true },
+      );
+
+      const ownedAccounts = await manager.find(AccountEntity, {
+        where: { userId },
+        select: { id: true },
+      });
+
+      const accountIds = ownedAccounts.map(account => account.id);
+
+      if (accountIds.length) {
+        await manager.softDelete(CharacterEntity, {
+          accountId: In(accountIds),
+        });
+      }
+
+      await manager.softDelete(AccountEntity, { userId });
+      await manager.softDelete(UserProfileEntity, { userId });
+      await manager.softDelete(UserEntity, userId);
+    });
+
+    await this.mailService.sendAccountClosureEmail(
+      closureEmail,
+      closureFirstName,
+    );
   }
 
   /**

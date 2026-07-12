@@ -4,8 +4,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
-
-import { UserService } from 'src/user/user.service';
 import { Repository } from 'typeorm';
 
 @Injectable()
@@ -23,8 +21,6 @@ export class UserSeederService {
 
     @InjectRepository(UserProfileEntity)
     private readonly userProfileRepository: Repository<UserProfileEntity>,
-
-    private readonly userService: UserService,
   ) {}
 
   /**
@@ -52,9 +48,16 @@ export class UserSeederService {
       process.env.DATASEED_USER_LASTNAME &&
       process.env.DATASEED_USER_PASSWORD
     ) {
-      const existingUser = await this.userService.findByEmail(
-        process.env.DATASEED_USER_EMAIL,
-      );
+      const existingUser = await this.userRepository.findOne({
+        where: { email: process.env.DATASEED_USER_EMAIL },
+        relations: { profile: true },
+        withDeleted: true,
+      });
+
+      if (existingUser?.deletedAt) {
+        await this.restoreSeededUser(existingUser);
+        return;
+      }
 
       if (!existingUser) {
         const user = new UserEntity();
@@ -77,5 +80,38 @@ export class UserSeederService {
         }
       }
     }
+  }
+
+  /**
+   * Restores the configured seed user when the record exists but has been
+   * soft-deleted by local account-closure testing.
+   *
+   * @param existingUser - The matching soft-deleted user entity.
+   */
+  private async restoreSeededUser(existingUser: UserEntity): Promise<void> {
+    await this.userRepository.restore(existingUser.id);
+
+    existingUser.password = await bcrypt.hash(
+      process.env.DATASEED_USER_PASSWORD!,
+      +process.env.AUTH_SALT_ROUNDS!,
+    );
+    existingUser.emailVerified = true;
+    existingUser.deletedAt = null;
+
+    await this.userRepository.save(existingUser);
+
+    const existingProfile = existingUser.profile;
+
+    if (existingProfile?.deletedAt) {
+      await this.userProfileRepository.restore(existingUser.id);
+    }
+
+    const userProfile = existingProfile ?? new UserProfileEntity();
+    userProfile.userId = existingUser.id;
+    userProfile.username = process.env.DATASEED_USER_USERNAME!;
+    userProfile.firstName = process.env.DATASEED_USER_FIRSTNAME!;
+    userProfile.lastName = process.env.DATASEED_USER_LASTNAME!;
+
+    await this.userProfileRepository.save(userProfile);
   }
 }
