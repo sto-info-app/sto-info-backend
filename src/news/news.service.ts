@@ -36,11 +36,11 @@ export class NewsService {
   /**
    * Creates an instance of NewsService.
    *
-   * @param newsRepository - The news post repository.
+   * @param _newsRepository - The news post repository.
    */
   constructor(
     @InjectRepository(NewsPostEntity)
-    private readonly newsRepository: Repository<NewsPostEntity>,
+    private readonly _newsRepository: Repository<NewsPostEntity>,
   ) {}
 
   /**
@@ -53,7 +53,7 @@ export class NewsService {
     const page = query.page && query.page > 0 ? query.page : 1;
     const pageSize = this.clampPageSize(query.pageSize);
 
-    const [items, total] = await this.newsRepository.findAndCount({
+    const [items, total] = await this._newsRepository.findAndCount({
       where: {
         status: NewsStatus.PUBLISHED,
         ...(query.category ? { category: query.category } : {}),
@@ -75,7 +75,7 @@ export class NewsService {
    * @returns A map of category to published post count.
    */
   private async countPublishedByCategory(): Promise<NewsCategoryCounts> {
-    const rows = await this.newsRepository
+    const rows = await this._newsRepository
       .createQueryBuilder('post')
       .select('post.category', 'category')
       .addSelect('COUNT(*)', 'count')
@@ -98,7 +98,7 @@ export class NewsService {
    * @throws NotFoundException when no published post matches the slug.
    */
   async findPublishedBySlug(slug: string): Promise<NewsPostEntity> {
-    const post = await this.newsRepository.findOne({
+    const post = await this._newsRepository.findOne({
       where: { slug, status: NewsStatus.PUBLISHED },
     });
 
@@ -123,7 +123,7 @@ export class NewsService {
     const page = query.page && query.page > 0 ? query.page : 1;
     const pageSize = this.clampPageSize(query.pageSize);
 
-    const [items, total] = await this.newsRepository.findAndCount({
+    const [items, total] = await this._newsRepository.findAndCount({
       where: query.category ? { category: query.category } : {},
       order: { status: 'ASC', publishedAt: 'DESC', createdAt: 'DESC' },
       skip: (page - 1) * pageSize,
@@ -141,7 +141,7 @@ export class NewsService {
    * @throws NotFoundException when no post matches the ID.
    */
   async findOneById(id: string): Promise<NewsPostEntity> {
-    const post = await this.newsRepository.findOne({ where: { id } });
+    const post = await this._newsRepository.findOne({ where: { id } });
 
     if (!post) {
       throw new NotFoundException('News post not found');
@@ -163,7 +163,7 @@ export class NewsService {
     authorId: string,
   ): Promise<NewsPostEntity> {
     const status = dto.status ?? NewsStatus.DRAFT;
-    const post = this.newsRepository.create({
+    const post = this._newsRepository.create({
       title: dto.title,
       slug: dto.slug?.trim() || this.slugify(dto.title),
       summary: dto.summary ?? null,
@@ -219,7 +219,7 @@ export class NewsService {
     const post = await this.findOneById(id);
     post.status = NewsStatus.PUBLISHED;
     post.publishedAt = post.publishedAt ?? new Date();
-    return this.newsRepository.save(post);
+    return this._newsRepository.save(post);
   }
 
   /**
@@ -230,7 +230,7 @@ export class NewsService {
    */
   async remove(id: string): Promise<void> {
     const post = await this.findOneById(id);
-    await this.newsRepository.softRemove(post);
+    await this._newsRepository.softRemove(post);
   }
 
   /**
@@ -257,7 +257,7 @@ export class NewsService {
     post: NewsPostEntity,
   ): Promise<NewsPostEntity> {
     try {
-      return await this.newsRepository.save(post);
+      return await this._newsRepository.save(post);
     } catch (error) {
       if (
         error instanceof QueryFailedError &&

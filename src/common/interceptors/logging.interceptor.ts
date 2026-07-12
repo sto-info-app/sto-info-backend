@@ -12,7 +12,7 @@ import { tap } from 'rxjs/operators';
 
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
-  private readonly logger = new Logger('HTTP');
+  private readonly _logger = new Logger('HTTP');
 
   /**
    * Intercepts the request pipeline.
@@ -38,11 +38,11 @@ export class LoggingInterceptor implements NestInterceptor {
       tap({
         next: () => {
           const timeout = Date.now() - now;
-          this.logger.log(`${method} ${url} ${timeout}ms`);
+          this._logger.log(`${method} ${url} ${timeout}ms`);
         },
         error: err => {
           const timeout = Date.now() - now;
-          this.logger.error(
+          this._logger.error(
             `${method} ${url} ${timeout}ms - Error: ${err.message}`,
           );
           // Manually capture the exception to ensure Sentry tracks it

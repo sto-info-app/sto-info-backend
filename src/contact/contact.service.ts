@@ -13,13 +13,13 @@ export class ContactService {
   /**
    * Creates an instance of ContactService.
    *
-   * @param mailService - The mail service.
-   * @param contactRequestRepository - The contact request repository.
+   * @param _mailService - The mail service.
+   * @param _contactRequestRepository - The contact request repository.
    */
   constructor(
-    private readonly mailService: MailService,
+    private readonly _mailService: MailService,
     @InjectRepository(ContactRequestEntity)
-    private readonly contactRequestRepository: Repository<ContactRequestEntity>,
+    private readonly _contactRequestRepository: Repository<ContactRequestEntity>,
   ) {}
 
   /**
@@ -31,26 +31,26 @@ export class ContactService {
    */
   async submitContactRequest(payload: ContactRequestDto): Promise<void> {
     const maskedEmail = this.maskEmail(payload.email);
-    const contactRequest = this.contactRequestRepository.create({
+    const contactRequest = this._contactRequestRepository.create({
       name: payload.name,
       emailMasked: maskedEmail,
       topic: payload.topic,
       message: payload.message,
     });
-    await this.contactRequestRepository.save(contactRequest);
+    await this._contactRequestRepository.save(contactRequest);
 
     const supportSubject = `Contact request: ${payload.topic}`;
     const supportTextContent = this.buildSupportTextContent(payload);
     const supportHtmlContent = this.buildSupportHtmlContent(payload);
 
-    const supportMessage = this.mailService.generateEmailMessageObject(
+    const supportMessage = this._mailService.generateEmailMessageObject(
       SUPPORT_EMAIL,
       supportSubject,
       supportTextContent,
       supportHtmlContent,
     );
 
-    await this.mailService.sendEmailWithFallback({
+    await this._mailService.sendEmailWithFallback({
       ...supportMessage,
       replyTo: {
         email: payload.email,
@@ -61,14 +61,14 @@ export class ContactService {
     const userSubject = `We received your message`;
     const userTextContent = this.buildUserTextContent(payload);
     const userHtmlContent = this.buildUserHtmlContent(payload);
-    const userMessage = this.mailService.generateEmailMessageObject(
+    const userMessage = this._mailService.generateEmailMessageObject(
       payload.email,
       userSubject,
       userTextContent,
       userHtmlContent,
     );
 
-    await this.mailService.sendEmailWithFallback(userMessage);
+    await this._mailService.sendEmailWithFallback(userMessage);
   }
 
   /**

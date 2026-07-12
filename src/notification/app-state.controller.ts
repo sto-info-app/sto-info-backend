@@ -15,9 +15,9 @@ export class AppStateController {
   /**
    * Creates an instance of AppStateController.
    *
-   * @param notificationService - The notification service.
+   * @param _notificationService - The notification service.
    */
-  constructor(private readonly notificationService: NotificationService) {}
+  constructor(private readonly _notificationService: NotificationService) {}
 
   /**
    * Returns the polled application state in a single call: the active site
@@ -36,6 +36,6 @@ export class AppStateController {
   @ApiOperation({ summary: 'Get polled app state (banners + unread count)' })
   @ApiOkResponse({ description: 'Active banners and the caller unread count.' })
   getAppState(@OptionalUserId() userId: string | null) {
-    return this.notificationService.getAppState(userId);
+    return this._notificationService.getAppState(userId);
   }
 }

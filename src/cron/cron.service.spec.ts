@@ -172,7 +172,7 @@ describe('CronService', () => {
         .spyOn(userAccountCleanupService, 'cleanup')
         .mockResolvedValue(undefined);
 
-      const logger = (service as unknown as { logger: Logger }).logger;
+      const logger = (service as unknown as { _logger: Logger })._logger;
       const logSpy = jest
         .spyOn(logger, 'log')
         .mockImplementation((message: unknown) => {

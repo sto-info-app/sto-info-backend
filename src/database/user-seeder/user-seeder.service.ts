@@ -11,16 +11,16 @@ export class UserSeederService {
   /**
    * Creates an instance of UserSeederService.
    *
-   * @param userRepository - The user repository.
-   * @param userProfileRepository - The user profile repository.
+   * @param _userRepository - The user repository.
+   * @param _userProfileRepository - The user profile repository.
    * @param userService - The user service.
    */
   constructor(
     @InjectRepository(UserEntity)
-    private readonly userRepository: Repository<UserEntity>,
+    private readonly _userRepository: Repository<UserEntity>,
 
     @InjectRepository(UserProfileEntity)
-    private readonly userProfileRepository: Repository<UserProfileEntity>,
+    private readonly _userProfileRepository: Repository<UserProfileEntity>,
   ) {}
 
   /**
@@ -48,7 +48,7 @@ export class UserSeederService {
       process.env.DATASEED_USER_LASTNAME &&
       process.env.DATASEED_USER_PASSWORD
     ) {
-      const existingUser = await this.userRepository.findOne({
+      const existingUser = await this._userRepository.findOne({
         where: { email: process.env.DATASEED_USER_EMAIL },
         relations: { profile: true },
         withDeleted: true,
@@ -68,7 +68,7 @@ export class UserSeederService {
         );
         user.emailVerified = true;
 
-        const newUser = await this.userRepository.save(user);
+        const newUser = await this._userRepository.save(user);
 
         if (newUser) {
           const userProfile = new UserProfileEntity();
@@ -76,7 +76,7 @@ export class UserSeederService {
           userProfile.username = process.env.DATASEED_USER_USERNAME;
           userProfile.firstName = process.env.DATASEED_USER_FIRSTNAME;
           userProfile.lastName = process.env.DATASEED_USER_LASTNAME;
-          await this.userProfileRepository.save(userProfile);
+          await this._userProfileRepository.save(userProfile);
         }
       }
     }
@@ -89,7 +89,7 @@ export class UserSeederService {
    * @param existingUser - The matching soft-deleted user entity.
    */
   private async restoreSeededUser(existingUser: UserEntity): Promise<void> {
-    await this.userRepository.restore(existingUser.id);
+    await this._userRepository.restore(existingUser.id);
 
     existingUser.password = await bcrypt.hash(
       process.env.DATASEED_USER_PASSWORD!,
@@ -98,12 +98,12 @@ export class UserSeederService {
     existingUser.emailVerified = true;
     existingUser.deletedAt = null;
 
-    await this.userRepository.save(existingUser);
+    await this._userRepository.save(existingUser);
 
     const existingProfile = existingUser.profile;
 
     if (existingProfile?.deletedAt) {
-      await this.userProfileRepository.restore(existingUser.id);
+      await this._userProfileRepository.restore(existingUser.id);
     }
 
     const userProfile = existingProfile ?? new UserProfileEntity();
@@ -112,6 +112,6 @@ export class UserSeederService {
     userProfile.firstName = process.env.DATASEED_USER_FIRSTNAME!;
     userProfile.lastName = process.env.DATASEED_USER_LASTNAME!;
 
-    await this.userProfileRepository.save(userProfile);
+    await this._userProfileRepository.save(userProfile);
   }
 }

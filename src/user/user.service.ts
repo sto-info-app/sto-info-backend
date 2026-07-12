@@ -17,26 +17,26 @@ import { UserEntity } from './entities/user.entity';
 
 @Injectable()
 export class UserService {
-  private readonly logger = new Logger(UserService.name);
+  private readonly _logger = new Logger(UserService.name);
 
   /**
    * Creates an instance of UserService.
    *
-   * @param userRepository - The user repository.
-   * @param userProfileRepository - The user profile repository.
-   * @param validatorsService - The validators service.
-   * @param imageUploadsService - The image uploads service.
+   * @param _userRepository - The user repository.
+   * @param _userProfileRepository - The user profile repository.
+   * @param _validatorsService - The validators service.
+   * @param _imageUploadsService - The image uploads service.
    */
   constructor(
     @InjectRepository(UserEntity)
-    private readonly userRepository: Repository<UserEntity>,
+    private readonly _userRepository: Repository<UserEntity>,
 
     @InjectRepository(UserProfileEntity)
-    private readonly userProfileRepository: Repository<UserProfileEntity>,
+    private readonly _userProfileRepository: Repository<UserProfileEntity>,
 
-    private readonly validatorsService: ValidatorsService,
-    private readonly imageUploadsService: ImageUploadsService,
-    private readonly mailService: MailService,
+    private readonly _validatorsService: ValidatorsService,
+    private readonly _imageUploadsService: ImageUploadsService,
+    private readonly _mailService: MailService,
   ) {}
 
   /**
@@ -47,30 +47,30 @@ export class UserService {
    * @throws HttpException if the email is invalid, the password is missing, or the email is already in use.
    */
   async create(createUserDto: CreateUserDto): Promise<UserEntity> {
-    this.logger.debug(
+    this._logger.debug(
       `[create] Creating new user - Email: ${createUserDto.email}`,
     );
 
     if (!this.validateEmailUsername(createUserDto.email)) {
-      this.logger.warn(
+      this._logger.warn(
         `[create] Invalid email format - Email: ${createUserDto.email}`,
       );
       throw new HttpException('Invalid email', HttpStatus.BAD_REQUEST);
     }
 
     if (!createUserDto.password) {
-      this.logger.warn(
+      this._logger.warn(
         `[create] Missing password - Email: ${createUserDto.email}`,
       );
       throw new HttpException('Invalid password', HttpStatus.BAD_REQUEST);
     }
 
     if (
-      await this.userRepository.findOne({
+      await this._userRepository.findOne({
         where: { email: createUserDto.email },
       })
     ) {
-      this.logger.warn(
+      this._logger.warn(
         `[create] Email already exists - Email: ${createUserDto.email}`,
       );
       throw new HttpException('Email already in use', HttpStatus.BAD_REQUEST);
@@ -84,9 +84,9 @@ export class UserService {
     );
     user.emailVerified = false;
 
-    const newUser = await this.userRepository.save(user);
+    const newUser = await this._userRepository.save(user);
 
-    this.logger.log(
+    this._logger.log(
       `[create] User created successfully - UserId: ${newUser.id}, Email: ${newUser.email}`,
     );
     return newUser;
@@ -101,15 +101,15 @@ export class UserService {
    * @throws HttpException if the ID is invalid or the user is not found after update.
    */
   async update(id: string, post: UpdateUserDto): Promise<UserEntity> {
-    if (!id || !this.validatorsService.validateUuid(id)) {
+    if (!id || !this._validatorsService.validateUuid(id)) {
       throw new HttpException(
         'Invalid username and password',
         HttpStatus.NOT_FOUND,
       );
     }
 
-    await this.userRepository.update(id, post);
-    const updatedUser = await this.userRepository.findOne({
+    await this._userRepository.update(id, post);
+    const updatedUser = await this._userRepository.findOne({
       where: { id: id },
     });
     if (updatedUser) {
@@ -130,14 +130,14 @@ export class UserService {
    * @throws HttpException if the ID is invalid or no user was affected by the deletion.
    */
   async delete(id: string) {
-    if (!id || !this.validatorsService.validateUuid(id)) {
+    if (!id || !this._validatorsService.validateUuid(id)) {
       throw new HttpException(
         'Invalid username and password',
         HttpStatus.NOT_FOUND,
       );
     }
 
-    const deletedUser = await this.userRepository.softDelete(id);
+    const deletedUser = await this._userRepository.softDelete(id);
     if (!deletedUser.affected) {
       throw new HttpException(
         'Invalid username and password',
@@ -156,11 +156,11 @@ export class UserService {
    * @param userId - The authenticated user's UUID.
    */
   async closeAccount(userId: string): Promise<void> {
-    if (!userId || !this.validatorsService.validateUuid(userId)) {
+    if (!userId || !this._validatorsService.validateUuid(userId)) {
       throw new HttpException('User not found', HttpStatus.NOT_FOUND);
     }
 
-    const user = await this.userRepository.findOne({
+    const user = await this._userRepository.findOne({
       where: { id: userId },
       relations: { profile: true },
     });
@@ -172,7 +172,7 @@ export class UserService {
     const closureEmail = user.email;
     const closureFirstName = user.profile?.firstName || 'Captain!';
 
-    await this.userRepository.manager.transaction(async manager => {
+    await this._userRepository.manager.transaction(async manager => {
       await manager.update(
         UserRefreshTokenEntity,
         { userId, isRevoked: false },
@@ -197,7 +197,7 @@ export class UserService {
       await manager.softDelete(UserEntity, userId);
     });
 
-    await this.mailService.sendAccountClosureEmail(
+    await this._mailService.sendAccountClosureEmail(
       closureEmail,
       closureFirstName,
     );
@@ -211,14 +211,14 @@ export class UserService {
    * @throws HttpException if the ID is invalid or the user is not found.
    */
   async findById(id: string): Promise<UserEntity> {
-    if (!id || !this.validatorsService.validateUuid(id)) {
+    if (!id || !this._validatorsService.validateUuid(id)) {
       throw new HttpException(
         'Invalid username and password',
         HttpStatus.NOT_FOUND,
       );
     }
 
-    const user = await this.userRepository.findOne({
+    const user = await this._userRepository.findOne({
       where: {
         id: id,
       },
@@ -239,7 +239,7 @@ export class UserService {
    * @returns A promise that resolves to the UserEntity or null if not found.
    */
   async findByEmail(email: string): Promise<UserEntity | null> {
-    return await this.userRepository.findOne({
+    return await this._userRepository.findOne({
       where: { email: email },
       relations: { profile: true },
     });
@@ -257,13 +257,15 @@ export class UserService {
     email: string,
     verified: boolean,
   ): Promise<void> {
-    const user = await this.userRepository.findOne({ where: { email: email } });
+    const user = await this._userRepository.findOne({
+      where: { email: email },
+    });
     if (!user) {
       throw new HttpException('User not found', HttpStatus.NOT_FOUND);
     }
 
     user.emailVerified = verified;
-    await this.userRepository.save(user);
+    await this._userRepository.save(user);
   }
 
   /**
@@ -276,7 +278,7 @@ export class UserService {
     if (!email) {
       return false;
     }
-    return this.validatorsService.validateEmail(email);
+    return this._validatorsService.validateEmail(email);
   }
 
   /**
@@ -291,11 +293,11 @@ export class UserService {
     userId: string,
     userProfileData: UpdateUserProfileDto,
   ): Promise<{ affected: number; updatedProfile: UserProfileEntity }> {
-    if (!userId || !this.validatorsService.validateUuid(userId)) {
+    if (!userId || !this._validatorsService.validateUuid(userId)) {
       throw new HttpException('User not found', HttpStatus.NOT_FOUND);
     }
 
-    const user = await this.userRepository.findOne({
+    const user = await this._userRepository.findOne({
       where: { id: userId },
       relations: { profile: true },
     });
@@ -333,7 +335,8 @@ export class UserService {
     userProfileData.profilePictureId = user.profile.profilePictureId;
     userProfileData.publiclyVisible = user.profile.publiclyVisible;
 
-    const updateResult = await this.userProfileRepository.save(userProfileData);
+    const updateResult =
+      await this._userProfileRepository.save(userProfileData);
     if (!updateResult) {
       throw new HttpException(
         'User profile update failed',
@@ -341,7 +344,7 @@ export class UserService {
       );
     }
 
-    const updatedProfile = await this.userProfileRepository.findOne({
+    const updatedProfile = await this._userProfileRepository.findOne({
       where: { userId: userId },
     });
 
@@ -365,7 +368,7 @@ export class UserService {
    * @returns A promise that resolves to a boolean indicating whether the username exists.
    */
   async doesUsernameExist(username: string): Promise<boolean> {
-    const count = await this.userProfileRepository
+    const count = await this._userProfileRepository
       .createQueryBuilder('user_profile')
       .where('LOWER(user_profile.username) = LOWER(:username)', { username })
       .getCount();
@@ -379,7 +382,7 @@ export class UserService {
    * @returns A promise that resolves to a boolean indicating whether the email exists.
    */
   async doesEmailExist(email: string): Promise<boolean> {
-    const count = await this.userRepository
+    const count = await this._userRepository
       .createQueryBuilder('user')
       .where('LOWER(user.email) = LOWER(:email)', { email })
       .getCount();
@@ -400,11 +403,11 @@ export class UserService {
     userId: string,
     file: Express.Multer.File,
   ): Promise<UpdatedUserProfileResultDto> {
-    if (!userId || !this.validatorsService.validateUuid(userId)) {
+    if (!userId || !this._validatorsService.validateUuid(userId)) {
       throw new HttpException('User not found', HttpStatus.NOT_FOUND);
     }
 
-    const user = await this.userRepository.findOne({
+    const user = await this._userRepository.findOne({
       where: { id: userId },
       relations: { profile: true },
     });
@@ -420,7 +423,7 @@ export class UserService {
     const existingProfilePictureId = user.profile.profilePictureId;
 
     user.profile.profilePictureId =
-      await this.imageUploadsService.uploadImageToCloudflareImages(
+      await this._imageUploadsService.uploadImageToCloudflareImages(
         userId,
         file,
         'user',
@@ -434,7 +437,7 @@ export class UserService {
       );
     }
 
-    const updatedUserProfile = await this.userProfileRepository.save(
+    const updatedUserProfile = await this._userProfileRepository.save(
       user.profile,
     );
 
@@ -446,7 +449,7 @@ export class UserService {
     }
 
     if (existingProfilePictureId) {
-      await this.imageUploadsService.deleteImageFromCloudflareImages(
+      await this._imageUploadsService.deleteImageFromCloudflareImages(
         existingProfilePictureId,
       );
     }

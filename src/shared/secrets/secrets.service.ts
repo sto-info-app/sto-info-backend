@@ -6,15 +6,15 @@ import { Injectable, Logger } from '@nestjs/common';
 
 @Injectable()
 export class SecretsService {
-  private readonly secretsManager: SecretsManagerClient;
+  private readonly _secretsManager: SecretsManagerClient;
   private cache: { [key: string]: any } = {};
-  private readonly logger = new Logger(SecretsService.name);
+  private readonly _logger = new Logger(SecretsService.name);
 
   /**
    * Creates an instance of SecretsService and initialises the AWS Secrets Manager client.
    */
   constructor() {
-    this.secretsManager = new SecretsManagerClient({
+    this._secretsManager = new SecretsManagerClient({
       region: process.env.AWS_REGION,
     });
   }
@@ -37,7 +37,7 @@ export class SecretsService {
 
       // If it's not in the cache, retrieve it
       const command = new GetSecretValueCommand({ SecretId: secretName });
-      const data = await this.secretsManager.send(command);
+      const data = await this._secretsManager.send(command);
 
       if (!('SecretString' in data) || !data.SecretString) {
         return undefined;
@@ -50,7 +50,7 @@ export class SecretsService {
       return secretObject;
     } catch (err: unknown) {
       const stack = err instanceof Error ? err.stack : undefined;
-      this.logger.error(`Failed to get secret ${secretName}`, stack);
+      this._logger.error(`Failed to get secret ${secretName}`, stack);
       throw err;
     }
   }

@@ -16,11 +16,11 @@ export class LauncherService {
   /**
    * Creates an instance of LauncherService.
    *
-   * @param launcherRepository - The launcher repository.
+   * @param _launcherRepository - The launcher repository.
    */
   constructor(
     @InjectRepository(LauncherEntity)
-    private readonly launcherRepository: Repository<LauncherEntity>,
+    private readonly _launcherRepository: Repository<LauncherEntity>,
   ) {}
 
   /**
@@ -29,7 +29,7 @@ export class LauncherService {
    * @returns A promise that resolves when the operation completes.
    */
   async findAll() {
-    return await this.launcherRepository.find();
+    return await this._launcherRepository.find();
   }
 
   /**
@@ -43,7 +43,7 @@ export class LauncherService {
       throw new BadRequestException('Launcher ID is required');
     }
 
-    const launcher = await this.launcherRepository.findOne({
+    const launcher = await this._launcherRepository.findOne({
       where: {
         id: id,
       },
@@ -67,7 +67,7 @@ export class LauncherService {
       throw new BadRequestException('Launcher name is required');
     }
 
-    const launcher = await this.launcherRepository.findOne({
+    const launcher = await this._launcherRepository.findOne({
       where: { name: name },
     });
 
@@ -87,7 +87,7 @@ export class LauncherService {
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-    return this.launcherRepository
+    return this._launcherRepository
       .createQueryBuilder('launcher')
       .where('launcher.deletedAt IS NOT NULL')
       .andWhere('launcher.deletedAt < :oneWeekAgo', { oneWeekAgo })
@@ -105,9 +105,9 @@ export class LauncherService {
       throw new BadRequestException('Launcher data is required');
     }
 
-    const newLauncher = this.launcherRepository.create(createLauncherDto);
+    const newLauncher = this._launcherRepository.create(createLauncherDto);
     try {
-      await this.launcherRepository.save(newLauncher);
+      await this._launcherRepository.save(newLauncher);
       return newLauncher;
     } catch (error: unknown) {
       throw new InternalServerErrorException('Failed to save a new launcher', {
@@ -136,12 +136,12 @@ export class LauncherService {
     }
 
     const launcher = await this.findOne(id);
-    const updatedLauncher = this.launcherRepository.merge(
+    const updatedLauncher = this._launcherRepository.merge(
       launcher,
       updateLauncherDto,
     );
     try {
-      await this.launcherRepository.save(updatedLauncher);
+      await this._launcherRepository.save(updatedLauncher);
       return updatedLauncher;
     } catch (error: unknown) {
       throw new InternalServerErrorException('Failed to update launcher', {
@@ -162,7 +162,7 @@ export class LauncherService {
 
     const launcher = await this.findOne(id);
     try {
-      await this.launcherRepository.remove(launcher);
+      await this._launcherRepository.remove(launcher);
     } catch (error: unknown) {
       throw new InternalServerErrorException('Failed to delete launcher', {
         cause: error,
@@ -182,7 +182,7 @@ export class LauncherService {
 
     const launcher = await this.findOne(id);
     try {
-      await this.launcherRepository.softDelete(launcher.id);
+      await this._launcherRepository.softDelete(launcher.id);
     } catch (error: unknown) {
       throw new InternalServerErrorException('Failed to soft delete launcher', {
         cause: error,

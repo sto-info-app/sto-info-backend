@@ -14,11 +14,11 @@ export class PlatformLauncherService {
   /**
    * Creates an instance of PlatformLauncherService.
    *
-   * @param platformLauncherRepository - The platform launcher repository.
+   * @param _platformLauncherRepository - The platform launcher repository.
    */
   constructor(
     @InjectRepository(PlatformLauncherEntity)
-    private readonly platformLauncherRepository: Repository<PlatformLauncherEntity>,
+    private readonly _platformLauncherRepository: Repository<PlatformLauncherEntity>,
   ) {}
 
   /**
@@ -57,7 +57,7 @@ export class PlatformLauncherService {
     platformLauncher.platformId = platformId;
     platformLauncher.launcherId = launcherId;
     try {
-      await this.platformLauncherRepository.save(platformLauncher);
+      await this._platformLauncherRepository.save(platformLauncher);
       return platformLauncher;
     } catch (error: unknown) {
       throw new InternalServerErrorException(
@@ -83,14 +83,14 @@ export class PlatformLauncherService {
       throw new BadRequestException('Launcher ID is required');
     }
 
-    const platformLauncher = await this.platformLauncherRepository.findOne({
+    const platformLauncher = await this._platformLauncherRepository.findOne({
       where: { platformId: platformId, launcherId: launcherId },
     });
     if (!platformLauncher) {
       throw new NotFoundException(`PlatformLauncherEntity relation not found`);
     }
     try {
-      await this.platformLauncherRepository.remove(platformLauncher);
+      await this._platformLauncherRepository.remove(platformLauncher);
     } catch (error: unknown) {
       throw new InternalServerErrorException(
         'Failed to remove platform-launcher relation',
@@ -105,7 +105,7 @@ export class PlatformLauncherService {
    * @returns A promise that resolves when the operation completes.
    */
   async findAll(): Promise<PlatformLauncherEntity[]> {
-    const relations = await this.platformLauncherRepository.find({
+    const relations = await this._platformLauncherRepository.find({
       relations: { platform: true, launcher: true },
     });
 
@@ -125,7 +125,7 @@ export class PlatformLauncherService {
       throw new BadRequestException('Platform ID is required');
     }
 
-    const launchers = await this.platformLauncherRepository.find({
+    const launchers = await this._platformLauncherRepository.find({
       where: { platformId: platformId },
     });
     return launchers.map(relation => this.sanitizeBackgroundImageUrl(relation));
@@ -150,7 +150,7 @@ export class PlatformLauncherService {
       throw new BadRequestException('Launcher ID is required');
     }
 
-    const platformLauncher = await this.platformLauncherRepository.findOne({
+    const platformLauncher = await this._platformLauncherRepository.findOne({
       where: { platformId: platformId, launcherId: launcherId },
     });
 

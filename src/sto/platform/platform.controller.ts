@@ -8,9 +8,9 @@ export class PlatformController {
   /**
    * Creates an instance of PlatformController.
    *
-   * @param platformService - The platform service.
+   * @param _platformService - The platform service.
    */
-  constructor(private readonly platformService: PlatformService) {}
+  constructor(private readonly _platformService: PlatformService) {}
 
   @Get()
   /**
@@ -19,6 +19,6 @@ export class PlatformController {
    * @returns The result of the operation.
    */
   findAll() {
-    return this.platformService.findAll();
+    return this._platformService.findAll();
   }
 }

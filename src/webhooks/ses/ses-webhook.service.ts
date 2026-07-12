@@ -20,20 +20,20 @@ import {
 
 @Injectable()
 export class SesWebhookService {
-  private readonly logger = new Logger(SesWebhookService.name);
+  private readonly _logger = new Logger(SesWebhookService.name);
 
   /**
    * Creates an instance of SesWebhookService.
    *
-   * @param sesEventRepository - The ses event repository.
-   * @param configService - The config service.
-   * @param secretsService - The secrets service.
+   * @param _sesEventRepository - The ses event repository.
+   * @param _configService - The config service.
+   * @param _secretsService - The secrets service.
    */
   constructor(
     @InjectRepository(SesEventEntity)
-    private readonly sesEventRepository: Repository<SesEventEntity>,
-    private readonly configService: ConfigService,
-    private readonly secretsService: SecretsService,
+    private readonly _sesEventRepository: Repository<SesEventEntity>,
+    private readonly _configService: ConfigService,
+    private readonly _secretsService: SecretsService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -54,7 +54,7 @@ export class SesWebhookService {
     try {
       parsed = new URL(subscribeUrl);
     } catch {
-      this.logger.error('Invalid SNS subscription URL format');
+      this._logger.error('Invalid SNS subscription URL format');
       return;
     }
 
@@ -68,13 +68,13 @@ export class SesWebhookService {
     const isInvalidPort = parsed.port && parsed.port !== '443';
 
     if (parsed.protocol !== 'https:' || !isAmazonSns || isInvalidPort) {
-      this.logger.error(
+      this._logger.error(
         'Rejected SNS confirmation: invalid protocol, domain, or port',
       );
       return;
     }
 
-    this.logger.log('Confirming SNS subscription via AWS endpoint');
+    this._logger.log('Confirming SNS subscription via AWS endpoint');
 
     // Use an options object to explicitly break the data flow into vetted parts.
     const options: https.RequestOptions = {
@@ -88,13 +88,13 @@ export class SesWebhookService {
     await new Promise<void>((resolve, reject) => {
       https
         .get(options, res => {
-          this.logger.log(
+          this._logger.log(
             `SNS subscription confirmed. HTTP status: ${res.statusCode}`,
           );
           resolve();
         })
         .on('error', err => {
-          this.logger.error('Failed to confirm SNS subscription', err.message);
+          this._logger.error('Failed to confirm SNS subscription', err.message);
           reject(err);
         });
     });
@@ -119,11 +119,11 @@ export class SesWebhookService {
     notification: SesNotification,
   ): Promise<void> {
     // Idempotency: skip if this SNS message has already been processed.
-    const existing = await this.sesEventRepository.findOne({
+    const existing = await this._sesEventRepository.findOne({
       where: { snsMessageId },
     });
     if (existing) {
-      this.logger.warn(
+      this._logger.warn(
         `Duplicate SNS message ${snsMessageId} — skipping (already persisted as event ${existing.id})`,
       );
       return;
@@ -143,7 +143,7 @@ export class SesWebhookService {
         await this.handleReject(snsMessageId, notification);
         break;
       default:
-        this.logger.warn(
+        this._logger.warn(
           `Unrecognised SES notification type: ${String(notification.notificationType)}`,
         );
     }
@@ -161,7 +161,7 @@ export class SesWebhookService {
    */
   async isSuppressed(email: string): Promise<boolean> {
     const hash = await this.hashEmail(email);
-    const count = await this.sesEventRepository.count({
+    const count = await this._sesEventRepository.count({
       where: { emailHashed: hash, suppress: true },
     });
     return count > 0;
@@ -180,7 +180,7 @@ export class SesWebhookService {
   validateTopicArn(envelope: SnsEnvelope): boolean {
     const expected = process.env.AWS_SNS_TOPIC_ARN;
     if (!expected) {
-      this.logger.error(
+      this._logger.error(
         'AWS_SNS_TOPIC_ARN is not configured — cannot validate SNS message origin',
       );
       return false;
@@ -225,16 +225,16 @@ export class SesWebhookService {
    * @returns A 64-character lowercase hexadecimal HMAC-SHA256 digest.
    */
   private async hashEmail(email: string): Promise<string> {
-    const secretName = this.configService.get<string>('AWS_SECRET_NAME');
+    const secretName = this._configService.get<string>('AWS_SECRET_NAME');
     let secret = '';
 
     if (secretName) {
-      const secretObject = await this.secretsService.getSecret(secretName);
+      const secretObject = await this._secretsService.getSecret(secretName);
       secret = secretObject?.sesEmailHmacSecret ?? '';
     }
 
     if (!secret) {
-      this.logger.warn(
+      this._logger.warn(
         'SES HMAC secret is not configured in Secrets Manager — email hashes will be computed with an empty key',
       );
     }
@@ -263,7 +263,7 @@ export class SesWebhookService {
 
     for (const recipient of bounce.bouncedRecipients) {
       const emailHashed = await this.hashEmail(recipient.emailAddress);
-      const event = this.sesEventRepository.create({
+      const event = this._sesEventRepository.create({
         eventType: 'Bounce',
         emailHashed,
         bounceType: bounce.bounceType as SesBounceType,
@@ -274,14 +274,14 @@ export class SesWebhookService {
         suppress: isPermanent,
       });
 
-      await this.sesEventRepository.save(event);
+      await this._sesEventRepository.save(event);
 
       if (isPermanent) {
-        this.logger.warn(
+        this._logger.warn(
           `Hard bounce (${bounce.bounceSubType}) recorded — address suppressed`,
         );
       } else {
-        this.logger.log(
+        this._logger.log(
           `Soft bounce (${bounce.bounceType}/${bounce.bounceSubType}) recorded — address not suppressed`,
         );
       }
@@ -306,7 +306,7 @@ export class SesWebhookService {
 
     for (const recipient of complaint.complainedRecipients) {
       const emailHashed = await this.hashEmail(recipient.emailAddress);
-      const event = this.sesEventRepository.create({
+      const event = this._sesEventRepository.create({
         eventType: 'Complaint',
         emailHashed,
         bounceType: null,
@@ -317,9 +317,9 @@ export class SesWebhookService {
         suppress: true,
       });
 
-      await this.sesEventRepository.save(event);
+      await this._sesEventRepository.save(event);
 
-      this.logger.warn(
+      this._logger.warn(
         `Complaint (${complaint.complaintFeedbackType ?? 'unknown feedback type'}) recorded — address suppressed`,
       );
     }
@@ -343,7 +343,7 @@ export class SesWebhookService {
 
     for (const recipient of delivery.recipients) {
       const emailHashed = await this.hashEmail(recipient);
-      const event = this.sesEventRepository.create({
+      const event = this._sesEventRepository.create({
         eventType: 'Delivery',
         emailHashed,
         bounceType: null,
@@ -354,10 +354,10 @@ export class SesWebhookService {
         suppress: false,
       });
 
-      await this.sesEventRepository.save(event);
+      await this._sesEventRepository.save(event);
     }
 
-    this.logger.log(
+    this._logger.log(
       `Delivery confirmed for ${delivery.recipients.length} recipient(s) in ${delivery.processingTimeMillis}ms`,
     );
   }
@@ -380,7 +380,7 @@ export class SesWebhookService {
     const reject = notification.reject;
     const emailHashed = await this.hashEmail(notification.mail.destination[0]);
 
-    const event = this.sesEventRepository.create({
+    const event = this._sesEventRepository.create({
       eventType: 'Bounce', // Record as a bounce for simplicity in lookups
       emailHashed,
       bounceType: 'Permanent',
@@ -392,9 +392,9 @@ export class SesWebhookService {
       reason: reject?.reason ?? 'SES_REJECTED',
     });
 
-    await this.sesEventRepository.save(event);
+    await this._sesEventRepository.save(event);
 
-    this.logger.warn(
+    this._logger.warn(
       `SES Reject recorded for ${notification.mail.destination[0]}: ${reject?.reason ?? 'unknown reason'}`,
     );
   }

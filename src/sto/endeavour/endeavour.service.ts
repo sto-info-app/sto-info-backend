@@ -30,17 +30,17 @@ export class EndeavourService {
   /**
    * Creates an instance of EndeavourService.
    *
-   * @param perkRepository - The perk repository.
-   * @param progressRepository - The progress repository.
-   * @param accountRepository - The account repository.
+   * @param _perkRepository - The perk repository.
+   * @param _progressRepository - The progress repository.
+   * @param _accountRepository - The account repository.
    */
   constructor(
     @InjectRepository(EndeavourPerkEntity)
-    private readonly perkRepository: Repository<EndeavourPerkEntity>,
+    private readonly _perkRepository: Repository<EndeavourPerkEntity>,
     @InjectRepository(AccountEndeavourProgressEntity)
-    private readonly progressRepository: Repository<AccountEndeavourProgressEntity>,
+    private readonly _progressRepository: Repository<AccountEndeavourProgressEntity>,
     @InjectRepository(AccountEntity)
-    private readonly accountRepository: Repository<AccountEntity>,
+    private readonly _accountRepository: Repository<AccountEntity>,
   ) {}
 
   /**
@@ -54,7 +54,7 @@ export class EndeavourService {
     accountId: string,
     userId: string,
   ): Promise<AccountEntity> {
-    const account = await this.accountRepository.findOne({
+    const account = await this._accountRepository.findOne({
       where: { id: accountId },
     });
 
@@ -79,7 +79,7 @@ export class EndeavourService {
     category?: 'Space' | 'Ground',
   ): Promise<EndeavourPerkEntity[]> {
     const where = category ? { category } : {};
-    return this.perkRepository.find({
+    return this._perkRepository.find({
       where,
       order: { sortOrder: 'ASC', name: 'ASC' },
     });
@@ -102,7 +102,7 @@ export class EndeavourService {
 
     const allPerks = await this.getPerks(query.category);
 
-    const existingProgress = await this.progressRepository.find({
+    const existingProgress = await this._progressRepository.find({
       where: { accountId },
       relations: { endeavourPerk: true },
     });
@@ -162,20 +162,20 @@ export class EndeavourService {
   ): Promise<AccountEndeavourProgressEntity> {
     await this.requireOwnedAccount(accountId, userId);
 
-    const perk = await this.perkRepository.findOne({ where: { id: perkId } });
+    const perk = await this._perkRepository.findOne({ where: { id: perkId } });
     if (!perk) {
       throw new NotFoundException(
         `Endeavour perk with ID "${perkId}" not found`,
       );
     }
 
-    let progress = await this.progressRepository.findOne({
+    let progress = await this._progressRepository.findOne({
       where: { accountId, endeavourPerkId: perkId },
       relations: { endeavourPerk: true },
     });
 
     if (!progress) {
-      progress = this.progressRepository.create({
+      progress = this._progressRepository.create({
         accountId,
         endeavourPerkId: perkId,
         currentNodes: dto.currentNodes,
@@ -184,7 +184,7 @@ export class EndeavourService {
       progress.currentNodes = dto.currentNodes;
     }
 
-    await this.progressRepository.save(progress);
+    await this._progressRepository.save(progress);
 
     progress.endeavourPerk = perk;
     return progress;
@@ -203,8 +203,8 @@ export class EndeavourService {
   ): Promise<EndeavourSummary> {
     await this.requireOwnedAccount(accountId, userId);
 
-    const allPerks = await this.perkRepository.find();
-    const existingProgress = await this.progressRepository.find({
+    const allPerks = await this._perkRepository.find();
+    const existingProgress = await this._progressRepository.find({
       where: { accountId },
     });
 

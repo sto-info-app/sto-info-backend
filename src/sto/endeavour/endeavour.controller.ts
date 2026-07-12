@@ -29,9 +29,9 @@ export class EndeavourController {
   /**
    * Creates an instance of EndeavourController.
    *
-   * @param endeavourService - The endeavour service.
+   * @param _endeavourService - The endeavour service.
    */
-  constructor(private readonly endeavourService: EndeavourService) {}
+  constructor(private readonly _endeavourService: EndeavourService) {}
 
   @Get('perks')
   @ApiOkResponse({ description: 'Successfully retrieved endeavour perks.' })
@@ -43,7 +43,7 @@ export class EndeavourController {
    * @returns The result of the operation.
    */
   getPerks(@Query('category') category?: 'Space' | 'Ground') {
-    return this.endeavourService.getPerks(category);
+    return this._endeavourService.getPerks(category);
   }
 
   @Get('account/:accountId')
@@ -63,7 +63,7 @@ export class EndeavourController {
     @Param('accountId') accountId: string,
     @Query() query: EndeavourProgressQueryDto,
   ) {
-    return this.endeavourService.getProgress(accountId, userId, query);
+    return this._endeavourService.getProgress(accountId, userId, query);
   }
 
   @Get('account/:accountId/summary')
@@ -78,7 +78,7 @@ export class EndeavourController {
    * @returns The result of the operation.
    */
   getSummary(@UserId() userId: string, @Param('accountId') accountId: string) {
-    return this.endeavourService.getSummary(accountId, userId);
+    return this._endeavourService.getSummary(accountId, userId);
   }
 
   @Put('account/:accountId/perk/:perkId')
@@ -100,6 +100,11 @@ export class EndeavourController {
     @Param('perkId') perkId: string,
     @Body() dto: UpdateEndeavourProgressDto,
   ) {
-    return this.endeavourService.updateProgress(accountId, userId, perkId, dto);
+    return this._endeavourService.updateProgress(
+      accountId,
+      userId,
+      perkId,
+      dto,
+    );
   }
 }
