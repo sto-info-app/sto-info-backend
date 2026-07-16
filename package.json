@@ -48,9 +48,9 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1086.0",
-    "@aws-sdk/client-secrets-manager": "^3.1086.0",
-    "@aws-sdk/client-sesv2": "^3.1086.0",
+    "@aws-sdk/client-s3": "^3.1088.0",
+    "@aws-sdk/client-secrets-manager": "^3.1088.0",
+    "@aws-sdk/client-sesv2": "^3.1088.0",
     "@nestjs-modules/mailer": "^2.3.7",
     "@nestjs/common": "^11.1.28",
     "@nestjs/config": "^4.0.4",
@@ -64,7 +64,7 @@
     "@nestjs/throttler": "^6.5.0",
     "@nestjs/typeorm": "^11.0.3",
     "@sendgrid/mail": "^8.1.6",
-    "@sentry/nestjs": "^10.65.0",
+    "@sentry/nestjs": "^10.66.0",
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
