@@ -9,16 +9,16 @@ import { IsNull, LessThan, Not, Repository } from 'typeorm';
 
 @Injectable()
 export class ContactRequestCleanupService {
-  private readonly logger = new Logger(ContactRequestCleanupService.name);
+  private readonly _logger = new Logger(ContactRequestCleanupService.name);
 
   /**
    * Creates an instance of ContactRequestCleanupService.
    *
-   * @param contactRequestRepository - The contact request repository.
+   * @param _contactRequestRepository - The contact request repository.
    */
   constructor(
     @InjectRepository(ContactRequestEntity)
-    private readonly contactRequestRepository: Repository<ContactRequestEntity>,
+    private readonly _contactRequestRepository: Repository<ContactRequestEntity>,
   ) {}
 
   /**
@@ -30,11 +30,11 @@ export class ContactRequestCleanupService {
       recordThresholdDate.getDate() - CONTACT_REQUEST_RECORD_RETENTION_DAYS,
     );
 
-    const deleteResult = await this.contactRequestRepository.delete({
+    const deleteResult = await this._contactRequestRepository.delete({
       createdAt: LessThan(recordThresholdDate),
     });
 
-    this.logger.log(
+    this._logger.log(
       `Deleted ${deleteResult.affected} contact requests older than ${CONTACT_REQUEST_RECORD_RETENTION_DAYS} days.`,
     );
 
@@ -43,7 +43,7 @@ export class ContactRequestCleanupService {
       thresholdDate.getDate() - CONTACT_REQUEST_EMAIL_MASK_RETENTION_DAYS,
     );
 
-    const updateResult = await this.contactRequestRepository.update(
+    const updateResult = await this._contactRequestRepository.update(
       {
         createdAt: LessThan(thresholdDate),
         emailMasked: Not(IsNull()),
@@ -51,7 +51,7 @@ export class ContactRequestCleanupService {
       { emailMasked: null },
     );
 
-    this.logger.log(
+    this._logger.log(
       `Cleared ${updateResult.affected} masked contact emails older than ${CONTACT_REQUEST_EMAIL_MASK_RETENTION_DAYS} days.`,
     );
   }

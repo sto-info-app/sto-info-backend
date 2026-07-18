@@ -43,14 +43,14 @@ import { UpdateCharacterDto } from './dto/update-character.dto';
 @UseGuards(JwtAuthGuard)
 @Controller('character')
 export class CharacterController {
-  private readonly logger = new Logger(CharacterController.name);
+  private readonly _logger = new Logger(CharacterController.name);
 
   /**
    * Creates an instance of CharacterController.
    *
-   * @param characterService - The character service.
+   * @param _characterService - The character service.
    */
-  constructor(private readonly characterService: CharacterService) {}
+  constructor(private readonly _characterService: CharacterService) {}
 
   /**
    * Filter for image file uploads.
@@ -123,28 +123,28 @@ export class CharacterController {
     @Param('id') id: string,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    this.logger.debug(
+    this._logger.debug(
       `[uploadProfileImage] Request received - UserId: ${userId}, CharacterId: ${id}`,
     );
 
     if (!file) {
-      this.logger.error(
+      this._logger.error(
         `[uploadProfileImage] No file provided - UserId: ${userId}, CharacterId: ${id}`,
       );
       throw new BadRequestException('Image file is required');
     }
 
-    this.logger.debug(
+    this._logger.debug(
       `[uploadProfileImage] File metadata - Name: ${file.originalname}, Size: ${file.size} bytes, MimeType: ${file.mimetype}`,
     );
 
     try {
-      const result = await this.characterService.uploadProfileImage(
+      const result = await this._characterService.uploadProfileImage(
         id,
         userId,
         file,
       );
-      this.logger.log(
+      this._logger.log(
         `[uploadProfileImage] Successfully uploaded image - UserId: ${userId}, CharacterId: ${id}`,
       );
       return result;
@@ -152,7 +152,7 @@ export class CharacterController {
       const message = stringifyError(error);
 
       const stack = error instanceof Error ? error.stack : undefined;
-      this.logger.error(
+      this._logger.error(
         `[uploadProfileImage] Failed to upload image - UserId: ${userId}, CharacterId: ${id}, Error: ${message}`,
         stack,
       );
@@ -174,7 +174,7 @@ export class CharacterController {
     @UserId() userId: string,
     @Body() createCharacterDto: CreateCharacterRequestDto,
   ) {
-    return this.characterService.create(createCharacterDto, userId);
+    return this._characterService.create(createCharacterDto, userId);
   }
 
   /**
@@ -190,7 +190,7 @@ export class CharacterController {
     @UserId() userId: string,
     @Query('accountId') accountId: string,
   ) {
-    return this.characterService.findAllForAccount(accountId, userId);
+    return this._characterService.findAllForAccount(accountId, userId);
   }
 
   /**
@@ -204,7 +204,7 @@ export class CharacterController {
   @ApiOkResponse({ description: 'Successfully found the character.' })
   @ApiBadRequestResponse({ description: 'Failed to find the character.' })
   findOne(@UserId() userId: string, @Param('id') id: string) {
-    return this.characterService.findOneForUser(id, userId);
+    return this._characterService.findOneForUser(id, userId);
   }
 
   /**
@@ -223,7 +223,7 @@ export class CharacterController {
     @Param('id') id: string,
     @Body() updateCharacterDto: UpdateCharacterDto,
   ) {
-    return this.characterService.updateForUser(id, userId, updateCharacterDto);
+    return this._characterService.updateForUser(id, userId, updateCharacterDto);
   }
 
   /**
@@ -236,7 +236,7 @@ export class CharacterController {
   @ApiOkResponse({ description: 'Successfully removed the character.' })
   @ApiBadRequestResponse({ description: 'Failed to remove the character.' })
   remove(@UserId() userId: string, @Param('id') id: string) {
-    return this.characterService.removeForUser(id, userId);
+    return this._characterService.removeForUser(id, userId);
   }
 
   /**
@@ -248,7 +248,7 @@ export class CharacterController {
   @Get('lookup/general-factions')
   @ApiOkResponse({ description: 'Successfully retrieved general factions.' })
   getGeneralFactions(@Query('factionId') factionId?: string) {
-    return this.characterService.getGeneralFactions(factionId);
+    return this._characterService.getGeneralFactions(factionId);
   }
 
   /**
@@ -260,7 +260,7 @@ export class CharacterController {
   @Get('lookup/factions')
   @ApiOkResponse({ description: 'Successfully retrieved factions.' })
   getFactions(@Query('generalFactionId') generalFactionId?: string) {
-    return this.characterService.getFactions(generalFactionId);
+    return this._characterService.getFactions(generalFactionId);
   }
 
   /**
@@ -271,7 +271,7 @@ export class CharacterController {
   @Get('lookup/sexes')
   @ApiOkResponse({ description: 'Successfully retrieved sexes.' })
   getSexes() {
-    return this.characterService.getSexes();
+    return this._characterService.getSexes();
   }
 
   /**
@@ -282,7 +282,7 @@ export class CharacterController {
   @Get('lookup/classes')
   @ApiOkResponse({ description: 'Successfully retrieved classes.' })
   getClasses() {
-    return this.characterService.getClasses();
+    return this._characterService.getClasses();
   }
 
   /**
@@ -294,7 +294,7 @@ export class CharacterController {
   @Get('lookup/recruit-types')
   @ApiOkResponse({ description: 'Successfully retrieved recruit types.' })
   getRecruitTypes(@Query('factionId') factionId?: string) {
-    return this.characterService.getRecruitTypes(factionId);
+    return this._characterService.getRecruitTypes(factionId);
   }
 
   /**
@@ -310,6 +310,6 @@ export class CharacterController {
     @Query('factionId') factionId?: string,
     @Query('recruitTypeId') recruitTypeId?: string,
   ) {
-    return this.characterService.getSpecies(factionId, recruitTypeId);
+    return this._characterService.getSpecies(factionId, recruitTypeId);
   }
 }

@@ -12,6 +12,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
+import { AuditEntity } from 'src/audit/entities/audit.entity';
 import { AuditLoginAttemptEntity } from 'src/audit/entities/audit-login-attempt.entity';
 import { MailService } from 'src/mail/mail.service';
 import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
@@ -50,6 +51,7 @@ describe('AuthService', () => {
   let userRepository: Repository<UserEntity>;
   let userProfileRepository: Repository<UserProfileEntity>;
   let loginAttemptRepository: Repository<AuditLoginAttemptEntity>;
+  let auditRepository: Repository<AuditEntity>;
   let jwtService: JwtService;
   let userService: UserService;
   let mailService: MailService;
@@ -89,6 +91,12 @@ describe('AuthService', () => {
         },
         {
           provide: getRepositoryToken(AuditLoginAttemptEntity),
+          useValue: {
+            save: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(AuditEntity),
           useValue: {
             save: jest.fn(),
           },
@@ -135,6 +143,7 @@ describe('AuthService', () => {
     loginAttemptRepository = module.get(
       getRepositoryToken(AuditLoginAttemptEntity),
     );
+    auditRepository = module.get(getRepositoryToken(AuditEntity));
     jwtService = module.get(JwtService);
     userService = module.get(UserService);
     mailService = module.get(MailService);
@@ -681,6 +690,17 @@ describe('AuthService', () => {
 
       await service.resetPassword('token', 'newpass');
       expect(userRepository.save).toHaveBeenCalled();
+      expect(refreshTokenService.revokeAllTokensForUser).toHaveBeenCalledWith(
+        '1',
+      );
+      expect(auditRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entity: 'AuthSession',
+          action: 'PASSWORD_RESET_GLOBAL_LOGOUT',
+          entityId: '1',
+          userId: '1',
+        }),
+      );
       expect(mailService.sendPasswordChangedEmail).toHaveBeenCalledWith(
         expect.any(String),
         'Captain!',
@@ -702,6 +722,17 @@ describe('AuthService', () => {
       ).mockResolvedValue('hashed');
 
       await service.resetPassword('token', 'newpass');
+      expect(refreshTokenService.revokeAllTokensForUser).toHaveBeenCalledWith(
+        '1',
+      );
+      expect(auditRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entity: 'AuthSession',
+          action: 'PASSWORD_RESET_GLOBAL_LOGOUT',
+          entityId: '1',
+          userId: '1',
+        }),
+      );
       expect(mailService.sendPasswordChangedEmail).toHaveBeenCalledWith(
         expect.any(String),
         'Bones',

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpException,
@@ -51,9 +52,9 @@ export class UserController {
   /**
    * Creates an instance of UserController.
    *
-   * @param userService - The user service.
+   * @param _userService - The user service.
    */
-  constructor(private readonly userService: UserService) {}
+  constructor(private readonly _userService: UserService) {}
 
   /**
    * Filter for image file uploads.
@@ -102,7 +103,33 @@ export class UserController {
   @Get()
   @HttpCode(HttpStatus.OK)
   async findUser(@UserId() userId: string): Promise<UserEntity> {
-    return await this.userService.findById(userId);
+    return await this._userService.findById(userId);
+  }
+
+  /**
+   * Closes the authenticated user's account.
+   *
+   * Marks user-linked data as deleted immediately and schedules permanent
+   * deletion via retention cron jobs.
+   *
+   * @param userId Authenticated user ID (injected).
+   */
+  @ApiOperation({
+    summary: 'Close the current user account',
+    description:
+      'Marks user-linked data as deleted and revokes active sessions. Permanent deletion is performed later by scheduled retention jobs.',
+  })
+  @ApiOkResponse({ description: 'Account closure has been accepted.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid access token.' })
+  @ApiNotFoundResponse({
+    description:
+      'User does not exist, or the authenticated user id is invalid.',
+  })
+  @Delete('close-account')
+  @HttpCode(HttpStatus.OK)
+  async closeAccount(@UserId() userId: string): Promise<{ success: true }> {
+    await this._userService.closeAccount(userId);
+    return { success: true };
   }
 
   /**
@@ -141,7 +168,7 @@ export class UserController {
     if (!userProfileData) {
       throw new HttpException('User data is required', HttpStatus.BAD_REQUEST);
     }
-    const result = await this.userService.updateUserProfile(
+    const result = await this._userService.updateUserProfile(
       userId,
       userProfileData,
     );
@@ -223,7 +250,7 @@ export class UserController {
     const uniqueSuffix = Date.now().toString() + '-' + crypto.randomUUID();
     file.filename = `${file.fieldname}-${uniqueSuffix}${extname(file.originalname)}`;
 
-    const result = await this.userService.uploadProfilePicture(userId, file);
+    const result = await this._userService.uploadProfilePicture(userId, file);
 
     return new UpdatedUserProfileResultDto(
       result.affected,

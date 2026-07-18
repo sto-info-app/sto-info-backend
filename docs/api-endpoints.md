@@ -230,6 +230,26 @@ Upload a new user profile picture.
 
 - `profilePicture`: Image file (PNG/JPG/JPEG only, max size controlled by `MAX_IMAGE_SIZE_IN_BYTES`)
 
+### DELETE /user/close-account
+
+Close the current authenticated user account.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Response:**
+
+```json
+{
+  "success": true
+}
+```
+
+**Behavior:**
+
+- Revokes active refresh tokens for the user.
+- Marks user-linked records as deleted (soft delete): `user`, `user_profile`, `account`, and `character`.
+- Permanent deletion of closed-account data is handled later by the scheduled retention cleanup job.
+
 ## STO Reference Data Endpoints
 
 These endpoints return lookup/reference data.

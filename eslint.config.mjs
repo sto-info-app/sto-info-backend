@@ -42,6 +42,46 @@ export default [
       ...tsPlugin.configs.recommended.rules,
       ...prettierPlugin.configs.recommended.rules,
 
+      '@typescript-eslint/naming-convention': [
+        'error',
+        {
+          selector: 'classProperty',
+          modifiers: ['readonly', 'private', 'static'],
+          format: ['strictCamelCase', 'UPPER_CASE'],
+          leadingUnderscore: 'require',
+        },
+        {
+          selector: 'classProperty',
+          modifiers: ['readonly', 'protected', 'static'],
+          format: ['strictCamelCase', 'UPPER_CASE'],
+          leadingUnderscore: 'require',
+        },
+        {
+          selector: 'classProperty',
+          modifiers: ['readonly', 'private'],
+          format: ['strictCamelCase'],
+          leadingUnderscore: 'require',
+        },
+        {
+          selector: 'classProperty',
+          modifiers: ['readonly', 'protected'],
+          format: ['strictCamelCase'],
+          leadingUnderscore: 'require',
+        },
+        {
+          selector: 'parameterProperty',
+          modifiers: ['readonly', 'private'],
+          format: ['strictCamelCase'],
+          leadingUnderscore: 'require',
+        },
+        {
+          selector: 'parameterProperty',
+          modifiers: ['readonly', 'protected'],
+          format: ['strictCamelCase'],
+          leadingUnderscore: 'require',
+        },
+      ],
+
       // Project-specific overrides
       '@typescript-eslint/interface-name-prefix': 'off',
       '@typescript-eslint/explicit-function-return-type': 'off',

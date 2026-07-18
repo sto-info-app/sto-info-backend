@@ -65,14 +65,14 @@ export class DatabaseModule implements OnModuleInit {
   /**
    * Creates an instance of DatabaseModule.
    *
-   * @param databaseService - Service for database readiness and configuration.
-   * @param userSeederService - Service for seeding user reference data.
-   * @param accountSeederService - Service for seeding account reference data (platforms, launchers).
+   * @param _databaseService - Service for database readiness and configuration.
+   * @param _userSeederService - Service for seeding user reference data.
+   * @param _accountSeederService - Service for seeding account reference data (platforms, launchers).
    */
   constructor(
-    private readonly databaseService: DatabaseService,
-    private readonly userSeederService: UserSeederService,
-    private readonly accountSeederService: AccountSeederService,
+    private readonly _databaseService: DatabaseService,
+    private readonly _userSeederService: UserSeederService,
+    private readonly _accountSeederService: AccountSeederService,
   ) {}
 
   /**
@@ -100,7 +100,7 @@ export class DatabaseModule implements OnModuleInit {
    */
   async onModuleInit() {
     try {
-      await this.databaseService.assertDatabaseReadyForSeeding();
+      await this._databaseService.assertDatabaseReadyForSeeding();
       Logger.log('Database readiness check passed.', 'DatabaseModule');
     } catch (error) {
       Logger.error(
@@ -112,21 +112,21 @@ export class DatabaseModule implements OnModuleInit {
     }
 
     try {
-      await this.databaseService.setDatabaseTimezone();
+      await this._databaseService.setDatabaseTimezone();
       Logger.log('Database timezone set successfully.', 'DatabaseModule');
     } catch (error) {
       Logger.error('Failed to set database timezone:', error, 'DatabaseModule');
     }
 
     try {
-      await this.userSeederService.seed();
+      await this._userSeederService.seed();
       Logger.log('User seeding completed successfully.', 'DatabaseModule');
     } catch (error) {
       Logger.error('Failed to seed users:', error, 'DatabaseModule');
     }
 
     try {
-      await this.accountSeederService.seed();
+      await this._accountSeederService.seed();
       Logger.log('Account seeding completed successfully.', 'DatabaseModule');
     } catch (error) {
       Logger.error('Failed to seed accounts:', error, 'DatabaseModule');

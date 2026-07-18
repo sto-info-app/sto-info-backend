@@ -20,15 +20,15 @@ export class UserRefreshTokenService {
   /**
    * Creates an instance of UserRefreshTokenService.
    *
-   * @param refreshTokenRepository - The refresh token repository.
-   * @param configService - The config service.
-   * @param secretsService - The secrets service.
+   * @param _refreshTokenRepository - The refresh token repository.
+   * @param _configService - The config service.
+   * @param _secretsService - The secrets service.
    */
   constructor(
     @InjectRepository(UserRefreshTokenEntity)
-    private readonly refreshTokenRepository: Repository<UserRefreshTokenEntity>,
-    private readonly configService: ConfigService,
-    private readonly secretsService: SecretsService,
+    private readonly _refreshTokenRepository: Repository<UserRefreshTokenEntity>,
+    private readonly _configService: ConfigService,
+    private readonly _secretsService: SecretsService,
   ) {}
 
   /**
@@ -41,12 +41,12 @@ export class UserRefreshTokenService {
   private async verifyAndDecodeRefreshToken(
     rawRefreshToken: string,
   ): Promise<jwt.JwtPayload> {
-    const secretName = this.configService.get<string>('AWS_SECRET_NAME');
+    const secretName = this._configService.get<string>('AWS_SECRET_NAME');
     if (!secretName) {
       throw new UnauthorizedException('Refresh token verification unavailable');
     }
 
-    const secretObject = await this.secretsService.getSecret(secretName);
+    const secretObject = await this._secretsService.getSecret(secretName);
     if (!secretObject?.jwtSecret) {
       throw new UnauthorizedException('Refresh token verification unavailable');
     }
@@ -77,7 +77,7 @@ export class UserRefreshTokenService {
       throw new BadRequestException('Refresh token data is required');
     }
 
-    const refreshToken = this.refreshTokenRepository.create(refreshTokenDto);
+    const refreshToken = this._refreshTokenRepository.create(refreshTokenDto);
 
     // If we have a raw token string in tokenId, we hash it for storage
     // However, we should prefer using jwtId (JTI) for identification
@@ -97,7 +97,7 @@ export class UserRefreshTokenService {
 
     refreshToken.expiresAt = expiresAt;
 
-    return this.refreshTokenRepository.save(refreshToken);
+    return this._refreshTokenRepository.save(refreshToken);
   }
 
   /**
@@ -112,7 +112,7 @@ export class UserRefreshTokenService {
       throw new BadRequestException('Token ID is required');
     }
 
-    return await this.refreshTokenRepository.findOne({
+    return await this._refreshTokenRepository.findOne({
       where: { tokenId: tokenId },
     });
   }
@@ -173,7 +173,7 @@ export class UserRefreshTokenService {
       +process.env.AUTH_SALT_ROUNDS!,
     );
 
-    return await this.refreshTokenRepository.save(refreshTokenEntity);
+    return await this._refreshTokenRepository.save(refreshTokenEntity);
   }
 
   /**
@@ -199,7 +199,7 @@ export class UserRefreshTokenService {
       return;
     }
 
-    await this.refreshTokenRepository.update(
+    await this._refreshTokenRepository.update(
       { jwtId: payload.jti, isRevoked: false },
       { isRevoked: true },
     );
@@ -233,7 +233,7 @@ export class UserRefreshTokenService {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    const tokenRecord = await this.refreshTokenRepository.findOne({
+    const tokenRecord = await this._refreshTokenRepository.findOne({
       where: { jwtId: payload.jti, userId: userId },
     });
 
@@ -243,7 +243,7 @@ export class UserRefreshTokenService {
 
     // Mark as revoked
     tokenRecord.isRevoked = true;
-    await this.refreshTokenRepository.save(tokenRecord);
+    await this._refreshTokenRepository.save(tokenRecord);
   }
 
   /**
@@ -260,10 +260,13 @@ export class UserRefreshTokenService {
       throw new BadRequestException('User ID is required');
     }
 
-    await this.refreshTokenRepository.update(
-      { user: { id: userId }, isRevoked: false },
+    await this._refreshTokenRepository.update(
+      { userId, isRevoked: false },
       { isRevoked: true },
     );
+
+    // Clear persisted refresh tokens so all active sessions are forced to re-authenticate.
+    await this._refreshTokenRepository.delete({ userId });
   }
 
   /**
@@ -275,7 +278,7 @@ export class UserRefreshTokenService {
   async cleanupExpiredAndRevokedTokens(): Promise<void> {
     const now = new Date();
 
-    await this.refreshTokenRepository
+    await this._refreshTokenRepository
       .createQueryBuilder()
       .delete()
       .where('expiresAt < :now OR isRevoked = :revoked', { now, revoked: true })

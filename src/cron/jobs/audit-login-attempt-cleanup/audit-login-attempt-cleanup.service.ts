@@ -9,16 +9,16 @@ import { LessThan, Repository } from 'typeorm';
 
 @Injectable()
 export class AuditLoginAttemptCleanupService {
-  private readonly logger = new Logger(AuditLoginAttemptCleanupService.name);
+  private readonly _logger = new Logger(AuditLoginAttemptCleanupService.name);
 
   /**
    * Creates an instance of AuditLoginAttemptCleanupService.
    *
-   * @param auditLoginAttemptRepository - The audit login attempt repository.
+   * @param _auditLoginAttemptRepository - The audit login attempt repository.
    */
   constructor(
     @InjectRepository(AuditLoginAttemptEntity)
-    private readonly auditLoginAttemptRepository: Repository<AuditLoginAttemptEntity>,
+    private readonly _auditLoginAttemptRepository: Repository<AuditLoginAttemptEntity>,
   ) {}
 
   /**
@@ -31,11 +31,11 @@ export class AuditLoginAttemptCleanupService {
       thresholdDate.getDate() - AUDIT_DATA_NUKE_THRESHOLD_DAYS,
     );
 
-    const deleteResult = await this.auditLoginAttemptRepository.delete({
+    const deleteResult = await this._auditLoginAttemptRepository.delete({
       createdAt: LessThan(thresholdDate),
     });
 
-    this.logger.log(
+    this._logger.log(
       `Deleted ${deleteResult.affected} audit login attempt records older than ${AUDIT_DATA_NUKE_THRESHOLD_DAYS} days.`,
     );
 
@@ -45,12 +45,12 @@ export class AuditLoginAttemptCleanupService {
       ipNukeThresholdDate.getDate() - AUDIT_IP_NUKE_THRESHOLD_DAYS,
     );
 
-    const updateResult = await this.auditLoginAttemptRepository.update(
+    const updateResult = await this._auditLoginAttemptRepository.update(
       { createdAt: LessThan(ipNukeThresholdDate) },
       { ipAddress: null },
     );
 
-    this.logger.log(
+    this._logger.log(
       `Set IP address to null for ${updateResult.affected} audit login attempt records older than ${AUDIT_IP_NUKE_THRESHOLD_DAYS} days.`,
     );
   }

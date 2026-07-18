@@ -9,9 +9,9 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
   /**
    * Creates an instance of LocalStrategy.
    *
-   * @param authService - The auth service.
+   * @param _authService - The auth service.
    */
-  constructor(private readonly authService: AuthService) {
+  constructor(private readonly _authService: AuthService) {
     super({ usernameField: 'email' }); // Use 'email' instead of the default 'username'
   }
 
@@ -23,7 +23,7 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
    * @returns A promise that resolves when the operation completes.
    */
   async validate(email: string, password: string): Promise<any> {
-    const user = await this.authService.validateUser(email, password);
+    const user = await this._authService.validateUser(email, password);
     if (!user) {
       throw new UnauthorizedException();
     }

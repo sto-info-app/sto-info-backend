@@ -47,12 +47,12 @@ export class AuthController {
   /**
    * Creates an instance of AuthController.
    *
-   * @param authService - The auth service.
-   * @param refreshTokenService - The refresh token service.
+   * @param _authService - The auth service.
+   * @param _refreshTokenService - The refresh token service.
    */
   constructor(
-    private readonly authService: AuthService,
-    private readonly refreshTokenService: UserRefreshTokenService,
+    private readonly _authService: AuthService,
+    private readonly _refreshTokenService: UserRefreshTokenService,
   ) {}
 
   @Post('register')
@@ -84,7 +84,7 @@ export class AuthController {
    * @returns A promise that resolves to the newly created UserEntity.
    */
   async register(@Body() createUserDto: CreateUserDto) {
-    return this.authService.register(createUserDto);
+    return this._authService.register(createUserDto);
   }
 
   @Post('login')
@@ -118,7 +118,7 @@ export class AuthController {
    * @returns A promise that resolves to an AuthLoginResultDto.
    */
   async login(@Body() userLoginDto: UserLoginDto) {
-    return this.authService.login(userLoginDto);
+    return this._authService.login(userLoginDto);
   }
 
   @Post('logout')
@@ -157,7 +157,7 @@ export class AuthController {
    * @returns A promise that resolves when logout is complete.
    */
   async logout(@Body() body: { tokenId: string }): Promise<void> {
-    await this.refreshTokenService.revokeUserRefreshToken(body.tokenId);
+    await this._refreshTokenService.revokeUserRefreshToken(body.tokenId);
   }
 
   @Post('verify-email')
@@ -186,7 +186,7 @@ export class AuthController {
    * @returns A promise that resolves to the verified UserEntity.
    */
   async verifyEmail(@Body() verifyEmailDto: VerifyEmailDto) {
-    return this.authService.verifyEmail(verifyEmailDto.token);
+    return this._authService.verifyEmail(verifyEmailDto.token);
   }
 
   @Post('resend-verification-email')
@@ -217,7 +217,7 @@ export class AuthController {
   async resendVerificationEmail(
     @Body() resendVerificationEmailDto: ResendVerificationEmailDto,
   ) {
-    return this.authService.resendVerificationEmail(
+    return this._authService.resendVerificationEmail(
       resendVerificationEmailDto.token,
     );
   }
@@ -248,7 +248,9 @@ export class AuthController {
   async requestPasswordReset(
     @Body() requestPasswordResetDto: RequestPasswordResetDto,
   ): Promise<void> {
-    return this.authService.requestPasswordReset(requestPasswordResetDto.email);
+    return this._authService.requestPasswordReset(
+      requestPasswordResetDto.email,
+    );
   }
 
   @Post('reset-password')
@@ -280,7 +282,7 @@ export class AuthController {
   async resetPassword(
     @Body() resetPasswordDto: ResetPasswordDto,
   ): Promise<void> {
-    return this.authService.resetPassword(
+    return this._authService.resetPassword(
       resetPasswordDto.token,
       resetPasswordDto.password,
     );
@@ -315,7 +317,7 @@ export class AuthController {
    * @returns A promise that resolves to an AuthRefreshResultDto.
    */
   async refresh(@Body() refreshTokenDto: UserRefreshTokenDto) {
-    return this.authService.refreshToken(refreshTokenDto.refresh_token);
+    return this._authService.refreshToken(refreshTokenDto.refresh_token);
   }
 
   @UseGuards(AuthGuard('jwt'))
@@ -342,6 +344,6 @@ export class AuthController {
    */
   async revoke(@UserId() userId: string, @Req() req: Request): Promise<void> {
     const tokenId = (req as any).user?.tokenId as string;
-    await this.authService.revokeToken(userId, tokenId);
+    await this._authService.revokeToken(userId, tokenId);
   }
 }

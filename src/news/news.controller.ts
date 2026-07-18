@@ -34,9 +34,9 @@ export class NewsController {
   /**
    * Creates an instance of NewsController.
    *
-   * @param newsService - The news service.
+   * @param _newsService - The news service.
    */
-  constructor(private readonly newsService: NewsService) {}
+  constructor(private readonly _newsService: NewsService) {}
 
   /**
    * Lists published news posts (public).
@@ -49,7 +49,7 @@ export class NewsController {
   @ApiOperation({ summary: 'List published news posts' })
   @ApiOkResponse({ description: 'A page of published posts.' })
   findPublished(@Query() query: NewsQueryDto) {
-    return this.newsService.findPublished(query);
+    return this._newsService.findPublished(query);
   }
 
   /**
@@ -64,7 +64,7 @@ export class NewsController {
   @Get('admin')
   @ApiOperation({ summary: 'List all news posts (admin)' })
   findAllForAdmin(@Query() query: NewsQueryDto) {
-    return this.newsService.findAllForAdmin(query);
+    return this._newsService.findAllForAdmin(query);
   }
 
   /**
@@ -79,7 +79,7 @@ export class NewsController {
   @Get('admin/:id')
   @ApiOperation({ summary: 'Get a news post by ID (admin)' })
   findOneForAdmin(@Param('id') id: string) {
-    return this.newsService.findOneById(id);
+    return this._newsService.findOneById(id);
   }
 
   /**
@@ -92,7 +92,7 @@ export class NewsController {
   @Get(':slug')
   @ApiOperation({ summary: 'Get a published news post by slug' })
   findOneBySlug(@Param('slug') slug: string) {
-    return this.newsService.findPublishedBySlug(slug);
+    return this._newsService.findPublishedBySlug(slug);
   }
 
   /**
@@ -108,7 +108,7 @@ export class NewsController {
   @Post()
   @ApiOperation({ summary: 'Create a news post (admin)' })
   create(@UserId() userId: string, @Body() dto: CreateNewsPostDto) {
-    return this.newsService.create(dto, userId);
+    return this._newsService.create(dto, userId);
   }
 
   /**
@@ -124,7 +124,7 @@ export class NewsController {
   @Patch(':id')
   @ApiOperation({ summary: 'Update a news post (admin)' })
   update(@Param('id') id: string, @Body() dto: UpdateNewsPostDto) {
-    return this.newsService.update(id, dto);
+    return this._newsService.update(id, dto);
   }
 
   /**
@@ -139,7 +139,7 @@ export class NewsController {
   @Post(':id/publish')
   @ApiOperation({ summary: 'Publish a news post (admin)' })
   publish(@Param('id') id: string) {
-    return this.newsService.publish(id);
+    return this._newsService.publish(id);
   }
 
   /**
@@ -154,6 +154,6 @@ export class NewsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a news post (admin)' })
   remove(@Param('id') id: string) {
-    return this.newsService.remove(id);
+    return this._newsService.remove(id);
   }
 }

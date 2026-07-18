@@ -20,12 +20,12 @@ export class UserIdMiddleware implements NestMiddleware {
   /**
    * Creates an instance of UserIdMiddleware.
    *
-   * @param configService - The config service.
-   * @param secretsService - The secrets service.
+   * @param _configService - The config service.
+   * @param _secretsService - The secrets service.
    */
   constructor(
-    private readonly configService: ConfigService,
-    private readonly secretsService: SecretsService,
+    private readonly _configService: ConfigService,
+    private readonly _secretsService: SecretsService,
   ) {}
 
   /**
@@ -78,8 +78,8 @@ export class UserIdMiddleware implements NestMiddleware {
     req: Request,
   ): Promise<void> {
     try {
-      const secretObject = await this.secretsService.getSecret(
-        this.configService.get<string>('AWS_SECRET_NAME')!,
+      const secretObject = await this._secretsService.getSecret(
+        this._configService.get<string>('AWS_SECRET_NAME')!,
       );
       if (secretObject?.jwtSecret) {
         const decoded = jwt.verify(token, secretObject.jwtSecret) as JwtPayload;

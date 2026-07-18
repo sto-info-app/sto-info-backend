@@ -119,6 +119,13 @@ describe('MailService', () => {
     });
   });
 
+  describe('sendAccountClosureEmail', () => {
+    it('should send email successfully via SES', async () => {
+      await service.sendAccountClosureEmail('test@example.com', 'John');
+      expect(mockMailerService.sendMail).toHaveBeenCalled();
+    });
+  });
+
   describe('sendUserLoggedInNotification', () => {
     it('should send email successfully via SES', async () => {
       await service.sendUserLoggedInNotification('test@example.com', 'John');
@@ -161,6 +168,30 @@ describe('MailService', () => {
       await service.sendEmailWithFallback(sampleMessage);
 
       expect(warnSpy).toHaveBeenCalled();
+      expect(sgMail.send).toHaveBeenCalled();
+      warnSpy.mockRestore();
+    });
+
+    it('should fall back to SendGrid when SES resolves with rejected recipients', async () => {
+      (
+        mockMailerService.sendMail as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
+        accepted: [],
+        rejected: ['test@example.com'],
+        response: '550 rejected',
+      });
+      const warnSpy = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+
+      await service.sendEmailWithFallback(sampleMessage);
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Amazon SES sending failed — falling back to SendGrid.',
+        'SES rejected recipient(s): test@example.com',
+      );
       expect(sgMail.send).toHaveBeenCalled();
       warnSpy.mockRestore();
     });
@@ -235,6 +266,12 @@ describe('MailService', () => {
     });
 
     it('should call mailerService.sendMail with correct parameters', async () => {
+      (
+        mockMailerService.sendMail as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({ accepted: ['test@example.com'], rejected: [] });
+
       const message: EmailMessage = {
         to: 'test@example.com',
         from: { name: 'Test App', email: 'no-reply@test.local' },
@@ -257,6 +294,49 @@ describe('MailService', () => {
           }),
         }),
       );
+    });
+
+    it('should throw when SES reports rejected recipients', async () => {
+      (
+        mockMailerService.sendMail as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
+        accepted: [],
+        rejected: ['test@example.com'],
+      });
+
+      await expect(
+        service.sendEmailViaSES({
+          to: 'test@example.com',
+          from: { name: 'Test App', email: 'no-reply@test.local' },
+          subject: 'Test Subject',
+          text: 'Test text',
+          html: '<html>Test html</html>',
+        }),
+      ).rejects.toThrow('SES rejected recipient(s): test@example.com');
+    });
+
+    it('should throw when SES leaves recipients pending without accepting any', async () => {
+      (
+        mockMailerService.sendMail as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
+        accepted: [],
+        pending: ['test@example.com'],
+        rejected: [],
+      });
+
+      await expect(
+        service.sendEmailViaSES({
+          to: 'test@example.com',
+          from: { name: 'Test App', email: 'no-reply@test.local' },
+          subject: 'Test Subject',
+          text: 'Test text',
+          html: '<html>Test html</html>',
+        }),
+      ).rejects.toThrow('SES left recipient(s) pending: test@example.com');
     });
 
     it('should include replyTo header when replyTo is provided', async () => {

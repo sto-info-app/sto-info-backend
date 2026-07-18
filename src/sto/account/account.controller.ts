@@ -31,9 +31,9 @@ export class AccountController {
   /**
    * Creates an instance of AccountController.
    *
-   * @param accountService - The account service.
+   * @param _accountService - The account service.
    */
-  constructor(private readonly accountService: AccountService) {}
+  constructor(private readonly _accountService: AccountService) {}
 
   /**
    * Creates a new STO account for the authenticated user.
@@ -54,7 +54,7 @@ export class AccountController {
       userId,
     };
 
-    return this.accountService.create(account);
+    return this._accountService.create(account);
   }
 
   /**
@@ -70,7 +70,7 @@ export class AccountController {
   })
   @HttpCode(HttpStatus.OK)
   findAllUsersAccounts(@UserId() userId: string) {
-    return this.accountService.findAllUsersAccounts(userId);
+    return this._accountService.findAllUsersAccounts(userId);
   }
 
   /**
@@ -84,7 +84,7 @@ export class AccountController {
   @ApiOkResponse({ description: 'Successfully found the account.' })
   @ApiBadRequestResponse({ description: 'Failed to find the account.' })
   findOne(@UserId() userId: string, @Param('id') id: string) {
-    return this.accountService.findOneForUser(id, userId);
+    return this._accountService.findOneForUser(id, userId);
   }
 
   /**
@@ -103,7 +103,7 @@ export class AccountController {
     @Param('id') id: string,
     @Body() updateAccountDto: UpdateAccountDto,
   ) {
-    return this.accountService.updateForUser(id, userId, updateAccountDto);
+    return this._accountService.updateForUser(id, userId, updateAccountDto);
   }
 
   /**
@@ -116,6 +116,6 @@ export class AccountController {
   @ApiOkResponse({ description: 'Successfully removed the account.' })
   @ApiBadRequestResponse({ description: 'Failed to remove the account.' })
   remove(@UserId() userId: string, @Param('id') id: string) {
-    return this.accountService.removeForUser(id, userId);
+    return this._accountService.removeForUser(id, userId);
   }
 }

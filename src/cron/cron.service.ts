@@ -5,24 +5,27 @@ import { AuditCleanupService } from './jobs/audit-cleanup/audit-cleanup.service'
 import { AuditLoginAttemptCleanupService } from './jobs/audit-login-attempt-cleanup/audit-login-attempt-cleanup.service';
 import { ContactRequestCleanupService } from './jobs/contact-request-cleanup/contact-request-cleanup.service';
 import { SesAuditCleanupService } from './jobs/ses-audit-cleanup/ses-audit-cleanup.service';
+import { UserAccountCleanupService } from './jobs/user-account-cleanup/user-account-cleanup.service';
 
 @Injectable()
 export class CronService {
-  private readonly logger = new Logger(CronService.name);
+  private readonly _logger = new Logger(CronService.name);
 
   /**
    * Creates an instance of CronService.
    *
-   * @param auditCleanupService - The audit cleanup service.
-   * @param auditLoginAttemptCleanupService - The audit login attempt cleanup service.
-   * @param contactRequestCleanupService - The contact request cleanup service.
-   * @param sesAuditCleanupService - The ses audit cleanup service.
+   * @param _auditCleanupService - The audit cleanup service.
+   * @param _auditLoginAttemptCleanupService - The audit login attempt cleanup service.
+   * @param _contactRequestCleanupService - The contact request cleanup service.
+   * @param _sesAuditCleanupService - The ses audit cleanup service.
+   * @param _userAccountCleanupService - The user account cleanup service.
    */
   constructor(
-    private readonly auditCleanupService: AuditCleanupService,
-    private readonly auditLoginAttemptCleanupService: AuditLoginAttemptCleanupService,
-    private readonly contactRequestCleanupService: ContactRequestCleanupService,
-    private readonly sesAuditCleanupService: SesAuditCleanupService,
+    private readonly _auditCleanupService: AuditCleanupService,
+    private readonly _auditLoginAttemptCleanupService: AuditLoginAttemptCleanupService,
+    private readonly _contactRequestCleanupService: ContactRequestCleanupService,
+    private readonly _sesAuditCleanupService: SesAuditCleanupService,
+    private readonly _userAccountCleanupService: UserAccountCleanupService,
   ) {}
 
   /**
@@ -39,14 +42,15 @@ export class CronService {
   @Cron('26 3 * * *', { timeZone: CRON_TIMEZONE })
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT, { timeZone: CRON_TIMEZONE })
   async dailyMidnightJobs() {
-    this.logger.log('Running daily midnight jobs...');
+    this._logger.log('Running daily midnight jobs...');
     try {
       await this.handleAuditCleanup();
       await this.handleAuditLoginAttemptCleanup();
       await this.handleContactRequestCleanup();
       await this.handleSesAuditCleanup();
+      await this.handleUserAccountCleanup();
     } catch (error) {
-      this.logger.error('Error running daily midnight jobs:', error);
+      this._logger.error('Error running daily midnight jobs:', error);
     }
   }
 
@@ -56,12 +60,12 @@ export class CronService {
    * to proceed.
    */
   private async handleAuditCleanup() {
-    this.logger.log('Starting audit cleanup job...');
+    this._logger.log('Starting audit cleanup job...');
     try {
-      await this.auditCleanupService.cleanup();
-      this.logger.log('Audit cleanup job completed successfully.');
+      await this._auditCleanupService.cleanup();
+      this._logger.log('Audit cleanup job completed successfully.');
     } catch (error) {
-      this.logger.error('Error running audit cleanup job:', error);
+      this._logger.error('Error running audit cleanup job:', error);
     }
   }
 
@@ -71,14 +75,14 @@ export class CronService {
    * to proceed.
    */
   private async handleAuditLoginAttemptCleanup() {
-    this.logger.log('Starting audit login attempt cleanup job...');
+    this._logger.log('Starting audit login attempt cleanup job...');
     try {
-      await this.auditLoginAttemptCleanupService.cleanup();
-      this.logger.log(
+      await this._auditLoginAttemptCleanupService.cleanup();
+      this._logger.log(
         'Audit login attempt cleanup job completed successfully.',
       );
     } catch (error) {
-      this.logger.error(
+      this._logger.error(
         'Error running audit login attempt cleanup job:',
         error,
       );
@@ -91,12 +95,12 @@ export class CronService {
    * swallowed to allow subsequent jobs to proceed.
    */
   private async handleContactRequestCleanup() {
-    this.logger.log('Starting contact request cleanup job...');
+    this._logger.log('Starting contact request cleanup job...');
     try {
-      await this.contactRequestCleanupService.cleanup();
-      this.logger.log('Contact request cleanup job completed successfully.');
+      await this._contactRequestCleanupService.cleanup();
+      this._logger.log('Contact request cleanup job completed successfully.');
     } catch (error) {
-      this.logger.error('Error running contact request cleanup job:', error);
+      this._logger.error('Error running contact request cleanup job:', error);
     }
   }
 
@@ -106,12 +110,26 @@ export class CronService {
    * Errors are logged and swallowed to allow subsequent jobs to proceed.
    */
   private async handleSesAuditCleanup() {
-    this.logger.log('Starting SES audit cleanup job...');
+    this._logger.log('Starting SES audit cleanup job...');
     try {
-      await this.sesAuditCleanupService.cleanup();
-      this.logger.log('SES audit cleanup job completed successfully.');
+      await this._sesAuditCleanupService.cleanup();
+      this._logger.log('SES audit cleanup job completed successfully.');
     } catch (error) {
-      this.logger.error('Error running SES audit cleanup job:', error);
+      this._logger.error('Error running SES audit cleanup job:', error);
+    }
+  }
+
+  /**
+   * Invokes the user-account cleanup job for permanently deleting closed
+   * accounts once their retention period has elapsed.
+   */
+  private async handleUserAccountCleanup() {
+    this._logger.log('Starting user account cleanup job...');
+    try {
+      await this._userAccountCleanupService.cleanup();
+      this._logger.log('User account cleanup job completed successfully.');
+    } catch (error) {
+      this._logger.error('Error running user account cleanup job:', error);
     }
   }
 }

@@ -80,6 +80,11 @@ Note: the app reads `config/environments/.env` at startup (see `src/main.ts`).
 - `AUDIT_IP_NUKE_THRESHOLD_DAYS`: Null out `ipAddress` in audit/audit-login-attempt rows older than this many days
 - `CONTACT_REQUEST_EMAIL_MASK_RETENTION_DAYS`: Null out masked contact emails older than this many days
 - `CONTACT_REQUEST_RECORD_RETENTION_DAYS`: Delete contact requests older than this many days.
+- `CLOSED_ACCOUNT_RETENTION_DAYS`: Permanently delete soft-deleted closed-account data after this many days.
+
+Validation rule:
+
+- `CLOSED_ACCOUNT_RETENTION_DAYS` must be greater than or equal to `AUDIT_DATA_NUKE_THRESHOLD_DAYS`.
 
 **Ownership**: Environment variables are managed by Developers (local) and SRE/DevOps (Production - e.g. Render Dashboard). Secrets are managed via the AWS Console or AWS CLI.
 

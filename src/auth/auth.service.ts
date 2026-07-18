@@ -17,6 +17,7 @@ import * as ejs from 'ejs';
 import { convert as htmlToText } from 'html-to-text';
 import * as crypto from 'node:crypto';
 import * as path from 'node:path';
+import { AuditEntity } from 'src/audit/entities/audit.entity';
 import { AuditLoginAttemptEntity } from 'src/audit/entities/audit-login-attempt.entity';
 import { MailService } from 'src/mail/mail.service';
 import { EMAIL_PATTERN } from 'src/shared/constants/regex-patterns.constants';
@@ -41,28 +42,31 @@ export class AuthService {
   /**
    * Creates an instance of AuthService.
    *
-   * @param userRepository - The user repository.
-   * @param userProfileRepository - The user profile repository.
-   * @param loginAttemptRepository - The login attempt repository.
-   * @param jwtService - The jwt service.
-   * @param userService - The user service.
-   * @param mailService - The mail service.
-   * @param refreshTokenService - The refresh token service.
+   * @param _userRepository - The user repository.
+   * @param _userProfileRepository - The user profile repository.
+   * @param _loginAttemptRepository - The login attempt repository.
+   * @param _jwtService - The jwt service.
+   * @param _userService - The user service.
+   * @param _mailService - The mail service.
+   * @param _refreshTokenService - The refresh token service.
    */
   constructor(
     @InjectRepository(UserEntity)
-    private readonly userRepository: Repository<UserEntity>,
+    private readonly _userRepository: Repository<UserEntity>,
 
     @InjectRepository(UserProfileEntity)
-    private readonly userProfileRepository: Repository<UserProfileEntity>,
+    private readonly _userProfileRepository: Repository<UserProfileEntity>,
 
     @InjectRepository(AuditLoginAttemptEntity)
-    private readonly loginAttemptRepository: Repository<AuditLoginAttemptEntity>,
+    private readonly _loginAttemptRepository: Repository<AuditLoginAttemptEntity>,
 
-    private readonly jwtService: JwtService,
-    private readonly userService: UserService,
-    private readonly mailService: MailService,
-    private readonly refreshTokenService: UserRefreshTokenService,
+    @InjectRepository(AuditEntity)
+    private readonly _auditRepository: Repository<AuditEntity>,
+
+    private readonly _jwtService: JwtService,
+    private readonly _userService: UserService,
+    private readonly _mailService: MailService,
+    private readonly _refreshTokenService: UserRefreshTokenService,
   ) {}
 
   /**
@@ -76,11 +80,11 @@ export class AuthService {
    * @throws InternalServerErrorException if an unexpected error occurs.
    */
   async register(userRegistration: CreateUserDto): Promise<UserEntity> {
-    if (await this.userService.doesEmailExist(userRegistration.email)) {
+    if (await this._userService.doesEmailExist(userRegistration.email)) {
       throw new ConflictException('Email already in use');
     }
 
-    if (await this.userService.doesUsernameExist(userRegistration.username)) {
+    if (await this._userService.doesUsernameExist(userRegistration.username)) {
       throw new ConflictException('Username already in use');
     }
 
@@ -96,14 +100,14 @@ export class AuthService {
       userRegistration.password,
     );
     const verificationToken = this.generateToken();
-    const newUser = this.userRepository.create({
+    const newUser = this._userRepository.create({
       email: userRegistration.email,
       password: hashedPassword,
       emailVerificationToken: verificationToken,
       emailVerificationTokenExpiry: this.generateTokenExpiryDate(),
     });
 
-    const newUserProfile = this.userProfileRepository.create({
+    const newUserProfile = this._userProfileRepository.create({
       userId: newUser.id,
       username: userRegistration.username,
       firstName: userRegistration.firstName,
@@ -113,13 +117,13 @@ export class AuthService {
     newUser.profile = newUserProfile;
 
     try {
-      const savedUser = await this.userRepository.save(newUser);
+      const savedUser = await this._userRepository.save(newUser);
 
       if (!savedUser) {
         throw new Error('User could not be saved');
       }
 
-      await this.mailService.sendVerificationEmail(
+      await this._mailService.sendVerificationEmail(
         savedUser.email,
         verificationToken,
       );
@@ -150,7 +154,7 @@ export class AuthService {
       throw new BadRequestException('Token missing');
     }
 
-    const user = await this.userRepository.findOne({
+    const user = await this._userRepository.findOne({
       where: { emailVerificationToken: token },
     });
 
@@ -164,7 +168,7 @@ export class AuthService {
     user.emailVerificationToken = null;
     user.emailVerificationTokenExpiry = null;
 
-    const updatedUser = await this.userRepository.save(user);
+    const updatedUser = await this._userRepository.save(user);
 
     // Send welcome email
     const emailSubject = `Welcome to the ${process.env.APP_TITLE}`;
@@ -187,7 +191,7 @@ export class AuthService {
       wordwrap: 130,
     });
 
-    await this.mailService.sendEmailToUser(
+    await this._mailService.sendEmailToUser(
       user.email,
       emailSubject,
       emailTextContent,
@@ -205,7 +209,7 @@ export class AuthService {
    * @throws BadRequestException if the email is already verified.
    */
   async resendVerificationEmail(token: string): Promise<void> {
-    const user = await this.userRepository.findOne({
+    const user = await this._userRepository.findOne({
       where: { emailVerificationToken: token },
     });
 
@@ -221,9 +225,12 @@ export class AuthService {
     user.emailVerificationToken = verificationToken;
     user.emailVerificationTokenExpiry = this.generateTokenExpiryDate();
 
-    await this.userRepository.save(user);
+    await this._userRepository.save(user);
 
-    await this.mailService.sendVerificationEmail(user.email, verificationToken);
+    await this._mailService.sendVerificationEmail(
+      user.email,
+      verificationToken,
+    );
   }
 
   /**
@@ -233,7 +240,7 @@ export class AuthService {
    * @returns The user object if the email and password are valid, otherwise null.
    */
   async validateUser(email: string, password: string): Promise<any> {
-    const user = await this.userService.findByEmail(email);
+    const user = await this._userService.findByEmail(email);
     if (user && (await user.comparePassword(password))) {
       if (!CurrentContextHelper.userUuid) {
         // Store the user ID for audit logging
@@ -252,7 +259,7 @@ export class AuthService {
   async validateUserFromPayload(
     payload: JwtPayloadInterface,
   ): Promise<UserEntity | null> {
-    const user = await this.userRepository.findOne({
+    const user = await this._userRepository.findOne({
       where: {
         id: payload.sub,
         email: payload.email,
@@ -342,16 +349,16 @@ export class AuthService {
 
     // Update last login time
     user.lastLoginAt = new Date();
-    await this.userRepository.save(user);
+    await this._userRepository.save(user);
 
     // Send user logged in notification
-    await this.mailService.sendUserLoggedInNotification(
+    await this._mailService.sendUserLoggedInNotification(
       user.email,
       user.profile?.firstName || 'Captain!',
     );
 
     return {
-      access_token: this.jwtService.sign(payload),
+      access_token: this._jwtService.sign(payload),
       refresh_token: newUserRefreshToken,
       expires_in: +process.env.AUTH_TOKEN_EXPIRES_IN!,
       user_id: user.id,
@@ -387,7 +394,7 @@ export class AuthService {
       throw new BadRequestException('Invalid request');
     }
 
-    const user = await this.userService.findByEmail(email);
+    const user = await this._userService.findByEmail(email);
     if (!user) {
       throw new BadRequestException('Invalid request'); //NOTE: Changed from NotFoundException to not show if email exists
     }
@@ -404,9 +411,9 @@ export class AuthService {
     user.passwordResetToken = passwordResetToken;
     user.passwordResetTokenExpiry = this.generateTokenExpiryDate();
 
-    await this.userRepository.save(user);
+    await this._userRepository.save(user);
 
-    await this.mailService.sendPasswordResetEmail(
+    await this._mailService.sendPasswordResetEmail(
       user.email,
       passwordResetToken,
       user.profile?.firstName || 'Captain!',
@@ -431,7 +438,7 @@ export class AuthService {
       throw new BadRequestException('Password missing from request');
     }
 
-    const user = await this.userRepository.findOne({
+    const user = await this._userRepository.findOne({
       where: { passwordResetToken: token },
       relations: { profile: true },
     });
@@ -448,14 +455,15 @@ export class AuthService {
     user.passwordResetTokenExpiry = null;
     user.lastPasswordReset = new Date();
 
-    await this.userRepository.save(user);
+    await this._userRepository.save(user);
 
-    await this.mailService.sendPasswordChangedEmail(
+    await this._refreshTokenService.revokeAllTokensForUser(user.id);
+    await this.logPasswordResetSessionInvalidation(user);
+
+    await this._mailService.sendPasswordChangedEmail(
       user.email,
       user.profile?.firstName || 'Captain!',
     );
-
-    await this.refreshTokenService.revokeAllTokensForUser(user.id);
   }
 
   /**
@@ -472,10 +480,10 @@ export class AuthService {
     refresh_token: string;
   }> {
     try {
-      const payload = this.jwtService.verify(refreshToken);
+      const payload = this._jwtService.verify(refreshToken);
 
       // Load the user with their refresh tokens using the user ID
-      const user = await this.userRepository.findOne({
+      const user = await this._userRepository.findOne({
         where: { id: payload.sub },
         relations: { refreshTokens: true },
       });
@@ -498,10 +506,10 @@ export class AuthService {
       const newUserRefreshToken = await this.issueRefreshToken(user);
 
       // Revoke the old refresh token
-      await this.refreshTokenService.revokeToken(user.id, refreshToken);
+      await this._refreshTokenService.revokeToken(user.id, refreshToken);
 
       return {
-        access_token: this.jwtService.sign(newPayload),
+        access_token: this._jwtService.sign(newPayload),
         refresh_token: newUserRefreshToken,
         expires_in: +process.env.AUTH_TOKEN_EXPIRES_IN!,
       };
@@ -522,13 +530,13 @@ export class AuthService {
    * @throws HttpException if the user is not found.
    */
   async revokeToken(id: string, tokenId: string): Promise<void> {
-    const user = await this.userRepository.findOne({ where: { id: id } });
+    const user = await this._userRepository.findOne({ where: { id: id } });
     if (!user) {
       throw new HttpException('User not found', HttpStatus.NOT_FOUND);
     }
 
     // Revoke the matching refresh token for this user
-    await this.refreshTokenService.revokeToken(id, tokenId);
+    await this._refreshTokenService.revokeToken(id, tokenId);
   }
 
   /**
@@ -582,7 +590,7 @@ export class AuthService {
     const expiryHours = this.getRefreshTokenExpiryHours();
     const jwtId = this.generateToken();
 
-    const token = this.jwtService.sign(
+    const token = this._jwtService.sign(
       { email: user.email, sub: user.id },
       {
         expiresIn: `${expiryHours}h`,
@@ -590,7 +598,7 @@ export class AuthService {
       },
     );
 
-    await this.refreshTokenService.create({
+    await this._refreshTokenService.create({
       user: user as UserEntity,
       tokenId: token,
       jwtId,
@@ -645,7 +653,7 @@ export class AuthService {
     loginAttemptRecord.success = success;
 
     await validateOrReject(loginAttemptRecord);
-    await this.loginAttemptRepository.save(loginAttemptRecord);
+    await this._loginAttemptRepository.save(loginAttemptRecord);
   }
 
   /**
@@ -659,5 +667,28 @@ export class AuthService {
   ): Promise<never> {
     await this.logLoginAttempt(email, ipAddress, false);
     throw new HttpException(message, status);
+  }
+
+  /**
+   * Creates an explicit security audit record when password reset invalidates all sessions.
+   */
+  private async logPasswordResetSessionInvalidation(
+    user: Pick<UserEntity, 'id' | 'email'>,
+  ): Promise<void> {
+    const audit = new AuditEntity();
+    audit.entity = 'AuthSession';
+    audit.action = 'PASSWORD_RESET_GLOBAL_LOGOUT';
+    audit.entityId = user.id;
+    audit.oldValue = null;
+    audit.newValue = {
+      reason: 'password_reset',
+      forcedReauthentication: true,
+      userEmail: user.email,
+    };
+    audit.userId = user.id;
+    audit.ipAddress = CurrentContextHelper.ip;
+
+    await validateOrReject(audit);
+    await this._auditRepository.save(audit);
   }
 }

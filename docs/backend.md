@@ -319,6 +319,35 @@ Guards are applied using decorators:
 
 Document any caching strategies here (e.g., Redis, in-memory cache, HTTP caching headers).
 
+## Account Closure Lifecycle
+
+The backend supports user-initiated account closure via `DELETE /user/close-account`.
+
+### Immediate actions (request-time)
+
+When account closure is requested for an authenticated user, the service performs a coordinated transactional soft-delete:
+
+1. Revoke active refresh tokens for the user.
+2. Soft-delete owned STO characters.
+3. Soft-delete owned STO accounts.
+4. Soft-delete `user_profile`.
+5. Soft-delete `user`.
+6. Send an account-closure confirmation email to the user with a support link in case the request was not made by them.
+
+This ensures account access is disabled immediately while preserving short-term referential consistency for retention/audit windows.
+
+### Delayed actions (scheduled cleanup)
+
+Closed-account hard deletion is executed by the daily cron cleanup pipeline. The job permanently deletes records for users whose `deletedAt` exceeds `CLOSED_ACCOUNT_RETENTION_DAYS`.
+
+`CLOSED_ACCOUNT_RETENTION_DAYS` is configured via environment variable and validated at startup.
+
+$$
+	ext{CLOSED\_ACCOUNT\_RETENTION\_DAYS} \ge \text{AUDIT\_DATA\_NUKE\_THRESHOLD\_DAYS}
+$$
+
+This keeps primary user records at least as long as the general audit data retention window.
+
 **Current Status:** Review code to determine if caching is implemented.
 
 ## NPM Scripts

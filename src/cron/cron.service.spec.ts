@@ -6,6 +6,7 @@ import { AuditCleanupService } from './jobs/audit-cleanup/audit-cleanup.service'
 import { AuditLoginAttemptCleanupService } from './jobs/audit-login-attempt-cleanup/audit-login-attempt-cleanup.service';
 import { ContactRequestCleanupService } from './jobs/contact-request-cleanup/contact-request-cleanup.service';
 import { SesAuditCleanupService } from './jobs/ses-audit-cleanup/ses-audit-cleanup.service';
+import { UserAccountCleanupService } from './jobs/user-account-cleanup/user-account-cleanup.service';
 
 describe('CronService', () => {
   let service: CronService;
@@ -13,6 +14,7 @@ describe('CronService', () => {
   let auditLoginAttemptCleanupService: AuditLoginAttemptCleanupService;
   let contactRequestCleanupService: ContactRequestCleanupService;
   let sesAuditCleanupService: SesAuditCleanupService;
+  let userAccountCleanupService: UserAccountCleanupService;
   let loggerLogSpy: jest.SpiedFunction<(...args: any[]) => any>;
   let loggerErrorSpy: jest.SpiedFunction<(...args: any[]) => any>;
 
@@ -28,6 +30,9 @@ describe('CronService', () => {
     > = jest.fn();
     const cleanupSesAuditMock: jest.MockedFunction<
       SesAuditCleanupService['cleanup']
+    > = jest.fn();
+    const cleanupUserAccountMock: jest.MockedFunction<
+      UserAccountCleanupService['cleanup']
     > = jest.fn();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -57,6 +62,12 @@ describe('CronService', () => {
             cleanup: cleanupSesAuditMock,
           } satisfies Pick<SesAuditCleanupService, 'cleanup'>,
         },
+        {
+          provide: UserAccountCleanupService,
+          useValue: {
+            cleanup: cleanupUserAccountMock,
+          } satisfies Pick<UserAccountCleanupService, 'cleanup'>,
+        },
       ],
     }).compile();
 
@@ -71,6 +82,9 @@ describe('CronService', () => {
     );
     sesAuditCleanupService = module.get<SesAuditCleanupService>(
       SesAuditCleanupService,
+    );
+    userAccountCleanupService = module.get<UserAccountCleanupService>(
+      UserAccountCleanupService,
     );
 
     loggerLogSpy = jest
@@ -103,6 +117,9 @@ describe('CronService', () => {
       jest
         .spyOn(sesAuditCleanupService, 'cleanup')
         .mockResolvedValue(undefined);
+      jest
+        .spyOn(userAccountCleanupService, 'cleanup')
+        .mockResolvedValue(undefined);
 
       await service.dailyMidnightJobs();
 
@@ -113,6 +130,7 @@ describe('CronService', () => {
       expect(auditLoginAttemptCleanupService.cleanup).toHaveBeenCalled();
       expect(contactRequestCleanupService.cleanup).toHaveBeenCalled();
       expect(sesAuditCleanupService.cleanup).toHaveBeenCalled();
+      expect(userAccountCleanupService.cleanup).toHaveBeenCalled();
     });
 
     it('should handle errors inside audit cleanup job', async () => {
@@ -126,6 +144,9 @@ describe('CronService', () => {
         .mockResolvedValue(undefined);
       jest
         .spyOn(sesAuditCleanupService, 'cleanup')
+        .mockResolvedValue(undefined);
+      jest
+        .spyOn(userAccountCleanupService, 'cleanup')
         .mockResolvedValue(undefined);
 
       await service.dailyMidnightJobs();
@@ -147,8 +168,11 @@ describe('CronService', () => {
       jest
         .spyOn(sesAuditCleanupService, 'cleanup')
         .mockResolvedValue(undefined);
+      jest
+        .spyOn(userAccountCleanupService, 'cleanup')
+        .mockResolvedValue(undefined);
 
-      const logger = (service as unknown as { logger: Logger }).logger;
+      const logger = (service as unknown as { _logger: Logger })._logger;
       const logSpy = jest
         .spyOn(logger, 'log')
         .mockImplementation((message: unknown) => {
@@ -309,6 +333,42 @@ describe('CronService', () => {
 
       expect(loggerErrorSpy).toHaveBeenCalledWith(
         'Error running SES audit cleanup job:',
+        error,
+      );
+    });
+  });
+
+  describe('handleUserAccountCleanup', () => {
+    it('should run user account cleanup successfully', async () => {
+      jest
+        .spyOn(userAccountCleanupService, 'cleanup')
+        .mockResolvedValue(undefined);
+
+      const instance = service as unknown as {
+        handleUserAccountCleanup: () => Promise<void>;
+      };
+      await instance.handleUserAccountCleanup();
+
+      expect(loggerLogSpy).toHaveBeenCalledWith(
+        'Starting user account cleanup job...',
+      );
+      expect(userAccountCleanupService.cleanup).toHaveBeenCalled();
+      expect(loggerLogSpy).toHaveBeenCalledWith(
+        'User account cleanup job completed successfully.',
+      );
+    });
+
+    it('should handle user account cleanup errors', async () => {
+      const error = new Error('User account cleanup error');
+      jest.spyOn(userAccountCleanupService, 'cleanup').mockRejectedValue(error);
+
+      const instance = service as unknown as {
+        handleUserAccountCleanup: () => Promise<void>;
+      };
+      await instance.handleUserAccountCleanup();
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        'Error running user account cleanup job:',
         error,
       );
     });

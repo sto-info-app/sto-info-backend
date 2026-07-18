@@ -25,9 +25,9 @@ export class StatsController {
   /**
    * Creates an instance of StatsController.
    *
-   * @param statsService - The stats service.
+   * @param _statsService - The stats service.
    */
-  constructor(private readonly statsService: StatsService) {}
+  constructor(private readonly _statsService: StatsService) {}
 
   /**
    * Returns pre-computed statistics for the authenticated user, aggregating
@@ -54,6 +54,6 @@ export class StatsController {
     @UserId() userId: string,
     @Query('accountId') accountId?: string,
   ): Promise<StatsResponseDto> {
-    return this.statsService.getStats(userId, accountId);
+    return this._statsService.getStats(userId, accountId);
   }
 }

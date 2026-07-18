@@ -20,9 +20,9 @@ export class RolesGuard implements CanActivate {
   /**
    * Creates an instance of RolesGuard.
    *
-   * @param reflector - Used to read role metadata from handlers/controllers.
+   * @param _reflector - Used to read role metadata from handlers/controllers.
    */
-  constructor(private readonly reflector: Reflector) {}
+  constructor(private readonly _reflector: Reflector) {}
 
   /**
    * Determines whether the current request satisfies the required roles.
@@ -32,7 +32,7 @@ export class RolesGuard implements CanActivate {
    * @throws ForbiddenException when the user lacks a required role.
    */
   canActivate(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>(
+    const requiredRoles = this._reflector.getAllAndOverride<UserRole[]>(
       ROLES_KEY,
       [context.getHandler(), context.getClass()],
     );

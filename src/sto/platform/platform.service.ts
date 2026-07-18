@@ -16,11 +16,11 @@ export class PlatformService {
   /**
    * Creates an instance of PlatformService.
    *
-   * @param platformRepository - The platform repository.
+   * @param _platformRepository - The platform repository.
    */
   constructor(
     @InjectRepository(PlatformEntity)
-    private readonly platformRepository: Repository<PlatformEntity>,
+    private readonly _platformRepository: Repository<PlatformEntity>,
   ) {}
 
   /**
@@ -29,7 +29,7 @@ export class PlatformService {
    * @returns A promise that resolves when the operation completes.
    */
   async findAll() {
-    return await this.platformRepository.find();
+    return await this._platformRepository.find();
   }
 
   /**
@@ -43,7 +43,7 @@ export class PlatformService {
       throw new BadRequestException('Platform ID is required');
     }
 
-    const platform = await this.platformRepository.findOne({
+    const platform = await this._platformRepository.findOne({
       where: {
         id: id,
       },
@@ -67,7 +67,7 @@ export class PlatformService {
       throw new BadRequestException('Platform name is required');
     }
 
-    const platform = await this.platformRepository.findOne({
+    const platform = await this._platformRepository.findOne({
       where: { name: name },
     });
 
@@ -87,7 +87,7 @@ export class PlatformService {
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-    return this.platformRepository
+    return this._platformRepository
       .createQueryBuilder('platform')
       .where('platform.deletedAt IS NOT NULL')
       .andWhere('platform.deletedAt < :oneWeekAgo', { oneWeekAgo })
@@ -105,9 +105,9 @@ export class PlatformService {
       throw new BadRequestException('Platform data is required');
     }
 
-    const newPlatform = this.platformRepository.create(createPlatformDto);
+    const newPlatform = this._platformRepository.create(createPlatformDto);
     try {
-      await this.platformRepository.save(newPlatform);
+      await this._platformRepository.save(newPlatform);
       return newPlatform;
     } catch (error: unknown) {
       throw new InternalServerErrorException('Failed to save a new platform', {
@@ -136,12 +136,12 @@ export class PlatformService {
     }
 
     const platform = await this.findOne(id);
-    const updatedPlatform = this.platformRepository.merge(
+    const updatedPlatform = this._platformRepository.merge(
       platform,
       updatePlatformDto,
     );
     try {
-      await this.platformRepository.save(updatedPlatform);
+      await this._platformRepository.save(updatedPlatform);
       return updatedPlatform;
     } catch (error: unknown) {
       throw new InternalServerErrorException('Failed to update platform', {
@@ -162,7 +162,7 @@ export class PlatformService {
 
     const platform = await this.findOne(id);
     try {
-      await this.platformRepository.remove(platform);
+      await this._platformRepository.remove(platform);
     } catch (error: unknown) {
       throw new InternalServerErrorException('Failed to delete platform', {
         cause: error,
@@ -182,7 +182,7 @@ export class PlatformService {
 
     const platform = await this.findOne(id);
     try {
-      await this.platformRepository.softDelete(platform.id);
+      await this._platformRepository.softDelete(platform.id);
     } catch (error: unknown) {
       throw new InternalServerErrorException('Failed to soft delete platform', {
         cause: error,

@@ -56,6 +56,7 @@ describe('ConfigCheckService', () => {
       AUDIT_IP_NUKE_THRESHOLD_DAYS: '30',
       CONTACT_REQUEST_EMAIL_MASK_RETENTION_DAYS: '21',
       CONTACT_REQUEST_RECORD_RETENTION_DAYS: '90',
+      CLOSED_ACCOUNT_RETENTION_DAYS: '180',
       REDIS_URL: 'redis://localhost:6379',
     };
 
@@ -182,6 +183,38 @@ describe('ConfigCheckService', () => {
       expect(() => service.validateInput(invalidConfig)).toThrow(
         'Validation error',
       );
+    });
+
+    it('should throw error for missing CLOSED_ACCOUNT_RETENTION_DAYS', () => {
+      const invalidConfig = { ...validConfig };
+      delete (invalidConfig as any).CLOSED_ACCOUNT_RETENTION_DAYS;
+
+      expect(() => service.validateInput(invalidConfig)).toThrow(
+        'Validation error',
+      );
+    });
+
+    it('should throw error when CLOSED_ACCOUNT_RETENTION_DAYS is less than AUDIT_DATA_NUKE_THRESHOLD_DAYS', () => {
+      const invalidConfig = {
+        ...validConfig,
+        AUDIT_DATA_NUKE_THRESHOLD_DAYS: '90',
+        CLOSED_ACCOUNT_RETENTION_DAYS: '30',
+      };
+
+      expect(() => service.validateInput(invalidConfig)).toThrow(
+        'CLOSED_ACCOUNT_RETENTION_DAYS',
+      );
+    });
+
+    it('should accept CLOSED_ACCOUNT_RETENTION_DAYS equal to AUDIT_DATA_NUKE_THRESHOLD_DAYS', () => {
+      const config = {
+        ...validConfig,
+        AUDIT_DATA_NUKE_THRESHOLD_DAYS: '90',
+        CLOSED_ACCOUNT_RETENTION_DAYS: '90',
+      };
+
+      const result = service.validateInput(config);
+      expect(result.CLOSED_ACCOUNT_RETENTION_DAYS).toBe(90);
     });
   });
 
