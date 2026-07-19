@@ -178,68 +178,6 @@ export class CharacterController {
   }
 
   /**
-   * Lists all STO characters for a specific account owned by the authenticated user.
-   *
-   * @param userId Authenticated user ID (injected).
-   * @param accountId Account ID.
-   * @returns The account's characters.
-   */
-  @Get()
-  @ApiOkResponse({ description: 'Successfully found the account characters.' })
-  findAllForAccount(
-    @UserId() userId: string,
-    @Query('accountId') accountId: string,
-  ) {
-    return this._characterService.findAllForAccount(accountId, userId);
-  }
-
-  /**
-   * Retrieves a single STO character by ID for the authenticated user.
-   *
-   * @param userId Authenticated user ID (injected).
-   * @param id Character ID.
-   * @returns The requested character.
-   */
-  @Get(':id')
-  @ApiOkResponse({ description: 'Successfully found the character.' })
-  @ApiBadRequestResponse({ description: 'Failed to find the character.' })
-  findOne(@UserId() userId: string, @Param('id') id: string) {
-    return this._characterService.findOneForUser(id, userId);
-  }
-
-  /**
-   * Updates a STO character for the authenticated user.
-   *
-   * @param userId Authenticated user ID (injected).
-   * @param id Character ID.
-   * @param updateCharacterDto Partial update payload.
-   * @returns The updated character.
-   */
-  @Put(':id')
-  @ApiOkResponse({ description: 'Successfully updated the character.' })
-  @ApiBadRequestResponse({ description: 'Failed to update the character.' })
-  update(
-    @UserId() userId: string,
-    @Param('id') id: string,
-    @Body() updateCharacterDto: UpdateCharacterDto,
-  ) {
-    return this._characterService.updateForUser(id, userId, updateCharacterDto);
-  }
-
-  /**
-   * Removes (soft-deletes) a STO character for the authenticated user.
-   *
-   * @param userId Authenticated user ID (injected).
-   * @param id Character ID.
-   */
-  @Delete(':id')
-  @ApiOkResponse({ description: 'Successfully removed the character.' })
-  @ApiBadRequestResponse({ description: 'Failed to remove the character.' })
-  remove(@UserId() userId: string, @Param('id') id: string) {
-    return this._characterService.removeForUser(id, userId);
-  }
-
-  /**
    * Retrieves a list of general factions, optionally filtered by faction.
    *
    * @param factionId Optional faction ID filter.
@@ -311,5 +249,67 @@ export class CharacterController {
     @Query('recruitTypeId') recruitTypeId?: string,
   ) {
     return this._characterService.getSpecies(factionId, recruitTypeId);
+  }
+
+  /**
+   * Lists all STO characters for a specific account owned by the authenticated user.
+   *
+   * @param userId Authenticated user ID (injected).
+   * @param accountId Account ID.
+   * @returns The account's characters.
+   */
+  @Get()
+  @ApiOkResponse({ description: 'Successfully found the account characters.' })
+  findAllForAccount(
+    @UserId() userId: string,
+    @Query('accountId') accountId: string,
+  ) {
+    return this._characterService.findAllForAccount(accountId, userId);
+  }
+
+  /**
+   * Retrieves a single STO character by ID for the authenticated user.
+   *
+   * @param userId Authenticated user ID (injected).
+   * @param id Character ID.
+   * @returns The requested character.
+   */
+  @Get(':id')
+  @ApiOkResponse({ description: 'Successfully found the character.' })
+  @ApiBadRequestResponse({ description: 'Failed to find the character.' })
+  findOne(@UserId() userId: string, @Param('id') id: string) {
+    return this._characterService.findOneForUser(id, userId);
+  }
+
+  /**
+   * Updates a STO character for the authenticated user.
+   *
+   * @param userId Authenticated user ID (injected).
+   * @param id Character ID.
+   * @param updateCharacterDto Partial update payload.
+   * @returns The updated character.
+   */
+  @Put(':id')
+  @ApiOkResponse({ description: 'Successfully updated the character.' })
+  @ApiBadRequestResponse({ description: 'Failed to update the character.' })
+  update(
+    @UserId() userId: string,
+    @Param('id') id: string,
+    @Body() updateCharacterDto: UpdateCharacterDto,
+  ) {
+    return this._characterService.updateForUser(id, userId, updateCharacterDto);
+  }
+
+  /**
+   * Removes (soft-deletes) a STO character for the authenticated user.
+   *
+   * @param userId Authenticated user ID (injected).
+   * @param id Character ID.
+   */
+  @Delete(':id')
+  @ApiOkResponse({ description: 'Successfully removed the character.' })
+  @ApiBadRequestResponse({ description: 'Failed to remove the character.' })
+  remove(@UserId() userId: string, @Param('id') id: string) {
+    return this._characterService.removeForUser(id, userId);
   }
 }

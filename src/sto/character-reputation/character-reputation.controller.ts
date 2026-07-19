@@ -45,24 +45,6 @@ export class CharacterReputationController {
     return this._reputationService.getReputations();
   }
 
-  @Get('character/:characterId')
-  @ApiOkResponse({ description: 'Successfully retrieved reputation progress.' })
-  @ApiBadRequestResponse({ description: 'Failed to retrieve progress.' })
-  @HttpCode(HttpStatus.OK)
-  /**
-   * Gets reputation progress.
-   *
-   * @param userId - The user id.
-   * @param characterId - The character id.
-   * @returns The result of the operation.
-   */
-  getProgress(
-    @UserId() userId: string,
-    @Param('characterId') characterId: string,
-  ) {
-    return this._reputationService.getProgress(characterId, userId);
-  }
-
   @Get('character/:characterId/summary')
   @ApiOkResponse({ description: 'Successfully retrieved reputation summary.' })
   @ApiBadRequestResponse({ description: 'Failed to retrieve summary.' })
@@ -79,6 +61,24 @@ export class CharacterReputationController {
     @Param('characterId') characterId: string,
   ) {
     return this._reputationService.getSummary(characterId, userId);
+  }
+
+  @Get('character/:characterId')
+  @ApiOkResponse({ description: 'Successfully retrieved reputation progress.' })
+  @ApiBadRequestResponse({ description: 'Failed to retrieve progress.' })
+  @HttpCode(HttpStatus.OK)
+  /**
+   * Gets reputation progress.
+   *
+   * @param userId - The user id.
+   * @param characterId - The character id.
+   * @returns The result of the operation.
+   */
+  getProgress(
+    @UserId() userId: string,
+    @Param('characterId') characterId: string,
+  ) {
+    return this._reputationService.getProgress(characterId, userId);
   }
 
   @Put('character/:characterId/reputation/:reputationId')
