@@ -2,6 +2,7 @@ import { jest } from '@jest/globals';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { CharacterOwnershipService } from 'src/sto/character/character-ownership.service';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 import { UpdateCharacterReputationProgressDto } from './dto/update-character-reputation-progress.dto';
 import { CharacterReputationProgressEntity } from './entities/character-reputation-progress.entity';
@@ -19,6 +20,7 @@ describe('CharacterReputationService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CharacterReputationService,
+        CharacterOwnershipService,
         {
           provide: getRepositoryToken(CharacterReputationEntity),
           useValue: {

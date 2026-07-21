@@ -1,10 +1,6 @@
-import {
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { CharacterEntity } from 'src/sto/character/entities/character.entity';
+import { CharacterOwnershipService } from 'src/sto/character/character-ownership.service';
 import { Repository } from 'typeorm';
 import { UpdateCharacterRdProgressDto } from './dto/update-character-rd-progress.dto';
 import { CharacterRdProgressEntity } from './entities/character-rd-progress.entity';
@@ -28,45 +24,15 @@ export class CharacterRdService {
    *
    * @param _schoolRepository - The R&D school repository.
    * @param _progressRepository - The progress repository.
-   * @param _characterRepository - The character repository.
+   * @param _characterOwnership - The shared character ownership guard.
    */
   constructor(
     @InjectRepository(CharacterRdSchoolEntity)
     private readonly _schoolRepository: Repository<CharacterRdSchoolEntity>,
     @InjectRepository(CharacterRdProgressEntity)
     private readonly _progressRepository: Repository<CharacterRdProgressEntity>,
-    @InjectRepository(CharacterEntity)
-    private readonly _characterRepository: Repository<CharacterEntity>,
+    private readonly _characterOwnership: CharacterOwnershipService,
   ) {}
-
-  /**
-   * Ensures the character belongs to the authenticated user.
-   *
-   * @param characterId - The character id.
-   * @param userId - The user id.
-   * @returns A promise that resolves when the operation completes.
-   */
-  private async requireOwnedCharacter(
-    characterId: string,
-    userId: string,
-  ): Promise<CharacterEntity> {
-    const character = await this._characterRepository.findOne({
-      where: { id: characterId },
-      relations: { account: true },
-    });
-
-    if (!character) {
-      throw new NotFoundException(
-        `Character with ID "${characterId}" not found`,
-      );
-    }
-
-    if (character.account?.userId !== userId) {
-      throw new ForbiddenException('You do not have access to this character');
-    }
-
-    return character;
-  }
 
   /**
    * Gets the R&D school catalog.
@@ -90,7 +56,7 @@ export class CharacterRdService {
     characterId: string,
     userId: string,
   ): Promise<CharacterRdProgressEntity[]> {
-    await this.requireOwnedCharacter(characterId, userId);
+    await this._characterOwnership.requireOwnedCharacter(characterId, userId);
 
     const allSchools = await this.getSchools();
 
@@ -133,7 +99,7 @@ export class CharacterRdService {
     schoolId: string,
     dto: UpdateCharacterRdProgressDto,
   ): Promise<CharacterRdProgressEntity> {
-    await this.requireOwnedCharacter(characterId, userId);
+    await this._characterOwnership.requireOwnedCharacter(characterId, userId);
 
     const school = await this._schoolRepository.findOne({
       where: { id: schoolId },
@@ -174,7 +140,7 @@ export class CharacterRdService {
     characterId: string,
     userId: string,
   ): Promise<CharacterRdSummary> {
-    await this.requireOwnedCharacter(characterId, userId);
+    await this._characterOwnership.requireOwnedCharacter(characterId, userId);
 
     const allSchools = await this._schoolRepository.find();
     const existingProgress = await this._progressRepository.find({
