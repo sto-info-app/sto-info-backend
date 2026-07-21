@@ -20,96 +20,52 @@ Current overrides in `package.json`:
 
 ```json
 "overrides": {
-  "lodash": "^4.18.1",
-  "ajv": "^8.18.0",
-  "form-data": "^4.0.6",
-  "js-yaml": "4.2.0",
-  "eslint": {
-    "ajv": "^6.14.0"
-  },
   "mailparser": {
     ".": "^3.9.10",
     "nodemailer": "^9.0.1"
   },
-  "anymatch": {
-    "picomatch": "^2.3.2"
-  },
-  "micromatch": {
-    "picomatch": "^2.3.2"
-  }
+  "qs": "^6.15.2"
 }
 ```
 
-#### `lodash`
-
-- **Vulnerabilities**:
-  - [GHSA-r5fr-rjxr-66jc](https://github.com/advisories/GHSA-r5fr-rjxr-66jc) — Code Injection via `_.template` imports key names in `lodash <= 4.17.23`. CVSS High.
-  - [GHSA-f23m-r3pf-42rh](https://github.com/advisories/GHSA-f23m-r3pf-42rh) — Prototype Pollution via array path bypass in `_.unset` and `_.omit` in `lodash <= 4.17.23`. CVSS High.
-- **Root cause**: `@nestjs/config` and `@nestjs/swagger` both depend on `lodash@4.17.23`. `npm audit fix --force` would downgrade `@nestjs/config` to `1.1.5`, which is a breaking change.
-- **Override**: `"lodash": "^4.18.1"` — forces the patched release (4.18.0+ fixes both advisories) across the entire tree.
-
-**When it can be removed**: When `@nestjs/config` and `@nestjs/swagger` update their own `lodash` dependency to `>= 4.17.24` natively, or stop depending on lodash. Verify by removing the override and running `npm audit --omit=dev --audit-level=high`. Check with:
-
-```sh
-npm view @nestjs/config@latest dependencies.lodash
-npm view @nestjs/swagger@latest dependencies.lodash
-```
-
-#### `ajv` overrides
-
-- **Vulnerability**: [GHSA-2g4f-4pwh-qvx6](https://github.com/advisories/GHSA-2g4f-4pwh-qvx6) — ReDoS in `ajv < 8.18.0` when using the `$data` option.
-- **Solution**: We pin the global `ajv` to `^8.18.0`.
-- **Tooling Compatibility**: ESLint (v10.x) strictly requires `ajv@6` and uses legacy import paths (`ajv/lib/refs/json-schema-draft-04.json`) that break when it resolves to `ajv@8`. Keep the nested override so ESLint always resolves `ajv@^6.14.0`.
-
-**When it can be removed**: When ESLint no longer depends on `ajv@6` internals and lint passes without the nested override.
-
-#### `form-data`
-
-- **Vulnerabilities**: Multiple advisories in `form-data < 4.0.6` (including GHSA-fjxv-7rqg-78g4 and related follow-up advisories).
-- **Root cause**: Third-party chains in HTTP client tooling can resolve older `form-data` versions.
-- **Override**: `"form-data": "^4.0.6"` — forces patched release across the tree.
-
-**When it can be removed**: When all upstream direct consumers have moved to `>= 4.0.6`.
-
-#### `js-yaml`
-
-- **Vulnerability**: [GHSA-h67p-54hq-rp68](https://github.com/advisories/GHSA-h67p-54hq-rp68) — quadratic-complexity DoS in `js-yaml <= 4.1.1`.
-- **Root cause**: Security and test/reporting toolchains can resolve vulnerable nested `js-yaml` versions.
-- **Override**: `"js-yaml": "4.2.0"` — enforces patched release globally.
-
-**When it can be removed**: When all upstream ranges naturally resolve to `>= 4.2.0` and audits remain clean.
-
 #### `mailparser` + nested `nodemailer`
 
-- **Vulnerability family**: SMTP command/header injection issues in older `nodemailer` lines (for example GHSA-c7w3-x93f-qmm8 and GHSA-p6gq-j5cr-w38f).
-- **Root cause**: `mailparser` and related preview chains can install nested `nodemailer` copies behind the secure top-level version.
-- **Override**: `"mailparser": { ".": "^3.9.10", "nodemailer": "^9.0.1" }` — forces the patched parent and nested transport dependency.
+- **Vulnerability family**: SMTP command/header injection and access-control-bypass issues in older `nodemailer` lines (for example GHSA-c7w3-x93f-qmm8 and GHSA-p6gq-j5cr-w38f), plus [GHSA-22p9-wv53-3rq4](https://github.com/advisories/GHSA-22p9-wv53-3rq4) — quadratic complexity in `linkify-it <= 5.0.0`, a `mailparser` dependency.
+- **Root cause**: `preview-email@3.2.0` (pulled in by `@nestjs-modules/mailer`) pins `mailparser@3.9.8` **exactly** — a version in the vulnerable range that ships `linkify-it@5.0.0` and `nodemailer@8.0.5`. Without the override, `npm update` downgrades mailparser into the vulnerable range.
+- **Override**: `"mailparser": { ".": "^3.9.10", "nodemailer": "^9.0.1" }` — forces the patched parent (currently resolves `3.9.14`, which ships fixed `linkify-it@5.0.2` and `nodemailer@9.0.3`) and its nested transport dependency.
 
-**When it can be removed**: When upstream chains no longer install vulnerable nested `nodemailer` versions. Check with:
+**When it can be removed**: When `preview-email` raises its own `mailparser` pin to `>= 3.9.9`. Check with:
 
 ```sh
+npm view preview-email@latest dependencies.mailparser
 npm view mailparser@latest dependencies.nodemailer
 ```
 
-#### `picomatch`
+#### `qs`
 
-- **Vulnerability**: ReDoS and incorrect glob matching in `picomatch < 2.3.2` (v2 branch) and `picomatch < 4.0.4` (v4 branch).
-- **Root cause**: Multiple packages install their own nested picomatch at vulnerable versions:
-  - `anymatch` and `micromatch` install `picomatch@2.3.1` (nested, v2 branch).
-  - `jest-haste-map` and related Jest internals install `picomatch@4.0.3` (nested, v4 branch).
-  - The root-level `picomatch` was at `4.0.2`.
-- **Solution**: Three override entries are used:
-  - `"anymatch": { "picomatch": "^2.3.2" }` — ensures `anymatch` receives the patched v2 release rather than being forced to the incompatible v4 API.
-  - `"micromatch": { "picomatch": "^2.3.2" }` — same reason as `anymatch`.
+- **Vulnerability**: [GHSA-q8mj-m7cp-5q26](https://github.com/advisories/GHSA-q8mj-m7cp-5q26) — remotely triggerable DoS in `qs 6.11.1 - 6.15.1` (`qs.stringify` crashes on null/undefined entries in comma-format arrays).
+- **Root cause**: `typed-rest-client@2.3.1` (via `@stryker-mutator/core`) pins `qs@6.15.1` exactly.
+- **Override**: `"qs": "^6.15.2"` — global pin; the whole tree dedupes to a single patched `qs` (currently `6.15.3`). A nested `"typed-rest-client": { "qs": ... }` form was tried first but npm did not reify it reliably, so the global form is used.
 
-**When it can be removed**: When `anymatch` and `micromatch` update their own `picomatch` dependency ranges to `>= 2.3.2`, and when `jest-haste-map` (and related Jest packages) update their ranges to `>= 4.0.4`. Verify with:
+**When it can be removed**: When `typed-rest-client` raises its `qs` pin to `>= 6.15.2` (or Stryker moves to `typed-rest-client@3`). Check with:
 
 ```sh
-npm view anymatch@latest dependencies.picomatch
-npm view micromatch@latest dependencies.picomatch
+npm view typed-rest-client@latest dependencies.qs
 ```
 
 #### Recently Removed Overrides
+
+Overrides removed on **2026-07-21** during the dependency security review — all verified redundant by the removal checklist above (audit clean, lint, build, and full test suite pass without them):
+
+| Override | Previously forced | Reason for removal |
+|---|---|---|
+| `lodash` | `^4.18.1` | Whole tree now resolves naturally to `4.18.1` |
+| `ajv` (global) | `^8.18.0` | Consumers resolve naturally to `8.18.0`; no vulnerable copies installed |
+| `eslint.ajv` (nested) | `^6.14.0` | `eslint@10.7.0` resolves `ajv@6.14.0` natively and `npm run lint` passes without the override |
+| `form-data` | `^4.0.6` | Whole tree resolves naturally to `4.0.6` |
+| `js-yaml` | `4.2.0` | `4.2.0` became vulnerable ([GHSA-52cp-r559-cp3m](https://github.com/advisories/GHSA-52cp-r559-cp3m), fixed in `4.3.0`); with the override removed, consumers resolve naturally to patched versions (`cosmiconfig` → `4.3.0`, `@nestjs/swagger` → `5.2.1`) |
+| `anymatch.picomatch` | `^2.3.2` | `anymatch` resolves `picomatch@2.3.2` natively |
+| `micromatch.picomatch` | `^2.3.2` | `micromatch` resolves `picomatch@2.3.2` natively |
 
 Overrides removed on **2026-04-05** as part of the TypeScript 6 upgrade review — all were found to be redundant because the dependency tree now resolves naturally to safe versions:
 
@@ -176,6 +132,8 @@ const patches = [
 - **Root cause**: `mailparser` and `preview-email` can install nested `nodemailer` versions behind the secure top-level dependency. npm 11.x nested-override behavior can leave those copies in place.
 - **Patch**: `['mailparser/node_modules/nodemailer', 'nodemailer']` and `['preview-email/node_modules/nodemailer', 'nodemailer']` copy the safe top-level `nodemailer` into nested installs after every `npm install` / `npm ci`.
 
+**Status (2026-07-21)**: With the `mailparser` override forcing `3.9.14` (which depends on `nodemailer@9.0.3` natively), no nested `nodemailer` copies are currently installed — both entries are no-ops kept as a safety net against future re-resolution.
+
 **When it can be removed**: When `mailparser` and `preview-email` both resolve patched `nodemailer` natively and nested vulnerable copies are no longer installed. Verify with:
 
 ```sh
@@ -186,7 +144,7 @@ npm view preview-email@latest dependencies.nodemailer
 #### `uuid` (nested under `preview-email`)
 
 - **Vulnerability**: [GHSA-w5hq-g745-h8pq](https://github.com/advisories/GHSA-w5hq-g745-h8pq) — Missing buffer bounds check in UUID v3/v5/v6 when `buf` is provided (`uuid < 11.1.1`). Severity: Moderate.
-- **Root cause**: `preview-email@3.1.3` pins `uuid@^9.0.1`. Because `uuid` is also a top-level dependency, npm 11.x can leave the nested vulnerable copy in place even when a nested override is declared.
+- **Root cause**: `preview-email@3.2.0` pins `uuid@^9.0.1`. Because `uuid` is also a top-level dependency, npm 11.x can leave the nested vulnerable copy in place even when a nested override is declared.
 - **Patch**: `['preview-email/node_modules/uuid', 'uuid']` copies the safe top-level `uuid` into nested preview-email installs after every `npm install` / `npm ci`.
 
 **When it can be removed**: When `preview-email` updates its own `uuid` dependency to `>= 11.1.1`. Verify with:
