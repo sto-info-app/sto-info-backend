@@ -1,10 +1,6 @@
-import {
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { CharacterEntity } from 'src/sto/character/entities/character.entity';
+import { CharacterOwnershipService } from 'src/sto/character/character-ownership.service';
 import { Repository } from 'typeorm';
 import { UpdateCharacterReputationProgressDto } from './dto/update-character-reputation-progress.dto';
 import { CharacterReputationProgressEntity } from './entities/character-reputation-progress.entity';
@@ -28,45 +24,15 @@ export class CharacterReputationService {
    *
    * @param _reputationRepository - The reputation repository.
    * @param _progressRepository - The progress repository.
-   * @param _characterRepository - The character repository.
+   * @param _characterOwnership - The shared character ownership guard.
    */
   constructor(
     @InjectRepository(CharacterReputationEntity)
     private readonly _reputationRepository: Repository<CharacterReputationEntity>,
     @InjectRepository(CharacterReputationProgressEntity)
     private readonly _progressRepository: Repository<CharacterReputationProgressEntity>,
-    @InjectRepository(CharacterEntity)
-    private readonly _characterRepository: Repository<CharacterEntity>,
+    private readonly _characterOwnership: CharacterOwnershipService,
   ) {}
-
-  /**
-   * Ensures the character belongs to the authenticated user.
-   *
-   * @param characterId - The character id.
-   * @param userId - The user id.
-   * @returns A promise that resolves when the operation completes.
-   */
-  private async requireOwnedCharacter(
-    characterId: string,
-    userId: string,
-  ): Promise<CharacterEntity> {
-    const character = await this._characterRepository.findOne({
-      where: { id: characterId },
-      relations: { account: true },
-    });
-
-    if (!character) {
-      throw new NotFoundException(
-        `Character with ID "${characterId}" not found`,
-      );
-    }
-
-    if (character.account?.userId !== userId) {
-      throw new ForbiddenException('You do not have access to this character');
-    }
-
-    return character;
-  }
 
   /**
    * Gets the reputation catalog.
@@ -90,7 +56,7 @@ export class CharacterReputationService {
     characterId: string,
     userId: string,
   ): Promise<CharacterReputationProgressEntity[]> {
-    await this.requireOwnedCharacter(characterId, userId);
+    await this._characterOwnership.requireOwnedCharacter(characterId, userId);
 
     const allReputations = await this.getReputations();
 
@@ -133,7 +99,7 @@ export class CharacterReputationService {
     reputationId: string,
     dto: UpdateCharacterReputationProgressDto,
   ): Promise<CharacterReputationProgressEntity> {
-    await this.requireOwnedCharacter(characterId, userId);
+    await this._characterOwnership.requireOwnedCharacter(characterId, userId);
 
     const reputation = await this._reputationRepository.findOne({
       where: { id: reputationId },
@@ -176,7 +142,7 @@ export class CharacterReputationService {
     characterId: string,
     userId: string,
   ): Promise<CharacterReputationSummary> {
-    await this.requireOwnedCharacter(characterId, userId);
+    await this._characterOwnership.requireOwnedCharacter(characterId, userId);
 
     const allReputations = await this._reputationRepository.find();
     const existingProgress = await this._progressRepository.find({

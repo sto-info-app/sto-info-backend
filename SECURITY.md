@@ -130,17 +130,16 @@ Both fast-check and ZAP are updated regularly via Dependabot to ensure the lates
 
 ## Known Dependency Advisory Follow-up
 
-The production audit gate (`npm audit --audit-level=high --omit=dev`) currently passes. There is one remaining moderate advisory to track:
+The production audit gate (`npm audit --audit-level=high --omit=dev`) currently passes with **zero advisories at any severity** (last verified 2026-07-21).
 
-- Package: `js-yaml` (`<=4.1.1`)
-- Advisory: GHSA-h67p-54hq-rp68 (quadratic-complexity DoS in merge key handling)
-- Introduced via: `@nestjs/swagger@11.4.4`
-- Current impact: moderate severity only; does not fail the required high-severity CI audit gate
+Previously tracked advisories, now resolved:
+
+- `js-yaml` GHSA-h67p-54hq-rp68 and its follow-up GHSA-52cp-r559-cp3m — resolved upstream; `@nestjs/swagger` now resolves `js-yaml@5.2.1` and remaining consumers resolve `4.3.0` naturally, so no override is needed.
 
 ### Non-breaking remediation strategy
 
-1. Prefer upstream patch adoption by monitoring new `@nestjs/swagger` releases that move off vulnerable `js-yaml` versions.
-2. Keep current NestJS major version alignment; do not use `npm audit fix --force` for this issue because it proposes breaking package jumps.
+1. Prefer upstream patch adoption over `npm audit fix --force` (which can propose breaking package jumps).
+2. Where upstream pins a vulnerable transitive version, use a minimal `overrides` entry — see `docs/security.md` for the active list and removal criteria.
 3. Re-evaluate at each Dependabot PR and remove any temporary constraints/patches once a safe non-breaking path is available.
 
 ### Verification command
