@@ -4,32 +4,32 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { CharacterOwnershipService } from 'src/sto/character/character-ownership.service';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
-import { UpdateCharacterReputationProgressDto } from './dto/update-character-reputation-progress.dto';
-import { CharacterReputationProgressEntity } from './entities/character-reputation-progress.entity';
-import { CharacterReputationEntity } from './entities/character-reputation.entity';
-import { CharacterReputationService } from './character-reputation.service';
+import { UpdateCharacterRdProgressDto } from './dto/update-character-rd-progress.dto';
+import { CharacterRdProgressEntity } from './entities/character-rd-progress.entity';
+import { CharacterRdSchoolEntity } from './entities/character-rd-school.entity';
+import { CharacterRdService } from './character-rd.service';
 
-describe('CharacterReputationService', () => {
-  let service: CharacterReputationService;
+describe('CharacterRdService', () => {
+  let service: CharacterRdService;
 
-  let reputationRepository: any;
+  let schoolRepository: any;
   let progressRepository: any;
   let characterRepository: any;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        CharacterReputationService,
+        CharacterRdService,
         CharacterOwnershipService,
         {
-          provide: getRepositoryToken(CharacterReputationEntity),
+          provide: getRepositoryToken(CharacterRdSchoolEntity),
           useValue: {
             find: jest.fn<(...args: any[]) => Promise<any>>(),
             findOne: jest.fn<(...args: any[]) => Promise<any>>(),
           },
         },
         {
-          provide: getRepositoryToken(CharacterReputationProgressEntity),
+          provide: getRepositoryToken(CharacterRdProgressEntity),
           useValue: {
             find: jest.fn<(...args: any[]) => Promise<any>>(),
             findOne: jest.fn<(...args: any[]) => Promise<any>>(),
@@ -46,14 +46,10 @@ describe('CharacterReputationService', () => {
       ],
     }).compile();
 
-    service = module.get<CharacterReputationService>(
-      CharacterReputationService,
-    );
-    reputationRepository = module.get(
-      getRepositoryToken(CharacterReputationEntity),
-    );
+    service = module.get<CharacterRdService>(CharacterRdService);
+    schoolRepository = module.get(getRepositoryToken(CharacterRdSchoolEntity));
     progressRepository = module.get(
-      getRepositoryToken(CharacterReputationProgressEntity),
+      getRepositoryToken(CharacterRdProgressEntity),
     );
     characterRepository = module.get(getRepositoryToken(CharacterEntity));
 
@@ -71,23 +67,23 @@ describe('CharacterReputationService', () => {
     expect(service).toBeDefined();
   });
 
-  describe('getReputations', () => {
-    it('should query all reputations ordered by sortOrder then name', async () => {
-      reputationRepository.find.mockResolvedValue([{ id: 'rep-1' }]);
+  describe('getSchools', () => {
+    it('should query all schools ordered by sortOrder then name', async () => {
+      schoolRepository.find.mockResolvedValue([{ id: 'school-1' }]);
 
-      const result = await service.getReputations();
+      const result = await service.getSchools();
 
-      expect(result).toEqual([{ id: 'rep-1' }]);
-      expect(reputationRepository.find).toHaveBeenCalledWith({
+      expect(result).toEqual([{ id: 'school-1' }]);
+      expect(schoolRepository.find).toHaveBeenCalledWith({
         order: { sortOrder: 'ASC', name: 'ASC' },
       });
     });
   });
 
   describe('getProgress', () => {
-    const reputations = [
-      { id: 'rep-a', name: 'Task Force Omega' },
-      { id: 'rep-b', name: 'New Romulus' },
+    const schools = [
+      { id: 'school-a', name: 'Beams' },
+      { id: 'school-b', name: 'Cannons' },
     ];
 
     it('should throw NotFoundException when character does not exist', async () => {
@@ -109,15 +105,15 @@ describe('CharacterReputationService', () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('should return existing and synthetic entries for all reputations', async () => {
-      reputationRepository.find.mockResolvedValue(reputations);
+    it('should return existing and synthetic entries for all schools', async () => {
+      schoolRepository.find.mockResolvedValue(schools);
       progressRepository.find.mockResolvedValue([
         {
           id: 'progress-1',
           characterId: 'character-1',
-          reputationId: 'rep-b',
-          reputation: { id: 'rep-b', name: 'New Romulus' },
-          currentTier: 4,
+          schoolId: 'school-b',
+          school: { id: 'school-b', name: 'Cannons' },
+          currentLevel: 12,
         },
       ]);
 
@@ -125,50 +121,50 @@ describe('CharacterReputationService', () => {
 
       expect(result).toHaveLength(2);
       expect(
-        result.find((item: any) => item.reputationId === 'rep-a'),
+        result.find((item: any) => item.schoolId === 'school-a'),
       ).toMatchObject({
         id: '',
         characterId: 'character-1',
-        reputationId: 'rep-a',
-        currentTier: 0,
+        schoolId: 'school-a',
+        currentLevel: 0,
       });
       expect(
-        result.find((item: any) => item.reputationId === 'rep-b'),
+        result.find((item: any) => item.schoolId === 'school-b'),
       ).toMatchObject({
         id: 'progress-1',
-        currentTier: 4,
+        currentLevel: 12,
       });
       expect(progressRepository.find).toHaveBeenCalledWith({
         where: { characterId: 'character-1' },
-        relations: { reputation: true },
+        relations: { school: true },
       });
     });
   });
 
   describe('updateProgress', () => {
-    const dto: UpdateCharacterReputationProgressDto = { currentTier: 5 };
+    const dto: UpdateCharacterRdProgressDto = { currentLevel: 15 };
 
-    it('should throw NotFoundException when reputation does not exist', async () => {
-      reputationRepository.findOne.mockResolvedValue(null);
+    it('should throw NotFoundException when school does not exist', async () => {
+      schoolRepository.findOne.mockResolvedValue(null);
 
       await expect(
-        service.updateProgress('character-1', 'user-1', 'missing-rep', dto),
+        service.updateProgress('character-1', 'user-1', 'missing-school', dto),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('should create and save a new progress record when one does not exist', async () => {
-      const reputation = {
-        id: 'rep-1',
-        name: 'Task Force Omega',
+      const school = {
+        id: 'school-1',
+        name: 'Beams',
       };
       const created = {
         id: 'progress-1',
         characterId: 'character-1',
-        reputationId: 'rep-1',
-        currentTier: dto.currentTier,
+        schoolId: 'school-1',
+        currentLevel: dto.currentLevel,
       };
 
-      reputationRepository.findOne.mockResolvedValue(reputation);
+      schoolRepository.findOne.mockResolvedValue(school);
       progressRepository.findOne.mockResolvedValue(null);
       progressRepository.create.mockReturnValue(created);
       progressRepository.save.mockResolvedValue(created);
@@ -176,85 +172,85 @@ describe('CharacterReputationService', () => {
       const result = await service.updateProgress(
         'character-1',
         'user-1',
-        'rep-1',
+        'school-1',
         dto,
       );
 
       expect(progressRepository.create).toHaveBeenCalledWith({
         characterId: 'character-1',
-        reputationId: 'rep-1',
-        currentTier: 5,
+        schoolId: 'school-1',
+        currentLevel: 15,
       });
       expect(progressRepository.save).toHaveBeenCalledWith(created);
-      expect(result.reputation).toEqual(reputation);
+      expect(result.school).toEqual(school);
     });
 
     it('should update and save an existing progress record', async () => {
-      const reputation = {
-        id: 'rep-2',
-        name: 'New Romulus',
+      const school = {
+        id: 'school-2',
+        name: 'Cannons',
       };
       const existing = {
         id: 'progress-existing',
         characterId: 'character-1',
-        reputationId: 'rep-2',
-        currentTier: 1,
-        reputation,
+        schoolId: 'school-2',
+        currentLevel: 3,
+        school,
       };
 
-      reputationRepository.findOne.mockResolvedValue(reputation);
+      schoolRepository.findOne.mockResolvedValue(school);
       progressRepository.findOne.mockResolvedValue(existing);
       progressRepository.save.mockResolvedValue(existing);
 
       const result = await service.updateProgress(
         'character-1',
         'user-1',
-        'rep-2',
-        { currentTier: 5 },
+        'school-2',
+        { currentLevel: 15 },
       );
 
       expect(progressRepository.create).not.toHaveBeenCalled();
-      expect(existing.currentTier).toBe(5);
+      expect(existing.currentLevel).toBe(15);
       expect(progressRepository.save).toHaveBeenCalledWith(existing);
-      expect(result.reputation).toEqual(reputation);
+      expect(result.school).toEqual(school);
     });
   });
 
   describe('getSummary', () => {
-    it('should return zero percentages when no reputations exist', async () => {
-      reputationRepository.find.mockResolvedValue([]);
+    it('should return zero percentages when no schools exist', async () => {
+      schoolRepository.find.mockResolvedValue([]);
       progressRepository.find.mockResolvedValue([]);
 
       const result = await service.getSummary('character-1', 'user-1');
 
       expect(result).toEqual({
-        totalTiers: 0,
-        maxPossibleTiers: 0,
+        totalLevels: 0,
+        maxPossibleLevels: 0,
         overallCompletionPercentage: 0,
-        completedReputations: 0,
-        totalReputations: 0,
+        completedSchools: 0,
+        totalSchools: 0,
       });
     });
 
-    it('should calculate totals, percentages, and completed reputations', async () => {
-      reputationRepository.find.mockResolvedValue([
-        { id: 'rep-1' },
-        { id: 'rep-2' },
-        { id: 'rep-3' },
+    it('should calculate totals, percentages, and completed schools', async () => {
+      schoolRepository.find.mockResolvedValue([
+        { id: 'school-1' },
+        { id: 'school-2' },
+        { id: 'school-3' },
       ]);
       progressRepository.find.mockResolvedValue([
-        { reputationId: 'rep-1', currentTier: 6 },
-        { reputationId: 'rep-2', currentTier: 3 },
+        { schoolId: 'school-1', currentLevel: 20 },
+        { schoolId: 'school-2', currentLevel: 10 },
       ]);
 
       const result = await service.getSummary('character-1', 'user-1');
 
       expect(result).toEqual({
-        totalTiers: 9,
-        maxPossibleTiers: 18,
+        totalLevels: 30,
+        maxPossibleLevels: 60,
         overallCompletionPercentage: 50,
-        completedReputations: 1,
-        totalReputations: 3,
+        completedSchools: 1,
+        totalSchools: 3,
       });
       expect(progressRepository.find).toHaveBeenCalledWith({
         where: { characterId: 'character-1' },
