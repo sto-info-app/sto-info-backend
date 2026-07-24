@@ -25,7 +25,7 @@ export class CreateCharacterSpecializationTables1785024000000 implements Migrati
         CONSTRAINT "PK_character_specialization" PRIMARY KEY ("id"),
         CONSTRAINT "UX_character_specialization_name" UNIQUE ("name"),
         CONSTRAINT "CK_character_specialization_type" CHECK ("type" IN ('primary', 'secondary')),
-        CONSTRAINT "CK_character_specialization_max_points" CHECK ("maxPoints" > 0 AND "maxPoints" <= 30)
+        CONSTRAINT "CK_character_specialization_max_points" CHECK (("type" = 'primary' AND "maxPoints" > 0 AND "maxPoints" <= 30) OR ("type" = 'secondary' AND "maxPoints" > 0 AND "maxPoints" <= 15))
       )
     `);
 
