@@ -133,8 +133,9 @@ export class CharacterSpecializationService {
 
   /**
    * Activates a specialization in the character's Primary or Secondary slot, or
-   * deactivates it. A slot holds a single specialization, so whichever
-   * specialization previously held the requested slot is released first.
+   * deactivates it. The release of any existing holder and the claim of the
+   * requested slot are performed within a single transaction so slot
+   * assignment remains atomic under the partial unique slot index.
    *
    * @param characterId - The character id.
    * @param userId - The user id.
@@ -160,23 +161,30 @@ export class CharacterSpecializationService {
       );
     }
 
-    if (slot) {
-      await this._progressRepository.update(
-        { characterId, slot, specializationId: Not(specializationId) },
-        { slot: null },
+    return this._progressRepository.manager.transaction(async manager => {
+      const progressRepository = manager.getRepository(
+        CharacterSpecializationProgressEntity,
       );
-    }
 
-    const progress = await this._findOrCreateProgress(
-      characterId,
-      specializationId,
-    );
-    progress.slot = slot;
+      if (slot) {
+        await progressRepository.update(
+          { characterId, slot, specializationId: Not(specializationId) },
+          { slot: null },
+        );
+      }
 
-    await this._progressRepository.save(progress);
+      const progress = await this._findOrCreateProgress(
+        characterId,
+        specializationId,
+        progressRepository,
+      );
+      progress.slot = slot;
 
-    progress.specialization = specialization;
-    return progress;
+      await progressRepository.save(progress);
+
+      progress.specialization = specialization;
+      return progress;
+    });
   }
 
   /**
@@ -267,20 +275,24 @@ export class CharacterSpecializationService {
    *
    * @param characterId - The character id.
    * @param specializationId - The specialization id.
+   * @param progressRepository - The repository to use for the lookup and save
+   *   operations. Defaults to the service's injected progress repository.
    * @returns A promise that resolves when the operation completes.
    */
   private async _findOrCreateProgress(
     characterId: string,
     specializationId: string,
+    progressRepository: Repository<CharacterSpecializationProgressEntity> = this
+      ._progressRepository,
   ): Promise<CharacterSpecializationProgressEntity> {
-    const existing = await this._progressRepository.findOne({
+    const existing = await progressRepository.findOne({
       where: { characterId, specializationId },
       relations: { specialization: true },
     });
 
     return (
       existing ??
-      this._progressRepository.create({
+      progressRepository.create({
         characterId,
         specializationId,
         pointsSpent: 0,

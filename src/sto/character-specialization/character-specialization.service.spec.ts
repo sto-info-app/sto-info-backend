@@ -41,6 +41,9 @@ describe('CharacterSpecializationService', () => {
             create: jest.fn<(...args: any[]) => any>(),
             save: jest.fn<(...args: any[]) => Promise<any>>(),
             update: jest.fn<(...args: any[]) => Promise<any>>(),
+            manager: {
+              transaction: jest.fn<(...args: any[]) => Promise<any>>(),
+            },
           },
         },
         {
@@ -67,6 +70,15 @@ describe('CharacterSpecializationService', () => {
       id: 'character-1',
       account: { id: 'account-1', userId: 'user-1' },
     });
+
+    progressRepository.manager.transaction.mockImplementation(
+      async (callback: (manager: any) => Promise<any>) =>
+        callback({
+          getRepository: jest
+            .fn<(...args: any[]) => any>()
+            .mockReturnValue(progressRepository),
+        }),
+    );
   });
 
   afterEach(() => {
@@ -314,6 +326,7 @@ describe('CharacterSpecializationService', () => {
         },
         { slot: null },
       );
+      expect(progressRepository.manager.transaction).toHaveBeenCalledTimes(1);
       expect(result.slot).toBe('primary');
       expect(progressRepository.save).toHaveBeenCalledWith(existing);
     });
