@@ -37,6 +37,7 @@ import { EndeavourModule } from './sto/endeavour/endeavour.module';
 import { LauncherModule } from './sto/launcher/launcher.module';
 import { CharacterReputationModule } from './sto/character-reputation/character-reputation.module';
 import { CharacterRdModule } from './sto/character-rd/character-rd.module';
+import { CharacterSpecializationModule } from './sto/character-specialization/character-specialization.module';
 import { StatsModule } from './sto/stats/stats.module';
 import { PlatformLauncherModule } from './sto/platform-launcher/platform-launcher.module';
 import { PlatformModule } from './sto/platform/platform.module';
@@ -94,6 +95,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     EndeavourModule,
     CharacterReputationModule,
     CharacterRdModule,
+    CharacterSpecializationModule,
     StatsModule,
     PlatformModule,
     LauncherModule,
