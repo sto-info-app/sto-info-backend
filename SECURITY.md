@@ -130,11 +130,13 @@ Both fast-check and ZAP are updated regularly via Dependabot to ensure the lates
 
 ## Known Dependency Advisory Follow-up
 
-The production audit gate (`npm audit --audit-level=high --omit=dev`) currently passes with **zero advisories at any severity** (last verified 2026-07-21).
+Both the full dependency audit (`npm audit`) and the production audit gate (`npm audit --audit-level=high --omit=dev`) currently pass with **zero advisories at any severity** (last verified 2026-07-25).
 
-Previously tracked advisories, now resolved:
+The current overrides remediate these upstream dependency advisories:
 
-- `js-yaml` GHSA-h67p-54hq-rp68 and its follow-up GHSA-52cp-r559-cp3m — resolved upstream; `@nestjs/swagger` now resolves `js-yaml@5.2.1` and remaining consumers resolve `4.3.0` naturally, so no override is needed.
+- `brace-expansion` [GHSA-mh99-v99m-4gvg](https://github.com/advisories/GHSA-mh99-v99m-4gvg) — all versions through `5.0.7` permit unbounded expansion length and process-level denial of service; the global override resolves every transitive path to `5.0.8`.
+- `js-yaml` [GHSA-pm4m-ph32-ghv5](https://github.com/advisories/GHSA-pm4m-ph32-ghv5) — `@nestjs/swagger` requests vulnerable `5.2.1`; the global override requires patched `5.2.2` or newer.
+- Additional active overrides for `mailparser`/`nodemailer` and `qs` remain documented in `docs/security.md`, including their upstream removal criteria.
 
 ### Non-breaking remediation strategy
 
@@ -145,6 +147,7 @@ Previously tracked advisories, now resolved:
 ### Verification command
 
 ```bash
+npm audit
 npm audit --audit-level=high --omit=dev
 ```
 
