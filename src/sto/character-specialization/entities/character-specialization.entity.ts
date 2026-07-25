@@ -1,6 +1,6 @@
-import { IsIn, IsInt, Max, Min } from 'class-validator';
+import { IsIn, IsInt, Max, Min, ValidateIf } from 'class-validator';
 import { CatalogItemEntity } from 'src/sto/shared/entities/catalog-item.entity';
-import { Column, Entity, Index, OneToMany } from 'typeorm';
+import { BeforeInsert, Column, Entity, Index, OneToMany } from 'typeorm';
 import { CharacterSpecializationProgressEntity } from './character-specialization-progress.entity';
 
 /**
@@ -33,10 +33,26 @@ export class CharacterSpecializationEntity extends CatalogItemEntity {
   @Max(SPECIALIZATION_PRIMARY_MAX_POINTS)
   @Column({
     type: 'int',
-    default: SPECIALIZATION_PRIMARY_MAX_POINTS,
     nullable: false,
   })
   maxPoints: number;
+
+  @ValidateIf(
+    (specialization: CharacterSpecializationEntity) =>
+      specialization.type === 'secondary',
+  )
+  @Max(SPECIALIZATION_SECONDARY_MAX_POINTS)
+  get secondaryMaxPoints(): number {
+    return this.maxPoints;
+  }
+
+  @BeforeInsert()
+  setDefaultMaxPoints(): void {
+    this.maxPoints ??=
+      this.type === 'secondary'
+        ? SPECIALIZATION_SECONDARY_MAX_POINTS
+        : SPECIALIZATION_PRIMARY_MAX_POINTS;
+  }
 
   @OneToMany(
     'CharacterSpecializationProgressEntity',

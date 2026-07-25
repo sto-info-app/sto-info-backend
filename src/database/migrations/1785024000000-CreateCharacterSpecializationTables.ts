@@ -18,7 +18,7 @@ export class CreateCharacterSpecializationTables1785024000000 implements Migrati
         "iconUrl" character varying(512),
         "accentColor" character varying(9),
         "type" character varying(16) NOT NULL,
-        "maxPoints" integer NOT NULL DEFAULT 30,
+        "maxPoints" integer NOT NULL,
         "sortOrder" integer NOT NULL DEFAULT 0,
         "createdAt" TIMESTAMP NOT NULL DEFAULT now(),
         "updatedAt" TIMESTAMP NOT NULL DEFAULT now(),
