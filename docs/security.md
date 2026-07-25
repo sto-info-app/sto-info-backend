@@ -20,12 +20,39 @@ Current overrides in `package.json`:
 
 ```json
 "overrides": {
+  "brace-expansion": "^5.0.8",
   "mailparser": {
     ".": "^3.9.10",
     "nodemailer": "^9.0.1"
   },
-  "qs": "^6.15.2"
+  "qs": "^6.15.2",
+  "js-yaml": ">=5.2.2"
 }
+```
+
+#### `brace-expansion`
+
+- **Vulnerability**: [GHSA-mh99-v99m-4gvg](https://github.com/advisories/GHSA-mh99-v99m-4gvg) / CVE-2026-14257 — unbounded expansion length can exhaust process memory and cause denial of service in `brace-expansion <= 5.0.7`. Severity: High.
+- **Root cause**: Multiple production and development dependency chains resolve affected versions through `minimatch`, including MJML tooling, Jest, and the Nest CLI. Their declared ranges span incompatible major versions, so ordinary npm deduplication cannot move every copy to the patched release.
+- **Override**: `"brace-expansion": "^5.0.8"` — globally resolves all transitive copies to the first patched release or newer. The project requires Node 24, satisfying the patched package's Node.js engine requirement.
+
+**When it can be removed**: When every installed `minimatch` consumer resolves `brace-expansion >= 5.0.8` naturally. Check with:
+
+```sh
+npm ls brace-expansion
+```
+
+#### `js-yaml`
+
+- **Vulnerability**: [GHSA-pm4m-ph32-ghv5](https://github.com/advisories/GHSA-pm4m-ph32-ghv5) — exponential parsing time in nested flow collections allows a small YAML document to block the Node.js event loop. Affected versions are `5.0.0 - 5.2.1`; patched in `5.2.2`. Severity: High.
+- **Root cause**: `@nestjs/swagger@11.4.6` requests `js-yaml@5.2.1` exactly, and other tooling accepts a range that can resolve the same vulnerable release.
+- **Override**: `"js-yaml": ">=5.2.2"` — forces all consumers onto the patched release line (currently `5.2.2`).
+
+**When it can be removed**: When `@nestjs/swagger` requests `js-yaml >= 5.2.2` and the remaining dependency tree resolves no affected copies. Check with:
+
+```sh
+npm view @nestjs/swagger@latest dependencies.js-yaml
+npm ls js-yaml
 ```
 
 #### `mailparser` + nested `nodemailer`
@@ -57,35 +84,35 @@ npm view typed-rest-client@latest dependencies.qs
 
 Overrides removed on **2026-07-21** during the dependency security review — all verified redundant by the removal checklist above (audit clean, lint, build, and full test suite pass without them):
 
-| Override | Previously forced | Reason for removal |
-|---|---|---|
-| `lodash` | `^4.18.1` | Whole tree now resolves naturally to `4.18.1` |
-| `ajv` (global) | `^8.18.0` | Consumers resolve naturally to `8.18.0`; no vulnerable copies installed |
-| `eslint.ajv` (nested) | `^6.14.0` | `eslint@10.7.0` resolves `ajv@6.14.0` natively and `npm run lint` passes without the override |
-| `form-data` | `^4.0.6` | Whole tree resolves naturally to `4.0.6` |
-| `js-yaml` | `4.2.0` | `4.2.0` became vulnerable ([GHSA-52cp-r559-cp3m](https://github.com/advisories/GHSA-52cp-r559-cp3m), fixed in `4.3.0`); with the override removed, consumers resolve naturally to patched versions (`cosmiconfig` → `4.3.0`, `@nestjs/swagger` → `5.2.1`) |
-| `anymatch.picomatch` | `^2.3.2` | `anymatch` resolves `picomatch@2.3.2` natively |
-| `micromatch.picomatch` | `^2.3.2` | `micromatch` resolves `picomatch@2.3.2` natively |
+| Override               | Previously forced | Reason for removal                                                                                                                                                                                            |
+| ---------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lodash`               | `^4.18.1`         | Whole tree now resolves naturally to `4.18.1`                                                                                                                                                                 |
+| `ajv` (global)         | `^8.18.0`         | Consumers resolve naturally to `8.18.0`; no vulnerable copies installed                                                                                                                                       |
+| `eslint.ajv` (nested)  | `^6.14.0`         | `eslint@10.7.0` resolves `ajv@6.14.0` natively and `npm run lint` passes without the override                                                                                                                 |
+| `form-data`            | `^4.0.6`          | Whole tree resolves naturally to `4.0.6`                                                                                                                                                                      |
+| `js-yaml`              | `4.2.0`           | This older constraint was removed after consumers resolved the then-patched `4.3.0` and `5.2.1` lines naturally. A new `>=5.2.2` override was added on 2026-07-25 for the later GHSA-pm4m-ph32-ghv5 advisory. |
+| `anymatch.picomatch`   | `^2.3.2`          | `anymatch` resolves `picomatch@2.3.2` natively                                                                                                                                                                |
+| `micromatch.picomatch` | `^2.3.2`          | `micromatch` resolves `picomatch@2.3.2` natively                                                                                                                                                              |
 
 Overrides removed on **2026-04-05** as part of the TypeScript 6 upgrade review — all were found to be redundant because the dependency tree now resolves naturally to safe versions:
 
-| Override | Previously forced | Reason for removal |
-|---|---|---|
-| `glob` | `^13.0.0` | All consumers (jest, rimraf, typeorm, @nestjs/cli, ts-jest) resolve naturally to `13.x` |
-| `test-exclude` | `^8.0.0` | Resolves naturally to `8.0.0` via `babel-plugin-istanbul` |
-| `brace-expansion` | `^5.0.5` | Resolves naturally to `5.0.5` via `minimatch` across the tree; `npm audit` clean without it |
-| `fast-xml-parser` | `^5.5.6` | `@aws-sdk/xml-builder` now resolves naturally to `5.5.9` |
-| `mjml` | `^5.0.0-beta.1` | `@nestjs-modules/mailer` now pulls `mjml@5.0.0-beta.2` directly |
-| `serialize-javascript` | `^7.0.5` | No longer installed anywhere in the dependency tree (`terser-webpack-plugin` no longer requires it) |
+| Override               | Previously forced | Reason for removal                                                                                  |
+| ---------------------- | ----------------- | --------------------------------------------------------------------------------------------------- |
+| `glob`                 | `^13.0.0`         | All consumers (jest, rimraf, typeorm, @nestjs/cli, ts-jest) resolve naturally to `13.x`             |
+| `test-exclude`         | `^8.0.0`          | Resolves naturally to `8.0.0` via `babel-plugin-istanbul`                                           |
+| `brace-expansion`      | `^5.0.5`          | Resolves naturally to `5.0.5` via `minimatch` across the tree; `npm audit` clean without it         |
+| `fast-xml-parser`      | `^5.5.6`          | `@aws-sdk/xml-builder` now resolves naturally to `5.5.9`                                            |
+| `mjml`                 | `^5.0.0-beta.1`   | `@nestjs-modules/mailer` now pulls `mjml@5.0.0-beta.2` directly                                     |
+| `serialize-javascript` | `^7.0.5`          | No longer installed anywhere in the dependency tree (`terser-webpack-plugin` no longer requires it) |
 
 Overrides removed on **2026-05-30** and **2026-06-24** during dependency tree review:
 
-| Override | Previously forced | Reason for removal |
-|---|---|---|
-| `uuid` | `^11.1.1` | Removed as a global override once dependency updates and postinstall patch coverage made the global pin unnecessary |
-| `file-type` | `^21.3.3` | No longer required after upstream package updates and lockfile refresh; audit stays clean without it |
-| `path-to-regexp` | `^8.3.1` | No longer required after upstream dependency updates; audit stays clean without it |
-| `preview-email.uuid` | `^11.1.1` | Removed from overrides; nested copy remains covered by postinstall patch until upstream chain resolves natively |
+| Override             | Previously forced | Reason for removal                                                                                                  |
+| -------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `uuid`               | `^11.1.1`         | Removed as a global override once dependency updates and postinstall patch coverage made the global pin unnecessary |
+| `file-type`          | `^21.3.3`         | No longer required after upstream package updates and lockfile refresh; audit stays clean without it                |
+| `path-to-regexp`     | `^8.3.1`          | No longer required after upstream dependency updates; audit stays clean without it                                  |
+| `preview-email.uuid` | `^11.1.1`         | Removed from overrides; nested copy remains covered by postinstall patch until upstream chain resolves natively     |
 
 #### `mjml-core` — no override available (known vulnerability, no upstream fix)
 
