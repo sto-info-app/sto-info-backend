@@ -130,22 +130,24 @@ Both fast-check and ZAP are updated regularly via Dependabot to ensure the lates
 
 ## Known Dependency Advisory Follow-up
 
-The production audit gate (`npm audit --audit-level=high --omit=dev`) currently passes. There is one remaining moderate advisory to track:
+Both the full dependency audit (`npm audit`) and the production audit gate (`npm audit --audit-level=high --omit=dev`) currently pass with **zero advisories at any severity** (last verified 2026-07-25).
 
-- Package: `js-yaml` (`<=4.1.1`)
-- Advisory: GHSA-h67p-54hq-rp68 (quadratic-complexity DoS in merge key handling)
-- Introduced via: `@nestjs/swagger@11.4.4`
-- Current impact: moderate severity only; does not fail the required high-severity CI audit gate
+The current overrides remediate these upstream dependency advisories:
+
+- `brace-expansion` [GHSA-mh99-v99m-4gvg](https://github.com/advisories/GHSA-mh99-v99m-4gvg) — all versions through `5.0.7` permit unbounded expansion length and process-level denial of service; the global override resolves every transitive path to `5.0.8`.
+- `js-yaml` [GHSA-pm4m-ph32-ghv5](https://github.com/advisories/GHSA-pm4m-ph32-ghv5) — `@nestjs/swagger` requests vulnerable `5.2.1`; the global override requires patched `5.2.2` or newer.
+- Additional active overrides for `mailparser`/`nodemailer` and `qs` remain documented in `docs/security.md`, including their upstream removal criteria.
 
 ### Non-breaking remediation strategy
 
-1. Prefer upstream patch adoption by monitoring new `@nestjs/swagger` releases that move off vulnerable `js-yaml` versions.
-2. Keep current NestJS major version alignment; do not use `npm audit fix --force` for this issue because it proposes breaking package jumps.
+1. Prefer upstream patch adoption over `npm audit fix --force` (which can propose breaking package jumps).
+2. Where upstream pins a vulnerable transitive version, use a minimal `overrides` entry — see `docs/security.md` for the active list and removal criteria.
 3. Re-evaluate at each Dependabot PR and remove any temporary constraints/patches once a safe non-breaking path is available.
 
 ### Verification command
 
 ```bash
+npm audit
 npm audit --audit-level=high --omit=dev
 ```
 
