@@ -20,7 +20,6 @@ Current overrides in `package.json`:
 
 ```json
 "overrides": {
-  "brace-expansion": "^5.0.8",
   "mailparser": {
     ".": "^3.9.10",
     "nodemailer": "^9.0.1"
@@ -30,23 +29,11 @@ Current overrides in `package.json`:
 }
 ```
 
-#### `brace-expansion`
-
-- **Vulnerability**: [GHSA-mh99-v99m-4gvg](https://github.com/advisories/GHSA-mh99-v99m-4gvg) / CVE-2026-14257 — unbounded expansion length can exhaust process memory and cause denial of service in `brace-expansion <= 5.0.7`. Severity: High.
-- **Root cause**: Multiple production and development dependency chains resolve affected versions through `minimatch`, including MJML tooling, Jest, and the Nest CLI. Their declared ranges span incompatible major versions, so ordinary npm deduplication cannot move every copy to the patched release.
-- **Override**: `"brace-expansion": "^5.0.8"` — globally resolves all transitive copies to the first patched release or newer. The project requires Node 24, satisfying the patched package's Node.js engine requirement.
-
-**When it can be removed**: When every installed `minimatch` consumer resolves `brace-expansion >= 5.0.8` naturally. Check with:
-
-```sh
-npm ls brace-expansion
-```
-
 #### `js-yaml`
 
 - **Vulnerability**: [GHSA-pm4m-ph32-ghv5](https://github.com/advisories/GHSA-pm4m-ph32-ghv5) — exponential parsing time in nested flow collections allows a small YAML document to block the Node.js event loop. Affected versions are `5.0.0 - 5.2.1`; patched in `5.2.2`. Severity: High.
 - **Root cause**: `@nestjs/swagger@11.4.6` requests `js-yaml@5.2.1` exactly, and other tooling accepts a range that can resolve the same vulnerable release.
-- **Override**: `"js-yaml": ">=5.2.2"` — forces all consumers onto the patched release line (currently `5.2.2`).
+- **Override**: `"js-yaml": ">=5.2.2"` — forces all consumers onto the patched release line (currently `5.2.3`).
 
 **When it can be removed**: When `@nestjs/swagger` requests `js-yaml >= 5.2.2` and the remaining dependency tree resolves no affected copies. Check with:
 
@@ -59,7 +46,7 @@ npm ls js-yaml
 
 - **Vulnerability family**: SMTP command/header injection and access-control-bypass issues in older `nodemailer` lines (for example GHSA-c7w3-x93f-qmm8 and GHSA-p6gq-j5cr-w38f), plus [GHSA-22p9-wv53-3rq4](https://github.com/advisories/GHSA-22p9-wv53-3rq4) — quadratic complexity in `linkify-it <= 5.0.0`, a `mailparser` dependency.
 - **Root cause**: `preview-email@3.2.0` (pulled in by `@nestjs-modules/mailer`) pins `mailparser@3.9.8` **exactly** — a version in the vulnerable range that ships `linkify-it@5.0.0` and `nodemailer@8.0.5`. Without the override, `npm update` downgrades mailparser into the vulnerable range.
-- **Override**: `"mailparser": { ".": "^3.9.10", "nodemailer": "^9.0.1" }` — forces the patched parent (currently resolves `3.9.14`, which ships fixed `linkify-it@5.0.2` and `nodemailer@9.0.3`) and its nested transport dependency.
+- **Override**: `"mailparser": { ".": "^3.9.10", "nodemailer": "^9.0.1" }` — forces the patched parent (currently resolves `3.9.14`, which ships fixed `linkify-it@5.0.2` and `nodemailer@9.0.4`) and its nested transport dependency.
 
 **When it can be removed**: When `preview-email` raises its own `mailparser` pin to `>= 3.9.9`. Check with:
 
@@ -81,6 +68,12 @@ npm view typed-rest-client@latest dependencies.qs
 ```
 
 #### Recently Removed Overrides
+
+Overrides removed on **2026-08-05** during dependency and audit maintenance:
+
+| Override          | Previously forced | Reason for removal                                                                                  |
+| ----------------- | ----------------- | --------------------------------------------------------------------------------------------------- |
+| `brace-expansion` | `^5.0.8`          | Dependency tree now resolves naturally to `5.0.9` or newer; `npm audit` remains clean without it. |
 
 Overrides removed on **2026-07-21** during the dependency security review — all verified redundant by the removal checklist above (audit clean, lint, build, and full test suite pass without them):
 
