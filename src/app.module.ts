@@ -18,6 +18,7 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { UserIdMiddleware } from './auth/user-id.middleware';
 import { RequestIdMiddleware } from './common/http/request-id.middleware';
+import { CommunityModule } from './community/community.module';
 import { ConfigCheckService } from './config-check/config-check.service';
 import { ContactModule } from './contact/contact.module';
 import { CronModule } from './cron/cron.module';
@@ -107,6 +108,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     SesWebhookModule,
     NewsModule,
     NotificationModule,
+    CommunityModule,
     RegistryModule,
   ],
   controllers: [AppController],

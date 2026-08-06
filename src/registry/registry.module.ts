@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
+import { CommunityModule } from '../community/community.module';
 import { AccountEntity } from '../sto/account/entities/account.entity';
 import { CharacterEntity } from '../sto/character/entities/character.entity';
 import { PlatformLauncherEntity } from '../sto/platform-launcher/entities/platform-launcher.entity';
@@ -15,6 +16,7 @@ import { RegistryService } from './registry.service';
       CharacterEntity,
       PlatformLauncherEntity,
     ]),
+    CommunityModule,
   ],
   controllers: [RegistryController],
   providers: [RegistryService],

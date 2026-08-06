@@ -36,29 +36,56 @@ describe('RegistryController', () => {
     it('should delegate the query to the service', () => {
       const query = { search: 'picard', sort: RegistrySort.RECENTLY_ACTIVE };
 
-      controller.findProfiles(query);
+      controller.findProfiles(query, null);
 
-      expect(service.findProfiles).toHaveBeenCalledWith(query);
+      expect(service.findProfiles).toHaveBeenCalledWith(query, null);
+    });
+
+    it('should pass the authenticated caller through', () => {
+      controller.findProfiles({}, 'viewer-1');
+
+      expect(service.findProfiles).toHaveBeenCalledWith({}, 'viewer-1');
     });
   });
 
   describe('findProfile', () => {
     it('should delegate the username to the service', () => {
-      controller.findProfile('captain.picard');
+      controller.findProfile('captain.picard', null);
 
       expect(service.findProfileByUsername).toHaveBeenCalledWith(
         'captain.picard',
+        null,
+      );
+    });
+
+    it('should pass the authenticated caller through', () => {
+      controller.findProfile('captain.picard', 'viewer-1');
+
+      expect(service.findProfileByUsername).toHaveBeenCalledWith(
+        'captain.picard',
+        'viewer-1',
       );
     });
   });
 
   describe('findAccount', () => {
     it('should delegate the username and account slug to the service', () => {
-      controller.findAccount('captain.picard', 'SteveX~1234');
+      controller.findAccount('captain.picard', 'SteveX~1234', null);
 
       expect(service.findAccount).toHaveBeenCalledWith(
         'captain.picard',
         'SteveX~1234',
+        null,
+      );
+    });
+
+    it('should pass the authenticated caller through', () => {
+      controller.findAccount('captain.picard', 'SteveX~1234', 'viewer-1');
+
+      expect(service.findAccount).toHaveBeenCalledWith(
+        'captain.picard',
+        'SteveX~1234',
+        'viewer-1',
       );
     });
   });
@@ -69,12 +96,30 @@ describe('RegistryController', () => {
         'captain.picard',
         'SteveX~1234',
         'Rex@SteveX~1234',
+        null,
       );
 
       expect(service.findCharacter).toHaveBeenCalledWith(
         'captain.picard',
         'SteveX~1234',
         'Rex@SteveX~1234',
+        null,
+      );
+    });
+
+    it('should pass the authenticated caller through', () => {
+      controller.findCharacter(
+        'captain.picard',
+        'SteveX~1234',
+        'Rex@SteveX~1234',
+        'viewer-1',
+      );
+
+      expect(service.findCharacter).toHaveBeenCalledWith(
+        'captain.picard',
+        'SteveX~1234',
+        'Rex@SteveX~1234',
+        'viewer-1',
       );
     });
   });

@@ -3,6 +3,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { isValidCloudflareImageUrl } from 'src/shared/constants/image.constants';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 import { Repository, SelectQueryBuilder } from 'typeorm';
+import { BlockService } from '../community/block.service';
+import { RelationshipDto } from '../community/dto/friendship.dto';
+import { FriendshipService } from '../community/friendship.service';
+import {
+  PublicMemberCounts,
+  PublicMemberService,
+} from '../community/public-member.service';
 import { AccountEntity } from '../sto/account/entities/account.entity';
 import { CharacterEntity } from '../sto/character/entities/character.entity';
 import { PlatformLauncherEntity } from '../sto/platform-launcher/entities/platform-launcher.entity';
@@ -36,23 +43,6 @@ const MIN_PAGE_SIZE = 1;
 const USERNAME_SORT_ALIAS = 'profile_username_lower';
 
 /**
- * Public visibility counts for a single member.
- */
-interface RegistryCounts {
-  accountCount: number;
-  characterCount: number;
-}
-
-/**
- * A raw count row returned by the per-member aggregate query.
- */
-interface RegistryCountRow {
-  userId: string;
-  accountCount: string;
-  characterCount: string;
-}
-
-/**
  * The relation set a character needs for its public detail view. `faction.ranks`
  * is required for the entity's `rank` getter to resolve.
  */
@@ -72,6 +62,11 @@ const CHARACTER_RELATIONS = {
  * and character must each be flagged `publiclyVisible` and must not be
  * soft-deleted — and every response is mapped to an explicit DTO so no private
  * entity field can leak through the global serializer.
+ *
+ * Blocking narrows that public slice further for authenticated callers: a
+ * member on either end of a block disappears from the listing and answers a
+ * direct lookup with the same 404 as a member who never existed, so a block
+ * cannot be detected by probing.
  */
 @Injectable()
 export class RegistryService {
@@ -82,6 +77,9 @@ export class RegistryService {
    * @param _accountRepository - The account repository.
    * @param _characterRepository - The character repository.
    * @param _platformLauncherRepository - The platform-launcher repository.
+   * @param _publicMemberService - Shared public-visibility counts.
+   * @param _blockService - Resolves which members a caller may not see.
+   * @param _friendshipService - Resolves the caller's relationship to a member.
    */
   constructor(
     @InjectRepository(UserProfileEntity)
@@ -92,21 +90,27 @@ export class RegistryService {
     private readonly _characterRepository: Repository<CharacterEntity>,
     @InjectRepository(PlatformLauncherEntity)
     private readonly _platformLauncherRepository: Repository<PlatformLauncherEntity>,
+    private readonly _publicMemberService: PublicMemberService,
+    private readonly _blockService: BlockService,
+    private readonly _friendshipService: FriendshipService,
   ) {}
 
   /**
    * Lists publicly visible members, newest / most active / alphabetical.
    *
    * @param query - Search, sort and pagination options.
+   * @param viewerId - The authenticated caller's user ID, or null when
+   *   anonymous. Used to hide members they have blocked or been blocked by.
    * @returns A page of member summaries.
    */
   async findProfiles(
     query: RegistryQueryDto,
+    viewerId: string | null = null,
   ): Promise<PaginatedRegistryProfilesDto> {
     const page = query.page && query.page > 0 ? query.page : 1;
     const pageSize = this.clampPageSize(query.pageSize);
 
-    const queryBuilder = this.publicProfilesQuery();
+    const queryBuilder = await this.visibleProfilesQuery(viewerId);
     this.applySearch(queryBuilder, query.search);
     this.applySort(queryBuilder, query.sort);
 
@@ -115,12 +119,21 @@ export class RegistryService {
       .take(pageSize)
       .getManyAndCount();
 
-    const counts = await this.countPublicEntitiesForUsers(
-      profiles.map(profile => profile.userId),
-    );
+    const userIds = profiles.map(profile => profile.userId);
+    const counts =
+      await this._publicMemberService.countPublicEntitiesForUsers(userIds);
+    const relationships = viewerId
+      ? await this._friendshipService.getRelationships(viewerId, userIds)
+      : new Map<string, RelationshipDto>();
 
     return {
-      items: profiles.map(profile => this.toProfileSummary(profile, counts)),
+      items: profiles.map(profile =>
+        this.toProfileSummary(
+          profile,
+          counts,
+          relationships.get(profile.userId) ?? null,
+        ),
+      ),
       total,
       page,
       pageSize,
@@ -131,21 +144,32 @@ export class RegistryService {
    * Retrieves a single publicly visible member and their visible accounts.
    *
    * @param username - The member's profile username.
+   * @param viewerId - The authenticated caller's user ID, or null when
+   *   anonymous.
    * @returns The member's public profile.
-   * @throws {NotFoundException} When no publicly visible member matches.
+   * @throws {NotFoundException} When no publicly visible member matches, or
+   *   the caller is blocked from seeing them.
    */
-  async findProfileByUsername(username: string): Promise<RegistryProfileDto> {
-    const profile = await this.requireProfile(username);
+  async findProfileByUsername(
+    username: string,
+    viewerId: string | null = null,
+  ): Promise<RegistryProfileDto> {
+    const profile = await this.requireProfile(username, viewerId);
 
     const accounts = await this.findPublicAccounts(profile.userId);
     const backgroundImageLookup = await this.loadBackgroundImageLookup();
     const characterCounts = await this.countPublicCharactersForAccounts(
       accounts.map(account => account.id),
     );
-    const counts = await this.countPublicEntitiesForUsers([profile.userId]);
+    const counts = await this._publicMemberService.countPublicEntitiesForUsers([
+      profile.userId,
+    ]);
+    const relationship = viewerId
+      ? await this._friendshipService.getRelationship(viewerId, profile.userId)
+      : null;
 
     return {
-      ...this.toProfileSummary(profile, counts),
+      ...this.toProfileSummary(profile, counts, relationship),
       accounts: accounts.map(account =>
         this.toAccountSummary(
           account,
@@ -161,14 +185,17 @@ export class RegistryService {
    *
    * @param username - The owning member's profile username.
    * @param accountSlug - The account's URL slug.
+   * @param viewerId - The authenticated caller's user ID, or null when
+   *   anonymous.
    * @returns The account's public detail view.
    * @throws {NotFoundException} When the member or account is not public.
    */
   async findAccount(
     username: string,
     accountSlug: string,
+    viewerId: string | null = null,
   ): Promise<RegistryAccountDto> {
-    const profile = await this.requireProfile(username);
+    const profile = await this.requireProfile(username, viewerId);
     const account = await this.requireAccount(profile.userId, accountSlug);
 
     const characters = await this._characterRepository.find({
@@ -200,6 +227,8 @@ export class RegistryService {
    * @param username - The owning member's profile username.
    * @param accountSlug - The owning account's URL slug.
    * @param characterSlug - The captain's URL slug.
+   * @param viewerId - The authenticated caller's user ID, or null when
+   *   anonymous.
    * @returns The captain's public detail view.
    * @throws {NotFoundException} When any level of the chain is not public.
    */
@@ -207,8 +236,9 @@ export class RegistryService {
     username: string,
     accountSlug: string,
     characterSlug: string,
+    viewerId: string | null = null,
   ): Promise<RegistryCharacterDto> {
-    const profile = await this.requireProfile(username);
+    const profile = await this.requireProfile(username, viewerId);
     const account = await this.requireAccount(profile.userId, accountSlug);
 
     const character = await this._characterRepository
@@ -240,6 +270,29 @@ export class RegistryService {
       biography: character.biography,
       createdDate: character.createdDate,
     };
+  }
+
+  /**
+   * Builds the profile query for a specific caller, excluding any member on
+   * either end of a block with them.
+   *
+   * @param viewerId - The authenticated caller's user ID, or null when
+   *   anonymous.
+   * @returns A query builder filtered to the profiles that caller may see.
+   */
+  private async visibleProfilesQuery(
+    viewerId: string | null,
+  ): Promise<SelectQueryBuilder<UserProfileEntity>> {
+    const queryBuilder = this.publicProfilesQuery();
+    const blockedUserIds = await this._blockService.getBlockedUserIds(viewerId);
+
+    if (blockedUserIds.length > 0) {
+      queryBuilder.andWhere('profile.userId NOT IN (:...blockedUserIds)', {
+        blockedUserIds,
+      });
+    }
+
+    return queryBuilder;
   }
 
   /**
@@ -332,11 +385,19 @@ export class RegistryService {
    * Loads a publicly visible profile by username, case-insensitively.
    *
    * @param username - The profile username.
+   * @param viewerId - The authenticated caller's user ID, or null when
+   *   anonymous.
    * @returns The matching profile.
-   * @throws {NotFoundException} When no publicly visible profile matches.
+   * @throws {NotFoundException} When no publicly visible profile matches, or
+   *   the caller is blocked from seeing it.
    */
-  private async requireProfile(username: string): Promise<UserProfileEntity> {
-    const profile = await this.publicProfilesQuery()
+  private async requireProfile(
+    username: string,
+    viewerId: string | null,
+  ): Promise<UserProfileEntity> {
+    const queryBuilder = await this.visibleProfilesQuery(viewerId);
+
+    const profile = await queryBuilder
       .andWhere('LOWER(profile.username) = LOWER(:username)', { username })
       .getOne();
 
@@ -410,46 +471,6 @@ export class RegistryService {
   }
 
   /**
-   * Counts publicly visible accounts and captains for the given members.
-   *
-   * @param userIds - The member user IDs to count for.
-   * @returns A map from user ID to its public counts.
-   */
-  private async countPublicEntitiesForUsers(
-    userIds: string[],
-  ): Promise<Map<string, RegistryCounts>> {
-    const counts = new Map<string, RegistryCounts>();
-    if (userIds.length === 0) {
-      return counts;
-    }
-
-    const rows = await this._accountRepository
-      .createQueryBuilder('account')
-      .select('account.userId', 'userId')
-      .addSelect('COUNT(DISTINCT account.id)', 'accountCount')
-      .addSelect('COUNT(character.id)', 'characterCount')
-      .leftJoin(
-        'account.characters',
-        'character',
-        'character.publiclyVisible = true AND character.deletedAt IS NULL',
-      )
-      .where('account.userId IN (:...userIds)', { userIds })
-      .andWhere('account.publiclyVisible = true')
-      .andWhere('account.deletedAt IS NULL')
-      .groupBy('account.userId')
-      .getRawMany<RegistryCountRow>();
-
-    for (const row of rows) {
-      counts.set(row.userId, {
-        accountCount: Number(row.accountCount),
-        characterCount: Number(row.characterCount),
-      });
-    }
-
-    return counts;
-  }
-
-  /**
    * Counts publicly visible captains for each of the given accounts.
    *
    * @param accountIds - The account IDs to count for.
@@ -485,11 +506,14 @@ export class RegistryService {
    *
    * @param profile - The profile entity, with its user relation loaded.
    * @param counts - Public counts keyed by user ID.
+   * @param relationship - The caller's relationship to this member, or null
+   *   when the caller is anonymous.
    * @returns The public summary.
    */
   private toProfileSummary(
     profile: UserProfileEntity,
-    counts: Map<string, RegistryCounts>,
+    counts: Map<string, PublicMemberCounts>,
+    relationship: RelationshipDto | null,
   ): RegistryProfileSummaryDto {
     const memberCounts = counts.get(profile.userId);
 
@@ -501,6 +525,7 @@ export class RegistryService {
       lastActiveAt: profile.user?.lastLoginAt ?? null,
       publicAccountCount: memberCounts?.accountCount ?? 0,
       publicCharacterCount: memberCounts?.characterCount ?? 0,
+      relationship,
     };
   }
 

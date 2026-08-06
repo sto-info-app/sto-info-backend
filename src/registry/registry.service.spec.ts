@@ -3,6 +3,14 @@ import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
+import { BlockService } from '../community/block.service';
+import { RelationshipDto } from '../community/dto/friendship.dto';
+import { RelationshipStatus } from '../community/enums/relationship-status.enum';
+import { FriendshipService } from '../community/friendship.service';
+import {
+  PublicMemberCounts,
+  PublicMemberService,
+} from '../community/public-member.service';
 import { AccountEntity } from '../sto/account/entities/account.entity';
 import { CharacterEntity } from '../sto/character/entities/character.entity';
 import { PlatformLauncherEntity } from '../sto/platform-launcher/entities/platform-launcher.entity';
@@ -186,6 +194,16 @@ describe('RegistryService', () => {
   let platformLauncherRepository: {
     find: jest.Mock<() => Promise<PlatformLauncherImageRow[]>>;
   };
+  let publicMemberService: {
+    countPublicEntitiesForUsers: jest.Mock<
+      () => Promise<Map<string, PublicMemberCounts>>
+    >;
+  };
+  let blockService: { getBlockedUserIds: jest.Mock<() => Promise<string[]>> };
+  let friendshipService: {
+    getRelationship: jest.Mock<() => Promise<RelationshipDto>>;
+    getRelationships: jest.Mock<() => Promise<Map<string, RelationshipDto>>>;
+  };
   const originalImagesHash = process.env.CLOUDFLARE_IMAGES_HASH;
 
   beforeEach(async () => {
@@ -205,6 +223,26 @@ describe('RegistryService', () => {
     };
     platformLauncherRepository = {
       find: jest.fn(() => Promise.resolve([] as PlatformLauncherImageRow[])),
+    };
+    publicMemberService = {
+      countPublicEntitiesForUsers: jest.fn(() =>
+        Promise.resolve(new Map<string, PublicMemberCounts>()),
+      ),
+    };
+    blockService = {
+      getBlockedUserIds: jest.fn(() => Promise.resolve([] as string[])),
+    };
+    friendshipService = {
+      getRelationship: jest.fn(() =>
+        Promise.resolve({
+          status: RelationshipStatus.NONE,
+          friendshipId: null,
+          blockId: null,
+        }),
+      ),
+      getRelationships: jest.fn(() =>
+        Promise.resolve(new Map<string, RelationshipDto>()),
+      ),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -226,6 +264,9 @@ describe('RegistryService', () => {
           provide: getRepositoryToken(PlatformLauncherEntity),
           useValue: platformLauncherRepository,
         },
+        { provide: PublicMemberService, useValue: publicMemberService },
+        { provide: BlockService, useValue: blockService },
+        { provide: FriendshipService, useValue: friendshipService },
       ],
     }).compile();
 
@@ -423,20 +464,22 @@ describe('RegistryService', () => {
       );
     });
 
-    it('should skip the count query when no profiles matched', async () => {
+    it('should return an empty page when no profiles matched', async () => {
       profileQb.getManyAndCount.mockResolvedValue([[], 0]);
 
       const result = await service.findProfiles({});
 
       expect(result.items).toEqual([]);
-      expect(accountRepository.createQueryBuilder).not.toHaveBeenCalled();
+      expect(
+        publicMemberService.countPublicEntitiesForUsers,
+      ).toHaveBeenCalledWith([]);
     });
 
     it('should attach public account and captain counts to each member', async () => {
       profileQb.getManyAndCount.mockResolvedValue([[buildProfile()], 1]);
-      accountQb.getRawMany.mockResolvedValue([
-        { userId: 'user-1', accountCount: '2', characterCount: '11' },
-      ]);
+      publicMemberService.countPublicEntitiesForUsers.mockResolvedValue(
+        new Map([['user-1', { accountCount: 2, characterCount: 11 }]]),
+      );
 
       const result = await service.findProfiles({});
 
@@ -446,7 +489,9 @@ describe('RegistryService', () => {
 
     it('should report zero counts for a member with no visible accounts', async () => {
       profileQb.getManyAndCount.mockResolvedValue([[buildProfile()], 1]);
-      accountQb.getRawMany.mockResolvedValue([]);
+      publicMemberService.countPublicEntitiesForUsers.mockResolvedValue(
+        new Map(),
+      );
 
       const result = await service.findProfiles({});
 
@@ -796,6 +841,167 @@ describe('RegistryService', () => {
 
       expect(result.species?.iconUrl).toBeNull();
       expect(result.rank?.iconUrl).toBeNull();
+    });
+  });
+
+  describe('blocking', () => {
+    it('should not filter the listing for an anonymous caller', async () => {
+      await service.findProfiles({});
+
+      expect(blockService.getBlockedUserIds).toHaveBeenCalledWith(null);
+      const conditions = profileQb.andWhere.mock.calls.map(call => call[0]);
+      expect(conditions).not.toContain(
+        'profile.userId NOT IN (:...blockedUserIds)',
+      );
+    });
+
+    it('should not add an exclusion when the caller has no blocks', async () => {
+      blockService.getBlockedUserIds.mockResolvedValue([]);
+
+      await service.findProfiles({}, 'viewer-1');
+
+      const conditions = profileQb.andWhere.mock.calls.map(call => call[0]);
+      expect(conditions).not.toContain(
+        'profile.userId NOT IN (:...blockedUserIds)',
+      );
+    });
+
+    it('should exclude members blocked in either direction from the listing', async () => {
+      blockService.getBlockedUserIds.mockResolvedValue(['user-9', 'user-8']);
+
+      await service.findProfiles({}, 'viewer-1');
+
+      expect(blockService.getBlockedUserIds).toHaveBeenCalledWith('viewer-1');
+      expect(profileQb.andWhere).toHaveBeenCalledWith(
+        'profile.userId NOT IN (:...blockedUserIds)',
+        { blockedUserIds: ['user-9', 'user-8'] },
+      );
+    });
+
+    it('should exclude a blocked member from a direct profile lookup', async () => {
+      blockService.getBlockedUserIds.mockResolvedValue(['user-1']);
+      // The exclusion is applied in SQL, so a blocked member simply does not
+      // come back — indistinguishable from one who never existed.
+      profileQb.getOne.mockResolvedValue(null);
+
+      await expect(
+        service.findProfileByUsername('captain.picard', 'viewer-1'),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(profileQb.andWhere).toHaveBeenCalledWith(
+        'profile.userId NOT IN (:...blockedUserIds)',
+        { blockedUserIds: ['user-1'] },
+      );
+    });
+
+    it('should apply the exclusion to account lookups', async () => {
+      blockService.getBlockedUserIds.mockResolvedValue(['user-1']);
+      profileQb.getOne.mockResolvedValue(null);
+
+      await expect(
+        service.findAccount('captain.picard', 'SteveX~1234', 'viewer-1'),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(blockService.getBlockedUserIds).toHaveBeenCalledWith('viewer-1');
+    });
+
+    it('should apply the exclusion to captain lookups', async () => {
+      blockService.getBlockedUserIds.mockResolvedValue(['user-1']);
+      profileQb.getOne.mockResolvedValue(null);
+
+      await expect(
+        service.findCharacter(
+          'captain.picard',
+          'SteveX~1234',
+          'Rex',
+          'viewer-1',
+        ),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(blockService.getBlockedUserIds).toHaveBeenCalledWith('viewer-1');
+    });
+  });
+
+  describe('relationship', () => {
+    it('should omit the relationship for an anonymous caller', async () => {
+      profileQb.getOne.mockResolvedValue(buildProfile());
+
+      const result = await service.findProfileByUsername('captain.picard');
+
+      expect(result.relationship).toBeNull();
+      expect(friendshipService.getRelationship).not.toHaveBeenCalled();
+    });
+
+    it('should omit the relationship from every listed member for an anonymous caller', async () => {
+      profileQb.getManyAndCount.mockResolvedValue([[buildProfile()], 1]);
+
+      const result = await service.findProfiles({});
+
+      expect(result.items[0].relationship).toBeNull();
+      expect(friendshipService.getRelationships).not.toHaveBeenCalled();
+    });
+
+    it('should resolve the whole listing relationships in one call', async () => {
+      profileQb.getManyAndCount.mockResolvedValue([
+        [buildProfile(), buildProfile({ userId: 'user-2' })],
+        2,
+      ]);
+      friendshipService.getRelationships.mockResolvedValue(
+        new Map([
+          [
+            'user-1',
+            {
+              status: RelationshipStatus.FRIENDS,
+              friendshipId: 'friendship-1',
+              blockId: null,
+            },
+          ],
+        ]),
+      );
+
+      const result = await service.findProfiles({}, 'viewer-1');
+
+      expect(friendshipService.getRelationships).toHaveBeenCalledTimes(1);
+      expect(friendshipService.getRelationships).toHaveBeenCalledWith(
+        'viewer-1',
+        ['user-1', 'user-2'],
+      );
+      expect(result.items[0].relationship?.status).toBe(
+        RelationshipStatus.FRIENDS,
+      );
+    });
+
+    it('should report a null relationship for a member the batch did not cover', async () => {
+      profileQb.getManyAndCount.mockResolvedValue([[buildProfile()], 1]);
+      friendshipService.getRelationships.mockResolvedValue(new Map());
+
+      const result = await service.findProfiles({}, 'viewer-1');
+
+      expect(result.items[0].relationship).toBeNull();
+    });
+
+    it('should report how an authenticated caller relates to the member', async () => {
+      profileQb.getOne.mockResolvedValue(buildProfile());
+      friendshipService.getRelationship.mockResolvedValue({
+        status: RelationshipStatus.FRIENDS,
+        friendshipId: 'friendship-1',
+        blockId: null,
+      });
+
+      const result = await service.findProfileByUsername(
+        'captain.picard',
+        'viewer-1',
+      );
+
+      expect(friendshipService.getRelationship).toHaveBeenCalledWith(
+        'viewer-1',
+        'user-1',
+      );
+      expect(result.relationship).toEqual({
+        status: RelationshipStatus.FRIENDS,
+        friendshipId: 'friendship-1',
+        blockId: null,
+      });
     });
   });
 

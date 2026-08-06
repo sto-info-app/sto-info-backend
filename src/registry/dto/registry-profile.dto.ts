@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { RelationshipDto } from '../../community/dto/friendship.dto';
 import { RegistryAccountSummaryDto } from './registry-account.dto';
 
 /**
@@ -40,6 +41,15 @@ export class RegistryProfileSummaryDto {
     example: 11,
   })
   publicCharacterCount: number;
+
+  @ApiPropertyOptional({
+    description:
+      'How the authenticated caller relates to this member, and the row IDs ' +
+      'the matching action needs. Null for anonymous callers.',
+    type: RelationshipDto,
+    nullable: true,
+  })
+  relationship: RelationshipDto | null;
 }
 
 /**
