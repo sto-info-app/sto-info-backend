@@ -10,6 +10,10 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { isValidCloudflareImageUrl } from 'src/shared/constants/image.constants';
 import { stringifyError } from 'src/shared/utilities/error.utility';
+import {
+  generateSlug,
+  normalizeHandle,
+} from 'src/shared/utilities/handle.utility';
 import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
 
 import { Not, Repository } from 'typeorm';
@@ -60,16 +64,6 @@ export class CharacterService {
     private readonly _speciesRepository: Repository<SpeciesEntity>,
     private readonly _imageUploadsService: ImageUploadsService,
   ) {}
-
-  /**
-   * Normalizes the supplied handle.
-   *
-   * @param handle - The handle.
-   * @returns The result of the operation.
-   */
-  private normalizeHandle(handle: string): string {
-    return handle.trim().toLowerCase();
-  }
 
   /**
    * Sanitizes a Cloudflare image URL from persisted data.
@@ -137,16 +131,6 @@ export class CharacterService {
   }
 
   /**
-   * Generates a slug from the supplied handle.
-   *
-   * @param handle - The handle.
-   * @returns The result of the operation.
-   */
-  private generateSlug(handle: string): string {
-    return handle.trim().replaceAll('#', '~');
-  }
-
-  /**
    * Asserts that the handle is unique for the account.
    *
    * @param account - The account.
@@ -162,9 +146,7 @@ export class CharacterService {
       return;
     }
 
-    const fullHandleNormalized = this.normalizeHandle(
-      `${handle}@${account.handle}`,
-    );
+    const fullHandleNormalized = normalizeHandle(`${handle}@${account.handle}`);
 
     const where: Record<string, unknown> = {
       accountId: account.id,
@@ -239,8 +221,8 @@ export class CharacterService {
     await this.assertHandleUniqueForAccount(account, createCharacterDto.handle);
 
     const fullHandle = `${createCharacterDto.handle}@${account.handle}`;
-    const fullHandleNormalized = this.normalizeHandle(fullHandle);
-    const fullHandleSlug = this.generateSlug(fullHandle);
+    const fullHandleNormalized = normalizeHandle(fullHandle);
+    const fullHandleSlug = generateSlug(fullHandle);
 
     const newCharacter = this._characterRepository.create({
       ...createCharacterDto,
@@ -412,8 +394,8 @@ export class CharacterService {
 
       const fullHandle = `${updateCharacterDto.handle}@${character.account.handle}`;
       updateData.fullHandle = fullHandle;
-      updateData.fullHandleNormalized = this.normalizeHandle(fullHandle);
-      updateData.fullHandleSlug = this.generateSlug(fullHandle);
+      updateData.fullHandleNormalized = normalizeHandle(fullHandle);
+      updateData.fullHandleSlug = generateSlug(fullHandle);
     }
 
     await this._characterRepository.update(id, updateData);

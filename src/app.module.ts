@@ -27,6 +27,7 @@ import { MailModule } from './mail/mail.module';
 import { MailService } from './mail/mail.service';
 import { NewsModule } from './news/news.module';
 import { NotificationModule } from './notification/notification.module';
+import { RegistryModule } from './registry/registry.module';
 import { DEFAULT_MULTER_LIMITS } from './shared/constants/file-upload.constants';
 import { TypeOrmExceptionFilter } from './shared/filters/typeorm-exception.filter';
 import { SharedModule } from './shared/shared.module';
@@ -106,6 +107,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     SesWebhookModule,
     NewsModule,
     NotificationModule,
+    RegistryModule,
   ],
   controllers: [AppController],
   providers: [

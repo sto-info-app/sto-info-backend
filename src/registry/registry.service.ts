@@ -1,0 +1,607 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { isValidCloudflareImageUrl } from 'src/shared/constants/image.constants';
+import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
+import { Repository, SelectQueryBuilder } from 'typeorm';
+import { AccountEntity } from '../sto/account/entities/account.entity';
+import { CharacterEntity } from '../sto/character/entities/character.entity';
+import { PlatformLauncherEntity } from '../sto/platform-launcher/entities/platform-launcher.entity';
+import {
+  buildAccountBackgroundImageLookup,
+  resolveAccountTypeImageUrl,
+} from '../sto/shared/account-image.utility';
+import {
+  RegistryAccountDto,
+  RegistryAccountSummaryDto,
+} from './dto/registry-account.dto';
+import {
+  RegistryCharacterDto,
+  RegistryCharacterSummaryDto,
+  RegistryLookupDto,
+  RegistryRankDto,
+} from './dto/registry-character.dto';
+import {
+  PaginatedRegistryProfilesDto,
+  RegistryProfileDto,
+  RegistryProfileSummaryDto,
+} from './dto/registry-profile.dto';
+import { RegistryQueryDto } from './dto/registry-query.dto';
+import { RegistrySort } from './enums/registry-sort.enum';
+
+const DEFAULT_PAGE_SIZE = 12;
+const MAX_PAGE_SIZE = 50;
+const MIN_PAGE_SIZE = 1;
+
+/** Select alias for the case-insensitive username used by the default sort. */
+const USERNAME_SORT_ALIAS = 'profile_username_lower';
+
+/**
+ * Public visibility counts for a single member.
+ */
+interface RegistryCounts {
+  accountCount: number;
+  characterCount: number;
+}
+
+/**
+ * A raw count row returned by the per-member aggregate query.
+ */
+interface RegistryCountRow {
+  userId: string;
+  accountCount: string;
+  characterCount: string;
+}
+
+/**
+ * The relation set a character needs for its public detail view. `faction.ranks`
+ * is required for the entity's `rank` getter to resolve.
+ */
+const CHARACTER_RELATIONS = {
+  generalFaction: true,
+  faction: { ranks: true },
+  sex: true,
+  class: true,
+  recruitType: true,
+  species: true,
+} as const;
+
+/**
+ * Read-only access to the publicly visible slice of the member directory.
+ *
+ * Every query in this service asserts the full opt-in chain — profile, account
+ * and character must each be flagged `publiclyVisible` and must not be
+ * soft-deleted — and every response is mapped to an explicit DTO so no private
+ * entity field can leak through the global serializer.
+ */
+@Injectable()
+export class RegistryService {
+  /**
+   * Creates an instance of RegistryService.
+   *
+   * @param _userProfileRepository - The user profile repository.
+   * @param _accountRepository - The account repository.
+   * @param _characterRepository - The character repository.
+   * @param _platformLauncherRepository - The platform-launcher repository.
+   */
+  constructor(
+    @InjectRepository(UserProfileEntity)
+    private readonly _userProfileRepository: Repository<UserProfileEntity>,
+    @InjectRepository(AccountEntity)
+    private readonly _accountRepository: Repository<AccountEntity>,
+    @InjectRepository(CharacterEntity)
+    private readonly _characterRepository: Repository<CharacterEntity>,
+    @InjectRepository(PlatformLauncherEntity)
+    private readonly _platformLauncherRepository: Repository<PlatformLauncherEntity>,
+  ) {}
+
+  /**
+   * Lists publicly visible members, newest / most active / alphabetical.
+   *
+   * @param query - Search, sort and pagination options.
+   * @returns A page of member summaries.
+   */
+  async findProfiles(
+    query: RegistryQueryDto,
+  ): Promise<PaginatedRegistryProfilesDto> {
+    const page = query.page && query.page > 0 ? query.page : 1;
+    const pageSize = this.clampPageSize(query.pageSize);
+
+    const queryBuilder = this.publicProfilesQuery();
+    this.applySearch(queryBuilder, query.search);
+    this.applySort(queryBuilder, query.sort);
+
+    const [profiles, total] = await queryBuilder
+      .skip((page - 1) * pageSize)
+      .take(pageSize)
+      .getManyAndCount();
+
+    const counts = await this.countPublicEntitiesForUsers(
+      profiles.map(profile => profile.userId),
+    );
+
+    return {
+      items: profiles.map(profile => this.toProfileSummary(profile, counts)),
+      total,
+      page,
+      pageSize,
+    };
+  }
+
+  /**
+   * Retrieves a single publicly visible member and their visible accounts.
+   *
+   * @param username - The member's profile username.
+   * @returns The member's public profile.
+   * @throws {NotFoundException} When no publicly visible member matches.
+   */
+  async findProfileByUsername(username: string): Promise<RegistryProfileDto> {
+    const profile = await this.requireProfile(username);
+
+    const accounts = await this.findPublicAccounts(profile.userId);
+    const backgroundImageLookup = await this.loadBackgroundImageLookup();
+    const characterCounts = await this.countPublicCharactersForAccounts(
+      accounts.map(account => account.id),
+    );
+    const counts = await this.countPublicEntitiesForUsers([profile.userId]);
+
+    return {
+      ...this.toProfileSummary(profile, counts),
+      accounts: accounts.map(account =>
+        this.toAccountSummary(
+          account,
+          backgroundImageLookup,
+          characterCounts.get(account.id) ?? 0,
+        ),
+      ),
+    };
+  }
+
+  /**
+   * Retrieves a publicly visible account and its visible captains.
+   *
+   * @param username - The owning member's profile username.
+   * @param accountSlug - The account's URL slug.
+   * @returns The account's public detail view.
+   * @throws {NotFoundException} When the member or account is not public.
+   */
+  async findAccount(
+    username: string,
+    accountSlug: string,
+  ): Promise<RegistryAccountDto> {
+    const profile = await this.requireProfile(username);
+    const account = await this.requireAccount(profile.userId, accountSlug);
+
+    const characters = await this._characterRepository.find({
+      where: {
+        accountId: account.id,
+        publiclyVisible: true,
+      },
+      relations: CHARACTER_RELATIONS,
+      order: { level: 'DESC', handle: 'ASC' },
+    });
+
+    const backgroundImageLookup = await this.loadBackgroundImageLookup();
+
+    return {
+      ...this.toAccountSummary(
+        account,
+        backgroundImageLookup,
+        characters.length,
+      ),
+      characters: characters.map(character =>
+        this.toCharacterSummary(character),
+      ),
+    };
+  }
+
+  /**
+   * Retrieves a publicly visible captain.
+   *
+   * @param username - The owning member's profile username.
+   * @param accountSlug - The owning account's URL slug.
+   * @param characterSlug - The captain's URL slug.
+   * @returns The captain's public detail view.
+   * @throws {NotFoundException} When any level of the chain is not public.
+   */
+  async findCharacter(
+    username: string,
+    accountSlug: string,
+    characterSlug: string,
+  ): Promise<RegistryCharacterDto> {
+    const profile = await this.requireProfile(username);
+    const account = await this.requireAccount(profile.userId, accountSlug);
+
+    const character = await this._characterRepository
+      .createQueryBuilder('character')
+      .leftJoinAndSelect('character.generalFaction', 'generalFaction')
+      .leftJoinAndSelect('character.faction', 'faction')
+      .leftJoinAndSelect('faction.ranks', 'ranks')
+      .leftJoinAndSelect('character.sex', 'sex')
+      .leftJoinAndSelect('character.class', 'class')
+      .leftJoinAndSelect('character.recruitType', 'recruitType')
+      .leftJoinAndSelect('character.species', 'species')
+      .where('character.accountId = :accountId', { accountId: account.id })
+      .andWhere('LOWER(character.fullHandleSlug) = LOWER(:characterSlug)', {
+        characterSlug,
+      })
+      .andWhere('character.publiclyVisible = true')
+      .andWhere('character.deletedAt IS NULL')
+      .getOne();
+
+    if (!character) {
+      throw new NotFoundException('Captain not found');
+    }
+
+    return {
+      ...this.toCharacterSummary(character),
+      firstName: character.firstName,
+      middleName: character.middleName,
+      lastName: character.lastName,
+      biography: character.biography,
+      createdDate: character.createdDate,
+    };
+  }
+
+  /**
+   * Builds the base query for publicly visible, active members.
+   *
+   * @returns A query builder filtered to visible profiles.
+   */
+  private publicProfilesQuery(): SelectQueryBuilder<UserProfileEntity> {
+    return (
+      this._userProfileRepository
+        .createQueryBuilder('profile')
+        .innerJoin('profile.user', 'user')
+        .addSelect('user.lastLoginAt')
+        // Selected as an alias because TypeORM's `orderBy` tries to resolve a
+        // bare `LOWER(profile.username)` as an entity alias and fails.
+        .addSelect('LOWER(profile.username)', USERNAME_SORT_ALIAS)
+        .where('profile.publiclyVisible = true')
+        .andWhere('profile.deletedAt IS NULL')
+        .andWhere('user.deletedAt IS NULL')
+        .andWhere('user.isAccountDisabled = false')
+    );
+  }
+
+  /**
+   * Applies a case-insensitive username search, if one was supplied.
+   *
+   * LIKE wildcards in the user-supplied term are escaped so a search for `%`
+   * matches a literal percent sign rather than every member.
+   *
+   * @param queryBuilder - The query to narrow.
+   * @param search - The raw search term.
+   */
+  private applySearch(
+    queryBuilder: SelectQueryBuilder<UserProfileEntity>,
+    search?: string,
+  ): void {
+    const term = search?.trim();
+    if (!term) {
+      return;
+    }
+
+    const escaped = term
+      .toLowerCase()
+      .replaceAll('\\', '\\\\')
+      .replaceAll('%', '\\%')
+      .replaceAll('_', '\\_');
+
+    queryBuilder.andWhere('LOWER(profile.username) LIKE :search', {
+      search: `%${escaped}%`,
+    });
+  }
+
+  /**
+   * Applies the requested ordering to the profile query.
+   *
+   * @param queryBuilder - The query to order.
+   * @param sort - The requested sort, defaulting to username.
+   */
+  private applySort(
+    queryBuilder: SelectQueryBuilder<UserProfileEntity>,
+    sort?: RegistrySort,
+  ): void {
+    if (sort === RegistrySort.RECENTLY_JOINED) {
+      queryBuilder.orderBy('profile.createdAt', 'DESC');
+    } else if (sort === RegistrySort.RECENTLY_ACTIVE) {
+      queryBuilder.orderBy('user.lastLoginAt', 'DESC', 'NULLS LAST');
+    } else {
+      queryBuilder.orderBy(USERNAME_SORT_ALIAS, 'ASC');
+    }
+
+    // Stable tie-break so paging cannot repeat or skip a member.
+    queryBuilder.addOrderBy('profile.userId', 'ASC');
+  }
+
+  /**
+   * Clamps a requested page size into the supported range.
+   *
+   * @param pageSize - The requested page size.
+   * @returns A page size between 1 and 50.
+   */
+  private clampPageSize(pageSize?: number): number {
+    if (!pageSize || pageSize < MIN_PAGE_SIZE) {
+      return DEFAULT_PAGE_SIZE;
+    }
+
+    return Math.min(pageSize, MAX_PAGE_SIZE);
+  }
+
+  /**
+   * Loads a publicly visible profile by username, case-insensitively.
+   *
+   * @param username - The profile username.
+   * @returns The matching profile.
+   * @throws {NotFoundException} When no publicly visible profile matches.
+   */
+  private async requireProfile(username: string): Promise<UserProfileEntity> {
+    const profile = await this.publicProfilesQuery()
+      .andWhere('LOWER(profile.username) = LOWER(:username)', { username })
+      .getOne();
+
+    if (!profile) {
+      throw new NotFoundException('Member not found');
+    }
+
+    return profile;
+  }
+
+  /**
+   * Loads a publicly visible account by owner and slug, case-insensitively.
+   *
+   * @param userId - The owning member's user ID.
+   * @param accountSlug - The account's URL slug.
+   * @returns The matching account.
+   * @throws {NotFoundException} When no publicly visible account matches.
+   */
+  private async requireAccount(
+    userId: string,
+    accountSlug: string,
+  ): Promise<AccountEntity> {
+    const account = await this._accountRepository
+      .createQueryBuilder('account')
+      .leftJoinAndSelect('account.platform', 'platform')
+      .leftJoinAndSelect('account.launcher', 'launcher')
+      .where('account.userId = :userId', { userId })
+      .andWhere('LOWER(account.handleSlug) = LOWER(:accountSlug)', {
+        accountSlug,
+      })
+      .andWhere('account.publiclyVisible = true')
+      .andWhere('account.deletedAt IS NULL')
+      .getOne();
+
+    if (!account) {
+      throw new NotFoundException('Account not found');
+    }
+
+    return account;
+  }
+
+  /**
+   * Loads all publicly visible accounts owned by a member.
+   *
+   * @param userId - The owning member's user ID.
+   * @returns The member's visible accounts.
+   */
+  private async findPublicAccounts(userId: string): Promise<AccountEntity[]> {
+    return this._accountRepository.find({
+      where: { userId, publiclyVisible: true },
+      relations: { platform: true, launcher: true },
+      order: { handle: 'ASC', createdAt: 'ASC' },
+    });
+  }
+
+  /**
+   * Loads the platform-launcher background image lookup.
+   *
+   * @returns A map from platform-launcher key to background image URL.
+   */
+  private async loadBackgroundImageLookup(): Promise<Map<string, string>> {
+    const platformLaunchers = await this._platformLauncherRepository.find({
+      select: {
+        platformId: true,
+        launcherId: true,
+        backgroundImageUrl: true,
+      },
+    });
+
+    return buildAccountBackgroundImageLookup(platformLaunchers);
+  }
+
+  /**
+   * Counts publicly visible accounts and captains for the given members.
+   *
+   * @param userIds - The member user IDs to count for.
+   * @returns A map from user ID to its public counts.
+   */
+  private async countPublicEntitiesForUsers(
+    userIds: string[],
+  ): Promise<Map<string, RegistryCounts>> {
+    const counts = new Map<string, RegistryCounts>();
+    if (userIds.length === 0) {
+      return counts;
+    }
+
+    const rows = await this._accountRepository
+      .createQueryBuilder('account')
+      .select('account.userId', 'userId')
+      .addSelect('COUNT(DISTINCT account.id)', 'accountCount')
+      .addSelect('COUNT(character.id)', 'characterCount')
+      .leftJoin(
+        'account.characters',
+        'character',
+        'character.publiclyVisible = true AND character.deletedAt IS NULL',
+      )
+      .where('account.userId IN (:...userIds)', { userIds })
+      .andWhere('account.publiclyVisible = true')
+      .andWhere('account.deletedAt IS NULL')
+      .groupBy('account.userId')
+      .getRawMany<RegistryCountRow>();
+
+    for (const row of rows) {
+      counts.set(row.userId, {
+        accountCount: Number(row.accountCount),
+        characterCount: Number(row.characterCount),
+      });
+    }
+
+    return counts;
+  }
+
+  /**
+   * Counts publicly visible captains for each of the given accounts.
+   *
+   * @param accountIds - The account IDs to count for.
+   * @returns A map from account ID to its public captain count.
+   */
+  private async countPublicCharactersForAccounts(
+    accountIds: string[],
+  ): Promise<Map<string, number>> {
+    const counts = new Map<string, number>();
+    if (accountIds.length === 0) {
+      return counts;
+    }
+
+    const rows = await this._characterRepository
+      .createQueryBuilder('character')
+      .select('character.accountId', 'accountId')
+      .addSelect('COUNT(character.id)', 'characterCount')
+      .where('character.accountId IN (:...accountIds)', { accountIds })
+      .andWhere('character.publiclyVisible = true')
+      .andWhere('character.deletedAt IS NULL')
+      .groupBy('character.accountId')
+      .getRawMany<{ accountId: string; characterCount: string }>();
+
+    for (const row of rows) {
+      counts.set(row.accountId, Number(row.characterCount));
+    }
+
+    return counts;
+  }
+
+  /**
+   * Maps a profile entity onto its public summary DTO.
+   *
+   * @param profile - The profile entity, with its user relation loaded.
+   * @param counts - Public counts keyed by user ID.
+   * @returns The public summary.
+   */
+  private toProfileSummary(
+    profile: UserProfileEntity,
+    counts: Map<string, RegistryCounts>,
+  ): RegistryProfileSummaryDto {
+    const memberCounts = counts.get(profile.userId);
+
+    return {
+      username: profile.username,
+      profilePicture100: profile.profilePicture100,
+      profilePicture300: profile.profilePicture300,
+      joinedAt: profile.createdAt,
+      lastActiveAt: profile.user?.lastLoginAt ?? null,
+      publicAccountCount: memberCounts?.accountCount ?? 0,
+      publicCharacterCount: memberCounts?.characterCount ?? 0,
+    };
+  }
+
+  /**
+   * Maps an account entity onto its public summary DTO.
+   *
+   * @param account - The account entity, with platform and launcher loaded.
+   * @param backgroundImageLookup - The platform-launcher image lookup.
+   * @param publicCharacterCount - Number of visible captains on the account.
+   * @returns The public summary.
+   */
+  private toAccountSummary(
+    account: AccountEntity,
+    backgroundImageLookup: Map<string, string>,
+    publicCharacterCount: number,
+  ): RegistryAccountSummaryDto {
+    return {
+      handle: account.handle,
+      slug: account.handleSlug,
+      platformName: account.platform?.name ?? null,
+      launcherName: account.launcher?.name ?? null,
+      accountTypeImageUrl: resolveAccountTypeImageUrl(
+        account,
+        backgroundImageLookup,
+      ),
+      lifetimeSubscription: account.lifetimeSubscription,
+      accountCreatedDate: account.accountCreatedDate,
+      publicCharacterCount,
+    };
+  }
+
+  /**
+   * Maps a character entity onto its public summary DTO.
+   *
+   * @param character - The character entity with its lookups loaded.
+   * @returns The public summary.
+   */
+  private toCharacterSummary(
+    character: CharacterEntity,
+  ): RegistryCharacterSummaryDto {
+    return {
+      handle: character.handle,
+      slug: character.fullHandleSlug,
+      level: character.level ?? null,
+      rank: this.toRank(character),
+      species: this.toLookup(character.species),
+      class: this.toLookup(character.class),
+      sex: this.toLookup(character.sex),
+      faction: this.toLookup(character.faction),
+      generalFaction: this.toLookup(character.generalFaction),
+      recruitType: this.toLookup(character.recruitType),
+      profilePicture100: character.profilePicture100,
+      profilePicture300: character.profilePicture300,
+    };
+  }
+
+  /**
+   * Maps a character's derived rank onto its DTO, sanitizing the icon URL.
+   *
+   * @param character - The character entity.
+   * @returns The rank DTO, or null when no rank resolves.
+   */
+  private toRank(character: CharacterEntity): RegistryRankDto | null {
+    const rank = character.rank;
+    if (!rank) {
+      return null;
+    }
+
+    return {
+      title: rank.title,
+      iconUrl: this.sanitizeIconUrl(rank.iconUrl),
+      levelRange: rank.levelRange,
+    };
+  }
+
+  /**
+   * Maps a reference lookup entity onto its DTO, sanitizing the icon URL.
+   *
+   * @param lookup - The lookup entity, if loaded.
+   * @returns The lookup DTO, or null when the relation is absent.
+   */
+  private toLookup(
+    lookup?: { name: string; iconUrl?: string | null } | null,
+  ): RegistryLookupDto | null {
+    if (!lookup) {
+      return null;
+    }
+
+    return {
+      name: lookup.name,
+      iconUrl: this.sanitizeIconUrl(lookup.iconUrl),
+    };
+  }
+
+  /**
+   * Drops any stored icon URL that is not a valid Cloudflare image URL.
+   *
+   * @param iconUrl - The candidate icon URL.
+   * @returns The URL when valid, otherwise null.
+   */
+  private sanitizeIconUrl(iconUrl?: string | null): string | null {
+    return isValidCloudflareImageUrl(iconUrl) ? iconUrl : null;
+  }
+}

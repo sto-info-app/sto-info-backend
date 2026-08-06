@@ -31,6 +31,7 @@ import {
   AUTH_RATE_LIMITED_ROUTES,
   EXPENSIVE_RATE_LIMITED_ROUTES,
   RATE_LIMIT_CONFIGS,
+  REGISTRY_RATE_LIMITED_ROUTES,
   RATE_LIMIT_EXCLUDED_PATHS,
 } from './shared/constants/rate-limit.constants';
 import { SWAGGER_UI_DARK_THEME_CSS } from './shared/constants/swagger.constants';
@@ -167,6 +168,11 @@ async function bootstrap() {
     RATE_LIMIT_CONFIGS.EXPENSIVE,
     redis,
     'expensive',
+  );
+  const registryLimiter = createRateLimiter(
+    RATE_LIMIT_CONFIGS.REGISTRY,
+    redis,
+    'registry',
   );
 
   // Determine log levels based on environment
@@ -345,6 +351,9 @@ async function bootstrap() {
 
   // Apply strict rate limits to expensive operations (searches, uploads)
   app.use([...EXPENSIVE_RATE_LIMITED_ROUTES], expensiveLimiter);
+
+  // Apply dedicated rate limits to the public, unauthenticated registry
+  app.use([...REGISTRY_RATE_LIMITED_ROUTES], registryLimiter);
 
   // Apply method-based rate limiting (general rules)
   app.use((req: Request, res: Response, next: NextFunction) => {
