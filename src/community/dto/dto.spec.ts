@@ -1,26 +1,9 @@
-import { plainToInstance } from 'class-transformer';
-import { validate } from 'class-validator';
 import { FriendRequestDirection } from '../enums/friend-request-direction.enum';
+import { validateDto } from '../../utils/testing/dto-validation.util';
 import { CreateBlockDto } from './create-block.dto';
 import { CreateFriendRequestDto } from './create-friend-request.dto';
 import { FriendRequestsQueryDto } from './friend-requests-query.dto';
 import { FriendsQueryDto } from './friends-query.dto';
-
-/**
- * Validates a plain object against a DTO class.
- *
- * @param cls - The DTO class.
- * @param plain - The raw payload.
- * @returns The instantiated DTO and its validation errors.
- */
-async function validateDto<T extends object>(
-  cls: new () => T,
-  plain: Record<string, unknown>,
-) {
-  const dto = plainToInstance(cls, plain);
-  const errors = await validate(dto);
-  return { dto, errors };
-}
 
 describe('CreateFriendRequestDto Validation', () => {
   it('should accept a username', async () => {
@@ -28,7 +11,7 @@ describe('CreateFriendRequestDto Validation', () => {
       username: 'captain.picard',
     });
 
-    expect(errors.length).toBe(0);
+    expect(errors).toHaveLength(0);
   });
 
   it('should trim the username', async () => {
@@ -76,7 +59,7 @@ describe('CreateBlockDto Validation', () => {
       username: 'captain.picard',
     });
 
-    expect(errors.length).toBe(0);
+    expect(errors).toHaveLength(0);
   });
 
   it('should trim the username and the note', async () => {
@@ -112,7 +95,7 @@ describe('FriendsQueryDto Validation', () => {
   it('should accept an empty query', async () => {
     const { errors } = await validateDto(FriendsQueryDto, {});
 
-    expect(errors.length).toBe(0);
+    expect(errors).toHaveLength(0);
   });
 
   it('should trim the search term', async () => {
@@ -140,7 +123,7 @@ describe('FriendsQueryDto Validation', () => {
   it('should coerce a numeric string page', async () => {
     const { dto, errors } = await validateDto(FriendsQueryDto, { page: '3' });
 
-    expect(errors.length).toBe(0);
+    expect(errors).toHaveLength(0);
     expect(dto.page).toBe(3);
   });
 
@@ -161,7 +144,7 @@ describe('FriendRequestsQueryDto Validation', () => {
   it('should accept an empty query', async () => {
     const { errors } = await validateDto(FriendRequestsQueryDto, {});
 
-    expect(errors.length).toBe(0);
+    expect(errors).toHaveLength(0);
   });
 
   it('should accept every supported direction', async () => {
@@ -169,7 +152,7 @@ describe('FriendRequestsQueryDto Validation', () => {
       const { errors } = await validateDto(FriendRequestsQueryDto, {
         direction,
       });
-      expect(errors.length).toBe(0);
+      expect(errors).toHaveLength(0);
     }
   });
 

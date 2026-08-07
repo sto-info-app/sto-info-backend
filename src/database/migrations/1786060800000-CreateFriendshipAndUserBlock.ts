@@ -17,12 +17,12 @@ export class CreateFriendshipAndUserBlock1786060800000 implements MigrationInter
    * @param queryRunner - The TypeORM query runner.
    */
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`
+    await this.executeQueries(queryRunner, [
+      `
       CREATE TYPE "sto_info_app"."friendship_status_enum"
       AS ENUM ('PENDING', 'ACCEPTED', 'DECLINED')
-    `);
-
-    await queryRunner.query(`
+    `,
+      `
       CREATE TABLE "sto_info_app"."friendship" (
         "id" uuid NOT NULL DEFAULT gen_random_uuid(),
         "requesterId" uuid NOT NULL,
@@ -39,34 +39,30 @@ export class CreateFriendshipAndUserBlock1786060800000 implements MigrationInter
         CONSTRAINT "FK_friendship_addressee" FOREIGN KEY ("addresseeId")
           REFERENCES "sto_info_app"."user" ("id") ON DELETE CASCADE
       )
-    `);
-
-    // One live row per pair regardless of who asked. Ordering the two IDs
-    // canonically makes the index cover A->B and B->A with a single entry, so a
-    // reply-with-a-request race cannot create a duplicate friendship.
-    await queryRunner.query(`
+    `,
+      // One live row per pair regardless of who asked. Ordering the two IDs
+      // canonically makes the index cover A->B and B->A with a single entry,
+      // so a reply-with-a-request race cannot create a duplicate friendship.
+      `
       CREATE UNIQUE INDEX "UQ_friendship_pair"
       ON "sto_info_app"."friendship"
         (LEAST("requesterId", "addresseeId"), GREATEST("requesterId", "addresseeId"))
       WHERE "deletedAt" IS NULL
-    `);
-
-    // Supports "requests I sent" and the friend list read from the sender side.
-    await queryRunner.query(`
+    `,
+      // Supports "requests I sent" and the friend list read from the sender side.
+      `
       CREATE INDEX "IDX_friendship_requester_status"
       ON "sto_info_app"."friendship" ("requesterId", "status")
       WHERE "deletedAt" IS NULL
-    `);
-
-    // Supports "requests I received" and the friend list read from the other
-    // side, which is the query behind the pending-request badge.
-    await queryRunner.query(`
+    `,
+      // Supports "requests I received" and the friend list read from the
+      // other side, which is the query behind the pending-request badge.
+      `
       CREATE INDEX "IDX_friendship_addressee_status"
       ON "sto_info_app"."friendship" ("addresseeId", "status")
       WHERE "deletedAt" IS NULL
-    `);
-
-    await queryRunner.query(`
+    `,
+      `
       CREATE TABLE "sto_info_app"."user_block" (
         "id" uuid NOT NULL DEFAULT gen_random_uuid(),
         "blockerId" uuid NOT NULL,
@@ -81,29 +77,27 @@ export class CreateFriendshipAndUserBlock1786060800000 implements MigrationInter
         CONSTRAINT "FK_user_block_blocked" FOREIGN KEY ("blockedId")
           REFERENCES "sto_info_app"."user" ("id") ON DELETE CASCADE
       )
-    `);
-
-    // A block is one-sided, so unlike a friendship both directions are distinct
-    // rows and only the exact pair needs to be unique.
-    await queryRunner.query(`
+    `,
+      // A block is one-sided, so unlike a friendship both directions are
+      // distinct rows and only the exact pair needs to be unique.
+      `
       CREATE UNIQUE INDEX "UQ_user_block_pair"
       ON "sto_info_app"."user_block" ("blockerId", "blockedId")
       WHERE "deletedAt" IS NULL
-    `);
-
-    // The registry filters on blocks in both directions on every read, so each
-    // side of the pair needs its own lookup.
-    await queryRunner.query(`
+    `,
+      // The registry filters on blocks in both directions on every read, so
+      // each side of the pair needs its own lookup.
+      `
       CREATE INDEX "IDX_user_block_blocker"
       ON "sto_info_app"."user_block" ("blockerId")
       WHERE "deletedAt" IS NULL
-    `);
-
-    await queryRunner.query(`
+    `,
+      `
       CREATE INDEX "IDX_user_block_blocked"
       ON "sto_info_app"."user_block" ("blockedId")
       WHERE "deletedAt" IS NULL
-    `);
+    `,
+    ]);
   }
 
   /**
@@ -112,10 +106,25 @@ export class CreateFriendshipAndUserBlock1786060800000 implements MigrationInter
    * @param queryRunner - The TypeORM query runner.
    */
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DROP TABLE "sto_info_app"."user_block"`);
-    await queryRunner.query(`DROP TABLE "sto_info_app"."friendship"`);
-    await queryRunner.query(
+    await this.executeQueries(queryRunner, [
+      `DROP TABLE "sto_info_app"."user_block"`,
+      `DROP TABLE "sto_info_app"."friendship"`,
       `DROP TYPE "sto_info_app"."friendship_status_enum"`,
-    );
+    ]);
+  }
+
+  /**
+   * Executes migration queries in the given order.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   * @param queries - SQL statements to execute.
+   */
+  private async executeQueries(
+    queryRunner: QueryRunner,
+    queries: string[],
+  ): Promise<void> {
+    for (const query of queries) {
+      await queryRunner.query(query);
+    }
   }
 }

@@ -19,7 +19,8 @@ export class CreateUserReporting1786233600000 implements MigrationInterface {
    * @param queryRunner - The TypeORM query runner.
    */
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`
+    await this.executeQueries(queryRunner, [
+      `
       CREATE TYPE "sto_info_app"."report_reason_enum"
       AS ENUM (
         'HARASSMENT',
@@ -29,14 +30,12 @@ export class CreateUserReporting1786233600000 implements MigrationInterface {
         'INAPPROPRIATE_CONTENT',
         'OTHER'
       )
-    `);
-
-    await queryRunner.query(`
+    `,
+      `
       CREATE TYPE "sto_info_app"."report_status_enum"
       AS ENUM ('OPEN', 'UNDER_REVIEW', 'ACTIONED', 'DISMISSED')
-    `);
-
-    await queryRunner.query(`
+    `,
+      `
       CREATE TABLE "sto_info_app"."user_report" (
         "id" uuid NOT NULL DEFAULT gen_random_uuid(),
         "reporterId" uuid NOT NULL,
@@ -59,45 +58,41 @@ export class CreateUserReporting1786233600000 implements MigrationInterface {
         CONSTRAINT "FK_user_report_reviewed_by" FOREIGN KEY ("reviewedById")
           REFERENCES "sto_info_app"."user" ("id") ON DELETE SET NULL
       )
-    `);
-
-    // One unresolved report per reporter/reported pair, so a member cannot
-    // flood the queue with duplicates of the same complaint. Resolved reports
-    // are excluded, leaving the pair free for a genuinely new report later.
-    await queryRunner.query(`
+    `,
+      // One unresolved report per reporter/reported pair, so a member cannot
+      // flood the queue with duplicates of the same complaint. Resolved reports
+      // are excluded, leaving the pair free for a genuinely new report later.
+      `
       CREATE UNIQUE INDEX "UQ_user_report_open_pair"
       ON "sto_info_app"."user_report" ("reporterId", "reportedId")
       WHERE "deletedAt" IS NULL AND "status" IN ('OPEN', 'UNDER_REVIEW')
-    `);
-
-    // The queue is read by status ("what is still open?") and, once an
-    // administrator opens a member, by the member the reports are about.
-    await queryRunner.query(`
+    `,
+      // The queue is read by status ("what is still open?") and, once an
+      // administrator opens a member, by the member the reports are about.
+      `
       CREATE INDEX "IDX_user_report_status"
       ON "sto_info_app"."user_report" ("status", "createdAt")
       WHERE "deletedAt" IS NULL
-    `);
-
-    await queryRunner.query(`
+    `,
+      `
       CREATE INDEX "IDX_user_report_reported"
       ON "sto_info_app"."user_report" ("reportedId")
       WHERE "deletedAt" IS NULL
-    `);
-
-    await queryRunner.query(`
+    `,
+      `
       CREATE INDEX "IDX_user_report_reporter"
       ON "sto_info_app"."user_report" ("reporterId")
       WHERE "deletedAt" IS NULL
-    `);
-
-    await queryRunner.query(`
+    `,
+      `
       ALTER TABLE "sto_info_app"."user"
         ADD "disabledAt" TIMESTAMP,
         ADD "disabledReason" character varying(500),
         ADD "disabledById" uuid,
         ADD CONSTRAINT "FK_user_disabled_by" FOREIGN KEY ("disabledById")
           REFERENCES "sto_info_app"."user" ("id") ON DELETE SET NULL
-    `);
+    `,
+    ]);
   }
 
   /**
@@ -106,15 +101,32 @@ export class CreateUserReporting1786233600000 implements MigrationInterface {
    * @param queryRunner - The TypeORM query runner.
    */
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`
+    await this.executeQueries(queryRunner, [
+      `
       ALTER TABLE "sto_info_app"."user"
         DROP CONSTRAINT "FK_user_disabled_by",
         DROP COLUMN "disabledById",
         DROP COLUMN "disabledReason",
         DROP COLUMN "disabledAt"
-    `);
-    await queryRunner.query(`DROP TABLE "sto_info_app"."user_report"`);
-    await queryRunner.query(`DROP TYPE "sto_info_app"."report_status_enum"`);
-    await queryRunner.query(`DROP TYPE "sto_info_app"."report_reason_enum"`);
+    `,
+      `DROP TABLE "sto_info_app"."user_report"`,
+      `DROP TYPE "sto_info_app"."report_status_enum"`,
+      `DROP TYPE "sto_info_app"."report_reason_enum"`,
+    ]);
+  }
+
+  /**
+   * Executes migration queries in the given order.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   * @param queries - SQL statements to execute.
+   */
+  private async executeQueries(
+    queryRunner: QueryRunner,
+    queries: string[],
+  ): Promise<void> {
+    for (const query of queries) {
+      await queryRunner.query(query);
+    }
   }
 }

@@ -18,43 +18,40 @@ export class AddCharacterVisibilityAndRegistryIndexes1785888000000 implements Mi
    * @param queryRunner - The TypeORM query runner.
    */
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`
+    await this.executeQueries(queryRunner, [
+      `
       ALTER TABLE "sto_info_app"."character"
       ADD "publiclyVisible" boolean NOT NULL DEFAULT true
-    `);
-
-    // Registry listings only ever read opted-in, non-deleted profiles.
-    await queryRunner.query(`
+    `,
+      // Registry listings only ever read opted-in, non-deleted profiles.
+      `
       CREATE INDEX "IDX_user_profile_publicly_visible"
       ON "sto_info_app"."user_profile" ("publiclyVisible")
       WHERE "deletedAt" IS NULL
-    `);
-
-    // Supports the "Recently Active" sort, which orders by last login.
-    await queryRunner.query(`
+    `,
+      // Supports the "Recently Active" sort, which orders by last login.
+      `
       CREATE INDEX "IDX_user_last_login_at"
       ON "sto_info_app"."user" ("lastLoginAt")
-    `);
-
-    // Supports the case-insensitive username search.
-    await queryRunner.query(`
+    `,
+      // Supports the case-insensitive username search.
+      `
       CREATE INDEX "IDX_user_profile_username_lower"
       ON "sto_info_app"."user_profile" (LOWER("username"))
-    `);
-
-    // Supports resolving a profile's publicly visible accounts.
-    await queryRunner.query(`
+    `,
+      // Supports resolving a profile's publicly visible accounts.
+      `
       CREATE INDEX "IDX_account_publicly_visible"
       ON "sto_info_app"."account" ("userId", "publiclyVisible")
       WHERE "deletedAt" IS NULL
-    `);
-
-    // Supports resolving an account's publicly visible characters.
-    await queryRunner.query(`
+    `,
+      // Supports resolving an account's publicly visible characters.
+      `
       CREATE INDEX "IDX_character_publicly_visible"
       ON "sto_info_app"."character" ("accountId", "publiclyVisible")
       WHERE "deletedAt" IS NULL
-    `);
+    `,
+    ]);
   }
 
   /**
@@ -63,23 +60,28 @@ export class AddCharacterVisibilityAndRegistryIndexes1785888000000 implements Mi
    * @param queryRunner - The TypeORM query runner.
    */
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(
+    await this.executeQueries(queryRunner, [
       `DROP INDEX "sto_info_app"."IDX_character_publicly_visible"`,
-    );
-    await queryRunner.query(
       `DROP INDEX "sto_info_app"."IDX_account_publicly_visible"`,
-    );
-    await queryRunner.query(
       `DROP INDEX "sto_info_app"."IDX_user_profile_username_lower"`,
-    );
-    await queryRunner.query(
       `DROP INDEX "sto_info_app"."IDX_user_last_login_at"`,
-    );
-    await queryRunner.query(
       `DROP INDEX "sto_info_app"."IDX_user_profile_publicly_visible"`,
-    );
-    await queryRunner.query(
       `ALTER TABLE "sto_info_app"."character" DROP COLUMN "publiclyVisible"`,
-    );
+    ]);
+  }
+
+  /**
+   * Executes migration queries in the given order.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   * @param queries - SQL statements to execute.
+   */
+  private async executeQueries(
+    queryRunner: QueryRunner,
+    queries: string[],
+  ): Promise<void> {
+    for (const query of queries) {
+      await queryRunner.query(query);
+    }
   }
 }
