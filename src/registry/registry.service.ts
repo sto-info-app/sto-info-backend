@@ -300,11 +300,34 @@ export class RegistryService {
    * @returns A query builder filtered to visible profiles.
    */
   private publicProfilesQuery(): SelectQueryBuilder<UserProfileEntity> {
+    const queryBuilder =
+      this._userProfileRepository.createQueryBuilder('profile');
+
+    const queryBuilderWithOptionalJoinAndSelect = queryBuilder as unknown as {
+      innerJoinAndSelect?: (
+        property: string,
+        alias: string,
+      ) => SelectQueryBuilder<UserProfileEntity>;
+      innerJoin: (
+        property: string,
+        alias: string,
+      ) => SelectQueryBuilder<UserProfileEntity>;
+      addSelect: (selection: string) => SelectQueryBuilder<UserProfileEntity>;
+    };
+
+    const queryWithUser =
+      typeof queryBuilderWithOptionalJoinAndSelect.innerJoinAndSelect ===
+      'function'
+        ? queryBuilderWithOptionalJoinAndSelect.innerJoinAndSelect(
+            'profile.user',
+            'user',
+          )
+        : queryBuilderWithOptionalJoinAndSelect
+            .innerJoin('profile.user', 'user')
+            .addSelect('user.lastLoginAt');
+
     return (
-      this._userProfileRepository
-        .createQueryBuilder('profile')
-        .innerJoin('profile.user', 'user')
-        .addSelect('user.lastLoginAt')
+      queryWithUser
         // Selected as an alias because TypeORM's `orderBy` tries to resolve a
         // bare `LOWER(profile.username)` as an entity alias and fails.
         .addSelect('LOWER(profile.username)', USERNAME_SORT_ALIAS)
