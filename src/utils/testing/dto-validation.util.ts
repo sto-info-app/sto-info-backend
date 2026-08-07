@@ -13,7 +13,11 @@ export async function validateDto<T extends object>(
   plain: Record<string, unknown>,
 ): Promise<{ dto: T; errors: ValidationError[] }> {
   const dto = plainToInstance(cls, plain);
-  const errors = await validate(dto);
+  const errors = await validate(dto, {
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    validationError: { target: false },
+  });
 
   return { dto, errors };
 }

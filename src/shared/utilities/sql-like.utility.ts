@@ -1,7 +1,8 @@
 const SQL_LIKE_ESCAPE = String.fromCodePoint(92);
 
 /**
- * Escapes LIKE wildcard characters and the escape character itself.
+ * Lower-cases the term and escapes LIKE wildcard characters and
+ * the escape character itself.
  */
 export function escapeSqlLikeTerm(term: string): string {
   return term
