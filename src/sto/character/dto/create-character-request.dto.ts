@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsDateString,
   IsNotEmpty,
   IsNumber,
@@ -91,4 +92,8 @@ export class CreateCharacterRequestDto {
   @Transform(emptyStringToUndefined)
   @IsString()
   readonly notes?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  readonly publiclyVisible?: boolean;
 }
