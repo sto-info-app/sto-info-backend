@@ -361,6 +361,10 @@ async function bootstrap() {
     if (RATE_LIMIT_EXCLUDED_PATHS.some(path => req.path.startsWith(path))) {
       return next();
     }
+    // Skip registry paths — already handled by the dedicated registryLimiter above
+    if (REGISTRY_RATE_LIMITED_ROUTES.some(path => req.path.startsWith(path))) {
+      return next();
+    }
 
     // Apply different limits based on HTTP method
     if (req.method === 'GET' || req.method === 'HEAD') {

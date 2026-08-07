@@ -68,10 +68,7 @@ export class UserEntity {
   @Column({ type: 'boolean', default: false })
   isAccountDisabled: boolean;
 
-  @ApiProperty({
-    description: 'When an administrator disabled the account.',
-    nullable: true,
-  })
+  @Exclude()
   @Column({ type: 'timestamp', nullable: true })
   disabledAt: Date | null;
 
