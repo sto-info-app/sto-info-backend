@@ -8,8 +8,8 @@ import { RelationshipDto } from '../community/dto/friendship.dto';
 import { RelationshipStatus } from '../community/enums/relationship-status.enum';
 import { FriendshipService } from '../community/friendship.service';
 import {
-  PublicMemberCounts,
   PublicMemberService,
+  PublicMemberStats,
 } from '../community/public-member.service';
 import { AccountEntity } from '../sto/account/entities/account.entity';
 import { CharacterEntity } from '../sto/character/entities/character.entity';
@@ -195,8 +195,8 @@ describe('RegistryService', () => {
     find: jest.Mock<() => Promise<PlatformLauncherImageRow[]>>;
   };
   let publicMemberService: {
-    countPublicEntitiesForUsers: jest.Mock<
-      () => Promise<Map<string, PublicMemberCounts>>
+    getPublicMemberStats: jest.Mock<
+      () => Promise<Map<string, PublicMemberStats>>
     >;
   };
   let blockService: { getBlockedUserIds: jest.Mock<() => Promise<string[]>> };
@@ -225,8 +225,8 @@ describe('RegistryService', () => {
       find: jest.fn(() => Promise.resolve([] as PlatformLauncherImageRow[])),
     };
     publicMemberService = {
-      countPublicEntitiesForUsers: jest.fn(() =>
-        Promise.resolve(new Map<string, PublicMemberCounts>()),
+      getPublicMemberStats: jest.fn(() =>
+        Promise.resolve(new Map<string, PublicMemberStats>()),
       ),
     };
     blockService = {
@@ -470,33 +470,42 @@ describe('RegistryService', () => {
       const result = await service.findProfiles({});
 
       expect(result.items).toEqual([]);
-      expect(
-        publicMemberService.countPublicEntitiesForUsers,
-      ).toHaveBeenCalledWith([]);
+      expect(publicMemberService.getPublicMemberStats).toHaveBeenCalledWith([]);
     });
 
     it('should attach public account and captain counts to each member', async () => {
       profileQb.getManyAndCount.mockResolvedValue([[buildProfile()], 1]);
-      publicMemberService.countPublicEntitiesForUsers.mockResolvedValue(
-        new Map([['user-1', { accountCount: 2, characterCount: 11 }]]),
+      publicMemberService.getPublicMemberStats.mockResolvedValue(
+        new Map([
+          [
+            'user-1',
+            {
+              accountCount: 2,
+              characterCount: 11,
+              playingSince: new Date('2015-03-04T00:00:00.000Z'),
+            },
+          ],
+        ]),
       );
 
       const result = await service.findProfiles({});
 
       expect(result.items[0].publicAccountCount).toBe(2);
       expect(result.items[0].publicCharacterCount).toBe(11);
+      expect(result.items[0].playingSince).toEqual(
+        new Date('2015-03-04T00:00:00.000Z'),
+      );
     });
 
     it('should report zero counts for a member with no visible accounts', async () => {
       profileQb.getManyAndCount.mockResolvedValue([[buildProfile()], 1]);
-      publicMemberService.countPublicEntitiesForUsers.mockResolvedValue(
-        new Map(),
-      );
+      publicMemberService.getPublicMemberStats.mockResolvedValue(new Map());
 
       const result = await service.findProfiles({});
 
       expect(result.items[0].publicAccountCount).toBe(0);
       expect(result.items[0].publicCharacterCount).toBe(0);
+      expect(result.items[0].playingSince).toBeNull();
     });
 
     it('should report a null last active date when the member never signed in', async () => {
@@ -549,6 +558,26 @@ describe('RegistryService', () => {
       expect(result.accounts[0].platformName).toBe('Steam');
       expect(result.accounts[0].launcherName).toBe('Arc');
       expect(result.accounts[0].publicCharacterCount).toBe(4);
+    });
+
+    it('should report the date the member has been playing since', async () => {
+      profileQb.getOne.mockResolvedValue(buildProfile());
+      publicMemberService.getPublicMemberStats.mockResolvedValue(
+        new Map([
+          [
+            'user-1',
+            {
+              accountCount: 1,
+              characterCount: 4,
+              playingSince: new Date('2015-03-04T00:00:00.000Z'),
+            },
+          ],
+        ]),
+      );
+
+      const result = await service.findProfileByUsername('captain.picard');
+
+      expect(result.playingSince).toEqual(new Date('2015-03-04T00:00:00.000Z'));
     });
 
     it('should report a zero captain count for an account with none visible', async () => {

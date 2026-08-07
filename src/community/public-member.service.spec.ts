@@ -167,7 +167,12 @@ describe('PublicMemberService', () => {
     it('should map each member onto its public summary', async () => {
       profileQb.getMany.mockResolvedValue([buildProfile()]);
       accountQb.getRawMany.mockResolvedValue([
-        { userId: 'user-1', accountCount: '2', characterCount: '11' },
+        {
+          userId: 'user-1',
+          accountCount: '2',
+          characterCount: '11',
+          playingSince: new Date('2015-03-04T00:00:00.000Z'),
+        },
       ]);
 
       const result = await service.findMembersByUserIds(['user-1']);
@@ -178,6 +183,7 @@ describe('PublicMemberService', () => {
         profilePicture300: 'https://imagedelivery.net/hash/pic-1/square300',
         joinedAt: new Date('2026-01-14T09:21:00.000Z'),
         lastActiveAt: new Date('2026-08-01T12:00:00.000Z'),
+        playingSince: new Date('2015-03-04T00:00:00.000Z'),
         publicAccountCount: 2,
         publicCharacterCount: 11,
         publiclyVisible: true,
@@ -200,6 +206,7 @@ describe('PublicMemberService', () => {
 
       expect(result.get('user-1')?.publicAccountCount).toBe(0);
       expect(result.get('user-1')?.publicCharacterCount).toBe(0);
+      expect(result.get('user-1')?.playingSince).toBeNull();
     });
 
     it('should report a null last active date when the member never signed in', async () => {
@@ -221,16 +228,16 @@ describe('PublicMemberService', () => {
     });
   });
 
-  describe('countPublicEntitiesForUsers', () => {
+  describe('getPublicMemberStats', () => {
     it('should return an empty map without querying for no IDs', async () => {
-      const result = await service.countPublicEntitiesForUsers([]);
+      const result = await service.getPublicMemberStats([]);
 
       expect(result.size).toBe(0);
       expect(accountQb.getRawMany).not.toHaveBeenCalled();
     });
 
     it('should only count visible, non-deleted accounts and captains', async () => {
-      await service.countPublicEntitiesForUsers(['user-1']);
+      await service.getPublicMemberStats(['user-1']);
 
       const conditions = accountQb.andWhere.mock.calls.map(call => call[0]);
       expect(conditions).toContain('account.publiclyVisible = true');
@@ -244,15 +251,45 @@ describe('PublicMemberService', () => {
 
     it('should coerce the raw string counts to numbers', async () => {
       accountQb.getRawMany.mockResolvedValue([
-        { userId: 'user-1', accountCount: '3', characterCount: '7' },
+        {
+          userId: 'user-1',
+          accountCount: '3',
+          characterCount: '7',
+          playingSince: new Date('2015-03-04T00:00:00.000Z'),
+        },
       ]);
 
-      const result = await service.countPublicEntitiesForUsers(['user-1']);
+      const result = await service.getPublicMemberStats(['user-1']);
 
       expect(result.get('user-1')).toEqual({
         accountCount: 3,
         characterCount: 7,
+        playingSince: new Date('2015-03-04T00:00:00.000Z'),
       });
+    });
+
+    it('should take the playing-since date from the oldest visible account', async () => {
+      await service.getPublicMemberStats(['user-1']);
+
+      expect(accountQb.addSelect).toHaveBeenCalledWith(
+        'MIN(account.accountCreatedDate)',
+        'playingSince',
+      );
+    });
+
+    it('should report no playing-since date when no account records one', async () => {
+      accountQb.getRawMany.mockResolvedValue([
+        {
+          userId: 'user-1',
+          accountCount: '1',
+          characterCount: '0',
+          playingSince: null,
+        },
+      ]);
+
+      const result = await service.getPublicMemberStats(['user-1']);
+
+      expect(result.get('user-1')?.playingSince).toBeNull();
     });
   });
 });

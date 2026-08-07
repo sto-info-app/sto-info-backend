@@ -6,20 +6,27 @@ import { AccountEntity } from '../sto/account/entities/account.entity';
 import { CommunityMemberDto } from './dto/community-member.dto';
 
 /**
- * Public visibility counts for a single member.
+ * The facts a member's public listing shows about their visible records.
  */
-export interface PublicMemberCounts {
+export interface PublicMemberStats {
   accountCount: number;
   characterCount: number;
+  /**
+   * The earliest creation date across the member's visible accounts, or null
+   * when none of them records one.
+   */
+  playingSince: Date | null;
 }
 
 /**
- * A raw count row returned by the per-member aggregate query.
+ * A raw row returned by the per-member aggregate query. Counts arrive as
+ * strings from the driver; the date arrives already parsed.
  */
-interface PublicMemberCountRow {
+interface PublicMemberStatsRow {
   userId: string;
   accountCount: string;
   characterCount: string;
+  playingSince: Date | null;
 }
 
 /**
@@ -100,29 +107,30 @@ export class PublicMemberService {
       .andWhere('user.isAccountDisabled = false')
       .getMany();
 
-    const counts = await this.countPublicEntitiesForUsers(
+    const stats = await this.getPublicMemberStats(
       profiles.map(profile => profile.userId),
     );
 
     for (const profile of profiles) {
-      members.set(profile.userId, this.toMember(profile, counts));
+      members.set(profile.userId, this.toMember(profile, stats));
     }
 
     return members;
   }
 
   /**
-   * Counts publicly visible accounts and captains for the given members.
+   * Aggregates the publicly visible accounts and captains of the given members,
+   * along with the date they have been playing since.
    *
-   * @param userIds - The member user IDs to count for.
-   * @returns A map from user ID to its public counts.
+   * @param userIds - The member user IDs to aggregate for.
+   * @returns A map from user ID to its public stats.
    */
-  async countPublicEntitiesForUsers(
+  async getPublicMemberStats(
     userIds: string[],
-  ): Promise<Map<string, PublicMemberCounts>> {
-    const counts = new Map<string, PublicMemberCounts>();
+  ): Promise<Map<string, PublicMemberStats>> {
+    const stats = new Map<string, PublicMemberStats>();
     if (userIds.length === 0) {
-      return counts;
+      return stats;
     }
 
     const rows = await this._accountRepository
@@ -130,6 +138,10 @@ export class PublicMemberService {
       .select('account.userId', 'userId')
       .addSelect('COUNT(DISTINCT account.id)', 'accountCount')
       .addSelect('COUNT(character.id)', 'characterCount')
+      // The oldest account a member has made public is the earliest date the
+      // fleet can see them playing from. Accounts with no recorded date are
+      // ignored by MIN rather than dragging the answer to null.
+      .addSelect('MIN(account.accountCreatedDate)', 'playingSince')
       .leftJoin(
         'account.characters',
         'character',
@@ -139,30 +151,31 @@ export class PublicMemberService {
       .andWhere('account.publiclyVisible = true')
       .andWhere('account.deletedAt IS NULL')
       .groupBy('account.userId')
-      .getRawMany<PublicMemberCountRow>();
+      .getRawMany<PublicMemberStatsRow>();
 
     for (const row of rows) {
-      counts.set(row.userId, {
+      stats.set(row.userId, {
         accountCount: Number(row.accountCount),
         characterCount: Number(row.characterCount),
+        playingSince: row.playingSince ? new Date(row.playingSince) : null,
       });
     }
 
-    return counts;
+    return stats;
   }
 
   /**
    * Maps a profile entity onto the shared public member shape.
    *
    * @param profile - The profile entity, with its user relation loaded.
-   * @param counts - Public counts keyed by user ID.
+   * @param stats - Public stats keyed by user ID.
    * @returns The public member summary.
    */
   toMember(
     profile: UserProfileEntity,
-    counts: Map<string, PublicMemberCounts>,
+    stats: Map<string, PublicMemberStats>,
   ): CommunityMemberDto {
-    const memberCounts = counts.get(profile.userId);
+    const memberStats = stats.get(profile.userId);
 
     return {
       username: profile.username,
@@ -170,8 +183,9 @@ export class PublicMemberService {
       profilePicture300: profile.profilePicture300,
       joinedAt: profile.createdAt,
       lastActiveAt: profile.user?.lastLoginAt ?? null,
-      publicAccountCount: memberCounts?.accountCount ?? 0,
-      publicCharacterCount: memberCounts?.characterCount ?? 0,
+      playingSince: memberStats?.playingSince ?? null,
+      publicAccountCount: memberStats?.accountCount ?? 0,
+      publicCharacterCount: memberStats?.characterCount ?? 0,
       publiclyVisible: profile.publiclyVisible,
     };
   }

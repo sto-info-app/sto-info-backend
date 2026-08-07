@@ -7,8 +7,8 @@ import { BlockService } from '../community/block.service';
 import { RelationshipDto } from '../community/dto/friendship.dto';
 import { FriendshipService } from '../community/friendship.service';
 import {
-  PublicMemberCounts,
   PublicMemberService,
+  PublicMemberStats,
 } from '../community/public-member.service';
 import { AccountEntity } from '../sto/account/entities/account.entity';
 import { CharacterEntity } from '../sto/character/entities/character.entity';
@@ -120,8 +120,7 @@ export class RegistryService {
       .getManyAndCount();
 
     const userIds = profiles.map(profile => profile.userId);
-    const counts =
-      await this._publicMemberService.countPublicEntitiesForUsers(userIds);
+    const stats = await this._publicMemberService.getPublicMemberStats(userIds);
     const relationships = viewerId
       ? await this._friendshipService.getRelationships(viewerId, userIds)
       : new Map<string, RelationshipDto>();
@@ -130,7 +129,7 @@ export class RegistryService {
       items: profiles.map(profile =>
         this.toProfileSummary(
           profile,
-          counts,
+          stats,
           relationships.get(profile.userId) ?? null,
         ),
       ),
@@ -161,7 +160,7 @@ export class RegistryService {
     const characterCounts = await this.countPublicCharactersForAccounts(
       accounts.map(account => account.id),
     );
-    const counts = await this._publicMemberService.countPublicEntitiesForUsers([
+    const stats = await this._publicMemberService.getPublicMemberStats([
       profile.userId,
     ]);
     const relationship = viewerId
@@ -169,7 +168,7 @@ export class RegistryService {
       : null;
 
     return {
-      ...this.toProfileSummary(profile, counts, relationship),
+      ...this.toProfileSummary(profile, stats, relationship),
       accounts: accounts.map(account =>
         this.toAccountSummary(
           account,
@@ -505,17 +504,17 @@ export class RegistryService {
    * Maps a profile entity onto its public summary DTO.
    *
    * @param profile - The profile entity, with its user relation loaded.
-   * @param counts - Public counts keyed by user ID.
+   * @param stats - Public stats keyed by user ID.
    * @param relationship - The caller's relationship to this member, or null
    *   when the caller is anonymous.
    * @returns The public summary.
    */
   private toProfileSummary(
     profile: UserProfileEntity,
-    counts: Map<string, PublicMemberCounts>,
+    stats: Map<string, PublicMemberStats>,
     relationship: RelationshipDto | null,
   ): RegistryProfileSummaryDto {
-    const memberCounts = counts.get(profile.userId);
+    const memberStats = stats.get(profile.userId);
 
     return {
       username: profile.username,
@@ -523,8 +522,9 @@ export class RegistryService {
       profilePicture300: profile.profilePicture300,
       joinedAt: profile.createdAt,
       lastActiveAt: profile.user?.lastLoginAt ?? null,
-      publicAccountCount: memberCounts?.accountCount ?? 0,
-      publicCharacterCount: memberCounts?.characterCount ?? 0,
+      playingSince: memberStats?.playingSince ?? null,
+      publicAccountCount: memberStats?.accountCount ?? 0,
+      publicCharacterCount: memberStats?.characterCount ?? 0,
       relationship,
     };
   }

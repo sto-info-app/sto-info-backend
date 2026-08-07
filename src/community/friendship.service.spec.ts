@@ -92,6 +92,7 @@ function buildMember(
     profilePicture300: null,
     joinedAt: new Date('2026-01-14T09:21:00.000Z'),
     lastActiveAt: null,
+    playingSince: null,
     publicAccountCount: 0,
     publicCharacterCount: 0,
     publiclyVisible: true,

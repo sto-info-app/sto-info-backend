@@ -69,6 +69,31 @@ export class UserEntity {
   isAccountDisabled: boolean;
 
   @ApiProperty({
+    description: 'When an administrator disabled the account.',
+    nullable: true,
+  })
+  @Column({ type: 'timestamp', nullable: true })
+  disabledAt: Date | null;
+
+  @ApiProperty({
+    description:
+      'Why an administrator disabled the account. Internal to the admin ' +
+      'section — never shown to the user.',
+    nullable: true,
+  })
+  @Exclude()
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  disabledReason: string | null;
+
+  @ApiProperty({
+    description: 'The administrator who disabled the account.',
+    nullable: true,
+  })
+  @Exclude()
+  @Column({ type: 'uuid', nullable: true })
+  disabledById: string | null;
+
+  @ApiProperty({
     description: 'Authorisation role for the user.',
     enum: UserRole,
     example: UserRole.USER,

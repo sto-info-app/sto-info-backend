@@ -29,6 +29,14 @@ export class CommunityMemberDto {
   })
   lastActiveAt: Date | null;
 
+  @ApiPropertyOptional({
+    description:
+      'When the member started playing STO, taken from the oldest of their ' +
+      'publicly visible accounts. Null when none of them records a date.',
+    nullable: true,
+  })
+  playingSince: Date | null;
+
   @ApiProperty({
     description: 'Number of publicly visible STO accounts.',
     example: 2,

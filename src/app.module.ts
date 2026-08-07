@@ -26,6 +26,7 @@ import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
 import { MailModule } from './mail/mail.module';
 import { MailService } from './mail/mail.service';
+import { ModerationModule } from './moderation/moderation.module';
 import { NewsModule } from './news/news.module';
 import { NotificationModule } from './notification/notification.module';
 import { RegistryModule } from './registry/registry.module';
@@ -110,6 +111,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     NotificationModule,
     CommunityModule,
     RegistryModule,
+    ModerationModule,
   ],
   controllers: [AppController],
   providers: [
