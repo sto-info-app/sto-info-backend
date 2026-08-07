@@ -35,6 +35,7 @@ interface MockQueryBuilder {
   select: jest.Mock;
   addSelect: jest.Mock;
   innerJoin: jest.Mock;
+  innerJoinAndSelect: jest.Mock;
   leftJoin: jest.Mock;
   leftJoinAndSelect: jest.Mock;
   where: jest.Mock;
@@ -61,6 +62,7 @@ function createQueryBuilderMock(): MockQueryBuilder {
     'select',
     'addSelect',
     'innerJoin',
+    'innerJoinAndSelect',
     'leftJoin',
     'leftJoinAndSelect',
     'where',
@@ -296,6 +298,17 @@ describe('RegistryService', () => {
       expect(conditions).toContain('profile.deletedAt IS NULL');
       expect(conditions).toContain('user.deletedAt IS NULL');
       expect(conditions).toContain('user.isAccountDisabled = false');
+    });
+
+    it('should fall back to innerJoin when innerJoinAndSelect is unavailable', async () => {
+      (
+        profileQb as unknown as { innerJoinAndSelect?: jest.Mock }
+      ).innerJoinAndSelect = undefined;
+
+      await service.findProfiles({});
+
+      expect(profileQb.innerJoin).toHaveBeenCalledWith('profile.user', 'user');
+      expect(profileQb.addSelect).toHaveBeenCalledWith('user.lastLoginAt');
     });
 
     it('should require visible, non-deleted accounts when resolving a slug', async () => {

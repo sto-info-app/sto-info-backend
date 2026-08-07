@@ -164,6 +164,15 @@ describe('PublicMemberService', () => {
       expect(profileQb.getMany).not.toHaveBeenCalled();
     });
 
+    it('should fall back to innerJoin when innerJoinAndSelect is unavailable', async () => {
+      profileQb.innerJoinAndSelect = undefined as unknown as jest.Mock;
+
+      await service.findMembersByUserIds(['user-1']);
+
+      expect(profileQb.innerJoin).toHaveBeenCalledWith('profile.user', 'user');
+      expect(profileQb.addSelect).toHaveBeenCalledWith('user.lastLoginAt');
+    });
+
     it('should map each member onto its public summary', async () => {
       profileQb.getMany.mockResolvedValue([buildProfile()]);
       accountQb.getRawMany.mockResolvedValue([
