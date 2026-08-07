@@ -26,6 +26,7 @@ import { FriendRequestDirection } from './enums/friend-request-direction.enum';
 import { FriendshipStatus } from './enums/friendship-status.enum';
 import { RelationshipStatus } from './enums/relationship-status.enum';
 import { PublicMemberService } from './public-member.service';
+import { escapeSqlLikeTerm } from '../shared/utilities/sql-like.utility';
 
 const DEFAULT_PAGE_SIZE = 12;
 const MAX_PAGE_SIZE = 50;
@@ -65,7 +66,7 @@ export class FriendshipService {
    * @param _friendshipRepository - The friendship repository.
    * @param _publicMemberService - Resolves and maps members.
    * @param _blockService - Enforces blocking between members.
-   * @param _notificationService - Delivers inbox notifications.
+   * @param _notificationService - Sends friend-request notifications.
    */
   constructor(
     @InjectRepository(FriendshipEntity)
@@ -633,11 +634,7 @@ export class FriendshipService {
       return;
     }
 
-    const escaped = term
-      .toLowerCase()
-      .replaceAll('\\', '\\\\')
-      .replaceAll('%', '\\%')
-      .replaceAll('_', '\\_');
+    const escaped = escapeSqlLikeTerm(term);
 
     queryBuilder.andWhere(`${this.otherUsernameExpression()} LIKE :search`, {
       search: `%${escaped}%`,

@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder } from 'typeorm';
+import { Repository } from 'typeorm';
+import { joinWithOptionalSelect } from '../shared/utilities/query-builder.utility';
 import { UserProfileEntity } from '../user/entities/user-profile.entity';
 import { AccountEntity } from '../sto/account/entities/account.entity';
 import { CommunityMemberDto } from './dto/community-member.dto';
@@ -97,31 +98,12 @@ export class PublicMemberService {
       return members;
     }
 
-    const queryBuilder =
-      this._userProfileRepository.createQueryBuilder('profile');
-
-    const queryBuilderWithOptionalJoinAndSelect = queryBuilder as unknown as {
-      innerJoinAndSelect?: (
-        property: string,
-        alias: string,
-      ) => SelectQueryBuilder<UserProfileEntity>;
-      innerJoin: (
-        property: string,
-        alias: string,
-      ) => SelectQueryBuilder<UserProfileEntity>;
-      addSelect: (selection: string) => SelectQueryBuilder<UserProfileEntity>;
-    };
-
-    const queryWithUser =
-      typeof queryBuilderWithOptionalJoinAndSelect.innerJoinAndSelect ===
-      'function'
-        ? queryBuilderWithOptionalJoinAndSelect.innerJoinAndSelect(
-            'profile.user',
-            'user',
-          )
-        : queryBuilderWithOptionalJoinAndSelect
-            .innerJoin('profile.user', 'user')
-            .addSelect('user.lastLoginAt');
+    const queryWithUser = joinWithOptionalSelect(
+      this._userProfileRepository.createQueryBuilder('profile'),
+      'profile.user',
+      'user',
+      'user.lastLoginAt',
+    );
 
     const profiles = await queryWithUser
       .where('profile.userId IN (:...userIds)', { userIds })

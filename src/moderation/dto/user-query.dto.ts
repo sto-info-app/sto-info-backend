@@ -1,14 +1,12 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import {
   IsBoolean,
-  IsInt,
   IsOptional,
   IsString,
-  Max,
   MaxLength,
-  Min,
 } from 'class-validator';
+import { PaginatedQueryDto } from '../../shared/dto/paginated-query.dto';
 
 /**
  * Query parameters accepted by the admin user list.
@@ -16,7 +14,7 @@ import {
  * Every accepted parameter must be declared here — the global `ValidationPipe`
  * runs with `forbidNonWhitelisted: true`, so undeclared params are rejected.
  */
-export class ModeratedUserQueryDto {
+export class ModeratedUserQueryDto extends PaginatedQueryDto {
   @ApiPropertyOptional({
     description:
       'Case-insensitive partial match against the member’s email or username.',
@@ -48,27 +46,4 @@ export class ModeratedUserQueryDto {
   @IsBoolean()
   readonly disabled?: boolean;
 
-  @ApiPropertyOptional({
-    description: 'Page number (1-based).',
-    default: 1,
-    minimum: 1,
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  readonly page?: number;
-
-  @ApiPropertyOptional({
-    description: 'Items per page.',
-    default: 20,
-    minimum: 1,
-    maximum: 50,
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(50)
-  readonly pageSize?: number;
 }

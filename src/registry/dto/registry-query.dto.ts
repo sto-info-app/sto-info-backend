@@ -1,14 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
-import {
-  IsEnum,
-  IsInt,
-  IsOptional,
-  IsString,
-  Max,
-  MaxLength,
-  Min,
-} from 'class-validator';
+import { IsEnum, IsOptional } from 'class-validator';
+import { SearchPaginatedQueryDto } from '../../shared/dto/paginated-query.dto';
 import { RegistrySort } from '../enums/registry-sort.enum';
 
 /**
@@ -17,19 +9,7 @@ import { RegistrySort } from '../enums/registry-sort.enum';
  * Every accepted parameter must be declared here — the global `ValidationPipe`
  * runs with `forbidNonWhitelisted: true`, so undeclared params are rejected.
  */
-export class RegistryQueryDto {
-  @ApiPropertyOptional({
-    description: 'Case-insensitive partial match against the profile username.',
-    example: 'picard',
-    maxLength: 50,
-  })
-  @IsOptional()
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
-  @IsString()
-  @MaxLength(50)
-  readonly search?: string;
+export class RegistryQueryDto extends SearchPaginatedQueryDto {
 
   @ApiPropertyOptional({
     enum: RegistrySort,
@@ -40,27 +20,4 @@ export class RegistryQueryDto {
   @IsEnum(RegistrySort)
   readonly sort?: RegistrySort;
 
-  @ApiPropertyOptional({
-    description: 'Page number (1-based).',
-    default: 1,
-    minimum: 1,
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  readonly page?: number;
-
-  @ApiPropertyOptional({
-    description: 'Items per page.',
-    default: 12,
-    minimum: 1,
-    maximum: 50,
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(50)
-  readonly pageSize?: number;
 }
