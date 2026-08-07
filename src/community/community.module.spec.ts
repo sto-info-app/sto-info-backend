@@ -7,11 +7,14 @@ import { PublicMemberService } from './public-member.service';
 describe('CommunityModule', () => {
   it('declares expected controllers and providers', () => {
     const controllers = Reflect.getMetadata('controllers', CommunityModule) as
-      Array<unknown> | undefined;
+      | Array<unknown>
+      | undefined;
     const providers = Reflect.getMetadata('providers', CommunityModule) as
-      Array<unknown> | undefined;
+      | Array<unknown>
+      | undefined;
     const exportsList = Reflect.getMetadata('exports', CommunityModule) as
-      Array<unknown> | undefined;
+      | Array<unknown>
+      | undefined;
 
     expect(controllers).toContain(CommunityController);
     expect(providers).toEqual(
