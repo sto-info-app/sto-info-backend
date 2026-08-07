@@ -26,5 +26,4 @@ export class ReportQueryDto extends SearchPaginatedQueryDto {
   @IsOptional()
   @IsEnum(ReportReason)
   readonly reason?: ReportReason;
-
 }

@@ -25,7 +25,10 @@ export function joinWithOptionalSelect<T extends ObjectLiteral>(
   const queryBuilderWithOptionalJoinAndSelect =
     queryBuilder as unknown as QueryBuilderWithOptionalJoinAndSelect<T>;
 
-  if (typeof queryBuilderWithOptionalJoinAndSelect.innerJoinAndSelect === 'function') {
+  if (
+    typeof queryBuilderWithOptionalJoinAndSelect.innerJoinAndSelect ===
+    'function'
+  ) {
     return queryBuilderWithOptionalJoinAndSelect.innerJoinAndSelect(
       property,
       alias,

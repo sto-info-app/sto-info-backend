@@ -1,11 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import {
-  IsBoolean,
-  IsOptional,
-  IsString,
-  MaxLength,
-} from 'class-validator';
+import { IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
 import { PaginatedQueryDto } from '../../shared/dto/paginated-query.dto';
 
 /**
@@ -45,5 +40,4 @@ export class ModeratedUserQueryDto extends PaginatedQueryDto {
   })
   @IsBoolean()
   readonly disabled?: boolean;
-
 }

@@ -6,5 +6,4 @@ import { SearchPaginatedQueryDto } from '../../shared/dto/paginated-query.dto';
  * Every accepted parameter must be declared here — the global `ValidationPipe`
  * runs with `forbidNonWhitelisted: true`, so undeclared params are rejected.
  */
-export class FriendsQueryDto extends SearchPaginatedQueryDto {
-}
+export class FriendsQueryDto extends SearchPaginatedQueryDto {}

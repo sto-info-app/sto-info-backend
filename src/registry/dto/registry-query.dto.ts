@@ -10,7 +10,6 @@ import { RegistrySort } from '../enums/registry-sort.enum';
  * runs with `forbidNonWhitelisted: true`, so undeclared params are rejected.
  */
 export class RegistryQueryDto extends SearchPaginatedQueryDto {
-
   @ApiPropertyOptional({
     enum: RegistrySort,
     description: 'Ordering applied to the results.',
@@ -19,5 +18,4 @@ export class RegistryQueryDto extends SearchPaginatedQueryDto {
   @IsOptional()
   @IsEnum(RegistrySort)
   readonly sort?: RegistrySort;
-
 }
