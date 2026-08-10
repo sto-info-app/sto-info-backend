@@ -1,22 +1,13 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
-  IsNotEmpty,
   IsOptional,
   IsString,
-  IsUUID,
   MinLength,
 } from 'class-validator';
 
 export class UpdateUserProfileDto {
-  @IsNotEmpty()
-  @IsUUID()
-  @ApiProperty({
-    description:
-      'User UUID. Required by current validation, but the server uses the authenticated user id when persisting updates.',
-    example: '67f8ce9a-283c-4aaa-8e47-e7b8b2c0d217',
-    format: 'uuid',
-  })
+  // populated server-side from the JWT bearer token
   userId: string;
 
   @IsOptional()
