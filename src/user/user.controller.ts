@@ -142,7 +142,7 @@ export class UserController {
   @ApiOperation({
     summary: 'Update the current user profile',
     description:
-      'Updates profile fields for the authenticated user. The body currently requires a userId field for validation, but the server persists changes against the authenticated user id.',
+      'Updates profile fields for the authenticated user. The user id is resolved from the bearer token.',
   })
   @ApiOkResponse({
     description:
