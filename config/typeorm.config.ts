@@ -1,4 +1,5 @@
 import { config as dotenvConfig } from 'dotenv';
+import fg from 'fast-glob';
 import { join } from 'node:path';
 import { AuditEntity } from 'src/audit/entities/audit.entity';
 import { AuditSubscriber } from 'src/audit/subscribers/audit.subscriber';
@@ -30,7 +31,12 @@ export async function getTypeOrmConfig(): Promise<DataSourceOptions> {
 
   const rootDir = join(__dirname, '../');
   const entitiesDir = join(rootDir, process.env.TYPEORM_ENTITIES!);
-  const migrationDir = join(rootDir, process.env.TYPEORM_MIGRATIONS!);
+  const migrationsPattern = process.env.TYPEORM_MIGRATIONS!;
+  const migrations = await fg(migrationsPattern, {
+    cwd: rootDir,
+    absolute: true,
+    ignore: ['**/*.spec.ts', '**/*.test.ts', '**/*.d.ts'],
+  });
 
   return {
     type: getDbType(),
@@ -42,7 +48,7 @@ export async function getTypeOrmConfig(): Promise<DataSourceOptions> {
     schema: process.env.DB_SCHEMA,
     entities: [entitiesDir, AuditEntity],
     subscribers: [AuditSubscriber],
-    migrations: [migrationDir],
+    migrations,
     migrationsTableName: '_migrations',
     synchronize: process.env.TYPEORM_SYNCHRONIZE === 'true',
     logging: process.env.TYPEORM_LOGGING === 'true',
