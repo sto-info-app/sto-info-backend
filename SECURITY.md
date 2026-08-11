@@ -130,11 +130,10 @@ Both fast-check and ZAP are updated regularly via Dependabot to ensure the lates
 
 ## Known Dependency Advisory Follow-up
 
-Both the full dependency audit (`npm audit`) and the production audit gate (`npm audit --audit-level=high --omit=dev`) currently pass with **zero advisories at any severity** (last verified 2026-07-25).
+Both the full dependency audit (`npm audit`) and the production audit gate (`npm audit --audit-level=high --omit=dev`) currently pass with **zero advisories at any severity** (last verified 2026-08-05).
 
 The current overrides remediate these upstream dependency advisories:
 
-- `brace-expansion` [GHSA-mh99-v99m-4gvg](https://github.com/advisories/GHSA-mh99-v99m-4gvg) — all versions through `5.0.7` permit unbounded expansion length and process-level denial of service; the global override resolves every transitive path to `5.0.8`.
 - `js-yaml` [GHSA-pm4m-ph32-ghv5](https://github.com/advisories/GHSA-pm4m-ph32-ghv5) — `@nestjs/swagger` requests vulnerable `5.2.1`; the global override requires patched `5.2.2` or newer.
 - Additional active overrides for `mailparser`/`nodemailer` and `qs` remain documented in `docs/security.md`, including their upstream removal criteria.
 

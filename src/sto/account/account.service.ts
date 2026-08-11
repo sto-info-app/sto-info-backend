@@ -9,10 +9,14 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { LessThan, Not, Repository } from 'typeorm';
 import {
-  buildCloudflareImageUrl,
-  isValidCloudflareImageUrl,
-} from 'src/shared/constants/image.constants';
+  generateSlug,
+  normalizeHandle,
+} from 'src/shared/utilities/handle.utility';
 import { PlatformLauncherEntity } from '../platform-launcher/entities/platform-launcher.entity';
+import {
+  buildAccountBackgroundImageLookup,
+  resolveAccountTypeImageUrl,
+} from '../shared/account-image.utility';
 
 import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
@@ -27,9 +31,6 @@ export type AccountListItem = AccountEntity & {
 
 @Injectable()
 export class AccountService {
-  private static readonly _fallbackAccountTypeImageId =
-    '8ab52131-6f11-408a-d9df-3c1acaa46d00';
-
   /**
    * Creates an instance of AccountService.
    *
@@ -42,95 +43,6 @@ export class AccountService {
     @InjectRepository(PlatformLauncherEntity)
     private readonly _platformLauncherRepository: Repository<PlatformLauncherEntity>,
   ) {}
-
-  /**
-   * Normalizes the supplied handle.
-   *
-   * @param handle - The handle.
-   * @returns The result of the operation.
-   */
-  private normalizeHandle(handle: string): string {
-    return handle.trim().toLowerCase();
-  }
-
-  /**
-   * Generates a URL-safe slug from a handle by replacing '#' with '~'.
-   *
-   * @param handle Raw handle value.
-   * @returns A URL-safe slug.
-   */
-  private generateSlug(handle: string): string {
-    return handle.trim().replaceAll('#', '~');
-  }
-
-  /**
-   * Builds a deterministic lookup key for platform-launcher mappings.
-   *
-   * @param platformId - Optional platform ID.
-   * @param launcherId - Optional launcher ID.
-   * @returns A deterministic key in the format `<platformId>|<launcherId>`.
-   */
-  private buildPlatformLauncherLookupKey(
-    platformId?: string | null,
-    launcherId?: string | null,
-  ): string {
-    return `${platformId ?? ''}|${launcherId ?? ''}`;
-  }
-
-  /**
-   * Resolves the account card background URL from platform-launcher mappings.
-   *
-   * Resolution order:
-   * 1) Exact platform + launcher
-   * 2) Platform default (platform + null launcher)
-   * 3) Launcher default (null platform + launcher)
-   * 4) Global default (null platform + null launcher)
-   * 5) Static fallback URL
-   *
-   * @param account - The account to resolve for.
-   * @param backgroundImageLookup - A mapping from lookup key to URL.
-   * @returns The selected account background image URL.
-   */
-  private resolveAccountTypeImageUrl(
-    account: AccountEntity,
-    backgroundImageLookup: Map<string, string>,
-  ): string {
-    const exact = backgroundImageLookup.get(
-      this.buildPlatformLauncherLookupKey(
-        account.platformId,
-        account.launcherId,
-      ),
-    );
-    if (exact) {
-      return exact;
-    }
-
-    const platformDefault = backgroundImageLookup.get(
-      this.buildPlatformLauncherLookupKey(account.platformId, null),
-    );
-    if (platformDefault) {
-      return platformDefault;
-    }
-
-    const launcherDefault = backgroundImageLookup.get(
-      this.buildPlatformLauncherLookupKey(null, account.launcherId),
-    );
-    if (launcherDefault) {
-      return launcherDefault;
-    }
-
-    const globalDefault = backgroundImageLookup.get(
-      this.buildPlatformLauncherLookupKey(null, null),
-    );
-    if (globalDefault) {
-      return globalDefault;
-    }
-
-    return buildCloudflareImageUrl(
-      AccountService._fallbackAccountTypeImageId,
-      'public',
-    );
-  }
 
   /**
    * Ensures a handle is unique for a given user.
@@ -151,7 +63,7 @@ export class AccountService {
       return;
     }
 
-    const handleNormalized = this.normalizeHandle(handle);
+    const handleNormalized = normalizeHandle(handle);
 
     const where: Record<string, unknown> = { userId, handleNormalized };
     if (excludeAccountId) {
@@ -186,8 +98,8 @@ export class AccountService {
       createAccountDto.handle,
     );
 
-    const handleNormalized = this.normalizeHandle(createAccountDto.handle);
-    const handleSlug = this.generateSlug(createAccountDto.handle);
+    const handleNormalized = normalizeHandle(createAccountDto.handle);
+    const handleSlug = generateSlug(createAccountDto.handle);
 
     const newAccount = this._accountRepository.create({
       ...createAccountDto,
@@ -237,22 +149,12 @@ export class AccountService {
       },
     });
 
-    const backgroundImageLookup = new Map<string, string>();
-    for (const mapping of platformLaunchers) {
-      if (!isValidCloudflareImageUrl(mapping.backgroundImageUrl)) {
-        continue;
-      }
-
-      const key = this.buildPlatformLauncherLookupKey(
-        mapping.platformId,
-        mapping.launcherId,
-      );
-      backgroundImageLookup.set(key, mapping.backgroundImageUrl);
-    }
+    const backgroundImageLookup =
+      buildAccountBackgroundImageLookup(platformLaunchers);
 
     return accounts.map(account => ({
       ...account,
-      accountTypeImageUrl: this.resolveAccountTypeImageUrl(
+      accountTypeImageUrl: resolveAccountTypeImageUrl(
         account,
         backgroundImageLookup,
       ),
@@ -423,8 +325,8 @@ export class AccountService {
         account.id,
       );
 
-      account.handleNormalized = this.normalizeHandle(updateAccountDto.handle);
-      account.handleSlug = this.generateSlug(updateAccountDto.handle);
+      account.handleNormalized = normalizeHandle(updateAccountDto.handle);
+      account.handleSlug = generateSlug(updateAccountDto.handle);
     }
 
     Object.assign(account, updateAccountDto);

@@ -1,5 +1,6 @@
 import { Expose } from 'class-transformer';
 import {
+  IsBoolean,
   IsDateString,
   IsNotEmpty,
   IsNumber,
@@ -181,6 +182,10 @@ export class CharacterEntity {
   @IsString()
   @Column({ type: 'text', nullable: true })
   notes: string | null;
+
+  @IsBoolean()
+  @Column({ type: 'boolean', default: true })
+  publiclyVisible: boolean;
 
   @CreateDateColumn()
   createdAt: Date;

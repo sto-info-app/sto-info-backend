@@ -305,6 +305,85 @@ describe('UserService', () => {
       expect(result.updatedProfile).toBeDefined();
     });
 
+    it('should honour an explicit registry opt-in', async () => {
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
+        id: '1',
+        profile: { userId: '1', publiclyVisible: false },
+      });
+      (
+        userProfileRepository.save as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({ userId: '1' });
+      (
+        userProfileRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({ userId: '1', publiclyVisible: true });
+
+      await service.updateUserProfile('1', {
+        publiclyVisible: true,
+      } as any);
+
+      expect(userProfileRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ publiclyVisible: true }),
+      );
+    });
+
+    it('should honour an explicit registry opt-out', async () => {
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
+        id: '1',
+        profile: { userId: '1', publiclyVisible: true },
+      });
+      (
+        userProfileRepository.save as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({ userId: '1' });
+      (
+        userProfileRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({ userId: '1', publiclyVisible: false });
+
+      await service.updateUserProfile('1', {
+        publiclyVisible: false,
+      } as any);
+
+      expect(userProfileRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ publiclyVisible: false }),
+      );
+    });
+
+    it('should preserve the stored visibility when the flag is omitted', async () => {
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
+        id: '1',
+        profile: { userId: '1', publiclyVisible: true },
+      });
+      (
+        userProfileRepository.save as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({ userId: '1' });
+      (
+        userProfileRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({ userId: '1', publiclyVisible: true });
+
+      await service.updateUserProfile('1', { firstName: 'N' } as any);
+
+      expect(userProfileRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ publiclyVisible: true }),
+      );
+    });
+
     it('should return affected 0 if profile unchanged', async () => {
       const profile = { userId: '1', username: 'u' };
       (

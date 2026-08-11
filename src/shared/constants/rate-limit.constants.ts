@@ -46,6 +46,18 @@ export const RATE_LIMIT_CONFIGS = {
     max: 50, // ~3 requests per minute
     skipSuccessfulRequests: false, // Count all expensive operations
   },
+
+  /**
+   * Public registry endpoints
+   * Unauthenticated and enumerable, so successful requests are counted too
+   * (unlike READ) to make bulk scraping of the member directory impractical,
+   * while still allowing comfortable human browsing.
+   */
+  REGISTRY: {
+    windowMins: 15,
+    max: 300, // ~20 requests per minute
+    skipSuccessfulRequests: false, // Count all registry reads
+  },
 } as const;
 
 /**
@@ -70,6 +82,12 @@ export const EXPENSIVE_RATE_LIMITED_ROUTES = [
   '/character/:id/profile-image',
   '/account/search',
 ] as const;
+
+/**
+ * Public registry endpoint prefixes that require their own rate limiting
+ * These are unauthenticated reads of the public member directory
+ */
+export const REGISTRY_RATE_LIMITED_ROUTES = ['/registry'] as const;
 
 /**
  * Paths that should be excluded from rate limiting

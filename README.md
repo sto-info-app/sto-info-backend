@@ -104,6 +104,8 @@ cd sto-info-backend
 npm install
 ```
 
+> Note: the backend currently uses `ioredis` 5.x because the installed TypeORM release still declares `ioredis` as a peer dependency on the 5.x line. Keeping that version aligned avoids npm install peer-resolution failures after dependency updates.
+
 ### Configuration
 
 Environment files live in [config/environments/](config/environments/):

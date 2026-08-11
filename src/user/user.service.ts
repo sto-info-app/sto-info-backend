@@ -333,7 +333,10 @@ export class UserService {
     //NOTE: Use the original user profile data to save the non-updated data as the audit subscriber will not detect old values in an update(), so save() is used instead
     userProfileData.userId = userId;
     userProfileData.profilePictureId = user.profile.profilePictureId;
-    userProfileData.publiclyVisible = user.profile.publiclyVisible;
+    // Registry opt-in is settable here, but an omitted value must never
+    // silently flip a profile's visibility, so fall back to the stored flag.
+    userProfileData.publiclyVisible =
+      userProfileData.publiclyVisible ?? user.profile.publiclyVisible;
 
     const updateResult =
       await this._userProfileRepository.save(userProfileData);

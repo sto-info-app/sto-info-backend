@@ -68,6 +68,18 @@ export class UserEntity {
   @Column({ type: 'boolean', default: false })
   isAccountDisabled: boolean;
 
+  @Exclude()
+  @Column({ type: 'timestamp', nullable: true })
+  disabledAt: Date | null;
+
+  @Exclude()
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  disabledReason: string | null;
+
+  @Exclude()
+  @Column({ type: 'uuid', nullable: true })
+  disabledById: string | null;
+
   @ApiProperty({
     description: 'Authorisation role for the user.',
     enum: UserRole,

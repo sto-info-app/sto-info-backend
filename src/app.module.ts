@@ -18,6 +18,7 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { UserIdMiddleware } from './auth/user-id.middleware';
 import { RequestIdMiddleware } from './common/http/request-id.middleware';
+import { CommunityModule } from './community/community.module';
 import { ConfigCheckService } from './config-check/config-check.service';
 import { ContactModule } from './contact/contact.module';
 import { CronModule } from './cron/cron.module';
@@ -25,8 +26,10 @@ import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
 import { MailModule } from './mail/mail.module';
 import { MailService } from './mail/mail.service';
+import { ModerationModule } from './moderation/moderation.module';
 import { NewsModule } from './news/news.module';
 import { NotificationModule } from './notification/notification.module';
+import { RegistryModule } from './registry/registry.module';
 import { DEFAULT_MULTER_LIMITS } from './shared/constants/file-upload.constants';
 import { TypeOrmExceptionFilter } from './shared/filters/typeorm-exception.filter';
 import { SharedModule } from './shared/shared.module';
@@ -106,6 +109,9 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     SesWebhookModule,
     NewsModule,
     NotificationModule,
+    CommunityModule,
+    RegistryModule,
+    ModerationModule,
   ],
   controllers: [AppController],
   providers: [
