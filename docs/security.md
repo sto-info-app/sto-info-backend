@@ -24,16 +24,29 @@ Current overrides in `package.json`:
     ".": "^3.9.10",
     "nodemailer": "^9.0.1"
   },
+  "nanoid": "3.3.18",
   "qs": "^6.15.2",
   "js-yaml": ">=5.2.2"
 }
+```
+
+#### `nanoid`
+
+- **Vulnerability**: [GHSA-2v37-7h3g-55p8](https://github.com/advisories/GHSA-2v37-7h3g-55p8) — custom generators can loop indefinitely when their size is zero. Affected versions are `< 3.3.18`. Severity: High.
+- **Root cause**: `postcss@8.5.25`, used by `mjml-core` through `@nestjs-modules/mailer`, accepts `nanoid@^3.3.16` and the lockfile previously resolved it to vulnerable `3.3.17`.
+- **Override**: `"nanoid": "3.3.18"` — pins the transitive dependency to the first patched version.
+
+**When it can be removed**: When the dependency tree resolves `nanoid >= 3.3.18` without the override. Check with:
+
+```sh
+npm ls nanoid
 ```
 
 #### `js-yaml`
 
 - **Vulnerability**: [GHSA-pm4m-ph32-ghv5](https://github.com/advisories/GHSA-pm4m-ph32-ghv5) — exponential parsing time in nested flow collections allows a small YAML document to block the Node.js event loop. Affected versions are `5.0.0 - 5.2.1`; patched in `5.2.2`. Severity: High.
 - **Root cause**: `@nestjs/swagger@11.4.6` requests `js-yaml@5.2.1` exactly, and other tooling accepts a range that can resolve the same vulnerable release.
-- **Override**: `"js-yaml": ">=5.2.2"` — forces all consumers onto the patched release line (currently `5.2.3`).
+- **Override**: `"js-yaml": ">=5.2.2"` — forces all consumers onto the patched release line (currently `5.3.0`).
 
 **When it can be removed**: When `@nestjs/swagger` requests `js-yaml >= 5.2.2` and the remaining dependency tree resolves no affected copies. Check with:
 
@@ -45,8 +58,8 @@ npm ls js-yaml
 #### `mailparser` + nested `nodemailer`
 
 - **Vulnerability family**: SMTP command/header injection and access-control-bypass issues in older `nodemailer` lines (for example GHSA-c7w3-x93f-qmm8 and GHSA-p6gq-j5cr-w38f), plus [GHSA-22p9-wv53-3rq4](https://github.com/advisories/GHSA-22p9-wv53-3rq4) — quadratic complexity in `linkify-it <= 5.0.0`, a `mailparser` dependency.
-- **Root cause**: `preview-email@3.2.0` (pulled in by `@nestjs-modules/mailer`) pins `mailparser@3.9.8` **exactly** — a version in the vulnerable range that ships `linkify-it@5.0.0` and `nodemailer@8.0.5`. Without the override, `npm update` downgrades mailparser into the vulnerable range.
-- **Override**: `"mailparser": { ".": "^3.9.10", "nodemailer": "^9.0.1" }` — forces the patched parent (currently resolves `3.9.14`, which ships fixed `linkify-it@5.0.2` and `nodemailer@9.0.4`) and its nested transport dependency.
+- **Root cause**: `preview-email@3.3.0` (pulled in by `@nestjs-modules/mailer`) pins `mailparser@3.9.8` **exactly** — a version in the vulnerable range that ships `linkify-it@5.0.0` and `nodemailer@8.0.5`. Without the override, `npm update` downgrades mailparser into the vulnerable range.
+- **Override**: `"mailparser": { ".": "^3.9.10", "nodemailer": "^9.0.1" }` — forces the patched parent (currently resolves `3.9.15`, which ships fixed `linkify-it@5.0.2` and `nodemailer@9.0.5`) and its nested transport dependency.
 
 **When it can be removed**: When `preview-email` raises its own `mailparser` pin to `>= 3.9.9`. Check with:
 
@@ -68,6 +81,12 @@ npm view typed-rest-client@latest dependencies.qs
 ```
 
 #### Recently Removed Overrides
+
+Overrides removed on **2026-08-15** during dependency and audit maintenance:
+
+| Override   | Previously forced | Reason for removal                                                                                         |
+| ---------- | ----------------- | ---------------------------------------------------------------------------------------------------------- |
+| `ioredis`  | `^5.11.1`         | Direct dependencies already constrain the tree to `5.11.1`; regenerating the lockfile leaves audit clean. |
 
 Overrides removed on **2026-08-05** during dependency and audit maintenance:
 
@@ -152,7 +171,7 @@ const patches = [
 - **Root cause**: `mailparser` and `preview-email` can install nested `nodemailer` versions behind the secure top-level dependency. npm 11.x nested-override behavior can leave those copies in place.
 - **Patch**: `['mailparser/node_modules/nodemailer', 'nodemailer']` and `['preview-email/node_modules/nodemailer', 'nodemailer']` copy the safe top-level `nodemailer` into nested installs after every `npm install` / `npm ci`.
 
-**Status (2026-07-21)**: With the `mailparser` override forcing `3.9.14` (which depends on `nodemailer@9.0.3` natively), no nested `nodemailer` copies are currently installed — both entries are no-ops kept as a safety net against future re-resolution.
+**Status (2026-08-15)**: With the `mailparser` override resolving `3.9.15` (which depends on patched `nodemailer` natively), no nested `nodemailer` copies are currently installed — both entries are no-ops kept as a safety net against future re-resolution.
 
 **When it can be removed**: When `mailparser` and `preview-email` both resolve patched `nodemailer` natively and nested vulnerable copies are no longer installed. Verify with:
 
