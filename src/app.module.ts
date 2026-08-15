@@ -13,6 +13,7 @@ import { SentryModule } from '@sentry/nestjs/setup';
 import { getTypeOrmConfig } from 'config/typeorm.config';
 import { ClsModule } from 'nestjs-cls';
 
+import { AccessControlModule } from './access-control/access-control.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -87,6 +88,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
       global: true,
       middleware: { mount: true },
     }),
+    AccessControlModule,
     UserModule,
     AuthModule,
     MailModule,
