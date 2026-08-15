@@ -216,6 +216,22 @@ All routes below are under `/admin/access-control/*` and require the `ADMIN` rol
 
 Applying the same permission code or limit key twice updates the existing override rather than creating a second, so the write endpoints are safe to repeat. Withdrawal soft-deletes, leaving the pair free to be granted again.
 
+## Storytime Endpoints
+
+### GET /storytime/configuration
+
+The Storytime client configuration: which parts of the feature are switched on, the languages a creator may choose, and the content ratings a Story may carry.
+
+Unauthenticated, and deliberately still answers while Storytime is switched off — it is how the client learns to hide the feature.
+
+Served rather than duplicated in the frontend so the language list, ratings and switches cannot drift between the two.
+
+### PATCH /admin/storytime/configuration
+
+Switch Storytime on or off at runtime. `GET` on the same path reports the current state. Both require the `ADMIN` role.
+
+Gated by the role rather than a Storytime permission: those permissions are only meaningful while Storytime is on, so gating the switch behind one would let the control that recovers the feature become unreachable.
+
 ## User Endpoints
 
 All user endpoints are under `/user/*` and require authentication.

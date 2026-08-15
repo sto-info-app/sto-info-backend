@@ -86,6 +86,20 @@ Numeric limits resolve through `LimitService.resolve(userId, key, default)`, nev
 
 The framework is purely additive. `RolesGuard` and every existing `@Roles(UserRole.ADMIN)` check are untouched, and the access-control administration endpoints are themselves gated by `ADMIN` rather than by a permission — gating the permission system behind a permission it governs would be circular, and a mistaken override could leave nobody able to correct it. Migrating existing role checks onto permissions is deliberately separate work.
 
+## Feature Switches
+
+Two mechanisms, deliberately different in kind.
+
+**Runtime switches** live in the `app_setting` table and are read through `SettingsService`. This is for the handful of controls an administrator must be able to throw while the site is running — taking a feature offline during an incident, where a redeployment is too slow. Values are stored as text and interpreted by the reader, so a new switch needs no schema change. Reads are cached for ten seconds, so a change reaches every instance within that window rather than costing a query per request.
+
+**Capability flags** live in environment variables. These stage a rollout and vary by environment, which is what environment variables are for.
+
+`STORYTIME_ENABLED` is the runtime master switch and is **seeded disabled**. Storytime ships as one complete feature, so it stays off until the whole agreed scope is production-ready. The capability flags (`STORYTIME_PUBLIC_READ_ENABLED`, `STORYTIME_CREATION_ENABLED`, `STORYTIME_YOUTUBE_ENABLED`, `STORYTIME_SPOTLIGHT_ENABLED`) default to enabled, so once Storytime itself is on its parts work unless an environment deliberately disables one.
+
+The master switch wins: with it off every capability reports as off, so callers need only ask about the specific thing they are about to do.
+
+`StorytimeFeatureService.assertFlagEnabled` raises **NotFound**, not a "disabled" error. A feature that is switched off should be indistinguishable from one that does not exist, so a staged rollout does not advertise what is coming.
+
 ## Middleware Execution Order
 
 Middleware executes in the following order:

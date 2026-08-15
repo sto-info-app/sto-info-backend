@@ -88,6 +88,24 @@ Validation rule:
 
 **Ownership**: Environment variables are managed by Developers (local) and SRE/DevOps (Production - e.g. Render Dashboard). Secrets are managed via the AWS Console or AWS CLI.
 
+## Optional (Storytime)
+
+All default to enabled, so once Storytime itself is switched on its parts work unless an environment deliberately disables one. Set to `false` to disable.
+
+- `STORYTIME_PUBLIC_READ_ENABLED`: Whether Storytime content may be read
+- `STORYTIME_CREATION_ENABLED`: Whether Stories may be created and edited
+- `STORYTIME_YOUTUBE_ENABLED`: Whether YouTube media may be attached and rendered
+- `STORYTIME_SPOTLIGHT_ENABLED`: Whether the Spotlight is surfaced
+
+Creation limits. Each falls back to the value shown if unset or invalid, and an administrator may grant a named user an exemption through the access-control API:
+
+- `STORYTIME_MAX_STORIES_PER_USER` (default `50`)
+- `STORYTIME_MAX_CHAPTERS_PER_STORY` (default `200`)
+- `STORYTIME_MAX_CHARACTERS_PER_STORY` (default `100`)
+- `STORYTIME_MAX_CONTENT_LENGTH` (default `100000`)
+
+> `STORYTIME_ENABLED` is **not** an environment variable. It is a runtime switch in the `app_setting` table so it can be thrown without a redeployment — see the Feature Switches section of `backend.md`.
+
 ## Optional
 
 - `TRUST_PROXY_HOPS`: Express trust proxy hops (default is `1` when not provided)
