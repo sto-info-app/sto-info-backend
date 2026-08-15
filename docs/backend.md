@@ -44,6 +44,48 @@ Client-side token storage strategy is intentionally left to the consuming applic
 - Invalid or expired tokens return 401 Unauthorised
 - The JWT strategy extracts user information from token and attaches to request object
 
+### Permissions
+
+Alongside the coarse `USER`/`ADMIN` roles, the application has a fine-grained permission framework in `src/access-control`. It was introduced for STO Storytime and is intended to be reused by other features.
+
+**Model**
+
+| Table | Purpose |
+| --- | --- |
+| `permission` | The registry of capabilities, keyed by a stable code such as `storytime.story.create`. Seeded by migration only. |
+| `permission_group` | A named bundle of permissions, for example *Storytime Creator*. |
+| `permission_group_permission` | Which permissions a group confers. |
+| `role_permission_group` | Which groups a `UserRole` receives by default. |
+| `user_permission_override` | A per-user `GRANT` or `DENY` that departs from the role default. |
+| `user_limit_override` | A per-user replacement for a configured numeric limit. |
+
+**Resolution order** — implemented once, in `AccessControlService`:
+
+1. a live `DENY` override removes the permission outright;
+2. a live `GRANT` override adds it;
+3. otherwise the permissions of every group mapped to the user's role apply.
+
+`DENY` beating everything is what lets one abusive user lose a capability without their account being disabled and without inventing a role for one person. A disabled account resolves to no permissions at all.
+
+Permissions are **always read from the database, never from the JWT**. The token carries `role` as a client hint only; trusting it would mean a withdrawn permission kept working until the access token expired. Results are memoised in CLS for the lifetime of the request.
+
+**Usage**
+
+```ts
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@RequiresPermission(PERMISSION_CODES.STORYTIME_MODERATE)
+```
+
+`PermissionsGuard` is a **coarse gate only** — it answers "may this kind of user reach this endpoint", never "may this user act on this particular Story". Resource-level authorisation (ownership, collaboration, moderation state) stays in the service, because it cannot be known before the target has been loaded.
+
+**Limits**
+
+Numeric limits resolve through `LimitService.resolve(userId, key, default)`, never by reading `ConfigService` directly, so an administrator's per-user exemption applies everywhere rather than only where someone remembered to look for one.
+
+**Relationship to roles**
+
+The framework is purely additive. `RolesGuard` and every existing `@Roles(UserRole.ADMIN)` check are untouched, and the access-control administration endpoints are themselves gated by `ADMIN` rather than by a permission — gating the permission system behind a permission it governs would be circular, and a mistaken override could leave nobody able to correct it. Migrating existing role checks onto permissions is deliberately separate work.
+
 ## Middleware Execution Order
 
 Middleware executes in the following order:

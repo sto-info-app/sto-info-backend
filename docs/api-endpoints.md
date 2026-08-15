@@ -190,6 +190,32 @@ Reset a password using a password reset token.
 
 **Rate Limit:** Authentication endpoints are limited to 20 requests per 15 minutes
 
+## Access Control Endpoints
+
+### GET /access-control/me
+
+List the permission codes the calling user currently holds, alphabetically ordered.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+Intended for client presentation only — every capability reported is independently enforced on the endpoint that performs the action.
+
+### Administration
+
+All routes below are under `/admin/access-control/*` and require the `ADMIN` role.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/admin/access-control/permissions` | List every permission the application recognises |
+| GET | `/admin/access-control/users/:userId` | A user's effective permissions and active overrides |
+| POST | `/admin/access-control/users/:userId/permission-overrides` | Grant or withhold a permission for a user |
+| DELETE | `/admin/access-control/users/:userId/permission-overrides/:permissionCode` | Withdraw a permission override |
+| GET | `/admin/access-control/users/:userId/limit-overrides` | A user's limit exemptions |
+| POST | `/admin/access-control/users/:userId/limit-overrides` | Allow a user to exceed a configured limit |
+| DELETE | `/admin/access-control/users/:userId/limit-overrides/:limitKey` | Withdraw a limit exemption |
+
+Applying the same permission code or limit key twice updates the existing override rather than creating a second, so the write endpoints are safe to repeat. Withdrawal soft-deletes, leaving the pair free to be granted again.
+
 ## User Endpoints
 
 All user endpoints are under `/user/*` and require authentication.
