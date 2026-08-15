@@ -31,6 +31,7 @@ import { ModerationModule } from './moderation/moderation.module';
 import { NewsModule } from './news/news.module';
 import { NotificationModule } from './notification/notification.module';
 import { RegistryModule } from './registry/registry.module';
+import { SettingsModule } from './settings/settings.module';
 import { DEFAULT_MULTER_LIMITS } from './shared/constants/file-upload.constants';
 import { TypeOrmExceptionFilter } from './shared/filters/typeorm-exception.filter';
 import { SharedModule } from './shared/shared.module';
@@ -45,6 +46,7 @@ import { CharacterSpecializationModule } from './sto/character-specialization/ch
 import { StatsModule } from './sto/stats/stats.module';
 import { PlatformLauncherModule } from './sto/platform-launcher/platform-launcher.module';
 import { PlatformModule } from './sto/platform/platform.module';
+import { StorytimeModule } from './storytime/storytime.module';
 import { UserRefreshTokenModule } from './user-refresh-token/user-refresh-token.module';
 import { UserModule } from './user/user.module';
 import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
@@ -88,7 +90,9 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
       global: true,
       middleware: { mount: true },
     }),
+    SettingsModule,
     AccessControlModule,
+    StorytimeModule,
     UserModule,
     AuthModule,
     MailModule,
