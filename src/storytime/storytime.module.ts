@@ -3,6 +3,7 @@ import { AdminStorytimeConfigurationController } from './admin-storytime-configu
 import { StorytimeContentModule } from './content/storytime-content.module';
 import { StorytimeConfigurationController } from './storytime-configuration.controller';
 import { StorytimeFeatureService } from './storytime-feature.service';
+import { StorytimeStoriesModule } from './stories/storytime-stories.module';
 
 /**
  * STO Storytime — community fan-fiction publishing.
@@ -16,12 +17,16 @@ import { StorytimeFeatureService } from './storytime-feature.service';
  * to check whether the capability it implements is switched on before acting.
  */
 @Module({
-  imports: [StorytimeContentModule],
+  imports: [StorytimeContentModule, StorytimeStoriesModule],
   controllers: [
     StorytimeConfigurationController,
     AdminStorytimeConfigurationController,
   ],
   providers: [StorytimeFeatureService],
-  exports: [StorytimeFeatureService, StorytimeContentModule],
+  exports: [
+    StorytimeFeatureService,
+    StorytimeContentModule,
+    StorytimeStoriesModule,
+  ],
 })
 export class StorytimeModule {}
