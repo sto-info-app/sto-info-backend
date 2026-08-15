@@ -1,5 +1,6 @@
 import { AccessControlAdminController } from './access-control-admin.controller';
 import { AccessControlAdminService } from './access-control-admin.service';
+import { AccessControlController } from './access-control.controller';
 import { AccessControlModule } from './access-control.module';
 import { AccessControlService } from './access-control.service';
 import { LimitService } from './limit.service';
@@ -50,6 +51,15 @@ describe('AccessControlModule', () => {
     ) as Array<unknown> | undefined;
 
     expect(controllers).toContain(AccessControlAdminController);
+  });
+
+  it('declares the caller-facing controller', () => {
+    const controllers = Reflect.getMetadata(
+      'controllers',
+      AccessControlModule,
+    ) as Array<unknown> | undefined;
+
+    expect(controllers).toContain(AccessControlController);
   });
 
   it('keeps the administration service internal', () => {
