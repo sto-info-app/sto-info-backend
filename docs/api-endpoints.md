@@ -226,6 +226,28 @@ Unauthenticated, and deliberately still answers while Storytime is switched off 
 
 Served rather than duplicated in the frontend so the language list, ratings and switches cannot drift between the two.
 
+### Stories
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/storytime/stories` | List published, public Stories (paginated, filterable) |
+| GET | `/storytime/stories/:slug` | Retrieve a published Story |
+| GET | `/storytime/manage/stories` | List the Stories you own |
+| GET | `/storytime/manage/stories/:storyId` | Retrieve a Story you own |
+| POST | `/storytime/manage/stories` | Create a Story |
+| PATCH | `/storytime/manage/stories/:storyId` | Update a Story you own |
+| POST | `/storytime/manage/stories/:storyId/publish` | Publish |
+| POST | `/storytime/manage/stories/:storyId/unpublish` | Withdraw from publication |
+| POST | `/storytime/manage/stories/:storyId/archive` | Archive |
+| POST | `/storytime/manage/stories/reorder` | Reorder your Stories |
+| DELETE | `/storytime/manage/stories/:storyId` | Soft-delete a Story |
+
+`GET /storytime/stories/:slug` answers **301** when the slug is one the Story used to have, redirecting to its current URL. Links shared before a rename keep working, and search engines consolidate rather than treating the two addresses as duplicates.
+
+**Unlisted** Stories are readable through `:slug` but excluded from the listing — that is the entire difference between unlisted and public.
+
+The `manage` routes require the relevant `storytime.story.*` permission *and* ownership of the Story, checked against the stored row. `PATCH` accepts the `version` the client last saw and answers **409** if it is stale.
+
 ### PATCH /admin/storytime/configuration
 
 Switch Storytime on or off at runtime. `GET` on the same path reports the current state. Both require the `ADMIN` role.
