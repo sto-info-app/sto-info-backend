@@ -245,19 +245,24 @@ export class StorytimeMarkdownService {
   }
 
   /**
-   * Renders a Markdown link, or reduces it to text if it leaves the site.
+   * Renders a Markdown link, or removes it entirely if it leaves the site.
    *
-   * External targets are not an error. The author is not told and their content
-   * is not refused; the link simply renders as its label, so the sentence still
-   * reads and nothing carries the reader off the site.
+   * External targets are not an error: the author is not told and their content
+   * is not refused. The whole link is dropped, label included, rather than left
+   * behind as bare text — a label such as "click here" reads as a broken
+   * promise once there is nothing to click.
+   *
+   * Removing the label can leave doubled spaces where a link sat mid-sentence.
+   * That is left alone deliberately, because collapsing whitespace would mean
+   * altering parts of the text the author did write.
    *
    * @param label - The already-escaped link label.
    * @param url - The link target.
-   * @returns The rendered anchor, or the bare label.
+   * @returns The rendered anchor, or an empty string.
    */
   private renderLink(label: string, url: string): string {
     if (!SAFE_RELATIVE_LINK_PATTERN.test(url)) {
-      return label;
+      return '';
     }
 
     return `<a href="${url}">${label}</a>`;

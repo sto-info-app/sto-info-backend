@@ -98,7 +98,9 @@ Other properties worth preserving:
 - Every block carries an ordinal anchor (`id="b1"`, `b2`, …). These are the progress anchors stored in `storytime_user_chapter_progress."lastPositionValue"`. Inserting a block shifts later anchors, which is accepted: a stored position then resolves to a nearby point rather than an exact one.
 - Fenced code placeholders are wrapped in a private-use sentinel (U+E000) that is stripped from incoming source first. Without this an author writing the literal text `CODE0` would have it replaced by somebody else's extracted code.
 
-**External links are rendered as text, never refused.** Content naming an off-site target is accepted and stored as written; the renderer simply does not turn it into an anchor. A bare URL stays visible as plain text, and a Markdown link renders as its label. Only site-relative paths and in-page fragments become anchors.
+**External links are never refused, and never rendered.** Content naming an off-site target is accepted and stored as written. A **bare URL** stays visible as plain text. A **Markdown link is removed entirely, label included** — a label such as "click here" reads as a broken promise once there is nothing to click. Only site-relative paths and in-page fragments become anchors.
+
+Removing a link can leave doubled spaces where it sat mid-sentence. That is deliberate: collapsing whitespace would mean altering text the author actually wrote.
 
 This is a deliberate product decision, and it means the renderer is the **sole** enforcement point — there is no upstream validator to fall back on. An earlier implementation rejected such content at validation time so creators were told which URL to remove; that was removed in favour of accepting content silently. Reinstating it would mean adding a validator back, not re-enabling a flag.
 

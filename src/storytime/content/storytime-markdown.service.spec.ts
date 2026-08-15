@@ -185,11 +185,22 @@ describe('StorytimeMarkdownService', () => {
 
     // External targets are accepted rather than refused, so the renderer is
     // the only thing standing between an author and an off-site link.
-    it('reduces an external link to its label', () => {
+    // The label goes with the link: "click here" reads as a broken promise
+    // once there is nothing to click.
+    it('removes an external link entirely, label included', () => {
       const { html } = service.render('[Away](https://example.com)');
 
-      expect(html).toContain('Away');
+      expect(html).not.toContain('Away');
       expect(html).not.toContain('<a');
+      expect(html).not.toContain('example.com');
+    });
+
+    it('leaves the surrounding sentence intact when a link is removed', () => {
+      const { html } = service.render('See [here](https://example.com) later.');
+
+      expect(html).toContain('See');
+      expect(html).toContain('later.');
+      expect(html).not.toContain('here');
     });
 
     it('keeps a bare URL visible as plain text', () => {
@@ -207,10 +218,11 @@ describe('StorytimeMarkdownService', () => {
       ).not.toThrow();
     });
 
-    it('reduces a scheme-relative link to its label', () => {
+    it('removes a scheme-relative link entirely', () => {
       const { html } = service.render('[Away](//example.com)');
 
       expect(html).not.toContain('<a');
+      expect(html).not.toContain('Away');
     });
 
     it('refuses a javascript URL', () => {
