@@ -1,6 +1,8 @@
 import { Global, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserEntity } from '../user/entities/user.entity';
+import { AccessControlAdminController } from './access-control-admin.controller';
+import { AccessControlAdminService } from './access-control-admin.service';
 import { AccessControlService } from './access-control.service';
 import { PermissionEntity } from './entities/permission.entity';
 import { UserLimitOverrideEntity } from './entities/user-limit-override.entity';
@@ -30,7 +32,13 @@ import { PermissionsGuard } from './permissions.guard';
       UserEntity,
     ]),
   ],
-  providers: [AccessControlService, LimitService, PermissionsGuard],
+  controllers: [AccessControlAdminController],
+  providers: [
+    AccessControlService,
+    LimitService,
+    PermissionsGuard,
+    AccessControlAdminService,
+  ],
   exports: [AccessControlService, LimitService, PermissionsGuard],
 })
 export class AccessControlModule {}

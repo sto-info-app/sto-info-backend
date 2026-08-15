@@ -1,3 +1,5 @@
+import { AccessControlAdminController } from './access-control-admin.controller';
+import { AccessControlAdminService } from './access-control-admin.service';
 import { AccessControlModule } from './access-control.module';
 import { AccessControlService } from './access-control.service';
 import { LimitService } from './limit.service';
@@ -41,12 +43,21 @@ describe('AccessControlModule', () => {
     expect(isGlobal).toBe(true);
   });
 
-  it('declares no controllers, because it exposes no routes of its own', () => {
+  it('declares the administration controller', () => {
     const controllers = Reflect.getMetadata(
       'controllers',
       AccessControlModule,
     ) as Array<unknown> | undefined;
 
-    expect(controllers ?? []).toHaveLength(0);
+    expect(controllers).toContain(AccessControlAdminController);
+  });
+
+  it('keeps the administration service internal', () => {
+    const exportsList = Reflect.getMetadata('exports', AccessControlModule) as
+      Array<unknown> | undefined;
+
+    // Only this module's own controller writes overrides; feature modules read
+    // permissions and must not be able to grant themselves more.
+    expect(exportsList).not.toContain(AccessControlAdminService);
   });
 });
