@@ -88,7 +88,7 @@ The framework is purely additive. `RolesGuard` and every existing `@Roles(UserRo
 
 ## Storytime Content Pipeline
 
-Chapter content is written by any member, so `src/storytime/content` is the feature's security boundary. It holds three services and is deliberately separate from the modules that save content, so the rules can be fuzzed and reviewed on their own.
+Chapter content is written by any member, so `src/storytime/content` is the feature's security boundary. It holds two services and is deliberately separate from the modules that save content, so the rules can be fuzzed and reviewed on their own.
 
 **`StorytimeMarkdownService`** renders a small Markdown subset to sanitised HTML. It is safe **by construction, not by filtering**: the source is HTML-escaped first, and only then are recognised constructs turned into markup the renderer itself emits. There is no path by which author text reaches the output unescaped. Do not reorder this — rendering first and sanitising afterwards is one missed case away from injection.
 
@@ -98,11 +98,13 @@ Other properties worth preserving:
 - Every block carries an ordinal anchor (`id="b1"`, `b2`, …). These are the progress anchors stored in `storytime_user_chapter_progress."lastPositionValue"`. Inserting a block shifts later anchors, which is accepted: a stored position then resolves to a nearby point rather than an exact one.
 - Fenced code placeholders are wrapped in a private-use sentinel (U+E000) that is stripped from incoming source first. Without this an author writing the literal text `CODE0` would have it replaced by somebody else's extracted code.
 
-**`StorytimeContentValidatorService`** refuses external links. This is the *first* of two defences: it rejects content so the creator is told which URL to remove, rather than having their work silently altered. The renderer then reduces any link that reaches it to a plain label. Only site-relative paths and in-page fragments are ever rendered as anchors. URLs inside code fences are exempt, because they are shown as text and never rendered as links.
+**External links are rendered as text, never refused.** Content naming an off-site target is accepted and stored as written; the renderer simply does not turn it into an anchor. A bare URL stays visible as plain text, and a Markdown link renders as its label. Only site-relative paths and in-page fragments become anchors.
+
+This is a deliberate product decision, and it means the renderer is the **sole** enforcement point — there is no upstream validator to fall back on. An earlier implementation rejected such content at validation time so creators were told which URL to remove; that was removed in favour of accepting content silently. Reinstating it would mean adding a validator back, not re-enabling a flag.
 
 **`YouTubeUrlService`** recovers a canonical video reference from any ordinary share URL. It parses with the URL API and compares the **parsed hostname against an exact allowlist**, rather than searching the string. This distinction is the defence: a pattern looking for `youtu.be` anywhere accepts `https://youtu.be.attacker.test/xyz`, while a hostname comparison cannot be fooled. Only extracted identifiers are stored; the embed is built by the application.
 
-The pipeline is covered by unit tests including XSS payload regressions, and by property-based tests in `src/utils/fuzz-tests/storytime-content.fuzz.spec.ts` asserting that no input produces a dangerous element, an inline event handler, a non-relative `href`, or a leaked sentinel. Run those with `npm run test:fuzz`.
+The pipeline is covered by unit tests including XSS payload regressions, and by property-based tests in `src/utils/fuzz-tests/storytime-content.fuzz.spec.ts` asserting that no input produces a dangerous element, an inline event handler, a non-relative `href`, or a leaked sentinel — and that the renderer never throws, since nothing filters its input beforehand. Run those with `npm run test:fuzz`.
 
 ## Feature Switches
 

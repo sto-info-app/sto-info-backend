@@ -1,5 +1,4 @@
 import * as fc from 'fast-check';
-import { StorytimeContentValidatorService } from '../../storytime/content/storytime-content-validator.service';
 import { StorytimeMarkdownService } from '../../storytime/content/storytime-markdown.service';
 import { YouTubeUrlService } from '../../storytime/content/youtube-url.service';
 import { YOUTUBE_HOSTNAMES } from '../../storytime/content/constants/youtube.constants';
@@ -15,7 +14,6 @@ describe('Storytime content fuzz tests', () => {
   const numRuns = Number(process.env['FUZZ_NUM_RUNS']) || 100;
 
   const markdownService = new StorytimeMarkdownService();
-  const validatorService = new StorytimeContentValidatorService();
   const youTubeService = new YouTubeUrlService();
 
   /** Fragments chosen to provoke the renderer, mixed in with random text. */
@@ -120,30 +118,12 @@ describe('Storytime content fuzz tests', () => {
     );
   });
 
+  // Nothing is refused, so the renderer has to cope with every input rather
+  // than relying on something upstream having filtered it.
   it('never throws, whatever the input', () => {
     fc.assert(
       fc.property(contentArbitrary, source => {
         expect(() => markdownService.render(source)).not.toThrow();
-        expect(() => validatorService.validate(source)).not.toThrow();
-      }),
-      { numRuns },
-    );
-  });
-
-  // Content the validator accepts must never render a link that leaves the
-  // site: the two defences have to agree on what "external" means.
-  it('renders no anchors at all for content the validator accepts', () => {
-    fc.assert(
-      fc.property(contentArbitrary, source => {
-        if (!validatorService.validate(source).isValid) {
-          return;
-        }
-
-        const { html } = markdownService.render(source);
-
-        for (const match of html.matchAll(/href="([^"]*)"/g)) {
-          expect(match[1]).toMatch(/^(?:\/(?!\/)|#)/);
-        }
       }),
       { numRuns },
     );

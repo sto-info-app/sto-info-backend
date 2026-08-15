@@ -7,8 +7,10 @@
  * administrator, and because the rendered HTML is cached and must be
  * trustworthy wherever it is served from.
  *
- * Storytime's rules are stricter than the News subset in one respect: external
- * links are not permitted at all.
+ * Storytime's rules are stricter than the News subset in one respect: no link
+ * ever leaves the site. External targets are not refused — content containing
+ * one is accepted and simply rendered as inert text — but nothing outside the
+ * site is ever turned into an anchor.
  */
 
 /** Splits the source into block-level chunks on blank lines. */
@@ -89,40 +91,11 @@ export const MARKDOWN_ITALIC_UNDERSCORE_PATTERN = /_([^_]+)_/g;
 export const MARKDOWN_LINK_PATTERN = /\[([^\]]*)\]\(([^)\s]+)\)/g;
 
 /**
- * Any absolute URL, in any scheme.
+ * A link target that may be rendered as an anchor.
  *
- * Used by validation to refuse external links before they are ever stored,
- * rather than only stripping them at render. Matching the scheme rather than
- * guessing at bare domain names keeps false positives away from ordinary prose:
- * a Story may well mention the U.S.S. Voyager without meaning a hyperlink.
- */
-export const ABSOLUTE_URL_PATTERN = /\b[a-z][a-z0-9+.-]*:\/\/\S+/gi;
-
-/**
- * Sentence punctuation clinging to the end of a matched URL.
- *
- * A URL match runs to the next space, so it swallows the bracket closing a
- * Markdown link and any full stop ending the sentence. Trimming these matters
- * for more than tidiness: the offending URL is quoted back to the creator so
- * they can find and remove it, and quoting `https://example.com)` sends them
- * looking for text that is not there.
- */
-export const URL_TRAILING_PUNCTUATION_PATTERN = /[).,;:!?'"]+$/;
-
-/**
- * A scheme-relative URL such as `//example.com`.
- *
- * Matched separately because it has no scheme but still leaves the site, and
- * would otherwise slip past both the absolute-URL check and the relative-link
- * allowance.
- */
-export const SCHEME_RELATIVE_URL_PATTERN = /(?:^|[\s(])(\/\/\S+)/g;
-
-/**
- * A link target that is safe to render.
- *
- * Only site-relative paths and in-page fragments. Anything else is refused, so
- * a Chapter can point at another Story but never off the site.
+ * Only site-relative paths and in-page fragments. A Chapter can point at
+ * another Story, but any other target is rendered as text rather than as a
+ * link, so no Chapter can send a reader off the site.
  */
 export const SAFE_RELATIVE_LINK_PATTERN = /^(?:\/(?!\/)\S*|#\S*)$/;
 

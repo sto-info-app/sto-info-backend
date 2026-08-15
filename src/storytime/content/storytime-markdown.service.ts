@@ -57,8 +57,13 @@ export interface RenderedContent {
  * has no path by which author text reaches the output unescaped.
  *
  * Unlike the News renderer, this one never turns a URL into a link or an embed.
- * External links are refused outright, and media reaches readers only through
- * the Chapter's structured media references.
+ * Content that names an external target is accepted rather than refused, but it
+ * is rendered as inert text: only site-relative paths and in-page fragments
+ * become anchors, so a Chapter can point at another Story and nowhere else.
+ * Media reaches readers only through the Chapter's structured media references.
+ *
+ * That makes this class the sole enforcement point for the no-external-links
+ * rule. There is no upstream validator to fall back on.
  *
  * Every block carries a stable anchor so reading progress can be recorded
  * against a position in the text rather than a pixel offset.
@@ -240,11 +245,11 @@ export class StorytimeMarkdownService {
   }
 
   /**
-   * Renders a Markdown link, or discards it if it leaves the site.
+   * Renders a Markdown link, or reduces it to text if it leaves the site.
    *
-   * Validation should already have refused external links, so reaching this
-   * with one means content arrived by some other route. The link is reduced to
-   * its label rather than dropped entirely, so the sentence still reads.
+   * External targets are not an error. The author is not told and their content
+   * is not refused; the link simply renders as its label, so the sentence still
+   * reads and nothing carries the reader off the site.
    *
    * @param label - The already-escaped link label.
    * @param url - The link target.

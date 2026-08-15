@@ -183,13 +183,28 @@ describe('StorytimeMarkdownService', () => {
       );
     });
 
-    // Validation refuses these first; the renderer is the second line of
-    // defence for content that arrived by some other route.
+    // External targets are accepted rather than refused, so the renderer is
+    // the only thing standing between an author and an off-site link.
     it('reduces an external link to its label', () => {
       const { html } = service.render('[Away](https://example.com)');
 
       expect(html).toContain('Away');
       expect(html).not.toContain('<a');
+    });
+
+    it('keeps a bare URL visible as plain text', () => {
+      const { html } = service.render('Visit https://example.com today');
+
+      expect(html).toContain('https://example.com');
+      expect(html).not.toContain('<a');
+    });
+
+    it('renders content containing an external link without complaint', () => {
+      expect(() =>
+        service.render(
+          'See [here](https://example.com) and https://other.test',
+        ),
+      ).not.toThrow();
     });
 
     it('reduces a scheme-relative link to its label', () => {
