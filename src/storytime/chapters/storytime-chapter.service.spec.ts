@@ -12,6 +12,7 @@ import { LimitService } from '../../access-control/limit.service';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
 import { ChapterStatus } from '../enums/chapter-status.enum';
 import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.enum';
+import { StorytimeProgressService } from '../progress/storytime-progress.service';
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
 import {
   SlugRequest,
@@ -47,6 +48,7 @@ describe('StorytimeChapterService', () => {
     recordRetiredSlug: jest.Mock;
   };
   let limitService: { assertWithinLimit: jest.Mock };
+  let progressService: { reopenCompletedReaders: jest.Mock };
   let dataSource: { transaction: jest.Mock };
   let manager: { save: jest.Mock; count: jest.Mock; update: jest.Mock };
 
@@ -130,6 +132,10 @@ describe('StorytimeChapterService', () => {
       assertWithinLimit: jest.fn().mockResolvedValue(undefined),
     };
 
+    progressService = {
+      reopenCompletedReaders: jest.fn().mockResolvedValue(0),
+    };
+
     dataSource = {
       transaction: jest.fn((callback: (m: typeof manager) => unknown) =>
         callback(manager),
@@ -152,6 +158,7 @@ describe('StorytimeChapterService', () => {
         StorytimeOrderingService,
         StorytimeMarkdownService,
         { provide: LimitService, useValue: limitService },
+        { provide: StorytimeProgressService, useValue: progressService },
         { provide: DataSource, useValue: dataSource },
       ],
     }).compile();
@@ -480,6 +487,46 @@ describe('StorytimeChapterService', () => {
         /removed by an administrator/,
       );
     });
+
+    // Somebody who had finished the Story now has something left to read, so
+    // it belongs back in their in-progress list rather than sitting in
+    // "completed" where they would never look at it again.
+    it('returns readers who had finished the Story to in progress', async () => {
+      chapterRepository.findOne.mockResolvedValue(buildChapter());
+
+      await service.publish(chapterId, ownerId);
+
+      expect(progressService.reopenCompletedReaders).toHaveBeenCalledWith(
+        storyId,
+      );
+    });
+
+    // The Chapter is already saved and visible by this point, so failing the
+    // creator's publish over reader bookkeeping would be the worse outcome.
+    it.each([
+      ['an Error', new Error('database unavailable')],
+      ['a rejection that is not an Error', 'database gone'],
+    ])(
+      'publishes anyway when reopening readers fails with %s',
+      async (_name, failure) => {
+        chapterRepository.findOne.mockResolvedValue(buildChapter());
+        progressService.reopenCompletedReaders.mockRejectedValue(failure);
+
+        const published = await service.publish(chapterId, ownerId);
+
+        expect(published.status).toBe(ChapterStatus.PUBLISHED);
+      },
+    );
+
+    it('leaves readers alone when nothing was published', async () => {
+      chapterRepository.findOne.mockResolvedValue(
+        buildChapter({ status: ChapterStatus.PUBLISHED }),
+      );
+
+      await service.publish(chapterId, ownerId);
+
+      expect(progressService.reopenCompletedReaders).not.toHaveBeenCalled();
+    });
   });
 
   describe('unpublish', () => {
@@ -581,6 +628,20 @@ describe('StorytimeChapterService', () => {
         );
 
       await expect(service.publishDueChapters()).resolves.toBe(1);
+    });
+
+    it('returns finished readers to in progress for each Story', async () => {
+      arrangeDue([
+        buildChapter({ id: 'a', status: ChapterStatus.SCHEDULED }),
+        buildChapter({ id: 'b', status: ChapterStatus.SCHEDULED }),
+      ]);
+
+      await service.publishDueChapters();
+
+      expect(progressService.reopenCompletedReaders).toHaveBeenCalledTimes(2);
+      expect(progressService.reopenCompletedReaders).toHaveBeenCalledWith(
+        storyId,
+      );
     });
 
     // One failure must not strand the rest of the queue.

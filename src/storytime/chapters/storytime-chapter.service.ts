@@ -14,6 +14,7 @@ import { StorytimeMarkdownService } from '../content/storytime-markdown.service'
 import { ChapterStatus } from '../enums/chapter-status.enum';
 import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.enum';
 import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
+import { StorytimeProgressService } from '../progress/storytime-progress.service';
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
 import { StorytimeSlugService } from '../shared/storytime-slug.service';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
@@ -57,6 +58,7 @@ export class StorytimeChapterService {
    * @param _orderingService - Calculates positions within the Story.
    * @param _markdownService - Renders Chapter content.
    * @param _limitService - Resolves how many Chapters a Story may hold.
+   * @param _progressService - Reopens readers who had finished the Story.
    * @param _dataSource - Runs publication changes in a transaction.
    */
   constructor(
@@ -69,6 +71,7 @@ export class StorytimeChapterService {
     private readonly _orderingService: StorytimeOrderingService,
     private readonly _markdownService: StorytimeMarkdownService,
     private readonly _limitService: LimitService,
+    private readonly _progressService: StorytimeProgressService,
     private readonly _dataSource: DataSource,
   ) {}
 
@@ -329,6 +332,19 @@ export class StorytimeChapterService {
 
     const saved = await this.saveWithStoryCount(chapter);
 
+    // Reader bookkeeping must never fail a creator's publish. The Chapter is
+    // already saved and visible; if this does not run, the only cost is that
+    // readers who had finished the Story keep their completed status, and a
+    // retry would find the Chapter published and skip this altogether.
+    try {
+      await this._progressService.reopenCompletedReaders(saved.storyId);
+    } catch (error) {
+      this._logger.error(
+        `Failed to reopen completed readers of Story ${saved.storyId}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
+
     this._logger.log(`Chapter '${saved.slug}' published by ${actingUserId}`);
 
     return saved;
@@ -417,6 +433,7 @@ export class StorytimeChapterService {
         chapter.version += 1;
 
         await this.saveWithStoryCount(chapter);
+        await this._progressService.reopenCompletedReaders(chapter.storyId);
         published += 1;
       } catch (error) {
         // One Chapter failing must not strand the rest of the queue, so the
