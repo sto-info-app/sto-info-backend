@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { StoryDto } from '../stories/dto/story.dto';
 import { ArcDto, ArcMembershipDto, ManagedArcDto } from './dto/arc.dto';
+import { ArcCollaboratorDto } from './dto/invite-arc-collaborator.dto';
+import { StorytimeArcCollaboratorEntity } from './entities/storytime-arc-collaborator.entity';
 import { StorytimeArcStoryEntity } from './entities/storytime-arc-story.entity';
 import { StorytimeArcEntity } from './entities/storytime-arc.entity';
 
@@ -73,6 +75,48 @@ export class StorytimeArcMapper {
    */
   toManagedList(arcs: StorytimeArcEntity[]): ManagedArcDto[] {
     return arcs.map(arc => this.toManaged(arc));
+  }
+
+  /**
+   * Maps an Arc collaboration.
+   *
+   * `canPublish` never crosses the boundary. It is always false and cannot be
+   * granted, so returning it would only invite a client to build a control for
+   * something that does not exist.
+   *
+   * @param collaborator - The collaboration entity.
+   * @returns The collaboration as the team sees it.
+   */
+  toArcCollaborator(
+    collaborator: StorytimeArcCollaboratorEntity,
+  ): ArcCollaboratorDto {
+    return {
+      id: collaborator.id,
+      arcId: collaborator.arcId,
+      userId: collaborator.userId,
+      collaborationRole: collaborator.collaborationRole,
+      canEditArc: collaborator.canEditArc,
+      canManageStories: collaborator.canManageStories,
+      canManageCollaborators: collaborator.canManageCollaborators,
+      invitationStatus: collaborator.invitationStatus,
+      invitedByUserId: collaborator.invitedByUserId,
+      invitedAt: collaborator.invitedAt,
+      acceptedAt: collaborator.acceptedAt,
+    };
+  }
+
+  /**
+   * Maps several Arc collaborations.
+   *
+   * @param collaborators - The collaboration entities.
+   * @returns The collaborations.
+   */
+  toArcCollaboratorList(
+    collaborators: StorytimeArcCollaboratorEntity[],
+  ): ArcCollaboratorDto[] {
+    return collaborators.map(collaborator =>
+      this.toArcCollaborator(collaborator),
+    );
   }
 
   /**

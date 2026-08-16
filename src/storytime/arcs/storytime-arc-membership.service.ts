@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
+import { ArcCapability } from '../collaboration/storytime-arc-capability.enum';
 import { ArcMembershipStatus } from '../enums/arc-membership-status.enum';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
 import { StorytimeArcStoryEntity } from './entities/storytime-arc-story.entity';
@@ -63,7 +64,11 @@ export class StorytimeArcMembershipService {
     arcId: string,
     actingUserId: string,
   ): Promise<StorytimeArcStoryEntity[]> {
-    await this._arcService.findOwnedOrFail(arcId, actingUserId);
+    await this._arcService.findEditableOrFail(
+      arcId,
+      actingUserId,
+      ArcCapability.MANAGE_STORIES,
+    );
 
     return this._membershipRepository.find({
       where: { arcId },
@@ -149,7 +154,11 @@ export class StorytimeArcMembershipService {
     storyId: string,
     actingUserId: string,
   ): Promise<StorytimeArcStoryEntity> {
-    await this._arcService.findOwnedOrFail(arcId, actingUserId);
+    await this._arcService.findEditableOrFail(
+      arcId,
+      actingUserId,
+      ArcCapability.MANAGE_STORIES,
+    );
 
     return this.open(arcId, storyId, actingUserId, ArcMembershipStatus.INVITED);
   }
@@ -277,7 +286,11 @@ export class StorytimeArcMembershipService {
     membershipIds: string[],
     actingUserId: string,
   ): Promise<StorytimeArcStoryEntity[]> {
-    await this._arcService.findOwnedOrFail(arcId, actingUserId);
+    await this._arcService.findEditableOrFail(
+      arcId,
+      actingUserId,
+      ArcCapability.MANAGE_STORIES,
+    );
 
     const approved = await this.findApprovedByArc(arcId);
     const byId = new Map(
@@ -399,7 +412,11 @@ export class StorytimeArcMembershipService {
    */
   private async curates(arcId: string, userId: string): Promise<boolean> {
     try {
-      await this._arcService.findOwnedOrFail(arcId, userId);
+      await this._arcService.findEditableOrFail(
+        arcId,
+        userId,
+        ArcCapability.MANAGE_STORIES,
+      );
       return true;
     } catch {
       return false;

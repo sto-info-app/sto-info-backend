@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
+import { NotificationModule } from '../../notification/notification.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { StorytimeCollaborationModule } from '../collaboration/storytime-collaboration.module';
 import { StorytimeContentModule } from '../content/storytime-content.module';
 import { StorytimeProgressModule } from '../progress/storytime-progress.module';
 import { StorytimeStoriesModule } from '../stories/storytime-stories.module';
@@ -7,6 +9,9 @@ import { StorytimeFeatureService } from '../storytime-feature.service';
 import { StorytimeArcStoryEntity } from './entities/storytime-arc-story.entity';
 import { StorytimeArcEntity } from './entities/storytime-arc.entity';
 import { PublicStorytimeArcsController } from './public-storytime-arcs.controller';
+import { StorytimeArcCollaboratorEntity } from './entities/storytime-arc-collaborator.entity';
+import { StorytimeArcCollaboratorService } from './storytime-arc-collaborator.service';
+import { StorytimeArcCollaboratorsController } from './storytime-arc-collaborators.controller';
 import { StorytimeArcProgressService } from './storytime-arc-progress.service';
 import { StorytimeArcMembershipService } from './storytime-arc-membership.service';
 import { StorytimeArcMembershipsController } from './storytime-arc-memberships.controller';
@@ -24,19 +29,27 @@ import { StorytimeCreatorArcsController } from './storytime-creator-arcs.control
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([StorytimeArcEntity, StorytimeArcStoryEntity]),
+    TypeOrmModule.forFeature([
+      StorytimeArcEntity,
+      StorytimeArcStoryEntity,
+      StorytimeArcCollaboratorEntity,
+    ]),
     StorytimeStoriesModule,
     StorytimeContentModule,
+    StorytimeCollaborationModule,
     StorytimeProgressModule,
+    NotificationModule,
   ],
   controllers: [
     PublicStorytimeArcsController,
     StorytimeCreatorArcsController,
     StorytimeArcMembershipsController,
+    StorytimeArcCollaboratorsController,
   ],
   providers: [
     StorytimeArcService,
     StorytimeArcMembershipService,
+    StorytimeArcCollaboratorService,
     StorytimeArcProgressService,
     StorytimeArcMapper,
     StorytimeFeatureService,

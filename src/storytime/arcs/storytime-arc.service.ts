@@ -8,6 +8,8 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Not, Repository } from 'typeorm';
+import { StorytimeArcCollaboratorAccessService } from '../collaboration/storytime-arc-collaborator-access.service';
+import { ArcCapability } from '../collaboration/storytime-arc-capability.enum';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
 import { ArcStatus } from '../enums/arc-status.enum';
 import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.enum';
@@ -48,6 +50,7 @@ export class StorytimeArcService {
    * @param _slugService - Produces slugs and remembers retired ones.
    * @param _orderingService - Calculates positions, shared with Stories.
    * @param _markdownService - Renders the Arc description.
+   * @param _collaboratorAccessService - Decides what a collaborator may do.
    */
   constructor(
     @InjectRepository(StorytimeArcEntity)
@@ -55,6 +58,7 @@ export class StorytimeArcService {
     private readonly _slugService: StorytimeSlugService,
     private readonly _orderingService: StorytimeOrderingService,
     private readonly _markdownService: StorytimeMarkdownService,
+    private readonly _collaboratorAccessService: StorytimeArcCollaboratorAccessService,
   ) {}
 
   /**
@@ -107,7 +111,11 @@ export class StorytimeArcService {
     dto: UpdateArcDto,
     actingUserId: string,
   ): Promise<StorytimeArcEntity> {
-    const arc = await this.findOwnedOrFail(arcId, actingUserId);
+    const arc = await this.findEditableOrFail(
+      arcId,
+      actingUserId,
+      ArcCapability.EDIT_ARC,
+    );
 
     if (dto.version !== undefined && dto.version !== arc.version) {
       throw new ConflictException(
@@ -180,14 +188,124 @@ export class StorytimeArcService {
     arcId: string,
     actingUserId: string,
   ): Promise<StorytimeArcEntity> {
+    const arc = await this.findOrFail(arcId);
+
+    if (arc.ownerUserId !== actingUserId) {
+      throw new ForbiddenException('You do not curate this Arc');
+    }
+
+    return arc;
+  }
+
+  /**
+   * Retrieves an Arc the caller may act on in a particular way.
+   *
+   * The curator may do anything. Anybody else needs an accepted collaboration
+   * granting that specific capability — an invitation nobody has answered, one
+   * that was declined, or one since revoked all count for nothing.
+   *
+   * Publishing has no capability and so cannot be reached through here: only
+   * the curator may publish, which is what {@link findOwnedOrFail} is for.
+   *
+   * @param arcId - The Arc.
+   * @param actingUserId - The caller.
+   * @param capability - What they are trying to do.
+   * @returns The Arc.
+   * @throws NotFoundException when the Arc does not exist.
+   * @throws ForbiddenException when they may not do this to it.
+   */
+  async findEditableOrFail(
+    arcId: string,
+    actingUserId: string,
+    capability: ArcCapability,
+  ): Promise<StorytimeArcEntity> {
+    const arc = await this.findOrFail(arcId);
+
+    if (arc.ownerUserId === actingUserId) {
+      return arc;
+    }
+
+    const permitted = await this._collaboratorAccessService.hasCapability(
+      arcId,
+      actingUserId,
+      capability,
+    );
+
+    if (!permitted) {
+      throw new ForbiddenException(
+        'You do not have permission to do that to this Arc',
+      );
+    }
+
+    return arc;
+  }
+
+  /**
+   * Retrieves an Arc the caller has any working access to.
+   *
+   * Deliberately broader than a single capability, for the same reason as
+   * Stories: somebody invited only to chase up Story owners still has to open
+   * the Arc to do it.
+   *
+   * @param arcId - The Arc.
+   * @param actingUserId - The caller.
+   * @returns The Arc.
+   * @throws ForbiddenException when they have no access to it at all.
+   */
+  async findAccessibleOrFail(
+    arcId: string,
+    actingUserId: string,
+  ): Promise<StorytimeArcEntity> {
+    const arc = await this.findOrFail(arcId);
+
+    if (arc.ownerUserId === actingUserId) {
+      return arc;
+    }
+
+    const collaboration = await this._collaboratorAccessService.findAccepted(
+      arcId,
+      actingUserId,
+    );
+
+    if (!collaboration) {
+      throw new ForbiddenException('You do not have access to this Arc');
+    }
+
+    return arc;
+  }
+
+  /**
+   * Lists the Arcs somebody curates or helps with.
+   *
+   * @param userId - The person.
+   * @param collaboratingArcIds - Arcs they have accepted a collaboration on.
+   * @returns The Arcs they can work on.
+   */
+  findWorkableByUser(
+    userId: string,
+    collaboratingArcIds: string[],
+  ): Promise<StorytimeArcEntity[]> {
+    return this._arcRepository.find({
+      where:
+        collaboratingArcIds.length > 0
+          ? [{ ownerUserId: userId }, { id: In(collaboratingArcIds) }]
+          : { ownerUserId: userId },
+      order: { updatedAt: 'DESC' },
+    });
+  }
+
+  /**
+   * Loads an Arc, or fails.
+   *
+   * @param arcId - The Arc.
+   * @returns The Arc.
+   * @throws NotFoundException when it does not exist.
+   */
+  private async findOrFail(arcId: string): Promise<StorytimeArcEntity> {
     const arc = await this._arcRepository.findOne({ where: { id: arcId } });
 
     if (!arc) {
       throw new NotFoundException('Arc not found');
-    }
-
-    if (arc.ownerUserId !== actingUserId) {
-      throw new ForbiddenException('You do not curate this Arc');
     }
 
     return arc;

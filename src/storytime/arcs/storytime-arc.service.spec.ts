@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { StorytimeArcCollaboratorAccessService } from '../collaboration/storytime-arc-collaborator-access.service';
+import { ArcCapability } from '../collaboration/storytime-arc-capability.enum';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
 import { ArcStatus } from '../enums/arc-status.enum';
 import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.enum';
@@ -33,6 +35,10 @@ describe('StorytimeArcService', () => {
   let slugService: {
     generateUniqueSlug: jest.Mock;
     recordRetiredSlug: jest.Mock;
+  };
+  let collaboratorAccessService: {
+    hasCapability: jest.Mock;
+    findAccepted: jest.Mock;
   };
 
   const curatorId = 'e6d3a1b2-0000-4000-8000-000000000001';
@@ -84,6 +90,13 @@ describe('StorytimeArcService', () => {
       recordRetiredSlug: jest.fn().mockResolvedValue(undefined),
     };
 
+    // Nobody collaborates unless a test says so, so every existing
+    // expectation still describes the curator acting alone.
+    collaboratorAccessService = {
+      hasCapability: jest.fn().mockResolvedValue(false),
+      findAccepted: jest.fn().mockResolvedValue(null),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         StorytimeArcService,
@@ -94,6 +107,10 @@ describe('StorytimeArcService', () => {
         { provide: StorytimeSlugService, useValue: slugService },
         StorytimeOrderingService,
         StorytimeMarkdownService,
+        {
+          provide: StorytimeArcCollaboratorAccessService,
+          useValue: collaboratorAccessService,
+        },
       ],
     }).compile();
 
@@ -429,5 +446,153 @@ describe('StorytimeArcService', () => {
     await expect(service.publish(arcId, curatorId, 0)).rejects.toThrow(
       BadRequestException,
     );
+  });
+
+  describe('collaborator access', () => {
+    beforeEach(() => {
+      arcRepository.findOne.mockResolvedValue(buildArc());
+    });
+
+    describe('findEditableOrFail', () => {
+      it('lets the curator do anything without asking about collaborations', async () => {
+        await expect(
+          service.findEditableOrFail(
+            arcId,
+            curatorId,
+            ArcCapability.MANAGE_STORIES,
+          ),
+        ).resolves.toBeDefined();
+
+        expect(collaboratorAccessService.hasCapability).not.toHaveBeenCalled();
+      });
+
+      it('lets a collaborator granted the capability through', async () => {
+        collaboratorAccessService.hasCapability.mockResolvedValue(true);
+
+        await expect(
+          service.findEditableOrFail(
+            arcId,
+            strangerId,
+            ArcCapability.MANAGE_STORIES,
+          ),
+        ).resolves.toBeDefined();
+      });
+
+      it('asks about the capability actually being used', async () => {
+        collaboratorAccessService.hasCapability.mockResolvedValue(true);
+
+        await service.findEditableOrFail(
+          arcId,
+          strangerId,
+          ArcCapability.EDIT_ARC,
+        );
+
+        expect(collaboratorAccessService.hasCapability).toHaveBeenCalledWith(
+          arcId,
+          strangerId,
+          ArcCapability.EDIT_ARC,
+        );
+      });
+
+      it('refuses somebody who was not granted it', async () => {
+        await expect(
+          service.findEditableOrFail(arcId, strangerId, ArcCapability.EDIT_ARC),
+        ).rejects.toThrow(ForbiddenException);
+      });
+
+      it('reports an Arc that does not exist', async () => {
+        arcRepository.findOne.mockResolvedValue(null);
+
+        await expect(
+          service.findEditableOrFail(arcId, curatorId, ArcCapability.EDIT_ARC),
+        ).rejects.toThrow(NotFoundException);
+      });
+    });
+
+    describe('findAccessibleOrFail', () => {
+      it('lets the curator in', async () => {
+        await expect(
+          service.findAccessibleOrFail(arcId, curatorId),
+        ).resolves.toBeDefined();
+      });
+
+      // Somebody invited only to chase up Story owners still has to open the
+      // Arc to do it.
+      it('lets any accepted collaborator in, whatever they were granted', async () => {
+        collaboratorAccessService.findAccepted.mockResolvedValue({
+          canEditArc: false,
+          canManageStories: false,
+        });
+
+        await expect(
+          service.findAccessibleOrFail(arcId, strangerId),
+        ).resolves.toBeDefined();
+      });
+
+      it('refuses somebody with no accepted collaboration', async () => {
+        await expect(
+          service.findAccessibleOrFail(arcId, strangerId),
+        ).rejects.toThrow(ForbiddenException);
+      });
+
+      it('reports an Arc that does not exist', async () => {
+        arcRepository.findOne.mockResolvedValue(null);
+
+        await expect(
+          service.findAccessibleOrFail(arcId, curatorId),
+        ).rejects.toThrow(NotFoundException);
+      });
+    });
+
+    // Publishing is never delegated, so these stay curator-only however
+    // generously somebody has been invited.
+    describe('what a collaborator can never do', () => {
+      beforeEach(() => {
+        collaboratorAccessService.hasCapability.mockResolvedValue(true);
+        collaboratorAccessService.findAccepted.mockResolvedValue({
+          canEditArc: true,
+        });
+      });
+
+      it.each([
+        ['publish', () => service.publish(arcId, strangerId, 1)],
+        ['unpublish', () => service.unpublish(arcId, strangerId)],
+        ['delete', () => service.remove(arcId, strangerId)],
+      ])('refuses to let a collaborator %s an Arc', async (_name, act) => {
+        await expect(act()).rejects.toThrow(ForbiddenException);
+      });
+    });
+
+    it('lets a collaborator granted it edit the Arc', async () => {
+      collaboratorAccessService.hasCapability.mockResolvedValue(true);
+
+      await expect(
+        service.update(arcId, { title: 'Renamed' }, strangerId),
+      ).resolves.toBeDefined();
+    });
+
+    it('refuses an edit from a collaborator not granted it', async () => {
+      await expect(
+        service.update(arcId, { title: 'Renamed' }, strangerId),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    describe('listing what somebody can work on', () => {
+      it('includes the Arcs they curate', async () => {
+        await service.findWorkableByUser(curatorId, []);
+
+        expect(arcRepository.find).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { ownerUserId: curatorId } }),
+        );
+      });
+
+      it('includes the Arcs they help with', async () => {
+        await service.findWorkableByUser(curatorId, [arcId]);
+
+        const where = arcRepository.find.mock.calls[0][0].where;
+        expect(Array.isArray(where)).toBe(true);
+        expect(where).toHaveLength(2);
+      });
+    });
   });
 });

@@ -20,7 +20,11 @@ describe('StorytimeArcMembershipService', () => {
     create: jest.Mock;
     save: jest.Mock;
   };
-  let arcService: { findOwnedOrFail: jest.Mock; nextOrderIndex: jest.Mock };
+  let arcService: {
+    findOwnedOrFail: jest.Mock;
+    findEditableOrFail: jest.Mock;
+    nextOrderIndex: jest.Mock;
+  };
   let storyService: { findOwnedOrFail: jest.Mock };
 
   const curatorId = 'e6d3a1b2-0000-4000-8000-000000000001';
@@ -64,10 +68,16 @@ describe('StorytimeArcMembershipService', () => {
     curator?: string;
     author?: string;
   }): void => {
-    arcService.findOwnedOrFail.mockImplementation((_arc, user) =>
+    const curates = (user: string) =>
       user === (options.curator ?? curatorId)
         ? Promise.resolve({ id: arcId })
-        : Promise.reject(new ForbiddenException()),
+        : Promise.reject(new ForbiddenException());
+
+    arcService.findOwnedOrFail.mockImplementation((_arc, user) =>
+      curates(user),
+    );
+    arcService.findEditableOrFail.mockImplementation((_arc, user) =>
+      curates(user),
     );
     storyService.findOwnedOrFail.mockImplementation((_story, user) =>
       user === (options.author ?? authorId)
@@ -85,6 +95,7 @@ describe('StorytimeArcMembershipService', () => {
     };
     arcService = {
       findOwnedOrFail: jest.fn().mockResolvedValue({ id: arcId }),
+      findEditableOrFail: jest.fn().mockResolvedValue({ id: arcId }),
       nextOrderIndex: jest.fn().mockReturnValue(1000),
     };
     storyService = {
@@ -335,6 +346,7 @@ describe('StorytimeArcMembershipService', () => {
 
     it('refuses to list an Arc the caller does not curate', async () => {
       arcService.findOwnedOrFail.mockRejectedValue(new ForbiddenException());
+      arcService.findEditableOrFail.mockRejectedValue(new ForbiddenException());
 
       await expect(
         service.findByArcForCurator(arcId, strangerId),
@@ -426,6 +438,7 @@ describe('StorytimeArcMembershipService', () => {
 
     it('refuses somebody who does not curate the Arc', async () => {
       arcService.findOwnedOrFail.mockRejectedValue(new ForbiddenException());
+      arcService.findEditableOrFail.mockRejectedValue(new ForbiddenException());
 
       await expect(
         service.reorder(arcId, ['a', 'b'], strangerId),
