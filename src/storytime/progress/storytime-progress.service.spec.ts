@@ -293,6 +293,30 @@ describe('StorytimeProgressService', () => {
     });
   });
 
+  // Without a way to read the stored position back, recording it would be
+  // pointless: the reader page could note where somebody got to and never put
+  // them back there.
+  describe('reading a position back', () => {
+    it('reports where the reader left off', async () => {
+      chapterProgressRepository.findOne.mockResolvedValue(
+        buildChapterProgress({ lastPositionValue: 'b9', progressPercent: 55 }),
+      );
+
+      const progress = await service.findChapterProgress(userId, 'chapter-1');
+
+      expect(progress?.lastPositionValue).toBe('b9');
+      expect(chapterProgressRepository.findOne).toHaveBeenCalledWith({
+        where: { userId, chapterId: 'chapter-1' },
+      });
+    });
+
+    it('reports nothing for a Chapter the reader has never opened', async () => {
+      await expect(
+        service.findChapterProgress(userId, 'chapter-1'),
+      ).resolves.toBeNull();
+    });
+  });
+
   describe('Story status', () => {
     it('stays not started while nothing has been read', async () => {
       arrange([buildChapter('chapter-1', 1000)]);

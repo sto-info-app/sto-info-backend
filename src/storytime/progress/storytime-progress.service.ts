@@ -105,6 +105,25 @@ export class StorytimeProgressService {
   }
 
   /**
+   * Reports a reader's progress through one Chapter.
+   *
+   * This is what makes a stored position worth keeping: without it the reader
+   * page could record where somebody got to but never put them back there.
+   *
+   * @param userId - The reader.
+   * @param chapterId - The Chapter.
+   * @returns The Chapter progress, or null when they have never opened it.
+   */
+  findChapterProgress(
+    userId: string,
+    chapterId: string,
+  ): Promise<StorytimeUserChapterProgressEntity | null> {
+    return this._chapterProgressRepository.findOne({
+      where: { userId, chapterId },
+    });
+  }
+
+  /**
    * Records how far a reader has got through a Chapter.
    *
    * Idempotent: the same position sent twice leaves the same result, so a
