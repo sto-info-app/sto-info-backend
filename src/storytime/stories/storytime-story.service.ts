@@ -9,6 +9,8 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Not, Repository } from 'typeorm';
 import { LimitService } from '../../access-control/limit.service';
+import { StorytimeCollaboratorAccessService } from '../collaboration/storytime-collaborator-access.service';
+import { StoryCapability } from '../collaboration/storytime-story-capability.enum';
 import { STORYTIME_LANGUAGE_CODES } from '../constants/storytime-language.constants';
 import { STORYTIME_LIMITS } from '../constants/storytime-limits.constants';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
@@ -59,6 +61,7 @@ export class StorytimeStoryService {
    * @param _orderingService - Calculates positions within the owner's collection.
    * @param _markdownService - Renders the Story description.
    * @param _limitService - Resolves how many Stories this user may own.
+   * @param _collaboratorAccessService - Decides what a collaborator may do.
    */
   constructor(
     @InjectRepository(StorytimeStoryEntity)
@@ -67,6 +70,7 @@ export class StorytimeStoryService {
     private readonly _orderingService: StorytimeOrderingService,
     private readonly _markdownService: StorytimeMarkdownService,
     private readonly _limitService: LimitService,
+    private readonly _collaboratorAccessService: StorytimeCollaboratorAccessService,
   ) {}
 
   /**
@@ -127,7 +131,11 @@ export class StorytimeStoryService {
     dto: UpdateStoryDto,
     actingUserId: string,
   ): Promise<StorytimeStoryEntity> {
-    const story = await this.findOwnedOrFail(storyId, actingUserId);
+    const story = await this.findEditableOrFail(
+      storyId,
+      actingUserId,
+      StoryCapability.EDIT_STORY,
+    );
     this.assertVersionMatches(story, dto.version);
 
     if (dto.languageCode !== undefined) {
@@ -183,19 +191,111 @@ export class StorytimeStoryService {
     storyId: string,
     actingUserId: string,
   ): Promise<StorytimeStoryEntity> {
-    const story = await this._storyRepository.findOne({
-      where: { id: storyId },
-    });
-
-    if (!story) {
-      throw new NotFoundException('Story not found');
-    }
+    const story = await this.findOrFail(storyId);
 
     if (story.ownerUserId !== actingUserId) {
       // Deliberately a 403 rather than a 404. The Story's existence is not a
       // secret — its slug may be public — so pretending otherwise would only
       // confuse a creator who mistyped an identifier.
       throw new ForbiddenException('You do not own this Story');
+    }
+
+    return story;
+  }
+
+  /**
+   * Retrieves a Story the caller may act on in a particular way.
+   *
+   * The owner may do anything. Anybody else needs an accepted collaboration
+   * granting that specific capability — an invitation nobody has answered, one
+   * that was declined, or one since revoked all count for nothing.
+   *
+   * Publishing has no capability and so cannot be reached through here: only
+   * the owner may publish, which is what {@link findOwnedOrFail} is for.
+   *
+   * @param storyId - The Story.
+   * @param actingUserId - The caller.
+   * @param capability - What they are trying to do.
+   * @returns The Story.
+   * @throws NotFoundException when the Story does not exist.
+   * @throws ForbiddenException when they may not do this to it.
+   */
+  async findEditableOrFail(
+    storyId: string,
+    actingUserId: string,
+    capability: StoryCapability,
+  ): Promise<StorytimeStoryEntity> {
+    const story = await this.findOrFail(storyId);
+
+    if (story.ownerUserId === actingUserId) {
+      return story;
+    }
+
+    const permitted = await this._collaboratorAccessService.hasCapability(
+      storyId,
+      actingUserId,
+      capability,
+    );
+
+    if (!permitted) {
+      throw new ForbiddenException(
+        'You do not have permission to do that to this Story',
+      );
+    }
+
+    return story;
+  }
+
+  /**
+   * Retrieves a Story the caller has any working access to.
+   *
+   * Deliberately broader than a single capability. A collaborator invited only
+   * to write Chapters still has to open the Story to reach them, so refusing
+   * them the Story itself would leave them holding a key to a door they cannot
+   * walk to.
+   *
+   * @param storyId - The Story.
+   * @param actingUserId - The caller.
+   * @returns The Story.
+   * @throws NotFoundException when the Story does not exist.
+   * @throws ForbiddenException when they have no access to it at all.
+   */
+  async findAccessibleOrFail(
+    storyId: string,
+    actingUserId: string,
+  ): Promise<StorytimeStoryEntity> {
+    const story = await this.findOrFail(storyId);
+
+    if (story.ownerUserId === actingUserId) {
+      return story;
+    }
+
+    const collaboration = await this._collaboratorAccessService.findAccepted(
+      storyId,
+      actingUserId,
+    );
+
+    if (!collaboration) {
+      throw new ForbiddenException('You do not have access to this Story');
+    }
+
+    return story;
+  }
+
+  /**
+   * Loads a Story, or fails.
+   *
+   * @param storyId - The Story.
+   * @returns The Story.
+   * @throws NotFoundException when it does not exist.
+   */
+  private async findOrFail(storyId: string): Promise<StorytimeStoryEntity> {
+    const story = await this._storyRepository.findOne({
+      where: { id: storyId },
+    });
+
+    if (!story) {
+      throw new NotFoundException('Story not found');
     }
 
     return story;

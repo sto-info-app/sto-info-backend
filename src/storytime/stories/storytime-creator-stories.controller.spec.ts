@@ -26,6 +26,7 @@ describe('StorytimeCreatorStoriesController', () => {
     storyService = {
       findOwnedByUser: jest.fn().mockResolvedValue([story]),
       findOwnedOrFail: jest.fn().mockResolvedValue(story),
+      findAccessibleOrFail: jest.fn().mockResolvedValue(story),
       create: jest.fn().mockResolvedValue(story),
       update: jest.fn().mockResolvedValue(story),
       publish: jest.fn().mockResolvedValue(story),
@@ -74,7 +75,10 @@ describe('StorytimeCreatorStoriesController', () => {
 
   it('retrieves one of the caller Stories', async () => {
     await expect(controller.findOne(storyId, userId)).resolves.toBeDefined();
-    expect(storyService.findOwnedOrFail).toHaveBeenCalledWith(storyId, userId);
+    expect(storyService.findAccessibleOrFail).toHaveBeenCalledWith(
+      storyId,
+      userId,
+    );
   });
 
   it('creates a Story owned by the caller', async () => {

@@ -12,6 +12,7 @@ import { STORYTIME_LIMITS } from '../constants/storytime-limits.constants';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
 import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.enum';
 import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
+import { StoryCapability } from '../collaboration/storytime-story-capability.enum';
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
 import { StorytimeSlugService } from '../shared/storytime-slug.service';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
@@ -68,7 +69,11 @@ export class StorytimeCharacterService {
     dto: CreateCharacterDto,
     actingUserId: string,
   ): Promise<StorytimeCharacterEntity> {
-    await this._storyService.findOwnedOrFail(storyId, actingUserId);
+    await this._storyService.findEditableOrFail(
+      storyId,
+      actingUserId,
+      StoryCapability.MANAGE_CHARACTERS,
+    );
     await this.assertWithinCharacterLimit(storyId, actingUserId);
 
     const slug = await this._slugService.generateUniqueSlug({
@@ -150,7 +155,11 @@ export class StorytimeCharacterService {
     storyId: string,
     actingUserId: string,
   ): Promise<StorytimeCharacterEntity[]> {
-    await this._storyService.findOwnedOrFail(storyId, actingUserId);
+    await this._storyService.findEditableOrFail(
+      storyId,
+      actingUserId,
+      StoryCapability.MANAGE_CHARACTERS,
+    );
 
     return this._characterRepository.find({
       where: { storyId },
@@ -178,7 +187,11 @@ export class StorytimeCharacterService {
       throw new NotFoundException('Character not found');
     }
 
-    await this._storyService.findOwnedOrFail(character.storyId, actingUserId);
+    await this._storyService.findEditableOrFail(
+      character.storyId,
+      actingUserId,
+      StoryCapability.MANAGE_CHARACTERS,
+    );
 
     return character;
   }
@@ -260,7 +273,11 @@ export class StorytimeCharacterService {
     characterIds: string[],
     actingUserId: string,
   ): Promise<StorytimeCharacterEntity[]> {
-    await this._storyService.findOwnedOrFail(storyId, actingUserId);
+    await this._storyService.findEditableOrFail(
+      storyId,
+      actingUserId,
+      StoryCapability.MANAGE_CHARACTERS,
+    );
 
     const characters = await this._characterRepository.find({
       where: { storyId },

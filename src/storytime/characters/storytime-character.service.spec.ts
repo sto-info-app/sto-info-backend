@@ -32,7 +32,7 @@ describe('StorytimeCharacterService', () => {
     count: jest.Mock;
     softDelete: jest.Mock;
   };
-  let storyService: { findOwnedOrFail: jest.Mock };
+  let storyService: { findEditableOrFail: jest.Mock };
   let slugService: {
     generateUniqueSlug: jest.Mock;
     recordRetiredSlug: jest.Mock;
@@ -89,7 +89,7 @@ describe('StorytimeCharacterService', () => {
     };
 
     storyService = {
-      findOwnedOrFail: jest.fn().mockResolvedValue(
+      findEditableOrFail: jest.fn().mockResolvedValue(
         Object.assign(new StorytimeStoryEntity(), {
           id: storyId,
           ownerUserId: ownerId,
@@ -152,7 +152,9 @@ describe('StorytimeCharacterService', () => {
     // Ownership belongs to the Story, so it is asked of the Story rather than
     // re-derived here.
     it('refuses when the caller does not own the Story', async () => {
-      storyService.findOwnedOrFail.mockRejectedValue(new ForbiddenException());
+      storyService.findEditableOrFail.mockRejectedValue(
+        new ForbiddenException(),
+      );
 
       await expect(
         service.create(storyId, { name: 'Captain Shran' }, ownerId),
@@ -390,7 +392,9 @@ describe('StorytimeCharacterService', () => {
     });
 
     it('refuses when the caller does not own the Story', async () => {
-      storyService.findOwnedOrFail.mockRejectedValue(new ForbiddenException());
+      storyService.findEditableOrFail.mockRejectedValue(
+        new ForbiddenException(),
+      );
 
       await expect(
         service.update(characterId, { name: 'Nope' }, ownerId),
@@ -409,7 +413,9 @@ describe('StorytimeCharacterService', () => {
     });
 
     it('refuses to list a Story the caller does not own', async () => {
-      storyService.findOwnedOrFail.mockRejectedValue(new ForbiddenException());
+      storyService.findEditableOrFail.mockRejectedValue(
+        new ForbiddenException(),
+      );
 
       await expect(
         service.findManagedByStory(storyId, ownerId),
@@ -502,7 +508,9 @@ describe('StorytimeCharacterService', () => {
     });
 
     it('refuses when the caller does not own the Story', async () => {
-      storyService.findOwnedOrFail.mockRejectedValue(new ForbiddenException());
+      storyService.findEditableOrFail.mockRejectedValue(
+        new ForbiddenException(),
+      );
 
       await expect(
         service.reorder(storyId, ['a', 'b'], ownerId),
@@ -527,7 +535,9 @@ describe('StorytimeCharacterService', () => {
     });
 
     it('refuses when the caller does not own the Story', async () => {
-      storyService.findOwnedOrFail.mockRejectedValue(new ForbiddenException());
+      storyService.findEditableOrFail.mockRejectedValue(
+        new ForbiddenException(),
+      );
 
       await expect(service.remove(characterId, ownerId)).rejects.toThrow(
         ForbiddenException,

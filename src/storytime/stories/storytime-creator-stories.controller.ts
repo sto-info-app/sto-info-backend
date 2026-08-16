@@ -104,7 +104,7 @@ export class StorytimeCreatorStoriesController {
     );
 
     return this._mapper.toManaged(
-      await this._storyService.findOwnedOrFail(storyId, userId),
+      await this._storyService.findAccessibleOrFail(storyId, userId),
     );
   }
 

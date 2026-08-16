@@ -6,6 +6,7 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { StorytimeChapterEntity } from '../chapters/entities/storytime-chapter.entity';
+import { StoryCapability } from '../collaboration/storytime-story-capability.enum';
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
@@ -23,7 +24,7 @@ describe('StorytimeAppearanceService', () => {
   };
   let chapterRepository: { findOne: jest.Mock };
   let characterRepository: { find: jest.Mock };
-  let storyService: { findOwnedOrFail: jest.Mock };
+  let storyService: { findEditableOrFail: jest.Mock };
 
   const ownerId = 'e6d3a1b2-0000-4000-8000-000000000001';
   const storyId = 'e6d3a1b2-0000-4000-8000-0000000000aa';
@@ -69,7 +70,7 @@ describe('StorytimeAppearanceService', () => {
         ]),
     };
     storyService = {
-      findOwnedOrFail: jest.fn().mockResolvedValue(
+      findEditableOrFail: jest.fn().mockResolvedValue(
         Object.assign(new StorytimeStoryEntity(), {
           id: storyId,
           ownerUserId: ownerId,
@@ -193,7 +194,9 @@ describe('StorytimeAppearanceService', () => {
     });
 
     it('refuses when the caller does not own the Story', async () => {
-      storyService.findOwnedOrFail.mockRejectedValue(new ForbiddenException());
+      storyService.findEditableOrFail.mockRejectedValue(
+        new ForbiddenException(),
+      );
 
       await expect(
         service.setAppearances(
@@ -324,15 +327,16 @@ describe('StorytimeAppearanceService', () => {
       it('lists the cast of a Chapter they own', async () => {
         await service.findByChapterForOwner(chapterId, ownerId);
 
-        expect(storyService.findOwnedOrFail).toHaveBeenCalledWith(
+        expect(storyService.findEditableOrFail).toHaveBeenCalledWith(
           storyId,
           ownerId,
+          StoryCapability.MANAGE_CHARACTERS,
         );
         expect(appearanceRepository.find).toHaveBeenCalled();
       });
 
       it('refuses a Chapter belonging to somebody else', async () => {
-        storyService.findOwnedOrFail.mockRejectedValue(
+        storyService.findEditableOrFail.mockRejectedValue(
           new ForbiddenException(),
         );
 

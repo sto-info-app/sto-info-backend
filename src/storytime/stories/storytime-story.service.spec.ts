@@ -8,6 +8,8 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { LimitService } from '../../access-control/limit.service';
+import { StorytimeCollaboratorAccessService } from '../collaboration/storytime-collaborator-access.service';
+import { StoryCapability } from '../collaboration/storytime-story-capability.enum';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
 import { StoryStatus } from '../enums/story-status.enum';
 import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.enum';
@@ -47,6 +49,10 @@ describe('StorytimeStoryService', () => {
     findByRetiredSlug: jest.Mock;
   };
   let limitService: { assertWithinLimit: jest.Mock };
+  let collaboratorAccessService: {
+    hasCapability: jest.Mock;
+    findAccepted: jest.Mock;
+  };
   let queryBuilder: QueryBuilderStub;
 
   const ownerId = 'e6d3a1b2-0000-4000-8000-000000000001';
@@ -124,6 +130,13 @@ describe('StorytimeStoryService', () => {
       assertWithinLimit: jest.fn().mockResolvedValue(undefined),
     };
 
+    // Nobody collaborates unless a test says so, so every existing expectation
+    // still describes the owner acting alone.
+    collaboratorAccessService = {
+      hasCapability: jest.fn().mockResolvedValue(false),
+      findAccepted: jest.fn().mockResolvedValue(null),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         StorytimeStoryService,
@@ -135,6 +148,10 @@ describe('StorytimeStoryService', () => {
         StorytimeOrderingService,
         StorytimeMarkdownService,
         { provide: LimitService, useValue: limitService },
+        {
+          provide: StorytimeCollaboratorAccessService,
+          useValue: collaboratorAccessService,
+        },
       ],
     }).compile();
 
@@ -777,6 +794,155 @@ describe('StorytimeStoryService', () => {
       await expect(
         service.reorder([storyId, storyId], ownerId),
       ).rejects.toThrow(/duplicates/);
+    });
+  });
+
+  describe('collaborator access', () => {
+    beforeEach(() => {
+      storyRepository.findOne.mockResolvedValue(buildStory());
+    });
+
+    describe('findEditableOrFail', () => {
+      it('lets the owner do anything without asking about collaborations', async () => {
+        await expect(
+          service.findEditableOrFail(
+            storyId,
+            ownerId,
+            StoryCapability.MANAGE_CHAPTERS,
+          ),
+        ).resolves.toBeDefined();
+
+        expect(collaboratorAccessService.hasCapability).not.toHaveBeenCalled();
+      });
+
+      it('lets a collaborator granted the capability through', async () => {
+        collaboratorAccessService.hasCapability.mockResolvedValue(true);
+
+        await expect(
+          service.findEditableOrFail(
+            storyId,
+            otherUserId,
+            StoryCapability.MANAGE_CHAPTERS,
+          ),
+        ).resolves.toBeDefined();
+      });
+
+      it('asks about the capability actually being used', async () => {
+        collaboratorAccessService.hasCapability.mockResolvedValue(true);
+
+        await service.findEditableOrFail(
+          storyId,
+          otherUserId,
+          StoryCapability.MANAGE_CREW,
+        );
+
+        expect(collaboratorAccessService.hasCapability).toHaveBeenCalledWith(
+          storyId,
+          otherUserId,
+          StoryCapability.MANAGE_CREW,
+        );
+      });
+
+      it('refuses a collaborator who was not granted it', async () => {
+        await expect(
+          service.findEditableOrFail(
+            storyId,
+            otherUserId,
+            StoryCapability.EDIT_STORY,
+          ),
+        ).rejects.toThrow(ForbiddenException);
+      });
+
+      it('refuses a stranger', async () => {
+        await expect(
+          service.findEditableOrFail(
+            storyId,
+            otherUserId,
+            StoryCapability.EDIT_STORY,
+          ),
+        ).rejects.toThrow(ForbiddenException);
+      });
+
+      it('reports a Story that does not exist', async () => {
+        storyRepository.findOne.mockResolvedValue(null);
+
+        await expect(
+          service.findEditableOrFail(
+            storyId,
+            ownerId,
+            StoryCapability.EDIT_STORY,
+          ),
+        ).rejects.toThrow(NotFoundException);
+      });
+    });
+
+    describe('findAccessibleOrFail', () => {
+      it('lets the owner in', async () => {
+        await expect(
+          service.findAccessibleOrFail(storyId, ownerId),
+        ).resolves.toBeDefined();
+      });
+
+      // A collaborator invited only to write Chapters still has to open the
+      // Story to reach them.
+      it('lets any accepted collaborator in, whatever they were granted', async () => {
+        collaboratorAccessService.findAccepted.mockResolvedValue({
+          canEditStory: false,
+          canManageChapters: false,
+        });
+
+        await expect(
+          service.findAccessibleOrFail(storyId, otherUserId),
+        ).resolves.toBeDefined();
+      });
+
+      it('refuses somebody with no accepted collaboration', async () => {
+        await expect(
+          service.findAccessibleOrFail(storyId, otherUserId),
+        ).rejects.toThrow(ForbiddenException);
+      });
+
+      it('reports a Story that does not exist', async () => {
+        storyRepository.findOne.mockResolvedValue(null);
+
+        await expect(
+          service.findAccessibleOrFail(storyId, ownerId),
+        ).rejects.toThrow(NotFoundException);
+      });
+    });
+
+    // Publishing is never delegated, so these stay owner-only however
+    // generously somebody has been invited.
+    describe('what a collaborator can never do', () => {
+      beforeEach(() => {
+        collaboratorAccessService.hasCapability.mockResolvedValue(true);
+        collaboratorAccessService.findAccepted.mockResolvedValue({
+          canEditStory: true,
+        });
+      });
+
+      it.each([
+        ['publish', () => service.publish(storyId, otherUserId)],
+        ['unpublish', () => service.unpublish(storyId, otherUserId)],
+        ['archive', () => service.archive(storyId, otherUserId)],
+        ['delete', () => service.remove(storyId, otherUserId)],
+      ])('refuses to let a collaborator %s a Story', async (_name, act) => {
+        await expect(act()).rejects.toThrow(ForbiddenException);
+      });
+    });
+
+    it('lets a collaborator granted it edit the Story', async () => {
+      collaboratorAccessService.hasCapability.mockResolvedValue(true);
+
+      await expect(
+        service.update(storyId, { title: 'Renamed' }, otherUserId),
+      ).resolves.toBeDefined();
+    });
+
+    it('refuses an edit from a collaborator not granted it', async () => {
+      await expect(
+        service.update(storyId, { title: 'Renamed' }, otherUserId),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 });

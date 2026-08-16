@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { StorytimeChapterEntity } from '../chapters/entities/storytime-chapter.entity';
+import { StoryCapability } from '../collaboration/storytime-story-capability.enum';
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
 import { SetAppearancesDto } from './dto/set-appearances.dto';
@@ -61,7 +62,11 @@ export class StorytimeAppearanceService {
   ): Promise<StorytimeChapterCharacterEntity[]> {
     const chapter = await this.findChapterOrFail(chapterId);
 
-    await this._storyService.findOwnedOrFail(chapter.storyId, actingUserId);
+    await this._storyService.findEditableOrFail(
+      chapter.storyId,
+      actingUserId,
+      StoryCapability.MANAGE_CHARACTERS,
+    );
     await this.assertSameStory(chapter.storyId, dto.appearances);
 
     // Replaced wholesale rather than diffed: the alternative is three passes
@@ -132,7 +137,11 @@ export class StorytimeAppearanceService {
   ): Promise<StorytimeChapterCharacterEntity[]> {
     const chapter = await this.findChapterOrFail(chapterId);
 
-    await this._storyService.findOwnedOrFail(chapter.storyId, actingUserId);
+    await this._storyService.findEditableOrFail(
+      chapter.storyId,
+      actingUserId,
+      StoryCapability.MANAGE_CHARACTERS,
+    );
 
     return this.findByChapter(chapterId);
   }

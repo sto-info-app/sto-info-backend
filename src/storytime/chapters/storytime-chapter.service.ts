@@ -14,6 +14,7 @@ import { StorytimeMarkdownService } from '../content/storytime-markdown.service'
 import { ChapterStatus } from '../enums/chapter-status.enum';
 import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.enum';
 import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
+import { StoryCapability } from '../collaboration/storytime-story-capability.enum';
 import { StorytimeProgressService } from '../progress/storytime-progress.service';
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
 import { StorytimeSlugService } from '../shared/storytime-slug.service';
@@ -88,7 +89,11 @@ export class StorytimeChapterService {
     dto: CreateChapterDto,
     actingUserId: string,
   ): Promise<StorytimeChapterEntity> {
-    await this._storyService.findOwnedOrFail(storyId, actingUserId);
+    await this._storyService.findEditableOrFail(
+      storyId,
+      actingUserId,
+      StoryCapability.MANAGE_CHAPTERS,
+    );
     await this.assertWithinChapterLimit(storyId, actingUserId);
     this.assertLanguageOffered(dto.languageCode);
 
@@ -200,7 +205,11 @@ export class StorytimeChapterService {
     storyId: string,
     actingUserId: string,
   ): Promise<StorytimeChapterEntity[]> {
-    await this._storyService.findOwnedOrFail(storyId, actingUserId);
+    await this._storyService.findEditableOrFail(
+      storyId,
+      actingUserId,
+      StoryCapability.MANAGE_CHAPTERS,
+    );
 
     return this._chapterRepository.find({
       where: { storyId },
@@ -230,7 +239,11 @@ export class StorytimeChapterService {
 
     // Ownership is a property of the Story, so it is asked of the Story rather
     // than re-derived here.
-    await this._storyService.findOwnedOrFail(chapter.storyId, actingUserId);
+    await this._storyService.findEditableOrFail(
+      chapter.storyId,
+      actingUserId,
+      StoryCapability.MANAGE_CHAPTERS,
+    );
 
     return chapter;
   }

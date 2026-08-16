@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { StorytimeCollaborationModule } from '../collaboration/storytime-collaboration.module';
 import { StorytimeContentModule } from '../content/storytime-content.module';
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
 import { StorytimeSlugService } from '../shared/storytime-slug.service';
@@ -25,6 +26,7 @@ import { StorytimeStoryService } from './storytime-story.service';
       StorytimeSlugHistoryEntity,
     ]),
     StorytimeContentModule,
+    StorytimeCollaborationModule,
   ],
   controllers: [
     PublicStorytimeStoriesController,

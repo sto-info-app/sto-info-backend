@@ -12,7 +12,7 @@ import { StorytimeCreatorChaptersController } from './storytime-creator-chapters
 describe('StorytimeCreatorChaptersController', () => {
   let controller: StorytimeCreatorChaptersController;
   let chapterService: Record<string, jest.Mock>;
-  let storyService: { findOwnedOrFail: jest.Mock };
+  let storyService: { findEditableOrFail: jest.Mock };
   let featureService: { assertFlagEnabled: jest.Mock };
 
   const userId = 'e6d3a1b2-0000-4000-8000-000000000001';
@@ -47,7 +47,7 @@ describe('StorytimeCreatorChaptersController', () => {
       reorder: jest.fn().mockResolvedValue([chapter]),
       remove: jest.fn().mockResolvedValue(undefined),
     };
-    storyService = { findOwnedOrFail: jest.fn().mockResolvedValue(story) };
+    storyService = { findEditableOrFail: jest.fn().mockResolvedValue(story) };
     featureService = {
       assertFlagEnabled: jest.fn().mockResolvedValue(undefined),
     };

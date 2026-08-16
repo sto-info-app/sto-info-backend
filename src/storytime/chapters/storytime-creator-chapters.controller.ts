@@ -28,6 +28,7 @@ import { RequiresPermission } from 'src/access-control/requires-permission.decor
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
 import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constants';
+import { StoryCapability } from '../collaboration/storytime-story-capability.enum';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
 import { StorytimeFeatureService } from '../storytime-feature.service';
@@ -84,7 +85,11 @@ export class StorytimeCreatorChaptersController {
   ): Promise<ManagedChapterDto[]> {
     await this.assertEnabled();
 
-    const story = await this._storyService.findOwnedOrFail(storyId, userId);
+    const story = await this._storyService.findEditableOrFail(
+      storyId,
+      userId,
+      StoryCapability.MANAGE_CHAPTERS,
+    );
     const chapters = await this._chapterService.findForOwner(storyId, userId);
 
     return this._mapper.toManagedList(chapters, story);
@@ -111,7 +116,11 @@ export class StorytimeCreatorChaptersController {
     await this.assertEnabled();
 
     const chapter = await this._chapterService.create(storyId, dto, userId);
-    const story = await this._storyService.findOwnedOrFail(storyId, userId);
+    const story = await this._storyService.findEditableOrFail(
+      storyId,
+      userId,
+      StoryCapability.MANAGE_CHAPTERS,
+    );
 
     return this._mapper.toManaged(chapter, story);
   }
@@ -274,7 +283,11 @@ export class StorytimeCreatorChaptersController {
   ): Promise<ManagedChapterDto[]> {
     await this.assertEnabled();
 
-    const story = await this._storyService.findOwnedOrFail(storyId, userId);
+    const story = await this._storyService.findEditableOrFail(
+      storyId,
+      userId,
+      StoryCapability.MANAGE_CHAPTERS,
+    );
     const chapters = await this._chapterService.reorder(
       storyId,
       dto.chapterIds,
@@ -317,7 +330,11 @@ export class StorytimeCreatorChaptersController {
     chapter: { storyId: string },
     userId: string,
   ): Promise<StorytimeStoryEntity> {
-    return this._storyService.findOwnedOrFail(chapter.storyId, userId);
+    return this._storyService.findEditableOrFail(
+      chapter.storyId,
+      userId,
+      StoryCapability.MANAGE_CHAPTERS,
+    );
   }
 
   /**
