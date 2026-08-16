@@ -1,0 +1,46 @@
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { StorytimeContentModule } from '../content/storytime-content.module';
+import { StorytimeStoriesModule } from '../stories/storytime-stories.module';
+import { StorytimeFeatureService } from '../storytime-feature.service';
+import { StorytimeArcStoryEntity } from './entities/storytime-arc-story.entity';
+import { StorytimeArcEntity } from './entities/storytime-arc.entity';
+import { PublicStorytimeArcsController } from './public-storytime-arcs.controller';
+import { StorytimeArcMembershipService } from './storytime-arc-membership.service';
+import { StorytimeArcMembershipsController } from './storytime-arc-memberships.controller';
+import { StorytimeArcMapper } from './storytime-arc.mapper';
+import { StorytimeArcService } from './storytime-arc.service';
+import { StorytimeCreatorArcsController } from './storytime-creator-arcs.controller';
+
+/**
+ * Arcs: reading orders curated across several Stories.
+ *
+ * Imports Stories rather than the other way round. An Arc needs to know who
+ * owns a Story to settle whether it may join, while a Story knows nothing
+ * about Arcs — so a Story can be written, published and read by somebody who
+ * has never heard of one.
+ */
+@Module({
+  imports: [
+    TypeOrmModule.forFeature([StorytimeArcEntity, StorytimeArcStoryEntity]),
+    StorytimeStoriesModule,
+    StorytimeContentModule,
+  ],
+  controllers: [
+    PublicStorytimeArcsController,
+    StorytimeCreatorArcsController,
+    StorytimeArcMembershipsController,
+  ],
+  providers: [
+    StorytimeArcService,
+    StorytimeArcMembershipService,
+    StorytimeArcMapper,
+    StorytimeFeatureService,
+  ],
+  exports: [
+    StorytimeArcService,
+    StorytimeArcMembershipService,
+    StorytimeArcMapper,
+  ],
+})
+export class StorytimeArcsModule {}
