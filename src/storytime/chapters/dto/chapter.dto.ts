@@ -89,6 +89,13 @@ export class ManagedChapterDto extends ChapterDto {
   readonly contentSource: string;
 
   @ApiPropertyOptional({
+    description:
+      'The language the creator set on this Chapter, or null when it follows the Story. Distinct from languageCode, which is the resolved value a reader sees — an editor showing the resolved value would silently pin an inherited language on the next save.',
+    nullable: true,
+  })
+  readonly ownLanguageCode: string | null;
+
+  @ApiPropertyOptional({
     description: 'When the Chapter is due to publish automatically.',
     nullable: true,
   })

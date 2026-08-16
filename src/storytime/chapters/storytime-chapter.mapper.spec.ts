@@ -134,6 +134,25 @@ describe('StorytimeChapterMapper', () => {
       expect(dto.moderationMessage).toBe('Breached the content policy');
     });
 
+    // Binding an editor to the resolved language would silently pin an
+    // inherited one the first time the creator saved.
+    it('reports no own language when the Chapter follows the Story', () => {
+      const dto = mapper.toManaged(buildChapter(), buildStory('de'));
+
+      expect(dto.ownLanguageCode).toBeNull();
+      expect(dto.languageCode).toBe('de');
+    });
+
+    it('reports the own language when the Chapter sets one', () => {
+      const dto = mapper.toManaged(
+        buildChapter({ languageCode: 'tlh' }),
+        buildStory('de'),
+      );
+
+      expect(dto.ownLanguageCode).toBe('tlh');
+      expect(dto.languageCode).toBe('tlh');
+    });
+
     it('reports a pending schedule', () => {
       const when = new Date('2030-01-01T00:00:00Z');
       const dto = mapper.toManaged(

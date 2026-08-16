@@ -80,6 +80,10 @@ export class StorytimeChapterMapper {
       ...this.toPublic(chapter, story),
       status: chapter.status,
       contentSource: chapter.contentSource,
+      // The raw setting, not the resolved one. An editor bound to the
+      // resolved value would turn an inherited language into a pinned one the
+      // first time the creator saved.
+      ownLanguageCode: chapter.languageCode,
       scheduledPublishAt: chapter.scheduledPublishAt,
       version: chapter.version,
       moderationStatus: chapter.moderationStatus,

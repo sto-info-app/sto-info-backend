@@ -248,6 +248,32 @@ Served rather than duplicated in the frontend so the language list, ratings and 
 
 The `manage` routes require the relevant `storytime.story.*` permission *and* ownership of the Story, checked against the stored row. `PATCH` accepts the `version` the client last saw and answers **409** if it is stale.
 
+### Chapters
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/storytime/stories/:storySlug/chapters` | List a published Story's readable Chapters |
+| GET | `/storytime/stories/:storySlug/chapters/:chapterSlug` | Read a Chapter, with previous/next links |
+| GET | `/storytime/manage/stories/:storyId/chapters` | List every Chapter of a Story you own |
+| POST | `/storytime/manage/stories/:storyId/chapters` | Create a Chapter |
+| GET | `/storytime/manage/chapters/:chapterId` | Retrieve a Chapter for editing |
+| PATCH | `/storytime/manage/chapters/:chapterId` | Update a Chapter |
+| POST | `/storytime/manage/chapters/:chapterId/publish` | Publish |
+| POST | `/storytime/manage/chapters/:chapterId/unpublish` | Withdraw from publication |
+| POST | `/storytime/manage/chapters/:chapterId/schedule` | Schedule automatic publication |
+| POST | `/storytime/manage/stories/:storyId/chapters/reorder` | Reorder a Story's Chapters |
+| DELETE | `/storytime/manage/chapters/:chapterId` | Soft-delete a Chapter |
+
+Public Chapter routes resolve the **Story first** and refuse if it is not publicly readable. That single check is what keeps a published Chapter inside a private Story unreachable.
+
+Previous/next links are built from readable Chapters only, so navigation steps over a draft, a scheduled instalment or one an administrator has removed.
+
+`languageCode` on a Chapter response is the **resolved** language, falling back to the Story's — it is what belongs in a `lang` attribute. The creator-facing shape additionally carries `ownLanguageCode`, the creator's own setting or `null` when the Chapter follows its Story. An editor must bind to `ownLanguageCode`; binding to the resolved value silently pins an inherited language on the next save.
+
+Publishing or unpublishing a Chapter updates its Story's `publishedChapterCount` **in the same transaction**, because that count decides whether the Story itself may be published.
+
+`schedule` takes a UTC instant and must be in the future. A job publishes due Chapters every five minutes, so a Chapter goes out within five minutes of its scheduled time. The job does nothing while Storytime is switched off.
+
 ### PATCH /admin/storytime/configuration
 
 Switch Storytime on or off at runtime. `GET` on the same path reports the current state. Both require the `ADMIN` role.
