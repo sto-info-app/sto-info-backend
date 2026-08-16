@@ -133,6 +133,38 @@ export class ArcMembershipDto {
 }
 
 /**
+ * How far a reader has got through an Arc.
+ *
+ * Derived from Story progress rather than stored, so it can never drift from
+ * what the reader has actually read.
+ */
+export class ArcProgressDto {
+  @ApiProperty({ description: 'The Arc.' })
+  arcId: string;
+
+  @ApiProperty({ description: 'Readable Stories in the Arc right now.' })
+  totalStories: number;
+
+  @ApiProperty({ description: 'How many of those the reader has finished.' })
+  completedStories: number;
+
+  @ApiProperty({ description: 'Whole percent through the Arc.' })
+  percentComplete: number;
+
+  @ApiProperty({
+    description: 'The first Story they have not finished.',
+    nullable: true,
+  })
+  continueStoryId: string | null;
+
+  @ApiProperty({
+    description: 'Where in that Story to pick up.',
+    nullable: true,
+  })
+  continueChapterId: string | null;
+}
+
+/**
  * An Arc and the Stories a reader can actually follow through it.
  */
 export class ArcWithStoriesDto {

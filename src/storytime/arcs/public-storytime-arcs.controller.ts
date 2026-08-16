@@ -1,16 +1,27 @@
-import { Controller, Get, NotFoundException, Param } from '@nestjs/common';
 import {
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import { UserId } from 'src/auth/user-id.decorator';
 import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constants';
+import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeStoryMapper } from '../stories/storytime-story.mapper';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
 import { StorytimeFeatureService } from '../storytime-feature.service';
-import { ArcDto, ArcWithStoriesDto } from './dto/arc.dto';
+import { ArcDto, ArcProgressDto, ArcWithStoriesDto } from './dto/arc.dto';
 import { StorytimeArcMembershipService } from './storytime-arc-membership.service';
+import { StorytimeArcProgressService } from './storytime-arc-progress.service';
 import { StorytimeArcMapper } from './storytime-arc.mapper';
 import { StorytimeArcService } from './storytime-arc.service';
 
@@ -33,6 +44,7 @@ export class PublicStorytimeArcsController {
    * @param _storyService - Resolves the readable Stories.
    * @param _mapper - Maps Arcs to their response shapes.
    * @param _storyMapper - Maps Stories to their reader-facing shape.
+   * @param _progressService - How far a reader has got through the Arc.
    * @param _featureService - Reports whether public reading is switched on.
    */
   constructor(
@@ -41,6 +53,7 @@ export class PublicStorytimeArcsController {
     private readonly _storyService: StorytimeStoryService,
     private readonly _mapper: StorytimeArcMapper,
     private readonly _storyMapper: StorytimeStoryMapper,
+    private readonly _progressService: StorytimeArcProgressService,
     private readonly _featureService: StorytimeFeatureService,
   ) {}
 
@@ -94,6 +107,50 @@ export class PublicStorytimeArcsController {
         .toMembershipList(memberships, byId)
         .filter(membership => membership.story !== null),
     };
+  }
+
+  /**
+   * Reports the caller's progress through an Arc.
+   *
+   * Counted over the Stories a reader can actually open, so an Arc whose later
+   * Stories are not published yet reads as complete once the published ones
+   * are done rather than stalling at a percentage nobody can move.
+   *
+   * @param arcSlug - The Arc slug.
+   * @param userId - The reader.
+   * @returns Their progress across the Arc.
+   */
+  @Get(':arcSlug/progress')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Report your progress through an Arc' })
+  @ApiOkResponse({ type: ArcProgressDto })
+  @ApiNotFoundResponse({ description: 'No readable Arc matches the slug.' })
+  async findProgress(
+    @Param('arcSlug') arcSlug: string,
+    @UserId() userId: string,
+  ): Promise<ArcProgressDto> {
+    await this.assertEnabled();
+
+    const arc = await this._arcService.findPublicBySlug(arcSlug);
+
+    if (!arc) {
+      throw new NotFoundException('Arc not found');
+    }
+
+    const memberships = await this._membershipService.findApprovedByArc(arc.id);
+    const stories = await this._storyService.findPublicByIds(
+      memberships.map(membership => membership.storyId),
+    );
+
+    // Ordered by the Arc rather than by the lookup, so "continue" follows the
+    // reading order the curator set rather than whatever the database returned.
+    const byId = new Map(stories.map(story => [story.id, story]));
+    const ordered = memberships
+      .map(membership => byId.get(membership.storyId))
+      .filter((story): story is StorytimeStoryEntity => story !== undefined);
+
+    return this._progressService.summarise(userId, arc.id, ordered);
   }
 
   /**

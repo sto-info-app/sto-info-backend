@@ -1,11 +1,13 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { StorytimeContentModule } from '../content/storytime-content.module';
+import { StorytimeProgressModule } from '../progress/storytime-progress.module';
 import { StorytimeStoriesModule } from '../stories/storytime-stories.module';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { StorytimeArcStoryEntity } from './entities/storytime-arc-story.entity';
 import { StorytimeArcEntity } from './entities/storytime-arc.entity';
 import { PublicStorytimeArcsController } from './public-storytime-arcs.controller';
+import { StorytimeArcProgressService } from './storytime-arc-progress.service';
 import { StorytimeArcMembershipService } from './storytime-arc-membership.service';
 import { StorytimeArcMembershipsController } from './storytime-arc-memberships.controller';
 import { StorytimeArcMapper } from './storytime-arc.mapper';
@@ -25,6 +27,7 @@ import { StorytimeCreatorArcsController } from './storytime-creator-arcs.control
     TypeOrmModule.forFeature([StorytimeArcEntity, StorytimeArcStoryEntity]),
     StorytimeStoriesModule,
     StorytimeContentModule,
+    StorytimeProgressModule,
   ],
   controllers: [
     PublicStorytimeArcsController,
@@ -34,6 +37,7 @@ import { StorytimeCreatorArcsController } from './storytime-creator-arcs.control
   providers: [
     StorytimeArcService,
     StorytimeArcMembershipService,
+    StorytimeArcProgressService,
     StorytimeArcMapper,
     StorytimeFeatureService,
   ],
