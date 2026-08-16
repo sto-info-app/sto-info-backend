@@ -21,7 +21,11 @@ import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
 import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constants';
 import { ReaderStoryStatus } from '../enums/reader-story-status.enum';
+import { StorytimeStoryMapper } from '../stories/storytime-story.mapper';
+import { StorytimeStoryService } from '../stories/storytime-story.service';
 import { StorytimeFeatureService } from '../storytime-feature.service';
+import { ChapterProgressDto } from './dto/chapter-progress.dto';
+import { LibraryEntryDto } from './dto/library-entry.dto';
 import { SetChapterReadDto } from './dto/set-chapter-read.dto';
 import { StoryProgressDto } from './dto/story-progress.dto';
 import { UpdateChapterProgressDto } from './dto/update-chapter-progress.dto';
@@ -46,11 +50,15 @@ export class StorytimeProgressController {
    *
    * @param _progressService - The progress service.
    * @param _mapper - Maps progress to its response shape.
+   * @param _storyService - Finds the Stories a library entry refers to.
+   * @param _storyMapper - Maps those Stories to their reader-facing shape.
    * @param _featureService - Reports whether reading is switched on.
    */
   constructor(
     private readonly _progressService: StorytimeProgressService,
     private readonly _mapper: StorytimeProgressMapper,
+    private readonly _storyService: StorytimeStoryService,
+    private readonly _storyMapper: StorytimeStoryMapper,
     private readonly _featureService: StorytimeFeatureService,
   ) {}
 
@@ -64,11 +72,11 @@ export class StorytimeProgressController {
   @Get()
   @ApiOperation({ summary: 'List the Stories you have progress on' })
   @ApiQuery({ name: 'status', enum: ReaderStoryStatus, required: false })
-  @ApiOkResponse({ type: [StoryProgressDto] })
+  @ApiOkResponse({ type: [LibraryEntryDto] })
   async findLibrary(
     @UserId() userId: string,
     @Query('status') status?: ReaderStoryStatus,
-  ): Promise<StoryProgressDto[]> {
+  ): Promise<LibraryEntryDto[]> {
     await this.assertEnabled();
 
     const rows = await this._progressService.findLibrary(userId, status);
@@ -78,7 +86,19 @@ export class StorytimeProgressController {
       ),
     );
 
-    return this._mapper.toDtoList(summaries);
+    // The Stories travel with the progress: rows hold identifiers, and a
+    // library of identifiers would be useless. Fetched in one go rather than
+    // one request per row.
+    const stories = await this._storyService.findPublicByIds(
+      summaries.map(summary => summary.progress.storyId),
+    );
+
+    return this._mapper.toLibraryDtoList(
+      summaries,
+      new Map(
+        stories.map(story => [story.id, this._storyMapper.toPublic(story)]),
+      ),
+    );
   }
 
   /**
@@ -99,6 +119,28 @@ export class StorytimeProgressController {
 
     return this._mapper.toDto(
       await this._progressService.getStoryProgress(userId, storyId),
+    );
+  }
+
+  /**
+   * Reports the caller's progress through one Chapter.
+   *
+   * @param chapterId - The Chapter.
+   * @param userId - The reader.
+   * @returns The progress, empty when they have never opened it.
+   */
+  @Get('chapters/:chapterId')
+  @ApiOperation({ summary: 'Report your progress through a Chapter' })
+  @ApiOkResponse({ type: ChapterProgressDto })
+  async findChapterProgress(
+    @Param('chapterId', ParseUUIDPipe) chapterId: string,
+    @UserId() userId: string,
+  ): Promise<ChapterProgressDto> {
+    await this.assertEnabled();
+
+    return this._mapper.toChapterDto(
+      chapterId,
+      await this._progressService.findChapterProgress(userId, chapterId),
     );
   }
 

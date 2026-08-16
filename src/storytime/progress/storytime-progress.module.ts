@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { StorytimeChapterEntity } from '../chapters/entities/storytime-chapter.entity';
+import { StorytimeStoriesModule } from '../stories/storytime-stories.module';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { StorytimeUserChapterProgressEntity } from './entities/storytime-user-chapter-progress.entity';
 import { StorytimeUserStoryProgressEntity } from './entities/storytime-user-story-progress.entity';
@@ -23,6 +24,7 @@ import { StorytimeProgressService } from './storytime-progress.service';
       StorytimeUserChapterProgressEntity,
       StorytimeChapterEntity,
     ]),
+    StorytimeStoriesModule,
   ],
   controllers: [StorytimeProgressController],
   providers: [

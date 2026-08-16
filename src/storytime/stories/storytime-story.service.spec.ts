@@ -517,6 +517,50 @@ describe('StorytimeStoryService', () => {
     });
   });
 
+  describe('findPublicByIds', () => {
+    it('returns the readable Stories', async () => {
+      storyRepository.find.mockResolvedValue([
+        buildStory({
+          status: StoryStatus.PUBLISHED,
+          visibility: StorytimeVisibility.PUBLIC,
+        }),
+      ]);
+
+      await expect(service.findPublicByIds(['story-1'])).resolves.toHaveLength(
+        1,
+      );
+    });
+
+    // A reader with an unlisted Story in their library reached it by link
+    // already, so hiding it from their own history would lose it for them.
+    it('includes an unlisted Story', async () => {
+      storyRepository.find.mockResolvedValue([
+        buildStory({
+          status: StoryStatus.PUBLISHED,
+          visibility: StorytimeVisibility.UNLISTED,
+        }),
+      ]);
+
+      await expect(service.findPublicByIds(['story-1'])).resolves.toHaveLength(
+        1,
+      );
+    });
+
+    it('drops a Story that is no longer readable', async () => {
+      storyRepository.find.mockResolvedValue([
+        buildStory({ visibility: StorytimeVisibility.PRIVATE }),
+      ]);
+
+      await expect(service.findPublicByIds(['story-1'])).resolves.toEqual([]);
+    });
+
+    // Asking the database for nothing would return every Story.
+    it('asks for nothing when given no identifiers', async () => {
+      await expect(service.findPublicByIds([])).resolves.toEqual([]);
+      expect(storyRepository.find).not.toHaveBeenCalled();
+    });
+  });
+
   describe('findPublicBySlug', () => {
     it('returns a published public Story', async () => {
       storyRepository.findOne.mockResolvedValue(

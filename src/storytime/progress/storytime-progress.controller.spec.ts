@@ -1,8 +1,13 @@
 import { ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constants';
+import { ReaderChapterStatus } from '../enums/reader-chapter-status.enum';
 import { ReaderStoryStatus } from '../enums/reader-story-status.enum';
+import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
+import { StorytimeStoryMapper } from '../stories/storytime-story.mapper';
+import { StorytimeStoryService } from '../stories/storytime-story.service';
 import { StorytimeFeatureService } from '../storytime-feature.service';
+import { StorytimeUserChapterProgressEntity } from './entities/storytime-user-chapter-progress.entity';
 import { StorytimeUserStoryProgressEntity } from './entities/storytime-user-story-progress.entity';
 import { StorytimeProgressController } from './storytime-progress.controller';
 import { StorytimeProgressMapper } from './storytime-progress.mapper';
@@ -16,12 +21,14 @@ describe('StorytimeProgressController', () => {
   let progressService: {
     findLibrary: jest.Mock;
     getStoryProgress: jest.Mock;
+    findChapterProgress: jest.Mock;
     setStoryStatus: jest.Mock;
     updateChapterProgress: jest.Mock;
     setChapterRead: jest.Mock;
     completeStory: jest.Mock;
     resetStory: jest.Mock;
   };
+  let storyService: { findPublicByIds: jest.Mock };
   let featureService: { assertFlagEnabled: jest.Mock };
 
   const userId = 'user-1';
@@ -56,11 +63,23 @@ describe('StorytimeProgressController', () => {
     progressService = {
       findLibrary: jest.fn().mockResolvedValue([]),
       getStoryProgress: jest.fn().mockResolvedValue(buildSummary()),
+      findChapterProgress: jest.fn().mockResolvedValue(null),
       setStoryStatus: jest.fn().mockResolvedValue(buildSummary()),
       updateChapterProgress: jest.fn().mockResolvedValue(buildSummary()),
       setChapterRead: jest.fn().mockResolvedValue(buildSummary()),
       completeStory: jest.fn().mockResolvedValue(buildSummary()),
       resetStory: jest.fn().mockResolvedValue(buildSummary()),
+    };
+    storyService = {
+      findPublicByIds: jest.fn().mockResolvedValue([
+        Object.assign(new StorytimeStoryEntity(), {
+          id: storyId,
+          slug: 'a-story',
+          title: 'A Story',
+          upVoteCount: 0,
+          downVoteCount: 0,
+        }),
+      ]),
     };
     featureService = {
       assertFlagEnabled: jest.fn().mockResolvedValue(undefined),
@@ -71,6 +90,8 @@ describe('StorytimeProgressController', () => {
       providers: [
         { provide: StorytimeProgressService, useValue: progressService },
         StorytimeProgressMapper,
+        { provide: StorytimeStoryService, useValue: storyService },
+        StorytimeStoryMapper,
         { provide: StorytimeFeatureService, useValue: featureService },
       ],
     }).compile();
@@ -104,6 +125,37 @@ describe('StorytimeProgressController', () => {
       );
     });
 
+    // A library of identifiers would be useless, and one request per row would
+    // be a request per row.
+    it('fetches every Story in one go', async () => {
+      progressService.findLibrary.mockResolvedValue([
+        { storyId: 'story-1' },
+        { storyId: 'story-1' },
+      ]);
+
+      const result = await controller.findLibrary(userId);
+
+      expect(storyService.findPublicByIds).toHaveBeenCalledTimes(1);
+      expect(result[0].story?.title).toBe('A Story');
+    });
+
+    // A Story made private or removed since the reader started it still
+    // belongs in their own history rather than vanishing from it.
+    it('keeps a row whose Story is no longer readable', async () => {
+      progressService.findLibrary.mockResolvedValue([{ storyId: 'story-1' }]);
+      storyService.findPublicByIds.mockResolvedValue([]);
+
+      const result = await controller.findLibrary(userId);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].story).toBeNull();
+      expect(result[0].progress.storyId).toBe(storyId);
+    });
+
+    it('returns an empty library', async () => {
+      await expect(controller.findLibrary(userId)).resolves.toEqual([]);
+    });
+
     it('passes a status filter through', async () => {
       await controller.findLibrary(userId, ReaderStoryStatus.ABANDONED);
 
@@ -122,6 +174,33 @@ describe('StorytimeProgressController', () => {
       userId,
       storyId,
     );
+  });
+
+  it('reports progress through one Chapter', async () => {
+    progressService.findChapterProgress.mockResolvedValue(
+      Object.assign(new StorytimeUserChapterProgressEntity(), {
+        chapterId: 'chapter-1',
+        status: ReaderChapterStatus.IN_PROGRESS,
+        progressPercent: 55,
+        lastPositionValue: 'b9',
+        lastReadAt: null,
+      }),
+    );
+
+    const result = await controller.findChapterProgress('chapter-1', userId);
+
+    expect(result.blockId).toBe('b9');
+    expect(progressService.findChapterProgress).toHaveBeenCalledWith(
+      userId,
+      'chapter-1',
+    );
+  });
+
+  it('reports an unopened Chapter as unread', async () => {
+    const result = await controller.findChapterProgress('chapter-1', userId);
+
+    expect(result.status).toBe(ReaderChapterStatus.UNREAD);
+    expect(result.blockId).toBeNull();
   });
 
   it('sets a deliberate Story status', async () => {
@@ -196,6 +275,10 @@ describe('StorytimeProgressController', () => {
     it.each([
       ['findLibrary', () => controller.findLibrary(userId)],
       ['findOne', () => controller.findOne(storyId, userId)],
+      [
+        'findChapterProgress',
+        () => controller.findChapterProgress('chapter-1', userId),
+      ],
       [
         'setStoryStatus',
         () =>

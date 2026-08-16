@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Not, Repository } from 'typeorm';
+import { In, IsNull, Not, Repository } from 'typeorm';
 import { LimitService } from '../../access-control/limit.service';
 import { STORYTIME_LANGUAGE_CODES } from '../constants/storytime-language.constants';
 import { STORYTIME_LIMITS } from '../constants/storytime-limits.constants';
@@ -231,6 +231,28 @@ export class StorytimeStoryService {
     }
 
     return story;
+  }
+
+  /**
+   * Finds several Stories by identifier for public reading.
+   *
+   * Unlisted Stories are included, unlike the browsable listing: a reader who
+   * has one in their library reached it by link already, and hiding it from
+   * their own history would lose it for them.
+   *
+   * @param storyIds - The Stories to find.
+   * @returns The readable Stories among them.
+   */
+  async findPublicByIds(storyIds: string[]): Promise<StorytimeStoryEntity[]> {
+    if (storyIds.length === 0) {
+      return [];
+    }
+
+    const stories = await this._storyRepository.find({
+      where: { id: In(storyIds) },
+    });
+
+    return stories.filter(story => this.isPubliclyReadable(story));
   }
 
   /**
