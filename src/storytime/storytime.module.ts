@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AdminStorytimeConfigurationController } from './admin-storytime-configuration.controller';
+import { StorytimeChaptersModule } from './chapters/storytime-chapters.module';
 import { StorytimeContentModule } from './content/storytime-content.module';
 import { StorytimeConfigurationController } from './storytime-configuration.controller';
 import { StorytimeFeatureService } from './storytime-feature.service';
@@ -17,7 +18,11 @@ import { StorytimeStoriesModule } from './stories/storytime-stories.module';
  * to check whether the capability it implements is switched on before acting.
  */
 @Module({
-  imports: [StorytimeContentModule, StorytimeStoriesModule],
+  imports: [
+    StorytimeContentModule,
+    StorytimeStoriesModule,
+    StorytimeChaptersModule,
+  ],
   controllers: [
     StorytimeConfigurationController,
     AdminStorytimeConfigurationController,
@@ -27,6 +32,7 @@ import { StorytimeStoriesModule } from './stories/storytime-stories.module';
     StorytimeFeatureService,
     StorytimeContentModule,
     StorytimeStoriesModule,
+    StorytimeChaptersModule,
   ],
 })
 export class StorytimeModule {}
