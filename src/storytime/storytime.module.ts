@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AdminStorytimeConfigurationController } from './admin-storytime-configuration.controller';
 import { StorytimeChaptersModule } from './chapters/storytime-chapters.module';
 import { StorytimeCrewModule } from './crew/storytime-crew.module';
+import { StorytimeMediaModule } from './media/storytime-media.module';
 import { StorytimeCharactersModule } from './characters/storytime-characters.module';
 import { StorytimeContentModule } from './content/storytime-content.module';
 import { StorytimeProgressModule } from './progress/storytime-progress.module';
@@ -27,6 +28,7 @@ import { StorytimeStoriesModule } from './stories/storytime-stories.module';
     StorytimeChaptersModule,
     StorytimeCharactersModule,
     StorytimeCrewModule,
+    StorytimeMediaModule,
     StorytimeProgressModule,
   ],
   controllers: [
@@ -41,6 +43,7 @@ import { StorytimeStoriesModule } from './stories/storytime-stories.module';
     StorytimeChaptersModule,
     StorytimeCharactersModule,
     StorytimeCrewModule,
+    StorytimeMediaModule,
     StorytimeProgressModule,
   ],
 })
