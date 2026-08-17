@@ -11,6 +11,7 @@ import { StorytimeProgressModule } from './progress/storytime-progress.module';
 import { StorytimeConfigurationController } from './storytime-configuration.controller';
 import { StorytimeFeatureService } from './storytime-feature.service';
 import { StorytimeSearchModule } from './search/storytime-search.module';
+import { StorytimeSocialModule } from './social/storytime-social.module';
 import { StorytimeSpotlightModule } from './spotlight/storytime-spotlight.module';
 import { StorytimeStoriesModule } from './stories/storytime-stories.module';
 import { StorytimeTagsModule } from './tags/storytime-tags.module';
@@ -40,6 +41,7 @@ import { StorytimeTagsModule } from './tags/storytime-tags.module';
     StorytimeModerationModule,
     StorytimeSearchModule,
     StorytimeTagsModule,
+    StorytimeSocialModule,
   ],
   controllers: [
     StorytimeConfigurationController,
@@ -60,6 +62,7 @@ import { StorytimeTagsModule } from './tags/storytime-tags.module';
     StorytimeModerationModule,
     StorytimeSearchModule,
     StorytimeTagsModule,
+    StorytimeSocialModule,
   ],
 })
 export class StorytimeModule {}
