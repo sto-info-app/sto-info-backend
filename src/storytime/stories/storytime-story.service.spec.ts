@@ -414,6 +414,57 @@ describe('StorytimeStoryService', () => {
     });
   });
 
+  describe('accepting the content policy', () => {
+    it('records when the owner accepted it', async () => {
+      storyRepository.findOne.mockResolvedValue(
+        buildStory({ contentPolicyAcceptedAt: null }),
+      );
+
+      const accepted = await service.acceptContentPolicy(storyId, ownerId);
+
+      expect(accepted.contentPolicyAcceptedAt).toBeInstanceOf(Date);
+    });
+
+    // What matters is when they first agreed, and a creator who clicks twice
+    // has not agreed twice.
+    it('does not move the date when accepted again', async () => {
+      const firstAccepted = new Date('2026-01-01T00:00:00Z');
+      storyRepository.findOne.mockResolvedValue(
+        buildStory({ contentPolicyAcceptedAt: firstAccepted }),
+      );
+
+      const accepted = await service.acceptContentPolicy(storyId, ownerId);
+
+      expect(accepted.contentPolicyAcceptedAt).toBe(firstAccepted);
+      expect(storyRepository.save).not.toHaveBeenCalled();
+    });
+
+    // Accepting a policy on behalf of somebody else's Story would be a
+    // declaration made in their name.
+    it('refuses somebody who does not own the Story', async () => {
+      storyRepository.findOne.mockResolvedValue(buildStory());
+
+      await expect(
+        service.acceptContentPolicy(storyId, 'stranger-1'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    // The publication checklist depends on it, so the two have to agree.
+    it('lets a Story publish once it has been accepted', async () => {
+      storyRepository.findOne.mockResolvedValue(
+        buildStory({ contentPolicyAcceptedAt: null }),
+      );
+
+      await expect(service.publish(storyId, ownerId)).rejects.toThrow(
+        /content policy/,
+      );
+
+      storyRepository.findOne.mockResolvedValue(buildStory());
+
+      await expect(service.publish(storyId, ownerId)).resolves.toBeDefined();
+    });
+  });
+
   describe('publish', () => {
     it('publishes a Story that meets the checklist', async () => {
       storyRepository.findOne.mockResolvedValue(buildStory());

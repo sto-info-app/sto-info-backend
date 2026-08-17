@@ -163,6 +163,31 @@ export class StorytimeCreatorStoriesController {
   }
 
   /**
+   * Records that the caller accepts the content policy for a Story.
+   *
+   * @param storyId - The Story.
+   * @param userId - The owner.
+   * @returns The Story, with its acceptance recorded.
+   */
+  @Post(':storyId/content-policy')
+  @RequiresPermission(PERMISSION_CODES.STORYTIME_STORY_EDIT_OWN)
+  @ApiOperation({ summary: 'Accept the content policy for a Story you own' })
+  @ApiOkResponse({ type: ManagedStoryDto })
+  @ApiForbiddenResponse({ description: 'The Story is not the caller’s.' })
+  async acceptContentPolicy(
+    @Param('storyId', ParseUUIDPipe) storyId: string,
+    @UserId() userId: string,
+  ): Promise<ManagedStoryDto> {
+    await this._featureService.assertFlagEnabled(
+      STORYTIME_FEATURE_FLAGS.CREATION_ENABLED,
+    );
+
+    return this._mapper.toManaged(
+      await this._storyService.acceptContentPolicy(storyId, userId),
+    );
+  }
+
+  /**
    * Publishes a Story the caller owns.
    *
    * @param storyId - The Story to publish.

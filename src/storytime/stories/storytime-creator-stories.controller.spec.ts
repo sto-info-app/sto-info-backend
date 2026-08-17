@@ -29,6 +29,7 @@ describe('StorytimeCreatorStoriesController', () => {
       findAccessibleOrFail: jest.fn().mockResolvedValue(story),
       create: jest.fn().mockResolvedValue(story),
       update: jest.fn().mockResolvedValue(story),
+      acceptContentPolicy: jest.fn().mockResolvedValue(story),
       publish: jest.fn().mockResolvedValue(story),
       unpublish: jest.fn().mockResolvedValue(story),
       archive: jest.fn().mockResolvedValue(story),
@@ -100,6 +101,15 @@ describe('StorytimeCreatorStoriesController', () => {
     );
   });
 
+  it('records that the caller accepted the content policy', async () => {
+    await controller.acceptContentPolicy(storyId, userId);
+
+    expect(storyService.acceptContentPolicy).toHaveBeenCalledWith(
+      storyId,
+      userId,
+    );
+  });
+
   it('publishes a Story', async () => {
     await controller.publish(storyId, userId);
 
@@ -144,6 +154,10 @@ describe('StorytimeCreatorStoriesController', () => {
       ['findOne', () => controller.findOne(storyId, userId)],
       ['create', () => controller.create({ title: 'x' }, userId)],
       ['update', () => controller.update(storyId, {}, userId)],
+      [
+        'acceptContentPolicy',
+        () => controller.acceptContentPolicy(storyId, userId),
+      ],
       ['publish', () => controller.publish(storyId, userId)],
       ['unpublish', () => controller.unpublish(storyId, userId)],
       ['archive', () => controller.archive(storyId, userId)],

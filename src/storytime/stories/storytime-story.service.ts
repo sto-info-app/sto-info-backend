@@ -488,6 +488,41 @@ export class StorytimeStoryService {
    * @returns The published Story.
    * @throws BadRequestException when the Story is not ready to publish.
    */
+  /**
+   * Records that the owner has accepted the content policy for a Story.
+   *
+   * Kept as its own act rather than a flag on publishing, because agreeing
+   * that a Story meets the policy is a statement the creator makes about their
+   * own work — the date it was made is worth having, and burying it in a
+   * publish request would lose it.
+   *
+   * Accepting again does not move the date. What matters is when they first
+   * agreed, and a creator who clicks twice has not agreed twice.
+   *
+   * @param storyId - The Story.
+   * @param actingUserId - The owner.
+   * @returns The Story, with its acceptance recorded.
+   */
+  async acceptContentPolicy(
+    storyId: string,
+    actingUserId: string,
+  ): Promise<StorytimeStoryEntity> {
+    const story = await this.findOwnedOrFail(storyId, actingUserId);
+
+    if (story.contentPolicyAcceptedAt) {
+      return story;
+    }
+
+    story.contentPolicyAcceptedAt = new Date();
+    story.updatedByUserId = actingUserId;
+
+    this._logger.log(
+      `Content policy accepted for Story '${story.slug}' by ${actingUserId}`,
+    );
+
+    return this._storyRepository.save(story);
+  }
+
   async publish(
     storyId: string,
     actingUserId: string,
