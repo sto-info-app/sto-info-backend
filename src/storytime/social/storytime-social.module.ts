@@ -3,11 +3,20 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { StorytimeArcEntity } from '../arcs/entities/storytime-arc.entity';
 import { StorytimeChapterEntity } from '../chapters/entities/storytime-chapter.entity';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
+import { StorytimeActivityFeedItemEntity } from './entities/storytime-activity-feed-item.entity';
+import { StorytimeArcFollowEntity } from './entities/storytime-arc-follow.entity';
 import { StorytimeCommentEntity } from './entities/storytime-comment.entity';
+import { StorytimeCreatorFollowEntity } from './entities/storytime-creator-follow.entity';
+import { StorytimeFeedStateEntity } from './entities/storytime-feed-state.entity';
+import { StorytimeStoryFollowEntity } from './entities/storytime-story-follow.entity';
 import { StorytimeReactionEntity } from './entities/storytime-reaction.entity';
 import { StorytimeCommentMapper } from './storytime-comment.mapper';
 import { StorytimeCommentService } from './storytime-comment.service';
 import { StorytimeCommentsController } from './storytime-comments.controller';
+import { StorytimeActivityFeedService } from './storytime-activity-feed.service';
+import { StorytimeFollowService } from './storytime-follow.service';
+import { StorytimeFollowsController } from './storytime-follows.controller';
+import { StorytimeSocialMapper } from './storytime-social.mapper';
 import { StorytimeReactionService } from './storytime-reaction.service';
 import { StorytimeReactionsController } from './storytime-reactions.controller';
 
@@ -29,18 +38,32 @@ import { StorytimeReactionsController } from './storytime-reactions.controller';
       StorytimeStoryEntity,
       StorytimeChapterEntity,
       StorytimeArcEntity,
+      StorytimeCreatorFollowEntity,
+      StorytimeStoryFollowEntity,
+      StorytimeArcFollowEntity,
+      StorytimeActivityFeedItemEntity,
+      StorytimeFeedStateEntity,
     ]),
   ],
-  controllers: [StorytimeReactionsController, StorytimeCommentsController],
+  controllers: [
+    StorytimeReactionsController,
+    StorytimeCommentsController,
+    StorytimeFollowsController,
+  ],
   providers: [
     StorytimeReactionService,
     StorytimeCommentService,
     StorytimeCommentMapper,
+    StorytimeFollowService,
+    StorytimeActivityFeedService,
+    StorytimeSocialMapper,
   ],
   exports: [
     StorytimeReactionService,
     StorytimeCommentService,
     StorytimeCommentMapper,
+    StorytimeFollowService,
+    StorytimeActivityFeedService,
   ],
 })
 export class StorytimeSocialModule {}
