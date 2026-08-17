@@ -16,6 +16,8 @@ import { StoryStatus } from '../enums/story-status.enum';
 import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.enum';
 import { StorytimeVisibility } from '../enums/storytime-visibility.enum';
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
+import { StorytimeActivityType } from '../enums/storytime-activity-type.enum';
+import { StorytimeActivityFeedService } from '../social/storytime-activity-feed.service';
 import {
   SlugRequest,
   StorytimeSlugService,
@@ -51,6 +53,7 @@ describe('StorytimeStoryService', () => {
     findByRetiredSlug: jest.Mock;
   };
   let limitService: { assertWithinLimit: jest.Mock };
+  let feedService: { recordQuietly: jest.Mock };
   let collaboratorAccessService: {
     hasCapability: jest.Mock;
     findAccepted: jest.Mock;
@@ -138,6 +141,7 @@ describe('StorytimeStoryService', () => {
       hasCapability: jest.fn().mockResolvedValue(false),
       findAccepted: jest.fn().mockResolvedValue(null),
     };
+    feedService = { recordQuietly: jest.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -154,6 +158,7 @@ describe('StorytimeStoryService', () => {
           provide: StorytimeCollaboratorAccessService,
           useValue: collaboratorAccessService,
         },
+        { provide: StorytimeActivityFeedService, useValue: feedService },
       ],
     }).compile();
 
@@ -474,6 +479,30 @@ describe('StorytimeStoryService', () => {
 
       expect(published.status).toBe(StoryStatus.PUBLISHED);
       expect(published.publishedAt).toBeInstanceOf(Date);
+    });
+
+    it('announces publication to the people who follow', async () => {
+      storyRepository.findOne.mockResolvedValue(buildStory());
+
+      await service.publish(storyId, ownerId);
+
+      expect(feedService.recordQuietly).toHaveBeenCalledWith(
+        StorytimeActivityType.STORY_PUBLISHED,
+        ownerId,
+        { storyId },
+      );
+    });
+
+    // Saving an already-published Story again is a creator tidying up, and
+    // nobody's feed wants to hear about it.
+    it('announces nothing when the Story was already published', async () => {
+      storyRepository.findOne.mockResolvedValue(
+        buildStory({ status: StoryStatus.PUBLISHED }),
+      );
+
+      await service.publish(storyId, ownerId);
+
+      expect(feedService.recordQuietly).not.toHaveBeenCalled();
     });
 
     it('keeps the original publication date when republishing', async () => {

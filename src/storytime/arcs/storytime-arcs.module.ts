@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { StorytimeCollaborationModule } from '../collaboration/storytime-collaboration.module';
 import { StorytimeContentModule } from '../content/storytime-content.module';
 import { StorytimeProgressModule } from '../progress/storytime-progress.module';
+import { StorytimeSocialModule } from '../social/storytime-social.module';
 import { StorytimeStoriesModule } from '../stories/storytime-stories.module';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { StorytimeArcStoryEntity } from './entities/storytime-arc-story.entity';
@@ -39,6 +40,7 @@ import { StorytimeCreatorArcsController } from './storytime-creator-arcs.control
     StorytimeCollaborationModule,
     StorytimeProgressModule,
     NotificationModule,
+    StorytimeSocialModule,
   ],
   controllers: [
     PublicStorytimeArcsController,

@@ -7,6 +7,8 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ArcMembershipStatus } from '../enums/arc-membership-status.enum';
+import { StorytimeActivityType } from '../enums/storytime-activity-type.enum';
+import { StorytimeActivityFeedService } from '../social/storytime-activity-feed.service';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
 import { StorytimeArcStoryEntity } from './entities/storytime-arc-story.entity';
 import { StorytimeArcMembershipService } from './storytime-arc-membership.service';
@@ -26,6 +28,7 @@ describe('StorytimeArcMembershipService', () => {
     nextOrderIndex: jest.Mock;
   };
   let storyService: { findOwnedOrFail: jest.Mock };
+  let feedService: { recordQuietly: jest.Mock };
 
   const curatorId = 'e6d3a1b2-0000-4000-8000-000000000001';
   const authorId = 'e6d3a1b2-0000-4000-8000-000000000002';
@@ -101,6 +104,7 @@ describe('StorytimeArcMembershipService', () => {
     storyService = {
       findOwnedOrFail: jest.fn().mockResolvedValue({ id: storyId }),
     };
+    feedService = { recordQuietly: jest.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -111,6 +115,7 @@ describe('StorytimeArcMembershipService', () => {
         },
         { provide: StorytimeArcService, useValue: arcService },
         { provide: StorytimeStoryService, useValue: storyService },
+        { provide: StorytimeActivityFeedService, useValue: feedService },
       ],
     }).compile();
 
@@ -225,6 +230,16 @@ describe('StorytimeArcMembershipService', () => {
         expect(membership.approvedAt).toBeInstanceOf(Date);
       });
 
+      it('announces the Story joining the Arc', async () => {
+        await service.approve(membershipId, authorId);
+
+        expect(feedService.recordQuietly).toHaveBeenCalledWith(
+          StorytimeActivityType.ARC_STORY_ADDED,
+          authorId,
+          { arcId, storyId },
+        );
+      });
+
       it('is the Story owner’s to decline', async () => {
         const membership = await service.decline(membershipId, authorId);
 
@@ -310,6 +325,16 @@ describe('StorytimeArcMembershipService', () => {
 
       expect(membership.membershipStatus).toBe(ArcMembershipStatus.REMOVED);
       expect(membership.removedAt).toBeInstanceOf(Date);
+    });
+
+    it('announces the Story leaving the Arc', async () => {
+      await service.leave(membershipId, curatorId);
+
+      expect(feedService.recordQuietly).toHaveBeenCalledWith(
+        StorytimeActivityType.ARC_STORY_REMOVED,
+        curatorId,
+        { arcId, storyId },
+      );
     });
 
     it('records an owner pulling out as withdrawn', async () => {

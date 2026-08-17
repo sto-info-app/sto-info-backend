@@ -20,6 +20,8 @@ import {
   StorytimeSlugService,
 } from '../shared/storytime-slug.service';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
+import { StorytimeActivityType } from '../enums/storytime-activity-type.enum';
+import { StorytimeActivityFeedService } from '../social/storytime-activity-feed.service';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
 import { StorytimeChapterEntity } from './entities/storytime-chapter.entity';
 import { StorytimeChapterService } from './storytime-chapter.service';
@@ -49,6 +51,7 @@ describe('StorytimeChapterService', () => {
     recordRetiredSlug: jest.Mock;
   };
   let limitService: { assertWithinLimit: jest.Mock };
+  let feedService: { recordQuietly: jest.Mock };
   let progressService: { reopenCompletedReaders: jest.Mock };
   let dataSource: { transaction: jest.Mock };
   let manager: { save: jest.Mock; count: jest.Mock; update: jest.Mock };
@@ -137,6 +140,8 @@ describe('StorytimeChapterService', () => {
       reopenCompletedReaders: jest.fn().mockResolvedValue(0),
     };
 
+    feedService = { recordQuietly: jest.fn().mockResolvedValue(undefined) };
+
     dataSource = {
       transaction: jest.fn((callback: (m: typeof manager) => unknown) =>
         callback(manager),
@@ -161,6 +166,7 @@ describe('StorytimeChapterService', () => {
         { provide: LimitService, useValue: limitService },
         { provide: StorytimeProgressService, useValue: progressService },
         { provide: DataSource, useValue: dataSource },
+        { provide: StorytimeActivityFeedService, useValue: feedService },
       ],
     }).compile();
 
@@ -424,6 +430,28 @@ describe('StorytimeChapterService', () => {
       expect(published.publishedAt).toBeInstanceOf(Date);
     });
 
+    it('announces the Chapter to the people who follow', async () => {
+      chapterRepository.findOne.mockResolvedValue(buildChapter());
+
+      await service.publish(chapterId, ownerId);
+
+      expect(feedService.recordQuietly).toHaveBeenCalledWith(
+        StorytimeActivityType.CHAPTER_PUBLISHED,
+        ownerId,
+        { storyId, chapterId },
+      );
+    });
+
+    it('announces nothing when the Chapter was already published', async () => {
+      chapterRepository.findOne.mockResolvedValue(
+        buildChapter({ status: ChapterStatus.PUBLISHED }),
+      );
+
+      await service.publish(chapterId, ownerId);
+
+      expect(feedService.recordQuietly).not.toHaveBeenCalled();
+    });
+
     // The count decides whether the Story itself may be published, so it has
     // to move with the Chapter rather than drift.
     it('refreshes the Story published count in the same transaction', async () => {
@@ -612,6 +640,25 @@ describe('StorytimeChapterService', () => {
       ]);
 
       await expect(service.publishDueChapters()).resolves.toBe(2);
+    });
+
+    // A Chapter that went out on a schedule is as much news as one published
+    // by hand, and it is the author's news rather than the queue's.
+    it('announces a scheduled Chapter as its author', async () => {
+      arrangeDue([
+        buildChapter({
+          status: ChapterStatus.SCHEDULED,
+          createdByUserId: ownerId,
+        }),
+      ]);
+
+      await service.publishDueChapters();
+
+      expect(feedService.recordQuietly).toHaveBeenCalledWith(
+        StorytimeActivityType.CHAPTER_PUBLISHED,
+        ownerId,
+        { storyId, chapterId },
+      );
     });
 
     it('publishes nothing when none are due', async () => {

@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { StorytimeCollaborationModule } from '../collaboration/storytime-collaboration.module';
 import { StorytimeContentModule } from '../content/storytime-content.module';
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
+import { StorytimeSocialModule } from '../social/storytime-social.module';
 import { StorytimeSlugService } from '../shared/storytime-slug.service';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { StorytimeSlugHistoryEntity } from './entities/storytime-slug-history.entity';
@@ -27,6 +28,7 @@ import { StorytimeStoryService } from './storytime-story.service';
     ]),
     StorytimeContentModule,
     StorytimeCollaborationModule,
+    StorytimeSocialModule,
   ],
   controllers: [
     PublicStorytimeStoriesController,

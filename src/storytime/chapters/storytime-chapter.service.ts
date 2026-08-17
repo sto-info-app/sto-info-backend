@@ -20,6 +20,8 @@ import { StorytimeProgressService } from '../progress/storytime-progress.service
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
 import { StorytimeSlugService } from '../shared/storytime-slug.service';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
+import { StorytimeActivityType } from '../enums/storytime-activity-type.enum';
+import { StorytimeActivityFeedService } from '../social/storytime-activity-feed.service';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
 import { CreateChapterDto } from './dto/create-chapter.dto';
 import { UpdateChapterDto } from './dto/update-chapter.dto';
@@ -62,6 +64,7 @@ export class StorytimeChapterService {
    * @param _limitService - Resolves how many Chapters a Story may hold.
    * @param _progressService - Reopens readers who had finished the Story.
    * @param _dataSource - Runs publication changes in a transaction.
+   * @param _feedService - Announces publication to the people who follow.
    */
   constructor(
     @InjectRepository(StorytimeChapterEntity)
@@ -75,6 +78,7 @@ export class StorytimeChapterService {
     private readonly _limitService: LimitService,
     private readonly _progressService: StorytimeProgressService,
     private readonly _dataSource: DataSource,
+    private readonly _feedService: StorytimeActivityFeedService,
   ) {}
 
   /**
@@ -372,6 +376,12 @@ export class StorytimeChapterService {
       );
     }
 
+    await this._feedService.recordQuietly(
+      StorytimeActivityType.CHAPTER_PUBLISHED,
+      actingUserId,
+      { storyId: saved.storyId, chapterId: saved.id },
+    );
+
     this._logger.log(`Chapter '${saved.slug}' published by ${actingUserId}`);
 
     return saved;
@@ -459,8 +469,19 @@ export class StorytimeChapterService {
         chapter.scheduledPublishAt = null;
         chapter.version += 1;
 
-        await this.saveWithStoryCount(chapter);
+        const saved = await this.saveWithStoryCount(chapter);
+
         await this._progressService.reopenCompletedReaders(chapter.storyId);
+
+        // A Chapter that went out on a schedule is as much news as one
+        // published by hand, so it is announced by the Chapter's author
+        // rather than by whatever ran the queue.
+        await this._feedService.recordQuietly(
+          StorytimeActivityType.CHAPTER_PUBLISHED,
+          saved.createdByUserId,
+          { storyId: saved.storyId, chapterId: saved.id },
+        );
+
         published += 1;
       } catch (error) {
         // One Chapter failing must not strand the rest of the queue, so the

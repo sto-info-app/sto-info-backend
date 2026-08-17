@@ -9,6 +9,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { ArcCapability } from '../collaboration/storytime-arc-capability.enum';
 import { ArcMembershipStatus } from '../enums/arc-membership-status.enum';
+import { StorytimeActivityType } from '../enums/storytime-activity-type.enum';
+import { StorytimeActivityFeedService } from '../social/storytime-activity-feed.service';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
 import { StorytimeArcStoryEntity } from './entities/storytime-arc-story.entity';
 import { StorytimeArcService } from './storytime-arc.service';
@@ -45,12 +47,14 @@ export class StorytimeArcMembershipService {
    * @param _membershipRepository - Repository of Arc memberships.
    * @param _arcService - Decides who curates an Arc.
    * @param _storyService - Decides who owns a Story.
+   * @param _feedService - Announces what joins and leaves an Arc.
    */
   constructor(
     @InjectRepository(StorytimeArcStoryEntity)
     private readonly _membershipRepository: Repository<StorytimeArcStoryEntity>,
     private readonly _arcService: StorytimeArcService,
     private readonly _storyService: StorytimeStoryService,
+    private readonly _feedService: StorytimeActivityFeedService,
   ) {}
 
   /**
@@ -213,7 +217,15 @@ export class StorytimeArcMembershipService {
       `Story ${membership.storyId} joined Arc ${membership.arcId}`,
     );
 
-    return this._membershipRepository.save(membership);
+    const saved = await this._membershipRepository.save(membership);
+
+    await this._feedService.recordQuietly(
+      StorytimeActivityType.ARC_STORY_ADDED,
+      actingUserId,
+      { arcId: saved.arcId, storyId: saved.storyId },
+    );
+
+    return saved;
   }
 
   /**
@@ -266,7 +278,15 @@ export class StorytimeArcMembershipService {
       : ArcMembershipStatus.WITHDRAWN;
     membership.removedAt = new Date();
 
-    return this._membershipRepository.save(membership);
+    const saved = await this._membershipRepository.save(membership);
+
+    await this._feedService.recordQuietly(
+      StorytimeActivityType.ARC_STORY_REMOVED,
+      actingUserId,
+      { arcId: saved.arcId, storyId: saved.storyId },
+    );
+
+    return saved;
   }
 
   /**

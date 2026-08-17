@@ -20,6 +20,8 @@ import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.
 import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
 import { StorytimeVisibility } from '../enums/storytime-visibility.enum';
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
+import { StorytimeActivityType } from '../enums/storytime-activity-type.enum';
+import { StorytimeActivityFeedService } from '../social/storytime-activity-feed.service';
 import { StorytimeSlugService } from '../shared/storytime-slug.service';
 import { CreateStoryDto } from './dto/create-story.dto';
 import { StoryQueryDto, StorySort } from './dto/story-query.dto';
@@ -63,6 +65,7 @@ export class StorytimeStoryService {
    * @param _markdownService - Renders the Story description.
    * @param _limitService - Resolves how many Stories this user may own.
    * @param _collaboratorAccessService - Decides what a collaborator may do.
+   * @param _feedService - Announces publication to the people who follow.
    */
   constructor(
     @InjectRepository(StorytimeStoryEntity)
@@ -72,6 +75,7 @@ export class StorytimeStoryService {
     private readonly _markdownService: StorytimeMarkdownService,
     private readonly _limitService: LimitService,
     private readonly _collaboratorAccessService: StorytimeCollaboratorAccessService,
+    private readonly _feedService: StorytimeActivityFeedService,
   ) {}
 
   /**
@@ -528,6 +532,16 @@ export class StorytimeStoryService {
     return this._storyRepository.save(story);
   }
 
+  /**
+   * Publishes a Story.
+   *
+   * `publishedAt` is only set the first time, so a Story republished after a
+   * withdrawal keeps the date it originally went out.
+   *
+   * @param storyId - The Story to publish.
+   * @param actingUserId - The caller.
+   * @returns The published Story.
+   */
   async publish(
     storyId: string,
     actingUserId: string,
@@ -536,6 +550,8 @@ export class StorytimeStoryService {
 
     this.assertPublishable(story);
 
+    const wasPublished = story.status === StoryStatus.PUBLISHED;
+
     story.status = StoryStatus.PUBLISHED;
     story.publishedAt = story.publishedAt ?? new Date();
     story.updatedByUserId = actingUserId;
@@ -543,7 +559,19 @@ export class StorytimeStoryService {
 
     this._logger.log(`Story '${story.slug}' published by ${actingUserId}`);
 
-    return this._storyRepository.save(story);
+    const saved = await this._storyRepository.save(story);
+
+    // Only the first publication is news. Saving an already-published Story
+    // again is a creator tidying up, and nobody's feed wants to hear about it.
+    if (!wasPublished) {
+      await this._feedService.recordQuietly(
+        StorytimeActivityType.STORY_PUBLISHED,
+        actingUserId,
+        { storyId: saved.id },
+      );
+    }
+
+    return saved;
   }
 
   /**
