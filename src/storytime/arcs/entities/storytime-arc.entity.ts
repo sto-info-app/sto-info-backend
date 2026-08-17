@@ -158,11 +158,29 @@ export class StorytimeArcEntity {
   removedByUserId: string | null;
 
   @ApiProperty({
+    description: 'Why the Arc was removed, as a policy code.',
+    nullable: true,
+  })
+  @Column({ type: 'varchar', length: 100, nullable: true, default: null })
+  moderationReasonCode: string | null;
+
+  @ApiProperty({
     description: 'Explanation shown to the curator verbatim.',
     nullable: true,
   })
   @Column({ type: 'varchar', length: 1000, nullable: true, default: null })
   moderationMessage: string | null;
+
+  @ApiProperty({ description: 'When the Arc was restored.', nullable: true })
+  @Column({ type: 'timestamp', nullable: true, default: null })
+  restoredAt: Date | null;
+
+  @ApiProperty({
+    description: 'Administrator who restored the Arc.',
+    nullable: true,
+  })
+  @Column({ type: 'uuid', nullable: true, default: null })
+  restoredByUserId: string | null;
 
   @ApiProperty({ description: 'User who created the Arc.' })
   @Column({ type: 'uuid', nullable: false })
