@@ -23,4 +23,6 @@ export enum StorytimeTargetType {
   CREW_CREDIT = 'CREW_CREDIT',
   /** A comment. */
   COMMENT = 'COMMENT',
+  /** A Spotlight entry. */
+  SPOTLIGHT = 'SPOTLIGHT',
 }
