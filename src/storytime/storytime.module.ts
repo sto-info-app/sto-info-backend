@@ -8,6 +8,7 @@ import { StorytimeModerationModule } from './moderation/storytime-moderation.mod
 import { StorytimeCharactersModule } from './characters/storytime-characters.module';
 import { StorytimeContentModule } from './content/storytime-content.module';
 import { StorytimeProgressModule } from './progress/storytime-progress.module';
+import { StorytimeReadingListsModule } from './reading-lists/storytime-reading-lists.module';
 import { StorytimeConfigurationController } from './storytime-configuration.controller';
 import { StorytimeFeatureService } from './storytime-feature.service';
 import { StorytimeSearchModule } from './search/storytime-search.module';
@@ -21,8 +22,8 @@ import { StorytimeTagsModule } from './tags/storytime-tags.module';
  *
  * This is the feature's root module. It currently owns only the feature
  * switches and the client configuration they drive; Stories, Chapters,
- * Characters, Crew, Arcs, media, progress, social features, the Spotlight,
- * search and moderation arrive as their own submodules.
+ * Characters, Crew, Arcs, media, progress, social features, reading lists, the
+ * Spotlight, search and moderation arrive as their own submodules.
  *
  * `StorytimeFeatureService` is exported because every submodule has to be able
  * to check whether the capability it implements is switched on before acting.
@@ -42,6 +43,7 @@ import { StorytimeTagsModule } from './tags/storytime-tags.module';
     StorytimeSearchModule,
     StorytimeTagsModule,
     StorytimeSocialModule,
+    StorytimeReadingListsModule,
   ],
   controllers: [
     StorytimeConfigurationController,
@@ -63,6 +65,7 @@ import { StorytimeTagsModule } from './tags/storytime-tags.module';
     StorytimeSearchModule,
     StorytimeTagsModule,
     StorytimeSocialModule,
+    StorytimeReadingListsModule,
   ],
 })
 export class StorytimeModule {}
