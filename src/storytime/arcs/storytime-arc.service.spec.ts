@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  GoneException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
@@ -333,12 +334,31 @@ describe('StorytimeArcService', () => {
       ).resolves.toBeDefined();
     });
 
+    // A reader who followed a link deserves to know the Arc was taken down
+    // rather than being told it never existed.
+    it('says a removed Arc is gone rather than missing', async () => {
+      arcRepository.findOne.mockResolvedValue(
+        buildArc({
+          status: ArcStatus.PUBLISHED,
+          visibility: StorytimeVisibility.PUBLIC,
+          moderationStatus: StorytimeModerationStatus.REMOVED,
+        }),
+      );
+
+      await expect(service.findPublicBySlug('the-long-war')).rejects.toThrow(
+        GoneException,
+      );
+    });
+
     it.each([
       ['a draft', { status: ArcStatus.DRAFT }],
       ['a private Arc', { visibility: StorytimeVisibility.PRIVATE }],
       [
-        'a removed Arc',
-        { moderationStatus: StorytimeModerationStatus.REMOVED },
+        'a removed draft, without announcing the removal',
+        {
+          status: ArcStatus.DRAFT,
+          moderationStatus: StorytimeModerationStatus.REMOVED,
+        },
       ],
     ])('hides %s', async (_name, overrides) => {
       arcRepository.findOne.mockResolvedValue(

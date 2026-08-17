@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  GoneException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
@@ -627,13 +628,34 @@ describe('StorytimeStoryService', () => {
       ).resolves.toBeNull();
     });
 
-    // A direct URL must not reach removed content.
-    it('hides a removed Story', async () => {
+    // A reader who followed a link deserves to know the Story was taken down
+    // rather than being told it never existed.
+    it('says a removed Story is gone rather than missing', async () => {
       storyRepository.findOne.mockResolvedValue(
         buildStory({
           status: StoryStatus.PUBLISHED,
           visibility: StorytimeVisibility.PUBLIC,
           moderationStatus: StorytimeModerationStatus.REMOVED,
+        }),
+      );
+
+      await expect(
+        service.findPublicBySlug('the-long-way-home'),
+      ).rejects.toThrow(GoneException);
+    });
+
+    // Announcing a removal would let somebody probing slugs learn that a
+    // private or unpublished Story exists, which is what "not found" protects.
+    it.each([
+      ['a draft', { status: StoryStatus.DRAFT }],
+      ['a private', { visibility: StorytimeVisibility.PRIVATE }],
+    ])('says nothing about %s Story that was removed', async (_name, state) => {
+      storyRepository.findOne.mockResolvedValue(
+        buildStory({
+          status: StoryStatus.PUBLISHED,
+          visibility: StorytimeVisibility.PUBLIC,
+          moderationStatus: StorytimeModerationStatus.REMOVED,
+          ...state,
         }),
       );
 

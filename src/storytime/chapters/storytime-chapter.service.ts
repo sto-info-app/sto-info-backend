@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  GoneException,
   Injectable,
   Logger,
   NotFoundException,
@@ -279,6 +280,19 @@ export class StorytimeChapterService {
     const chapter = await this._chapterRepository.findOne({
       where: { storyId, slug },
     });
+
+    // A reader who followed a link to a Chapter that has since been taken down
+    // is told so, rather than that it never existed. Only for Chapters that
+    // were published: saying "removed" about a draft would confirm it exists.
+    if (
+      chapter &&
+      PUBLICLY_READABLE_STATUSES.includes(chapter.status) &&
+      chapter.moderationStatus === StorytimeModerationStatus.REMOVED
+    ) {
+      throw new GoneException(
+        'This Chapter has been removed by an administrator.',
+      );
+    }
 
     if (!chapter || !this.isPubliclyReadable(chapter)) {
       return null;

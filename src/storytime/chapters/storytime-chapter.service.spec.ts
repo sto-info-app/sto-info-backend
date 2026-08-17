@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  GoneException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
@@ -724,10 +725,27 @@ describe('StorytimeChapterService', () => {
       ).resolves.toBeNull();
     });
 
-    it('hides a removed Chapter', async () => {
+    // A reader who followed a link deserves to know the Chapter was taken
+    // down rather than being told it never existed.
+    it('says a removed Chapter is gone rather than missing', async () => {
       chapterRepository.findOne.mockResolvedValue(
         buildChapter({
           status: ChapterStatus.PUBLISHED,
+          moderationStatus: StorytimeModerationStatus.REMOVED,
+        }),
+      );
+
+      await expect(
+        service.findPublicBySlug(storyId, 'chapter-one'),
+      ).rejects.toThrow(GoneException);
+    });
+
+    // Announcing a removal would confirm that an unpublished Chapter exists,
+    // which is what "not found" protects.
+    it('says nothing about a draft Chapter that was removed', async () => {
+      chapterRepository.findOne.mockResolvedValue(
+        buildChapter({
+          status: ChapterStatus.DRAFT,
           moderationStatus: StorytimeModerationStatus.REMOVED,
         }),
       );

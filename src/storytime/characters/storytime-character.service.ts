@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  GoneException,
   Injectable,
   Logger,
   NotFoundException,
@@ -229,6 +230,19 @@ export class StorytimeCharacterService {
     const character = await this._characterRepository.findOne({
       where: { storyId, slug },
     });
+
+    // A reader who followed a link to a Character that has since been taken
+    // down is told so, rather than that it never existed. A Character has no
+    // publication state of its own — its Story's readability is the gate, and
+    // the caller has already passed it to get here.
+    if (
+      character &&
+      character.moderationStatus === StorytimeModerationStatus.REMOVED
+    ) {
+      throw new GoneException(
+        'This Character has been removed by an administrator.',
+      );
+    }
 
     if (
       !character ||

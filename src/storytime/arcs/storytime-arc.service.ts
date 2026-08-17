@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  GoneException,
   Injectable,
   Logger,
   NotFoundException,
@@ -319,6 +320,18 @@ export class StorytimeArcService {
    */
   async findPublicBySlug(slug: string): Promise<StorytimeArcEntity | null> {
     const arc = await this._arcRepository.findOne({ where: { slug } });
+
+    // A reader who followed a link to an Arc that has since been taken down is
+    // told so, rather than that it never existed. Only for Arcs that were
+    // public: saying "removed" about a draft would confirm it exists.
+    if (
+      arc &&
+      PUBLICLY_READABLE_STATUSES.includes(arc.status) &&
+      arc.visibility === StorytimeVisibility.PUBLIC &&
+      arc.moderationStatus === StorytimeModerationStatus.REMOVED
+    ) {
+      throw new GoneException('This Arc has been removed by an administrator.');
+    }
 
     if (!arc || !this.isPubliclyReadable(arc)) {
       return null;

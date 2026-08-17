@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  GoneException,
   Injectable,
   Logger,
   NotFoundException,
@@ -326,11 +327,43 @@ export class StorytimeStoryService {
   async findPublicBySlug(slug: string): Promise<StorytimeStoryEntity | null> {
     const story = await this._storyRepository.findOne({ where: { slug } });
 
+    this.assertNotRemoved(story);
+
     if (!story || !this.isPubliclyReadable(story)) {
       return null;
     }
 
     return story;
+  }
+
+  /**
+   * Announces a removal at a URL that would otherwise have worked.
+   *
+   * A reader who followed a link deserves to know the Story was taken down
+   * rather than being told it never existed, so this answers 410 rather than
+   * 404 — and a link shared before the removal keeps meaning something.
+   *
+   * Only for Stories that were public to begin with. Saying "removed" about a
+   * draft or a private Story would let somebody probing slugs learn it exists,
+   * which is the one thing "not found" is protecting.
+   *
+   * @param story - The Story found at that address, if any.
+   * @throws GoneException when a published, public Story has been removed.
+   */
+  private assertNotRemoved(story: StorytimeStoryEntity | null): void {
+    const wasPublic =
+      story &&
+      PUBLICLY_READABLE_STATUSES.includes(story.status) &&
+      PUBLICLY_READABLE_VISIBILITIES.includes(story.visibility);
+
+    if (
+      wasPublic &&
+      story.moderationStatus === StorytimeModerationStatus.REMOVED
+    ) {
+      throw new GoneException(
+        'This Story has been removed by an administrator.',
+      );
+    }
   }
 
   /**

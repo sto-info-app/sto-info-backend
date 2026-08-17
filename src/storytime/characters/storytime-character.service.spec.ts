@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  GoneException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
@@ -441,7 +442,10 @@ describe('StorytimeCharacterService', () => {
       ).resolves.toBeDefined();
     });
 
-    it('hides a removed Character from readers', async () => {
+    // A reader who followed a link deserves to know the Character was taken
+    // down rather than being told it never existed. Its Story's readability is
+    // the gate, and the caller has already passed it to get here.
+    it('says a removed Character is gone rather than missing', async () => {
       characterRepository.findOne.mockResolvedValue(
         buildCharacter({
           moderationStatus: StorytimeModerationStatus.REMOVED,
@@ -450,7 +454,7 @@ describe('StorytimeCharacterService', () => {
 
       await expect(
         service.findPublicBySlug(storyId, 'captain-shran'),
-      ).resolves.toBeNull();
+      ).rejects.toThrow(GoneException);
     });
 
     it('reports nothing for an unknown slug', async () => {
