@@ -10,6 +10,7 @@ import { StorytimeContentModule } from './content/storytime-content.module';
 import { StorytimeProgressModule } from './progress/storytime-progress.module';
 import { StorytimeConfigurationController } from './storytime-configuration.controller';
 import { StorytimeFeatureService } from './storytime-feature.service';
+import { StorytimeSearchModule } from './search/storytime-search.module';
 import { StorytimeSpotlightModule } from './spotlight/storytime-spotlight.module';
 import { StorytimeStoriesModule } from './stories/storytime-stories.module';
 
@@ -36,6 +37,7 @@ import { StorytimeStoriesModule } from './stories/storytime-stories.module';
     StorytimeProgressModule,
     StorytimeSpotlightModule,
     StorytimeModerationModule,
+    StorytimeSearchModule,
   ],
   controllers: [
     StorytimeConfigurationController,
@@ -54,6 +56,7 @@ import { StorytimeStoriesModule } from './stories/storytime-stories.module';
     StorytimeProgressModule,
     StorytimeSpotlightModule,
     StorytimeModerationModule,
+    StorytimeSearchModule,
   ],
 })
 export class StorytimeModule {}

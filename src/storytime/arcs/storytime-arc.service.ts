@@ -360,6 +360,24 @@ export class StorytimeArcService {
   }
 
   /**
+   * Lists the publicly readable Arcs one member curates.
+   *
+   * @param ownerUserId - The curator.
+   * @returns Their public Arcs, newest first.
+   */
+  findPublicByOwner(ownerUserId: string): Promise<StorytimeArcEntity[]> {
+    return this._arcRepository.find({
+      where: {
+        ownerUserId,
+        status: In(PUBLICLY_READABLE_STATUSES),
+        visibility: StorytimeVisibility.PUBLIC,
+        moderationStatus: StorytimeModerationStatus.ACTIVE,
+      },
+      order: { publishedAt: 'DESC' },
+    });
+  }
+
+  /**
    * Finds several Arcs by identifier for public reading.
    *
    * @param arcIds - The Arcs to find.
