@@ -392,6 +392,20 @@ describe('StorytimeArcService', () => {
       );
     });
 
+    // A creator's profile shows what they curate publicly, not their drafts.
+    it('lists only the public Arcs one member curates', async () => {
+      await service.findPublicByOwner(curatorId);
+
+      expect(arcRepository.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            ownerUserId: curatorId,
+            visibility: StorytimeVisibility.PUBLIC,
+          }),
+        }),
+      );
+    });
+
     it('filters a set of Arcs to the readable ones', async () => {
       arcRepository.find.mockResolvedValue([
         buildArc({
