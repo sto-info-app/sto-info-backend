@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { StorytimeArcEntity } from '../arcs/entities/storytime-arc.entity';
@@ -167,6 +168,7 @@ describe('StorytimeActivityFeedService', () => {
   });
 
   afterEach(() => {
+    jest.restoreAllMocks();
     jest.clearAllMocks();
   });
 
@@ -202,6 +204,54 @@ describe('StorytimeActivityFeedService', () => {
         chapterId: null,
         arcId: null,
       });
+    });
+  });
+
+  describe('recordQuietly', () => {
+    it('records what happened', async () => {
+      await service.recordQuietly(
+        StorytimeActivityType.STORY_PUBLISHED,
+        'writer-1',
+        { storyId: 'story-1' },
+      );
+
+      expect(itemRepository.save).toHaveBeenCalled();
+    });
+
+    // Publishing is a creator's work; announcing it is bookkeeping, and the
+    // bookkeeping failing must not fail the publish.
+    it('swallows a failure to record', async () => {
+      const error = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+
+      itemRepository.save.mockRejectedValue(new Error('the table is gone'));
+
+      await expect(
+        service.recordQuietly(
+          StorytimeActivityType.STORY_PUBLISHED,
+          'writer-1',
+        ),
+      ).resolves.toBeUndefined();
+      expect(error).toHaveBeenCalled();
+    });
+
+    it('swallows a failure that is not an error', async () => {
+      const error = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+
+      itemRepository.save.mockRejectedValue('the table is gone');
+
+      await service.recordQuietly(
+        StorytimeActivityType.STORY_PUBLISHED,
+        'writer-1',
+      );
+
+      expect(error).toHaveBeenCalledWith(
+        expect.any(String),
+        'the table is gone',
+      );
     });
   });
 

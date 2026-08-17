@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, MoreThan, Repository } from 'typeorm';
 import { StorytimeArcEntity } from '../arcs/entities/storytime-arc.entity';
@@ -38,6 +38,8 @@ export interface FeedEntry {
  */
 @Injectable()
 export class StorytimeActivityFeedService {
+  private readonly _logger = new Logger(StorytimeActivityFeedService.name);
+
   /**
    * Creates an instance of StorytimeActivityFeedService.
    *
@@ -91,6 +93,37 @@ export class StorytimeActivityFeedService {
         arcId: targets.arcId ?? null,
       }),
     );
+  }
+
+  /**
+   * Records something without letting the recording fail the thing itself.
+   *
+   * Publishing a Chapter is a creator's work; announcing it is bookkeeping. If
+   * the bookkeeping fails, the Chapter is still published and visible, and the
+   * only cost is that it does not appear in a feed. Callers use this rather
+   * than repeating the same try around every site.
+   *
+   * @param activityType - What happened.
+   * @param actorUserId - Who did it.
+   * @param targets - The Story, Chapter or Arc involved.
+   */
+  async recordQuietly(
+    activityType: StorytimeActivityType,
+    actorUserId: string,
+    targets: {
+      storyId?: string | null;
+      chapterId?: string | null;
+      arcId?: string | null;
+    } = {},
+  ): Promise<void> {
+    try {
+      await this.record(activityType, actorUserId, targets);
+    } catch (error) {
+      this._logger.error(
+        `Failed to record ${activityType} by ${actorUserId}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
   }
 
   /**
