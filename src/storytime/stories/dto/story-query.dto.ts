@@ -6,9 +6,32 @@ import { CompletionState } from '../../enums/completion-state.enum';
 import { ContentRating } from '../../enums/content-rating.enum';
 
 /**
+ * How a listing of Stories is ordered.
+ *
+ * Two different questions, which is why they are two orderings rather than one
+ * "recent": a reader looking for something new wants what was published last,
+ * and a reader following work in progress wants what was written in last.
+ */
+export enum StorySort {
+  /** Newest publications first. */
+  RECENTLY_PUBLISHED = 'RECENTLY_PUBLISHED',
+  /** Most recently changed first, which surfaces new Chapters. */
+  RECENTLY_UPDATED = 'RECENTLY_UPDATED',
+}
+
+/**
  * Filters for the public Story listing.
  */
 export class StoryQueryDto extends PaginatedQueryDto {
+  @ApiPropertyOptional({
+    enum: StorySort,
+    description: 'How to order the results.',
+    default: StorySort.RECENTLY_PUBLISHED,
+  })
+  @IsOptional()
+  @IsEnum(StorySort)
+  readonly sort?: StorySort;
+
   @ApiPropertyOptional({
     enum: ContentRating,
     description: 'Show only Stories with this rating.',

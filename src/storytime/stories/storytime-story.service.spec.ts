@@ -20,6 +20,7 @@ import {
   SlugRequest,
   StorytimeSlugService,
 } from '../shared/storytime-slug.service';
+import { StorySort } from './dto/story-query.dto';
 import { StorytimeStoryEntity } from './entities/storytime-story.entity';
 import { StorytimeStoryService } from './storytime-story.service';
 
@@ -771,6 +772,28 @@ describe('StorytimeStoryService', () => {
       expect(result.total).toBe(1);
       expect(result.page).toBe(1);
       expect(result.pageSize).toBe(12);
+    });
+
+    // Two different questions: what is new to read, and what is being written
+    // now. A landing page needs both, so they are two orderings.
+    it('shows the newest publications by default', async () => {
+      await service.findPublicPaginated({});
+
+      expect(queryBuilder.orderBy).toHaveBeenCalledWith(
+        'story.publishedAt',
+        'DESC',
+      );
+    });
+
+    it('shows the most recently changed when asked', async () => {
+      await service.findPublicPaginated({
+        sort: StorySort.RECENTLY_UPDATED,
+      });
+
+      expect(queryBuilder.orderBy).toHaveBeenCalledWith(
+        'story.updatedAt',
+        'DESC',
+      );
     });
 
     it('honours the requested page and size', async () => {

@@ -22,7 +22,7 @@ import { StorytimeVisibility } from '../enums/storytime-visibility.enum';
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
 import { StorytimeSlugService } from '../shared/storytime-slug.service';
 import { CreateStoryDto } from './dto/create-story.dto';
-import { StoryQueryDto } from './dto/story-query.dto';
+import { StoryQueryDto, StorySort } from './dto/story-query.dto';
 import { UpdateStoryDto } from './dto/update-story.dto';
 import { StorytimeStoryEntity } from './entities/storytime-story.entity';
 
@@ -442,7 +442,12 @@ export class StorytimeStoryService {
     }
 
     const [items, total] = await builder
-      .orderBy('story.publishedAt', 'DESC')
+      .orderBy(
+        query.sort === StorySort.RECENTLY_UPDATED
+          ? 'story.updatedAt'
+          : 'story.publishedAt',
+        'DESC',
+      )
       .skip((page - 1) * pageSize)
       .take(pageSize)
       .getManyAndCount();
