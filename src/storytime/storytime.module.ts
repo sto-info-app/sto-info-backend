@@ -4,6 +4,7 @@ import { StorytimeArcsModule } from './arcs/storytime-arcs.module';
 import { StorytimeChaptersModule } from './chapters/storytime-chapters.module';
 import { StorytimeCrewModule } from './crew/storytime-crew.module';
 import { StorytimeMediaModule } from './media/storytime-media.module';
+import { StorytimeModerationModule } from './moderation/storytime-moderation.module';
 import { StorytimeCharactersModule } from './characters/storytime-characters.module';
 import { StorytimeContentModule } from './content/storytime-content.module';
 import { StorytimeProgressModule } from './progress/storytime-progress.module';
@@ -34,6 +35,7 @@ import { StorytimeStoriesModule } from './stories/storytime-stories.module';
     StorytimeArcsModule,
     StorytimeProgressModule,
     StorytimeSpotlightModule,
+    StorytimeModerationModule,
   ],
   controllers: [
     StorytimeConfigurationController,
@@ -51,6 +53,7 @@ import { StorytimeStoriesModule } from './stories/storytime-stories.module';
     StorytimeArcsModule,
     StorytimeProgressModule,
     StorytimeSpotlightModule,
+    StorytimeModerationModule,
   ],
 })
 export class StorytimeModule {}
