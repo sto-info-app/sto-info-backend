@@ -13,6 +13,7 @@ import { StorytimeFeatureService } from './storytime-feature.service';
 import { StorytimeSearchModule } from './search/storytime-search.module';
 import { StorytimeSpotlightModule } from './spotlight/storytime-spotlight.module';
 import { StorytimeStoriesModule } from './stories/storytime-stories.module';
+import { StorytimeTagsModule } from './tags/storytime-tags.module';
 
 /**
  * STO Storytime — community fan-fiction publishing.
@@ -38,6 +39,7 @@ import { StorytimeStoriesModule } from './stories/storytime-stories.module';
     StorytimeSpotlightModule,
     StorytimeModerationModule,
     StorytimeSearchModule,
+    StorytimeTagsModule,
   ],
   controllers: [
     StorytimeConfigurationController,
@@ -57,6 +59,7 @@ import { StorytimeStoriesModule } from './stories/storytime-stories.module';
     StorytimeSpotlightModule,
     StorytimeModerationModule,
     StorytimeSearchModule,
+    StorytimeTagsModule,
   ],
 })
 export class StorytimeModule {}
