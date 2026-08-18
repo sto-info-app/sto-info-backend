@@ -1,4 +1,5 @@
 import { ChapterStatus } from '../enums/chapter-status.enum';
+import { ContentRating } from '../enums/content-rating.enum';
 import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.enum';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeChapterEntity } from './entities/storytime-chapter.entity';
@@ -13,8 +14,15 @@ describe('StorytimeChapterMapper', () => {
    * @param languageCode - The Story language.
    * @returns The Story entity.
    */
-  const buildStory = (languageCode = 'en'): StorytimeStoryEntity =>
-    Object.assign(new StorytimeStoryEntity(), { id: 'story-1', languageCode });
+  const buildStory = (
+    languageCode = 'en',
+    contentRating = ContentRating.GENERAL,
+  ): StorytimeStoryEntity =>
+    Object.assign(new StorytimeStoryEntity(), {
+      id: 'story-1',
+      languageCode,
+      contentRating,
+    });
 
   /**
    * Builds a Chapter carrying values for every mapped field.
@@ -95,6 +103,18 @@ describe('StorytimeChapterMapper', () => {
       const dto = mapper.toPublic(buildChapter(), buildStory('de'));
 
       expect(dto.languageCode).toBe('de');
+    });
+
+    // A reader following a link straight to a Chapter never passes the Story
+    // page, so the warning it would have shown has to travel with the Chapter.
+    it.each([
+      ContentRating.GENERAL,
+      ContentRating.MATURE,
+      ContentRating.ADULTS_ONLY,
+    ])('carries the Story rating of %s', rating => {
+      const dto = mapper.toPublic(buildChapter(), buildStory('en', rating));
+
+      expect(dto.contentRating).toBe(rating);
     });
 
     it('prefers the Chapter language when it sets one', () => {

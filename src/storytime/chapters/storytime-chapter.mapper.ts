@@ -47,6 +47,11 @@ export class StorytimeChapterMapper {
    * the server knows the Story's language, and the reader page needs a single
    * value to put in its `lang` attribute.
    *
+   * The rating comes along for the same reason. A reader who follows a link
+   * straight to a Chapter never passes the Story page, so the warning has to
+   * travel with the Chapter — and fetching the Story to find it would put a
+   * second request on the most-read path in the feature.
+   *
    * @param chapter - The Chapter entity.
    * @param story - The Story it belongs to, for the inherited language.
    * @returns The reader-facing Chapter.
@@ -60,6 +65,7 @@ export class StorytimeChapterMapper {
       storyId: chapter.storyId,
       contentHtml: chapter.contentHtml,
       languageCode: chapter.languageCode ?? story.languageCode,
+      contentRating: story.contentRating,
       coverImageUrl: chapter.coverImageUrl,
       rating: chapter.upVoteCount - chapter.downVoteCount,
     };

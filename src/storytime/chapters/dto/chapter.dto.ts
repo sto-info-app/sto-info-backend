@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ChapterStatus } from '../../enums/chapter-status.enum';
+import { ContentRating } from '../../enums/content-rating.enum';
 import { StorytimeModerationStatus } from '../../enums/storytime-moderation-status.enum';
 
 /**
@@ -67,6 +68,13 @@ export class ChapterDto extends ChapterSummaryDto {
       'The language to render the Chapter in, resolved from the Chapter or its Story.',
   })
   readonly languageCode: string;
+
+  @ApiProperty({
+    enum: ContentRating,
+    description:
+      'The rating the Chapter is read under, inherited from its Story. Carried here so the reader page can warn before the content rather than fetching the Story to find out.',
+  })
+  readonly contentRating: ContentRating;
 
   @ApiPropertyOptional({ description: 'Cover URL.', nullable: true })
   readonly coverImageUrl: string | null;
