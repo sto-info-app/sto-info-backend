@@ -239,6 +239,7 @@ Served rather than duplicated in the frontend so the language list, ratings and 
 | POST | `/storytime/manage/stories/:storyId/publish` | Publish |
 | POST | `/storytime/manage/stories/:storyId/unpublish` | Withdraw from publication |
 | POST | `/storytime/manage/stories/:storyId/archive` | Archive |
+| POST | `/storytime/manage/stories/:storyId/content-policy` | Accept the publishing terms for this Story |
 | POST | `/storytime/manage/stories/reorder` | Reorder your Stories |
 | DELETE | `/storytime/manage/stories/:storyId` | Soft-delete a Story |
 
@@ -247,6 +248,16 @@ Served rather than duplicated in the frontend so the language list, ratings and 
 **Unlisted** Stories are readable through `:slug` but excluded from the listing — that is the entire difference between unlisted and public.
 
 The `manage` routes require the relevant `storytime.story.*` permission *and* ownership of the Story, checked against the stored row. `PATCH` accepts the `version` the client last saw and answers **409** if it is stale.
+
+#### Publishing terms
+
+A Story cannot be published until its owner has accepted the current Storytime publishing terms — the Content Policy, the Terms of Use and the Fan Content & Intellectual Property Notice, which are accepted together as one act.
+
+`POST .../content-policy` records the acceptance. It is idempotent while the terms are unchanged: accepting an already-current Story returns it untouched, so a creator who clicks twice has not agreed twice.
+
+The Story carries `contentPolicyAcceptedAt`, `contentPolicyVersion` and a derived `contentPolicyCurrent`. Clients decide what to show from `contentPolicyCurrent` rather than comparing versions themselves, because a stale bundle carrying an old version constant would otherwise tell a creator they were ready to publish when the server disagrees.
+
+When the terms are materially revised, `STORYTIME_POLICY_VERSION` is raised. Every Story whose recorded version is lower becomes unpublishable until its owner accepts again, and the publish error says the terms have changed rather than that they were never accepted.
 
 ### Chapters
 
