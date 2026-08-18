@@ -88,7 +88,7 @@ export class StorytimeArcEntity {
   @ApiProperty({
     description: 'BCP 47 language the Arc is described in.',
   })
-  @Column({ type: 'varchar', length: 10, nullable: false, default: 'en' })
+  @Column({ type: 'varchar', length: 10, nullable: false, default: 'en-GB' })
   languageCode: string;
 
   @ApiProperty({

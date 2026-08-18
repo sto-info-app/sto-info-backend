@@ -48,9 +48,9 @@ describe('StorytimeConfigurationController', () => {
     const configuration = await controller.getConfiguration();
     const codes = configuration.languages.map(language => language.code);
 
-    expect(codes).toContain('en');
+    expect(codes).toEqual(['en-GB', 'en-US', 'de', 'fr', 'tlh']);
     expect(codes).toContain('tlh');
-    expect(configuration.defaultLanguageCode).toBe('en');
+    expect(configuration.defaultLanguageCode).toBe('en-GB');
   });
 
   it('names every language it offers', async () => {

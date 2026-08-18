@@ -4,7 +4,7 @@
 export interface StorytimeLanguage {
   /** BCP 47 language tag, stored on the entity and emitted as `lang`. */
   readonly code: string;
-  /** English name, used in selectors and filters. */
+  /** Native display name, used in selectors and filters. */
   readonly name: string;
 }
 
@@ -17,17 +17,15 @@ export interface StorytimeLanguage {
  * a deliberate decision, not a side effect of somebody typing a tag.
  *
  * `tlh` (Klingon) is included because in-universe fan fiction is exactly the
- * context where it is a real choice rather than a curiosity.
+ * context where it is a real choice rather than a curiosity. Names are shown
+ * in the language they identify rather than translated into English.
  */
 export const STORYTIME_LANGUAGES: readonly StorytimeLanguage[] = [
-  { code: 'en', name: 'English' },
-  { code: 'de', name: 'German' },
-  { code: 'fr', name: 'French' },
-  { code: 'es', name: 'Spanish' },
-  { code: 'pt', name: 'Portuguese' },
-  { code: 'ru', name: 'Russian' },
-  { code: 'it', name: 'Italian' },
-  { code: 'tlh', name: 'Klingon' },
+  { code: 'en-GB', name: 'English (UK)' },
+  { code: 'en-US', name: 'English (US)' },
+  { code: 'de', name: 'Deutsch' },
+  { code: 'fr', name: 'Français' },
+  { code: 'tlh', name: 'tlhIngan Hol' },
 ];
 
 /**
@@ -43,4 +41,4 @@ export const STORYTIME_LANGUAGE_CODES: readonly string[] =
 /**
  * The language assumed when a creator expresses no preference.
  */
-export const STORYTIME_DEFAULT_LANGUAGE_CODE = 'en';
+export const STORYTIME_DEFAULT_LANGUAGE_CODE = 'en-GB';
