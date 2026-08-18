@@ -588,6 +588,21 @@ describe('StorytimeStoryService', () => {
       );
     });
 
+    // Being told to accept terms you already accepted looks like a bug unless
+    // the message says the terms are not the ones you agreed to.
+    it('says so when the accepted terms have been superseded', async () => {
+      storyRepository.findOne.mockResolvedValue(
+        buildStory({
+          contentPolicyAcceptedAt: new Date('2026-01-01T00:00:00Z'),
+          contentPolicyVersion: '0',
+        }),
+      );
+
+      await expect(service.publish(storyId, ownerId)).rejects.toThrow(
+        /publishing terms have changed/,
+      );
+    });
+
     it('reports every missing requirement at once', async () => {
       storyRepository.findOne.mockResolvedValue(
         buildStory({
