@@ -8,6 +8,13 @@
  *
  * A reporter picks the closest match and explains the rest in their own words,
  * which keeps the queue filterable without asking readers to be lawyers.
+ *
+ * Every value here is a prohibition the Content Policy actually states. Two of
+ * them exist because the policy forbids something no other category describes:
+ * generative-AI prose (§9) is not plagiarism, since nobody's work was taken,
+ * and commercial use (§3, §18) is not spam, since a paywalled Story may be
+ * entirely on-topic and still break the non-commercial principle the service
+ * is built on.
  */
 export enum StorytimeReportReason {
   /** Targeted abuse, threats or sustained unwanted contact. */
@@ -32,6 +39,10 @@ export enum StorytimeReportReason {
   MALICIOUS_LINK = 'MALICIOUS_LINK',
   /** Media presented as something it is not. */
   DECEPTIVE_MEDIA = 'DECEPTIVE_MEDIA',
+  /** Substantive Story prose produced by a generative model. */
+  AI_GENERATED_CONTENT = 'AI_GENERATED_CONTENT',
+  /** Storytime used to sell, paywall, advertise or solicit. */
+  COMMERCIAL_CONTENT = 'COMMERCIAL_CONTENT',
   /** Anything the other reasons do not cover, explained in the details. */
   OTHER = 'OTHER',
 }

@@ -146,4 +146,17 @@ export class ManagedStoryDto extends StoryDto {
     nullable: true,
   })
   readonly contentPolicyAcceptedAt: Date | null;
+
+  @ApiPropertyOptional({
+    description: 'Which version of the publishing terms was accepted, if any.',
+    nullable: true,
+  })
+  readonly contentPolicyVersion: string | null;
+
+  @ApiProperty({
+    description:
+      'Whether the accepted terms are the current ones. False when the ' +
+      'creator has never accepted, or accepted wording since superseded.',
+  })
+  readonly contentPolicyCurrent: boolean;
 }

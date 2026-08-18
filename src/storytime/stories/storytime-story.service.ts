@@ -14,6 +14,7 @@ import { StorytimeCollaboratorAccessService } from '../collaboration/storytime-c
 import { StoryCapability } from '../collaboration/storytime-story-capability.enum';
 import { STORYTIME_LANGUAGE_CODES } from '../constants/storytime-language.constants';
 import { STORYTIME_LIMITS } from '../constants/storytime-limits.constants';
+import { STORYTIME_POLICY_VERSION } from '../constants/storytime-policy.constants';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
 import { StoryStatus } from '../enums/story-status.enum';
 import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.enum';
@@ -505,8 +506,14 @@ export class StorytimeStoryService {
    * own work — the date it was made is worth having, and burying it in a
    * publish request would lose it.
    *
-   * Accepting again does not move the date. What matters is when they first
-   * agreed, and a creator who clicks twice has not agreed twice.
+   * Accepting again does not move the date while the wording is unchanged.
+   * What matters is when they first agreed, and a creator who clicks twice has
+   * not agreed twice.
+   *
+   * A creator who accepted superseded wording is a different case: the terms
+   * they agreed to no longer exist, so accepting records a fresh date against
+   * the current version. Keeping the older date would claim they had read
+   * something published after they last looked.
    *
    * @param storyId - The Story.
    * @param actingUserId - The owner.
@@ -518,15 +525,17 @@ export class StorytimeStoryService {
   ): Promise<StorytimeStoryEntity> {
     const story = await this.findOwnedOrFail(storyId, actingUserId);
 
-    if (story.contentPolicyAcceptedAt) {
+    if (story.contentPolicyVersion === STORYTIME_POLICY_VERSION) {
       return story;
     }
 
     story.contentPolicyAcceptedAt = new Date();
+    story.contentPolicyVersion = STORYTIME_POLICY_VERSION;
     story.updatedByUserId = actingUserId;
 
     this._logger.log(
-      `Content policy accepted for Story '${story.slug}' by ${actingUserId}`,
+      `Storytime terms v${STORYTIME_POLICY_VERSION} accepted for Story ` +
+        `'${story.slug}' by ${actingUserId}`,
     );
 
     return this._storyRepository.save(story);
@@ -719,8 +728,12 @@ export class StorytimeStoryService {
       problems.push('at least one published Chapter is required');
     }
 
-    if (!story.contentPolicyAcceptedAt) {
-      problems.push('the content policy must be accepted');
+    if (story.contentPolicyVersion !== STORYTIME_POLICY_VERSION) {
+      problems.push(
+        story.contentPolicyAcceptedAt
+          ? 'the publishing terms have changed and must be accepted again'
+          : 'the publishing terms must be accepted',
+      );
     }
 
     if (problems.length > 0) {

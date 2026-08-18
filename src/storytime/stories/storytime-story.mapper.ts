@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { STORYTIME_POLICY_VERSION } from '../constants/storytime-policy.constants';
 import { ManagedStoryDto, StoryDto } from './dto/story.dto';
 import { StorytimeStoryEntity } from './entities/storytime-story.entity';
 
@@ -59,6 +60,9 @@ export class StorytimeStoryMapper {
       moderationStatus: story.moderationStatus,
       moderationMessage: story.moderationMessage,
       contentPolicyAcceptedAt: story.contentPolicyAcceptedAt,
+      contentPolicyVersion: story.contentPolicyVersion,
+      contentPolicyCurrent:
+        story.contentPolicyVersion === STORYTIME_POLICY_VERSION,
     };
   }
 

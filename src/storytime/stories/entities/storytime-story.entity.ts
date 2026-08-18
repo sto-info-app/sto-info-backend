@@ -211,6 +211,16 @@ export class StorytimeStoryEntity {
   contentPolicyAcceptedAt: Date | null;
 
   @ApiProperty({
+    description:
+      'Which version of the Storytime publishing terms the owner accepted. ' +
+      'Held beside the date because the Terms allow fresh acceptance to be ' +
+      'required after a material change, which a date alone cannot express.',
+    nullable: true,
+  })
+  @Column({ type: 'varchar', length: 20, nullable: true, default: null })
+  contentPolicyVersion: string | null;
+
+  @ApiProperty({
     enum: StorytimeModerationStatus,
     description:
       'Whether an administrator has removed the Story. Independent of publication state.',

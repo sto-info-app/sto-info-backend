@@ -11,6 +11,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { LimitService } from '../../access-control/limit.service';
 import { StorytimeCollaboratorAccessService } from '../collaboration/storytime-collaborator-access.service';
 import { StoryCapability } from '../collaboration/storytime-story-capability.enum';
+import { STORYTIME_POLICY_VERSION } from '../constants/storytime-policy.constants';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
 import { StoryStatus } from '../enums/story-status.enum';
 import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.enum';
@@ -88,6 +89,7 @@ describe('StorytimeStoryService', () => {
       ownerOrderIndex: 1000,
       publishedChapterCount: 1,
       contentPolicyAcceptedAt: new Date(),
+      contentPolicyVersion: STORYTIME_POLICY_VERSION,
       upVoteCount: 0,
       downVoteCount: 0,
       version: 1,
@@ -423,12 +425,28 @@ describe('StorytimeStoryService', () => {
   describe('accepting the content policy', () => {
     it('records when the owner accepted it', async () => {
       storyRepository.findOne.mockResolvedValue(
-        buildStory({ contentPolicyAcceptedAt: null }),
+        buildStory({
+          contentPolicyAcceptedAt: null,
+          contentPolicyVersion: null,
+        }),
       );
 
       const accepted = await service.acceptContentPolicy(storyId, ownerId);
 
       expect(accepted.contentPolicyAcceptedAt).toBeInstanceOf(Date);
+    });
+
+    it('records which version was accepted', async () => {
+      storyRepository.findOne.mockResolvedValue(
+        buildStory({
+          contentPolicyAcceptedAt: null,
+          contentPolicyVersion: null,
+        }),
+      );
+
+      const accepted = await service.acceptContentPolicy(storyId, ownerId);
+
+      expect(accepted.contentPolicyVersion).toBe(STORYTIME_POLICY_VERSION);
     });
 
     // What matters is when they first agreed, and a creator who clicks twice
@@ -445,6 +463,24 @@ describe('StorytimeStoryService', () => {
       expect(storyRepository.save).not.toHaveBeenCalled();
     });
 
+    // Keeping the older date would claim they had read wording published
+    // after they last looked.
+    it('takes a fresh date when the terms have been superseded', async () => {
+      const originallyAccepted = new Date('2026-01-01T00:00:00Z');
+      storyRepository.findOne.mockResolvedValue(
+        buildStory({
+          contentPolicyAcceptedAt: originallyAccepted,
+          contentPolicyVersion: '0',
+        }),
+      );
+
+      const accepted = await service.acceptContentPolicy(storyId, ownerId);
+
+      expect(accepted.contentPolicyAcceptedAt).not.toBe(originallyAccepted);
+      expect(accepted.contentPolicyVersion).toBe(STORYTIME_POLICY_VERSION);
+      expect(storyRepository.save).toHaveBeenCalled();
+    });
+
     // Accepting a policy on behalf of somebody else's Story would be a
     // declaration made in their name.
     it('refuses somebody who does not own the Story', async () => {
@@ -458,11 +494,14 @@ describe('StorytimeStoryService', () => {
     // The publication checklist depends on it, so the two have to agree.
     it('lets a Story publish once it has been accepted', async () => {
       storyRepository.findOne.mockResolvedValue(
-        buildStory({ contentPolicyAcceptedAt: null }),
+        buildStory({
+          contentPolicyAcceptedAt: null,
+          contentPolicyVersion: null,
+        }),
       );
 
       await expect(service.publish(storyId, ownerId)).rejects.toThrow(
-        /content policy/,
+        /publishing terms/,
       );
 
       storyRepository.findOne.mockResolvedValue(buildStory());
@@ -536,13 +575,16 @@ describe('StorytimeStoryService', () => {
       );
     });
 
-    it('refuses without the content policy accepted', async () => {
+    it('refuses without the publishing terms accepted', async () => {
       storyRepository.findOne.mockResolvedValue(
-        buildStory({ contentPolicyAcceptedAt: null }),
+        buildStory({
+          contentPolicyAcceptedAt: null,
+          contentPolicyVersion: null,
+        }),
       );
 
       await expect(service.publish(storyId, ownerId)).rejects.toThrow(
-        /content policy/,
+        /publishing terms/,
       );
     });
 
@@ -552,11 +594,12 @@ describe('StorytimeStoryService', () => {
           shortDescription: null,
           publishedChapterCount: 0,
           contentPolicyAcceptedAt: null,
+          contentPolicyVersion: null,
         }),
       );
 
       await expect(service.publish(storyId, ownerId)).rejects.toThrow(
-        /short description.*published Chapter.*content policy/s,
+        /short description.*published Chapter.*publishing terms/s,
       );
     });
 

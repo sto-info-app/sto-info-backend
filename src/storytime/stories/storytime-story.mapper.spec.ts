@@ -1,3 +1,4 @@
+import { STORYTIME_POLICY_VERSION } from '../constants/storytime-policy.constants';
 import { StoryStatus } from '../enums/story-status.enum';
 import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.enum';
 import { StorytimeVisibility } from '../enums/storytime-visibility.enum';
@@ -31,6 +32,7 @@ describe('StorytimeStoryMapper', () => {
       moderationStatus: StorytimeModerationStatus.REMOVED,
       moderationMessage: 'Breached the content policy',
       contentPolicyAcceptedAt: new Date('2026-01-01T00:00:00Z'),
+      contentPolicyVersion: STORYTIME_POLICY_VERSION,
       publishedChapterCount: 4,
     });
     return story;
@@ -95,6 +97,34 @@ describe('StorytimeStoryMapper', () => {
 
       expect(dto.title).toBe('A Story');
       expect(dto.rating).toBe(5);
+    });
+
+    it('reports accepted terms as current when they are', () => {
+      const dto = mapper.toManaged(buildStory());
+
+      expect(dto.contentPolicyVersion).toBe(STORYTIME_POLICY_VERSION);
+      expect(dto.contentPolicyCurrent).toBe(true);
+    });
+
+    // The creator agreed to wording that has since been replaced, so the
+    // dashboard has to ask again rather than treat the Story as ready.
+    it('reports superseded terms as no longer current', () => {
+      const story = buildStory();
+      story.contentPolicyVersion = '0';
+
+      const dto = mapper.toManaged(story);
+
+      expect(dto.contentPolicyCurrent).toBe(false);
+    });
+
+    it('reports terms never accepted as not current', () => {
+      const story = buildStory();
+      story.contentPolicyAcceptedAt = null;
+      story.contentPolicyVersion = null;
+
+      const dto = mapper.toManaged(story);
+
+      expect(dto.contentPolicyCurrent).toBe(false);
     });
   });
 
