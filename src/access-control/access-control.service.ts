@@ -5,7 +5,10 @@ import { Repository } from 'typeorm';
 import { UserEntity } from '../user/entities/user.entity';
 import { UserRole } from '../user/enums/user-role.enum';
 import { PermissionCode } from './constants/permission-codes.constants';
+import { PermissionGroupEntity } from './entities/permission-group.entity';
+import { PermissionGroupPermissionEntity } from './entities/permission-group-permission.entity';
 import { PermissionEntity } from './entities/permission.entity';
+import { RolePermissionGroupEntity } from './entities/role-permission-group.entity';
 import { UserPermissionOverrideEntity } from './entities/user-permission-override.entity';
 import { PermissionEffect } from './enums/permission-effect.enum';
 
@@ -197,21 +200,21 @@ export class AccessControlService {
       .createQueryBuilder('permission')
       .select('DISTINCT permission.code', 'code')
       .innerJoin(
-        'permission_group_permission',
-        'groupPermission',
-        'groupPermission."permissionId" = permission.id',
+        PermissionGroupPermissionEntity,
+        'group_permission',
+        'group_permission."permissionId" = permission.id',
       )
       .innerJoin(
+        PermissionGroupEntity,
         'permission_group',
-        'permissionGroup',
-        'permissionGroup.id = groupPermission."permissionGroupId" AND permissionGroup."deletedAt" IS NULL',
+        'permission_group.id = group_permission."permissionGroupId" AND permission_group."deletedAt" IS NULL',
       )
       .innerJoin(
+        RolePermissionGroupEntity,
         'role_permission_group',
-        'rolePermissionGroup',
-        'rolePermissionGroup."permissionGroupId" = permissionGroup.id',
+        'role_permission_group."permissionGroupId" = permission_group.id',
       )
-      .where('rolePermissionGroup.role = :role', { role })
+      .where('role_permission_group.role = :role', { role })
       .getRawMany<PermissionCodeRow>();
   }
 

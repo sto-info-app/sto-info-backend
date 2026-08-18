@@ -6,7 +6,10 @@ import { UserEntity } from '../user/entities/user.entity';
 import { UserRole } from '../user/enums/user-role.enum';
 import { AccessControlService } from './access-control.service';
 import { PERMISSION_CODES } from './constants/permission-codes.constants';
+import { PermissionGroupEntity } from './entities/permission-group.entity';
+import { PermissionGroupPermissionEntity } from './entities/permission-group-permission.entity';
 import { PermissionEntity } from './entities/permission.entity';
+import { RolePermissionGroupEntity } from './entities/role-permission-group.entity';
 import { UserPermissionOverrideEntity } from './entities/user-permission-override.entity';
 import { PermissionEffect } from './enums/permission-effect.enum';
 
@@ -185,6 +188,33 @@ describe('AccessControlService', () => {
       expect(codes.size).toBe(0);
     });
 
+    it('uses entity metadata for the permission group joins', async () => {
+      arrange({
+        user: { id: userId, role: UserRole.ADMIN, isAccountDisabled: false },
+        rolePermissions: [PERMISSION_CODES.STORYTIME_MODERATE],
+      });
+
+      await service.getPermissionCodes(userId);
+
+      const builder = permissionRepository.createQueryBuilder.mock.results[0]
+        .value as QueryBuilderStub;
+      expect(builder.innerJoin).toHaveBeenCalledWith(
+        PermissionGroupPermissionEntity,
+        'group_permission',
+        'group_permission."permissionId" = permission.id',
+      );
+      expect(builder.innerJoin).toHaveBeenCalledWith(
+        PermissionGroupEntity,
+        'permission_group',
+        'permission_group.id = group_permission."permissionGroupId" AND permission_group."deletedAt" IS NULL',
+      );
+      expect(builder.innerJoin).toHaveBeenCalledWith(
+        RolePermissionGroupEntity,
+        'role_permission_group',
+        'role_permission_group."permissionGroupId" = permission_group.id',
+      );
+    });
+
     it('queries using the user role', async () => {
       arrange({
         user: { id: userId, role: UserRole.ADMIN, isAccountDisabled: false },
@@ -196,7 +226,7 @@ describe('AccessControlService', () => {
       const builder = permissionRepository.createQueryBuilder.mock.results[0]
         .value as QueryBuilderStub;
       expect(builder.where).toHaveBeenCalledWith(
-        'rolePermissionGroup.role = :role',
+        'role_permission_group.role = :role',
         { role: UserRole.ADMIN },
       );
     });
