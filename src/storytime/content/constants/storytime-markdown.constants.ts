@@ -33,21 +33,13 @@ export const MARKDOWN_FENCED_CODE_BLOCK_PATTERN = /```([\s\S]*?)```/g;
 export const CODE_PLACEHOLDER_SENTINEL = String.fromCharCode(0xe000);
 
 /** Placeholder standing in for an extracted fenced code block. */
-export const MARKDOWN_CODE_PLACEHOLDER_PATTERN = new RegExp(
-  `${CODE_PLACEHOLDER_SENTINEL}CODE([0-9]+)${CODE_PLACEHOLDER_SENTINEL}`,
-  'g',
-);
+export const MARKDOWN_CODE_PLACEHOLDER_PATTERN = /\uE000CODE([0-9]+)\uE000/g;
 
 /** A block consisting solely of a code placeholder. */
-export const MARKDOWN_CODE_PLACEHOLDER_BLOCK_PATTERN = new RegExp(
-  `^${CODE_PLACEHOLDER_SENTINEL}CODE([0-9]+)${CODE_PLACEHOLDER_SENTINEL}$`,
-);
+export const MARKDOWN_CODE_PLACEHOLDER_BLOCK_PATTERN = /^\uE000CODE([0-9]+)\uE000$/;
 
 /** Any use of the sentinel in author-supplied source, which must be stripped. */
-export const CODE_PLACEHOLDER_SENTINEL_PATTERN = new RegExp(
-  CODE_PLACEHOLDER_SENTINEL,
-  'g',
-);
+export const CODE_PLACEHOLDER_SENTINEL_PATTERN = /\uE000/g;
 
 /** Leading newline left behind when a fence is extracted. */
 export const MARKDOWN_LEADING_NEWLINE_PATTERN = /^\n/;
