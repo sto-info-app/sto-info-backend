@@ -185,11 +185,8 @@ export class StorytimeMarkdownService {
 
     const lines = block.split('\n');
 
-    // A heading is only ever a single line, and MARKDOWN_HEADING_PATTERN is
-    // anchored with `$` rather than the multiline flag. Testing it against a
-    // multi-line block would never match, but `\s+(.*)$` backtracks
-    // polynomially while failing to, so multi-line blocks are excluded
-    // up front rather than left for the regex to reject slowly.
+    // A heading is only ever a single line; multi-line blocks are excluded
+    // up front rather than tested and rejected.
     const heading =
       lines.length === 1 ? MARKDOWN_HEADING_PATTERN.exec(block) : null;
     if (heading) {
@@ -197,7 +194,8 @@ export class StorytimeMarkdownService {
       // an author-supplied h1 would break the document outline screen readers
       // rely on.
       const level = Math.min(heading[1].length + 1, 6);
-      return `<h${level} id="${id}">${this.renderInline(heading[2])}</h${level}>`;
+      const text = block.slice(heading[0].length).trimStart();
+      return `<h${level} id="${id}">${this.renderInline(text)}</h${level}>`;
     }
 
     if (lines.every(line => MARKDOWN_UNORDERED_LIST_ITEM_PATTERN.test(line))) {

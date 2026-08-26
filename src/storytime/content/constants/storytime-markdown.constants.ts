@@ -45,8 +45,17 @@ export const CODE_PLACEHOLDER_SENTINEL_PATTERN = /\uE000/g;
 /** Leading newline left behind when a fence is extracted. */
 export const MARKDOWN_LEADING_NEWLINE_PATTERN = /^\n/;
 
-/** An ATX heading, capturing its level and text. */
-export const MARKDOWN_HEADING_PATTERN = /^(#{1,6})\s+(.*)$/;
+/**
+ * An ATX heading's marker, capturing its level.
+ *
+ * Deliberately does not also capture the heading text: `\s+(.*)$` pairs two
+ * adjacent quantifiers whose character classes both match a space, which is
+ * the shape static analysis (and real ReDoS) flags as polynomial regardless
+ * of how the match is anchored. Matching only the marker and a single
+ * whitespace character removes the ambiguity; the caller slices and trims
+ * the remainder itself.
+ */
+export const MARKDOWN_HEADING_PATTERN = /^(#{1,6})\s/;
 
 /** A horizontal rule. */
 export const MARKDOWN_HORIZONTAL_RULE_PATTERN = /^(?:---+|\*\*\*+|___+)$/;
