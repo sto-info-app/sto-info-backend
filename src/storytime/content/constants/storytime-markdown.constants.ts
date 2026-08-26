@@ -80,8 +80,19 @@ export const MARKDOWN_ITALIC_ASTERISK_PATTERN = /\*([^*]+)\*/g;
 /** Italic, underscore form. */
 export const MARKDOWN_ITALIC_UNDERSCORE_PATTERN = /_([^_]+)_/g;
 
-/** A Markdown link, capturing its label and target. */
-export const MARKDOWN_LINK_PATTERN = /\[([^\]]*)\]\(([^)\s]+)\)/g;
+/**
+ * A Markdown link, capturing its label and target.
+ *
+ * The label and target are length-bounded rather than left open-ended.
+ * Unbounded negated-character-class repetition here is polynomial: an author
+ * can paste thousands of unmatched `[` or `(` characters, and an unbounded
+ * quantifier makes each one restart a scan across the rest of the content.
+ * The bounds are generous enough that no real label or site-relative path
+ * would ever hit them; content that does simply fails to match and renders
+ * as plain text, which is the same fallback already used for any other
+ * malformed link.
+ */
+export const MARKDOWN_LINK_PATTERN = /\[([^\]]{0,500})\]\(([^)\s]{1,1000})\)/g;
 
 /**
  * A link target that may be rendered as an anchor.
