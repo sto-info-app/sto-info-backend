@@ -9,7 +9,8 @@ import { PermissionsGuard } from './permissions.guard';
 describe('AccessControlModule', () => {
   it('declares expected providers', () => {
     const providers = Reflect.getMetadata('providers', AccessControlModule) as
-      Array<unknown> | undefined;
+      | Array<unknown>
+      | undefined;
 
     expect(providers).toEqual(
       expect.arrayContaining([
@@ -22,7 +23,8 @@ describe('AccessControlModule', () => {
 
   it('exports everything feature modules need to authorise a caller', () => {
     const exportsList = Reflect.getMetadata('exports', AccessControlModule) as
-      Array<unknown> | undefined;
+      | Array<unknown>
+      | undefined;
 
     expect(exportsList).toEqual(
       expect.arrayContaining([
@@ -64,7 +66,8 @@ describe('AccessControlModule', () => {
 
   it('keeps the administration service internal', () => {
     const exportsList = Reflect.getMetadata('exports', AccessControlModule) as
-      Array<unknown> | undefined;
+      | Array<unknown>
+      | undefined;
 
     // Only this module's own controller writes overrides; feature modules read
     // permissions and must not be able to grant themselves more.

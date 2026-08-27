@@ -4,9 +4,11 @@ import { SettingsService } from './settings.service';
 describe('SettingsModule', () => {
   it('declares and exports the settings service', () => {
     const providers = Reflect.getMetadata('providers', SettingsModule) as
-      Array<unknown> | undefined;
+      | Array<unknown>
+      | undefined;
     const exportsList = Reflect.getMetadata('exports', SettingsModule) as
-      Array<unknown> | undefined;
+      | Array<unknown>
+      | undefined;
 
     expect(providers).toContain(SettingsService);
     expect(exportsList).toContain(SettingsService);
