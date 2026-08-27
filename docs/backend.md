@@ -44,6 +44,84 @@ Client-side token storage strategy is intentionally left to the consuming applic
 - Invalid or expired tokens return 401 Unauthorised
 - The JWT strategy extracts user information from token and attaches to request object
 
+### Permissions
+
+Alongside the coarse `USER`/`ADMIN` roles, the application has a fine-grained permission framework in `src/access-control`. It was introduced for STO Storytime and is intended to be reused by other features.
+
+**Model**
+
+| Table | Purpose |
+| --- | --- |
+| `permission` | The registry of capabilities, keyed by a stable code such as `storytime.story.create`. Seeded by migration only. |
+| `permission_group` | A named bundle of permissions, for example *Storytime Creator*. |
+| `permission_group_permission` | Which permissions a group confers. |
+| `role_permission_group` | Which groups a `UserRole` receives by default. |
+| `user_permission_override` | A per-user `GRANT` or `DENY` that departs from the role default. |
+| `user_limit_override` | A per-user replacement for a configured numeric limit. |
+
+**Resolution order** — implemented once, in `AccessControlService`:
+
+1. a live `DENY` override removes the permission outright;
+2. a live `GRANT` override adds it;
+3. otherwise the permissions of every group mapped to the user's role apply.
+
+`DENY` beating everything is what lets one abusive user lose a capability without their account being disabled and without inventing a role for one person. A disabled account resolves to no permissions at all.
+
+Permissions are **always read from the database, never from the JWT**. The token carries `role` as a client hint only; trusting it would mean a withdrawn permission kept working until the access token expired. Results are memoised in CLS for the lifetime of the request.
+
+**Usage**
+
+```ts
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@RequiresPermission(PERMISSION_CODES.STORYTIME_MODERATE)
+```
+
+`PermissionsGuard` is a **coarse gate only** — it answers "may this kind of user reach this endpoint", never "may this user act on this particular Story". Resource-level authorisation (ownership, collaboration, moderation state) stays in the service, because it cannot be known before the target has been loaded.
+
+**Limits**
+
+Numeric limits resolve through `LimitService.resolve(userId, key, default)`, never by reading `ConfigService` directly, so an administrator's per-user exemption applies everywhere rather than only where someone remembered to look for one.
+
+**Relationship to roles**
+
+The framework is purely additive. `RolesGuard` and every existing `@Roles(UserRole.ADMIN)` check are untouched, and the access-control administration endpoints are themselves gated by `ADMIN` rather than by a permission — gating the permission system behind a permission it governs would be circular, and a mistaken override could leave nobody able to correct it. Migrating existing role checks onto permissions is deliberately separate work.
+
+## Storytime Content Pipeline
+
+Chapter content is written by any member, so `src/storytime/content` is the feature's security boundary. It holds two services and is deliberately separate from the modules that save content, so the rules can be fuzzed and reviewed on their own.
+
+**`StorytimeMarkdownService`** renders a small Markdown subset to sanitised HTML. It is safe **by construction, not by filtering**: the source is HTML-escaped first, and only then are recognised constructs turned into markup the renderer itself emits. There is no path by which author text reaches the output unescaped. Do not reorder this — rendering first and sanitising afterwards is one missed case away from injection.
+
+Other properties worth preserving:
+
+- Author headings are shifted down one level, so a Chapter can never emit an `h1` and compete with its own title in the document outline.
+- Every block carries an ordinal anchor (`id="b1"`, `b2`, …). These are the progress anchors stored in `storytime_user_chapter_progress."lastPositionValue"`. Inserting a block shifts later anchors, which is accepted: a stored position then resolves to a nearby point rather than an exact one.
+- Fenced code placeholders are wrapped in a private-use sentinel (U+E000) that is stripped from incoming source first. Without this an author writing the literal text `CODE0` would have it replaced by somebody else's extracted code.
+
+**External links are never refused, and never rendered.** Content naming an off-site target is accepted and stored as written. A **bare URL** stays visible as plain text. A **Markdown link is removed entirely, label included** — a label such as "click here" reads as a broken promise once there is nothing to click. Only site-relative paths and in-page fragments become anchors.
+
+Removing a link can leave doubled spaces where it sat mid-sentence. That is deliberate: collapsing whitespace would mean altering text the author actually wrote.
+
+This is a deliberate product decision, and it means the renderer is the **sole** enforcement point — there is no upstream validator to fall back on. An earlier implementation rejected such content at validation time so creators were told which URL to remove; that was removed in favour of accepting content silently. Reinstating it would mean adding a validator back, not re-enabling a flag.
+
+**`YouTubeUrlService`** recovers a canonical video reference from any ordinary share URL. It parses with the URL API and compares the **parsed hostname against an exact allowlist**, rather than searching the string. This distinction is the defence: a pattern looking for `youtu.be` anywhere accepts `https://youtu.be.attacker.test/xyz`, while a hostname comparison cannot be fooled. Only extracted identifiers are stored; the embed is built by the application.
+
+The pipeline is covered by unit tests including XSS payload regressions, and by property-based tests in `src/utils/fuzz-tests/storytime-content.fuzz.spec.ts` asserting that no input produces a dangerous element, an inline event handler, a non-relative `href`, or a leaked sentinel — and that the renderer never throws, since nothing filters its input beforehand. Run those with `npm run test:fuzz`.
+
+## Feature Switches
+
+Two mechanisms, deliberately different in kind.
+
+**Runtime switches** live in the `app_setting` table and are read through `SettingsService`. This is for the handful of controls an administrator must be able to throw while the site is running — taking a feature offline during an incident, where a redeployment is too slow. Values are stored as text and interpreted by the reader, so a new switch needs no schema change. Reads are cached for ten seconds, so a change reaches every instance within that window rather than costing a query per request.
+
+**Capability flags** live in environment variables. These stage a rollout and vary by environment, which is what environment variables are for.
+
+`STORYTIME_ENABLED` is the runtime master switch and is **seeded disabled**. Storytime ships as one complete feature, so it stays off until the whole agreed scope is production-ready. The capability flags (`STORYTIME_PUBLIC_READ_ENABLED`, `STORYTIME_CREATION_ENABLED`, `STORYTIME_YOUTUBE_ENABLED`, `STORYTIME_SPOTLIGHT_ENABLED`) default to enabled, so once Storytime itself is on its parts work unless an environment deliberately disables one.
+
+The master switch wins: with it off every capability reports as off, so callers need only ask about the specific thing they are about to do.
+
+`StorytimeFeatureService.assertFlagEnabled` raises **NotFound**, not a "disabled" error. A feature that is switched off should be indistinguishable from one that does not exist, so a staged rollout does not advertise what is coming.
+
 ## Middleware Execution Order
 
 Middleware executes in the following order:

@@ -190,6 +190,107 @@ Reset a password using a password reset token.
 
 **Rate Limit:** Authentication endpoints are limited to 20 requests per 15 minutes
 
+## Access Control Endpoints
+
+### GET /access-control/me
+
+List the permission codes the calling user currently holds, alphabetically ordered.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+Intended for client presentation only — every capability reported is independently enforced on the endpoint that performs the action.
+
+### Administration
+
+All routes below are under `/admin/access-control/*` and require the `ADMIN` role.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/admin/access-control/permissions` | List every permission the application recognises |
+| GET | `/admin/access-control/users/:userId` | A user's effective permissions and active overrides |
+| POST | `/admin/access-control/users/:userId/permission-overrides` | Grant or withhold a permission for a user |
+| DELETE | `/admin/access-control/users/:userId/permission-overrides/:permissionCode` | Withdraw a permission override |
+| GET | `/admin/access-control/users/:userId/limit-overrides` | A user's limit exemptions |
+| POST | `/admin/access-control/users/:userId/limit-overrides` | Allow a user to exceed a configured limit |
+| DELETE | `/admin/access-control/users/:userId/limit-overrides/:limitKey` | Withdraw a limit exemption |
+
+Applying the same permission code or limit key twice updates the existing override rather than creating a second, so the write endpoints are safe to repeat. Withdrawal soft-deletes, leaving the pair free to be granted again.
+
+## Storytime Endpoints
+
+### GET /storytime/configuration
+
+The Storytime client configuration: which parts of the feature are switched on, the languages a creator may choose, and the content ratings a Story may carry.
+
+Unauthenticated, and deliberately still answers while Storytime is switched off — it is how the client learns to hide the feature.
+
+Served rather than duplicated in the frontend so the language list, ratings and switches cannot drift between the two.
+
+### Stories
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/storytime/stories` | List published, public Stories (paginated, filterable) |
+| GET | `/storytime/stories/:slug` | Retrieve a published Story |
+| GET | `/storytime/manage/stories` | List the Stories you own |
+| GET | `/storytime/manage/stories/:storyId` | Retrieve a Story you own |
+| POST | `/storytime/manage/stories` | Create a Story |
+| PATCH | `/storytime/manage/stories/:storyId` | Update a Story you own |
+| POST | `/storytime/manage/stories/:storyId/publish` | Publish |
+| POST | `/storytime/manage/stories/:storyId/unpublish` | Withdraw from publication |
+| POST | `/storytime/manage/stories/:storyId/archive` | Archive |
+| POST | `/storytime/manage/stories/:storyId/content-policy` | Accept the publishing terms for this Story |
+| POST | `/storytime/manage/stories/reorder` | Reorder your Stories |
+| DELETE | `/storytime/manage/stories/:storyId` | Soft-delete a Story |
+
+`GET /storytime/stories/:slug` answers **301** when the slug is one the Story used to have, redirecting to its current URL. Links shared before a rename keep working, and search engines consolidate rather than treating the two addresses as duplicates.
+
+**Unlisted** Stories are readable through `:slug` but excluded from the listing — that is the entire difference between unlisted and public.
+
+The `manage` routes require the relevant `storytime.story.*` permission *and* ownership of the Story, checked against the stored row. `PATCH` accepts the `version` the client last saw and answers **409** if it is stale.
+
+#### Publishing terms
+
+A Story cannot be published until its owner has accepted the current Storytime publishing terms — the Content Policy, the Terms of Use and the Fan Content & Intellectual Property Notice, which are accepted together as one act.
+
+`POST .../content-policy` records the acceptance. It is idempotent while the terms are unchanged: accepting an already-current Story returns it untouched, so a creator who clicks twice has not agreed twice.
+
+The Story carries `contentPolicyAcceptedAt`, `contentPolicyVersion` and a derived `contentPolicyCurrent`. Clients decide what to show from `contentPolicyCurrent` rather than comparing versions themselves, because a stale bundle carrying an old version constant would otherwise tell a creator they were ready to publish when the server disagrees.
+
+When the terms are materially revised, `STORYTIME_POLICY_VERSION` is raised. Every Story whose recorded version is lower becomes unpublishable until its owner accepts again, and the publish error says the terms have changed rather than that they were never accepted.
+
+### Chapters
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/storytime/stories/:storySlug/chapters` | List a published Story's readable Chapters |
+| GET | `/storytime/stories/:storySlug/chapters/:chapterSlug` | Read a Chapter, with previous/next links |
+| GET | `/storytime/manage/stories/:storyId/chapters` | List every Chapter of a Story you own |
+| POST | `/storytime/manage/stories/:storyId/chapters` | Create a Chapter |
+| GET | `/storytime/manage/chapters/:chapterId` | Retrieve a Chapter for editing |
+| PATCH | `/storytime/manage/chapters/:chapterId` | Update a Chapter |
+| POST | `/storytime/manage/chapters/:chapterId/publish` | Publish |
+| POST | `/storytime/manage/chapters/:chapterId/unpublish` | Withdraw from publication |
+| POST | `/storytime/manage/chapters/:chapterId/schedule` | Schedule automatic publication |
+| POST | `/storytime/manage/stories/:storyId/chapters/reorder` | Reorder a Story's Chapters |
+| DELETE | `/storytime/manage/chapters/:chapterId` | Soft-delete a Chapter |
+
+Public Chapter routes resolve the **Story first** and refuse if it is not publicly readable. That single check is what keeps a published Chapter inside a private Story unreachable.
+
+Previous/next links are built from readable Chapters only, so navigation steps over a draft, a scheduled instalment or one an administrator has removed.
+
+`languageCode` on a Chapter response is the **resolved** language, falling back to the Story's — it is what belongs in a `lang` attribute. The creator-facing shape additionally carries `ownLanguageCode`, the creator's own setting or `null` when the Chapter follows its Story. An editor must bind to `ownLanguageCode`; binding to the resolved value silently pins an inherited language on the next save.
+
+Publishing or unpublishing a Chapter updates its Story's `publishedChapterCount` **in the same transaction**, because that count decides whether the Story itself may be published.
+
+`schedule` takes a UTC instant and must be in the future. A job publishes due Chapters every five minutes, so a Chapter goes out within five minutes of its scheduled time. The job does nothing while Storytime is switched off.
+
+### PATCH /admin/storytime/configuration
+
+Switch Storytime on or off at runtime. `GET` on the same path reports the current state. Both require the `ADMIN` role.
+
+Gated by the role rather than a Storytime permission: those permissions are only meaningful while Storytime is on, so gating the switch behind one would let the control that recovers the feature become unreachable.
+
 ## User Endpoints
 
 All user endpoints are under `/user/*` and require authentication.

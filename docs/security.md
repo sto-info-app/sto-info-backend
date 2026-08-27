@@ -26,7 +26,10 @@ Current overrides in `package.json`:
   },
   "nanoid": "3.3.18",
   "qs": "^6.15.2",
-  "js-yaml": ">=5.2.2"
+  "js-yaml": ">=5.2.2",
+  "typeorm": {
+    "ioredis": "^6.0.0"
+  }
 }
 ```
 
@@ -59,9 +62,9 @@ npm ls js-yaml
 
 - **Vulnerability family**: SMTP command/header injection and access-control-bypass issues in older `nodemailer` lines (for example GHSA-c7w3-x93f-qmm8 and GHSA-p6gq-j5cr-w38f), plus [GHSA-22p9-wv53-3rq4](https://github.com/advisories/GHSA-22p9-wv53-3rq4) — quadratic complexity in `linkify-it <= 5.0.0`, a `mailparser` dependency.
 - **Root cause**: `preview-email@3.3.0` (pulled in by `@nestjs-modules/mailer`) pins `mailparser@3.9.8` **exactly** — a version in the vulnerable range that ships `linkify-it@5.0.0` and `nodemailer@8.0.5`. Without the override, `npm update` downgrades mailparser into the vulnerable range.
-- **Override**: `"mailparser": { ".": "^3.9.10", "nodemailer": "^9.0.1" }` — forces the patched parent (currently resolves `3.9.15`, which ships fixed `linkify-it@5.0.2` and `nodemailer@9.0.5`) and its nested transport dependency.
+- **Override**: `"mailparser": { ".": "^3.9.10", "nodemailer": "^9.0.1" }` — forces the patched parent to `3.9.15`, which resolves to `nodemailer@9.0.5` and `linkify-it@5.0.2`.
 
-**When it can be removed**: When `preview-email` raises its own `mailparser` pin to `>= 3.9.9`. Check with:
+**When it can be removed**: When `preview-email` raises its own `mailparser` pin to `>= 3.9.9` and the transitive dependency chain resolves fully patched. Check with:
 
 ```sh
 npm view preview-email@latest dependencies.mailparser
@@ -79,6 +82,32 @@ npm view mailparser@latest dependencies.nodemailer
 ```sh
 npm view typed-rest-client@latest dependencies.qs
 ```
+
+#### `html-to-text`
+
+- **Vulnerability**: [GHSA-ggr8-5vv4-36mx](https://github.com/advisories/GHSA-ggr8-5vv4-36mx) — `deepmerge-ts` can stack-exhaust when recursively merging object graphs. The current `10.x` release line still resolves to a vulnerable `deepmerge-ts`.
+- **Current project state**: the app pins the direct dependency to `html-to-text@^9.0.5` to avoid the vulnerable line in the app's own dependency graph. The remaining vulnerable nested copy is in the upstream `preview-email` mail preview chain and is not used by the app’s runtime mail sending path.
+- **No override added**: we do not force a conflicting nested override because `preview-email` still pulls `html-to-text@10.0.0` from its own dependency tree and npm rejects that conflict.
+
+**When it can be removed**: When the `preview-email` / `mailparser` chain updates to `html-to-text` with `deepmerge-ts >= 8.0.0` or the package is no longer installed. Check with:
+
+```sh
+npm ls deepmerge-ts html-to-text
+```
+
+#### `typeorm` + `ioredis`
+
+- **Issue**: `typeorm@1.1.0` declares an optional peer on `ioredis@^5.0.4`, which npm reports as a peer conflict when the app installs `ioredis@^6` directly.
+- **Why this is safe here**: the project does not rely on TypeORM's optional Redis cache integration for its main PostgreSQL work; the active runtime Redis usage is the direct `express-rate-limit` stack in [src/main.ts](src/main.ts).
+- **Override**: `"typeorm": { "ioredis": "^6.0.0" }` — keeps npm's resolution valid while respecting the fact that this peer is optional and not required for the app's database path.
+
+**When it can be removed**: When upstream `typeorm` publishes a compatible optional peer for `ioredis@^6` or the project no longer uses the direct `ioredis` client for rate limiting.
+
+#### TypeScript compatibility gate
+
+- **Issue**: `@nestjs/cli` in this project requires the TypeScript compiler API, which is not exposed in `typescript@7` at the time of this upgrade. The CLI fails with: `The installed TypeScript version (7.0.2) does not expose the programmatic compiler API that the Nest CLI requires.`
+- **Constraint**: the project remains pinned to `typescript@^6.0.3` until the Nest CLI ecosystem adds support for the TypeScript 7 compiler API.
+- **Why this is intentional**: the backend is currently on a stable Nest 11 toolchain, and the compatibility boundary is lower than the newest TypeScript release.
 
 #### Recently Removed Overrides
 

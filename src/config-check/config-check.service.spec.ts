@@ -216,6 +216,68 @@ describe('ConfigCheckService', () => {
       const result = service.validateInput(config);
       expect(result.CLOSED_ACCOUNT_RETENTION_DAYS).toBe(90);
     });
+
+    describe('Storytime configuration', () => {
+      // Every Storytime variable is optional, so an environment that has never
+      // heard of the feature must still start.
+      it('should accept a configuration with no Storytime variables at all', () => {
+        expect(() => service.validateInput({ ...validConfig })).not.toThrow();
+      });
+
+      it('should accept the Storytime capability flags', () => {
+        const config = {
+          ...validConfig,
+          STORYTIME_PUBLIC_READ_ENABLED: 'true',
+          STORYTIME_CREATION_ENABLED: 'false',
+          STORYTIME_YOUTUBE_ENABLED: 'true',
+          STORYTIME_SPOTLIGHT_ENABLED: 'false',
+        };
+
+        expect(() => service.validateInput(config)).not.toThrow();
+      });
+
+      // A typo here would otherwise leave a capability in a state nobody
+      // intended, discovered only when a creator hit it.
+      it('should reject a capability flag that is not a boolean', () => {
+        const config = {
+          ...validConfig,
+          STORYTIME_CREATION_ENABLED: 'yes please',
+        };
+
+        expect(() => service.validateInput(config)).toThrow('Validation error');
+      });
+
+      it('should accept the Storytime limits', () => {
+        const config = {
+          ...validConfig,
+          STORYTIME_MAX_STORIES_PER_USER: '50',
+          STORYTIME_MAX_CHAPTERS_PER_STORY: '200',
+          STORYTIME_MAX_CHARACTERS_PER_STORY: '100',
+          STORYTIME_MAX_CONTENT_LENGTH: '100000',
+        };
+
+        const result = service.validateInput(config);
+        expect(result.STORYTIME_MAX_STORIES_PER_USER).toBe(50);
+        expect(result.STORYTIME_MAX_CONTENT_LENGTH).toBe(100000);
+      });
+
+      it('should reject a limit that is not a number', () => {
+        const config = {
+          ...validConfig,
+          STORYTIME_MAX_STORIES_PER_USER: 'unlimited',
+        };
+
+        expect(() => service.validateInput(config)).toThrow('Validation error');
+      });
+
+      // The master switch is a runtime setting in app_setting, not an
+      // environment variable, so it must not be validated as one here.
+      it('should ignore STORYTIME_ENABLED as an environment variable', () => {
+        const config = { ...validConfig, STORYTIME_ENABLED: 'not-a-boolean' };
+
+        expect(() => service.validateInput(config)).not.toThrow();
+      });
+    });
   });
 
   describe('get', () => {

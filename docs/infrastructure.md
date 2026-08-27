@@ -65,6 +65,13 @@ All variables from `config/environments/.env.example` must be configured in Rend
 - `AUDIT_IP_NUKE_THRESHOLD_DAYS`
 - `TRUST_PROXY_HOPS=1` (optional, defaults to 1)
 
+Optional (Storytime):
+
+- `STORYTIME_PUBLIC_READ_ENABLED`, `STORYTIME_CREATION_ENABLED`, `STORYTIME_YOUTUBE_ENABLED`, `STORYTIME_SPOTLIGHT_ENABLED` (default `true` when unset)
+- `STORYTIME_MAX_STORIES_PER_USER`, `STORYTIME_MAX_CHAPTERS_PER_STORY`, `STORYTIME_MAX_CHARACTERS_PER_STORY`, `STORYTIME_MAX_CONTENT_LENGTH`
+
+> The Storytime master switch, `STORYTIME_ENABLED`, is **not** a Render environment variable. It lives in the `app_setting` table so it can be thrown from the admin API without a redeployment, and is seeded disabled.
+
 Optional (diagnostics):
 
 - `STARTUP_DIAGNOSTICS=true` (temporarily) to emit additional startup memory/timing logs in Render. Useful when investigating intermittent RSS jumps on boot.

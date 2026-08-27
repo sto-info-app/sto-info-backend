@@ -11,14 +11,16 @@ import { UpdateNewsPostDto } from './dto/update-news-post.dto';
 import { NewsPostEntity } from './entities/news-post.entity';
 import { NewsCategory } from './enums/news-category.enum';
 import { NewsStatus } from './enums/news-status.enum';
-import {
-  COMBINING_DIACRITICS_PATTERN,
-  LEADING_HYPHENS_PATTERN,
-  NON_ALPHANUMERIC_PATTERN,
-} from 'src/shared/constants/regex-patterns.constants';
+import { normaliseToSlug } from 'src/shared/utilities/slug.utility';
 
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
+
+/**
+ * Longest readable stem a News slug uses, leaving room for the uniqueness
+ * suffix within the column's 280 characters.
+ */
+const NEWS_SLUG_MAX_LENGTH = 240;
 
 export type NewsCategoryCounts = Partial<Record<NewsCategory, number>>;
 
@@ -276,25 +278,10 @@ export class NewsService {
    * @returns The slug.
    */
   private slugify(title: string): string {
-    const normalized = title
-      .toLowerCase()
-      .normalize('NFKD')
-      .replaceAll(COMBINING_DIACRITICS_PATTERN, '')
-      .replaceAll(NON_ALPHANUMERIC_PATTERN, '-')
-      .replace(LEADING_HYPHENS_PATTERN, '');
-
-    const base = this.trimTrailingHyphens(normalized).slice(0, 240);
+    const base = normaliseToSlug(title, NEWS_SLUG_MAX_LENGTH);
 
     // Ensure uniqueness-friendliness and avoid empty slugs.
     const suffix = Date.now().toString(36);
     return base ? `${base}-${suffix}` : suffix;
-  }
-
-  private trimTrailingHyphens(value: string): string {
-    let end = value.length;
-    while (end > 0 && value[end - 1] === '-') {
-      end -= 1;
-    }
-    return value.slice(0, end);
   }
 }

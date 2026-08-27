@@ -216,6 +216,43 @@ class EnvironmentVariables {
       'REDIS_URL must be a valid Redis connection string (redis:// or rediss://)',
   })
   REDIS_URL: string;
+
+  //NOTE: Storytime capability flags. Optional because each defaults to enabled,
+  //NOTE: but validated when present so a typo fails at startup rather than
+  //NOTE: silently leaving a capability in the state nobody intended.
+  //NOTE: STORYTIME_ENABLED is deliberately absent - it is a runtime switch held
+  //NOTE: in the app_setting table, not an environment variable.
+  @IsOptional()
+  @IsBooleanString()
+  STORYTIME_PUBLIC_READ_ENABLED?: string;
+
+  @IsOptional()
+  @IsBooleanString()
+  STORYTIME_CREATION_ENABLED?: string;
+
+  @IsOptional()
+  @IsBooleanString()
+  STORYTIME_YOUTUBE_ENABLED?: string;
+
+  @IsOptional()
+  @IsBooleanString()
+  STORYTIME_SPOTLIGHT_ENABLED?: string;
+
+  @IsOptional()
+  @IsNumber()
+  STORYTIME_MAX_STORIES_PER_USER?: number;
+
+  @IsOptional()
+  @IsNumber()
+  STORYTIME_MAX_CHAPTERS_PER_STORY?: number;
+
+  @IsOptional()
+  @IsNumber()
+  STORYTIME_MAX_CHARACTERS_PER_STORY?: number;
+
+  @IsOptional()
+  @IsNumber()
+  STORYTIME_MAX_CONTENT_LENGTH?: number;
 }
 
 @Injectable()
