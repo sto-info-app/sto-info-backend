@@ -20,8 +20,9 @@ import { PermissionsGuard } from 'src/access-control/permissions.guard';
 import { RequiresPermission } from 'src/access-control/requires-permission.decorator';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from 'src/auth/optional-jwt-auth.guard';
-import { UserId } from 'src/auth/user-id.decorator';
+import { OptionalUserId, UserId } from 'src/auth/user-id.decorator';
 import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
+import { ParseStorytimeTargetTypePipe } from '../shared/parse-storytime-target-type.pipe';
 import { ReactDto, ReactionSummaryDto } from './dto/reaction.dto';
 import { StorytimeReactionService } from './storytime-reaction.service';
 
@@ -47,7 +48,7 @@ export class StorytimeReactionsController {
    *
    * @param targetType - What kind of thing.
    * @param targetId - The thing.
-   * @param userId - The reader, when one is signed in.
+   * @param userId - The reader, or null when nobody is signed in.
    * @returns The counts, and what that reader chose.
    */
   @Get(':targetType/:targetId')
@@ -55,9 +56,10 @@ export class StorytimeReactionsController {
   @ApiOperation({ summary: 'Read the reactions on a piece of content' })
   @ApiOkResponse({ type: ReactionSummaryDto })
   async findOne(
-    @Param('targetType') targetType: StorytimeTargetType,
+    @Param('targetType', ParseStorytimeTargetTypePipe)
+    targetType: StorytimeTargetType,
     @Param('targetId', ParseUUIDPipe) targetId: string,
-    @UserId() userId?: string,
+    @OptionalUserId() userId: string | null,
   ): Promise<ReactionSummaryDto> {
     return this._reactionService.summarise(targetType, targetId, userId);
   }
@@ -102,7 +104,8 @@ export class StorytimeReactionsController {
   @ApiOperation({ summary: 'Take your reaction back' })
   @ApiOkResponse({ type: ReactionSummaryDto })
   async remove(
-    @Param('targetType') targetType: StorytimeTargetType,
+    @Param('targetType', ParseStorytimeTargetTypePipe)
+    targetType: StorytimeTargetType,
     @Param('targetId', ParseUUIDPipe) targetId: string,
     @UserId() userId: string,
   ): Promise<ReactionSummaryDto> {

@@ -8,6 +8,7 @@ import { StorytimeStoryService } from '../stories/storytime-story.service';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { StorytimeArcStoryEntity } from './entities/storytime-arc-story.entity';
 import { StorytimeArcEntity } from './entities/storytime-arc.entity';
+import { StorytimeArcMembershipPresenter } from './storytime-arc-membership.presenter';
 import { StorytimeArcMembershipService } from './storytime-arc-membership.service';
 import { StorytimeArcMembershipsController } from './storytime-arc-memberships.controller';
 import { StorytimeArcMapper } from './storytime-arc.mapper';
@@ -25,7 +26,7 @@ describe('StorytimeArcMembershipsController', () => {
   let arcService: { findOwnedByUser: jest.Mock };
   let storyService: {
     findOwnedByUser: jest.Mock;
-    findPublicByIds: jest.Mock;
+    findVisibleByIds: jest.Mock;
   };
   let featureService: { assertFlagEnabled: jest.Mock };
 
@@ -64,7 +65,7 @@ describe('StorytimeArcMembershipsController', () => {
         .mockResolvedValue([
           Object.assign(new StorytimeStoryEntity(), { id: storyId }),
         ]),
-      findPublicByIds: jest.fn().mockResolvedValue([
+      findVisibleByIds: jest.fn().mockResolvedValue([
         Object.assign(new StorytimeStoryEntity(), {
           id: storyId,
           slug: 'a-story',
@@ -89,6 +90,7 @@ describe('StorytimeArcMembershipsController', () => {
         { provide: StorytimeStoryService, useValue: storyService },
         StorytimeArcMapper,
         StorytimeStoryMapper,
+        StorytimeArcMembershipPresenter,
         { provide: StorytimeFeatureService, useValue: featureService },
       ],
     }).compile();

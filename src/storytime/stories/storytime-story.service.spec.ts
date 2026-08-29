@@ -718,6 +718,54 @@ describe('StorytimeStoryService', () => {
     });
   });
 
+  // The public rules, widened by the caller's own work. An Arc is usually
+  // assembled before the Stories in it are published, and a reading order that
+  // calls its own contents "a Story you can no longer see" is no use to the
+  // person building it.
+  describe('findVisibleByIds', () => {
+    it('returns a Story anybody could read', async () => {
+      storyRepository.find.mockResolvedValue([
+        buildStory({
+          status: StoryStatus.PUBLISHED,
+          visibility: StorytimeVisibility.PUBLIC,
+        }),
+      ]);
+
+      await expect(
+        service.findVisibleByIds(['story-1'], otherUserId),
+      ).resolves.toHaveLength(1);
+    });
+
+    it('returns the caller’s own Story that nobody else could read', async () => {
+      storyRepository.find.mockResolvedValue([
+        buildStory({ visibility: StorytimeVisibility.PRIVATE }),
+      ]);
+
+      await expect(
+        service.findVisibleByIds(['story-1'], ownerId),
+      ).resolves.toHaveLength(1);
+    });
+
+    // Widened by ownership only. Somebody else's unpublished Story stays
+    // unnamed until they publish it, which is the point of them agreeing
+    // before it joins an Arc at all.
+    it('drops somebody else’s unreadable Story', async () => {
+      storyRepository.find.mockResolvedValue([
+        buildStory({ visibility: StorytimeVisibility.PRIVATE }),
+      ]);
+
+      await expect(
+        service.findVisibleByIds(['story-1'], otherUserId),
+      ).resolves.toEqual([]);
+    });
+
+    // Asking the database for nothing would return every Story.
+    it('asks for nothing when given no identifiers', async () => {
+      await expect(service.findVisibleByIds([], ownerId)).resolves.toEqual([]);
+      expect(storyRepository.find).not.toHaveBeenCalled();
+    });
+  });
+
   describe('findPublicBySlug', () => {
     it('returns a published public Story', async () => {
       storyRepository.findOne.mockResolvedValue(

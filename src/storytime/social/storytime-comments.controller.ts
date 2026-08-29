@@ -23,8 +23,9 @@ import { PermissionsGuard } from 'src/access-control/permissions.guard';
 import { RequiresPermission } from 'src/access-control/requires-permission.decorator';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from 'src/auth/optional-jwt-auth.guard';
-import { UserId } from 'src/auth/user-id.decorator';
+import { OptionalUserId, UserId } from 'src/auth/user-id.decorator';
 import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
+import { ParseStorytimeTargetTypePipe } from '../shared/parse-storytime-target-type.pipe';
 import {
   CommentDto,
   CreateCommentDto,
@@ -61,7 +62,7 @@ export class StorytimeCommentsController {
    *
    * @param targetType - What kind of thing.
    * @param targetId - The thing.
-   * @param userId - The reader, when one is signed in.
+   * @param userId - The reader, or null when nobody is signed in.
    * @returns The comments, oldest first.
    */
   @Get(':targetType/:targetId')
@@ -69,9 +70,10 @@ export class StorytimeCommentsController {
   @ApiOperation({ summary: 'Read the comments on a piece of content' })
   @ApiOkResponse({ type: [CommentDto] })
   async findFor(
-    @Param('targetType') targetType: StorytimeTargetType,
+    @Param('targetType', ParseStorytimeTargetTypePipe)
+    targetType: StorytimeTargetType,
     @Param('targetId', ParseUUIDPipe) targetId: string,
-    @UserId() userId?: string,
+    @OptionalUserId() userId: string | null,
   ): Promise<CommentDto[]> {
     return this._mapper.toList(
       await this._commentService.findFor(targetType, targetId),

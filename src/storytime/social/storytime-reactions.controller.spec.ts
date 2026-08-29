@@ -73,14 +73,16 @@ describe('StorytimeReactionsController', () => {
     );
   });
 
-  // The rating is on every card already, so reading it needs no account.
+  // The rating is on every card already, so reading it needs no account. The
+  // reader arrives as null rather than absent, because that is what
+  // `OptionalUserId` hands a route when nobody is signed in.
   it('reads how something stands for a signed-out reader', async () => {
-    await controller.findOne(StorytimeTargetType.STORY, storyId);
+    await controller.findOne(StorytimeTargetType.STORY, storyId, null);
 
     expect(reactionService.summarise).toHaveBeenCalledWith(
       StorytimeTargetType.STORY,
       storyId,
-      undefined,
+      null,
     );
   });
 

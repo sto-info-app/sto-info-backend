@@ -10,6 +10,7 @@ import { StorytimeStoryService } from '../stories/storytime-story.service';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { StorytimeArcStoryEntity } from './entities/storytime-arc-story.entity';
 import { StorytimeArcEntity } from './entities/storytime-arc.entity';
+import { StorytimeArcMembershipPresenter } from './storytime-arc-membership.presenter';
 import { StorytimeArcMembershipService } from './storytime-arc-membership.service';
 import { StorytimeArcMapper } from './storytime-arc.mapper';
 import { StorytimeArcService } from './storytime-arc.service';
@@ -32,7 +33,7 @@ describe('StorytimeCreatorArcsController', () => {
     invite: jest.Mock;
     reorder: jest.Mock;
   };
-  let storyService: { findPublicByIds: jest.Mock };
+  let storyService: { findVisibleByIds: jest.Mock };
   let featureService: { assertFlagEnabled: jest.Mock };
 
   const userId = 'curator-1';
@@ -84,7 +85,7 @@ describe('StorytimeCreatorArcsController', () => {
       reorder: jest.fn().mockResolvedValue([membership]),
     };
     storyService = {
-      findPublicByIds: jest.fn().mockResolvedValue([
+      findVisibleByIds: jest.fn().mockResolvedValue([
         Object.assign(new StorytimeStoryEntity(), {
           id: storyId,
           slug: 'a-story',
@@ -109,6 +110,7 @@ describe('StorytimeCreatorArcsController', () => {
         { provide: StorytimeStoryService, useValue: storyService },
         StorytimeArcMapper,
         StorytimeStoryMapper,
+        StorytimeArcMembershipPresenter,
         { provide: StorytimeFeatureService, useValue: featureService },
       ],
     }).compile();
@@ -163,6 +165,18 @@ describe('StorytimeCreatorArcsController', () => {
 
     expect(result[0].story?.title).toBe('A Story');
     expect(result[0].membershipStatus).toBe(ArcMembershipStatus.INVITED);
+  });
+
+  // An Arc is usually assembled before the Stories in it are published, so the
+  // titles are resolved for the curator rather than for the public: their own
+  // draft appears under its name instead of as a Story nobody can see.
+  it('names the Stories as the curator may see them', async () => {
+    await controller.findStories(arcId, userId);
+
+    expect(storyService.findVisibleByIds).toHaveBeenCalledWith(
+      [storyId],
+      userId,
+    );
   });
 
   it('invites a Story', async () => {

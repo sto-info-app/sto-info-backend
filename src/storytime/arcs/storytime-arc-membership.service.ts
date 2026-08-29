@@ -148,10 +148,16 @@ export class StorytimeArcMembershipService {
   /**
    * Invites a Story into an Arc, as its curator.
    *
+   * Joins the Story outright when the curator wrote it themselves. The
+   * agreement exists so nobody's work is taken into somebody else's Arc
+   * without them; when both sides are the same person there is nobody left to
+   * ask, and an invitation they would have to go and accept from themselves is
+   * a step that protects no one.
+   *
    * @param arcId - The Arc.
    * @param storyId - The Story to invite.
    * @param actingUserId - The caller.
-   * @returns The invitation, waiting on the Story's owner.
+   * @returns The membership, joined or waiting on the Story's owner.
    */
   async invite(
     arcId: string,
@@ -164,16 +170,25 @@ export class StorytimeArcMembershipService {
       ArcCapability.MANAGE_STORIES,
     );
 
-    return this.open(arcId, storyId, actingUserId, ArcMembershipStatus.INVITED);
+    return this.start(
+      arcId,
+      storyId,
+      actingUserId,
+      ArcMembershipStatus.INVITED,
+      await this.owns(storyId, actingUserId),
+    );
   }
 
   /**
    * Offers a Story to an Arc, as its owner.
    *
+   * Joins outright when the owner curates the Arc as well, for the same reason
+   * an invitation to your own Story does.
+   *
    * @param arcId - The Arc.
    * @param storyId - The Story to offer.
    * @param actingUserId - The caller.
-   * @returns The request, waiting on the curator.
+   * @returns The membership, joined or waiting on the curator.
    */
   async request(
     arcId: string,
@@ -182,11 +197,12 @@ export class StorytimeArcMembershipService {
   ): Promise<StorytimeArcStoryEntity> {
     await this._storyService.findOwnedOrFail(storyId, actingUserId);
 
-    return this.open(
+    return this.start(
       arcId,
       storyId,
       actingUserId,
       ArcMembershipStatus.REQUESTED,
+      await this.curates(arcId, actingUserId),
     );
   }
 
@@ -213,19 +229,9 @@ export class StorytimeArcMembershipService {
     membership.approvedByUserId = actingUserId;
     membership.approvedAt = new Date();
 
-    this._logger.log(
-      `Story ${membership.storyId} joined Arc ${membership.arcId}`,
-    );
-
     const saved = await this._membershipRepository.save(membership);
 
-    await this._feedService.recordQuietly(
-      StorytimeActivityType.ARC_STORY_ADDED,
-      actingUserId,
-      { arcId: saved.arcId, storyId: saved.storyId },
-    );
-
-    return saved;
+    return this.announceJoin(saved, actingUserId);
   }
 
   /**
@@ -343,13 +349,71 @@ export class StorytimeArcMembershipService {
   }
 
   /**
+   * Starts a membership, agreeing it outright when nobody else has to.
+   *
+   * @param arcId - The Arc.
+   * @param storyId - The Story.
+   * @param actingUserId - Who started it.
+   * @param pendingStatus - Which side would otherwise be waiting to agree.
+   * @param isBothSides - Whether the caller answers for the other side too.
+   * @returns The membership, joined or pending.
+   */
+  private async start(
+    arcId: string,
+    storyId: string,
+    actingUserId: string,
+    pendingStatus: ArcMembershipStatus,
+    isBothSides: boolean,
+  ): Promise<StorytimeArcStoryEntity> {
+    const membership = await this.open(
+      arcId,
+      storyId,
+      actingUserId,
+      isBothSides ? ArcMembershipStatus.APPROVED : pendingStatus,
+    );
+
+    return isBothSides
+      ? this.announceJoin(membership, actingUserId)
+      : membership;
+  }
+
+  /**
+   * Records that a Story is now part of an Arc.
+   *
+   * Shared by the two ways a membership becomes agreed — somebody accepting
+   * the other side's offer, and somebody who is both sides needing nobody's
+   * agreement — so a Story joining is logged and announced the same way
+   * however it got there.
+   *
+   * @param membership - The agreed membership.
+   * @param actingUserId - Who agreed it.
+   * @returns The membership, unchanged.
+   */
+  private async announceJoin(
+    membership: StorytimeArcStoryEntity,
+    actingUserId: string,
+  ): Promise<StorytimeArcStoryEntity> {
+    this._logger.log(
+      `Story ${membership.storyId} joined Arc ${membership.arcId}`,
+    );
+
+    await this._feedService.recordQuietly(
+      StorytimeActivityType.ARC_STORY_ADDED,
+      actingUserId,
+      { arcId: membership.arcId, storyId: membership.storyId },
+    );
+
+    return membership;
+  }
+
+  /**
    * Opens a membership from whichever side started it.
    *
    * @param arcId - The Arc.
    * @param storyId - The Story.
    * @param actingUserId - Who started it.
-   * @param status - Which side is waiting to agree.
-   * @returns The pending membership.
+   * @param status - Which side is waiting to agree, or that none is.
+   * @returns The membership.
    * @throws BadRequestException when one is already open or agreed.
    */
   private async open(
@@ -374,6 +438,8 @@ export class StorytimeArcMembershipService {
     });
 
     const membership = existing ?? this._membershipRepository.create();
+    const isAgreed = status === ArcMembershipStatus.APPROVED;
+    const now = new Date();
 
     Object.assign(membership, {
       arcId,
@@ -384,9 +450,11 @@ export class StorytimeArcMembershipService {
         this._arcService.nextOrderIndex(last?.orderIndex ?? null),
       membershipStatus: status,
       requestedByUserId: actingUserId,
-      requestedAt: new Date(),
-      approvedByUserId: null,
-      approvedAt: null,
+      requestedAt: now,
+      // A membership that needed nobody's agreement still records who settled
+      // it, so the audit reads the same as one that was accepted.
+      approvedByUserId: isAgreed ? actingUserId : null,
+      approvedAt: isAgreed ? now : null,
       declinedAt: null,
       removedAt: null,
     });

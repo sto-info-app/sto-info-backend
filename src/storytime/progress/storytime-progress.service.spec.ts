@@ -108,14 +108,24 @@ describe('StorytimeProgressService', () => {
     storyProgressRepository = {
       find: jest.fn().mockResolvedValue([]),
       findOne: jest.fn().mockResolvedValue(null),
-      create: jest.fn(input => Object.assign(buildStoryProgress(), input)),
+      // Faithful to TypeORM: `create` assigns the given fields to a bare
+      // entity and applies no column defaults, because the defaults belong to
+      // the database and this row is never inserted. Starting from a filled
+      // row instead hid a reader with no progress arriving with no status at
+      // all — which reached the Story page as a progress panel for a Story
+      // they had not opened.
+      create: jest.fn(input =>
+        Object.assign(new StorytimeUserStoryProgressEntity(), input),
+      ),
       save: jest.fn(input => Promise.resolve(input)),
       delete: jest.fn().mockResolvedValue(undefined),
     };
     chapterProgressRepository = {
       find: jest.fn().mockResolvedValue([]),
       findOne: jest.fn().mockResolvedValue(null),
-      create: jest.fn(input => Object.assign(buildChapterProgress(), input)),
+      create: jest.fn(input =>
+        Object.assign(new StorytimeUserChapterProgressEntity(), input),
+      ),
       save: jest.fn(input => Promise.resolve(input)),
       count: jest.fn().mockResolvedValue(0),
       delete: jest.fn().mockResolvedValue(undefined),
@@ -325,6 +335,28 @@ describe('StorytimeProgressService', () => {
 
       expect(result.progress.status).toBe(ReaderStoryStatus.NOT_STARTED);
       expect(result.percentComplete).toBe(0);
+    });
+
+    // A reader who has only ever looked at a Story gets a row that is never
+    // inserted, so nothing applies the column defaults for them. Left to
+    // those, the summary reaches the Story page with no status — which reads
+    // as a progress panel for a Story nobody has opened — and a new-Chapter
+    // count of NaN, which serialises to null.
+    it('gives a reader with no row every figure the page asks for', async () => {
+      arrange([
+        buildChapter('chapter-1', 1000),
+        buildChapter('chapter-2', 2000),
+      ]);
+
+      const result = await service.getStoryProgress(userId, storyId);
+
+      expect(result.progress.status).toBe(ReaderStoryStatus.NOT_STARTED);
+      expect(result.progress.lastReadChapterId).toBeNull();
+      expect(result.progress.lastReadAt).toBeNull();
+      expect(result.progress.completedAt).toBeNull();
+      expect(result.readChapters).toBe(0);
+      expect(result.newChapterCount).toBe(2);
+      expect(Number.isNaN(result.newChapterCount)).toBe(false);
     });
 
     it('becomes in progress once a Chapter is finished', async () => {

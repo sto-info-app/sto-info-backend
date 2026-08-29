@@ -381,7 +381,54 @@ export class StorytimeStoryService {
    * @param storyIds - The Stories to find.
    * @returns The readable Stories among them.
    */
-  async findPublicByIds(storyIds: string[]): Promise<StorytimeStoryEntity[]> {
+  findPublicByIds(storyIds: string[]): Promise<StorytimeStoryEntity[]> {
+    return this.findByIds(storyIds, story => this.isPubliclyReadable(story));
+  }
+
+  /**
+   * Finds several Stories by identifier, as one member is entitled to see them.
+   *
+   * The public rules, widened by the caller's own work. A curator assembling
+   * an Arc has to be able to read the name of a Story they wrote themselves
+   * whether or not anybody else can reach it yet — an Arc is usually put
+   * together before the Stories in it are published, and a reading order that
+   * calls its own contents "a Story you can no longer see" is no use to the
+   * person building it.
+   *
+   * Widened by ownership only. Somebody else's unpublished Story stays unnamed
+   * until they publish it, which is the whole point of them agreeing first.
+   *
+   * @param storyIds - The Stories to find.
+   * @param viewerUserId - Who is asking.
+   * @returns The Stories among them that the caller may be shown.
+   */
+  findVisibleByIds(
+    storyIds: string[],
+    viewerUserId: string,
+  ): Promise<StorytimeStoryEntity[]> {
+    return this.findByIds(
+      storyIds,
+      story =>
+        this.isPubliclyReadable(story) || story.ownerUserId === viewerUserId,
+    );
+  }
+
+  /**
+   * Finds several Stories by identifier, keeping the ones a rule admits.
+   *
+   * The fetch is the same whoever is asking; only the rule about what may be
+   * shown differs, so the callers above supply that and nothing else. The
+   * empty case is answered without a query, because asking a database for the
+   * rows in an empty list is a question with a known answer.
+   *
+   * @param storyIds - The Stories to find.
+   * @param isAdmitted - Whether one of them may be returned.
+   * @returns The Stories among them the rule admits.
+   */
+  private async findByIds(
+    storyIds: string[],
+    isAdmitted: (story: StorytimeStoryEntity) => boolean,
+  ): Promise<StorytimeStoryEntity[]> {
     if (storyIds.length === 0) {
       return [];
     }
@@ -390,7 +437,7 @@ export class StorytimeStoryService {
       where: { id: In(storyIds) },
     });
 
-    return stories.filter(story => this.isPubliclyReadable(story));
+    return stories.filter(isAdmitted);
   }
 
   /**
