@@ -139,7 +139,7 @@ export class StorytimeReactionService {
   async summarise(
     targetType: StorytimeTargetType,
     targetId: string,
-    userId?: string,
+    userId?: string | null,
   ): Promise<ReactionSummary> {
     const [summary] = await this.summariseMany(targetType, [targetId], userId);
 
@@ -160,7 +160,7 @@ export class StorytimeReactionService {
   async summariseMany(
     targetType: StorytimeTargetType,
     targetIds: string[],
-    userId?: string,
+    userId?: string | null,
   ): Promise<ReactionSummary[]> {
     if (targetIds.length === 0) {
       return [];

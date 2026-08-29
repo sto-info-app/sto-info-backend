@@ -25,7 +25,7 @@ export class StorytimeCommentMapper {
    */
   toComment(
     comment: StorytimeCommentEntity,
-    viewerUserId?: string,
+    viewerUserId?: string | null,
   ): CommentDto {
     const isAuthor = comment.authorUserId === viewerUserId;
     const isVisible = comment.status === StorytimeCommentStatus.VISIBLE;
@@ -50,7 +50,7 @@ export class StorytimeCommentMapper {
    */
   toList(
     comments: StorytimeCommentEntity[],
-    viewerUserId?: string,
+    viewerUserId?: string | null,
   ): CommentDto[] {
     return comments.map(comment => this.toComment(comment, viewerUserId));
   }

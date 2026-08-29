@@ -88,11 +88,14 @@ describe('StorytimeCommentsController', () => {
     );
   });
 
-  // Reading a conversation needs no account.
+  // Reading a conversation needs no account. The reader arrives as null rather
+  // than absent, because that is what `OptionalUserId` hands a route when
+  // nobody is signed in.
   it('reads a conversation for a signed-out reader', async () => {
     const comments = await controller.findFor(
       StorytimeTargetType.STORY,
       storyId,
+      null,
     );
 
     expect(comments[0].body).toBe('A fine chapter.');
