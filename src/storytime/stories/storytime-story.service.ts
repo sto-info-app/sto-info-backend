@@ -381,16 +381,8 @@ export class StorytimeStoryService {
    * @param storyIds - The Stories to find.
    * @returns The readable Stories among them.
    */
-  async findPublicByIds(storyIds: string[]): Promise<StorytimeStoryEntity[]> {
-    if (storyIds.length === 0) {
-      return [];
-    }
-
-    const stories = await this._storyRepository.find({
-      where: { id: In(storyIds) },
-    });
-
-    return stories.filter(story => this.isPubliclyReadable(story));
+  findPublicByIds(storyIds: string[]): Promise<StorytimeStoryEntity[]> {
+    return this.findByIds(storyIds, story => this.isPubliclyReadable(story));
   }
 
   /**
@@ -410,9 +402,32 @@ export class StorytimeStoryService {
    * @param viewerUserId - Who is asking.
    * @returns The Stories among them that the caller may be shown.
    */
-  async findVisibleByIds(
+  findVisibleByIds(
     storyIds: string[],
     viewerUserId: string,
+  ): Promise<StorytimeStoryEntity[]> {
+    return this.findByIds(
+      storyIds,
+      story =>
+        this.isPubliclyReadable(story) || story.ownerUserId === viewerUserId,
+    );
+  }
+
+  /**
+   * Finds several Stories by identifier, keeping the ones a rule admits.
+   *
+   * The fetch is the same whoever is asking; only the rule about what may be
+   * shown differs, so the callers above supply that and nothing else. The
+   * empty case is answered without a query, because asking a database for the
+   * rows in an empty list is a question with a known answer.
+   *
+   * @param storyIds - The Stories to find.
+   * @param isAdmitted - Whether one of them may be returned.
+   * @returns The Stories among them the rule admits.
+   */
+  private async findByIds(
+    storyIds: string[],
+    isAdmitted: (story: StorytimeStoryEntity) => boolean,
   ): Promise<StorytimeStoryEntity[]> {
     if (storyIds.length === 0) {
       return [];
@@ -422,10 +437,7 @@ export class StorytimeStoryService {
       where: { id: In(storyIds) },
     });
 
-    return stories.filter(
-      story =>
-        this.isPubliclyReadable(story) || story.ownerUserId === viewerUserId,
-    );
+    return stories.filter(isAdmitted);
   }
 
   /**
