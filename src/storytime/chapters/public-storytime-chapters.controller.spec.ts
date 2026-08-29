@@ -17,7 +17,7 @@ describe('PublicStorytimeChaptersController', () => {
     findNeighbours: jest.Mock;
   };
   let storyService: { findPublicBySlug: jest.Mock };
-  let authorService: { findUsername: jest.Mock };
+  let authorService: { findAuthor: jest.Mock };
   let featureService: { assertFlagEnabled: jest.Mock };
 
   const story = Object.assign(new StorytimeStoryEntity(), {
@@ -46,7 +46,10 @@ describe('PublicStorytimeChaptersController', () => {
     };
     storyService = { findPublicBySlug: jest.fn().mockResolvedValue(story) };
     authorService = {
-      findUsername: jest.fn().mockResolvedValue('midniteshadow7'),
+      findAuthor: jest.fn().mockResolvedValue({
+        username: 'midniteshadow7',
+        publiclyVisible: true,
+      }),
     };
     featureService = {
       assertFlagEnabled: jest.fn().mockResolvedValue(undefined),

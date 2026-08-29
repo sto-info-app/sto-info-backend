@@ -7,6 +7,7 @@ import {
   ManagedChapterDto,
 } from './dto/chapter.dto';
 import { StorytimeChapterEntity } from './entities/storytime-chapter.entity';
+import { StorytimeAuthorDto } from '../dto/storytime-author.dto';
 
 /**
  * Turns Chapter entities into the shapes the API returns.
@@ -58,19 +59,18 @@ export class StorytimeChapterMapper {
    *
    * @param chapter - The Chapter entity.
    * @param story - The Story it belongs to, for the inherited language.
-   * @param authorUsername - Who published the Story, when they still have an
-   *   account.
+   * @param author - Who published the Story, when they still have an account.
    * @returns The reader-facing Chapter.
    */
   toPublic(
     chapter: StorytimeChapterEntity,
     story: StorytimeStoryEntity,
-    authorUsername: string | null = null,
+    author: StorytimeAuthorDto | null = null,
   ): ChapterDto {
     return {
       ...this.toSummary(chapter),
       storyId: chapter.storyId,
-      authorUsername,
+      author,
       contentHtml: chapter.contentHtml,
       languageCode: chapter.languageCode ?? story.languageCode,
       contentRating: story.contentRating,

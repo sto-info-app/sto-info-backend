@@ -106,7 +106,7 @@ export class PublicStorytimeStoriesController {
     if (story) {
       return this._mapper.toPublic(
         story,
-        await this._authorService.findUsername(story.ownerUserId),
+        await this._authorService.findAuthor(story.ownerUserId),
       );
     }
 

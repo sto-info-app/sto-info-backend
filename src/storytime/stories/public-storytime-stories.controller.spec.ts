@@ -15,7 +15,7 @@ describe('PublicStorytimeStoriesController', () => {
     findPublicBySlug: jest.Mock;
     findPublicByRetiredSlug: jest.Mock;
   };
-  let authorService: { findUsername: jest.Mock };
+  let authorService: { findAuthor: jest.Mock };
   let featureService: { assertFlagEnabled: jest.Mock };
   let response: { status: jest.Mock; setHeader: jest.Mock };
 
@@ -36,7 +36,10 @@ describe('PublicStorytimeStoriesController', () => {
       findPublicByRetiredSlug: jest.fn().mockResolvedValue(null),
     };
     authorService = {
-      findUsername: jest.fn().mockResolvedValue('midniteshadow7'),
+      findAuthor: jest.fn().mockResolvedValue({
+        username: 'midniteshadow7',
+        publiclyVisible: true,
+      }),
     };
     featureService = {
       assertFlagEnabled: jest.fn().mockResolvedValue(undefined),

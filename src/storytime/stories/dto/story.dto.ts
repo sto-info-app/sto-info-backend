@@ -4,6 +4,7 @@ import { ContentRating } from '../../enums/content-rating.enum';
 import { StoryStatus } from '../../enums/story-status.enum';
 import { StorytimeModerationStatus } from '../../enums/storytime-moderation-status.enum';
 import { StorytimeVisibility } from '../../enums/storytime-visibility.enum';
+import { StorytimeAuthorDto } from '../../dto/storytime-author.dto';
 
 /**
  * A Story as presented to readers.
@@ -27,11 +28,12 @@ export class StoryDto {
 
   @ApiPropertyOptional({
     description:
-      'The username of the member who published it, or null when they no ' +
-      'longer have an account.',
+      'The member who published it, or null when they no longer have an ' +
+      'account.',
+    type: StorytimeAuthorDto,
     nullable: true,
   })
-  readonly authorUsername: string | null;
+  readonly author: StorytimeAuthorDto | null;
 
   @ApiPropertyOptional({ description: 'Short summary.', nullable: true })
   readonly shortDescription: string | null;

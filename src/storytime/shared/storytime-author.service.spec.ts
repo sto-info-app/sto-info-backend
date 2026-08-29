@@ -51,7 +51,10 @@ describe('StorytimeAuthorService', () => {
   });
 
   it('names the member who owns the work', async () => {
-    await expect(service.findUsername(USER_ID)).resolves.toBe('captain.picard');
+    await expect(service.findAuthor(USER_ID)).resolves.toEqual({
+      username: 'captain.picard',
+      publiclyVisible: true,
+    });
     expect(memberService.findMembersByUserIds).toHaveBeenCalledWith([USER_ID]);
   });
 
@@ -62,13 +65,16 @@ describe('StorytimeAuthorService', () => {
       new Map([[USER_ID, buildMember({ publiclyVisible: false })]]),
     );
 
-    await expect(service.findUsername(USER_ID)).resolves.toBe('captain.picard');
+    await expect(service.findAuthor(USER_ID)).resolves.toEqual({
+      username: 'captain.picard',
+      publiclyVisible: false,
+    });
   });
 
   // The work is still readable; it simply stops saying who wrote it.
   it('answers with nobody when the account has gone', async () => {
     memberService.findMembersByUserIds.mockResolvedValue(new Map());
 
-    await expect(service.findUsername(USER_ID)).resolves.toBeNull();
+    await expect(service.findAuthor(USER_ID)).resolves.toBeNull();
   });
 });

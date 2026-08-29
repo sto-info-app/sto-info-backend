@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PublicMemberService } from '../../community/public-member.service';
+import { StorytimeAuthorDto } from '../dto/storytime-author.dto';
 
 /**
  * Names the member who published a work.
@@ -9,6 +10,9 @@ import { PublicMemberService } from '../../community/public-member.service';
  * registry username, shown whether or not they have chosen to be listed in the
  * registry — publishing a Story is itself a public act, and that setting is a
  * choice about being found, not about being credited for what you put out.
+ *
+ * Whether they are listed comes back with it, because it decides whether the
+ * name can lead anywhere: a profile that is not listed has no page to open.
  *
  * Both a Story page and a Chapter page need exactly this, so the lookup lives
  * here rather than in each of them.
@@ -30,11 +34,19 @@ export class StorytimeAuthorService {
    * still readable, and it simply no longer says who wrote it.
    *
    * @param userId - The owner.
-   * @returns Their username, or null when there is no longer an account.
+   * @returns The author, or null when there is no longer an account.
    */
-  async findUsername(userId: string): Promise<string | null> {
+  async findAuthor(userId: string): Promise<StorytimeAuthorDto | null> {
     const members = await this._memberService.findMembersByUserIds([userId]);
+    const member = members.get(userId);
 
-    return members.get(userId)?.username ?? null;
+    if (!member) {
+      return null;
+    }
+
+    return {
+      username: member.username,
+      publiclyVisible: member.publiclyVisible,
+    };
   }
 }

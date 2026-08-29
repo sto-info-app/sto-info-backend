@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ChapterStatus } from '../../enums/chapter-status.enum';
 import { ContentRating } from '../../enums/content-rating.enum';
 import { StorytimeModerationStatus } from '../../enums/storytime-moderation-status.enum';
+import { StorytimeAuthorDto } from '../../dto/storytime-author.dto';
 
 /**
  * A Chapter summarised for a list.
@@ -59,11 +60,12 @@ export class ChapterDto extends ChapterSummaryDto {
 
   @ApiPropertyOptional({
     description:
-      'The username of the member who published the Story, or null when ' +
-      'they no longer have an account.',
+      'The member who published the Story, or null when they no longer ' +
+      'have an account.',
+    type: StorytimeAuthorDto,
     nullable: true,
   })
-  readonly authorUsername: string | null;
+  readonly author: StorytimeAuthorDto | null;
 
   @ApiPropertyOptional({
     description: 'The Chapter body, rendered and sanitised.',

@@ -91,7 +91,7 @@ export class PublicStorytimeChaptersController {
       chapter: this._mapper.toPublic(
         chapter,
         story,
-        await this._authorService.findUsername(story.ownerUserId),
+        await this._authorService.findAuthor(story.ownerUserId),
       ),
       previous: this._mapper.toLink(neighbours.previous),
       next: this._mapper.toLink(neighbours.next),
