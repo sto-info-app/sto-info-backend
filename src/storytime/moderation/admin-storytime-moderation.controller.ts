@@ -25,6 +25,7 @@ import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
 import { AppealStatus } from '../enums/appeal-status.enum';
 import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
+import { ParseStorytimeTargetTypePipe } from '../shared/parse-storytime-target-type.pipe';
 import { StorytimeReportQueryDto } from './dto/create-storytime-report.dto';
 import { DecideAppealDto } from './dto/decide-appeal.dto';
 import { ModerateContentDto } from './dto/moderate-content.dto';
@@ -143,7 +144,8 @@ export class AdminStorytimeModerationController {
   @ApiOperation({ summary: 'List the reports about one piece of content' })
   @ApiOkResponse({ type: [StorytimeReportDto] })
   async findReportsForTarget(
-    @Param('targetType') targetType: StorytimeTargetType,
+    @Param('targetType', ParseStorytimeTargetTypePipe)
+    targetType: StorytimeTargetType,
     @Param('targetId', ParseUUIDPipe) targetId: string,
   ): Promise<StorytimeReportDto[]> {
     return this._mapper.toReportList(
@@ -163,7 +165,8 @@ export class AdminStorytimeModerationController {
   @ApiOperation({ summary: 'Read a piece of content’s moderation history' })
   @ApiOkResponse({ type: [ModerationActionDto] })
   async findHistory(
-    @Param('targetType') targetType: StorytimeTargetType,
+    @Param('targetType', ParseStorytimeTargetTypePipe)
+    targetType: StorytimeTargetType,
     @Param('targetId', ParseUUIDPipe) targetId: string,
   ): Promise<ModerationActionDto[]> {
     return this._mapper.toActionList(

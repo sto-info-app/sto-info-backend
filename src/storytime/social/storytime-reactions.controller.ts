@@ -22,6 +22,7 @@ import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from 'src/auth/optional-jwt-auth.guard';
 import { OptionalUserId, UserId } from 'src/auth/user-id.decorator';
 import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
+import { ParseStorytimeTargetTypePipe } from '../shared/parse-storytime-target-type.pipe';
 import { ReactDto, ReactionSummaryDto } from './dto/reaction.dto';
 import { StorytimeReactionService } from './storytime-reaction.service';
 
@@ -55,7 +56,8 @@ export class StorytimeReactionsController {
   @ApiOperation({ summary: 'Read the reactions on a piece of content' })
   @ApiOkResponse({ type: ReactionSummaryDto })
   async findOne(
-    @Param('targetType') targetType: StorytimeTargetType,
+    @Param('targetType', ParseStorytimeTargetTypePipe)
+    targetType: StorytimeTargetType,
     @Param('targetId', ParseUUIDPipe) targetId: string,
     @OptionalUserId() userId: string | null,
   ): Promise<ReactionSummaryDto> {
@@ -102,7 +104,8 @@ export class StorytimeReactionsController {
   @ApiOperation({ summary: 'Take your reaction back' })
   @ApiOkResponse({ type: ReactionSummaryDto })
   async remove(
-    @Param('targetType') targetType: StorytimeTargetType,
+    @Param('targetType', ParseStorytimeTargetTypePipe)
+    targetType: StorytimeTargetType,
     @Param('targetId', ParseUUIDPipe) targetId: string,
     @UserId() userId: string,
   ): Promise<ReactionSummaryDto> {

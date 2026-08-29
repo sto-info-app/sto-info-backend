@@ -25,6 +25,7 @@ import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from 'src/auth/optional-jwt-auth.guard';
 import { OptionalUserId, UserId } from 'src/auth/user-id.decorator';
 import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
+import { ParseStorytimeTargetTypePipe } from '../shared/parse-storytime-target-type.pipe';
 import {
   CommentDto,
   CreateCommentDto,
@@ -69,7 +70,8 @@ export class StorytimeCommentsController {
   @ApiOperation({ summary: 'Read the comments on a piece of content' })
   @ApiOkResponse({ type: [CommentDto] })
   async findFor(
-    @Param('targetType') targetType: StorytimeTargetType,
+    @Param('targetType', ParseStorytimeTargetTypePipe)
+    targetType: StorytimeTargetType,
     @Param('targetId', ParseUUIDPipe) targetId: string,
     @OptionalUserId() userId: string | null,
   ): Promise<CommentDto[]> {
