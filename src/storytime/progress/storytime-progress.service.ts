@@ -561,6 +561,13 @@ export class StorytimeProgressService {
   /**
    * Finds a reader's Story progress, creating it on first sight.
    *
+   * The new row is spelled out in full rather than left to the column
+   * defaults. Those are applied by the database on insert, and this row is
+   * never inserted — a reader who has only ever looked at a Story gets it
+   * back, summarised, and thrown away. Left to the defaults it arrives with
+   * no status at all, which reaches the reader as a progress panel for a
+   * Story they have not started and a "new Chapters" count of NaN.
+   *
    * @param userId - The reader.
    * @param storyId - The Story.
    * @returns The progress row.
@@ -577,11 +584,25 @@ export class StorytimeProgressService {
       return existing;
     }
 
-    return this._storyProgressRepository.create({ userId, storyId });
+    return this._storyProgressRepository.create({
+      userId,
+      storyId,
+      status: ReaderStoryStatus.NOT_STARTED,
+      lastReadChapterId: null,
+      startedAt: null,
+      completedAt: null,
+      lastReadAt: null,
+      completedChapterCount: 0,
+      knownPublishedChapterCount: 0,
+    });
   }
 
   /**
    * Finds a reader's Chapter progress, creating it on first sight.
+   *
+   * Spelled out in full for the same reason the Story row is: the column
+   * defaults are the database's and are applied on insert, and a row that is
+   * summarised and discarded never gets there.
    *
    * @param userId - The reader.
    * @param storyId - The Story the Chapter belongs to.
@@ -605,6 +626,13 @@ export class StorytimeProgressService {
       userId,
       storyId,
       chapterId,
+      status: ReaderChapterStatus.UNREAD,
+      lastPositionType: null,
+      lastPositionValue: null,
+      progressPercent: null,
+      startedAt: null,
+      readAt: null,
+      lastReadAt: null,
     });
   }
 }
