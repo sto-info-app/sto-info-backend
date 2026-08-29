@@ -14,6 +14,7 @@ import { StorytimeArcCollaboratorEntity } from './entities/storytime-arc-collabo
 import { StorytimeArcCollaboratorService } from './storytime-arc-collaborator.service';
 import { StorytimeArcCollaboratorsController } from './storytime-arc-collaborators.controller';
 import { StorytimeArcProgressService } from './storytime-arc-progress.service';
+import { StorytimeArcMembershipPresenter } from './storytime-arc-membership.presenter';
 import { StorytimeArcMembershipService } from './storytime-arc-membership.service';
 import { StorytimeArcMembershipsController } from './storytime-arc-memberships.controller';
 import { StorytimeArcMapper } from './storytime-arc.mapper';
@@ -51,6 +52,7 @@ import { StorytimeCreatorArcsController } from './storytime-creator-arcs.control
   providers: [
     StorytimeArcService,
     StorytimeArcMembershipService,
+    StorytimeArcMembershipPresenter,
     StorytimeArcCollaboratorService,
     StorytimeArcProgressService,
     StorytimeArcMapper,

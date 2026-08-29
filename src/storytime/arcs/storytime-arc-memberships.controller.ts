@@ -18,14 +18,12 @@ import {
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
 import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constants';
-import { StorytimeStoryMapper } from '../stories/storytime-story.mapper';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { ArcMembershipDto } from './dto/arc.dto';
 import { ArcStoryDto } from './dto/update-arc.dto';
-import { StorytimeArcStoryEntity } from './entities/storytime-arc-story.entity';
+import { StorytimeArcMembershipPresenter } from './storytime-arc-membership.presenter';
 import { StorytimeArcMembershipService } from './storytime-arc-membership.service';
-import { StorytimeArcMapper } from './storytime-arc.mapper';
 import { StorytimeArcService } from './storytime-arc.service';
 
 /**
@@ -47,16 +45,14 @@ export class StorytimeArcMembershipsController {
    * @param _membershipService - The membership service.
    * @param _arcService - Resolves the Arcs the caller curates.
    * @param _storyService - Resolves the Stories the caller owns.
-   * @param _mapper - Maps memberships to their response shape.
-   * @param _storyMapper - Maps Stories to their reader-facing shape.
+   * @param _presenter - Pairs memberships with the Stories they name.
    * @param _featureService - Reports whether creation is switched on.
    */
   constructor(
     private readonly _membershipService: StorytimeArcMembershipService,
     private readonly _arcService: StorytimeArcService,
     private readonly _storyService: StorytimeStoryService,
-    private readonly _mapper: StorytimeArcMapper,
-    private readonly _storyMapper: StorytimeStoryMapper,
+    private readonly _presenter: StorytimeArcMembershipPresenter,
     private readonly _featureService: StorytimeFeatureService,
   ) {}
 
@@ -80,7 +76,7 @@ export class StorytimeArcMembershipsController {
       this._arcService.findOwnedByUser(userId),
     ]);
 
-    return this.withStories(
+    return this._presenter.withStories(
       await this._membershipService.findPendingForUser(
         stories.map(story => story.id),
         arcs.map(arc => arc.id),
@@ -111,7 +107,7 @@ export class StorytimeArcMembershipsController {
   ): Promise<ArcMembershipDto[]> {
     await this.assertEnabled();
 
-    return this.withStories(
+    return this._presenter.withStories(
       [await this._membershipService.request(arcId, dto.storyId, userId)],
       userId,
     );
@@ -134,7 +130,7 @@ export class StorytimeArcMembershipsController {
   ): Promise<ArcMembershipDto[]> {
     await this.assertEnabled();
 
-    return this.withStories(
+    return this._presenter.withStories(
       [await this._membershipService.approve(membershipId, userId)],
       userId,
     );
@@ -156,7 +152,7 @@ export class StorytimeArcMembershipsController {
   ): Promise<ArcMembershipDto[]> {
     await this.assertEnabled();
 
-    return this.withStories(
+    return this._presenter.withStories(
       [await this._membershipService.decline(membershipId, userId)],
       userId,
     );
@@ -178,37 +174,9 @@ export class StorytimeArcMembershipsController {
   ): Promise<ArcMembershipDto[]> {
     await this.assertEnabled();
 
-    return this.withStories(
+    return this._presenter.withStories(
       [await this._membershipService.leave(membershipId, userId)],
       userId,
-    );
-  }
-
-  /**
-   * Pairs memberships with the Stories the caller may see named.
-   *
-   * Scoped to the caller rather than to the public, so somebody's own
-   * unpublished Story appears under its title instead of as a Story nobody
-   * can see. Anybody else's stays unnamed until they publish it.
-   *
-   * @param memberships - The memberships.
-   * @param userId - The caller.
-   * @returns The memberships with their Stories.
-   */
-  private async withStories(
-    memberships: StorytimeArcStoryEntity[],
-    userId: string,
-  ): Promise<ArcMembershipDto[]> {
-    const stories = await this._storyService.findVisibleByIds(
-      memberships.map(membership => membership.storyId),
-      userId,
-    );
-
-    return this._mapper.toMembershipList(
-      memberships,
-      new Map(
-        stories.map(story => [story.id, this._storyMapper.toPublic(story)]),
-      ),
     );
   }
 
