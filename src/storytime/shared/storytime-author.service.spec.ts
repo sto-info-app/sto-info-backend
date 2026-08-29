@@ -77,4 +77,44 @@ describe('StorytimeAuthorService', () => {
 
     await expect(service.findAuthor(USER_ID)).resolves.toBeNull();
   });
+
+  it('names several members from one lookup', async () => {
+    const OTHER_USER_ID = 'user-2';
+
+    memberService.findMembersByUserIds.mockResolvedValue(
+      new Map([
+        [USER_ID, buildMember()],
+        [OTHER_USER_ID, buildMember({ username: 'jean.luc' })],
+      ]),
+    );
+
+    const authors = await service.findAuthors([
+      USER_ID,
+      OTHER_USER_ID,
+      USER_ID,
+    ]);
+
+    expect(memberService.findMembersByUserIds).toHaveBeenCalledWith([
+      USER_ID,
+      OTHER_USER_ID,
+    ]);
+    expect(authors.get(OTHER_USER_ID)).toEqual({
+      username: 'jean.luc',
+      publiclyVisible: true,
+    });
+  });
+
+  // An empty conversation should not cost a query.
+  it('asks after nobody when there is nobody to ask after', async () => {
+    await expect(service.findAuthors([])).resolves.toEqual(new Map());
+
+    expect(memberService.findMembersByUserIds).not.toHaveBeenCalled();
+  });
+
+  // A comment carrying no author is still a comment; it just has no name.
+  it('asks after nobody when every user ID is blank', async () => {
+    await expect(service.findAuthors([''])).resolves.toEqual(new Map());
+
+    expect(memberService.findMembersByUserIds).not.toHaveBeenCalled();
+  });
 });
