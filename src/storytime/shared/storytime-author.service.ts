@@ -37,16 +37,39 @@ export class StorytimeAuthorService {
    * @returns The author, or null when there is no longer an account.
    */
   async findAuthor(userId: string): Promise<StorytimeAuthorDto | null> {
-    const members = await this._memberService.findMembersByUserIds([userId]);
-    const member = members.get(userId);
+    const authors = await this.findAuthors([userId]);
 
-    if (!member) {
-      return null;
+    return authors.get(userId) ?? null;
+  }
+
+  /**
+   * Names several members at once.
+   *
+   * A conversation is a list of people, and asking after each of them one at a
+   * time would cost a query per comment.
+   *
+   * @param userIds - The members to name. Repeats and blanks are ignored.
+   * @returns Each of them that still has an account, keyed by user ID.
+   */
+  async findAuthors(
+    userIds: string[],
+  ): Promise<Map<string, StorytimeAuthorDto>> {
+    const wanted = [...new Set(userIds.filter(Boolean))];
+    const authors = new Map<string, StorytimeAuthorDto>();
+
+    if (wanted.length === 0) {
+      return authors;
     }
 
-    return {
-      username: member.username,
-      publiclyVisible: member.publiclyVisible,
-    };
+    const members = await this._memberService.findMembersByUserIds(wanted);
+
+    for (const [userId, member] of members) {
+      authors.set(userId, {
+        username: member.username,
+        publiclyVisible: member.publiclyVisible,
+      });
+    }
+
+    return authors;
   }
 }

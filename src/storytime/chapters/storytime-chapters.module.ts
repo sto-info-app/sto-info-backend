@@ -12,6 +12,7 @@ import { StorytimeChapterSchedulerService } from './storytime-chapter-scheduler.
 import { StorytimeChapterMapper } from './storytime-chapter.mapper';
 import { StorytimeChapterService } from './storytime-chapter.service';
 import { StorytimeCreatorChaptersController } from './storytime-creator-chapters.controller';
+import { StorytimeAuthorModule } from '../shared/storytime-author.module';
 
 /**
  * Chapters: the ordered instalments within a Story.
@@ -27,6 +28,7 @@ import { StorytimeCreatorChaptersController } from './storytime-creator-chapters
   imports: [
     TypeOrmModule.forFeature([StorytimeChapterEntity, StorytimeStoryEntity]),
     StorytimeStoriesModule,
+    StorytimeAuthorModule,
     StorytimeContentModule,
     StorytimeProgressModule,
     StorytimeSocialModule,

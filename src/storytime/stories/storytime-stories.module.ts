@@ -1,9 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { CommunityModule } from '../../community/community.module';
 import { StorytimeCollaborationModule } from '../collaboration/storytime-collaboration.module';
 import { StorytimeContentModule } from '../content/storytime-content.module';
-import { StorytimeAuthorService } from '../shared/storytime-author.service';
+import { StorytimeAuthorModule } from '../shared/storytime-author.module';
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
 import { StorytimeSocialModule } from '../social/storytime-social.module';
 import { StorytimeSlugService } from '../shared/storytime-slug.service';
@@ -34,7 +33,7 @@ import { StorytimeStoryService } from './storytime-story.service';
 
     // A published work says who wrote it, and the member behind an owner ID
     // is the community's to resolve rather than Storytime's.
-    CommunityModule,
+    StorytimeAuthorModule,
   ],
   controllers: [
     PublicStorytimeStoriesController,
@@ -45,7 +44,6 @@ import { StorytimeStoryService } from './storytime-story.service';
     StorytimeStoryMapper,
     StorytimeSlugService,
     StorytimeOrderingService,
-    StorytimeAuthorService,
     StorytimeFeatureService,
   ],
   exports: [
@@ -53,7 +51,7 @@ import { StorytimeStoryService } from './storytime-story.service';
     StorytimeStoryMapper,
     StorytimeSlugService,
     StorytimeOrderingService,
-    StorytimeAuthorService,
+    StorytimeAuthorModule,
   ],
 })
 export class StorytimeStoriesModule {}

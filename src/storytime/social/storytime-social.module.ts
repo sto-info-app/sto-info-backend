@@ -19,6 +19,7 @@ import { StorytimeFollowsController } from './storytime-follows.controller';
 import { StorytimeSocialMapper } from './storytime-social.mapper';
 import { StorytimeReactionService } from './storytime-reaction.service';
 import { StorytimeReactionsController } from './storytime-reactions.controller';
+import { StorytimeAuthorModule } from '../shared/storytime-author.module';
 
 /**
  * What readers do with Storytime content beyond reading it.
@@ -32,6 +33,7 @@ import { StorytimeReactionsController } from './storytime-reactions.controller';
  */
 @Module({
   imports: [
+    StorytimeAuthorModule,
     TypeOrmModule.forFeature([
       StorytimeReactionEntity,
       StorytimeCommentEntity,

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { StorytimeCommentStatus } from '../enums/storytime-comment-status.enum';
 import { CommentDto } from './dto/comment.dto';
 import { StorytimeCommentEntity } from './entities/storytime-comment.entity';
+import { StorytimeAuthorDto } from '../dto/storytime-author.dto';
 
 /**
  * Turns comments into the shape the API returns.
@@ -21,11 +22,13 @@ export class StorytimeCommentMapper {
    *
    * @param comment - The comment entity.
    * @param viewerUserId - Who is reading, when somebody is signed in.
+   * @param authors - The members behind the comments, keyed by user ID.
    * @returns The comment as that reader may see it.
    */
   toComment(
     comment: StorytimeCommentEntity,
     viewerUserId?: string | null,
+    authors?: Map<string, StorytimeAuthorDto>,
   ): CommentDto {
     const isAuthor = comment.authorUserId === viewerUserId;
     const isVisible = comment.status === StorytimeCommentStatus.VISIBLE;
@@ -33,6 +36,7 @@ export class StorytimeCommentMapper {
     return {
       id: comment.id,
       authorUserId: comment.authorUserId,
+      author: authors?.get(comment.authorUserId) ?? null,
       parentCommentId: comment.parentCommentId,
       body: isVisible || isAuthor ? comment.body : null,
       status: comment.status,
@@ -46,12 +50,16 @@ export class StorytimeCommentMapper {
    *
    * @param comments - The comment entities.
    * @param viewerUserId - Who is reading, when somebody is signed in.
+   * @param authors - The members behind the comments, keyed by user ID.
    * @returns The comments as that reader may see them.
    */
   toList(
     comments: StorytimeCommentEntity[],
     viewerUserId?: string | null,
+    authors?: Map<string, StorytimeAuthorDto>,
   ): CommentDto[] {
-    return comments.map(comment => this.toComment(comment, viewerUserId));
+    return comments.map(comment =>
+      this.toComment(comment, viewerUserId, authors),
+    );
   }
 }

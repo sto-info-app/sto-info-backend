@@ -34,6 +34,8 @@ import {
 } from './dto/comment.dto';
 import { StorytimeCommentMapper } from './storytime-comment.mapper';
 import { StorytimeCommentService } from './storytime-comment.service';
+import { StorytimeAuthorService } from '../shared/storytime-author.service';
+import { StorytimeCommentEntity } from './entities/storytime-comment.entity';
 
 /**
  * Discussion on Stories, Chapters and Arcs.
@@ -55,6 +57,7 @@ export class StorytimeCommentsController {
   constructor(
     private readonly _commentService: StorytimeCommentService,
     private readonly _mapper: StorytimeCommentMapper,
+    private readonly _authorService: StorytimeAuthorService,
   ) {}
 
   /**
@@ -75,9 +78,14 @@ export class StorytimeCommentsController {
     @Param('targetId', ParseUUIDPipe) targetId: string,
     @OptionalUserId() userId: string | null,
   ): Promise<CommentDto[]> {
+    const comments = await this._commentService.findFor(targetType, targetId);
+
     return this._mapper.toList(
-      await this._commentService.findFor(targetType, targetId),
+      comments,
       userId,
+      await this._authorService.findAuthors(
+        comments.map(comment => comment.authorUserId),
+      ),
     );
   }
 
@@ -99,10 +107,7 @@ export class StorytimeCommentsController {
     @Body() dto: CreateCommentDto,
     @UserId() userId: string,
   ): Promise<CommentDto> {
-    return this._mapper.toComment(
-      await this._commentService.create(dto, userId),
-      userId,
-    );
+    return this.present(await this._commentService.create(dto, userId), userId);
   }
 
   /**
@@ -125,7 +130,7 @@ export class StorytimeCommentsController {
     @Body() dto: UpdateCommentDto,
     @UserId() userId: string,
   ): Promise<CommentDto> {
-    return this._mapper.toComment(
+    return this.present(
       await this._commentService.update(commentId, dto.body, userId),
       userId,
     );
@@ -148,7 +153,7 @@ export class StorytimeCommentsController {
     @Param('commentId', ParseUUIDPipe) commentId: string,
     @UserId() userId: string,
   ): Promise<CommentDto> {
-    return this._mapper.toComment(
+    return this.present(
       await this._commentService.deleteOwn(commentId, userId),
       userId,
     );
@@ -171,7 +176,7 @@ export class StorytimeCommentsController {
     @Param('commentId', ParseUUIDPipe) commentId: string,
     @UserId() userId: string,
   ): Promise<CommentDto> {
-    return this._mapper.toComment(
+    return this.present(
       await this._commentService.hide(commentId, userId),
       userId,
     );
@@ -194,7 +199,7 @@ export class StorytimeCommentsController {
     @Param('commentId', ParseUUIDPipe) commentId: string,
     @UserId() userId: string,
   ): Promise<CommentDto> {
-    return this._mapper.toComment(
+    return this.present(
       await this._commentService.unhide(commentId, userId),
       userId,
     );
@@ -220,9 +225,30 @@ export class StorytimeCommentsController {
     @Body() dto: RemoveCommentDto,
     @UserId() userId: string,
   ): Promise<CommentDto> {
-    return this._mapper.toComment(
+    return this.present(
       await this._commentService.removeAsAdmin(commentId, dto.message, userId),
       userId,
+    );
+  }
+
+  /**
+   * Answers with one comment, named.
+   *
+   * Every write returns the comment it just changed, and a comment says who
+   * wrote it, so each of them would otherwise resolve the author itself.
+   *
+   * @param comment - The comment.
+   * @param viewerUserId - Who is reading it back.
+   * @returns The comment as that reader may see it.
+   */
+  private async present(
+    comment: StorytimeCommentEntity,
+    viewerUserId: string,
+  ): Promise<CommentDto> {
+    return this._mapper.toComment(
+      comment,
+      viewerUserId,
+      await this._authorService.findAuthors([comment.authorUserId]),
     );
   }
 }
