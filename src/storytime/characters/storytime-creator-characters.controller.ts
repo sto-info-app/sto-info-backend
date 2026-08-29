@@ -31,10 +31,10 @@ import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constant
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { ChapterAppearanceDto } from './dto/appearance.dto';
 import { ManagedCharacterDto } from './dto/character.dto';
-import { CreateCharacterDto } from './dto/create-character.dto';
+import { CreateStorytimeCharacterDto } from './dto/create-storytime-character.dto';
 import { ReorderCharactersDto } from './dto/reorder-characters.dto';
 import { SetAppearancesDto } from './dto/set-appearances.dto';
-import { UpdateCharacterDto } from './dto/update-character.dto';
+import { UpdateStorytimeCharacterDto } from './dto/update-storytime-character.dto';
 import { StorytimeAppearanceService } from './storytime-appearance.service';
 import { StorytimeCharacterMapper } from './storytime-character.mapper';
 import { StorytimeCharacterService } from './storytime-character.service';
@@ -125,7 +125,7 @@ export class StorytimeCreatorCharactersController {
   @ApiForbiddenResponse({ description: 'Not your Story.' })
   async create(
     @Param('storyId', ParseUUIDPipe) storyId: string,
-    @Body() dto: CreateCharacterDto,
+    @Body() dto: CreateStorytimeCharacterDto,
     @UserId() userId: string,
   ): Promise<ManagedCharacterDto> {
     await this.assertEnabled();
@@ -149,7 +149,7 @@ export class StorytimeCreatorCharactersController {
   @ApiConflictResponse({ description: 'The Character has changed since.' })
   async update(
     @Param('characterId', ParseUUIDPipe) characterId: string,
-    @Body() dto: UpdateCharacterDto,
+    @Body() dto: UpdateStorytimeCharacterDto,
     @UserId() userId: string,
   ): Promise<ManagedCharacterDto> {
     await this.assertEnabled();
