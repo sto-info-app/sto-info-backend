@@ -85,6 +85,7 @@ export class StorytimeArcMembershipsController {
         stories.map(story => story.id),
         arcs.map(arc => arc.id),
       ),
+      userId,
     );
   }
 
@@ -110,9 +111,10 @@ export class StorytimeArcMembershipsController {
   ): Promise<ArcMembershipDto[]> {
     await this.assertEnabled();
 
-    return this.withStories([
-      await this._membershipService.request(arcId, dto.storyId, userId),
-    ]);
+    return this.withStories(
+      [await this._membershipService.request(arcId, dto.storyId, userId)],
+      userId,
+    );
   }
 
   /**
@@ -132,9 +134,10 @@ export class StorytimeArcMembershipsController {
   ): Promise<ArcMembershipDto[]> {
     await this.assertEnabled();
 
-    return this.withStories([
-      await this._membershipService.approve(membershipId, userId),
-    ]);
+    return this.withStories(
+      [await this._membershipService.approve(membershipId, userId)],
+      userId,
+    );
   }
 
   /**
@@ -153,9 +156,10 @@ export class StorytimeArcMembershipsController {
   ): Promise<ArcMembershipDto[]> {
     await this.assertEnabled();
 
-    return this.withStories([
-      await this._membershipService.decline(membershipId, userId),
-    ]);
+    return this.withStories(
+      [await this._membershipService.decline(membershipId, userId)],
+      userId,
+    );
   }
 
   /**
@@ -174,22 +178,30 @@ export class StorytimeArcMembershipsController {
   ): Promise<ArcMembershipDto[]> {
     await this.assertEnabled();
 
-    return this.withStories([
-      await this._membershipService.leave(membershipId, userId),
-    ]);
+    return this.withStories(
+      [await this._membershipService.leave(membershipId, userId)],
+      userId,
+    );
   }
 
   /**
-   * Pairs memberships with the Stories a reader may see.
+   * Pairs memberships with the Stories the caller may see named.
+   *
+   * Scoped to the caller rather than to the public, so somebody's own
+   * unpublished Story appears under its title instead of as a Story nobody
+   * can see. Anybody else's stays unnamed until they publish it.
    *
    * @param memberships - The memberships.
+   * @param userId - The caller.
    * @returns The memberships with their Stories.
    */
   private async withStories(
     memberships: StorytimeArcStoryEntity[],
+    userId: string,
   ): Promise<ArcMembershipDto[]> {
-    const stories = await this._storyService.findPublicByIds(
+    const stories = await this._storyService.findVisibleByIds(
       memberships.map(membership => membership.storyId),
+      userId,
     );
 
     return this._mapper.toMembershipList(

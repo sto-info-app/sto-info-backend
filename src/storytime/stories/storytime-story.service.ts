@@ -394,6 +394,41 @@ export class StorytimeStoryService {
   }
 
   /**
+   * Finds several Stories by identifier, as one member is entitled to see them.
+   *
+   * The public rules, widened by the caller's own work. A curator assembling
+   * an Arc has to be able to read the name of a Story they wrote themselves
+   * whether or not anybody else can reach it yet — an Arc is usually put
+   * together before the Stories in it are published, and a reading order that
+   * calls its own contents "a Story you can no longer see" is no use to the
+   * person building it.
+   *
+   * Widened by ownership only. Somebody else's unpublished Story stays unnamed
+   * until they publish it, which is the whole point of them agreeing first.
+   *
+   * @param storyIds - The Stories to find.
+   * @param viewerUserId - Who is asking.
+   * @returns The Stories among them that the caller may be shown.
+   */
+  async findVisibleByIds(
+    storyIds: string[],
+    viewerUserId: string,
+  ): Promise<StorytimeStoryEntity[]> {
+    if (storyIds.length === 0) {
+      return [];
+    }
+
+    const stories = await this._storyRepository.find({
+      where: { id: In(storyIds) },
+    });
+
+    return stories.filter(
+      story =>
+        this.isPubliclyReadable(story) || story.ownerUserId === viewerUserId,
+    );
+  }
+
+  /**
    * Lists publicly readable Stories, newest first.
    *
    * `UNLISTED` Stories are excluded here even though they are readable by

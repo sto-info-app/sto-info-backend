@@ -25,7 +25,7 @@ describe('StorytimeArcMembershipsController', () => {
   let arcService: { findOwnedByUser: jest.Mock };
   let storyService: {
     findOwnedByUser: jest.Mock;
-    findPublicByIds: jest.Mock;
+    findVisibleByIds: jest.Mock;
   };
   let featureService: { assertFlagEnabled: jest.Mock };
 
@@ -64,7 +64,7 @@ describe('StorytimeArcMembershipsController', () => {
         .mockResolvedValue([
           Object.assign(new StorytimeStoryEntity(), { id: storyId }),
         ]),
-      findPublicByIds: jest.fn().mockResolvedValue([
+      findVisibleByIds: jest.fn().mockResolvedValue([
         Object.assign(new StorytimeStoryEntity(), {
           id: storyId,
           slug: 'a-story',
