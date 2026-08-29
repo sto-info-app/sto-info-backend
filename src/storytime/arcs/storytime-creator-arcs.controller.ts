@@ -176,10 +176,13 @@ export class StorytimeCreatorArcsController {
   /**
    * Invites a Story into an Arc.
    *
+   * Joins outright when the curator wrote the Story themselves, because there
+   * is then nobody left to ask.
+   *
    * @param arcId - The Arc.
    * @param dto - The Story to invite.
    * @param userId - The caller.
-   * @returns The invitation, waiting on the Story's owner.
+   * @returns The membership, joined or waiting on the Story's owner.
    */
   @Post(':arcId/stories')
   @ApiOperation({ summary: 'Invite a Story into an Arc you curate' })

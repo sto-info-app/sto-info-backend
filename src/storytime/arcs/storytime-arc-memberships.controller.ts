@@ -91,10 +91,13 @@ export class StorytimeArcMembershipsController {
   /**
    * Offers one of the caller's Stories to an Arc.
    *
+   * Joins outright when the caller curates the Arc as well, because there is
+   * then nobody left to ask.
+   *
    * @param arcId - The Arc.
    * @param dto - The Story to offer.
    * @param userId - The caller.
-   * @returns The request, waiting on the curator.
+   * @returns The membership, joined or waiting on the curator.
    */
   @Post('arcs/:arcId/request')
   @ApiOperation({ summary: 'Ask for one of your Stories to join an Arc' })

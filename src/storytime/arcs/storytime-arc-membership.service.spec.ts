@@ -137,11 +137,19 @@ describe('StorytimeArcMembershipService', () => {
   // Inclusion is agreed by both sides. Which side still has to agree depends
   // on who started it — that symmetry is the whole point of the workflow.
   describe('opening a membership', () => {
+    // Two different people either side, which is the case the agreement
+    // exists for.
+    beforeEach(() => {
+      arrangeOwnership({});
+    });
+
     it('leaves a curator’s invitation waiting on the Story owner', async () => {
       const membership = await service.invite(arcId, storyId, curatorId);
 
       expect(membership.membershipStatus).toBe(ArcMembershipStatus.INVITED);
       expect(membership.requestedByUserId).toBe(curatorId);
+      expect(membership.approvedByUserId).toBeNull();
+      expect(membership.approvedAt).toBeNull();
     });
 
     it('leaves an owner’s request waiting on the curator', async () => {
@@ -150,17 +158,19 @@ describe('StorytimeArcMembershipService', () => {
       expect(membership.membershipStatus).toBe(ArcMembershipStatus.REQUESTED);
     });
 
-    it('refuses an invitation from somebody who does not curate the Arc', async () => {
-      arrangeOwnership({});
+    it('announces nothing while a membership is still waiting', async () => {
+      await service.invite(arcId, storyId, curatorId);
 
+      expect(feedService.recordQuietly).not.toHaveBeenCalled();
+    });
+
+    it('refuses an invitation from somebody who does not curate the Arc', async () => {
       await expect(service.invite(arcId, storyId, strangerId)).rejects.toThrow(
         ForbiddenException,
       );
     });
 
     it('refuses a request from somebody who does not own the Story', async () => {
-      arrangeOwnership({});
-
       await expect(service.request(arcId, storyId, strangerId)).rejects.toThrow(
         ForbiddenException,
       );
@@ -210,6 +220,43 @@ describe('StorytimeArcMembershipService', () => {
       const membership = await service.invite(arcId, storyId, curatorId);
 
       expect(membership.orderIndex).toBe(5000);
+    });
+  });
+
+  // The agreement protects somebody from having their work taken into an Arc
+  // they did not choose. When one person is both sides there is nobody to
+  // protect, and an invitation they would answer themselves is a step for its
+  // own sake.
+  describe('opening a membership with nobody else to ask', () => {
+    beforeEach(() => {
+      arrangeOwnership({ curator: curatorId, author: curatorId });
+    });
+
+    it('joins a Story the curator wrote themselves', async () => {
+      const membership = await service.invite(arcId, storyId, curatorId);
+
+      expect(membership.membershipStatus).toBe(ArcMembershipStatus.APPROVED);
+      expect(membership.approvedByUserId).toBe(curatorId);
+      expect(membership.approvedAt).toBeInstanceOf(Date);
+    });
+
+    it('joins when the Story owner curates the Arc as well', async () => {
+      const membership = await service.request(arcId, storyId, curatorId);
+
+      expect(membership.membershipStatus).toBe(ArcMembershipStatus.APPROVED);
+      expect(membership.approvedByUserId).toBe(curatorId);
+    });
+
+    // A Story joining is worth announcing however it got there, so somebody
+    // following the Arc hears about it either way.
+    it('announces the Story joining', async () => {
+      await service.invite(arcId, storyId, curatorId);
+
+      expect(feedService.recordQuietly).toHaveBeenCalledWith(
+        StorytimeActivityType.ARC_STORY_ADDED,
+        curatorId,
+        { arcId, storyId },
+      );
     });
   });
 
