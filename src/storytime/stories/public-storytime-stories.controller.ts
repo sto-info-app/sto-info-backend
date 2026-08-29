@@ -19,6 +19,7 @@ import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constant
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { PaginatedStoriesDto, StoryQueryDto } from './dto/story-query.dto';
 import { StoryDto } from './dto/story.dto';
+import { StorytimeAuthorService } from '../shared/storytime-author.service';
 import { StorytimeStoryMapper } from './storytime-story.mapper';
 import { StorytimeStoryService } from './storytime-story.service';
 
@@ -43,6 +44,7 @@ export class PublicStorytimeStoriesController {
   constructor(
     private readonly _storyService: StorytimeStoryService,
     private readonly _mapper: StorytimeStoryMapper,
+    private readonly _authorService: StorytimeAuthorService,
     private readonly _featureService: StorytimeFeatureService,
   ) {}
 
@@ -102,7 +104,10 @@ export class PublicStorytimeStoriesController {
     const story = await this._storyService.findPublicBySlug(slug);
 
     if (story) {
-      return this._mapper.toPublic(story);
+      return this._mapper.toPublic(
+        story,
+        await this._authorService.findUsername(story.ownerUserId),
+      );
     }
 
     const renamed = await this._storyService.findPublicByRetiredSlug(slug);

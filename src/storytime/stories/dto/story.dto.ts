@@ -25,6 +25,14 @@ export class StoryDto {
   @ApiProperty({ description: 'The user who owns the Story.' })
   readonly ownerUserId: string;
 
+  @ApiPropertyOptional({
+    description:
+      'The username of the member who published it, or null when they no ' +
+      'longer have an account.',
+    nullable: true,
+  })
+  readonly authorUsername: string | null;
+
   @ApiPropertyOptional({ description: 'Short summary.', nullable: true })
   readonly shortDescription: string | null;
 

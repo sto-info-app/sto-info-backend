@@ -19,12 +19,16 @@ export class StorytimeStoryMapper {
    * @param story - The Story entity.
    * @returns The reader-facing Story.
    */
-  toPublic(story: StorytimeStoryEntity): StoryDto {
+  toPublic(
+    story: StorytimeStoryEntity,
+    authorUsername: string | null = null,
+  ): StoryDto {
     return {
       id: story.id,
       slug: story.slug,
       title: story.title,
       ownerUserId: story.ownerUserId,
+      authorUsername,
       shortDescription: story.shortDescription,
       descriptionHtml: story.descriptionHtml,
       completionState: story.completionState,

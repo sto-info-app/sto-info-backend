@@ -58,6 +58,14 @@ export class ChapterDto extends ChapterSummaryDto {
   readonly storyId: string;
 
   @ApiPropertyOptional({
+    description:
+      'The username of the member who published the Story, or null when ' +
+      'they no longer have an account.',
+    nullable: true,
+  })
+  readonly authorUsername: string | null;
+
+  @ApiPropertyOptional({
     description: 'The Chapter body, rendered and sanitised.',
     nullable: true,
   })

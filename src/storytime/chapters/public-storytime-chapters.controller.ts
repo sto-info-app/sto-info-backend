@@ -9,6 +9,7 @@ import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constant
 import { StorytimeStoryService } from '../stories/storytime-story.service';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { ChapterSummaryDto, ChapterWithNavigationDto } from './dto/chapter.dto';
+import { StorytimeAuthorService } from '../shared/storytime-author.service';
 import { StorytimeChapterMapper } from './storytime-chapter.mapper';
 import { StorytimeChapterService } from './storytime-chapter.service';
 
@@ -34,6 +35,7 @@ export class PublicStorytimeChaptersController {
     private readonly _chapterService: StorytimeChapterService,
     private readonly _storyService: StorytimeStoryService,
     private readonly _mapper: StorytimeChapterMapper,
+    private readonly _authorService: StorytimeAuthorService,
     private readonly _featureService: StorytimeFeatureService,
   ) {}
 
@@ -86,7 +88,11 @@ export class PublicStorytimeChaptersController {
     const neighbours = await this._chapterService.findNeighbours(chapter);
 
     return {
-      chapter: this._mapper.toPublic(chapter, story),
+      chapter: this._mapper.toPublic(
+        chapter,
+        story,
+        await this._authorService.findUsername(story.ownerUserId),
+      ),
       previous: this._mapper.toLink(neighbours.previous),
       next: this._mapper.toLink(neighbours.next),
     };

@@ -5,6 +5,7 @@ import { StorytimeStoryService } from '../stories/storytime-story.service';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { StorytimeChapterEntity } from './entities/storytime-chapter.entity';
 import { PublicStorytimeChaptersController } from './public-storytime-chapters.controller';
+import { StorytimeAuthorService } from '../shared/storytime-author.service';
 import { StorytimeChapterMapper } from './storytime-chapter.mapper';
 import { StorytimeChapterService } from './storytime-chapter.service';
 
@@ -16,6 +17,7 @@ describe('PublicStorytimeChaptersController', () => {
     findNeighbours: jest.Mock;
   };
   let storyService: { findPublicBySlug: jest.Mock };
+  let authorService: { findUsername: jest.Mock };
   let featureService: { assertFlagEnabled: jest.Mock };
 
   const story = Object.assign(new StorytimeStoryEntity(), {
@@ -43,6 +45,9 @@ describe('PublicStorytimeChaptersController', () => {
         .mockResolvedValue({ previous: null, next: null }),
     };
     storyService = { findPublicBySlug: jest.fn().mockResolvedValue(story) };
+    authorService = {
+      findUsername: jest.fn().mockResolvedValue('midniteshadow7'),
+    };
     featureService = {
       assertFlagEnabled: jest.fn().mockResolvedValue(undefined),
     };
@@ -53,6 +58,7 @@ describe('PublicStorytimeChaptersController', () => {
         { provide: StorytimeChapterService, useValue: chapterService },
         { provide: StorytimeStoryService, useValue: storyService },
         StorytimeChapterMapper,
+        { provide: StorytimeAuthorService, useValue: authorService },
         { provide: StorytimeFeatureService, useValue: featureService },
       ],
     }).compile();
