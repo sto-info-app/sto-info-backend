@@ -17,8 +17,8 @@ import { StoryCapability } from '../collaboration/storytime-story-capability.enu
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
 import { StorytimeSlugService } from '../shared/storytime-slug.service';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
-import { CreateCharacterDto } from './dto/create-character.dto';
-import { UpdateCharacterDto } from './dto/update-character.dto';
+import { CreateStorytimeCharacterDto } from './dto/create-storytime-character.dto';
+import { UpdateStorytimeCharacterDto } from './dto/update-storytime-character.dto';
 import { StorytimeCharacterEntity } from './entities/storytime-character.entity';
 
 /**
@@ -67,7 +67,7 @@ export class StorytimeCharacterService {
    */
   async create(
     storyId: string,
-    dto: CreateCharacterDto,
+    dto: CreateStorytimeCharacterDto,
     actingUserId: string,
   ): Promise<StorytimeCharacterEntity> {
     await this._storyService.findEditableOrFail(
@@ -120,7 +120,7 @@ export class StorytimeCharacterService {
    */
   async update(
     characterId: string,
-    dto: UpdateCharacterDto,
+    dto: UpdateStorytimeCharacterDto,
     actingUserId: string,
   ): Promise<StorytimeCharacterEntity> {
     const character = await this.findEditableOrFail(characterId, actingUserId);
@@ -339,7 +339,7 @@ export class StorytimeCharacterService {
    */
   private async applySlugChange(
     character: StorytimeCharacterEntity,
-    dto: UpdateCharacterDto,
+    dto: UpdateStorytimeCharacterDto,
   ): Promise<void> {
     if (dto.slug === undefined || dto.slug === character.slug) {
       return;
@@ -373,7 +373,7 @@ export class StorytimeCharacterService {
    */
   private applyBiography(
     character: StorytimeCharacterEntity,
-    dto: UpdateCharacterDto,
+    dto: UpdateStorytimeCharacterDto,
   ): void {
     if (dto.biographySource === undefined) {
       return;
@@ -394,7 +394,7 @@ export class StorytimeCharacterService {
    */
   private applyProfileFields(
     character: StorytimeCharacterEntity,
-    dto: UpdateCharacterDto,
+    dto: UpdateStorytimeCharacterDto,
   ): void {
     // Name, slug, biography, traits and version are handled by the caller,
     // which has to render, retire slugs and tidy traits alongside them.

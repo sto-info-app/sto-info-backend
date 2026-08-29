@@ -10,6 +10,7 @@ import {
 } from 'class-validator';
 import { StorytimeCommentStatus } from '../../enums/storytime-comment-status.enum';
 import { StorytimeTargetType } from '../../enums/storytime-target-type.enum';
+import { StorytimeAuthorDto } from '../../dto/storytime-author.dto';
 
 /** The longest a comment may be. */
 export const MAX_COMMENT_LENGTH = 2000;
@@ -95,6 +96,14 @@ export class CommentDto {
 
   @ApiProperty({ description: 'Who wrote it.' })
   authorUserId: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Who wrote it, named, or null when they no longer have an account.',
+    type: StorytimeAuthorDto,
+    nullable: true,
+  })
+  author: StorytimeAuthorDto | null;
 
   @ApiProperty({
     description: 'The comment this replies to, if any.',

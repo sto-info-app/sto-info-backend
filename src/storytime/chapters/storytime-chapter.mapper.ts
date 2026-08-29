@@ -7,6 +7,7 @@ import {
   ManagedChapterDto,
 } from './dto/chapter.dto';
 import { StorytimeChapterEntity } from './entities/storytime-chapter.entity';
+import { StorytimeAuthorDto } from '../dto/storytime-author.dto';
 
 /**
  * Turns Chapter entities into the shapes the API returns.
@@ -52,17 +53,24 @@ export class StorytimeChapterMapper {
    * travel with the Chapter — and fetching the Story to find it would put a
    * second request on the most-read path in the feature.
    *
+   * The author travels with it for the same reason the rating does: a reader
+   * who follows a link straight to a Chapter never passes the Story page, and
+   * whose work they are reading should not depend on how they arrived.
+   *
    * @param chapter - The Chapter entity.
    * @param story - The Story it belongs to, for the inherited language.
+   * @param author - Who published the Story, when they still have an account.
    * @returns The reader-facing Chapter.
    */
   toPublic(
     chapter: StorytimeChapterEntity,
     story: StorytimeStoryEntity,
+    author: StorytimeAuthorDto | null = null,
   ): ChapterDto {
     return {
       ...this.toSummary(chapter),
       storyId: chapter.storyId,
+      author,
       contentHtml: chapter.contentHtml,
       languageCode: chapter.languageCode ?? story.languageCode,
       contentRating: story.contentRating,

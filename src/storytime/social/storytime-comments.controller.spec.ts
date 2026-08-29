@@ -7,6 +7,7 @@ import { StorytimeCommentEntity } from './entities/storytime-comment.entity';
 import { StorytimeCommentMapper } from './storytime-comment.mapper';
 import { StorytimeCommentService } from './storytime-comment.service';
 import { StorytimeCommentsController } from './storytime-comments.controller';
+import { StorytimeAuthorService } from '../shared/storytime-author.service';
 
 describe('StorytimeCommentsController', () => {
   let controller: StorytimeCommentsController;
@@ -19,6 +20,8 @@ describe('StorytimeCommentsController', () => {
     unhide: jest.Mock;
     removeAsAdmin: jest.Mock;
   };
+
+  let authorService: { findAuthors: jest.Mock };
 
   const userId = 'reader-1';
   const storyId = 'story-1';
@@ -47,11 +50,22 @@ describe('StorytimeCommentsController', () => {
       removeAsAdmin: jest.fn().mockResolvedValue(comment),
     };
 
+    authorService = {
+      findAuthors: jest
+        .fn()
+        .mockResolvedValue(
+          new Map([
+            [userId, { username: 'captain.picard', publiclyVisible: true }],
+          ]),
+        ),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [StorytimeCommentsController],
       providers: [
         { provide: StorytimeCommentService, useValue: commentService },
         StorytimeCommentMapper,
+        { provide: StorytimeAuthorService, useValue: authorService },
         // The permissions guard declared on the controller needs this to be
         // constructible. Its behaviour is covered by its own spec.
         {
@@ -86,6 +100,35 @@ describe('StorytimeCommentsController', () => {
       StorytimeTargetType.STORY,
       storyId,
     );
+  });
+
+  // A comment that does not say who wrote it is half a comment.
+  it('names everybody in the conversation, in one lookup', async () => {
+    const comments = await controller.findFor(
+      StorytimeTargetType.STORY,
+      storyId,
+      userId,
+    );
+
+    expect(comments[0].author).toEqual({
+      username: 'captain.picard',
+      publiclyVisible: true,
+    });
+    expect(authorService.findAuthors).toHaveBeenCalledTimes(1);
+  });
+
+  // The work outlives the account behind it; the comment simply stops saying
+  // whose it was.
+  it('leaves a comment unnamed when the account has gone', async () => {
+    authorService.findAuthors.mockResolvedValue(new Map());
+
+    const comments = await controller.findFor(
+      StorytimeTargetType.STORY,
+      storyId,
+      userId,
+    );
+
+    expect(comments[0].author).toBeNull();
   });
 
   // Reading a conversation needs no account. The reader arrives as null rather

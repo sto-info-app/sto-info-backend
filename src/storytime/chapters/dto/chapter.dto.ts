@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ChapterStatus } from '../../enums/chapter-status.enum';
 import { ContentRating } from '../../enums/content-rating.enum';
 import { StorytimeModerationStatus } from '../../enums/storytime-moderation-status.enum';
+import { StorytimeAuthorDto } from '../../dto/storytime-author.dto';
 
 /**
  * A Chapter summarised for a list.
@@ -56,6 +57,15 @@ export class ChapterSummaryDto {
 export class ChapterDto extends ChapterSummaryDto {
   @ApiProperty({ description: 'The Story this Chapter belongs to.' })
   readonly storyId: string;
+
+  @ApiPropertyOptional({
+    description:
+      'The member who published the Story, or null when they no longer ' +
+      'have an account.',
+    type: StorytimeAuthorDto,
+    nullable: true,
+  })
+  readonly author: StorytimeAuthorDto | null;
 
   @ApiPropertyOptional({
     description: 'The Chapter body, rendered and sanitised.',

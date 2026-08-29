@@ -4,6 +4,7 @@ import type { Response } from 'express';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { StorytimeStoryEntity } from './entities/storytime-story.entity';
 import { PublicStorytimeStoriesController } from './public-storytime-stories.controller';
+import { StorytimeAuthorService } from '../shared/storytime-author.service';
 import { StorytimeStoryMapper } from './storytime-story.mapper';
 import { StorytimeStoryService } from './storytime-story.service';
 
@@ -14,6 +15,7 @@ describe('PublicStorytimeStoriesController', () => {
     findPublicBySlug: jest.Mock;
     findPublicByRetiredSlug: jest.Mock;
   };
+  let authorService: { findAuthor: jest.Mock };
   let featureService: { assertFlagEnabled: jest.Mock };
   let response: { status: jest.Mock; setHeader: jest.Mock };
 
@@ -33,6 +35,12 @@ describe('PublicStorytimeStoriesController', () => {
       findPublicBySlug: jest.fn().mockResolvedValue(null),
       findPublicByRetiredSlug: jest.fn().mockResolvedValue(null),
     };
+    authorService = {
+      findAuthor: jest.fn().mockResolvedValue({
+        username: 'midniteshadow7',
+        publiclyVisible: true,
+      }),
+    };
     featureService = {
       assertFlagEnabled: jest.fn().mockResolvedValue(undefined),
     };
@@ -43,6 +51,7 @@ describe('PublicStorytimeStoriesController', () => {
       providers: [
         { provide: StorytimeStoryService, useValue: storyService },
         StorytimeStoryMapper,
+        { provide: StorytimeAuthorService, useValue: authorService },
         { provide: StorytimeFeatureService, useValue: featureService },
       ],
     }).compile();

@@ -36,7 +36,7 @@ export const MAX_CHARACTER_TRAIT_LENGTH = 60;
  * able to write down eight names and fill in the detail later, rather than
  * being made to complete a form before the first one exists.
  */
-export class CreateCharacterDto {
+export class CreateStorytimeCharacterDto {
   @ApiProperty({
     description: 'The name readers know them by.',
     maxLength: 200,

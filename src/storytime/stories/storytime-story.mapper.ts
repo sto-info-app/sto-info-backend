@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { STORYTIME_POLICY_VERSION } from '../constants/storytime-policy.constants';
 import { ManagedStoryDto, StoryDto } from './dto/story.dto';
 import { StorytimeStoryEntity } from './entities/storytime-story.entity';
+import { StorytimeAuthorDto } from '../dto/storytime-author.dto';
 
 /**
  * Turns Story entities into the shapes the API returns.
@@ -19,12 +20,16 @@ export class StorytimeStoryMapper {
    * @param story - The Story entity.
    * @returns The reader-facing Story.
    */
-  toPublic(story: StorytimeStoryEntity): StoryDto {
+  toPublic(
+    story: StorytimeStoryEntity,
+    author: StorytimeAuthorDto | null = null,
+  ): StoryDto {
     return {
       id: story.id,
       slug: story.slug,
       title: story.title,
       ownerUserId: story.ownerUserId,
+      author,
       shortDescription: story.shortDescription,
       descriptionHtml: story.descriptionHtml,
       completionState: story.completionState,
