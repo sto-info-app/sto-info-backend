@@ -19,6 +19,11 @@ describe('UserController', () => {
     > = jest.fn();
     const closeAccountMock: jest.MockedFunction<UserService['closeAccount']> =
       jest.fn();
+    const getSettingsMock: jest.MockedFunction<UserService['getSettings']> =
+      jest.fn();
+    const updateSettingsMock: jest.MockedFunction<
+      UserService['updateSettings']
+    > = jest.fn();
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UserController],
@@ -30,6 +35,8 @@ describe('UserController', () => {
             updateUserProfile: updateUserProfileMock,
             uploadProfilePicture: uploadProfilePictureMock,
             closeAccount: closeAccountMock,
+            getSettings: getSettingsMock,
+            updateSettings: updateSettingsMock,
           },
         },
       ],
@@ -53,6 +60,38 @@ describe('UserController', () => {
         );
 
       expect(await controller.findUser('1')).toBe(user);
+    });
+  });
+
+  describe('getSettings', () => {
+    it('should return the user settings', async () => {
+      const settings = { privacyMode: true };
+      jest
+        .spyOn(userService, 'getSettings')
+        .mockResolvedValue(
+          settings as unknown as Awaited<
+            ReturnType<UserService['getSettings']>
+          >,
+        );
+
+      expect(await controller.getSettings('1')).toBe(settings);
+      expect(userService.getSettings).toHaveBeenCalledWith('1');
+    });
+  });
+
+  describe('updateSettings', () => {
+    it('should update and return the user settings', async () => {
+      const settings = { privacyMode: true };
+      jest
+        .spyOn(userService, 'updateSettings')
+        .mockResolvedValue(
+          settings as unknown as Awaited<
+            ReturnType<UserService['updateSettings']>
+          >,
+        );
+
+      expect(await controller.updateSettings('1', settings)).toBe(settings);
+      expect(userService.updateSettings).toHaveBeenCalledWith('1', settings);
     });
   });
 
