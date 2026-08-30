@@ -41,6 +41,9 @@ export class UserProfileEntity {
   @Column({ type: 'boolean', default: false })
   publiclyVisible: boolean;
 
+  @Column({ type: 'boolean', default: false })
+  privacyMode: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 

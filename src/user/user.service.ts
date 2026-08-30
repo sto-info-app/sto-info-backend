@@ -9,9 +9,11 @@ import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
 import { In, Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserSettingsDto } from './dto/update-user-settings.dto';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdatedUserProfileResultDto } from './dto/updated-user-profile-result.dto';
+import { UserSettingsDto } from './dto/user-settings.dto';
 import { UserProfileEntity } from './entities/user-profile.entity';
 import { UserEntity } from './entities/user.entity';
 
@@ -38,6 +40,35 @@ export class UserService {
     private readonly _imageUploadsService: ImageUploadsService,
     private readonly _mailService: MailService,
   ) {}
+
+  /**
+   * Retrieves the authenticated user's application settings.
+   *
+   * @param userId Authenticated user ID.
+   * @returns The user's settings.
+   */
+  async getSettings(userId: string): Promise<UserSettingsDto> {
+    const profile = await this._getUserProfile(userId);
+    return new UserSettingsDto(profile.privacyMode);
+  }
+
+  /**
+   * Updates the authenticated user's application settings.
+   *
+   * @param userId Authenticated user ID.
+   * @param settings Settings to persist.
+   * @returns The updated settings.
+   */
+  async updateSettings(
+    userId: string,
+    settings: UpdateUserSettingsDto,
+  ): Promise<UserSettingsDto> {
+    const profile = await this._getUserProfile(userId);
+    profile.privacyMode = settings.privacyMode;
+    const updatedProfile = await this._userProfileRepository.save(profile);
+
+    return new UserSettingsDto(updatedProfile.privacyMode);
+  }
 
   /**
    * Create a new user account.
@@ -279,6 +310,29 @@ export class UserService {
       return false;
     }
     return this._validatorsService.validateEmail(email);
+  }
+
+  /**
+   * Gets the profile owned by an authenticated user.
+   *
+   * @param userId Authenticated user ID.
+   * @returns The user's profile.
+   * @throws HttpException when the identifier is invalid or the profile is absent.
+   */
+  private async _getUserProfile(userId: string): Promise<UserProfileEntity> {
+    if (!userId || !this._validatorsService.validateUuid(userId)) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    const profile = await this._userProfileRepository.findOne({
+      where: { userId },
+    });
+
+    if (!profile) {
+      throw new HttpException('User data not found', HttpStatus.NOT_FOUND);
+    }
+
+    return profile;
   }
 
   /**
