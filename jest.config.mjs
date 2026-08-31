@@ -1,4 +1,8 @@
 export default {
+  // Jest 30 can require() ESM on Node 24.9+, but that path needs
+  // vm.SourceTextModule (still behind --experimental-vm-modules). npm test
+  // scripts set NODE_OPTIONS=--experimental-vm-modules so @nestjs/jwt@12
+  // (ESM, no "require" export condition) loads from CommonJS specs.
   moduleFileExtensions: ['js', 'json', 'ts'],
   testRegex: String.raw`\.spec\.ts$`,
   transform: {

@@ -3,6 +3,7 @@ export default {
   packageManager: 'npm',
   reporters: ['html', 'clear-text', 'progress'],
   testRunner: 'jest',
+  testRunnerNodeArgs: ['--experimental-vm-modules'],
   jest: {
     projectType: 'custom',
     configFile: 'jest.config.mjs',

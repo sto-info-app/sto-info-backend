@@ -130,12 +130,14 @@ Both fast-check and ZAP are updated regularly via Dependabot to ensure the lates
 
 ## Known Dependency Advisory Follow-up
 
-Both the full dependency audit (`npm audit`) and the production audit gate (`npm audit --audit-level=high --omit=dev`) currently pass with **zero advisories at any severity** (last verified 2026-08-05).
+Both the full dependency audit (`npm audit`) and the production audit gate (`npm audit --audit-level=high --omit=dev`) currently pass with **zero advisories at any severity** (last verified 2026-08-31).
 
 The current overrides remediate these upstream dependency advisories:
 
-- `js-yaml` [GHSA-pm4m-ph32-ghv5](https://github.com/advisories/GHSA-pm4m-ph32-ghv5) — `@nestjs/swagger` requests vulnerable `5.2.1`; the global override requires patched `5.2.2` or newer.
-- Additional active overrides for `mailparser`/`nodemailer` and `qs` remain documented in `docs/security.md`, including their upstream removal criteria.
+- `js-yaml` [GHSA-pm4m-ph32-ghv5](https://github.com/advisories/GHSA-pm4m-ph32-ghv5) — `@nestjs/swagger@11.4.7` still exact-pins `js-yaml@5.3.0`; the global override keeps the tree on patched `5.2.2` or newer (currently `5.4.1`).
+- Additional active overrides for `mailparser`/`nodemailer`, `nanoid`, `qs`, and TypeORM's optional `ioredis` peer remain documented in `docs/security.md`, including their upstream removal criteria.
+
+NestJS 12 majors from Dependabot are **deferred**: `nestjs-cls`, `@nestjs/terminus`, and `@nestjs/throttler` do not yet support Nest 12, and the ESM packages fail Jest fuzz tests on the current CommonJS + ts-jest setup. See `docs/security.md`.
 
 ### Non-breaking remediation strategy
 
