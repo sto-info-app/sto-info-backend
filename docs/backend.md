@@ -46,7 +46,7 @@ Client-side token storage strategy is intentionally left to the consuming applic
 
 ### Permissions
 
-Alongside the coarse `USER`/`ADMIN` roles, the application has a fine-grained permission framework in `src/access-control`. It was introduced for STO Storytime and is intended to be reused by other features.
+Alongside the coarse `USER`, `STORYTIME_CURATOR` and `ADMIN` roles, the application has a fine-grained permission framework in `src/access-control`. It was introduced for STO Storytime and is intended to be reused by other features.
 
 **Model**
 
@@ -85,6 +85,20 @@ Numeric limits resolve through `LimitService.resolve(userId, key, default)`, nev
 **Relationship to roles**
 
 The framework is purely additive. `RolesGuard` and every existing `@Roles(UserRole.ADMIN)` check are untouched, and the access-control administration endpoints are themselves gated by `ADMIN` rather than by a permission — gating the permission system behind a permission it governs would be circular, and a mistaken override could leave nobody able to correct it. Migrating existing role checks onto permissions is deliberately separate work.
+
+**Assigning a role**
+
+`PUT /admin/access-control/users/:userId/role` moves a member between the roles in `ASSIGNABLE_USER_ROLES` — `USER` and `STORYTIME_CURATOR`. There are three roles in all:
+
+| Role | What it confers |
+| --- | --- |
+| `USER` | Read and write their own Storytime content (`storytime.reader`, `storytime.creator`). |
+| `STORYTIME_CURATOR` | Everything a `USER` has, plus `storytime.curator`: `storytime.moderate`, `storytime.spotlight.manage` and `storytime.tag.manage`. |
+| `ADMIN` | Everything a curator has, plus `storytime.configure`, and every `@Roles(UserRole.ADMIN)` surface: news, banners, notifications, member moderation, access control and the Storytime master switch. |
+
+`storytime.configure` is the line between curator and administrator: feature flags and per-user limit exemptions change the rules everyone plays by. The Storytime master switch is stricter still — `AdminStorytimeConfigurationController` is gated by the `ADMIN` role itself, because a switch that turns Storytime off cannot be gated by a Storytime permission.
+
+`ADMIN` is not assignable through the API, and an administrator’s role cannot be changed through it either. Administrators are appointed out of band — the `ADMIN_EMAIL` environment variable read by `AddUserRole1775300000000`, or an `UPDATE` against the database — so that no signed-in session can mint another administrator or unmake one. The route also refuses a caller acting on their own account, which is how an administrator would otherwise lock themselves out.
 
 ## Storytime Content Pipeline
 

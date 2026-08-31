@@ -1,7 +1,13 @@
-import { Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { UserEntity } from '../user/entities/user.entity';
+import { UserRole } from '../user/enums/user-role.enum';
 import { AccessControlAdminService } from './access-control-admin.service';
 import { AccessControlService } from './access-control.service';
 import { PERMISSION_CODES } from './constants/permission-codes.constants';
@@ -30,7 +36,11 @@ describe('AccessControlAdminService', () => {
     update: jest.Mock;
     softDelete: jest.Mock;
   };
-  let userRepository: { exists: jest.Mock };
+  let userRepository: {
+    exists: jest.Mock;
+    findOne: jest.Mock;
+    update: jest.Mock;
+  };
   let accessControlService: { getPermissionCodes: jest.Mock };
 
   const userId = 'e6d3a1b2-0000-4000-8000-000000000001';
@@ -63,7 +73,11 @@ describe('AccessControlAdminService', () => {
       update: jest.fn().mockResolvedValue(undefined),
       softDelete: jest.fn().mockResolvedValue(undefined),
     };
-    userRepository = { exists: jest.fn().mockResolvedValue(true) };
+    userRepository = {
+      exists: jest.fn().mockResolvedValue(true),
+      findOne: jest.fn().mockResolvedValue({ id: userId, role: UserRole.USER }),
+      update: jest.fn().mockResolvedValue(undefined),
+    };
     accessControlService = {
       getPermissionCodes: jest.fn().mockResolvedValue(new Set<string>()),
     };
@@ -175,8 +189,19 @@ describe('AccessControlAdminService', () => {
       expect(summary.overrides[0].permissionCode).toBe('');
     });
 
+    it('reports the role the baseline permissions come from', async () => {
+      userRepository.findOne.mockResolvedValue({
+        id: userId,
+        role: UserRole.STORYTIME_CURATOR,
+      });
+
+      const summary = await service.getUserAccessSummary(userId);
+
+      expect(summary.role).toBe(UserRole.STORYTIME_CURATOR);
+    });
+
     it('throws when the user does not exist', async () => {
-      userRepository.exists.mockResolvedValue(false);
+      userRepository.findOne.mockResolvedValue(null);
 
       await expect(service.getUserAccessSummary(userId)).rejects.toThrow(
         NotFoundException,
@@ -296,6 +321,65 @@ describe('AccessControlAdminService', () => {
           PERMISSION_CODES.STORYTIME_STORY_CREATE,
           adminId,
         ),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('setUserRole', () => {
+    it('promotes a member to Storytime curator', async () => {
+      await service.setUserRole(
+        userId,
+        { role: UserRole.STORYTIME_CURATOR },
+        adminId,
+      );
+
+      expect(userRepository.update).toHaveBeenCalledWith(userId, {
+        role: UserRole.STORYTIME_CURATOR,
+      });
+    });
+
+    it('returns the summary without writing when the role is unchanged', async () => {
+      const summary = await service.setUserRole(
+        userId,
+        { role: UserRole.USER },
+        adminId,
+      );
+
+      expect(userRepository.update).not.toHaveBeenCalled();
+      expect(summary.userId).toBe(userId);
+    });
+
+    it("refuses to change the acting administrator's own role", async () => {
+      await expect(
+        service.setUserRole(adminId, { role: UserRole.USER }, adminId),
+      ).rejects.toThrow(BadRequestException);
+      expect(userRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('refuses to assign the administrator role', async () => {
+      await expect(
+        service.setUserRole(userId, { role: UserRole.ADMIN }, adminId),
+      ).rejects.toThrow(ForbiddenException);
+      expect(userRepository.update).not.toHaveBeenCalled();
+    });
+
+    it("refuses to change an administrator's role", async () => {
+      userRepository.findOne.mockResolvedValue({
+        id: userId,
+        role: UserRole.ADMIN,
+      });
+
+      await expect(
+        service.setUserRole(userId, { role: UserRole.USER }, adminId),
+      ).rejects.toThrow(ForbiddenException);
+      expect(userRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('throws when the member does not exist', async () => {
+      userRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.setUserRole(userId, { role: UserRole.USER }, adminId),
       ).rejects.toThrow(NotFoundException);
     });
   });
