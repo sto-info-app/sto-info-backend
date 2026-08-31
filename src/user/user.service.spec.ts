@@ -101,6 +101,81 @@ describe('UserService', () => {
     expect(service).toBeDefined();
   });
 
+  describe('getSettings', () => {
+    it('should return the settings for a valid user', async () => {
+      (
+        userProfileRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({ userId: 'uuid', privacyMode: true });
+
+      await expect(service.getSettings('uuid')).resolves.toEqual({
+        privacyMode: true,
+      });
+      expect(userProfileRepository.findOne).toHaveBeenCalledWith({
+        where: { userId: 'uuid' },
+      });
+    });
+
+    it('should throw when the user id is missing', async () => {
+      await expect(service.getSettings('')).rejects.toThrow(HttpException);
+      expect(userProfileRepository.findOne).not.toHaveBeenCalled();
+    });
+
+    it('should throw when the user id is not a valid uuid', async () => {
+      (validatorsService.validateUuid as jest.Mock).mockReturnValue(false);
+
+      await expect(service.getSettings('bad')).rejects.toThrow(HttpException);
+      expect(userProfileRepository.findOne).not.toHaveBeenCalled();
+    });
+
+    it('should throw when the profile does not exist', async () => {
+      (
+        userProfileRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(null);
+
+      await expect(service.getSettings('uuid')).rejects.toThrow(HttpException);
+    });
+  });
+
+  describe('updateSettings', () => {
+    it('should persist and return the updated settings', async () => {
+      const profile = { userId: 'uuid', privacyMode: false };
+      (
+        userProfileRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(profile);
+      (
+        userProfileRepository.save as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockImplementation(async (value: any) => value);
+
+      await expect(
+        service.updateSettings('uuid', { privacyMode: true }),
+      ).resolves.toEqual({ privacyMode: true });
+      expect(userProfileRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ privacyMode: true }),
+      );
+    });
+
+    it('should throw when the profile does not exist', async () => {
+      (
+        userProfileRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(null);
+
+      await expect(
+        service.updateSettings('uuid', { privacyMode: true }),
+      ).rejects.toThrow(HttpException);
+      expect(userProfileRepository.save).not.toHaveBeenCalled();
+    });
+  });
+
   describe('create', () => {
     it('should create a user successfully', async () => {
       const dto = { email: 'test@e.com', password: 'pass', username: 'user' }; // NOSONAR
