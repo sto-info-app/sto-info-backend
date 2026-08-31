@@ -1,8 +1,10 @@
 import { validateDto } from '../../utils/testing/dto-validation.util';
+import { UserRole } from '../../user/enums/user-role.enum';
 import { PERMISSION_CODES } from '../constants/permission-codes.constants';
 import { PermissionEffect } from '../enums/permission-effect.enum';
 import { SetLimitOverrideDto } from './set-limit-override.dto';
 import { SetPermissionOverrideDto } from './set-permission-override.dto';
+import { SetUserRoleDto } from './set-user-role.dto';
 
 /** A date comfortably in the future, for expiry tests. */
 const futureDate = new Date(Date.now() + 86_400_000).toISOString();
@@ -230,6 +232,50 @@ describe('SetLimitOverrideDto Validation', () => {
   it('should reject unknown properties', async () => {
     const { errors } = await validateDto(SetLimitOverrideDto, {
       ...validPayload,
+      userId: 'e6d3a1b2-0000-4000-8000-000000000001',
+    });
+
+    expect(errors.length).toBeGreaterThan(0);
+  });
+});
+
+describe('SetUserRoleDto Validation', () => {
+  it.each([UserRole.USER, UserRole.STORYTIME_CURATOR])(
+    'should accept the assignable role %s',
+    async role => {
+      const { errors } = await validateDto(SetUserRoleDto, { role });
+
+      expect(errors).toHaveLength(0);
+    },
+  );
+
+  // The administrator role is granted outside the application, so a request
+  // naming it is refused before it can reach the service.
+  it('should reject the administrator role', async () => {
+    const { errors } = await validateDto(SetUserRoleDto, {
+      role: UserRole.ADMIN,
+    });
+
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('should reject an unrecognised role', async () => {
+    const { errors } = await validateDto(SetUserRoleDto, {
+      role: 'SUPER_ADMIN',
+    });
+
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('should reject a missing role', async () => {
+    const { errors } = await validateDto(SetUserRoleDto, {});
+
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('should reject unknown properties', async () => {
+    const { errors } = await validateDto(SetUserRoleDto, {
+      role: UserRole.USER,
       userId: 'e6d3a1b2-0000-4000-8000-000000000001',
     });
 

@@ -8,6 +8,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -29,10 +30,12 @@ import { AccessControlAdminService } from './access-control-admin.service';
 import { PermissionDto, UserAccessSummaryDto } from './dto/permission.dto';
 import { SetLimitOverrideDto } from './dto/set-limit-override.dto';
 import { SetPermissionOverrideDto } from './dto/set-permission-override.dto';
+import { SetUserRoleDto } from './dto/set-user-role.dto';
 import { UserLimitOverrideEntity } from './entities/user-limit-override.entity';
 
 /**
- * Administrative management of what individual users may do.
+ * Administrative management of what individual users may do: the role they
+ * hold, and the per-user overrides that depart from it.
  *
  * Every route requires the ADMIN role rather than a Storytime permission.
  * Gating the permission system behind a permission it also governs would be
@@ -128,6 +131,36 @@ export class AccessControlAdminController {
       permissionCode,
       actingUserId,
     );
+  }
+
+  /**
+   * Sets which role a member holds.
+   *
+   * The administrator role is not assignable here — it is granted outside the
+   * application — and administrators' roles cannot be changed, so this route
+   * moves members between USER and STORYTIME_CURATOR and nothing else.
+   *
+   * @param userId - The member whose role is changing.
+   * @param dto - The role to give them.
+   * @param actingUserId - The administrator making the change.
+   * @returns The member's updated access summary.
+   */
+  @Put('users/:userId/role')
+  @ApiOperation({ summary: "Set a member's role" })
+  @ApiOkResponse({ type: UserAccessSummaryDto })
+  @ApiBadRequestResponse({
+    description: 'Unassignable role, or the caller addressed themselves.',
+  })
+  @ApiNotFoundResponse({ description: 'User not found.' })
+  @ApiForbiddenResponse({
+    description: 'Caller is not an administrator, or the target is one.',
+  })
+  setUserRole(
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @Body() dto: SetUserRoleDto,
+    @UserId() actingUserId: string,
+  ): Promise<UserAccessSummaryDto> {
+    return this._adminService.setUserRole(userId, dto, actingUserId);
   }
 
   /**

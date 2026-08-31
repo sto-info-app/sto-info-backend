@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AccessControlAdminController } from './access-control-admin.controller';
 import { AccessControlAdminService } from './access-control-admin.service';
+import { UserRole } from '../user/enums/user-role.enum';
 import { PERMISSION_CODES } from './constants/permission-codes.constants';
 import { PermissionEffect } from './enums/permission-effect.enum';
 
@@ -11,6 +12,7 @@ describe('AccessControlAdminController', () => {
     getUserAccessSummary: jest.Mock;
     setPermissionOverride: jest.Mock;
     removePermissionOverride: jest.Mock;
+    setUserRole: jest.Mock;
     listLimitOverrides: jest.Mock;
     setLimitOverride: jest.Mock;
     removeLimitOverride: jest.Mock;
@@ -25,6 +27,7 @@ describe('AccessControlAdminController', () => {
       getUserAccessSummary: jest.fn().mockResolvedValue({ userId }),
       setPermissionOverride: jest.fn().mockResolvedValue({ userId }),
       removePermissionOverride: jest.fn().mockResolvedValue({ userId }),
+      setUserRole: jest.fn().mockResolvedValue({ userId }),
       listLimitOverrides: jest.fn().mockResolvedValue([]),
       setLimitOverride: jest.fn().mockResolvedValue(undefined),
       removeLimitOverride: jest.fn().mockResolvedValue(undefined),
@@ -90,6 +93,14 @@ describe('AccessControlAdminController', () => {
       PERMISSION_CODES.STORYTIME_STORY_CREATE,
       adminId,
     );
+  });
+
+  it("sets a member's role on behalf of the acting administrator", async () => {
+    const dto = { role: UserRole.STORYTIME_CURATOR };
+
+    await controller.setUserRole(userId, dto, adminId);
+
+    expect(adminService.setUserRole).toHaveBeenCalledWith(userId, dto, adminId);
   });
 
   it('lists limit exemptions', async () => {
