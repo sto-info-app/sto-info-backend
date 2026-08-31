@@ -29,6 +29,9 @@ Current overrides in `package.json`:
   "js-yaml": ">=5.2.2",
   "typeorm": {
     "ioredis": "^6.0.0"
+  },
+  "ts-jest": {
+    "@babel/core": "^8.0.0"
   }
 }
 ```
@@ -36,7 +39,7 @@ Current overrides in `package.json`:
 #### `nanoid`
 
 - **Vulnerability**: [GHSA-2v37-7h3g-55p8](https://github.com/advisories/GHSA-2v37-7h3g-55p8) — custom generators can loop indefinitely when their size is zero. Affected versions are `< 3.3.18`. Severity: High.
-- **Root cause**: `postcss@8.5.25`, used by `mjml-core` through `@nestjs-modules/mailer`, accepts `nanoid@^3.3.16` and the lockfile previously resolved it to vulnerable `3.3.17`.
+- **Root cause**: `postcss@8.5.26`, used by `mjml-core` through `@nestjs-modules/mailer`, accepts `nanoid@^3.3.16` and the lockfile previously resolved it to vulnerable `3.3.17`.
 - **Override**: `"nanoid": "3.3.18"` — pins the transitive dependency to the first patched version.
 
 **When it can be removed**: When the dependency tree resolves `nanoid >= 3.3.18` without the override. Check with:
@@ -48,10 +51,10 @@ npm ls nanoid
 #### `js-yaml`
 
 - **Vulnerability**: [GHSA-pm4m-ph32-ghv5](https://github.com/advisories/GHSA-pm4m-ph32-ghv5) — exponential parsing time in nested flow collections allows a small YAML document to block the Node.js event loop. Affected versions are `5.0.0 - 5.2.1`; patched in `5.2.2`. Severity: High.
-- **Root cause**: `@nestjs/swagger@11.4.6` requests `js-yaml@5.2.1` exactly, and other tooling accepts a range that can resolve the same vulnerable release.
-- **Override**: `"js-yaml": ">=5.2.2"` — forces all consumers onto the patched release line (currently `5.3.0`).
+- **Root cause**: `@nestjs/swagger@11.4.7` still exact-pins `js-yaml@5.3.0` (itself patched). Without a global override, other tooling (`cosmiconfig`, `@istanbuljs/load-nyc-config`) can also install nested `js-yaml` 3.x / 4.x copies alongside that pin.
+- **Override**: `"js-yaml": ">=5.2.2"` — forces the whole tree onto the patched 5.x line (currently `5.4.1`).
 
-**When it can be removed**: When `@nestjs/swagger` requests `js-yaml >= 5.2.2` and the remaining dependency tree resolves no affected copies. Check with:
+**When it can be removed**: When `@nestjs/swagger` requests `js-yaml >= 5.2.2` as a range (not an exact pin) and the remaining dependency tree resolves no affected copies. Check with:
 
 ```sh
 npm view @nestjs/swagger@latest dependencies.js-yaml
@@ -61,10 +64,10 @@ npm ls js-yaml
 #### `mailparser` + nested `nodemailer`
 
 - **Vulnerability family**: SMTP command/header injection and access-control-bypass issues in older `nodemailer` lines (for example GHSA-c7w3-x93f-qmm8 and GHSA-p6gq-j5cr-w38f), plus [GHSA-22p9-wv53-3rq4](https://github.com/advisories/GHSA-22p9-wv53-3rq4) — quadratic complexity in `linkify-it <= 5.0.0`, a `mailparser` dependency.
-- **Root cause**: `preview-email@3.3.0` (pulled in by `@nestjs-modules/mailer`) pins `mailparser@3.9.8` **exactly** — a version in the vulnerable range that ships `linkify-it@5.0.0` and `nodemailer@8.0.5`. Without the override, `npm update` downgrades mailparser into the vulnerable range.
-- **Override**: `"mailparser": { ".": "^3.9.10", "nodemailer": "^9.0.1" }` — forces the patched parent to `3.9.15`, which resolves to `nodemailer@9.0.5` and `linkify-it@5.0.2`.
+- **Root cause**: `preview-email@3.4.0` (pulled in by `@nestjs-modules/mailer`) still exact-pins `mailparser@3.9.17`. That release is itself patched, but an exact pin lets a later `npm update` drop back onto an older exact pin if upstream regresses, and npm will not hoist a newer `3.9.18` without an override.
+- **Override**: `"mailparser": { ".": "^3.9.10", "nodemailer": "^9.0.1" }` — keeps the patched parent on `^3.9.10` (currently `3.9.18`), which resolves to `nodemailer@9.1.0` and `linkify-it@5.0.2`.
 
-**When it can be removed**: When `preview-email` raises its own `mailparser` pin to `>= 3.9.9` and the transitive dependency chain resolves fully patched. Check with:
+**When it can be removed**: When `preview-email` raises its own `mailparser` pin to a range (`>= 3.9.9` or `^3.9.10`) and the transitive dependency chain resolves fully patched. Check with:
 
 ```sh
 npm view preview-email@latest dependencies.mailparser
@@ -75,7 +78,7 @@ npm view mailparser@latest dependencies.nodemailer
 
 - **Vulnerability**: [GHSA-q8mj-m7cp-5q26](https://github.com/advisories/GHSA-q8mj-m7cp-5q26) — remotely triggerable DoS in `qs 6.11.1 - 6.15.1` (`qs.stringify` crashes on null/undefined entries in comma-format arrays).
 - **Root cause**: `typed-rest-client@2.3.1` (via `@stryker-mutator/core`) pins `qs@6.15.1` exactly.
-- **Override**: `"qs": "^6.15.2"` — global pin; the whole tree dedupes to a single patched `qs` (currently `6.15.3`). A nested `"typed-rest-client": { "qs": ... }` form was tried first but npm did not reify it reliably, so the global form is used.
+- **Override**: `"qs": "^6.15.2"` — global pin; the whole tree dedupes to a single patched `qs` (currently `6.16.0`). A nested `"typed-rest-client": { "qs": ... }` form was tried first but npm did not reify it reliably, so the global form is used.
 
 **When it can be removed**: When `typed-rest-client` raises its `qs` pin to `>= 6.15.2` (or Stryker moves to `typed-rest-client@3`). Check with:
 
@@ -85,11 +88,11 @@ npm view typed-rest-client@latest dependencies.qs
 
 #### `html-to-text`
 
-- **Vulnerability**: [GHSA-ggr8-5vv4-36mx](https://github.com/advisories/GHSA-ggr8-5vv4-36mx) — `deepmerge-ts` can stack-exhaust when recursively merging object graphs. The current `10.x` release line still resolves to a vulnerable `deepmerge-ts`.
-- **Current project state**: the app pins the direct dependency to `html-to-text@^9.0.5` to avoid the vulnerable line in the app's own dependency graph. The remaining vulnerable nested copy is in the upstream `preview-email` mail preview chain and is not used by the app’s runtime mail sending path.
-- **No override added**: we do not force a conflicting nested override because `preview-email` still pulls `html-to-text@10.0.0` from its own dependency tree and npm rejects that conflict.
+- **Vulnerability**: [GHSA-ggr8-5vv4-36mx](https://github.com/advisories/GHSA-ggr8-5vv4-36mx) — `deepmerge-ts` can stack-exhaust when recursively merging object graphs. Affected `deepmerge-ts` versions are patched from `8.0.0`.
+- **Current project state (2026-08-31)**: the app and `mailparser@3.9.18` both resolve `html-to-text@10.0.1`, which depends on `deepmerge-ts@^8.0.1` (currently `8.0.2`). No override is required.
+- **Previously**: the app pinned `html-to-text@^9.0.5` and left a nested `10.0.0` copy under `preview-email`. That nested copy is gone after the mailparser / preview-email refresh.
 
-**When it can be removed**: When the `preview-email` / `mailparser` chain updates to `html-to-text` with `deepmerge-ts >= 8.0.0` or the package is no longer installed. Check with:
+**When it can be re-checked**: If `html-to-text` or `mailparser` regresses onto `deepmerge-ts < 8`. Check with:
 
 ```sh
 npm ls deepmerge-ts html-to-text
@@ -103,6 +106,39 @@ npm ls deepmerge-ts html-to-text
 
 **When it can be removed**: When upstream `typeorm` publishes a compatible optional peer for `ioredis@^6` or the project no longer uses the direct `ioredis` client for rate limiting.
 
+#### `ts-jest` + `@babel/core`
+
+- **Issue**: `@stryker-mutator/core@10` instruments through Babel 8 (`@babel/core@^8`). `ts-jest@29.4.12` still declares an optional peer of `@babel/core@>=7.0.0-beta.0 <8`. A clean `npm install` then fails with `ERESOLVE` even though this project does not run Babel through ts-jest — unit tests use the TypeScript transformer.
+- **Override**: `"ts-jest": { "@babel/core": "^8.0.0" }` — accepts Stryker's Babel 8 for that optional peer so the lockfile can be reproduced without `--legacy-peer-deps`.
+- **Why this is safe here**: ts-jest's Babel peer is optional. Jest config in `jest.config.mjs` uses `ts-jest` with `tsconfig.spec.json`, not a Babel pipeline.
+
+**When it can be removed**: When `ts-jest` accepts `@babel/core@^8` (or Stryker no longer installs Babel 8 next to ts-jest). Check with:
+
+```sh
+npm view ts-jest@latest peerDependencies
+npm ls @babel/core
+```
+
+#### NestJS 12 — deferred (2026-08-31)
+
+Dependabot opened isolated majors for `@nestjs/common`, `@nestjs/core`, `@nestjs/config`, `@nestjs/swagger`, `@nestjs/typeorm`, `@nestjs/passport`, `@nestjs/cli`, and `@nestjs/schematics` onto the 12.x line. Those packages are now native ESM. They are **not** included in this refresh, for all of the following:
+
+1. **Ecosystem packages have no Nest 12 release yet.** `nestjs-cls@6.2.2` declares `@nestjs/common` / `@nestjs/core` `>= 10 < 12`. `@nestjs/terminus@11.1.1` and `@nestjs/throttler@6.5.0` still peer onto Nest 10/11 only. The app uses all three (`ClsModule` in `src/app.module.ts`, `TerminusModule` in `src/health/health.module.ts`, and `@nestjs/throttler` on the tree).
+2. **Isolated ESM majors fail this Jest setup unless Node VM modules are enabled.** Dependabot's Nest 12 PRs failed `Security: Fuzz` with `Must use import to load ES Module`. Jest 30 can `require()` ESM on Node 24.9+, but that path needs `vm.SourceTextModule` (`--experimental-vm-modules`). Test scripts now set that flag so `@nestjs/jwt@12` loads; a whole-framework ESM cutover is still a separate Jest/Vitest piece of work, not a lockfile bump.
+3. **CLI 12 is the Nest 12 toolchain.** `@nestjs/cli@12` stops bundling webpack, defaults new apps to ESM / Vitest / oxlint / Rspack, and ships `nest upgrade`. It belongs with the Nest 12 cutover, not a Nest 11 runtime.
+
+Take Nest 12 as its own change once `nestjs-cls`, `@nestjs/terminus`, and `@nestjs/throttler` publish Nest 12-compatible releases, then upgrade every `@nestjs/*` package together (the CLI's `nest upgrade` command is the intended path) and rework the Jest config for ESM.
+
+`@nestjs/jwt@12.0.1` is already on the Nest 11 tree (its peer range includes Nest 8–12). It is a native ESM package with no `require` export condition. Jest 30's `require(esm)` support is gated on `vm.SourceTextModule.prototype.hasAsyncGraph`, which on Node 24.15 still needs `--experimental-vm-modules`. The Jest npm scripts and Stryker `testRunnerNodeArgs` therefore set that flag so auth specs can load `@nestjs/jwt`. Runtime (`node dist/src/main`) does not need the flag: Node 24 can `require()` the ESM build via the `default` export condition.
+
+**When it can be retried**:
+
+```sh
+npm view nestjs-cls@latest peerDependencies
+npm view @nestjs/terminus@latest peerDependencies
+npm view @nestjs/throttler@latest peerDependencies
+```
+
 #### TypeScript compatibility gate
 
 - **Issue**: `@nestjs/cli` in this project requires the TypeScript compiler API, which is not exposed in `typescript@7` at the time of this upgrade. The CLI fails with: `The installed TypeScript version (7.0.2) does not expose the programmatic compiler API that the Nest CLI requires.`
@@ -110,6 +146,8 @@ npm ls deepmerge-ts html-to-text
 - **Why this is intentional**: the backend is currently on a stable Nest 11 toolchain, and the compatibility boundary is lower than the newest TypeScript release.
 
 #### Recently Removed Overrides
+
+The `preview-email/node_modules/uuid` postinstall patch was removed on **2026-08-31**: `preview-email@3.4.0` no longer installs a nested `uuid`, and the top-level `uuid@14.0.2` is the only copy.
 
 Overrides removed on **2026-08-15** during dependency and audit maintenance:
 
@@ -188,7 +226,6 @@ const patches = [
   ['@nestjs/platform-express/node_modules/multer', 'multer'],
   ['mailparser/node_modules/nodemailer', 'nodemailer'],
   ['preview-email/node_modules/nodemailer', 'nodemailer'],
-  ['preview-email/node_modules/uuid', 'uuid'],
 ];
 ```
 
@@ -200,7 +237,7 @@ const patches = [
 - **Root cause**: `mailparser` and `preview-email` can install nested `nodemailer` versions behind the secure top-level dependency. npm 11.x nested-override behavior can leave those copies in place.
 - **Patch**: `['mailparser/node_modules/nodemailer', 'nodemailer']` and `['preview-email/node_modules/nodemailer', 'nodemailer']` copy the safe top-level `nodemailer` into nested installs after every `npm install` / `npm ci`.
 
-**Status (2026-08-15)**: With the `mailparser` override resolving `3.9.15` (which depends on patched `nodemailer` natively), no nested `nodemailer` copies are currently installed — both entries are no-ops kept as a safety net against future re-resolution.
+**Status (2026-08-31)**: With the `mailparser` override resolving `3.9.18` (which depends on patched `nodemailer` natively) and `preview-email@3.4.0` requesting `nodemailer@^9.0.6`, no nested `nodemailer` copies are currently installed — both entries are no-ops kept as a safety net against future re-resolution.
 
 **When it can be removed**: When `mailparser` and `preview-email` both resolve patched `nodemailer` natively and nested vulnerable copies are no longer installed. Verify with:
 
@@ -209,17 +246,11 @@ npm view mailparser@latest dependencies.nodemailer
 npm view preview-email@latest dependencies.nodemailer
 ```
 
-#### `uuid` (nested under `preview-email`)
+#### `uuid` (nested under `preview-email`) — removed 2026-08-31
 
 - **Vulnerability**: [GHSA-w5hq-g745-h8pq](https://github.com/advisories/GHSA-w5hq-g745-h8pq) — Missing buffer bounds check in UUID v3/v5/v6 when `buf` is provided (`uuid < 11.1.1`). Severity: Moderate.
-- **Root cause**: `preview-email@3.2.0` pins `uuid@^9.0.1`. Because `uuid` is also a top-level dependency, npm 11.x can leave the nested vulnerable copy in place even when a nested override is declared.
-- **Patch**: `['preview-email/node_modules/uuid', 'uuid']` copies the safe top-level `uuid` into nested preview-email installs after every `npm install` / `npm ci`.
-
-**When it can be removed**: When `preview-email` updates its own `uuid` dependency to `>= 11.1.1`. Verify with:
-
-```sh
-npm view preview-email@latest dependencies.uuid
-```
+- **Previous patch**: `['preview-email/node_modules/uuid', 'uuid']` copied the safe top-level `uuid` into nested preview-email installs.
+- **Removed**: `preview-email@3.4.0` no longer installs a nested `uuid`. The tree has a single `uuid@14.0.2`. Restore the patch if `npm ls uuid` shows a nested copy below `11.1.1` again.
 
 ## CORS Configuration
 
