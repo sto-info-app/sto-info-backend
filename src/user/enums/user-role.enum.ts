@@ -18,3 +18,16 @@ export enum UserRole {
   STORYTIME_CURATOR = 'STORYTIME_CURATOR',
 }
 
+/**
+ * The roles an administrator may assign to another member.
+ *
+ * {@link UserRole.ADMIN} is deliberately absent. Granting site-wide
+ * administration is a decision taken outside the application — by the
+ * `ADMIN_EMAIL` migration or by hand against the database — so that nobody can
+ * mint another administrator, or unmake one, through an API an administrator
+ * happens to be signed in to.
+ */
+export const ASSIGNABLE_USER_ROLES: readonly UserRole[] = [
+  UserRole.USER,
+  UserRole.STORYTIME_CURATOR,
+];

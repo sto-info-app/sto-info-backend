@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { UserRole } from '../../user/enums/user-role.enum';
 import { PermissionModule } from '../enums/permission-module.enum';
 import { PermissionEffect } from '../enums/permission-effect.enum';
 
@@ -66,6 +67,13 @@ export class UserPermissionOverrideDto {
 export class UserAccessSummaryDto {
   @ApiProperty({ description: 'The user the summary describes.' })
   readonly userId: string;
+
+  @ApiProperty({
+    description:
+      'The role the user holds, which decides their baseline permissions.',
+    enum: UserRole,
+  })
+  readonly role: UserRole;
 
   @ApiProperty({
     description:
