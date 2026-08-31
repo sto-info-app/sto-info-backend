@@ -9,6 +9,8 @@ export const PERMISSION_GROUP_CODES = {
   STORYTIME_READER: 'storytime.reader',
   /** Everything a creator may do with their own content. */
   STORYTIME_CREATOR: 'storytime.creator',
+  /** Moderation and curation, without site-wide configuration. */
+  STORYTIME_CURATOR: 'storytime.curator',
   /** Moderation, curation and configuration. */
   STORYTIME_ADMINISTRATOR: 'storytime.administrator',
 } as const;
@@ -52,6 +54,14 @@ export interface PermissionGroupDefinition {
  * Storytime content (plan §31.2) and administrators additionally moderate and
  * curate (plan §31.24). The framework's value is not a change of defaults but
  * the ability to vary them per user afterwards.
+ *
+ * The curator sits between the two: everything a member may do, plus running
+ * Storytime — the moderation queue and the Spotlight — but not
+ * `storytime.configure`. That one permission is the line between the two
+ * roles: feature flags and limit exemptions change the rules everyone plays by,
+ * which is an administrator's decision rather than a curator's. The Storytime
+ * master switch is stricter still and is gated by the ADMIN role itself, since
+ * a switch that turns Storytime off cannot be gated by a Storytime permission.
  */
 export const PERMISSION_GROUP_DEFINITIONS: readonly PermissionGroupDefinition[] =
   [
@@ -67,7 +77,7 @@ export const PERMISSION_GROUP_DEFINITIONS: readonly PermissionGroupDefinition[] 
         PERMISSION_CODES.STORYTIME_REACTION_CREATE,
         PERMISSION_CODES.STORYTIME_REPORT_CREATE,
       ],
-      roles: [UserRole.USER, UserRole.ADMIN],
+      roles: [UserRole.USER, UserRole.ADMIN, UserRole.STORYTIME_CURATOR],
     },
     {
       code: PERMISSION_GROUP_CODES.STORYTIME_CREATOR,
@@ -83,7 +93,19 @@ export const PERMISSION_GROUP_DEFINITIONS: readonly PermissionGroupDefinition[] 
         PERMISSION_CODES.STORYTIME_ARC_CREATE,
         PERMISSION_CODES.STORYTIME_ARC_MANAGE_OWN,
       ],
-      roles: [UserRole.USER, UserRole.ADMIN],
+      roles: [UserRole.USER, UserRole.ADMIN, UserRole.STORYTIME_CURATOR],
+    },
+    {
+      code: PERMISSION_GROUP_CODES.STORYTIME_CURATOR,
+      name: 'Storytime Curator',
+      description:
+        'Moderate reported content and curate the Spotlight. Granted to Storytime curators.',
+      isSystem: true,
+      permissions: [
+        PERMISSION_CODES.STORYTIME_MODERATE,
+        PERMISSION_CODES.STORYTIME_SPOTLIGHT_MANAGE,
+      ],
+      roles: [UserRole.STORYTIME_CURATOR],
     },
     {
       code: PERMISSION_GROUP_CODES.STORYTIME_ADMINISTRATOR,
