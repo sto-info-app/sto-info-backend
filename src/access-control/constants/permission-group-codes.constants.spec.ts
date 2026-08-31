@@ -49,6 +49,7 @@ describe('Permission group definitions', () => {
 
       expect(curator).toContain(PERMISSION_CODES.STORYTIME_MODERATE);
       expect(curator).toContain(PERMISSION_CODES.STORYTIME_SPOTLIGHT_MANAGE);
+      expect(curator).toContain(PERMISSION_CODES.STORYTIME_TAG_MANAGE);
     });
 
     // The line between the two roles. Feature flags and limit exemptions change

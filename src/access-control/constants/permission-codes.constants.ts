@@ -39,6 +39,8 @@ export const PERMISSION_CODES = {
   STORYTIME_MODERATE: 'storytime.moderate',
   /** Manage Storytime Spotlight entries. */
   STORYTIME_SPOTLIGHT_MANAGE: 'storytime.spotlight.manage',
+  /** Keep the shared tag vocabulary creators choose from. */
+  STORYTIME_TAG_MANAGE: 'storytime.tag.manage',
   /** Configure Storytime, including feature flags and per-user limits. */
   STORYTIME_CONFIGURE: 'storytime.configure',
 } as const;
@@ -143,6 +145,13 @@ export const PERMISSION_DEFINITIONS: readonly PermissionDefinition[] = [
     code: PERMISSION_CODES.STORYTIME_SPOTLIGHT_MANAGE,
     name: 'Manage Spotlight',
     description: 'Create, schedule and withdraw Storytime Spotlight entries.',
+    module: PermissionModule.STORYTIME,
+  },
+  {
+    code: PERMISSION_CODES.STORYTIME_TAG_MANAGE,
+    name: 'Manage tags',
+    description:
+      'Add, rename, reorder and remove the shared tag vocabulary creators choose from.',
     module: PermissionModule.STORYTIME,
   },
   {

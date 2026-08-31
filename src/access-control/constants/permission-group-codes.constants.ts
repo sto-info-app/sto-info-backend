@@ -56,8 +56,8 @@ export interface PermissionGroupDefinition {
  * the ability to vary them per user afterwards.
  *
  * The curator sits between the two: everything a member may do, plus running
- * Storytime — the moderation queue and the Spotlight — but not
- * `storytime.configure`. That one permission is the line between the two
+ * Storytime — the moderation queue, the Spotlight and the tag vocabulary — but
+ * not `storytime.configure`. That one permission is the line between the two
  * roles: feature flags and limit exemptions change the rules everyone plays by,
  * which is an administrator's decision rather than a curator's. The Storytime
  * master switch is stricter still and is gated by the ADMIN role itself, since
@@ -99,11 +99,12 @@ export const PERMISSION_GROUP_DEFINITIONS: readonly PermissionGroupDefinition[] 
       code: PERMISSION_GROUP_CODES.STORYTIME_CURATOR,
       name: 'Storytime Curator',
       description:
-        'Moderate reported content and curate the Spotlight. Granted to Storytime curators.',
+        'Run Storytime: moderate reported content, curate the Spotlight and keep the tag vocabulary. Granted to Storytime curators.',
       isSystem: true,
       permissions: [
         PERMISSION_CODES.STORYTIME_MODERATE,
         PERMISSION_CODES.STORYTIME_SPOTLIGHT_MANAGE,
+        PERMISSION_CODES.STORYTIME_TAG_MANAGE,
       ],
       roles: [UserRole.STORYTIME_CURATOR],
     },
@@ -111,11 +112,12 @@ export const PERMISSION_GROUP_DEFINITIONS: readonly PermissionGroupDefinition[] 
       code: PERMISSION_GROUP_CODES.STORYTIME_ADMINISTRATOR,
       name: 'Storytime Administrator',
       description:
-        'Moderate reported content, curate the Spotlight and configure Storytime.',
+        'Everything a curator may do, and configure Storytime as well.',
       isSystem: true,
       permissions: [
         PERMISSION_CODES.STORYTIME_MODERATE,
         PERMISSION_CODES.STORYTIME_SPOTLIGHT_MANAGE,
+        PERMISSION_CODES.STORYTIME_TAG_MANAGE,
         PERMISSION_CODES.STORYTIME_CONFIGURE,
       ],
       roles: [UserRole.ADMIN],
