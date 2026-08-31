@@ -9,7 +9,7 @@ This repository uses `npm overrides` in `package.json` to address security issue
 **General removal checklist** (apply to any override before removing it):
 
 1. Remove the entry from the `overrides` block in `package.json`.
-2. Run `npm install` to regenerate `package-lock.json`.
+2. Run `npm install --legacy-peer-deps` to regenerate `package-lock.json`. CI installs with `npm ci --ignore-scripts --legacy-peer-deps`, so the lockfile must be produced with the same peer-resolution mode.
 3. Run `npm audit --omit=dev --audit-level=high` — this is the same gate used by `npm run verify` in CI.
 4. Run `npm run test:cov` to confirm coverage tooling is unaffected.
 5. If either check fails, restore the override and track the upstream fix instead.
@@ -29,9 +29,6 @@ Current overrides in `package.json`:
   "js-yaml": ">=5.2.2",
   "typeorm": {
     "ioredis": "^6.0.0"
-  },
-  "ts-jest": {
-    "@babel/core": "^8.0.0"
   }
 }
 ```
@@ -106,18 +103,11 @@ npm ls deepmerge-ts html-to-text
 
 **When it can be removed**: When upstream `typeorm` publishes a compatible optional peer for `ioredis@^6` or the project no longer uses the direct `ioredis` client for rate limiting.
 
-#### `ts-jest` + `@babel/core`
+#### Babel 7 (Jest) and Babel 8 (Stryker)
 
-- **Issue**: `@stryker-mutator/core@10` instruments through Babel 8 (`@babel/core@^8`). `ts-jest@29.4.12` still declares an optional peer of `@babel/core@>=7.0.0-beta.0 <8`. A clean `npm install` then fails with `ERESOLVE` even though this project does not run Babel through ts-jest — unit tests use the TypeScript transformer.
-- **Override**: `"ts-jest": { "@babel/core": "^8.0.0" }` — accepts Stryker's Babel 8 for that optional peer so the lockfile can be reproduced without `--legacy-peer-deps`.
-- **Why this is safe here**: ts-jest's Babel peer is optional. Jest config in `jest.config.mjs` uses `ts-jest` with `tsconfig.spec.json`, not a Babel pipeline.
-
-**When it can be removed**: When `ts-jest` accepts `@babel/core@^8` (or Stryker no longer installs Babel 8 next to ts-jest). Check with:
-
-```sh
-npm view ts-jest@latest peerDependencies
-npm ls @babel/core
-```
+- **Issue**: `@jest/transform` and related Jest packages depend on `@babel/core@^7.27.4`. `@stryker-mutator/core@10` instruments through Babel 8. `ts-jest@29` still declares an optional Babel 7 peer. CI installs with `npm ci --legacy-peer-deps`, which keeps both lines: Babel 7 at the top of the tree for Jest, Babel 8 nested under `@stryker-mutator/instrumenter`.
+- **No override**: forcing `ts-jest` onto Babel 8 drops `@babel/core@7.29.7` from the lockfile. `npm ci --legacy-peer-deps` then fails with "Missing: @babel/core@7.29.7 from lock file".
+- **How to refresh the lockfile**: `npm install --legacy-peer-deps` (never a plain `npm install` / `npm update`). Confirm with `npm ci --ignore-scripts --legacy-peer-deps` and `npm ls @babel/core`.
 
 #### NestJS 12 — deferred (2026-08-31)
 

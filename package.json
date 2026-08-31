@@ -149,9 +149,6 @@
     "js-yaml": ">=5.2.2",
     "typeorm": {
       "ioredis": "^6.0.0"
-    },
-    "ts-jest": {
-      "@babel/core": "^8.0.0"
     }
   },
   "eslintConfig": {
