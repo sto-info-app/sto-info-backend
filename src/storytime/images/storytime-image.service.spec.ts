@@ -166,17 +166,31 @@ describe('StorytimeImageService', () => {
       ).rejects.toThrow('must be uploaded as JPEG');
     });
 
-    // The minimum is the size the largest variant delivers, so anything under
-    // it would reach a reader enlarged.
-    it('refuses a crop smaller than the slot delivers', async () => {
+    // The minimum is the size the smallest variant delivers, so under it even
+    // the compact rendering would reach a reader enlarged.
+    it('refuses a crop smaller than the slot can use at all', async () => {
       await expect(
         service.store({
           slot: StorytimeImageSlot.CHAPTER_COVER,
           userId,
           entityId,
-          file: buildFile(buildJpeg(640, 360)),
+          file: buildFile(buildJpeg(320, 180)),
         }),
-      ).rejects.toThrow('at least 1920 by 1080');
+      ).rejects.toThrow('at least 640 by 360');
+    });
+
+    // Between the minimum and the recommended size only the largest variant
+    // has to enlarge the crop. The editor warns about that; the server takes
+    // it, because refusing turned away artwork its creator was content with.
+    it('accepts a crop below the recommended size but above the minimum', async () => {
+      await expect(
+        service.store({
+          slot: StorytimeImageSlot.CHAPTER_COVER,
+          userId,
+          entityId,
+          file: buildFile(buildJpeg(1280, 720)),
+        }),
+      ).resolves.toBeDefined();
     });
 
     it('refuses a crop of the wrong shape', async () => {

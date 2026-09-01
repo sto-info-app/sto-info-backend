@@ -164,7 +164,7 @@ export class StorytimeImageService {
       content.height < spec.minimumHeight
     ) {
       throw new BadRequestException(
-        `That crop is ${content.width} by ${content.height} pixels. A ${spec.label.toLowerCase()} must be at least ${spec.minimumWidth} by ${spec.minimumHeight}, so that it is never enlarged to fill the space it is shown in.`,
+        `That crop is ${content.width} by ${content.height} pixels. A ${spec.label.toLowerCase()} must be at least ${spec.minimumWidth} by ${spec.minimumHeight}, and ${spec.recommendedWidth} by ${spec.recommendedHeight} is where it stops being enlarged anywhere it is shown.`,
       );
     }
 

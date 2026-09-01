@@ -44,10 +44,14 @@ export interface StorytimeImageSpec {
   readonly label: string;
   /** The shape the source must be cropped to, as width by height. */
   readonly aspectRatio: readonly [number, number];
-  /** The narrowest source accepted, matching the largest variant it feeds. */
+  /** The narrowest source accepted, matching the smallest variant it feeds. */
   readonly minimumWidth: number;
-  /** The shortest source accepted, matching the largest variant it feeds. */
+  /** The shortest source accepted, matching the smallest variant it feeds. */
   readonly minimumHeight: number;
+  /** The width that needs no enlarging anywhere, as the largest variant. */
+  readonly recommendedWidth: number;
+  /** The height that needs no enlarging anywhere, as the largest variant. */
+  readonly recommendedHeight: number;
   /** The encoding the cropped upload must arrive in. */
   readonly outputFormat: 'png' | 'jpeg';
   /** The entity kind recorded against the image in Cloudflare. */
@@ -57,11 +61,17 @@ export interface StorytimeImageSpec {
 /**
  * The rules each artwork slot is held to.
  *
- * The minimums are the dimensions of the largest Cloudflare variant the slot
- * feeds, so nothing is ever upscaled: a banner that reaches a reader at
- * 2400 x 480 is refused below that rather than delivered soft. They are read
- * by the upload validator and served to the editor, so the size a creator is
- * asked for and the size the server insists on cannot drift apart.
+ * Two sizes, because they answer two different questions. The recommended size
+ * is the largest Cloudflare variant the slot feeds, so a crop that reaches it
+ * is never enlarged anywhere it is shown; the minimum is the smallest variant,
+ * below which even the compact rendering would be upscaled. Between the two a
+ * picture is usable and is accepted, and the editor warns that the larger
+ * rendering will be soft — refusing it outright turned away artwork that its
+ * creator was content with.
+ *
+ * Both are read by the upload validator and served to the editor, so the size
+ * a creator is asked for and the size the server insists on cannot drift
+ * apart.
  *
  * The wide slots are encoded as JPEG. A photographic 2400 x 480 banner as PNG
  * runs to several megabytes of losslessly-stored noise before it reaches the
@@ -72,56 +82,70 @@ export const STORYTIME_IMAGE_SPECS = {
   STORY_BANNER: {
     label: 'Story banner',
     aspectRatio: [5, 1],
-    minimumWidth: 2400,
-    minimumHeight: 480,
+    minimumWidth: 1200,
+    minimumHeight: 240,
+    recommendedWidth: 2400,
+    recommendedHeight: 480,
     outputFormat: 'jpeg',
     entityTag: 'storytime-story-banner',
   },
   STORY_PROFILE: {
     label: 'Story profile image',
     aspectRatio: [1, 1],
-    minimumWidth: 300,
-    minimumHeight: 300,
+    minimumWidth: 100,
+    minimumHeight: 100,
+    recommendedWidth: 300,
+    recommendedHeight: 300,
     outputFormat: 'png',
     entityTag: 'storytime-story-profile',
   },
   CHAPTER_COVER: {
     label: 'Chapter cover',
     aspectRatio: [16, 9],
-    minimumWidth: 1920,
-    minimumHeight: 1080,
+    minimumWidth: 640,
+    minimumHeight: 360,
+    recommendedWidth: 1920,
+    recommendedHeight: 1080,
     outputFormat: 'jpeg',
     entityTag: 'storytime-chapter-cover',
   },
   CHARACTER_PORTRAIT: {
     label: 'Character portrait',
     aspectRatio: [2, 3],
-    minimumWidth: 400,
-    minimumHeight: 600,
+    minimumWidth: 133,
+    minimumHeight: 200,
+    recommendedWidth: 400,
+    recommendedHeight: 600,
     outputFormat: 'png',
     entityTag: 'storytime-character-portrait',
   },
   ARC_BANNER: {
     label: 'Arc banner',
     aspectRatio: [5, 1],
-    minimumWidth: 2400,
-    minimumHeight: 480,
+    minimumWidth: 1200,
+    minimumHeight: 240,
+    recommendedWidth: 2400,
+    recommendedHeight: 480,
     outputFormat: 'jpeg',
     entityTag: 'storytime-arc-banner',
   },
   ARC_PROFILE: {
     label: 'Arc profile image',
     aspectRatio: [1, 1],
-    minimumWidth: 300,
-    minimumHeight: 300,
+    minimumWidth: 100,
+    minimumHeight: 100,
+    recommendedWidth: 300,
+    recommendedHeight: 300,
     outputFormat: 'png',
     entityTag: 'storytime-arc-profile',
   },
   SPOTLIGHT_OVERRIDE: {
     label: 'Spotlight artwork',
     aspectRatio: [5, 1],
-    minimumWidth: 2400,
-    minimumHeight: 480,
+    minimumWidth: 1200,
+    minimumHeight: 240,
+    recommendedWidth: 2400,
+    recommendedHeight: 480,
     outputFormat: 'jpeg',
     entityTag: 'storytime-spotlight-override',
   },
