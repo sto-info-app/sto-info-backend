@@ -9,25 +9,40 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  UploadedFile,
+  UseFilters,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiBody,
   ApiConflictResponse,
+  ApiConsumes,
   ApiForbiddenResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiPayloadTooLargeResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
 import { PERMISSION_CODES } from 'src/access-control/constants/permission-codes.constants';
 import { PermissionsGuard } from 'src/access-control/permissions.guard';
 import { RequiresPermission } from 'src/access-control/requires-permission.decorator';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
 import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constants';
+import { StorytimeImageUploadDto } from '../images/dto/storytime-image-upload.dto';
+import {
+  assertImageSupplied,
+  STORYTIME_IMAGE_FIELD,
+  STORYTIME_IMAGE_UPLOAD_OPTIONS,
+  STORYTIME_IMAGE_UPLOAD_SCHEMA,
+} from '../images/storytime-image-upload.options';
 import { StoryCapability } from '../collaboration/storytime-story-capability.enum';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
@@ -295,6 +310,78 @@ export class StorytimeCreatorChaptersController {
     );
 
     return this._mapper.toManagedList(chapters, story);
+  }
+
+  /**
+   * Sets a Chapter's cover, which is also its social preview.
+   *
+   * @param chapterId - The Chapter.
+   * @param userId - The caller.
+   * @param file - The cropped image.
+   * @param dto - The alternative text sent alongside it.
+   * @returns The Chapter, carrying its new cover.
+   */
+  @Post('chapters/:chapterId/cover-image')
+  @ApiOperation({ summary: 'Set the cover on a Chapter you can edit' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody(STORYTIME_IMAGE_UPLOAD_SCHEMA)
+  @ApiOkResponse({ type: ManagedChapterDto })
+  @ApiBadRequestResponse({
+    description:
+      'No image was supplied, the file is not a JPEG, or the crop is smaller than 1920 by 1080.',
+  })
+  @ApiPayloadTooLargeResponse({ description: 'The image is too large.' })
+  @UseFilters(FileSizeExceptionFilter)
+  @UseInterceptors(
+    FileInterceptor(STORYTIME_IMAGE_FIELD, STORYTIME_IMAGE_UPLOAD_OPTIONS),
+  )
+  async setCoverImage(
+    @Param('chapterId', ParseUUIDPipe) chapterId: string,
+    @UserId() userId: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Body() dto: StorytimeImageUploadDto,
+  ): Promise<ManagedChapterDto> {
+    await this.assertEnabled();
+    assertImageSupplied(file);
+
+    const chapter = await this._chapterService.setCoverImage(
+      chapterId,
+      userId,
+      file,
+      dto.altText,
+    );
+
+    return this._mapper.toManaged(
+      chapter,
+      await this.loadStory(chapter, userId),
+    );
+  }
+
+  /**
+   * Removes the cover from a Chapter.
+   *
+   * @param chapterId - The Chapter.
+   * @param userId - The caller.
+   * @returns The Chapter, without a cover.
+   */
+  @Delete('chapters/:chapterId/cover-image')
+  @ApiOperation({ summary: 'Remove the cover from a Chapter you can edit' })
+  @ApiOkResponse({ type: ManagedChapterDto })
+  async clearCoverImage(
+    @Param('chapterId', ParseUUIDPipe) chapterId: string,
+    @UserId() userId: string,
+  ): Promise<ManagedChapterDto> {
+    await this.assertEnabled();
+
+    const chapter = await this._chapterService.clearCoverImage(
+      chapterId,
+      userId,
+    );
+
+    return this._mapper.toManaged(
+      chapter,
+      await this.loadStory(chapter, userId),
+    );
   }
 
   /**

@@ -46,6 +46,8 @@ describe('StorytimeCreatorChaptersController', () => {
       schedule: jest.fn().mockResolvedValue(chapter),
       reorder: jest.fn().mockResolvedValue([chapter]),
       remove: jest.fn().mockResolvedValue(undefined),
+      setCoverImage: jest.fn().mockResolvedValue(chapter),
+      clearCoverImage: jest.fn().mockResolvedValue(chapter),
     };
     storyService = { findEditableOrFail: jest.fn().mockResolvedValue(story) };
     featureService = {
@@ -153,6 +155,42 @@ describe('StorytimeCreatorChaptersController', () => {
     expect(chapterService.remove).toHaveBeenCalledWith(chapterId, userId);
   });
 
+  describe('the cover', () => {
+    const file = { originalname: 'cover.jpg' } as Express.Multer.File;
+
+    it('passes the upload and its description on', async () => {
+      await controller.setCoverImage(chapterId, userId, file, {
+        altText: 'A shuttle on approach',
+      });
+
+      expect(chapterService.setCoverImage).toHaveBeenCalledWith(
+        chapterId,
+        userId,
+        file,
+        'A shuttle on approach',
+      );
+    });
+
+    it('asks for the cover to be removed', async () => {
+      await controller.clearCoverImage(chapterId, userId);
+
+      expect(chapterService.clearCoverImage).toHaveBeenCalledWith(
+        chapterId,
+        userId,
+      );
+    });
+
+    it('complains when no file arrived', async () => {
+      await expect(
+        controller.setCoverImage(chapterId, userId, undefined, {
+          altText: 'A shuttle',
+        }),
+      ).rejects.toThrow('An image file is required');
+
+      expect(chapterService.setCoverImage).not.toHaveBeenCalled();
+    });
+  });
+
   // Every route checks the switch, so disabling creation takes the whole
   // creator surface offline rather than only the parts somebody remembered.
   describe('when creation is switched off', () => {
@@ -178,6 +216,17 @@ describe('StorytimeCreatorChaptersController', () => {
         () => controller.reorder(storyId, { chapterIds: [chapterId] }, userId),
       ],
       ['remove', () => controller.remove(chapterId, userId)],
+      [
+        'setCoverImage',
+        () =>
+          controller.setCoverImage(
+            chapterId,
+            userId,
+            { originalname: 'cover.jpg' } as Express.Multer.File,
+            { altText: 'A shuttle' },
+          ),
+      ],
+      ['clearCoverImage', () => controller.clearCoverImage(chapterId, userId)],
     ])('refuses %s', async (_name, call) => {
       await expect(call()).rejects.toThrow(NotFoundException);
     });

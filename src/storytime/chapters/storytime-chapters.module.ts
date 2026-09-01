@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { StorytimeImagesModule } from '../images/storytime-images.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { StorytimeContentModule } from '../content/storytime-content.module';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
@@ -30,6 +31,7 @@ import { StorytimeAuthorModule } from '../shared/storytime-author.module';
     StorytimeStoriesModule,
     StorytimeAuthorModule,
     StorytimeContentModule,
+    StorytimeImagesModule,
     StorytimeProgressModule,
     StorytimeSocialModule,
   ],

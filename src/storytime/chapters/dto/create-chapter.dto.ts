@@ -6,9 +6,7 @@ import {
   IsOptional,
   IsString,
   MaxLength,
-  ValidateIf,
 } from 'class-validator';
-import { STORYTIME_IMAGE_ALT_MAX_LENGTH } from '../../constants/storytime-image.constants';
 import { STORYTIME_LANGUAGE_CODES } from '../../constants/storytime-language.constants';
 import { STORYTIME_LIMITS } from '../../constants/storytime-limits.constants';
 
@@ -69,29 +67,4 @@ export class CreateChapterDto {
     message: 'languageCode must be one of the offered Storytime languages',
   })
   readonly languageCode?: string;
-
-  @ApiPropertyOptional({
-    description: 'Cloudflare Images ID for the cover.',
-    maxLength: 100,
-  })
-  @IsOptional()
-  @Transform(trim)
-  @IsString()
-  @MaxLength(100)
-  readonly coverImageId?: string;
-
-  // Required only when there is an image to describe. An image without
-  // alternative text is unusable to a screen reader, and the moment the cover
-  // is chosen is the only point the author knows what it shows.
-  @ApiPropertyOptional({
-    description:
-      'Alternative text for the cover. Required whenever a cover is set.',
-    maxLength: STORYTIME_IMAGE_ALT_MAX_LENGTH,
-  })
-  @ValidateIf(dto => Boolean(dto.coverImageId))
-  @Transform(trim)
-  @IsString()
-  @IsNotEmpty({ message: 'coverImageAlt is required when a cover is set' })
-  @MaxLength(STORYTIME_IMAGE_ALT_MAX_LENGTH)
-  readonly coverImageAlt?: string;
 }
