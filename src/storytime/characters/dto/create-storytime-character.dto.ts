@@ -8,9 +8,7 @@ import {
   IsOptional,
   IsString,
   MaxLength,
-  ValidateIf,
 } from 'class-validator';
-import { STORYTIME_IMAGE_ALT_MAX_LENGTH } from '../../constants/storytime-image.constants';
 import { STORYTIME_LIMITS } from '../../constants/storytime-limits.constants';
 
 /** Trims a string value, leaving anything else for the validators. */
@@ -75,33 +73,6 @@ export class CreateStorytimeCharacterDto {
   @IsString()
   @MaxLength(STORYTIME_LIMITS.MAX_CONTENT_LENGTH.defaultValue)
   readonly biographySource?: string;
-
-  @ApiPropertyOptional({
-    description: 'Cloudflare Images ID for the portrait, 2:3.',
-    maxLength: 100,
-  })
-  @IsOptional()
-  @Transform(trim)
-  @IsString()
-  @MaxLength(100)
-  readonly portraitImageId?: string;
-
-  // Required only when there is an image to describe. A portrait without
-  // alternative text is unusable to a screen reader, and the moment it is
-  // chosen is the only point the author knows what it shows.
-  @ApiPropertyOptional({
-    description:
-      'Alternative text for the portrait. Required whenever a portrait is set.',
-    maxLength: STORYTIME_IMAGE_ALT_MAX_LENGTH,
-  })
-  @ValidateIf(dto => Boolean(dto.portraitImageId))
-  @Transform(trim)
-  @IsString()
-  @IsNotEmpty({
-    message: 'portraitImageAlt is required when a portrait is set',
-  })
-  @MaxLength(STORYTIME_IMAGE_ALT_MAX_LENGTH)
-  readonly portraitImageAlt?: string;
 
   @ApiPropertyOptional({ description: 'Species.', maxLength: 100 })
   @IsOptional()

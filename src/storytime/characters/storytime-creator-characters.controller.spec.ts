@@ -20,6 +20,8 @@ describe('StorytimeCreatorCharactersController', () => {
     reorder: jest.Mock;
     remove: jest.Mock;
     findByIds: jest.Mock;
+    setPortraitImage: jest.Mock;
+    clearPortraitImage: jest.Mock;
   };
   let appearanceService: {
     setAppearances: jest.Mock;
@@ -60,6 +62,8 @@ describe('StorytimeCreatorCharactersController', () => {
       reorder: jest.fn().mockResolvedValue([character]),
       remove: jest.fn().mockResolvedValue(undefined),
       findByIds: jest.fn().mockResolvedValue([character]),
+      setPortraitImage: jest.fn().mockResolvedValue(character),
+      clearPortraitImage: jest.fn().mockResolvedValue(character),
     };
     appearanceService = {
       setAppearances: jest.fn().mockResolvedValue([appearance]),
@@ -193,6 +197,42 @@ describe('StorytimeCreatorCharactersController', () => {
     });
   });
 
+  describe('the portrait', () => {
+    const file = { originalname: 'portrait.png' } as Express.Multer.File;
+
+    it('passes the upload and its description on', async () => {
+      await controller.setPortraitImage(characterId, userId, file, {
+        altText: 'An Andorian in uniform',
+      });
+
+      expect(characterService.setPortraitImage).toHaveBeenCalledWith(
+        characterId,
+        userId,
+        file,
+        'An Andorian in uniform',
+      );
+    });
+
+    it('asks for the portrait to be removed', async () => {
+      await controller.clearPortraitImage(characterId, userId);
+
+      expect(characterService.clearPortraitImage).toHaveBeenCalledWith(
+        characterId,
+        userId,
+      );
+    });
+
+    it('complains when no file arrived', async () => {
+      await expect(
+        controller.setPortraitImage(characterId, userId, undefined, {
+          altText: 'An Andorian',
+        }),
+      ).rejects.toThrow('An image file is required');
+
+      expect(characterService.setPortraitImage).not.toHaveBeenCalled();
+    });
+  });
+
   // Characters are part of creating, so they go away with the rest of it
   // rather than carrying on quietly behind a switched-off feature.
   describe('when creation is switched off', () => {
@@ -220,6 +260,20 @@ describe('StorytimeCreatorCharactersController', () => {
       ],
       ['findAppearances', () => controller.findAppearances(chapterId, userId)],
       ['remove', () => controller.remove(characterId, userId)],
+      [
+        'setPortraitImage',
+        () =>
+          controller.setPortraitImage(
+            characterId,
+            userId,
+            { originalname: 'portrait.png' } as Express.Multer.File,
+            { altText: 'An Andorian' },
+          ),
+      ],
+      [
+        'clearPortraitImage',
+        () => controller.clearPortraitImage(characterId, userId),
+      ],
     ])('refuses %s', async (_name, act) => {
       await expect(act()).rejects.toThrow(ForbiddenException);
       expect(featureService.assertFlagEnabled).toHaveBeenCalledWith(

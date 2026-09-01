@@ -14,6 +14,9 @@ import { StorytimeMarkdownService } from '../content/storytime-markdown.service'
 import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.enum';
 import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
 import { StoryCapability } from '../collaboration/storytime-story-capability.enum';
+import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
+import { assertImageDescribable } from '../images/storytime-image-alt.utility';
+import { StorytimeImageService } from '../images/storytime-image.service';
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
 import { StorytimeSlugService } from '../shared/storytime-slug.service';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
@@ -46,6 +49,7 @@ export class StorytimeCharacterService {
    * @param _orderingService - Calculates positions within the cast list.
    * @param _markdownService - Renders Character biographies.
    * @param _limitService - Resolves how many Characters a Story may hold.
+   * @param _imageService - Checks, stores and releases Character portraits.
    */
   constructor(
     @InjectRepository(StorytimeCharacterEntity)
@@ -55,6 +59,7 @@ export class StorytimeCharacterService {
     private readonly _orderingService: StorytimeOrderingService,
     private readonly _markdownService: StorytimeMarkdownService,
     private readonly _limitService: LimitService,
+    private readonly _imageService: StorytimeImageService,
   ) {}
 
   /**
@@ -130,6 +135,12 @@ export class StorytimeCharacterService {
         'This Character has changed since you opened it. Reload and try again.',
       );
     }
+
+    assertImageDescribable(
+      character.portraitImageId,
+      dto.portraitImageAlt,
+      'portrait',
+    );
 
     if (dto.name !== undefined) {
       character.name = dto.name;
@@ -329,6 +340,72 @@ export class StorytimeCharacterService {
     this._logger.log(
       `Character '${character.slug}' deleted by ${actingUserId}`,
     );
+  }
+
+  /**
+   * Replaces a Character's portrait.
+   *
+   * @param characterId - The Character.
+   * @param actingUserId - The caller.
+   * @param file - The cropped upload.
+   * @param altText - What the portrait shows.
+   * @returns The Character, carrying its new portrait.
+   * @throws ForbiddenException when the caller may not manage this cast.
+   * @throws BadRequestException when the upload is not usable as a portrait.
+   */
+  async setPortraitImage(
+    characterId: string,
+    actingUserId: string,
+    file: Express.Multer.File,
+    altText: string,
+  ): Promise<StorytimeCharacterEntity> {
+    const character = await this.findEditableOrFail(characterId, actingUserId);
+    const replacedImageId = character.portraitImageId;
+
+    character.portraitImageId = await this._imageService.store({
+      slot: StorytimeImageSlot.CHARACTER_PORTRAIT,
+      userId: actingUserId,
+      entityId: characterId,
+      file,
+    });
+    character.portraitImageAlt = altText;
+    character.updatedByUserId = actingUserId;
+    character.version += 1;
+
+    const saved = await this._characterRepository.save(character);
+
+    // Released only once the Character points at the new portrait, so a failed
+    // save leaves an unreferenced image rather than a cast list of gaps.
+    await this._imageService.release(replacedImageId);
+
+    return saved;
+  }
+
+  /**
+   * Takes a Character's portrait away, along with its description.
+   *
+   * @param characterId - The Character.
+   * @param actingUserId - The caller.
+   * @returns The Character, without a portrait.
+   * @throws ForbiddenException when the caller may not manage this cast.
+   */
+  async clearPortraitImage(
+    characterId: string,
+    actingUserId: string,
+  ): Promise<StorytimeCharacterEntity> {
+    const character = await this.findEditableOrFail(characterId, actingUserId);
+    const removedImageId = character.portraitImageId;
+
+    character.portraitImageId = null;
+    character.portraitImageAlt = null;
+    character.updatedByUserId = actingUserId;
+    character.version += 1;
+
+    const saved = await this._characterRepository.save(character);
+
+    await this._imageService.release(removedImageId);
+
+    return saved;
   }
 
   /**
