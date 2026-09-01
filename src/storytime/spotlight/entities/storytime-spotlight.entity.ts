@@ -77,7 +77,7 @@ export class StorytimeSpotlightEntity {
       'Cloudflare Images ID used instead of the work’s own banner, if any.',
     nullable: true,
   })
-  @Column({ type: 'varchar', length: 100, nullable: true, default: null })
+  @Column({ type: 'varchar', length: 160, nullable: true, default: null })
   overrideImageId: string | null;
 
   @ApiProperty({

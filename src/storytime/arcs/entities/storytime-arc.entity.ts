@@ -95,7 +95,7 @@ export class StorytimeArcEntity {
     description: 'Cloudflare Images ID for the banner.',
     nullable: true,
   })
-  @Column({ type: 'varchar', length: 100, nullable: true, default: null })
+  @Column({ type: 'varchar', length: 160, nullable: true, default: null })
   bannerImageId: string | null;
 
   @ApiProperty({
@@ -109,7 +109,7 @@ export class StorytimeArcEntity {
     description: 'Cloudflare Images ID for the profile image.',
     nullable: true,
   })
-  @Column({ type: 'varchar', length: 100, nullable: true, default: null })
+  @Column({ type: 'varchar', length: 160, nullable: true, default: null })
   profileImageId: string | null;
 
   @ApiProperty({

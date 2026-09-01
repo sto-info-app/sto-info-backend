@@ -82,7 +82,7 @@ export class StorytimeCharacterEntity {
     description: 'Cloudflare Images ID for the portrait, 2:3.',
     nullable: true,
   })
-  @Column({ type: 'varchar', length: 100, nullable: true, default: null })
+  @Column({ type: 'varchar', length: 160, nullable: true, default: null })
   portraitImageId: string | null;
 
   @ApiProperty({
