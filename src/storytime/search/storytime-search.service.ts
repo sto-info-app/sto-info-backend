@@ -20,6 +20,27 @@ const DEFAULT_PAGE_SIZE = 20;
 const MAX_PER_TYPE = 100;
 
 /**
+ * The query the reader's text becomes.
+ *
+ * Every word is matched as a prefix. Somebody typing into a search box has not
+ * finished the word yet, and a search that answers "patrol" only once the last
+ * letter is typed is indistinguishable from one that is broken — which matters
+ * most in the pickers that search as you type from the second character.
+ *
+ * The words come from `to_tsvector`, which lexes and stems the reader's text
+ * with the same dictionary that built the stored vectors. That is what keeps
+ * the prefixes matching what is actually indexed, and what stops anything a
+ * reader types reaching `to_tsquery` as an operator: only lexemes come out.
+ *
+ * A term that is nothing but stop words produces no lexemes and so matches
+ * nothing, which is the same answer it gave before.
+ */
+const PREFIX_TSQUERY = `to_tsquery('english', (
+      SELECT string_agg(lexeme || ':*', ' & ')
+      FROM unnest(to_tsvector('english', :term))
+    ))`;
+
+/**
  * One thing search found, whatever kind of thing it is.
  */
 export interface SearchHit {
@@ -276,9 +297,9 @@ export class StorytimeSearchService {
   /**
    * Applies the search term to a query and reads the ranked rows back.
    *
-   * `plainto_tsquery` rather than `to_tsquery`: a reader typing two words
-   * should get results, not a syntax error, and nothing a reader types should
-   * ever be parsed as query operators.
+   * The term is bound, never interpolated, and reaches the database as a
+   * reader's text rather than as SQL: {@link PREFIX_TSQUERY} is what turns it
+   * into a query, and it can only produce lexemes.
    *
    * @param builder - The query, already filtered to what may be discovered.
    * @param alias - The table alias carrying the search vector.
@@ -293,16 +314,10 @@ export class StorytimeSearchService {
     targetType: StorytimeTargetType,
   ): Promise<SearchHit[]> {
     const rows = await builder
-      .andWhere(
-        `${alias}."searchVector" @@ plainto_tsquery('english', :term)`,
-        {
-          term,
-        },
-      )
-      .addSelect(
-        `ts_rank(${alias}."searchVector", plainto_tsquery('english', :term))`,
-        'rank',
-      )
+      .andWhere(`${alias}."searchVector" @@ ${PREFIX_TSQUERY}`, {
+        term,
+      })
+      .addSelect(`ts_rank(${alias}."searchVector", ${PREFIX_TSQUERY})`, 'rank')
       .orderBy('rank', 'DESC')
       .limit(MAX_PER_TYPE)
       .getRawMany<{

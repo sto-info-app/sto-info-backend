@@ -64,16 +64,22 @@ export class StorytimeSpotlightMapper {
   /**
    * Maps an entry to the shape an editor manages it through.
    *
-   * The featured work is not resolved here. An editor needs to see the entry
-   * as it is, including one pointing at something that has since been taken
-   * down — which is exactly the entry they most need to find.
+   * The work is passed in rather than looked up, and may be absent: an entry
+   * pointing at something that has since been taken down still maps, because
+   * that is exactly the entry an editor most needs to find. What the editor
+   * then reads is the name of the work where there is one, and the entry's own
+   * identifiers only where there is not.
    *
    * @param entry - The Spotlight entry.
+   * @param work - The featured work, when it can still be shown.
    * @returns The editorial entry.
    */
-  toManaged(entry: StorytimeSpotlightEntity): ManagedSpotlightDto {
+  toManaged(
+    entry: StorytimeSpotlightEntity,
+    work: Omit<SpotlightWithTarget, 'entry'> = { story: null, arc: null },
+  ): ManagedSpotlightDto {
     return {
-      ...this.toPublic({ entry, story: null, arc: null }),
+      ...this.toPublic({ entry, story: work.story, arc: work.arc }),
       storyId: entry.storyId,
       arcId: entry.arcId,
       overrideImageId: entry.overrideImageId,
@@ -89,10 +95,10 @@ export class StorytimeSpotlightMapper {
   /**
    * Maps several entries to their editorial shape.
    *
-   * @param entries - The Spotlight entries.
+   * @param resolved - The entries with whatever they feature.
    * @returns The editorial entries.
    */
-  toManagedList(entries: StorytimeSpotlightEntity[]): ManagedSpotlightDto[] {
-    return entries.map(entry => this.toManaged(entry));
+  toManagedList(resolved: SpotlightWithTarget[]): ManagedSpotlightDto[] {
+    return resolved.map(entry => this.toManaged(entry.entry, entry));
   }
 }
