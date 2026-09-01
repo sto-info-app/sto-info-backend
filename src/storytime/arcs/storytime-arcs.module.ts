@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { StorytimeImagesModule } from '../images/storytime-images.module';
 import { NotificationModule } from '../../notification/notification.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { StorytimeCollaborationModule } from '../collaboration/storytime-collaboration.module';
@@ -39,6 +40,7 @@ import { StorytimeCreatorArcsController } from './storytime-creator-arcs.control
     StorytimeStoriesModule,
     StorytimeContentModule,
     StorytimeCollaborationModule,
+    StorytimeImagesModule,
     StorytimeProgressModule,
     NotificationModule,
     StorytimeSocialModule,

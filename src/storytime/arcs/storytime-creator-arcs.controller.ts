@@ -9,21 +9,37 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  UploadedFile,
+  UseFilters,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiBody,
   ApiConflictResponse,
+  ApiConsumes,
   ApiForbiddenResponse,
   ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiPayloadTooLargeResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
 import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constants';
+import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
+import { StorytimeImageUploadDto } from '../images/dto/storytime-image-upload.dto';
+import {
+  assertImageSupplied,
+  STORYTIME_IMAGE_FIELD,
+  STORYTIME_IMAGE_UPLOAD_OPTIONS,
+  STORYTIME_IMAGE_UPLOAD_SCHEMA,
+} from '../images/storytime-image-upload.options';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { ArcMembershipDto, ManagedArcDto } from './dto/arc.dto';
 import { CreateArcDto } from './dto/create-arc.dto';
@@ -35,7 +51,7 @@ import {
 import { StorytimeArcMembershipPresenter } from './storytime-arc-membership.presenter';
 import { StorytimeArcMembershipService } from './storytime-arc-membership.service';
 import { StorytimeArcMapper } from './storytime-arc.mapper';
-import { StorytimeArcService } from './storytime-arc.service';
+import { ArcImageSlot, StorytimeArcService } from './storytime-arc.service';
 
 /**
  * Curating Arcs.
@@ -271,6 +287,116 @@ export class StorytimeCreatorArcsController {
   }
 
   /**
+   * Sets the wide banner across the top of an Arc page.
+   *
+   * @param arcId - The Arc.
+   * @param userId - The caller.
+   * @param file - The cropped image.
+   * @param dto - The alternative text sent alongside it.
+   * @returns The Arc, carrying its new banner.
+   */
+  @Post(':arcId/banner-image')
+  @ApiOperation({ summary: 'Set the banner on an Arc you curate' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody(STORYTIME_IMAGE_UPLOAD_SCHEMA)
+  @ApiOkResponse({ type: ManagedArcDto })
+  @ApiBadRequestResponse({
+    description:
+      'No image was supplied, the file is not a JPEG, or the crop is smaller than 2400 by 480.',
+  })
+  @ApiPayloadTooLargeResponse({ description: 'The image is too large.' })
+  @UseFilters(FileSizeExceptionFilter)
+  @UseInterceptors(
+    FileInterceptor(STORYTIME_IMAGE_FIELD, STORYTIME_IMAGE_UPLOAD_OPTIONS),
+  )
+  async setBannerImage(
+    @Param('arcId', ParseUUIDPipe) arcId: string,
+    @UserId() userId: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Body() dto: StorytimeImageUploadDto,
+  ): Promise<ManagedArcDto> {
+    return this.setImage(
+      arcId,
+      userId,
+      StorytimeImageSlot.ARC_BANNER,
+      file,
+      dto,
+    );
+  }
+
+  /**
+   * Removes the banner from an Arc.
+   *
+   * @param arcId - The Arc.
+   * @param userId - The caller.
+   * @returns The Arc, without a banner.
+   */
+  @Delete(':arcId/banner-image')
+  @ApiOperation({ summary: 'Remove the banner from an Arc you curate' })
+  @ApiOkResponse({ type: ManagedArcDto })
+  async clearBannerImage(
+    @Param('arcId', ParseUUIDPipe) arcId: string,
+    @UserId() userId: string,
+  ): Promise<ManagedArcDto> {
+    return this.clearImage(arcId, userId, StorytimeImageSlot.ARC_BANNER);
+  }
+
+  /**
+   * Sets the square image identifying an Arc in cards and lists.
+   *
+   * @param arcId - The Arc.
+   * @param userId - The caller.
+   * @param file - The cropped image.
+   * @param dto - The alternative text sent alongside it.
+   * @returns The Arc, carrying its new profile image.
+   */
+  @Post(':arcId/profile-image')
+  @ApiOperation({ summary: 'Set the profile image on an Arc you curate' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody(STORYTIME_IMAGE_UPLOAD_SCHEMA)
+  @ApiOkResponse({ type: ManagedArcDto })
+  @ApiBadRequestResponse({
+    description:
+      'No image was supplied, the file is not a PNG, or the crop is smaller than 300 by 300.',
+  })
+  @ApiPayloadTooLargeResponse({ description: 'The image is too large.' })
+  @UseFilters(FileSizeExceptionFilter)
+  @UseInterceptors(
+    FileInterceptor(STORYTIME_IMAGE_FIELD, STORYTIME_IMAGE_UPLOAD_OPTIONS),
+  )
+  async setProfileImage(
+    @Param('arcId', ParseUUIDPipe) arcId: string,
+    @UserId() userId: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Body() dto: StorytimeImageUploadDto,
+  ): Promise<ManagedArcDto> {
+    return this.setImage(
+      arcId,
+      userId,
+      StorytimeImageSlot.ARC_PROFILE,
+      file,
+      dto,
+    );
+  }
+
+  /**
+   * Removes the profile image from an Arc.
+   *
+   * @param arcId - The Arc.
+   * @param userId - The caller.
+   * @returns The Arc, without a profile image.
+   */
+  @Delete(':arcId/profile-image')
+  @ApiOperation({ summary: 'Remove the profile image from an Arc you curate' })
+  @ApiOkResponse({ type: ManagedArcDto })
+  async clearProfileImage(
+    @Param('arcId', ParseUUIDPipe) arcId: string,
+    @UserId() userId: string,
+  ): Promise<ManagedArcDto> {
+    return this.clearImage(arcId, userId, StorytimeImageSlot.ARC_PROFILE);
+  }
+
+  /**
    * Deletes an Arc.
    *
    * @param arcId - The Arc.
@@ -287,6 +413,51 @@ export class StorytimeCreatorArcsController {
     await this.assertEnabled();
 
     await this._arcService.remove(arcId, userId);
+  }
+
+  /**
+   * Stores an uploaded image against one of an Arc's artwork slots.
+   *
+   * @param arcId - The Arc.
+   * @param userId - The caller.
+   * @param slot - Which image is being set.
+   * @param file - Whatever Multer parsed, if anything.
+   * @param dto - The alternative text sent alongside it.
+   * @returns The Arc, carrying its new artwork.
+   */
+  private async setImage(
+    arcId: string,
+    userId: string,
+    slot: ArcImageSlot,
+    file: Express.Multer.File | undefined,
+    dto: StorytimeImageUploadDto,
+  ): Promise<ManagedArcDto> {
+    await this.assertEnabled();
+    assertImageSupplied(file);
+
+    return this._mapper.toManaged(
+      await this._arcService.setImage(arcId, userId, slot, file, dto.altText),
+    );
+  }
+
+  /**
+   * Takes one of an Arc's artwork slots back to empty.
+   *
+   * @param arcId - The Arc.
+   * @param userId - The caller.
+   * @param slot - Which image is being removed.
+   * @returns The Arc, without that artwork.
+   */
+  private async clearImage(
+    arcId: string,
+    userId: string,
+    slot: ArcImageSlot,
+  ): Promise<ManagedArcDto> {
+    await this.assertEnabled();
+
+    return this._mapper.toManaged(
+      await this._arcService.clearImage(arcId, userId, slot),
+    );
   }
 
   /**

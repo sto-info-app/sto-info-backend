@@ -11,6 +11,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Not, Repository } from 'typeorm';
 import { StorytimeArcCollaboratorAccessService } from '../collaboration/storytime-arc-collaborator-access.service';
 import { ArcCapability } from '../collaboration/storytime-arc-capability.enum';
+import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
+import { assertImageDescribable } from '../images/storytime-image-alt.utility';
+import { StorytimeImageService } from '../images/storytime-image.service';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
 import { ArcStatus } from '../enums/arc-status.enum';
 import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.enum';
@@ -33,6 +36,30 @@ const PUBLICLY_READABLE_VISIBILITIES = [
   StorytimeVisibility.UNLISTED,
 ];
 
+/** The artwork an Arc carries. */
+export type ArcImageSlot =
+  StorytimeImageSlot.ARC_BANNER | StorytimeImageSlot.ARC_PROFILE;
+
+/**
+ * Which pair of columns each of an Arc's images occupies.
+ *
+ * The same shape Stories use, because an Arc is presented to a reader the same
+ * way and drifting apart would show up as two banners of different sizes.
+ */
+const ARC_IMAGE_FIELDS = {
+  [StorytimeImageSlot.ARC_BANNER]: {
+    id: 'bannerImageId',
+    alt: 'bannerImageAlt',
+  },
+  [StorytimeImageSlot.ARC_PROFILE]: {
+    id: 'profileImageId',
+    alt: 'profileImageAlt',
+  },
+} as const satisfies Record<
+  ArcImageSlot,
+  { id: keyof StorytimeArcEntity; alt: keyof StorytimeArcEntity }
+>;
+
 /**
  * Curating an Arc.
  *
@@ -52,6 +79,7 @@ export class StorytimeArcService {
    * @param _orderingService - Calculates positions, shared with Stories.
    * @param _markdownService - Renders the Arc description.
    * @param _collaboratorAccessService - Decides what a collaborator may do.
+   * @param _imageService - Checks, stores and releases the Arc's artwork.
    */
   constructor(
     @InjectRepository(StorytimeArcEntity)
@@ -60,6 +88,7 @@ export class StorytimeArcService {
     private readonly _orderingService: StorytimeOrderingService,
     private readonly _markdownService: StorytimeMarkdownService,
     private readonly _collaboratorAccessService: StorytimeArcCollaboratorAccessService,
+    private readonly _imageService: StorytimeImageService,
   ) {}
 
   /**
@@ -123,6 +152,13 @@ export class StorytimeArcService {
         'This Arc has changed since you opened it. Reload and try again.',
       );
     }
+
+    assertImageDescribable(arc.bannerImageId, dto.bannerImageAlt, 'banner');
+    assertImageDescribable(
+      arc.profileImageId,
+      dto.profileImageAlt,
+      'profile image',
+    );
 
     const previousSlug = arc.slug;
 
@@ -469,6 +505,88 @@ export class StorytimeArcService {
     arc.deletedByUserId = actingUserId;
     await this._arcRepository.save(arc);
     await this._arcRepository.softDelete(arcId);
+  }
+
+  /**
+   * Replaces one of an Arc's images.
+   *
+   * @param arcId - The Arc.
+   * @param actingUserId - The caller.
+   * @param slot - Which image is being set.
+   * @param file - The cropped upload.
+   * @param altText - What the image shows.
+   * @returns The Arc, carrying its new artwork.
+   * @throws ForbiddenException when the caller may not edit this Arc.
+   * @throws BadRequestException when the upload is not usable for the slot.
+   */
+  async setImage(
+    arcId: string,
+    actingUserId: string,
+    slot: ArcImageSlot,
+    file: Express.Multer.File,
+    altText: string,
+  ): Promise<StorytimeArcEntity> {
+    const arc = await this.findEditableOrFail(
+      arcId,
+      actingUserId,
+      ArcCapability.EDIT_ARC,
+    );
+
+    const fields = ARC_IMAGE_FIELDS[slot];
+    const replacedImageId = arc[fields.id];
+
+    arc[fields.id] = await this._imageService.store({
+      slot,
+      userId: actingUserId,
+      entityId: arcId,
+      file,
+    });
+    arc[fields.alt] = altText;
+    arc.updatedByUserId = actingUserId;
+    arc.version += 1;
+
+    const saved = await this._arcRepository.save(arc);
+
+    // Released only once the Arc points at the new image, so a failed save
+    // leaves an unreferenced image rather than an Arc referencing nothing.
+    await this._imageService.release(replacedImageId);
+
+    return saved;
+  }
+
+  /**
+   * Takes one of an Arc's images away, along with its description.
+   *
+   * @param arcId - The Arc.
+   * @param actingUserId - The caller.
+   * @param slot - Which image is being removed.
+   * @returns The Arc, without that artwork.
+   * @throws ForbiddenException when the caller may not edit this Arc.
+   */
+  async clearImage(
+    arcId: string,
+    actingUserId: string,
+    slot: ArcImageSlot,
+  ): Promise<StorytimeArcEntity> {
+    const arc = await this.findEditableOrFail(
+      arcId,
+      actingUserId,
+      ArcCapability.EDIT_ARC,
+    );
+
+    const fields = ARC_IMAGE_FIELDS[slot];
+    const removedImageId = arc[fields.id];
+
+    arc[fields.id] = null;
+    arc[fields.alt] = null;
+    arc.updatedByUserId = actingUserId;
+    arc.version += 1;
+
+    const saved = await this._arcRepository.save(arc);
+
+    await this._imageService.release(removedImageId);
+
+    return saved;
   }
 
   /**
