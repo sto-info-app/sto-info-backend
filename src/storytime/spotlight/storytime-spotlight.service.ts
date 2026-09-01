@@ -12,8 +12,11 @@ import { NotificationService } from '../../notification/notification.service';
 import { StorytimeArcEntity } from '../arcs/entities/storytime-arc.entity';
 import { StorytimeArcService } from '../arcs/storytime-arc.service';
 import { SpotlightEntityType } from '../enums/spotlight-entity-type.enum';
+import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
 import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
 import { StorytimeVisibility } from '../enums/storytime-visibility.enum';
+import { assertImageDescribable } from '../images/storytime-image-alt.utility';
+import { StorytimeImageService } from '../images/storytime-image.service';
 import { StorytimeSlugService } from '../shared/storytime-slug.service';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
@@ -74,6 +77,7 @@ export class StorytimeSpotlightService {
    * @param _arcService - Resolves and checks featured Arcs.
    * @param _slugService - Produces and retires slugs.
    * @param _notificationService - Tells somebody their work has been chosen.
+   * @param _imageService - Checks, stores and releases the override artwork.
    */
   constructor(
     @InjectRepository(StorytimeSpotlightEntity)
@@ -82,6 +86,7 @@ export class StorytimeSpotlightService {
     private readonly _arcService: StorytimeArcService,
     private readonly _slugService: StorytimeSlugService,
     private readonly _notificationService: NotificationService,
+    private readonly _imageService: StorytimeImageService,
   ) {}
 
   /**
@@ -244,8 +249,6 @@ export class StorytimeSpotlightService {
       headline: dto.headline,
       summary: dto.summary,
       selectionReason: dto.selectionReason ?? null,
-      overrideImageId: dto.overrideImageId ?? null,
-      overrideImageAlt: dto.overrideImageAlt ?? null,
       displayPriority: dto.displayPriority ?? 0,
       startsAt,
       endsAt,
@@ -320,14 +323,13 @@ export class StorytimeSpotlightService {
       dto.selectionReason === undefined
         ? entry.selectionReason
         : (dto.selectionReason ?? null);
-    entry.overrideImageId =
-      dto.overrideImageId === undefined
-        ? entry.overrideImageId
-        : (dto.overrideImageId ?? null);
-    entry.overrideImageAlt =
-      dto.overrideImageAlt === undefined
-        ? entry.overrideImageAlt
-        : (dto.overrideImageAlt ?? null);
+    assertImageDescribable(
+      entry.overrideImageId,
+      dto.overrideImageAlt,
+      'artwork',
+    );
+
+    entry.overrideImageAlt = dto.overrideImageAlt ?? entry.overrideImageAlt;
     entry.displayPriority = dto.displayPriority ?? entry.displayPriority;
     entry.startsAt = startsAt;
     entry.endsAt = endsAt;
@@ -421,6 +423,72 @@ export class StorytimeSpotlightService {
     await this._spotlightRepository.softDelete(entry.id);
 
     this._logger.log(`Spotlight ${entry.id} deleted by ${actingUserId}`);
+  }
+
+  /**
+   * Replaces the artwork shown instead of the featured work's own banner.
+   *
+   * An override exists so that an editor can present a selection in the site's
+   * voice rather than the creator's, which is the whole point of a curated
+   * panel. It is optional: without one the work's own banner is used.
+   *
+   * @param spotlightId - The entry.
+   * @param actingUserId - The editor.
+   * @param file - The cropped upload.
+   * @param altText - What the image shows.
+   * @returns The entry, carrying its new artwork.
+   * @throws BadRequestException when the upload is not usable as a banner.
+   */
+  async setOverrideImage(
+    spotlightId: string,
+    actingUserId: string,
+    file: Express.Multer.File,
+    altText: string,
+  ): Promise<StorytimeSpotlightEntity> {
+    const entry = await this.findOneOrFail(spotlightId);
+    const replacedImageId = entry.overrideImageId;
+
+    entry.overrideImageId = await this._imageService.store({
+      slot: StorytimeImageSlot.SPOTLIGHT_OVERRIDE,
+      userId: actingUserId,
+      entityId: spotlightId,
+      file,
+    });
+    entry.overrideImageAlt = altText;
+    entry.updatedByUserId = actingUserId;
+
+    const saved = await this._spotlightRepository.save(entry);
+
+    // Released only once the entry points at the new image, so a failed save
+    // leaves an unreferenced image rather than a panel referencing nothing.
+    await this._imageService.release(replacedImageId);
+
+    return saved;
+  }
+
+  /**
+   * Takes the override artwork away, so the work's own banner is used again.
+   *
+   * @param spotlightId - The entry.
+   * @param actingUserId - The editor.
+   * @returns The entry, without override artwork.
+   */
+  async clearOverrideImage(
+    spotlightId: string,
+    actingUserId: string,
+  ): Promise<StorytimeSpotlightEntity> {
+    const entry = await this.findOneOrFail(spotlightId);
+    const removedImageId = entry.overrideImageId;
+
+    entry.overrideImageId = null;
+    entry.overrideImageAlt = null;
+    entry.updatedByUserId = actingUserId;
+
+    const saved = await this._spotlightRepository.save(entry);
+
+    await this._imageService.release(removedImageId);
+
+    return saved;
   }
 
   /**

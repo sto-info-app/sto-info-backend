@@ -20,6 +20,8 @@ describe('AdminStorytimeSpotlightController', () => {
     publish: jest.Mock;
     unpublish: jest.Mock;
     remove: jest.Mock;
+    setOverrideImage: jest.Mock;
+    clearOverrideImage: jest.Mock;
   };
 
   const editorId = 'editor-1';
@@ -73,6 +75,8 @@ describe('AdminStorytimeSpotlightController', () => {
       publish: jest.fn().mockResolvedValue(entry),
       unpublish: jest.fn().mockResolvedValue(entry),
       remove: jest.fn().mockResolvedValue(undefined),
+      setOverrideImage: jest.fn().mockResolvedValue(entry),
+      clearOverrideImage: jest.fn().mockResolvedValue(entry),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -170,6 +174,42 @@ describe('AdminStorytimeSpotlightController', () => {
     await controller.remove(spotlightId, editorId);
 
     expect(spotlightService.remove).toHaveBeenCalledWith(spotlightId, editorId);
+  });
+
+  describe('the editorial artwork', () => {
+    const file = { originalname: 'spotlight.jpg' } as Express.Multer.File;
+
+    it('passes the upload and its description on', async () => {
+      await controller.setOverrideImage(spotlightId, editorId, file, {
+        altText: 'A fleet at anchor',
+      });
+
+      expect(spotlightService.setOverrideImage).toHaveBeenCalledWith(
+        spotlightId,
+        editorId,
+        file,
+        'A fleet at anchor',
+      );
+    });
+
+    it('asks for the artwork to be removed', async () => {
+      await controller.clearOverrideImage(spotlightId, editorId);
+
+      expect(spotlightService.clearOverrideImage).toHaveBeenCalledWith(
+        spotlightId,
+        editorId,
+      );
+    });
+
+    it('complains when no file arrived', async () => {
+      await expect(
+        controller.setOverrideImage(spotlightId, editorId, undefined, {
+          altText: 'A fleet',
+        }),
+      ).rejects.toThrow('An image file is required');
+
+      expect(spotlightService.setOverrideImage).not.toHaveBeenCalled();
+    });
   });
 
   // An editor has to be able to prepare selections in an environment where the

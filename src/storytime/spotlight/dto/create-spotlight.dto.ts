@@ -84,26 +84,6 @@ export class CreateSpotlightDto {
   readonly selectionReason?: string;
 
   @ApiPropertyOptional({
-    description: 'Cloudflare Images ID used instead of the work’s own banner.',
-    maxLength: 100,
-  })
-  @IsOptional()
-  @Transform(trim)
-  @IsString()
-  @MaxLength(100)
-  readonly overrideImageId?: string;
-
-  @ApiPropertyOptional({
-    description: 'Alternative text for the override image.',
-    maxLength: STORYTIME_IMAGE_ALT_MAX_LENGTH,
-  })
-  @IsOptional()
-  @Transform(trim)
-  @IsString()
-  @MaxLength(STORYTIME_IMAGE_ALT_MAX_LENGTH)
-  readonly overrideImageAlt?: string;
-
-  @ApiPropertyOptional({
     description: 'Higher entries show first while several overlap.',
     default: 0,
   })
@@ -174,25 +154,21 @@ export class UpdateSpotlightDto {
   @IsString()
   readonly selectionReason?: string | null;
 
+  // The image itself is set through the artwork endpoints rather than named
+  // here, so an entry can only ever point at something this site was given.
+  // Its description stays editable, because a wording that reads badly is
+  // worth correcting without asking somebody to upload the picture again.
   @ApiPropertyOptional({
-    description: 'Cloudflare Images ID for the override image.',
-    maxLength: 100,
-  })
-  @IsOptional()
-  @Transform(trim)
-  @IsString()
-  @MaxLength(100)
-  readonly overrideImageId?: string | null;
-
-  @ApiPropertyOptional({
-    description: 'Alternative text for the override image.',
+    description:
+      'Alternative text for the artwork. Rejected when there is no artwork to describe.',
     maxLength: STORYTIME_IMAGE_ALT_MAX_LENGTH,
   })
   @IsOptional()
   @Transform(trim)
   @IsString()
+  @IsNotEmpty({ message: 'Please describe what the artwork shows' })
   @MaxLength(STORYTIME_IMAGE_ALT_MAX_LENGTH)
-  readonly overrideImageAlt?: string | null;
+  readonly overrideImageAlt?: string;
 
   @ApiPropertyOptional({ description: 'Higher entries show first.' })
   @IsOptional()

@@ -9,23 +9,38 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  UploadedFile,
+  UseFilters,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
   ApiForbiddenResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiPayloadTooLargeResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
 import { PERMISSION_CODES } from 'src/access-control/constants/permission-codes.constants';
 import { PermissionsGuard } from 'src/access-control/permissions.guard';
 import { RequiresPermission } from 'src/access-control/requires-permission.decorator';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
+import { StorytimeImageUploadDto } from '../images/dto/storytime-image-upload.dto';
+import {
+  assertImageSupplied,
+  STORYTIME_IMAGE_FIELD,
+  STORYTIME_IMAGE_UPLOAD_OPTIONS,
+  STORYTIME_IMAGE_UPLOAD_SCHEMA,
+} from '../images/storytime-image-upload.options';
 import {
   CreateSpotlightDto,
   UpdateSpotlightDto,
@@ -180,6 +195,73 @@ export class AdminStorytimeSpotlightController {
   ): Promise<ManagedSpotlightDto> {
     return this._mapper.toManaged(
       await this._spotlightService.unpublish(spotlightId, actingUserId),
+    );
+  }
+
+  /**
+   * Sets the editorial artwork shown instead of the work's own banner.
+   *
+   * @param spotlightId - The entry.
+   * @param actingUserId - The editor.
+   * @param file - The cropped image.
+   * @param dto - The alternative text sent alongside it.
+   * @returns The entry, carrying its new artwork.
+   */
+  @Post(':spotlightId/override-image')
+  @RequiresPermission(PERMISSION_CODES.STORYTIME_SPOTLIGHT_MANAGE)
+  @ApiOperation({ summary: 'Set the artwork on a Spotlight entry' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody(STORYTIME_IMAGE_UPLOAD_SCHEMA)
+  @ApiOkResponse({ type: ManagedSpotlightDto })
+  @ApiBadRequestResponse({
+    description:
+      'No image was supplied, the file is not a JPEG, or the crop is smaller than 2400 by 480.',
+  })
+  @ApiPayloadTooLargeResponse({ description: 'The image is too large.' })
+  @ApiNotFoundResponse({ description: 'No entry has that identifier.' })
+  @UseFilters(FileSizeExceptionFilter)
+  @UseInterceptors(
+    FileInterceptor(STORYTIME_IMAGE_FIELD, STORYTIME_IMAGE_UPLOAD_OPTIONS),
+  )
+  async setOverrideImage(
+    @Param('spotlightId', ParseUUIDPipe) spotlightId: string,
+    @UserId() actingUserId: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Body() dto: StorytimeImageUploadDto,
+  ): Promise<ManagedSpotlightDto> {
+    assertImageSupplied(file);
+
+    return this._mapper.toManaged(
+      await this._spotlightService.setOverrideImage(
+        spotlightId,
+        actingUserId,
+        file,
+        dto.altText,
+      ),
+    );
+  }
+
+  /**
+   * Removes the editorial artwork, so the work's own banner is used again.
+   *
+   * @param spotlightId - The entry.
+   * @param actingUserId - The editor.
+   * @returns The entry, without editorial artwork.
+   */
+  @Delete(':spotlightId/override-image')
+  @RequiresPermission(PERMISSION_CODES.STORYTIME_SPOTLIGHT_MANAGE)
+  @ApiOperation({ summary: 'Remove the artwork from a Spotlight entry' })
+  @ApiOkResponse({ type: ManagedSpotlightDto })
+  @ApiNotFoundResponse({ description: 'No entry has that identifier.' })
+  async clearOverrideImage(
+    @Param('spotlightId', ParseUUIDPipe) spotlightId: string,
+    @UserId() actingUserId: string,
+  ): Promise<ManagedSpotlightDto> {
+    return this._mapper.toManaged(
+      await this._spotlightService.clearOverrideImage(
+        spotlightId,
+        actingUserId,
+      ),
     );
   }
 

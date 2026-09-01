@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { StorytimeImagesModule } from '../images/storytime-images.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { NotificationModule } from '../../notification/notification.module';
 import { StorytimeArcsModule } from '../arcs/storytime-arcs.module';
@@ -23,6 +24,7 @@ import { StorytimeSpotlightService } from './storytime-spotlight.service';
     TypeOrmModule.forFeature([StorytimeSpotlightEntity]),
     StorytimeStoriesModule,
     StorytimeArcsModule,
+    StorytimeImagesModule,
     NotificationModule,
   ],
   controllers: [
