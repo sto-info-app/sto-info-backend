@@ -9,32 +9,51 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  UploadedFile,
+  UseFilters,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiBody,
   ApiConflictResponse,
+  ApiConsumes,
   ApiForbiddenResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiPayloadTooLargeResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
 import { PERMISSION_CODES } from 'src/access-control/constants/permission-codes.constants';
 import { PermissionsGuard } from 'src/access-control/permissions.guard';
 import { RequiresPermission } from 'src/access-control/requires-permission.decorator';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
 import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constants';
+import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
+import { StorytimeImageUploadDto } from '../images/dto/storytime-image-upload.dto';
+import {
+  assertImageSupplied,
+  STORYTIME_IMAGE_FIELD,
+  STORYTIME_IMAGE_UPLOAD_OPTIONS,
+  STORYTIME_IMAGE_UPLOAD_SCHEMA,
+} from '../images/storytime-image-upload.options';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { CreateStoryDto } from './dto/create-story.dto';
 import { ReorderStoriesDto } from './dto/reorder-stories.dto';
 import { ManagedStoryDto } from './dto/story.dto';
 import { UpdateStoryDto } from './dto/update-story.dto';
 import { StorytimeStoryMapper } from './storytime-story.mapper';
-import { StorytimeStoryService } from './storytime-story.service';
+import {
+  StoryImageSlot,
+  StorytimeStoryService,
+} from './storytime-story.service';
 
 /**
  * A creator managing their own Stories.
@@ -288,6 +307,126 @@ export class StorytimeCreatorStoriesController {
   }
 
   /**
+   * Sets the wide banner across the top of a Story page.
+   *
+   * @param storyId - The Story.
+   * @param userId - The caller.
+   * @param file - The cropped image.
+   * @param dto - The alternative text sent alongside it.
+   * @returns The Story, carrying its new banner.
+   */
+  @Post(':storyId/banner-image')
+  @RequiresPermission(PERMISSION_CODES.STORYTIME_STORY_EDIT_OWN)
+  @ApiOperation({ summary: 'Set the banner on a Story you can edit' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody(STORYTIME_IMAGE_UPLOAD_SCHEMA)
+  @ApiOkResponse({ type: ManagedStoryDto })
+  @ApiBadRequestResponse({
+    description:
+      'No image was supplied, the file is not a JPEG, or the crop is smaller than 2400 by 480.',
+  })
+  @ApiPayloadTooLargeResponse({ description: 'The image is too large.' })
+  @ApiForbiddenResponse({ description: 'You may not edit this Story.' })
+  @UseFilters(FileSizeExceptionFilter)
+  @UseInterceptors(
+    FileInterceptor(STORYTIME_IMAGE_FIELD, STORYTIME_IMAGE_UPLOAD_OPTIONS),
+  )
+  async setBannerImage(
+    @Param('storyId', ParseUUIDPipe) storyId: string,
+    @UserId() userId: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Body() dto: StorytimeImageUploadDto,
+  ): Promise<ManagedStoryDto> {
+    return this.setImage(
+      storyId,
+      userId,
+      StorytimeImageSlot.STORY_BANNER,
+      file,
+      dto,
+    );
+  }
+
+  /**
+   * Removes the banner from a Story.
+   *
+   * @param storyId - The Story.
+   * @param userId - The caller.
+   * @returns The Story, without a banner.
+   */
+  @Delete(':storyId/banner-image')
+  @RequiresPermission(PERMISSION_CODES.STORYTIME_STORY_EDIT_OWN)
+  @ApiOperation({ summary: 'Remove the banner from a Story you can edit' })
+  @ApiOkResponse({ type: ManagedStoryDto })
+  @ApiForbiddenResponse({ description: 'You may not edit this Story.' })
+  async clearBannerImage(
+    @Param('storyId', ParseUUIDPipe) storyId: string,
+    @UserId() userId: string,
+  ): Promise<ManagedStoryDto> {
+    return this.clearImage(storyId, userId, StorytimeImageSlot.STORY_BANNER);
+  }
+
+  /**
+   * Sets the square image identifying a Story in cards and lists.
+   *
+   * @param storyId - The Story.
+   * @param userId - The caller.
+   * @param file - The cropped image.
+   * @param dto - The alternative text sent alongside it.
+   * @returns The Story, carrying its new profile image.
+   */
+  @Post(':storyId/profile-image')
+  @RequiresPermission(PERMISSION_CODES.STORYTIME_STORY_EDIT_OWN)
+  @ApiOperation({ summary: 'Set the profile image on a Story you can edit' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody(STORYTIME_IMAGE_UPLOAD_SCHEMA)
+  @ApiOkResponse({ type: ManagedStoryDto })
+  @ApiBadRequestResponse({
+    description:
+      'No image was supplied, the file is not a PNG, or the crop is smaller than 300 by 300.',
+  })
+  @ApiPayloadTooLargeResponse({ description: 'The image is too large.' })
+  @ApiForbiddenResponse({ description: 'You may not edit this Story.' })
+  @UseFilters(FileSizeExceptionFilter)
+  @UseInterceptors(
+    FileInterceptor(STORYTIME_IMAGE_FIELD, STORYTIME_IMAGE_UPLOAD_OPTIONS),
+  )
+  async setProfileImage(
+    @Param('storyId', ParseUUIDPipe) storyId: string,
+    @UserId() userId: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Body() dto: StorytimeImageUploadDto,
+  ): Promise<ManagedStoryDto> {
+    return this.setImage(
+      storyId,
+      userId,
+      StorytimeImageSlot.STORY_PROFILE,
+      file,
+      dto,
+    );
+  }
+
+  /**
+   * Removes the profile image from a Story.
+   *
+   * @param storyId - The Story.
+   * @param userId - The caller.
+   * @returns The Story, without a profile image.
+   */
+  @Delete(':storyId/profile-image')
+  @RequiresPermission(PERMISSION_CODES.STORYTIME_STORY_EDIT_OWN)
+  @ApiOperation({
+    summary: 'Remove the profile image from a Story you can edit',
+  })
+  @ApiOkResponse({ type: ManagedStoryDto })
+  @ApiForbiddenResponse({ description: 'You may not edit this Story.' })
+  async clearProfileImage(
+    @Param('storyId', ParseUUIDPipe) storyId: string,
+    @UserId() userId: string,
+  ): Promise<ManagedStoryDto> {
+    return this.clearImage(storyId, userId, StorytimeImageSlot.STORY_PROFILE);
+  }
+
+  /**
    * Deletes a Story the caller owns.
    *
    * @param storyId - The Story to delete.
@@ -307,5 +446,61 @@ export class StorytimeCreatorStoriesController {
     );
 
     await this._storyService.remove(storyId, userId);
+  }
+
+  /**
+   * Stores an uploaded image against one of a Story's artwork slots.
+   *
+   * @param storyId - The Story.
+   * @param userId - The caller.
+   * @param slot - Which image is being set.
+   * @param file - Whatever Multer parsed, if anything.
+   * @param dto - The alternative text sent alongside it.
+   * @returns The Story, carrying its new artwork.
+   */
+  private async setImage(
+    storyId: string,
+    userId: string,
+    slot: StoryImageSlot,
+    file: Express.Multer.File | undefined,
+    dto: StorytimeImageUploadDto,
+  ): Promise<ManagedStoryDto> {
+    await this._featureService.assertFlagEnabled(
+      STORYTIME_FEATURE_FLAGS.CREATION_ENABLED,
+    );
+
+    assertImageSupplied(file);
+
+    return this._mapper.toManaged(
+      await this._storyService.setImage(
+        storyId,
+        userId,
+        slot,
+        file,
+        dto.altText,
+      ),
+    );
+  }
+
+  /**
+   * Takes one of a Story's artwork slots back to empty.
+   *
+   * @param storyId - The Story.
+   * @param userId - The caller.
+   * @param slot - Which image is being removed.
+   * @returns The Story, without that artwork.
+   */
+  private async clearImage(
+    storyId: string,
+    userId: string,
+    slot: StoryImageSlot,
+  ): Promise<ManagedStoryDto> {
+    await this._featureService.assertFlagEnabled(
+      STORYTIME_FEATURE_FLAGS.CREATION_ENABLED,
+    );
+
+    return this._mapper.toManaged(
+      await this._storyService.clearImage(storyId, userId, slot),
+    );
   }
 }

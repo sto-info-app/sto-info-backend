@@ -1,6 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AccessControlService } from '../../access-control/access-control.service';
+import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { StorytimeStoryEntity } from './entities/storytime-story.entity';
 import { StorytimeCreatorStoriesController } from './storytime-creator-stories.controller';
@@ -35,6 +36,8 @@ describe('StorytimeCreatorStoriesController', () => {
       archive: jest.fn().mockResolvedValue(story),
       reorder: jest.fn().mockResolvedValue([story]),
       remove: jest.fn().mockResolvedValue(undefined),
+      setImage: jest.fn().mockResolvedValue(story),
+      clearImage: jest.fn().mockResolvedValue(story),
     };
     featureService = {
       assertFlagEnabled: jest.fn().mockResolvedValue(undefined),
@@ -140,6 +143,55 @@ describe('StorytimeCreatorStoriesController', () => {
     expect(storyService.remove).toHaveBeenCalledWith(storyId, userId);
   });
 
+  describe('artwork', () => {
+    const file = { originalname: 'banner.jpg' } as Express.Multer.File;
+
+    it.each([
+      ['setBannerImage', StorytimeImageSlot.STORY_BANNER],
+      ['setProfileImage', StorytimeImageSlot.STORY_PROFILE],
+    ] as const)(
+      '%s passes the upload and its description on',
+      async (method, slot) => {
+        await controller[method](storyId, userId, file, {
+          altText: 'The USS Ares at warp',
+        });
+
+        expect(storyService.setImage).toHaveBeenCalledWith(
+          storyId,
+          userId,
+          slot,
+          file,
+          'The USS Ares at warp',
+        );
+      },
+    );
+
+    it.each([
+      ['clearBannerImage', StorytimeImageSlot.STORY_BANNER],
+      ['clearProfileImage', StorytimeImageSlot.STORY_PROFILE],
+    ] as const)('%s asks for that slot to be emptied', async (method, slot) => {
+      await controller[method](storyId, userId);
+
+      expect(storyService.clearImage).toHaveBeenCalledWith(
+        storyId,
+        userId,
+        slot,
+      );
+    });
+
+    // Multer leaves the file undefined when the part is missing or the filter
+    // rejected it, and an upload with no image is worth saying so about.
+    it('complains when no file arrived', async () => {
+      await expect(
+        controller.setBannerImage(storyId, userId, undefined, {
+          altText: 'A ship',
+        }),
+      ).rejects.toThrow('An image file is required');
+
+      expect(storyService.setImage).not.toHaveBeenCalled();
+    });
+  });
+
   // Every route checks the switch, so disabling creation takes the whole
   // creator surface offline rather than only the parts somebody remembered.
   describe('when creation is switched off', () => {
@@ -163,6 +215,20 @@ describe('StorytimeCreatorStoriesController', () => {
       ['archive', () => controller.archive(storyId, userId)],
       ['reorder', () => controller.reorder({ storyIds: [storyId] }, userId)],
       ['remove', () => controller.remove(storyId, userId)],
+      [
+        'setBannerImage',
+        () =>
+          controller.setBannerImage(
+            storyId,
+            userId,
+            { originalname: 'banner.jpg' } as Express.Multer.File,
+            { altText: 'A ship' },
+          ),
+      ],
+      [
+        'clearProfileImage',
+        () => controller.clearProfileImage(storyId, userId),
+      ],
     ])('refuses %s', async (_name, call) => {
       await expect(call()).rejects.toThrow(NotFoundException);
     });

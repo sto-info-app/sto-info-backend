@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { StorytimeCollaborationModule } from '../collaboration/storytime-collaboration.module';
 import { StorytimeContentModule } from '../content/storytime-content.module';
+import { StorytimeImagesModule } from '../images/storytime-images.module';
 import { StorytimeAuthorModule } from '../shared/storytime-author.module';
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
 import { StorytimeSocialModule } from '../social/storytime-social.module';
@@ -29,6 +30,7 @@ import { StorytimeStoryService } from './storytime-story.service';
     ]),
     StorytimeContentModule,
     StorytimeCollaborationModule,
+    StorytimeImagesModule,
     StorytimeSocialModule,
 
     // A published work says who wrote it, and the member behind an owner ID

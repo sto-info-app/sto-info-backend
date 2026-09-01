@@ -23,6 +23,8 @@ import {
   SlugRequest,
   StorytimeSlugService,
 } from '../shared/storytime-slug.service';
+import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
+import { StorytimeImageService } from '../images/storytime-image.service';
 import { StorySort } from './dto/story-query.dto';
 import { StorytimeStoryEntity } from './entities/storytime-story.entity';
 import { StorytimeStoryService } from './storytime-story.service';
@@ -60,6 +62,10 @@ describe('StorytimeStoryService', () => {
     findAccepted: jest.Mock;
   };
   let queryBuilder: QueryBuilderStub;
+  let imageService: {
+    store: jest.Mock;
+    release: jest.Mock;
+  };
 
   const ownerId = 'e6d3a1b2-0000-4000-8000-000000000001';
   const otherUserId = 'e6d3a1b2-0000-4000-8000-000000000002';
@@ -86,6 +92,10 @@ describe('StorytimeStoryService', () => {
       status: StoryStatus.DRAFT,
       visibility: StorytimeVisibility.PRIVATE,
       moderationStatus: StorytimeModerationStatus.ACTIVE,
+      bannerImageId: null,
+      bannerImageAlt: null,
+      profileImageId: null,
+      profileImageAlt: null,
       ownerOrderIndex: 1000,
       publishedChapterCount: 1,
       contentPolicyAcceptedAt: new Date(),
@@ -100,6 +110,14 @@ describe('StorytimeStoryService', () => {
   };
 
   beforeEach(async () => {
+    // The upload pipeline is stubbed: what a real Cloudflare call would do is
+    // its own service's business, and these tests are about what the work
+    // records afterwards.
+    imageService = {
+      store: jest.fn().mockResolvedValue('stored-image-id'),
+      release: jest.fn().mockResolvedValue(undefined),
+    };
+
     queryBuilder = {
       where: jest.fn((): QueryBuilderStub => queryBuilder),
       andWhere: jest.fn((): QueryBuilderStub => queryBuilder),
@@ -161,6 +179,7 @@ describe('StorytimeStoryService', () => {
           useValue: collaboratorAccessService,
         },
         { provide: StorytimeActivityFeedService, useValue: feedService },
+        { provide: StorytimeImageService, useValue: imageService },
       ],
     }).compile();
 
@@ -671,6 +690,139 @@ describe('StorytimeStoryService', () => {
       expect(storyRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({ deletedByUserId: ownerId }),
       );
+    });
+  });
+
+  describe('artwork', () => {
+    const file = { originalname: 'banner.jpg' } as Express.Multer.File;
+
+    it('records the stored image and what it shows', async () => {
+      storyRepository.findOne.mockResolvedValue(buildStory());
+
+      const saved = await service.setImage(
+        storyId,
+        ownerId,
+        StorytimeImageSlot.STORY_BANNER,
+        file,
+        'The USS Ares at warp',
+      );
+
+      expect(imageService.store).toHaveBeenCalledWith({
+        slot: StorytimeImageSlot.STORY_BANNER,
+        userId: ownerId,
+        entityId: storyId,
+        file,
+      });
+      expect(saved.bannerImageId).toBe('stored-image-id');
+      expect(saved.bannerImageAlt).toBe('The USS Ares at warp');
+      expect(saved.version).toBe(2);
+      expect(saved.updatedByUserId).toBe(ownerId);
+    });
+
+    it('sets the profile image without touching the banner', async () => {
+      storyRepository.findOne.mockResolvedValue(
+        buildStory({ bannerImageId: 'banner-1', bannerImageAlt: 'A ship' }),
+      );
+
+      const saved = await service.setImage(
+        storyId,
+        ownerId,
+        StorytimeImageSlot.STORY_PROFILE,
+        file,
+        'A crew badge',
+      );
+
+      expect(saved.profileImageId).toBe('stored-image-id');
+      expect(saved.bannerImageId).toBe('banner-1');
+    });
+
+    // Released after the save rather than before it, so a failure leaves an
+    // image nothing points at rather than a Story pointing at nothing.
+    it('releases the image it replaced, once the Story is saved', async () => {
+      storyRepository.findOne.mockResolvedValue(
+        buildStory({ bannerImageId: 'old-banner' }),
+      );
+      const order: string[] = [];
+      storyRepository.save.mockImplementation((story: unknown) => {
+        order.push('save');
+        return Promise.resolve(story);
+      });
+      imageService.release.mockImplementation(() => {
+        order.push('release');
+        return Promise.resolve();
+      });
+
+      await service.setImage(
+        storyId,
+        ownerId,
+        StorytimeImageSlot.STORY_BANNER,
+        file,
+        'A ship',
+      );
+
+      expect(imageService.release).toHaveBeenCalledWith('old-banner');
+      expect(order).toEqual(['save', 'release']);
+    });
+
+    it('has nothing to release when there was no image', async () => {
+      storyRepository.findOne.mockResolvedValue(buildStory());
+
+      await service.setImage(
+        storyId,
+        ownerId,
+        StorytimeImageSlot.STORY_BANNER,
+        file,
+        'A ship',
+      );
+
+      expect(imageService.release).toHaveBeenCalledWith(null);
+    });
+
+    it('refuses somebody with no access to the Story', async () => {
+      storyRepository.findOne.mockResolvedValue(buildStory());
+
+      await expect(
+        service.setImage(
+          storyId,
+          otherUserId,
+          StorytimeImageSlot.STORY_BANNER,
+          file,
+          'A ship',
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(imageService.store).not.toHaveBeenCalled();
+    });
+
+    // The wording goes with the picture: a description left behind would be
+    // read out over whatever was uploaded next.
+    it('clears the description along with the image', async () => {
+      storyRepository.findOne.mockResolvedValue(
+        buildStory({ bannerImageId: 'banner-1', bannerImageAlt: 'A ship' }),
+      );
+
+      const saved = await service.clearImage(
+        storyId,
+        ownerId,
+        StorytimeImageSlot.STORY_BANNER,
+      );
+
+      expect(saved.bannerImageId).toBeNull();
+      expect(saved.bannerImageAlt).toBeNull();
+      expect(imageService.release).toHaveBeenCalledWith('banner-1');
+      expect(saved.version).toBe(2);
+    });
+
+    it('refuses a removal from somebody with no access', async () => {
+      storyRepository.findOne.mockResolvedValue(buildStory());
+
+      await expect(
+        service.clearImage(
+          storyId,
+          otherUserId,
+          StorytimeImageSlot.STORY_PROFILE,
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
 
