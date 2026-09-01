@@ -41,4 +41,18 @@ export const STORYTIME_LIMITS = {
     key: 'STORYTIME_MAX_CONTENT_LENGTH',
     defaultValue: 100_000,
   },
+  /**
+   * How large one uploaded image may be.
+   *
+   * Separate from the application-wide `MAX_IMAGE_SIZE_IN_BYTES`, which stays
+   * the hard ceiling every upload in the site is held to: Multer refuses
+   * anything above it before a byte reaches this check. An exemption granted
+   * here can therefore raise a creator up to that ceiling but not past it,
+   * which is the point — the site-wide cap exists so that no single feature
+   * can be configured into accepting an arbitrarily large body.
+   */
+  MAX_UPLOAD_BYTES: {
+    key: 'STORYTIME_UPLOAD_MAX_BYTES',
+    defaultValue: 10_485_760,
+  },
 } as const satisfies Record<string, StorytimeLimit>;
