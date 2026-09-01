@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AccessControlService } from '../../access-control/access-control.service';
 import { StorytimeArcMapper } from '../arcs/storytime-arc.mapper';
 import { SpotlightEntityType } from '../enums/spotlight-entity-type.enum';
+import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeStoryMapper } from '../stories/storytime-story.mapper';
 import { AdminStorytimeSpotlightController } from './admin-storytime-spotlight.controller';
 import { StorytimeSpotlightEntity } from './entities/storytime-spotlight.entity';
@@ -13,7 +14,7 @@ describe('AdminStorytimeSpotlightController', () => {
   let controller: AdminStorytimeSpotlightController;
   let spotlightService: {
     findAll: jest.Mock;
-    findOneOrFail: jest.Mock;
+    findOneWithWorkOrFail: jest.Mock;
     create: jest.Mock;
     update: jest.Mock;
     publish: jest.Mock;
@@ -45,6 +46,15 @@ describe('AdminStorytimeSpotlightController', () => {
     updatedAt: new Date('2026-05-01T00:00:00.000Z'),
   });
 
+  const story = Object.assign(new StorytimeStoryEntity(), {
+    id: 'story-1',
+    title: 'A Fine Story',
+    slug: 'a-fine-story',
+  });
+
+  /** The entry as the service hands it over: with whatever it features. */
+  const resolved = { entry, story, arc: null };
+
   /** The smallest valid creation request. */
   const request = {
     entityType: SpotlightEntityType.STORY,
@@ -56,8 +66,8 @@ describe('AdminStorytimeSpotlightController', () => {
 
   beforeEach(async () => {
     spotlightService = {
-      findAll: jest.fn().mockResolvedValue([entry]),
-      findOneOrFail: jest.fn().mockResolvedValue(entry),
+      findAll: jest.fn().mockResolvedValue([resolved]),
+      findOneWithWorkOrFail: jest.fn().mockResolvedValue(resolved),
       create: jest.fn().mockResolvedValue(entry),
       update: jest.fn().mockResolvedValue(entry),
       publish: jest.fn().mockResolvedValue(entry),
@@ -102,14 +112,25 @@ describe('AdminStorytimeSpotlightController', () => {
     expect(entries[0].isPublished).toBe(false);
   });
 
+  // An editor manages entries by name, so the name of the featured work comes
+  // back with each one.
+  it('names the work each entry features', async () => {
+    const entries = await controller.findAll();
+
+    expect(entries[0].story?.title).toBe('A Fine Story');
+  });
+
   it('reads one entry', async () => {
     const found = await controller.findOne(spotlightId);
 
     expect(found.id).toBe(spotlightId);
+    expect(found.story?.title).toBe('A Fine Story');
   });
 
   it('reports an entry that is not there', async () => {
-    spotlightService.findOneOrFail.mockRejectedValue(new NotFoundException());
+    spotlightService.findOneWithWorkOrFail.mockRejectedValue(
+      new NotFoundException(),
+    );
 
     await expect(controller.findOne(spotlightId)).rejects.toThrow(
       NotFoundException,

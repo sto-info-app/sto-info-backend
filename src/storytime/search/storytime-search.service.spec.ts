@@ -281,11 +281,21 @@ describe('StorytimeSearchService', () => {
       String(call[0]).includes('searchVector'),
     );
 
-    expect(String(matching?.[0])).toContain(
-      "plainto_tsquery('english', :term)",
-    );
+    // Only lexemes reach to_tsquery, so nothing typed can be an operator.
+    expect(String(matching?.[0])).toContain("to_tsvector('english', :term)");
     // Bound, never interpolated: the term is a reader's text, not SQL.
     expect(matching?.[1]).toEqual({ term: 'the long way' });
+  });
+
+  // Somebody typing into a search box has not finished the word yet.
+  it('matches every word as a prefix', async () => {
+    await service.search({ q: 'pat' });
+
+    const matching = builders['story'].andWhere.mock.calls.find(call =>
+      String(call[0]).includes('searchVector'),
+    );
+
+    expect(String(matching?.[0])).toContain("lexeme || ':*'");
   });
 
   describe('what may be found', () => {

@@ -136,6 +136,20 @@ describe('StorytimeSpotlightMapper', () => {
     expect(mapped.arc).toBeNull();
   });
 
+  // What an editor reads is the name of the work, so the managed shape carries
+  // it whenever the work can still be shown.
+  it('maps an entry with the work it features', () => {
+    const story = Object.assign(new StorytimeStoryEntity(), {
+      id: 'story-1',
+      title: 'A Fine Story',
+      slug: 'a-fine-story',
+    });
+
+    const mapped = mapper.toManaged(buildEntry(), { story, arc: null });
+
+    expect(mapped.story?.title).toBe('A Fine Story');
+  });
+
   it('maps the override image to a URL', () => {
     const mapped = mapper.toManaged(
       buildEntry({ overrideImageId: 'image-1', overrideImageAlt: 'A ship' }),
@@ -158,6 +172,8 @@ describe('StorytimeSpotlightMapper', () => {
     expect(
       mapper.toPublicList([{ entry: buildEntry(), story: null, arc: null }]),
     ).toHaveLength(1);
-    expect(mapper.toManagedList([buildEntry()])).toHaveLength(1);
+    expect(
+      mapper.toManagedList([{ entry: buildEntry(), story: null, arc: null }]),
+    ).toHaveLength(1);
   });
 });

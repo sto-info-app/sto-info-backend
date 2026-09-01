@@ -325,10 +325,46 @@ describe('StorytimeSpotlightService', () => {
       });
     });
 
+    // An editor reads a list of names, not a list of identifiers.
+    it('attaches the work each entry features', async () => {
+      spotlightRepository.find.mockResolvedValue([buildEntry()]);
+
+      const [resolved] = await service.findAll();
+
+      expect(resolved.story?.title).toBe('A Fine Story');
+    });
+
+    // The entry an editor most needs to find is the one pointing at work that
+    // has gone, so it is listed carrying no work rather than dropped.
+    it('lists an entry whose work can no longer be shown', async () => {
+      spotlightRepository.find.mockResolvedValue([buildEntry()]);
+      storyService.findPublicByIds.mockResolvedValue([]);
+
+      const entries = await service.findAll();
+
+      expect(entries).toHaveLength(1);
+      expect(entries[0].story).toBeNull();
+    });
+
     it('retrieves one entry', async () => {
       spotlightRepository.findOne.mockResolvedValue(buildEntry());
 
       await expect(service.findOneOrFail(spotlightId)).resolves.toBeDefined();
+    });
+
+    it('retrieves one entry with the work it features', async () => {
+      spotlightRepository.findOne.mockResolvedValue(buildEntry());
+
+      const resolved = await service.findOneWithWorkOrFail(spotlightId);
+
+      expect(resolved.entry.id).toBe(spotlightId);
+      expect(resolved.story?.title).toBe('A Fine Story');
+    });
+
+    it('reports an entry that is not there when reading it with its work', async () => {
+      await expect(service.findOneWithWorkOrFail(spotlightId)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('reports an entry that is not there', async () => {
