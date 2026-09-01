@@ -1,5 +1,6 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
+import { UserRole } from '../../user/enums/user-role.enum';
 import { UserSearchQueryDto } from './user-search-query.dto';
 import {
   UserSearchPageDto,
@@ -69,7 +70,9 @@ describe('UserSearchResultDto and UserSearchPageDto', () => {
     const item = new UserSearchResultDto();
     item.id = 'u1';
     item.username = 'kirk';
-    item.email = 'kirk@ufp.org';
+    item.fullName = 'James T. Kirk';
+    item.role = UserRole.USER;
+    item.lastLoginAt = new Date('2026-06-01T00:00:00.000Z');
 
     const page = new UserSearchPageDto();
     page.items = [item];
@@ -79,5 +82,11 @@ describe('UserSearchResultDto and UserSearchPageDto', () => {
 
     expect(page.items[0].username).toBe('kirk');
     expect(page.total).toBe(1);
+  });
+
+  // These notifications are read inside the site rather than sent to anybody's
+  // inbox, so a result carries no address at all.
+  it('carries no email address', () => {
+    expect(Object.keys(new UserSearchResultDto())).not.toContain('email');
   });
 });
