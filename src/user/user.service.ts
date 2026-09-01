@@ -16,6 +16,8 @@ import { UpdatedUserProfileResultDto } from './dto/updated-user-profile-result.d
 import { UserSettingsDto } from './dto/user-settings.dto';
 import { UserProfileEntity } from './entities/user-profile.entity';
 import { UserEntity } from './entities/user.entity';
+import { UserSearchQueryDto } from 'src/notification/dto/user-search-query.dto';
+import { UserSearchPageDto } from 'src/notification/dto/user-search-result.dto';
 
 @Injectable()
 export class UserService {
@@ -515,5 +517,86 @@ export class UserService {
       affected: 1,
       userProfileData: updatedUserProfile,
     };
+  }
+
+  /**
+   * Searches users by username or real name.
+   *
+   * Called by the admin notification controller so an administrator can find a
+   * recipient without knowing their UUID. Only non-deleted accounts appear.
+   *
+   * Addresses are searched neither by nor for. A site notification is read
+   * where it was written, and an address on the screen that picks its reader
+   * only suggests otherwise. What is left is what an administrator actually
+   * knows somebody by: their handle, or their name.
+   *
+   * Each result carries the account's role and last sign-in as well, because a
+   * list of names alone leaves an administrator guessing which of two similar
+   * accounts they are about to write to.
+   *
+   * @param query - The search term and pagination options.
+   * @returns A paginated page of matching users.
+   */
+  async searchUsers(query: UserSearchQueryDto): Promise<UserSearchPageDto> {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 5;
+    const term = `%${query.q}%`;
+
+    const [rows, total] = await this._userRepository
+      .createQueryBuilder('u')
+      .innerJoin('u.profile', 'p')
+      .select([
+        'u.id',
+        'u.role',
+        'u.lastLoginAt',
+        'p.username',
+        'p.firstName',
+        'p.lastName',
+      ])
+      // The two names are matched together as well as apart, so somebody
+      // typing a person's whole name finds them rather than nothing.
+      .where(
+        `p.username ILIKE :term
+         OR p.firstName ILIKE :term
+         OR p.lastName ILIKE :term
+         OR CONCAT(p.firstName, ' ', p.lastName) ILIKE :term`,
+        { term },
+      )
+      .andWhere('u.deletedAt IS NULL')
+      .orderBy('p.username', 'ASC')
+      .skip((page - 1) * pageSize)
+      .take(pageSize)
+      .getManyAndCount();
+
+    return {
+      items: rows.map(u => ({
+        id: u.id,
+        username: u.profile?.username ?? '',
+        fullName: this.fullNameOf(u.profile),
+        role: u.role,
+        lastLoginAt: u.lastLoginAt,
+      })),
+      total,
+      page,
+      pageSize,
+    };
+  }
+
+  /**
+   * A member's real name, as much of it as they have given.
+   *
+   * Either half may be missing, and somebody who gave neither has no real name
+   * rather than an empty one, so the screen showing them can say so instead of
+   * leaving a blank line where a name should be.
+   *
+   * @param profile - The member's profile, when they have one.
+   * @returns The name, or null when there is none.
+   */
+  private fullNameOf(profile?: UserProfileEntity | null): string | null {
+    return (
+      [profile?.firstName, profile?.lastName]
+        .filter(part => part?.trim())
+        .join(' ') || null
+    );
   }
 }

@@ -12,6 +12,7 @@ import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 import { Repository } from 'typeorm';
 import { UserProfileEntity } from './entities/user-profile.entity';
 import { UserEntity } from './entities/user.entity';
+import { UserRole } from './enums/user-role.enum';
 import { UserService } from './user.service';
 
 jest.mock('bcrypt');
@@ -887,6 +888,178 @@ describe('UserService', () => {
         'captain@example.com',
         'Captain',
       );
+    });
+  });
+
+  describe('searchUsers', () => {
+    it('returns paginated users with defaults when page/pageSize not provided', async () => {
+      const mockUsers = [
+        {
+          id: 'u1',
+          role: UserRole.ADMIN,
+          lastLoginAt: new Date('2026-05-01T09:00:00.000Z'),
+          profile: { username: 'kirk', firstName: 'James', lastName: 'Kirk' },
+        },
+      ];
+      const qb: any = {
+        innerJoin: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getManyAndCount: (jest.fn() as any).mockResolvedValue([mockUsers, 1]),
+      };
+      (userRepository.createQueryBuilder as jest.Mock).mockReturnValue(qb);
+
+      const result = await service.searchUsers({ q: 'kirk' });
+
+      expect(userRepository.createQueryBuilder).toHaveBeenCalledWith('u');
+      expect(qb.innerJoin).toHaveBeenCalledWith('u.profile', 'p');
+      expect(qb.select).toHaveBeenCalledWith([
+        'u.id',
+        'u.role',
+        'u.lastLoginAt',
+        'p.username',
+        'p.firstName',
+        'p.lastName',
+      ]);
+
+      // No address is searched: a site notification is not an email, and the
+      // screen that picks its reader says nothing about one.
+      const [clause, parameters] = qb.where.mock.calls[0] as [
+        string,
+        Record<string, string>,
+      ];
+
+      expect(clause).not.toContain('email');
+      expect(clause).toContain('p.username ILIKE :term');
+      expect(clause).toContain('p.firstName ILIKE :term');
+      expect(clause).toContain('p.lastName ILIKE :term');
+      expect(clause).toContain("CONCAT(p.firstName, ' ', p.lastName)");
+      expect(parameters).toEqual({ term: '%kirk%' });
+      expect(qb.andWhere).toHaveBeenCalledWith('u.deletedAt IS NULL');
+      expect(qb.orderBy).toHaveBeenCalledWith('p.username', 'ASC');
+      expect(qb.skip).toHaveBeenCalledWith(0);
+      expect(qb.take).toHaveBeenCalledWith(5);
+      expect(result).toEqual({
+        items: [
+          {
+            id: 'u1',
+            username: 'kirk',
+            fullName: 'James Kirk',
+            role: UserRole.ADMIN,
+            lastLoginAt: new Date('2026-05-01T09:00:00.000Z'),
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 5,
+      });
+    });
+
+    it('returns paginated users with custom page and pageSize', async () => {
+      const mockUsers = [
+        {
+          id: 'u2',
+          role: UserRole.USER,
+          lastLoginAt: null,
+          profile: null,
+        },
+      ];
+      const qb: any = {
+        innerJoin: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getManyAndCount: (jest.fn() as any).mockResolvedValue([mockUsers, 10]),
+      };
+      (userRepository.createQueryBuilder as jest.Mock).mockReturnValue(qb);
+
+      const result = await service.searchUsers({
+        q: 'spock',
+        page: 2,
+        pageSize: 3,
+      });
+
+      expect(qb.skip).toHaveBeenCalledWith(3);
+      expect(qb.take).toHaveBeenCalledWith(3);
+      // An account that has never signed in, and a member who gave no name,
+      // carry nothing rather than a stand-in, so the screen can say so in its
+      // own words.
+      expect(result).toEqual({
+        items: [
+          {
+            id: 'u2',
+            username: '',
+            fullName: null,
+            role: UserRole.USER,
+            lastLoginAt: null,
+          },
+        ],
+        total: 10,
+        page: 2,
+        pageSize: 3,
+      });
+    });
+
+    it('names a member by whichever half of their name they gave', async () => {
+      const qb: any = {
+        innerJoin: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getManyAndCount: (jest.fn() as any).mockResolvedValue([
+          [
+            {
+              id: 'u3',
+              role: UserRole.USER,
+              lastLoginAt: null,
+              profile: {
+                username: 'mccoy',
+                firstName: null,
+                lastName: 'McCoy',
+              },
+            },
+          ],
+          1,
+        ]),
+      };
+      (userRepository.createQueryBuilder as jest.Mock).mockReturnValue(qb);
+
+      const result = await service.searchUsers({ q: 'mccoy' });
+
+      expect(result.items[0].fullName).toBe('McCoy');
+    });
+
+    it('returns empty list when no users match', async () => {
+      const qb: any = {
+        innerJoin: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getManyAndCount: (jest.fn() as any).mockResolvedValue([[], 0]),
+      };
+      (userRepository.createQueryBuilder as jest.Mock).mockReturnValue(qb);
+
+      const result = await service.searchUsers({ q: 'nonexistent' });
+
+      expect(result).toEqual({
+        items: [],
+        total: 0,
+        page: 1,
+        pageSize: 5,
+      });
     });
   });
 });

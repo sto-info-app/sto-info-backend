@@ -23,10 +23,13 @@ import { Roles } from 'src/auth/roles.decorator';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { UserId } from 'src/auth/user-id.decorator';
 import { UserRole } from 'src/user/enums/user-role.enum';
+import { UserService } from 'src/user/user.service';
 import { CreateBannerDto } from './dto/create-banner.dto';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { InboxQueryDto } from './dto/inbox-query.dto';
 import { UpdateBannerDto } from './dto/update-banner.dto';
+import { UserSearchQueryDto } from './dto/user-search-query.dto';
+import { UserSearchPageDto } from './dto/user-search-result.dto';
 import { NotificationService } from './notification.service';
 
 @ApiTags('Notifications')
@@ -36,8 +39,12 @@ export class NotificationController {
    * Creates an instance of NotificationController.
    *
    * @param _notificationService - The notification service.
+   * @param _userService - The user service.
    */
-  constructor(private readonly _notificationService: NotificationService) {}
+  constructor(
+    private readonly _notificationService: NotificationService,
+    private readonly _userService: UserService,
+  ) {}
 
   // ----- Public -----
 
@@ -252,5 +259,27 @@ export class NotificationController {
   @ApiOperation({ summary: 'Delete a notification (admin)' })
   removeNotification(@Param('id') id: string) {
     return this._notificationService.removeNotification(id);
+  }
+
+  // ----- Admin: user search -----
+
+  /**
+   * Searches users by username or real name (admin).
+   *
+   * Provides a way for administrators to find a recipient's user ID without
+   * having to look it up externally. No address is searched or returned:
+   * these notifications are read on the site rather than sent to an inbox.
+   *
+   * @param query - The search term and pagination options.
+   * @returns A paginated page of matching users.
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @Get('admin/users/search')
+  @ApiOperation({ summary: 'Search users by username or real name (admin)' })
+  @ApiOkResponse({ type: UserSearchPageDto })
+  searchUsers(@Query() query: UserSearchQueryDto): Promise<UserSearchPageDto> {
+    return this._userService.searchUsers(query);
   }
 }
