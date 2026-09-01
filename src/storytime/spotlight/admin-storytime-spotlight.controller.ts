@@ -64,7 +64,8 @@ export class AdminStorytimeSpotlightController {
   /**
    * Lists every Spotlight entry, showing or not.
    *
-   * @returns The entries, most recently scheduled first.
+   * @returns The entries with the work each features, most recently scheduled
+   * first.
    */
   @Get()
   @RequiresPermission(PERMISSION_CODES.STORYTIME_SPOTLIGHT_MANAGE)
@@ -89,9 +90,10 @@ export class AdminStorytimeSpotlightController {
   async findOne(
     @Param('spotlightId', ParseUUIDPipe) spotlightId: string,
   ): Promise<ManagedSpotlightDto> {
-    return this._mapper.toManaged(
-      await this._spotlightService.findOneOrFail(spotlightId),
-    );
+    const resolved =
+      await this._spotlightService.findOneWithWorkOrFail(spotlightId);
+
+    return this._mapper.toManaged(resolved.entry, resolved);
   }
 
   /**

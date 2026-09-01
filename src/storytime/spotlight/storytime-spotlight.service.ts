@@ -158,10 +158,17 @@ export class StorytimeSpotlightService {
   /**
    * Lists every entry an editor manages, showing or not.
    *
-   * @returns The entries, most recently scheduled first.
+   * The featured work is attached where it is still publicly listed, so an
+   * editor reads a list of names rather than a list of identifiers. An entry
+   * whose work has since been taken down is kept, carrying no work: that is
+   * the entry an editor most needs to find.
+   *
+   * @returns The entries with their works, most recently scheduled first.
    */
-  findAll(): Promise<StorytimeSpotlightEntity[]> {
-    return this._spotlightRepository.find({ order: { startsAt: 'DESC' } });
+  async findAll(): Promise<SpotlightWithTarget[]> {
+    return this.attachTargets(
+      await this._spotlightRepository.find({ order: { startsAt: 'DESC' } }),
+    );
   }
 
   /**
@@ -181,6 +188,24 @@ export class StorytimeSpotlightService {
     }
 
     return entry;
+  }
+
+  /**
+   * Retrieves one entry for editing, with the work it features.
+   *
+   * @param spotlightId - The entry.
+   * @returns The entry and its work, which is absent once it can no longer be
+   * shown.
+   * @throws NotFoundException when no entry has that identifier.
+   */
+  async findOneWithWorkOrFail(
+    spotlightId: string,
+  ): Promise<SpotlightWithTarget> {
+    const [resolved] = await this.attachTargets([
+      await this.findOneOrFail(spotlightId),
+    ]);
+
+    return resolved;
   }
 
   /**
@@ -412,6 +437,24 @@ export class StorytimeSpotlightService {
   private async withTargets(
     entries: StorytimeSpotlightEntity[],
   ): Promise<SpotlightWithTarget[]> {
+    return (await this.attachTargets(entries)).filter(
+      resolved => resolved.story !== null || resolved.arc !== null,
+    );
+  }
+
+  /**
+   * Attaches the featured work to each entry, keeping every entry.
+   *
+   * What a reader is shown and what an editor manages part company here: a
+   * reader is never shown an entry with nothing behind it, while an editor
+   * must be able to see and correct exactly that entry.
+   *
+   * @param entries - The entries to resolve.
+   * @returns The entries, each with its work or with none.
+   */
+  private async attachTargets(
+    entries: StorytimeSpotlightEntity[],
+  ): Promise<SpotlightWithTarget[]> {
     if (entries.length === 0) {
       return [];
     }
@@ -426,13 +469,11 @@ export class StorytimeSpotlightService {
     const storiesById = this.listedById(stories);
     const arcsById = this.listedById(arcs);
 
-    return entries
-      .map(entry => ({
-        entry,
-        story: entry.storyId ? (storiesById.get(entry.storyId) ?? null) : null,
-        arc: entry.arcId ? (arcsById.get(entry.arcId) ?? null) : null,
-      }))
-      .filter(resolved => resolved.story !== null || resolved.arc !== null);
+    return entries.map(entry => ({
+      entry,
+      story: entry.storyId ? (storiesById.get(entry.storyId) ?? null) : null,
+      arc: entry.arcId ? (arcsById.get(entry.arcId) ?? null) : null,
+    }));
   }
 
   /**
