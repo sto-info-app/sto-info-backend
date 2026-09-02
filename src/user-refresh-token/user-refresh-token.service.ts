@@ -88,14 +88,17 @@ export class UserRefreshTokenService {
       );
     }
 
-    // Set the expiresAt value to AUTH_REFRESH_TOKEN_EXPIRES_IN seconds from now
-    const expiresAt = new Date();
-    expiresAt.setSeconds(
-      expiresAt.getSeconds() +
-        Number(process.env.AUTH_REFRESH_TOKEN_EXPIRES_IN),
-    );
-
-    refreshToken.expiresAt = expiresAt;
+    // Authentication sizes the expiry to the user's own inactivity window, so
+    // an expiry that came in with the token is kept. The environment value is
+    // only a fallback for a caller that supplies none.
+    if (!refreshToken.expiresAt) {
+      const expiresAt = new Date();
+      expiresAt.setSeconds(
+        expiresAt.getSeconds() +
+          (Number(process.env.AUTH_REFRESH_TOKEN_EXPIRES_IN) || 14400),
+      );
+      refreshToken.expiresAt = expiresAt;
+    }
 
     return this._refreshTokenRepository.save(refreshToken);
   }
