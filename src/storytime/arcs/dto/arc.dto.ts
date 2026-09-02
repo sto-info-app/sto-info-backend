@@ -3,6 +3,7 @@ import { StoryDto } from '../../stories/dto/story.dto';
 import { ArcMembershipStatus } from '../../enums/arc-membership-status.enum';
 import { ArcStatus } from '../../enums/arc-status.enum';
 import { StorytimeVisibility } from '../../enums/storytime-visibility.enum';
+import { TagDto } from '../../tags/dto/create-tag.dto';
 
 /**
  * An Arc as readers see it.
@@ -55,6 +56,14 @@ export class ArcDto {
 
   @ApiProperty({ description: 'When the Arc was published.', nullable: true })
   publishedAt: Date | null;
+
+  @ApiProperty({
+    description:
+      'What the Arc is about, in vocabulary order. Empty on the curator’s ' +
+      'own management views, which read and set tags through the tag routes.',
+    type: [TagDto],
+  })
+  tags: TagDto[];
 }
 
 /**

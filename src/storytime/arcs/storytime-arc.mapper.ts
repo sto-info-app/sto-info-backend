@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { StoryDto } from '../stories/dto/story.dto';
+import { TagDto } from '../tags/dto/create-tag.dto';
 import { ArcDto, ArcMembershipDto, ManagedArcDto } from './dto/arc.dto';
 import { ArcCollaboratorDto } from './dto/invite-arc-collaborator.dto';
 import { StorytimeArcCollaboratorEntity } from './entities/storytime-arc-collaborator.entity';
@@ -18,10 +19,14 @@ export class StorytimeArcMapper {
   /**
    * Maps an Arc to its reader-facing shape.
    *
+   * The tags are passed in rather than read here: a listing looks them up once
+   * for every Arc on it, which a mapper fetching its own could not do.
+   *
    * @param arc - The Arc entity.
+   * @param tags - What it is tagged with, when the caller is being told.
    * @returns The reader-facing Arc.
    */
-  toPublic(arc: StorytimeArcEntity): ArcDto {
+  toPublic(arc: StorytimeArcEntity, tags: TagDto[] = []): ArcDto {
     return {
       id: arc.id,
       slug: arc.slug,
@@ -36,6 +41,7 @@ export class StorytimeArcMapper {
       profileImageAlt: arc.profileImageAlt,
       rating: arc.upVoteCount - arc.downVoteCount,
       publishedAt: arc.publishedAt,
+      tags,
     };
   }
 
@@ -61,10 +67,14 @@ export class StorytimeArcMapper {
    * Maps several Arcs to their reader-facing shape.
    *
    * @param arcs - The Arc entities.
+   * @param tagsByArc - What each is tagged with, keyed by Arc.
    * @returns The reader-facing Arcs.
    */
-  toPublicList(arcs: StorytimeArcEntity[]): ArcDto[] {
-    return arcs.map(arc => this.toPublic(arc));
+  toPublicList(
+    arcs: StorytimeArcEntity[],
+    tagsByArc: Map<string, TagDto[]> = new Map(),
+  ): ArcDto[] {
+    return arcs.map(arc => this.toPublic(arc, tagsByArc.get(arc.id) ?? []));
   }
 
   /**

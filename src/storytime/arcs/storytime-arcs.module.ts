@@ -7,6 +7,7 @@ import { StorytimeContentModule } from '../content/storytime-content.module';
 import { StorytimeProgressModule } from '../progress/storytime-progress.module';
 import { StorytimeSocialModule } from '../social/storytime-social.module';
 import { StorytimeStoriesModule } from '../stories/storytime-stories.module';
+import { StorytimeTaggingModule } from '../tags/storytime-tagging.module';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { StorytimeArcStoryEntity } from './entities/storytime-arc-story.entity';
 import { StorytimeArcEntity } from './entities/storytime-arc.entity';
@@ -44,6 +45,11 @@ import { StorytimeCreatorArcsController } from './storytime-creator-arcs.control
     StorytimeProgressModule,
     NotificationModule,
     StorytimeSocialModule,
+
+    // An Arc listing says what each Arc is about. Only the tables, not the
+    // routes that set tags: those ask an Arc who may edit it, and importing
+    // them here would close the circle.
+    StorytimeTaggingModule,
   ],
   controllers: [
     PublicStorytimeArcsController,

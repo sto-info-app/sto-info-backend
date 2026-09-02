@@ -6,6 +6,9 @@ import { StorytimeVisibility } from '../enums/storytime-visibility.enum';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeStoryMapper } from '../stories/storytime-story.mapper';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
+import { StorytimeTagEntity } from '../tags/entities/storytime-tag.entity';
+import { StorytimeTagMapper } from '../tags/storytime-tag.mapper';
+import { StorytimeTaggingService } from '../tags/storytime-tagging.service';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { StorytimeArcStoryEntity } from './entities/storytime-arc-story.entity';
 import { StorytimeArcEntity } from './entities/storytime-arc.entity';
@@ -21,6 +24,7 @@ describe('PublicStorytimeArcsController', () => {
   let membershipService: { findApprovedByArc: jest.Mock };
   let storyService: { findPublicByIds: jest.Mock };
   let arcProgressService: { summarise: jest.Mock };
+  let taggingService: { findFor: jest.Mock; findForMany: jest.Mock };
   let featureService: { assertFlagEnabled: jest.Mock };
 
   const arc = Object.assign(new StorytimeArcEntity(), {
@@ -38,6 +42,15 @@ describe('PublicStorytimeArcsController', () => {
     upVoteCount: 0,
     downVoteCount: 0,
     publishedAt: null,
+  });
+
+  const tag = Object.assign(new StorytimeTagEntity(), {
+    id: 'tag-1',
+    slug: 'war',
+    name: 'War',
+    description: null,
+    category: 'THEME',
+    displayOrder: 0,
   });
 
   /**
@@ -94,6 +107,10 @@ describe('PublicStorytimeArcsController', () => {
         continueChapterId: null,
       }),
     };
+    taggingService = {
+      findFor: jest.fn().mockResolvedValue([tag]),
+      findForMany: jest.fn().mockResolvedValue(new Map([['story-1', [tag]]])),
+    };
     featureService = {
       assertFlagEnabled: jest.fn().mockResolvedValue(undefined),
     };
@@ -109,6 +126,8 @@ describe('PublicStorytimeArcsController', () => {
         { provide: StorytimeStoryService, useValue: storyService },
         StorytimeArcMapper,
         StorytimeStoryMapper,
+        { provide: StorytimeTaggingService, useValue: taggingService },
+        StorytimeTagMapper,
         { provide: StorytimeArcProgressService, useValue: arcProgressService },
         { provide: StorytimeFeatureService, useValue: featureService },
       ],
@@ -132,6 +151,35 @@ describe('PublicStorytimeArcsController', () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].title).toBe('The Long War');
+  });
+
+  // The Arc listing says what each Arc is about, the way the Story listing
+  // and the Spotlight panel do.
+  it('names what each listed Arc is tagged with', async () => {
+    taggingService.findForMany.mockResolvedValue(new Map([['arc-1', [tag]]]));
+
+    const result = await controller.findAll();
+
+    expect(taggingService.findForMany).toHaveBeenCalledWith('ARC', ['arc-1']);
+    expect(result[0].tags.map(each => each.name)).toEqual(['War']);
+  });
+
+  it('leaves an untagged Arc with no tags rather than none of the listing', async () => {
+    taggingService.findForMany.mockResolvedValue(new Map());
+
+    const result = await controller.findAll();
+
+    expect(result[0].tags).toEqual([]);
+  });
+
+  it('names what an Arc and the Stories in it are tagged with', async () => {
+    const result = await controller.findOne('the-long-war');
+
+    expect(taggingService.findFor).toHaveBeenCalledWith('ARC', 'arc-1');
+    expect(result.arc.tags.map(each => each.name)).toEqual(['War']);
+    expect(result.stories[0].story?.tags.map(each => each.name)).toEqual([
+      'War',
+    ]);
   });
 
   it('reads one Arc with its Stories', async () => {
