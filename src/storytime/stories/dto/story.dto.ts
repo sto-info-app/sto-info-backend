@@ -5,6 +5,7 @@ import { StoryStatus } from '../../enums/story-status.enum';
 import { StorytimeModerationStatus } from '../../enums/storytime-moderation-status.enum';
 import { StorytimeVisibility } from '../../enums/storytime-visibility.enum';
 import { StorytimeAuthorDto } from '../../dto/storytime-author.dto';
+import { TagDto } from '../../tags/dto/create-tag.dto';
 
 /**
  * A Story as presented to readers.
@@ -105,6 +106,14 @@ export class StoryDto {
     nullable: true,
   })
   readonly lastContentUpdateAt: Date | null;
+
+  @ApiProperty({
+    description:
+      'What the Story is about, in vocabulary order. Empty on the creator’s ' +
+      'own management views, which read and set tags through the tag routes.',
+    type: [TagDto],
+  })
+  readonly tags: TagDto[];
 }
 
 /**

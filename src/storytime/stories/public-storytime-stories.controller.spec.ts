@@ -3,8 +3,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import type { Response } from 'express';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { StorytimeStoryEntity } from './entities/storytime-story.entity';
+import { StoryDto } from './dto/story.dto';
 import { PublicStorytimeStoriesController } from './public-storytime-stories.controller';
 import { StorytimeAuthorService } from '../shared/storytime-author.service';
+import { StorytimeTagEntity } from '../tags/entities/storytime-tag.entity';
+import { StorytimeTagMapper } from '../tags/storytime-tag.mapper';
+import { StorytimeTaggingService } from '../tags/storytime-tagging.service';
 import { StorytimeStoryMapper } from './storytime-story.mapper';
 import { StorytimeStoryService } from './storytime-story.service';
 
@@ -16,6 +20,7 @@ describe('PublicStorytimeStoriesController', () => {
     findPublicByRetiredSlug: jest.Mock;
   };
   let authorService: { findAuthor: jest.Mock };
+  let taggingService: { findFor: jest.Mock; findForMany: jest.Mock };
   let featureService: { assertFlagEnabled: jest.Mock };
   let response: { status: jest.Mock; setHeader: jest.Mock };
 
@@ -25,6 +30,15 @@ describe('PublicStorytimeStoriesController', () => {
     title: 'The Long Way Home',
     upVoteCount: 0,
     downVoteCount: 0,
+  });
+
+  const tag = Object.assign(new StorytimeTagEntity(), {
+    id: 'tag-1',
+    slug: 'first-contact',
+    name: 'First contact',
+    description: null,
+    category: 'THEME',
+    displayOrder: 0,
   });
 
   beforeEach(async () => {
@@ -41,6 +55,10 @@ describe('PublicStorytimeStoriesController', () => {
         publiclyVisible: true,
       }),
     };
+    taggingService = {
+      findFor: jest.fn().mockResolvedValue([tag]),
+      findForMany: jest.fn().mockResolvedValue(new Map([[story.id, [tag]]])),
+    };
     featureService = {
       assertFlagEnabled: jest.fn().mockResolvedValue(undefined),
     };
@@ -52,6 +70,8 @@ describe('PublicStorytimeStoriesController', () => {
         { provide: StorytimeStoryService, useValue: storyService },
         StorytimeStoryMapper,
         { provide: StorytimeAuthorService, useValue: authorService },
+        { provide: StorytimeTaggingService, useValue: taggingService },
+        StorytimeTagMapper,
         { provide: StorytimeFeatureService, useValue: featureService },
       ],
     }).compile();
@@ -79,6 +99,27 @@ describe('PublicStorytimeStoriesController', () => {
       expect(result.pageSize).toBe(12);
     });
 
+    // What a Story is about decides what a reader opens as much as its title
+    // does, and one lookup for the page is what makes saying so affordable.
+    it('names what each Story on the page is tagged with', async () => {
+      const result = await controller.findAll({});
+
+      expect(taggingService.findForMany).toHaveBeenCalledWith('STORY', [
+        'story-1',
+      ]);
+      expect((result.items[0] as StoryDto).tags.map(each => each.name)).toEqual(
+        ['First contact'],
+      );
+    });
+
+    it('leaves an untagged Story with no tags rather than none of the page', async () => {
+      taggingService.findForMany.mockResolvedValue(new Map());
+
+      const result = await controller.findAll({});
+
+      expect((result.items[0] as StoryDto).tags).toEqual([]);
+    });
+
     it('passes the query through', async () => {
       await controller.findAll({ languageCode: 'de' });
 
@@ -99,6 +140,18 @@ describe('PublicStorytimeStoriesController', () => {
 
       expect(result?.slug).toBe('the-long-way-home');
       expect(response.status).not.toHaveBeenCalled();
+    });
+
+    it('names what the Story is tagged with', async () => {
+      storyService.findPublicBySlug.mockResolvedValue(story);
+
+      const result = await controller.findOne(
+        'the-long-way-home',
+        response as unknown as Response,
+      );
+
+      expect(taggingService.findFor).toHaveBeenCalledWith('STORY', 'story-1');
+      expect(result?.tags.map(each => each.name)).toEqual(['First contact']);
     });
 
     // Links shared before a rename have to keep working, and a redirect lets

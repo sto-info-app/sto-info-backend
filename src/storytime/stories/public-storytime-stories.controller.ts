@@ -16,6 +16,9 @@ import {
 } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constants';
+import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
+import { StorytimeTagMapper } from '../tags/storytime-tag.mapper';
+import { StorytimeTaggingService } from '../tags/storytime-tagging.service';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { PaginatedStoriesDto, StoryQueryDto } from './dto/story-query.dto';
 import { StoryDto } from './dto/story.dto';
@@ -39,12 +42,17 @@ export class PublicStorytimeStoriesController {
    *
    * @param _storyService - The Story service.
    * @param _mapper - Maps Stories to their response shapes.
+   * @param _authorService - Names whoever published a Story.
+   * @param _taggingService - Reads what a Story is tagged with.
+   * @param _tagMapper - Maps those tags to their response shape.
    * @param _featureService - Reports whether public reading is switched on.
    */
   constructor(
     private readonly _storyService: StorytimeStoryService,
     private readonly _mapper: StorytimeStoryMapper,
     private readonly _authorService: StorytimeAuthorService,
+    private readonly _taggingService: StorytimeTaggingService,
+    private readonly _tagMapper: StorytimeTagMapper,
     private readonly _featureService: StorytimeFeatureService,
   ) {}
 
@@ -64,8 +72,18 @@ export class PublicStorytimeStoriesController {
 
     const result = await this._storyService.findPublicPaginated(query);
 
+    // One lookup for the whole page. A reader scanning a listing is choosing
+    // what to open, and what a Story is about decides that as much as its
+    // title does — asking them to open it to find out is the wrong way round.
+    const tags = this._tagMapper.toListsByTarget(
+      await this._taggingService.findForMany(
+        StorytimeTargetType.STORY,
+        result.items.map(story => story.id),
+      ),
+    );
+
     return {
-      items: this._mapper.toPublicList(result.items),
+      items: this._mapper.toPublicList(result.items, tags),
       total: result.total,
       page: result.page,
       pageSize: result.pageSize,
@@ -107,6 +125,12 @@ export class PublicStorytimeStoriesController {
       return this._mapper.toPublic(
         story,
         await this._authorService.findAuthor(story.ownerUserId),
+        this._tagMapper.toList(
+          await this._taggingService.findFor(
+            StorytimeTargetType.STORY,
+            story.id,
+          ),
+        ),
       );
     }
 

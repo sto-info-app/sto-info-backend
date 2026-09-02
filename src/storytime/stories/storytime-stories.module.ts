@@ -7,6 +7,7 @@ import { StorytimeAuthorModule } from '../shared/storytime-author.module';
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
 import { StorytimeSocialModule } from '../social/storytime-social.module';
 import { StorytimeSlugService } from '../shared/storytime-slug.service';
+import { StorytimeTaggingModule } from '../tags/storytime-tagging.module';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { StorytimeSlugHistoryEntity } from './entities/storytime-slug-history.entity';
 import { StorytimeStoryEntity } from './entities/storytime-story.entity';
@@ -36,6 +37,11 @@ import { StorytimeStoryService } from './storytime-story.service';
     // A published work says who wrote it, and the member behind an owner ID
     // is the community's to resolve rather than Storytime's.
     StorytimeAuthorModule,
+
+    // A listing says what each Story is about. The tables behind that are in
+    // a module of their own precisely so this import does not run in a circle
+    // through the routes that set tags, which have to ask Stories who may.
+    StorytimeTaggingModule,
   ],
   controllers: [
     PublicStorytimeStoriesController,
