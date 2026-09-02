@@ -74,4 +74,15 @@ describe('StorytimeChapterMediaEntity', () => {
     expect(url).toContain('dQw4w9WgXcQ');
     expect(url).toContain('ytimg.com');
   });
+
+  // Offered alongside the smaller one rather than in place of it: YouTube has
+  // no full-size still for every video, so a page that asks for this has to be
+  // able to fall back.
+  it('builds a full-size thumbnail as well', () => {
+    const media = buildMedia();
+
+    expect(media.thumbnailHdUrl).toContain('dQw4w9WgXcQ');
+    expect(media.thumbnailHdUrl).toContain('maxresdefault');
+    expect(media.thumbnailHdUrl).not.toBe(media.thumbnailUrl);
+  });
 });

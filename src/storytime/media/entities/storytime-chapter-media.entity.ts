@@ -140,9 +140,28 @@ export class StorytimeChapterMediaEntity {
    * Served from YouTube's image host, which sets no cookies, so a reader who
    * never presses play is never announced to anybody.
    *
+   * This is the size YouTube holds for every video ever uploaded, which is
+   * what makes it the one to fall back to: 480 across, and 4:3, so a 16:9
+   * video arrives with bars that the reader page crops off.
+   *
    * @returns The thumbnail URL.
    */
   get thumbnailUrl(): string {
     return `https://i.ytimg.com/vi/${this.externalId}/hqdefault.jpg`;
+  }
+
+  /**
+   * Builds the largest still YouTube may hold for the video.
+   *
+   * 1280 across and genuinely 16:9, which is what a still shown at the width
+   * of a Chapter needs to be. It is not produced for every video — older and
+   * low-resolution uploads have none — so it is offered alongside
+   * `thumbnailUrl` rather than in place of it, and the page that asks for it
+   * has to be ready for a miss.
+   *
+   * @returns The full-size thumbnail URL.
+   */
+  get thumbnailHdUrl(): string {
+    return `https://i.ytimg.com/vi/${this.externalId}/maxresdefault.jpg`;
   }
 }

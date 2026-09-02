@@ -25,6 +25,7 @@ export class StorytimeMediaMapper {
       externalId: media.externalId,
       embedUrl: media.embedUrl,
       thumbnailUrl: media.thumbnailUrl,
+      thumbnailHdUrl: media.thumbnailHdUrl,
       title: media.title,
       caption: media.caption,
       startSeconds: media.startSeconds,
