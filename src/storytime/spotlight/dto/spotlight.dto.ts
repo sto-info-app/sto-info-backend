@@ -1,7 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { SpotlightEntityType } from '../../enums/spotlight-entity-type.enum';
 import { ArcDto } from '../../arcs/dto/arc.dto';
+import { StorytimeAuthorDto } from '../../dto/storytime-author.dto';
 import { StoryDto } from '../../stories/dto/story.dto';
+import { TagDto } from '../../tags/dto/create-tag.dto';
 
 /**
  * A Spotlight entry as readers see it.
@@ -69,6 +71,25 @@ export class SpotlightDto {
     nullable: true,
   })
   arc: ArcDto | null;
+
+  @ApiProperty({
+    type: StorytimeAuthorDto,
+    description:
+      'Who wrote or curated the featured work, named here rather than left ' +
+      'to the work itself because an Arc carries only its curator’s ' +
+      'identifier. Null when nothing is featured, or when whoever made it no ' +
+      'longer has an account.',
+    nullable: true,
+  })
+  author: StorytimeAuthorDto | null;
+
+  @ApiProperty({
+    type: [TagDto],
+    description:
+      'The tags on the featured work, in vocabulary order. Empty when it ' +
+      'carries none, and when nothing is featured.',
+  })
+  tags: TagDto[];
 }
 
 /**

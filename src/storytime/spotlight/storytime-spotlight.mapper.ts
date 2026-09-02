@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { StorytimeArcMapper } from '../arcs/storytime-arc.mapper';
 import { StorytimeStoryMapper } from '../stories/storytime-story.mapper';
+import { StorytimeTagMapper } from '../tags/storytime-tag.mapper';
 import { ManagedSpotlightDto, SpotlightDto } from './dto/spotlight.dto';
 import { StorytimeSpotlightEntity } from './entities/storytime-spotlight.entity';
 import { SpotlightWithTarget } from './storytime-spotlight.service';
@@ -19,10 +20,12 @@ export class StorytimeSpotlightMapper {
    *
    * @param _storyMapper - Maps featured Stories.
    * @param _arcMapper - Maps featured Arcs.
+   * @param _tagMapper - Maps the featured work's tags.
    */
   constructor(
     private readonly _storyMapper: StorytimeStoryMapper,
     private readonly _arcMapper: StorytimeArcMapper,
+    private readonly _tagMapper: StorytimeTagMapper,
   ) {}
 
   /**
@@ -33,6 +36,7 @@ export class StorytimeSpotlightMapper {
    */
   toPublic(resolved: SpotlightWithTarget): SpotlightDto {
     const { entry } = resolved;
+    const tags = this._tagMapper.toList(resolved.tags);
 
     return {
       id: entry.id,
@@ -46,8 +50,16 @@ export class StorytimeSpotlightMapper {
       overrideImageAlt: entry.overrideImageAlt,
       startsAt: entry.startsAt,
       endsAt: entry.endsAt,
-      story: resolved.story ? this._storyMapper.toPublic(resolved.story) : null,
-      arc: resolved.arc ? this._arcMapper.toPublic(resolved.arc) : null,
+      // The author is named twice on purpose: once on the entry, which is
+      // where a Spotlight panel reads it because an Arc has no author of its
+      // own to read, and once on the Story, so an entry never carries a Story
+      // that claims to have been written by nobody.
+      story: resolved.story
+        ? this._storyMapper.toPublic(resolved.story, resolved.author, tags)
+        : null,
+      arc: resolved.arc ? this._arcMapper.toPublic(resolved.arc, tags) : null,
+      author: resolved.author,
+      tags,
     };
   }
 
@@ -76,10 +88,15 @@ export class StorytimeSpotlightMapper {
    */
   toManaged(
     entry: StorytimeSpotlightEntity,
-    work: Omit<SpotlightWithTarget, 'entry'> = { story: null, arc: null },
+    work: Omit<SpotlightWithTarget, 'entry'> = {
+      story: null,
+      arc: null,
+      author: null,
+      tags: [],
+    },
   ): ManagedSpotlightDto {
     return {
-      ...this.toPublic({ entry, story: work.story, arc: work.arc }),
+      ...this.toPublic({ entry, ...work }),
       storyId: entry.storyId,
       arcId: entry.arcId,
       overrideImageId: entry.overrideImageId,

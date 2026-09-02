@@ -5,6 +5,7 @@ import { StorytimeArcMapper } from '../arcs/storytime-arc.mapper';
 import { SpotlightEntityType } from '../enums/spotlight-entity-type.enum';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeStoryMapper } from '../stories/storytime-story.mapper';
+import { StorytimeTagMapper } from '../tags/storytime-tag.mapper';
 import { AdminStorytimeSpotlightController } from './admin-storytime-spotlight.controller';
 import { StorytimeSpotlightEntity } from './entities/storytime-spotlight.entity';
 import { StorytimeSpotlightMapper } from './storytime-spotlight.mapper';
@@ -55,7 +56,7 @@ describe('AdminStorytimeSpotlightController', () => {
   });
 
   /** The entry as the service hands it over: with whatever it features. */
-  const resolved = { entry, story, arc: null };
+  const resolved = { entry, story, arc: null, author: null, tags: [] };
 
   /** The smallest valid creation request. */
   const request = {
@@ -86,6 +87,7 @@ describe('AdminStorytimeSpotlightController', () => {
         StorytimeSpotlightMapper,
         StorytimeStoryMapper,
         StorytimeArcMapper,
+        StorytimeTagMapper,
         // The permissions guard declared on the controller needs this to be
         // constructible. Its behaviour is covered by its own spec; here the
         // controller's own logic is what is under test.

@@ -17,9 +17,13 @@ import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
 import { StorytimeVisibility } from '../enums/storytime-visibility.enum';
 import { assertImageDescribable } from '../images/storytime-image-alt.utility';
 import { StorytimeImageService } from '../images/storytime-image.service';
+import { StorytimeAuthorDto } from '../dto/storytime-author.dto';
+import { StorytimeAuthorService } from '../shared/storytime-author.service';
 import { StorytimeSlugService } from '../shared/storytime-slug.service';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
+import { StorytimeTagEntity } from '../tags/entities/storytime-tag.entity';
+import { StorytimeTaggingService } from '../tags/storytime-tagging.service';
 import {
   CreateSpotlightDto,
   UpdateSpotlightDto,
@@ -40,6 +44,17 @@ export interface SpotlightWithTarget {
   story: StorytimeStoryEntity | null;
   /** The featured Arc, when a readable Arc is featured. */
   arc: StorytimeArcEntity | null;
+  /**
+   * Who wrote or curated the featured work.
+   *
+   * Null when the entry features nothing that can still be shown, and null
+   * when whoever wrote it no longer has an account: a work outlives its
+   * writer's membership, and the Spotlight says so by naming nobody rather
+   * than by hiding the selection.
+   */
+  author: StorytimeAuthorDto | null;
+  /** The tags on the featured work, in vocabulary order. */
+  tags: StorytimeTagEntity[];
 }
 
 /**
@@ -78,6 +93,8 @@ export class StorytimeSpotlightService {
    * @param _slugService - Produces and retires slugs.
    * @param _notificationService - Tells somebody their work has been chosen.
    * @param _imageService - Checks, stores and releases the override artwork.
+   * @param _authorService - Names whoever wrote or curated a featured work.
+   * @param _taggingService - Reads the tags on a featured work.
    */
   constructor(
     @InjectRepository(StorytimeSpotlightEntity)
@@ -87,6 +104,8 @@ export class StorytimeSpotlightService {
     private readonly _slugService: StorytimeSlugService,
     private readonly _notificationService: NotificationService,
     private readonly _imageService: StorytimeImageService,
+    private readonly _authorService: StorytimeAuthorService,
+    private readonly _taggingService: StorytimeTaggingService,
   ) {}
 
   /**
@@ -537,11 +556,60 @@ export class StorytimeSpotlightService {
     const storiesById = this.listedById(stories);
     const arcsById = this.listedById(arcs);
 
-    return entries.map(entry => ({
+    const resolved = entries.map(entry => ({
       entry,
       story: entry.storyId ? (storiesById.get(entry.storyId) ?? null) : null,
       arc: entry.arcId ? (arcsById.get(entry.arcId) ?? null) : null,
     }));
+
+    return this.describeWorks(resolved);
+  }
+
+  /**
+   * Adds the author and the tags of each entry's work.
+   *
+   * Four queries for the whole list rather than four per entry, which is what
+   * asking each panel to fetch its own facts would have cost. A reader deciding
+   * whether to open something wants the same things the Story page tells them
+   * — who wrote it, what it is tagged — and a Spotlight that omits them is
+   * asking for a click before it will say what the work is.
+   *
+   * Entries whose work has gone are left as they are: there is nothing left to
+   * describe, and the editor reading that entry needs to see it that way.
+   *
+   * @param resolved - The entries with their works.
+   * @returns The same entries, each carrying its work's author and tags.
+   */
+  private async describeWorks(
+    resolved: Omit<SpotlightWithTarget, 'author' | 'tags'>[],
+  ): Promise<SpotlightWithTarget[]> {
+    const works = resolved.flatMap(entry => entry.story ?? entry.arc ?? []);
+
+    const authors = await this._authorService.findAuthors(
+      works.map(work => work.ownerUserId),
+    );
+    const storyTags = await this._taggingService.findForMany(
+      StorytimeTargetType.STORY,
+      resolved.flatMap(entry => entry.story?.id ?? []),
+    );
+    const arcTags = await this._taggingService.findForMany(
+      StorytimeTargetType.ARC,
+      resolved.flatMap(entry => entry.arc?.id ?? []),
+    );
+
+    // Both kinds of work are keyed by their own identifier, so one lookup
+    // serves either: an entry features a Story or an Arc, never both.
+    const tagsByWork = new Map([...storyTags, ...arcTags]);
+
+    return resolved.map(entry => {
+      const work = entry.story ?? entry.arc;
+
+      return {
+        ...entry,
+        author: work ? (authors.get(work.ownerUserId) ?? null) : null,
+        tags: work ? (tagsByWork.get(work.id) ?? []) : [],
+      };
+    });
   }
 
   /**

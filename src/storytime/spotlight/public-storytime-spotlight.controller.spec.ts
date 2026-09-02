@@ -5,6 +5,7 @@ import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constant
 import { SpotlightEntityType } from '../enums/spotlight-entity-type.enum';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeStoryMapper } from '../stories/storytime-story.mapper';
+import { StorytimeTagMapper } from '../tags/storytime-tag.mapper';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { StorytimeSpotlightEntity } from './entities/storytime-spotlight.entity';
 import { PublicStorytimeSpotlightController } from './public-storytime-spotlight.controller';
@@ -41,6 +42,8 @@ describe('PublicStorytimeSpotlightController', () => {
       slug: 'a-fine-story',
     }),
     arc: null,
+    author: { username: 'Kira', publiclyVisible: true },
+    tags: [],
   };
 
   beforeEach(async () => {
@@ -60,6 +63,7 @@ describe('PublicStorytimeSpotlightController', () => {
         StorytimeSpotlightMapper,
         StorytimeStoryMapper,
         StorytimeArcMapper,
+        StorytimeTagMapper,
         { provide: StorytimeFeatureService, useValue: featureService },
       ],
     }).compile();
