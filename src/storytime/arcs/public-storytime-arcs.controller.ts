@@ -15,6 +15,9 @@ import {
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
 import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constants';
+import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
+import { StorytimeTagMapper } from '../tags/storytime-tag.mapper';
+import { StorytimeTaggingService } from '../tags/storytime-tagging.service';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeStoryMapper } from '../stories/storytime-story.mapper';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
@@ -44,6 +47,8 @@ export class PublicStorytimeArcsController {
    * @param _storyService - Resolves the readable Stories.
    * @param _mapper - Maps Arcs to their response shapes.
    * @param _storyMapper - Maps Stories to their reader-facing shape.
+   * @param _taggingService - Reads what an Arc and its Stories are tagged with.
+   * @param _tagMapper - Maps those tags to their response shape.
    * @param _progressService - How far a reader has got through the Arc.
    * @param _featureService - Reports whether public reading is switched on.
    */
@@ -53,6 +58,8 @@ export class PublicStorytimeArcsController {
     private readonly _storyService: StorytimeStoryService,
     private readonly _mapper: StorytimeArcMapper,
     private readonly _storyMapper: StorytimeStoryMapper,
+    private readonly _taggingService: StorytimeTaggingService,
+    private readonly _tagMapper: StorytimeTagMapper,
     private readonly _progressService: StorytimeArcProgressService,
     private readonly _featureService: StorytimeFeatureService,
   ) {}
@@ -68,7 +75,19 @@ export class PublicStorytimeArcsController {
   async findAll(): Promise<ArcDto[]> {
     await this.assertEnabled();
 
-    return this._mapper.toPublicList(await this._arcService.findPublic());
+    const arcs = await this._arcService.findPublic();
+
+    // One lookup for the whole listing, the way the Story listing does it: an
+    // Arc is chosen from what it is about as much as from its title.
+    return this._mapper.toPublicList(
+      arcs,
+      this._tagMapper.toListsByTarget(
+        await this._taggingService.findForMany(
+          StorytimeTargetType.ARC,
+          arcs.map(arc => arc.id),
+        ),
+      ),
+    );
   }
 
   /**
@@ -94,12 +113,26 @@ export class PublicStorytimeArcsController {
     const stories = await this._storyService.findPublicByIds(
       memberships.map(membership => membership.storyId),
     );
+    const storyTags = this._tagMapper.toListsByTarget(
+      await this._taggingService.findForMany(
+        StorytimeTargetType.STORY,
+        stories.map(story => story.id),
+      ),
+    );
     const byId = new Map(
-      stories.map(story => [story.id, this._storyMapper.toPublic(story)]),
+      stories.map(story => [
+        story.id,
+        this._storyMapper.toPublic(story, null, storyTags.get(story.id) ?? []),
+      ]),
     );
 
     return {
-      arc: this._mapper.toPublic(arc),
+      arc: this._mapper.toPublic(
+        arc,
+        this._tagMapper.toList(
+          await this._taggingService.findFor(StorytimeTargetType.ARC, arc.id),
+        ),
+      ),
       // Filtered to the Stories that are readable now. A membership naming a
       // Story that is not out yet is a real agreement, but showing it would
       // offer a reader a step they cannot take.

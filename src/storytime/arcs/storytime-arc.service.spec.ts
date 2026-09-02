@@ -20,6 +20,8 @@ import {
   SlugRequest,
   StorytimeSlugService,
 } from '../shared/storytime-slug.service';
+import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
+import { StorytimeImageService } from '../images/storytime-image.service';
 import { StorytimeArcEntity } from './entities/storytime-arc.entity';
 import { StorytimeArcService } from './storytime-arc.service';
 
@@ -67,6 +69,10 @@ describe('StorytimeArcService', () => {
       visibility: StorytimeVisibility.PRIVATE,
       languageCode: 'en',
       moderationStatus: StorytimeModerationStatus.ACTIVE,
+      bannerImageId: null,
+      bannerImageAlt: null,
+      profileImageId: null,
+      profileImageAlt: null,
       upVoteCount: 0,
       downVoteCount: 0,
       version: 1,
@@ -74,7 +80,20 @@ describe('StorytimeArcService', () => {
       ...overrides,
     });
 
+  let imageService: {
+    store: jest.Mock;
+    release: jest.Mock;
+  };
+
   beforeEach(async () => {
+    // The upload pipeline is stubbed: what a real Cloudflare call would do is
+    // its own service's business, and these tests are about what the work
+    // records afterwards.
+    imageService = {
+      store: jest.fn().mockResolvedValue('stored-image-id'),
+      release: jest.fn().mockResolvedValue(undefined),
+    };
+
     arcRepository = {
       find: jest.fn().mockResolvedValue([]),
       findOne: jest.fn().mockResolvedValue(null),
@@ -112,6 +131,7 @@ describe('StorytimeArcService', () => {
           provide: StorytimeArcCollaboratorAccessService,
           useValue: collaboratorAccessService,
         },
+        { provide: StorytimeImageService, useValue: imageService },
       ],
     }).compile();
 
@@ -303,6 +323,105 @@ describe('StorytimeArcService', () => {
       ['unpublish', () => service.unpublish(arcId, strangerId)],
     ])('refuses to let a stranger %s it', async (_name, act) => {
       await expect(act()).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('artwork', () => {
+    const file = { originalname: 'banner.jpg' } as Express.Multer.File;
+
+    it('records the stored image and what it shows', async () => {
+      arcRepository.findOne.mockResolvedValue(buildArc());
+
+      const saved = await service.setImage(
+        arcId,
+        curatorId,
+        StorytimeImageSlot.ARC_BANNER,
+        file,
+        'A fleet at anchor',
+      );
+
+      expect(imageService.store).toHaveBeenCalledWith({
+        slot: StorytimeImageSlot.ARC_BANNER,
+        userId: curatorId,
+        entityId: arcId,
+        file,
+      });
+      expect(saved.bannerImageId).toBe('stored-image-id');
+      expect(saved.bannerImageAlt).toBe('A fleet at anchor');
+      expect(saved.version).toBe(2);
+    });
+
+    it('sets the profile image without touching the banner', async () => {
+      arcRepository.findOne.mockResolvedValue(
+        buildArc({ bannerImageId: 'banner-1', bannerImageAlt: 'A fleet' }),
+      );
+
+      const saved = await service.setImage(
+        arcId,
+        curatorId,
+        StorytimeImageSlot.ARC_PROFILE,
+        file,
+        'An Arc badge',
+      );
+
+      expect(saved.profileImageId).toBe('stored-image-id');
+      expect(saved.bannerImageId).toBe('banner-1');
+    });
+
+    it('releases the image it replaced', async () => {
+      arcRepository.findOne.mockResolvedValue(
+        buildArc({ bannerImageId: 'old-banner' }),
+      );
+
+      await service.setImage(
+        arcId,
+        curatorId,
+        StorytimeImageSlot.ARC_BANNER,
+        file,
+        'A fleet',
+      );
+
+      expect(imageService.release).toHaveBeenCalledWith('old-banner');
+    });
+
+    it('refuses somebody with no access to the Arc', async () => {
+      arcRepository.findOne.mockResolvedValue(buildArc());
+
+      await expect(
+        service.setImage(
+          arcId,
+          strangerId,
+          StorytimeImageSlot.ARC_BANNER,
+          file,
+          'A fleet',
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(imageService.store).not.toHaveBeenCalled();
+    });
+
+    it('clears the description along with the image', async () => {
+      arcRepository.findOne.mockResolvedValue(
+        buildArc({ profileImageId: 'profile-1', profileImageAlt: 'A badge' }),
+      );
+
+      const saved = await service.clearImage(
+        arcId,
+        curatorId,
+        StorytimeImageSlot.ARC_PROFILE,
+      );
+
+      expect(saved.profileImageId).toBeNull();
+      expect(saved.profileImageAlt).toBeNull();
+      expect(imageService.release).toHaveBeenCalledWith('profile-1');
+    });
+
+    it('refuses a removal from somebody with no access', async () => {
+      arcRepository.findOne.mockResolvedValue(buildArc());
+
+      await expect(
+        service.clearImage(arcId, strangerId, StorytimeImageSlot.ARC_BANNER),
+      ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
 

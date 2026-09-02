@@ -68,7 +68,7 @@ All variables from `config/environments/.env.example` must be configured in Rend
 Optional (Storytime):
 
 - `STORYTIME_PUBLIC_READ_ENABLED`, `STORYTIME_CREATION_ENABLED`, `STORYTIME_YOUTUBE_ENABLED`, `STORYTIME_SPOTLIGHT_ENABLED` (default `true` when unset)
-- `STORYTIME_MAX_STORIES_PER_USER`, `STORYTIME_MAX_CHAPTERS_PER_STORY`, `STORYTIME_MAX_CHARACTERS_PER_STORY`, `STORYTIME_MAX_CONTENT_LENGTH`
+- `STORYTIME_MAX_STORIES_PER_USER`, `STORYTIME_MAX_CHAPTERS_PER_STORY`, `STORYTIME_MAX_CHARACTERS_PER_STORY`, `STORYTIME_MAX_CONTENT_LENGTH`, `STORYTIME_UPLOAD_MAX_BYTES`
 
 > The Storytime master switch, `STORYTIME_ENABLED`, is **not** a Render environment variable. It lives in the `app_setting` table so it can be thrown from the admin API without a redeployment, and is seeded disabled.
 

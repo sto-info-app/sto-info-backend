@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { StorytimeImagesModule } from '../images/storytime-images.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { StorytimeChaptersModule } from '../chapters/storytime-chapters.module';
 import { StorytimeChapterEntity } from '../chapters/entities/storytime-chapter.entity';
@@ -35,6 +36,7 @@ import { StorytimeCreatorCharactersController } from './storytime-creator-charac
     StorytimeStoriesModule,
     StorytimeChaptersModule,
     StorytimeContentModule,
+    StorytimeImagesModule,
   ],
   controllers: [
     PublicStorytimeCharactersController,

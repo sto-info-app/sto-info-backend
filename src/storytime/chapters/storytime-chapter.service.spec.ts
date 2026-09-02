@@ -23,6 +23,8 @@ import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity
 import { StorytimeActivityType } from '../enums/storytime-activity-type.enum';
 import { StorytimeActivityFeedService } from '../social/storytime-activity-feed.service';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
+import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
+import { StorytimeImageService } from '../images/storytime-image.service';
 import { StorytimeChapterEntity } from './entities/storytime-chapter.entity';
 import { StorytimeChapterService } from './storytime-chapter.service';
 
@@ -81,6 +83,8 @@ describe('StorytimeChapterService', () => {
       status: ChapterStatus.DRAFT,
       moderationStatus: StorytimeModerationStatus.ACTIVE,
       languageCode: null,
+      coverImageId: null,
+      coverImageAlt: null,
       orderIndex: 1000,
       wordCount: 5,
       version: 1,
@@ -93,7 +97,20 @@ describe('StorytimeChapterService', () => {
     return chapter;
   };
 
+  let imageService: {
+    store: jest.Mock;
+    release: jest.Mock;
+  };
+
   beforeEach(async () => {
+    // The upload pipeline is stubbed: what a real Cloudflare call would do is
+    // its own service's business, and these tests are about what the work
+    // records afterwards.
+    imageService = {
+      store: jest.fn().mockResolvedValue('stored-image-id'),
+      release: jest.fn().mockResolvedValue(undefined),
+    };
+
     manager = {
       save: jest.fn(input => Promise.resolve(input)),
       count: jest.fn().mockResolvedValue(1),
@@ -167,6 +184,7 @@ describe('StorytimeChapterService', () => {
         { provide: StorytimeProgressService, useValue: progressService },
         { provide: DataSource, useValue: dataSource },
         { provide: StorytimeActivityFeedService, useValue: feedService },
+        { provide: StorytimeImageService, useValue: imageService },
       ],
     }).compile();
 
@@ -844,6 +862,77 @@ describe('StorytimeChapterService', () => {
       await expect(
         service.reorder(storyId, ['a', 'a'], ownerId),
       ).rejects.toThrow(/duplicates/);
+    });
+  });
+
+  describe('the cover', () => {
+    const file = { originalname: 'cover.jpg' } as Express.Multer.File;
+
+    it('records the stored image and what it shows', async () => {
+      chapterRepository.findOne.mockResolvedValue(buildChapter());
+
+      const saved = await service.setCoverImage(
+        chapterId,
+        ownerId,
+        file,
+        'A shuttle on approach',
+      );
+
+      expect(imageService.store).toHaveBeenCalledWith({
+        slot: StorytimeImageSlot.CHAPTER_COVER,
+        userId: ownerId,
+        entityId: chapterId,
+        file,
+      });
+      expect(saved.coverImageId).toBe('stored-image-id');
+      expect(saved.coverImageAlt).toBe('A shuttle on approach');
+      expect(saved.version).toBe(2);
+    });
+
+    it('releases the cover it replaced', async () => {
+      chapterRepository.findOne.mockResolvedValue(
+        buildChapter({ coverImageId: 'old-cover' }),
+      );
+
+      await service.setCoverImage(chapterId, ownerId, file, 'A shuttle');
+
+      expect(imageService.release).toHaveBeenCalledWith('old-cover');
+    });
+
+    it('refuses somebody who may not manage these Chapters', async () => {
+      chapterRepository.findOne.mockResolvedValue(buildChapter());
+      storyService.findEditableOrFail.mockRejectedValue(
+        new ForbiddenException(),
+      );
+
+      await expect(
+        service.setCoverImage(chapterId, ownerId, file, 'A shuttle'),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(imageService.store).not.toHaveBeenCalled();
+    });
+
+    it('clears the description along with the cover', async () => {
+      chapterRepository.findOne.mockResolvedValue(
+        buildChapter({ coverImageId: 'cover-1', coverImageAlt: 'A shuttle' }),
+      );
+
+      const saved = await service.clearCoverImage(chapterId, ownerId);
+
+      expect(saved.coverImageId).toBeNull();
+      expect(saved.coverImageAlt).toBeNull();
+      expect(imageService.release).toHaveBeenCalledWith('cover-1');
+    });
+
+    it('refuses a removal from somebody who may not manage them', async () => {
+      chapterRepository.findOne.mockResolvedValue(buildChapter());
+      storyService.findEditableOrFail.mockRejectedValue(
+        new ForbiddenException(),
+      );
+
+      await expect(service.clearCoverImage(chapterId, ownerId)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 

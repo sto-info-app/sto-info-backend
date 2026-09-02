@@ -1,14 +1,22 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayNotEmpty,
   IsArray,
   IsInt,
+  IsNotEmpty,
   IsOptional,
+  IsString,
   IsUUID,
+  MaxLength,
   Min,
 } from 'class-validator';
+import { STORYTIME_IMAGE_ALT_MAX_LENGTH } from '../../constants/storytime-image.constants';
 import { CreateArcDto } from './create-arc.dto';
+
+/** Trims a string value, leaving anything else untouched for the validators. */
+const trim = ({ value }: { value: unknown }) =>
+  typeof value === 'string' ? value.trim() : value;
 
 /**
  * Updates an Arc.
@@ -28,6 +36,34 @@ export class UpdateArcDto extends PartialType(CreateArcDto) {
   @IsInt()
   @Min(1)
   readonly version?: number;
+
+  // The image itself is set through the artwork endpoints rather than named
+  // here, so a work can only ever point at an image this site was given. Its
+  // description stays editable, because a wording that reads badly is worth
+  // correcting without asking somebody to upload the picture again.
+  @ApiPropertyOptional({
+    description:
+      'Alternative text for the banner. Rejected when there is no banner to describe.',
+    maxLength: STORYTIME_IMAGE_ALT_MAX_LENGTH,
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @IsNotEmpty({ message: 'Please describe what the banner shows' })
+  @MaxLength(STORYTIME_IMAGE_ALT_MAX_LENGTH)
+  readonly bannerImageAlt?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Alternative text for the profile image. Rejected when there is no profile image to describe.',
+    maxLength: STORYTIME_IMAGE_ALT_MAX_LENGTH,
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @IsNotEmpty({ message: 'Please describe what the profile image shows' })
+  @MaxLength(STORYTIME_IMAGE_ALT_MAX_LENGTH)
+  readonly profileImageAlt?: string;
 }
 
 /**

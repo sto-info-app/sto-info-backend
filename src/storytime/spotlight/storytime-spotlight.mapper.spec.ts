@@ -4,8 +4,12 @@ import { StorytimeArcMapper } from '../arcs/storytime-arc.mapper';
 import { SpotlightEntityType } from '../enums/spotlight-entity-type.enum';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeStoryMapper } from '../stories/storytime-story.mapper';
+import { StorytimeTagCategory } from '../enums/storytime-tag-category.enum';
+import { StorytimeTagEntity } from '../tags/entities/storytime-tag.entity';
+import { StorytimeTagMapper } from '../tags/storytime-tag.mapper';
 import { StorytimeSpotlightEntity } from './entities/storytime-spotlight.entity';
 import { StorytimeSpotlightMapper } from './storytime-spotlight.mapper';
+import { SpotlightWithTarget } from './storytime-spotlight.service';
 
 describe('StorytimeSpotlightMapper', () => {
   let mapper: StorytimeSpotlightMapper;
@@ -41,12 +45,30 @@ describe('StorytimeSpotlightMapper', () => {
       ...overrides,
     });
 
+  /**
+   * Builds what the service hands the mapper: an entry and what it features.
+   *
+   * @param overrides - The parts that matter to a test.
+   * @returns The resolved entry.
+   */
+  const resolve = (
+    overrides: Partial<SpotlightWithTarget> = {},
+  ): SpotlightWithTarget => ({
+    entry: buildEntry(),
+    story: null,
+    arc: null,
+    author: null,
+    tags: [],
+    ...overrides,
+  });
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         StorytimeSpotlightMapper,
         StorytimeStoryMapper,
         StorytimeArcMapper,
+        StorytimeTagMapper,
       ],
     }).compile();
 
@@ -58,11 +80,7 @@ describe('StorytimeSpotlightMapper', () => {
   });
 
   it('maps the editorial copy', () => {
-    const mapped = mapper.toPublic({
-      entry: buildEntry(),
-      story: null,
-      arc: null,
-    });
+    const mapped = mapper.toPublic(resolve());
 
     expect(mapped.headline).toBe('A Fine Story');
     expect(mapped.summary).toBe('Worth your evening.');
@@ -76,7 +94,7 @@ describe('StorytimeSpotlightMapper', () => {
       slug: 'a-fine-story',
     });
 
-    const mapped = mapper.toPublic({ entry: buildEntry(), story, arc: null });
+    const mapped = mapper.toPublic(resolve({ story }));
 
     expect(mapped.story?.title).toBe('A Fine Story');
     expect(mapped.arc).toBeNull();
@@ -89,11 +107,12 @@ describe('StorytimeSpotlightMapper', () => {
       slug: 'the-long-war',
     });
 
-    const mapped = mapper.toPublic({
-      entry: buildEntry({ entityType: SpotlightEntityType.ARC }),
-      story: null,
-      arc,
-    });
+    const mapped = mapper.toPublic(
+      resolve({
+        entry: buildEntry({ entityType: SpotlightEntityType.ARC }),
+        arc,
+      }),
+    );
 
     expect(mapped.arc?.title).toBe('The Long War');
     expect(mapped.story).toBeNull();
@@ -107,11 +126,7 @@ describe('StorytimeSpotlightMapper', () => {
     'isPublished',
     'createdByUserId',
   ])('leaves %s out of the reader-facing shape', field => {
-    const mapped = mapper.toPublic({
-      entry: buildEntry(),
-      story: null,
-      arc: null,
-    });
+    const mapped = mapper.toPublic(resolve());
 
     expect(mapped as unknown as Record<string, unknown>).not.toHaveProperty(
       field,
@@ -145,7 +160,12 @@ describe('StorytimeSpotlightMapper', () => {
       slug: 'a-fine-story',
     });
 
-    const mapped = mapper.toManaged(buildEntry(), { story, arc: null });
+    const mapped = mapper.toManaged(buildEntry(), {
+      story,
+      arc: null,
+      author: null,
+      tags: [],
+    });
 
     expect(mapped.story?.title).toBe('A Fine Story');
   });
@@ -168,12 +188,54 @@ describe('StorytimeSpotlightMapper', () => {
     expect(mapped.overrideImageMobileUrl).toBeNull();
   });
 
+  // A panel names whoever wrote the work, and an Arc has no author of its own
+  // to read, so the entry carries the name for both kinds.
+  it('names whoever wrote or curated the featured work', () => {
+    const story = Object.assign(new StorytimeStoryEntity(), {
+      id: 'story-1',
+      title: 'A Fine Story',
+      slug: 'a-fine-story',
+    });
+    const author = { username: 'Kira', publiclyVisible: true };
+
+    const mapped = mapper.toPublic(resolve({ story, author }));
+
+    expect(mapped.author).toEqual(author);
+    expect(mapped.story?.author).toEqual(author);
+  });
+
+  it('names nobody when the writer no longer has an account', () => {
+    const mapped = mapper.toPublic(resolve());
+
+    expect(mapped.author).toBeNull();
+  });
+
+  it('maps the tags on the featured work', () => {
+    const tag = Object.assign(new StorytimeTagEntity(), {
+      id: 'tag-1',
+      slug: 'slow-burn',
+      name: 'Slow burn',
+      description: null,
+      category: StorytimeTagCategory.THEME,
+      displayOrder: 1,
+    });
+
+    const mapped = mapper.toPublic(resolve({ tags: [tag] }));
+
+    expect(mapped.tags).toEqual([
+      {
+        id: 'tag-1',
+        slug: 'slow-burn',
+        name: 'Slow burn',
+        description: null,
+        category: StorytimeTagCategory.THEME,
+        displayOrder: 1,
+      },
+    ]);
+  });
+
   it('maps lists', () => {
-    expect(
-      mapper.toPublicList([{ entry: buildEntry(), story: null, arc: null }]),
-    ).toHaveLength(1);
-    expect(
-      mapper.toManagedList([{ entry: buildEntry(), story: null, arc: null }]),
-    ).toHaveLength(1);
+    expect(mapper.toPublicList([resolve()])).toHaveLength(1);
+    expect(mapper.toManagedList([resolve()])).toHaveLength(1);
   });
 });

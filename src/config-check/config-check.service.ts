@@ -253,6 +253,10 @@ class EnvironmentVariables {
   @IsOptional()
   @IsNumber()
   STORYTIME_MAX_CONTENT_LENGTH?: number;
+
+  @IsOptional()
+  @IsNumber()
+  STORYTIME_UPLOAD_MAX_BYTES?: number;
 }
 
 @Injectable()

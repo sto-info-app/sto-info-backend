@@ -28,9 +28,16 @@ export class ChapterMediaDto {
   embedUrl: string;
 
   @ApiProperty({
-    description: 'The still shown before a reader asks for playback.',
+    description:
+      'The still shown before a reader asks for playback. Held for every video, so it is what a page falls back to.',
   })
   thumbnailUrl: string;
+
+  @ApiProperty({
+    description:
+      'The full-size still, at 1280 across. Not produced for every video, so a page asking for it must fall back to thumbnailUrl.',
+  })
+  thumbnailHdUrl: string;
 
   @ApiProperty({
     description: 'What the creator calls this video.',

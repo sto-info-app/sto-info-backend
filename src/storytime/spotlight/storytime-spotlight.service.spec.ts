@@ -8,8 +8,13 @@ import { SpotlightEntityType } from '../enums/spotlight-entity-type.enum';
 import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
 import { StorytimeVisibility } from '../enums/storytime-visibility.enum';
 import { StorytimeSlugService } from '../shared/storytime-slug.service';
+import { StorytimeAuthorService } from '../shared/storytime-author.service';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
+import { StorytimeTagEntity } from '../tags/entities/storytime-tag.entity';
+import { StorytimeTaggingService } from '../tags/storytime-tagging.service';
+import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
+import { StorytimeImageService } from '../images/storytime-image.service';
 import { StorytimeSpotlightEntity } from './entities/storytime-spotlight.entity';
 import { StorytimeSpotlightService } from './storytime-spotlight.service';
 
@@ -29,6 +34,12 @@ describe('StorytimeSpotlightService', () => {
     recordRetiredSlug: jest.Mock;
   };
   let notificationService: { createNotification: jest.Mock };
+  let authorService: { findAuthors: jest.Mock };
+  let taggingService: { findForMany: jest.Mock };
+  let imageService: {
+    store: jest.Mock;
+    release: jest.Mock;
+  };
 
   const editorId = 'editor-1';
   const spotlightId = 'spotlight-1';
@@ -100,6 +111,14 @@ describe('StorytimeSpotlightService', () => {
     });
 
   beforeEach(async () => {
+    // The upload pipeline is stubbed: what a real Cloudflare call would do is
+    // its own service's business, and these tests are about what the work
+    // records afterwards.
+    imageService = {
+      store: jest.fn().mockResolvedValue('stored-image-id'),
+      release: jest.fn().mockResolvedValue(undefined),
+    };
+
     spotlightRepository = {
       find: jest.fn().mockResolvedValue([]),
       findOne: jest.fn().mockResolvedValue(null),
@@ -125,6 +144,16 @@ describe('StorytimeSpotlightService', () => {
     notificationService = {
       createNotification: jest.fn().mockResolvedValue(undefined),
     };
+    authorService = {
+      findAuthors: jest
+        .fn()
+        .mockResolvedValue(
+          new Map([['writer-1', { username: 'Kira', publiclyVisible: true }]]),
+        ),
+    };
+    taggingService = {
+      findForMany: jest.fn().mockResolvedValue(new Map()),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -137,6 +166,9 @@ describe('StorytimeSpotlightService', () => {
         { provide: StorytimeArcService, useValue: arcService },
         { provide: StorytimeSlugService, useValue: slugService },
         { provide: NotificationService, useValue: notificationService },
+        { provide: StorytimeImageService, useValue: imageService },
+        { provide: StorytimeAuthorService, useValue: authorService },
+        { provide: StorytimeTaggingService, useValue: taggingService },
       ],
     }).compile();
 
@@ -187,6 +219,72 @@ describe('StorytimeSpotlightService', () => {
 
       expect(showing.arc?.id).toBe(arcId);
       expect(showing.story).toBeNull();
+    });
+
+    // A panel says who wrote the work and what it is tagged, which is what a
+    // reader deciding whether to open it wants to know.
+    it('attaches the author and the tags of a featured Story', async () => {
+      const tag = Object.assign(new StorytimeTagEntity(), {
+        id: 'tag-1',
+        name: 'Slow burn',
+      });
+      spotlightRepository.find.mockResolvedValue([buildEntry()]);
+      taggingService.findForMany.mockResolvedValue(new Map([[storyId, [tag]]]));
+
+      const [showing] = await service.findShowing(now);
+
+      expect(authorService.findAuthors).toHaveBeenCalledWith(['writer-1']);
+      expect(taggingService.findForMany).toHaveBeenCalledWith(
+        StorytimeTargetType.STORY,
+        [storyId],
+      );
+      expect(showing.author).toEqual({
+        username: 'Kira',
+        publiclyVisible: true,
+      });
+      expect(showing.tags).toEqual([tag]);
+    });
+
+    it('attaches the curator and the tags of a featured Arc', async () => {
+      const tag = Object.assign(new StorytimeTagEntity(), {
+        id: 'tag-1',
+        name: 'Slow burn',
+      });
+      spotlightRepository.find.mockResolvedValue([
+        buildEntry({
+          entityType: SpotlightEntityType.ARC,
+          storyId: null,
+          arcId,
+        }),
+      ]);
+      authorService.findAuthors.mockResolvedValue(
+        new Map([['curator-1', { username: 'Sisko', publiclyVisible: false }]]),
+      );
+      taggingService.findForMany.mockResolvedValue(new Map([[arcId, [tag]]]));
+
+      const [showing] = await service.findShowing(now);
+
+      expect(taggingService.findForMany).toHaveBeenCalledWith(
+        StorytimeTargetType.ARC,
+        [arcId],
+      );
+      expect(showing.author).toEqual({
+        username: 'Sisko',
+        publiclyVisible: false,
+      });
+      expect(showing.tags).toEqual([tag]);
+    });
+
+    // A work outlives its writer's membership, and the Spotlight says so by
+    // naming nobody rather than by dropping the selection.
+    it('names nobody when the writer has closed their account', async () => {
+      spotlightRepository.find.mockResolvedValue([buildEntry()]);
+      authorService.findAuthors.mockResolvedValue(new Map());
+
+      const [showing] = await service.findShowing(now);
+
+      expect(showing.author).toBeNull();
+      expect(showing.tags).toEqual([]);
     });
 
     // The whole point of pointing rather than copying: a Story taken down
@@ -520,19 +618,31 @@ describe('StorytimeSpotlightService', () => {
       expect(updated.selectionReason).toBeNull();
     });
 
-    it('clears the override image when it is emptied', async () => {
+    it('corrects the wording describing the artwork', async () => {
       spotlightRepository.findOne.mockResolvedValue(
         buildEntry({ overrideImageId: 'image-1', overrideImageAlt: 'A ship' }),
       );
 
       const updated = await service.update(
         spotlightId,
-        { overrideImageId: null, overrideImageAlt: null },
+        { overrideImageAlt: 'The USS Ares at warp' },
         editorId,
       );
 
-      expect(updated.overrideImageId).toBeNull();
-      expect(updated.overrideImageAlt).toBeNull();
+      expect(updated.overrideImageAlt).toBe('The USS Ares at warp');
+      expect(updated.overrideImageId).toBe('image-1');
+    });
+
+    // Wording that describes nothing would be read out the moment somebody
+    // uploaded an unrelated picture into the slot.
+    it('refuses a description when there is no artwork', async () => {
+      spotlightRepository.findOne.mockResolvedValue(
+        buildEntry({ overrideImageId: null, overrideImageAlt: null }),
+      );
+
+      await expect(
+        service.update(spotlightId, { overrideImageAlt: 'A ship' }, editorId),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('makes an entry open-ended again', async () => {
@@ -650,6 +760,74 @@ describe('StorytimeSpotlightService', () => {
       await expect(
         service.update(spotlightId, { storyId: 'story-2' }, editorId),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('the editorial artwork', () => {
+    const file = { originalname: 'spotlight.jpg' } as Express.Multer.File;
+
+    it('records the stored image and what it shows', async () => {
+      spotlightRepository.findOne.mockResolvedValue(buildEntry());
+
+      const saved = await service.setOverrideImage(
+        spotlightId,
+        editorId,
+        file,
+        'A fleet at anchor',
+      );
+
+      expect(imageService.store).toHaveBeenCalledWith({
+        slot: StorytimeImageSlot.SPOTLIGHT_OVERRIDE,
+        userId: editorId,
+        entityId: spotlightId,
+        file,
+      });
+      expect(saved.overrideImageId).toBe('stored-image-id');
+      expect(saved.overrideImageAlt).toBe('A fleet at anchor');
+      expect(saved.updatedByUserId).toBe(editorId);
+    });
+
+    it('releases the artwork it replaced', async () => {
+      spotlightRepository.findOne.mockResolvedValue(
+        buildEntry({ overrideImageId: 'old-artwork' }),
+      );
+
+      await service.setOverrideImage(spotlightId, editorId, file, 'A fleet');
+
+      expect(imageService.release).toHaveBeenCalledWith('old-artwork');
+    });
+
+    it('complains about an entry that does not exist', async () => {
+      spotlightRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.setOverrideImage(spotlightId, editorId, file, 'A fleet'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    // Without the override the featured work's own banner is shown again,
+    // which is what an entry looks like before an editor supplies one.
+    it('clears the description along with the artwork', async () => {
+      spotlightRepository.findOne.mockResolvedValue(
+        buildEntry({
+          overrideImageId: 'artwork-1',
+          overrideImageAlt: 'A fleet',
+        }),
+      );
+
+      const saved = await service.clearOverrideImage(spotlightId, editorId);
+
+      expect(saved.overrideImageId).toBeNull();
+      expect(saved.overrideImageAlt).toBeNull();
+      expect(imageService.release).toHaveBeenCalledWith('artwork-1');
+    });
+
+    it('complains about removing from an entry that does not exist', async () => {
+      spotlightRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.clearOverrideImage(spotlightId, editorId),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 

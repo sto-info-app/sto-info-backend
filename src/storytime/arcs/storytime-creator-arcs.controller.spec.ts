@@ -1,6 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constants';
+import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
 import { ArcMembershipStatus } from '../enums/arc-membership-status.enum';
 import { ArcStatus } from '../enums/arc-status.enum';
 import { StorytimeVisibility } from '../enums/storytime-visibility.enum';
@@ -26,6 +27,8 @@ describe('StorytimeCreatorArcsController', () => {
     publish: jest.Mock;
     unpublish: jest.Mock;
     remove: jest.Mock;
+    setImage: jest.Mock;
+    clearImage: jest.Mock;
   };
   let membershipService: {
     findByArcForCurator: jest.Mock;
@@ -77,6 +80,8 @@ describe('StorytimeCreatorArcsController', () => {
       publish: jest.fn().mockResolvedValue(arc),
       unpublish: jest.fn().mockResolvedValue(arc),
       remove: jest.fn().mockResolvedValue(undefined),
+      setImage: jest.fn().mockResolvedValue(arc),
+      clearImage: jest.fn().mockResolvedValue(arc),
     };
     membershipService = {
       findByArcForCurator: jest.fn().mockResolvedValue([membership]),
@@ -220,6 +225,49 @@ describe('StorytimeCreatorArcsController', () => {
     expect(arcService.remove).toHaveBeenCalledWith(arcId, userId);
   });
 
+  describe('artwork', () => {
+    const file = { originalname: 'banner.jpg' } as Express.Multer.File;
+
+    it.each([
+      ['setBannerImage', StorytimeImageSlot.ARC_BANNER],
+      ['setProfileImage', StorytimeImageSlot.ARC_PROFILE],
+    ] as const)(
+      '%s passes the upload and its description on',
+      async (method, slot) => {
+        await controller[method](arcId, userId, file, {
+          altText: 'A fleet at anchor',
+        });
+
+        expect(arcService.setImage).toHaveBeenCalledWith(
+          arcId,
+          userId,
+          slot,
+          file,
+          'A fleet at anchor',
+        );
+      },
+    );
+
+    it.each([
+      ['clearBannerImage', StorytimeImageSlot.ARC_BANNER],
+      ['clearProfileImage', StorytimeImageSlot.ARC_PROFILE],
+    ] as const)('%s asks for that slot to be emptied', async (method, slot) => {
+      await controller[method](arcId, userId);
+
+      expect(arcService.clearImage).toHaveBeenCalledWith(arcId, userId, slot);
+    });
+
+    it('complains when no file arrived', async () => {
+      await expect(
+        controller.setBannerImage(arcId, userId, undefined, {
+          altText: 'A fleet',
+        }),
+      ).rejects.toThrow('An image file is required');
+
+      expect(arcService.setImage).not.toHaveBeenCalled();
+    });
+  });
+
   describe('when creation is switched off', () => {
     beforeEach(() => {
       featureService.assertFlagEnabled.mockRejectedValue(
@@ -241,6 +289,17 @@ describe('StorytimeCreatorArcsController', () => {
       ['publish', () => controller.publish(arcId, userId)],
       ['unpublish', () => controller.unpublish(arcId, userId)],
       ['remove', () => controller.remove(arcId, userId)],
+      [
+        'setBannerImage',
+        () =>
+          controller.setBannerImage(
+            arcId,
+            userId,
+            { originalname: 'banner.jpg' } as Express.Multer.File,
+            { altText: 'A fleet' },
+          ),
+      ],
+      ['clearProfileImage', () => controller.clearProfileImage(arcId, userId)],
     ])('refuses %s', async (_name, act) => {
       await expect(act()).rejects.toThrow(ForbiddenException);
       expect(featureService.assertFlagEnabled).toHaveBeenCalledWith(

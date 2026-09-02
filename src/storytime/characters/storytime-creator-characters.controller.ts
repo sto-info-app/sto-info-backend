@@ -9,25 +9,40 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  UploadedFile,
+  UseFilters,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiBody,
   ApiConflictResponse,
+  ApiConsumes,
   ApiForbiddenResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiPayloadTooLargeResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
 import { PERMISSION_CODES } from 'src/access-control/constants/permission-codes.constants';
 import { PermissionsGuard } from 'src/access-control/permissions.guard';
 import { RequiresPermission } from 'src/access-control/requires-permission.decorator';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
 import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constants';
+import { StorytimeImageUploadDto } from '../images/dto/storytime-image-upload.dto';
+import {
+  assertImageSupplied,
+  STORYTIME_IMAGE_FIELD,
+  STORYTIME_IMAGE_UPLOAD_OPTIONS,
+  STORYTIME_IMAGE_UPLOAD_SCHEMA,
+} from '../images/storytime-image-upload.options';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { ChapterAppearanceDto } from './dto/appearance.dto';
 import { ManagedCharacterDto } from './dto/character.dto';
@@ -247,6 +262,69 @@ export class StorytimeCreatorCharactersController {
       await this._characterService.findByIds(
         appearances.map(appearance => appearance.characterId),
       ),
+    );
+  }
+
+  /**
+   * Sets a Character's portrait.
+   *
+   * @param characterId - The Character.
+   * @param userId - The caller.
+   * @param file - The cropped image.
+   * @param dto - The alternative text sent alongside it.
+   * @returns The Character, carrying its new portrait.
+   */
+  @Post('characters/:characterId/portrait-image')
+  @ApiOperation({ summary: 'Set the portrait on one of your Characters' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody(STORYTIME_IMAGE_UPLOAD_SCHEMA)
+  @ApiOkResponse({ type: ManagedCharacterDto })
+  @ApiBadRequestResponse({
+    description:
+      'No image was supplied, the file is not a PNG, or the crop is smaller than 400 by 600.',
+  })
+  @ApiPayloadTooLargeResponse({ description: 'The image is too large.' })
+  @UseFilters(FileSizeExceptionFilter)
+  @UseInterceptors(
+    FileInterceptor(STORYTIME_IMAGE_FIELD, STORYTIME_IMAGE_UPLOAD_OPTIONS),
+  )
+  async setPortraitImage(
+    @Param('characterId', ParseUUIDPipe) characterId: string,
+    @UserId() userId: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Body() dto: StorytimeImageUploadDto,
+  ): Promise<ManagedCharacterDto> {
+    await this.assertEnabled();
+    assertImageSupplied(file);
+
+    return this._mapper.toManaged(
+      await this._characterService.setPortraitImage(
+        characterId,
+        userId,
+        file,
+        dto.altText,
+      ),
+    );
+  }
+
+  /**
+   * Removes the portrait from a Character.
+   *
+   * @param characterId - The Character.
+   * @param userId - The caller.
+   * @returns The Character, without a portrait.
+   */
+  @Delete('characters/:characterId/portrait-image')
+  @ApiOperation({ summary: 'Remove the portrait from one of your Characters' })
+  @ApiOkResponse({ type: ManagedCharacterDto })
+  async clearPortraitImage(
+    @Param('characterId', ParseUUIDPipe) characterId: string,
+    @UserId() userId: string,
+  ): Promise<ManagedCharacterDto> {
+    await this.assertEnabled();
+
+    return this._mapper.toManaged(
+      await this._characterService.clearPortraitImage(characterId, userId),
     );
   }
 

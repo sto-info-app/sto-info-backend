@@ -17,7 +17,10 @@ import { STORYTIME_LIMITS } from '../constants/storytime-limits.constants';
 import { STORYTIME_POLICY_VERSION } from '../constants/storytime-policy.constants';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
 import { StoryStatus } from '../enums/story-status.enum';
+import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
+import { assertImageDescribable } from '../images/storytime-image-alt.utility';
 import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.enum';
+import { StorytimeImageService } from '../images/storytime-image.service';
 import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
 import { StorytimeVisibility } from '../enums/storytime-visibility.enum';
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
@@ -46,6 +49,30 @@ const PUBLICLY_READABLE_VISIBILITIES = [
   StorytimeVisibility.UNLISTED,
 ];
 
+/** The artwork a Story carries. */
+export type StoryImageSlot =
+  StorytimeImageSlot.STORY_BANNER | StorytimeImageSlot.STORY_PROFILE;
+
+/**
+ * Which pair of columns each of a Story's images occupies.
+ *
+ * Keeping the mapping here rather than branching at every use is what lets
+ * setting and clearing an image be one method each instead of one per slot.
+ */
+const STORY_IMAGE_FIELDS = {
+  [StorytimeImageSlot.STORY_BANNER]: {
+    id: 'bannerImageId',
+    alt: 'bannerImageAlt',
+  },
+  [StorytimeImageSlot.STORY_PROFILE]: {
+    id: 'profileImageId',
+    alt: 'profileImageAlt',
+  },
+} as const satisfies Record<
+  StoryImageSlot,
+  { id: keyof StorytimeStoryEntity; alt: keyof StorytimeStoryEntity }
+>;
+
 /**
  * Creating, editing and publishing Stories.
  *
@@ -67,6 +94,7 @@ export class StorytimeStoryService {
    * @param _limitService - Resolves how many Stories this user may own.
    * @param _collaboratorAccessService - Decides what a collaborator may do.
    * @param _feedService - Announces publication to the people who follow.
+   * @param _imageService - Checks, stores and releases the Story's artwork.
    */
   constructor(
     @InjectRepository(StorytimeStoryEntity)
@@ -77,6 +105,7 @@ export class StorytimeStoryService {
     private readonly _limitService: LimitService,
     private readonly _collaboratorAccessService: StorytimeCollaboratorAccessService,
     private readonly _feedService: StorytimeActivityFeedService,
+    private readonly _imageService: StorytimeImageService,
   ) {}
 
   /**
@@ -147,6 +176,13 @@ export class StorytimeStoryService {
     if (dto.languageCode !== undefined) {
       this.assertLanguageOffered(dto.languageCode);
     }
+
+    assertImageDescribable(story.bannerImageId, dto.bannerImageAlt, 'banner');
+    assertImageDescribable(
+      story.profileImageId,
+      dto.profileImageAlt,
+      'profile image',
+    );
 
     const previousSlug = story.slug;
 
@@ -674,10 +710,102 @@ export class StorytimeStoryService {
   }
 
   /**
+   * Replaces one of a Story's images.
+   *
+   * Alternative text is taken with the image rather than left to a later save,
+   * so a Story cannot hold artwork that nobody has described.
+   *
+   * @param storyId - The Story.
+   * @param actingUserId - The caller.
+   * @param slot - Which image is being set.
+   * @param file - The cropped upload.
+   * @param altText - What the image shows.
+   * @returns The Story, carrying its new artwork.
+   * @throws ForbiddenException when the caller may not edit this Story.
+   * @throws BadRequestException when the upload is not usable for the slot.
+   */
+  async setImage(
+    storyId: string,
+    actingUserId: string,
+    slot: StoryImageSlot,
+    file: Express.Multer.File,
+    altText: string,
+  ): Promise<StorytimeStoryEntity> {
+    const story = await this.findEditableOrFail(
+      storyId,
+      actingUserId,
+      StoryCapability.EDIT_STORY,
+    );
+
+    const fields = STORY_IMAGE_FIELDS[slot];
+    const replacedImageId = story[fields.id];
+
+    story[fields.id] = await this._imageService.store({
+      slot,
+      userId: actingUserId,
+      entityId: storyId,
+      file,
+    });
+    story[fields.alt] = altText;
+    story.updatedByUserId = actingUserId;
+    story.version += 1;
+
+    const saved = await this._storyRepository.save(story);
+
+    // Released only once the Story points at the new image. An upload that
+    // succeeds against a save that fails leaves an image nothing references,
+    // which costs storage; the other order would leave the Story pointing at
+    // an image that no longer exists, which costs the reader a broken page.
+    await this._imageService.release(replacedImageId);
+
+    return saved;
+  }
+
+  /**
+   * Takes one of a Story's images away.
+   *
+   * The alternative text goes with it. Text describing an image that is no
+   * longer there is not merely useless — it would be read out.
+   *
+   * @param storyId - The Story.
+   * @param actingUserId - The caller.
+   * @param slot - Which image is being removed.
+   * @returns The Story, without that artwork.
+   * @throws ForbiddenException when the caller may not edit this Story.
+   */
+  async clearImage(
+    storyId: string,
+    actingUserId: string,
+    slot: StoryImageSlot,
+  ): Promise<StorytimeStoryEntity> {
+    const story = await this.findEditableOrFail(
+      storyId,
+      actingUserId,
+      StoryCapability.EDIT_STORY,
+    );
+
+    const fields = STORY_IMAGE_FIELDS[slot];
+    const removedImageId = story[fields.id];
+
+    story[fields.id] = null;
+    story[fields.alt] = null;
+    story.updatedByUserId = actingUserId;
+    story.version += 1;
+
+    const saved = await this._storyRepository.save(story);
+
+    await this._imageService.release(removedImageId);
+
+    return saved;
+  }
+
+  /**
    * Soft-deletes a Story.
    *
    * The row is retained so its slug stays reserved and any moderation history
-   * remains reviewable.
+   * remains reviewable. Its artwork is left in place: a soft delete can be
+   * undone, and coming back to a Story whose banner had been thrown away would
+   * be a worse outcome than the storage it saves.
    *
    * @param storyId - The Story to delete.
    * @param actingUserId - The caller.

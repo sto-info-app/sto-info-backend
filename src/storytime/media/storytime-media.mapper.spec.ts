@@ -58,6 +58,7 @@ describe('StorytimeMediaMapper', () => {
 
     expect(dto.embedUrl).toContain('youtube-nocookie.com');
     expect(dto.thumbnailUrl).toContain('dQw4w9WgXcQ');
+    expect(dto.thumbnailHdUrl).toContain('maxresdefault');
   });
 
   it('withholds the bookkeeping', () => {

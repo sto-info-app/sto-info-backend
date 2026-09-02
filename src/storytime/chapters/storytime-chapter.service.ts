@@ -16,6 +16,9 @@ import { ChapterStatus } from '../enums/chapter-status.enum';
 import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.enum';
 import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
 import { StoryCapability } from '../collaboration/storytime-story-capability.enum';
+import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
+import { assertImageDescribable } from '../images/storytime-image-alt.utility';
+import { StorytimeImageService } from '../images/storytime-image.service';
 import { StorytimeProgressService } from '../progress/storytime-progress.service';
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
 import { StorytimeSlugService } from '../shared/storytime-slug.service';
@@ -65,6 +68,7 @@ export class StorytimeChapterService {
    * @param _progressService - Reopens readers who had finished the Story.
    * @param _dataSource - Runs publication changes in a transaction.
    * @param _feedService - Announces publication to the people who follow.
+   * @param _imageService - Checks, stores and releases the Chapter cover.
    */
   constructor(
     @InjectRepository(StorytimeChapterEntity)
@@ -79,6 +83,7 @@ export class StorytimeChapterService {
     private readonly _progressService: StorytimeProgressService,
     private readonly _dataSource: DataSource,
     private readonly _feedService: StorytimeActivityFeedService,
+    private readonly _imageService: StorytimeImageService,
   ) {}
 
   /**
@@ -155,6 +160,8 @@ export class StorytimeChapterService {
     if (dto.languageCode !== undefined) {
       this.assertLanguageOffered(dto.languageCode);
     }
+
+    assertImageDescribable(chapter.coverImageId, dto.coverImageAlt, 'cover');
 
     const previousSlug = chapter.slug;
 
@@ -540,6 +547,77 @@ export class StorytimeChapterService {
     }
 
     return this._chapterRepository.save([...byId.values()]);
+  }
+
+  /**
+   * Replaces a Chapter's cover.
+   *
+   * Alternative text is taken with the image rather than left to a later save,
+   * so a Chapter cannot hold a cover that nobody has described — which matters
+   * more here than elsewhere, because the cover is also what a Chapter looks
+   * like when its link is shared.
+   *
+   * @param chapterId - The Chapter.
+   * @param actingUserId - The caller.
+   * @param file - The cropped upload.
+   * @param altText - What the image shows.
+   * @returns The Chapter, carrying its new cover.
+   * @throws ForbiddenException when the caller may not manage these Chapters.
+   * @throws BadRequestException when the upload is not usable as a cover.
+   */
+  async setCoverImage(
+    chapterId: string,
+    actingUserId: string,
+    file: Express.Multer.File,
+    altText: string,
+  ): Promise<StorytimeChapterEntity> {
+    const chapter = await this.findEditableOrFail(chapterId, actingUserId);
+    const replacedImageId = chapter.coverImageId;
+
+    chapter.coverImageId = await this._imageService.store({
+      slot: StorytimeImageSlot.CHAPTER_COVER,
+      userId: actingUserId,
+      entityId: chapterId,
+      file,
+    });
+    chapter.coverImageAlt = altText;
+    chapter.updatedByUserId = actingUserId;
+    chapter.version += 1;
+
+    const saved = await this._chapterRepository.save(chapter);
+
+    // Released only once the Chapter points at the new cover, so a failed save
+    // leaves an unreferenced image rather than a Chapter referencing nothing.
+    await this._imageService.release(replacedImageId);
+
+    return saved;
+  }
+
+  /**
+   * Takes a Chapter's cover away, along with its description.
+   *
+   * @param chapterId - The Chapter.
+   * @param actingUserId - The caller.
+   * @returns The Chapter, without a cover.
+   * @throws ForbiddenException when the caller may not manage these Chapters.
+   */
+  async clearCoverImage(
+    chapterId: string,
+    actingUserId: string,
+  ): Promise<StorytimeChapterEntity> {
+    const chapter = await this.findEditableOrFail(chapterId, actingUserId);
+    const removedImageId = chapter.coverImageId;
+
+    chapter.coverImageId = null;
+    chapter.coverImageAlt = null;
+    chapter.updatedByUserId = actingUserId;
+    chapter.version += 1;
+
+    const saved = await this._chapterRepository.save(chapter);
+
+    await this._imageService.release(removedImageId);
+
+    return saved;
   }
 
   /**

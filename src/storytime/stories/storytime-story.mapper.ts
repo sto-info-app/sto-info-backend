@@ -3,6 +3,7 @@ import { STORYTIME_POLICY_VERSION } from '../constants/storytime-policy.constant
 import { ManagedStoryDto, StoryDto } from './dto/story.dto';
 import { StorytimeStoryEntity } from './entities/storytime-story.entity';
 import { StorytimeAuthorDto } from '../dto/storytime-author.dto';
+import { TagDto } from '../tags/dto/create-tag.dto';
 
 /**
  * Turns Story entities into the shapes the API returns.
@@ -17,12 +18,19 @@ export class StorytimeStoryMapper {
   /**
    * Maps a Story to its reader-facing shape.
    *
+   * The author and the tags are passed in rather than read here: both are
+   * looked up once for a whole listing, and a mapper that fetched its own
+   * would turn a page of twenty Stories into forty extra queries.
+   *
    * @param story - The Story entity.
+   * @param author - Who published it, when the caller is being told.
+   * @param tags - What it is tagged with, when the caller is being told.
    * @returns The reader-facing Story.
    */
   toPublic(
     story: StorytimeStoryEntity,
     author: StorytimeAuthorDto | null = null,
+    tags: TagDto[] = [],
   ): StoryDto {
     return {
       id: story.id,
@@ -45,6 +53,7 @@ export class StorytimeStoryMapper {
       rating: story.upVoteCount - story.downVoteCount,
       publishedAt: story.publishedAt,
       lastContentUpdateAt: story.lastContentUpdateAt,
+      tags,
     };
   }
 
@@ -75,10 +84,16 @@ export class StorytimeStoryMapper {
    * Maps several Stories to their reader-facing shape.
    *
    * @param stories - The Story entities.
+   * @param tagsByStory - What each is tagged with, keyed by Story.
    * @returns The reader-facing Stories.
    */
-  toPublicList(stories: StorytimeStoryEntity[]): StoryDto[] {
-    return stories.map(story => this.toPublic(story));
+  toPublicList(
+    stories: StorytimeStoryEntity[],
+    tagsByStory: Map<string, TagDto[]> = new Map(),
+  ): StoryDto[] {
+    return stories.map(story =>
+      this.toPublic(story, null, tagsByStory.get(story.id) ?? []),
+    );
   }
 
   /**

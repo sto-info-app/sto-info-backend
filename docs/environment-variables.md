@@ -103,6 +103,7 @@ Creation limits. Each falls back to the value shown if unset or invalid, and an 
 - `STORYTIME_MAX_CHAPTERS_PER_STORY` (default `200`)
 - `STORYTIME_MAX_CHARACTERS_PER_STORY` (default `100`)
 - `STORYTIME_MAX_CONTENT_LENGTH` (default `100000`)
+- `STORYTIME_UPLOAD_MAX_BYTES` (default `10485760`) — the largest Storytime image accepted. `MAX_IMAGE_SIZE_IN_BYTES` is applied first, by Multer, so an exemption raising a creator above that site-wide ceiling has no effect.
 
 > `STORYTIME_ENABLED` is **not** an environment variable. It is a runtime switch in the `app_setting` table so it can be thrown without a redeployment — see the Feature Switches section of `backend.md`.
 

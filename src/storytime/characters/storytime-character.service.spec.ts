@@ -20,6 +20,8 @@ import {
 } from '../shared/storytime-slug.service';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
+import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
+import { StorytimeImageService } from '../images/storytime-image.service';
 import { StorytimeCharacterEntity } from './entities/storytime-character.entity';
 import { StorytimeCharacterService } from './storytime-character.service';
 
@@ -39,6 +41,10 @@ describe('StorytimeCharacterService', () => {
     recordRetiredSlug: jest.Mock;
   };
   let limitService: { assertWithinLimit: jest.Mock };
+  let imageService: {
+    store: jest.Mock;
+    release: jest.Mock;
+  };
 
   const ownerId = 'e6d3a1b2-0000-4000-8000-000000000001';
   const storyId = 'e6d3a1b2-0000-4000-8000-0000000000aa';
@@ -78,6 +84,14 @@ describe('StorytimeCharacterService', () => {
     });
 
   beforeEach(async () => {
+    // The upload pipeline is stubbed: what a real Cloudflare call would do is
+    // its own service's business, and these tests are about what the work
+    // records afterwards.
+    imageService = {
+      store: jest.fn().mockResolvedValue('stored-image-id'),
+      release: jest.fn().mockResolvedValue(undefined),
+    };
+
     characterRepository = {
       find: jest.fn().mockResolvedValue([]),
       findOne: jest.fn().mockResolvedValue(null),
@@ -122,6 +136,7 @@ describe('StorytimeCharacterService', () => {
         StorytimeOrderingService,
         StorytimeMarkdownService,
         { provide: LimitService, useValue: limitService },
+        { provide: StorytimeImageService, useValue: imageService },
       ],
     }).compile();
 
@@ -518,6 +533,80 @@ describe('StorytimeCharacterService', () => {
 
       await expect(
         service.reorder(storyId, ['a', 'b'], ownerId),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('the portrait', () => {
+    const file = { originalname: 'portrait.png' } as Express.Multer.File;
+
+    it('records the stored image and what it shows', async () => {
+      characterRepository.findOne.mockResolvedValue(buildCharacter());
+
+      const saved = await service.setPortraitImage(
+        characterId,
+        ownerId,
+        file,
+        'An Andorian in uniform',
+      );
+
+      expect(imageService.store).toHaveBeenCalledWith({
+        slot: StorytimeImageSlot.CHARACTER_PORTRAIT,
+        userId: ownerId,
+        entityId: characterId,
+        file,
+      });
+      expect(saved.portraitImageId).toBe('stored-image-id');
+      expect(saved.portraitImageAlt).toBe('An Andorian in uniform');
+      expect(saved.version).toBe(2);
+    });
+
+    it('releases the portrait it replaced', async () => {
+      characterRepository.findOne.mockResolvedValue(
+        buildCharacter({ portraitImageId: 'old-portrait' }),
+      );
+
+      await service.setPortraitImage(characterId, ownerId, file, 'An Andorian');
+
+      expect(imageService.release).toHaveBeenCalledWith('old-portrait');
+    });
+
+    it('refuses somebody who may not manage this cast', async () => {
+      characterRepository.findOne.mockResolvedValue(buildCharacter());
+      storyService.findEditableOrFail.mockRejectedValue(
+        new ForbiddenException(),
+      );
+
+      await expect(
+        service.setPortraitImage(characterId, ownerId, file, 'An Andorian'),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(imageService.store).not.toHaveBeenCalled();
+    });
+
+    it('clears the description along with the portrait', async () => {
+      characterRepository.findOne.mockResolvedValue(
+        buildCharacter({
+          portraitImageId: 'portrait-1',
+          portraitImageAlt: 'An Andorian',
+        }),
+      );
+
+      const saved = await service.clearPortraitImage(characterId, ownerId);
+
+      expect(saved.portraitImageId).toBeNull();
+      expect(saved.portraitImageAlt).toBeNull();
+      expect(imageService.release).toHaveBeenCalledWith('portrait-1');
+    });
+
+    it('refuses a removal from somebody who may not manage it', async () => {
+      characterRepository.findOne.mockResolvedValue(buildCharacter());
+      storyService.findEditableOrFail.mockRejectedValue(
+        new ForbiddenException(),
+      );
+
+      await expect(
+        service.clearPortraitImage(characterId, ownerId),
       ).rejects.toThrow(ForbiddenException);
     });
   });

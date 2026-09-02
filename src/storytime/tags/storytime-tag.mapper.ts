@@ -37,4 +37,24 @@ export class StorytimeTagMapper {
   toList(tags: StorytimeTagEntity[]): TagDto[] {
     return tags.map(tag => this.toTag(tag));
   }
+
+  /**
+   * Maps the tags on several pieces of content, keeping them keyed.
+   *
+   * The shape a listing needs: it has one lookup of tags by whatever carries
+   * them, and one list of works to hand each set to.
+   *
+   * @param tagsByTarget - The tags on each piece of content.
+   * @returns The same lookup, mapped.
+   */
+  toListsByTarget(
+    tagsByTarget: Map<string, StorytimeTagEntity[]>,
+  ): Map<string, TagDto[]> {
+    return new Map(
+      [...tagsByTarget].map(([targetId, tags]) => [
+        targetId,
+        this.toList(tags),
+      ]),
+    );
+  }
 }

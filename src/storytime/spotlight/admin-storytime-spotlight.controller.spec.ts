@@ -5,6 +5,7 @@ import { StorytimeArcMapper } from '../arcs/storytime-arc.mapper';
 import { SpotlightEntityType } from '../enums/spotlight-entity-type.enum';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeStoryMapper } from '../stories/storytime-story.mapper';
+import { StorytimeTagMapper } from '../tags/storytime-tag.mapper';
 import { AdminStorytimeSpotlightController } from './admin-storytime-spotlight.controller';
 import { StorytimeSpotlightEntity } from './entities/storytime-spotlight.entity';
 import { StorytimeSpotlightMapper } from './storytime-spotlight.mapper';
@@ -20,6 +21,8 @@ describe('AdminStorytimeSpotlightController', () => {
     publish: jest.Mock;
     unpublish: jest.Mock;
     remove: jest.Mock;
+    setOverrideImage: jest.Mock;
+    clearOverrideImage: jest.Mock;
   };
 
   const editorId = 'editor-1';
@@ -53,7 +56,7 @@ describe('AdminStorytimeSpotlightController', () => {
   });
 
   /** The entry as the service hands it over: with whatever it features. */
-  const resolved = { entry, story, arc: null };
+  const resolved = { entry, story, arc: null, author: null, tags: [] };
 
   /** The smallest valid creation request. */
   const request = {
@@ -73,6 +76,8 @@ describe('AdminStorytimeSpotlightController', () => {
       publish: jest.fn().mockResolvedValue(entry),
       unpublish: jest.fn().mockResolvedValue(entry),
       remove: jest.fn().mockResolvedValue(undefined),
+      setOverrideImage: jest.fn().mockResolvedValue(entry),
+      clearOverrideImage: jest.fn().mockResolvedValue(entry),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -82,6 +87,7 @@ describe('AdminStorytimeSpotlightController', () => {
         StorytimeSpotlightMapper,
         StorytimeStoryMapper,
         StorytimeArcMapper,
+        StorytimeTagMapper,
         // The permissions guard declared on the controller needs this to be
         // constructible. Its behaviour is covered by its own spec; here the
         // controller's own logic is what is under test.
@@ -170,6 +176,42 @@ describe('AdminStorytimeSpotlightController', () => {
     await controller.remove(spotlightId, editorId);
 
     expect(spotlightService.remove).toHaveBeenCalledWith(spotlightId, editorId);
+  });
+
+  describe('the editorial artwork', () => {
+    const file = { originalname: 'spotlight.jpg' } as Express.Multer.File;
+
+    it('passes the upload and its description on', async () => {
+      await controller.setOverrideImage(spotlightId, editorId, file, {
+        altText: 'A fleet at anchor',
+      });
+
+      expect(spotlightService.setOverrideImage).toHaveBeenCalledWith(
+        spotlightId,
+        editorId,
+        file,
+        'A fleet at anchor',
+      );
+    });
+
+    it('asks for the artwork to be removed', async () => {
+      await controller.clearOverrideImage(spotlightId, editorId);
+
+      expect(spotlightService.clearOverrideImage).toHaveBeenCalledWith(
+        spotlightId,
+        editorId,
+      );
+    });
+
+    it('complains when no file arrived', async () => {
+      await expect(
+        controller.setOverrideImage(spotlightId, editorId, undefined, {
+          altText: 'A fleet',
+        }),
+      ).rejects.toThrow('An image file is required');
+
+      expect(spotlightService.setOverrideImage).not.toHaveBeenCalled();
+    });
   });
 
   // An editor has to be able to prepare selections in an environment where the

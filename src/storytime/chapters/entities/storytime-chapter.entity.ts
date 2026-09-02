@@ -100,7 +100,7 @@ export class StorytimeChapterEntity {
     description: 'Cloudflare Images ID for the cover.',
     nullable: true,
   })
-  @Column({ type: 'varchar', length: 100, nullable: true, default: null })
+  @Column({ type: 'varchar', length: 160, nullable: true, default: null })
   coverImageId: string | null;
 
   @ApiProperty({

@@ -7,9 +7,7 @@ import {
   IsOptional,
   IsString,
   MaxLength,
-  ValidateIf,
 } from 'class-validator';
-import { STORYTIME_IMAGE_ALT_MAX_LENGTH } from '../../constants/storytime-image.constants';
 import { STORYTIME_LANGUAGE_CODES } from '../../constants/storytime-language.constants';
 import { CompletionState } from '../../enums/completion-state.enum';
 import { ContentRating } from '../../enums/content-rating.enum';
@@ -96,53 +94,4 @@ export class CreateStoryDto {
     message: 'languageCode must be one of the offered Storytime languages',
   })
   readonly languageCode?: string;
-
-  @ApiPropertyOptional({
-    description: 'Cloudflare Images ID for the wide banner.',
-    maxLength: 100,
-  })
-  @IsOptional()
-  @Transform(trim)
-  @IsString()
-  @MaxLength(100)
-  readonly bannerImageId?: string;
-
-  // Required only when there is an image to describe. An image without
-  // alternative text is unusable to a screen reader, and asking for it at the
-  // point the image is chosen is the only moment the author knows what it shows.
-  @ApiPropertyOptional({
-    description:
-      'Alternative text for the banner. Required whenever a banner is set.',
-    maxLength: STORYTIME_IMAGE_ALT_MAX_LENGTH,
-  })
-  @ValidateIf(dto => Boolean(dto.bannerImageId))
-  @Transform(trim)
-  @IsString()
-  @IsNotEmpty({ message: 'bannerImageAlt is required when a banner is set' })
-  @MaxLength(STORYTIME_IMAGE_ALT_MAX_LENGTH)
-  readonly bannerImageAlt?: string;
-
-  @ApiPropertyOptional({
-    description: 'Cloudflare Images ID for the square profile image.',
-    maxLength: 100,
-  })
-  @IsOptional()
-  @Transform(trim)
-  @IsString()
-  @MaxLength(100)
-  readonly profileImageId?: string;
-
-  @ApiPropertyOptional({
-    description:
-      'Alternative text for the profile image. Required whenever one is set.',
-    maxLength: STORYTIME_IMAGE_ALT_MAX_LENGTH,
-  })
-  @ValidateIf(dto => Boolean(dto.profileImageId))
-  @Transform(trim)
-  @IsString()
-  @IsNotEmpty({
-    message: 'profileImageAlt is required when a profile image is set',
-  })
-  @MaxLength(STORYTIME_IMAGE_ALT_MAX_LENGTH)
-  readonly profileImageAlt?: string;
 }
