@@ -5,7 +5,8 @@ import { StorytimeImagesModule } from './storytime-images.module';
 describe('StorytimeImagesModule', () => {
   it('imports the site-wide upload pipeline rather than a second one', () => {
     const imports = Reflect.getMetadata('imports', StorytimeImagesModule) as
-      Array<unknown> | undefined;
+      | Array<unknown>
+      | undefined;
 
     expect(imports).toContain(SharedModule);
   });
