@@ -182,6 +182,17 @@ describe('PublicStorytimeArcsController', () => {
     ]);
   });
 
+  // The reading order should still list a Story that nobody has tagged yet,
+  // rather than dropping it or failing the whole Arc.
+  it('leaves an untagged Story in the reading order with no tags', async () => {
+    taggingService.findForMany.mockResolvedValue(new Map());
+
+    const result = await controller.findOne('the-long-war');
+
+    expect(result.stories).toHaveLength(1);
+    expect(result.stories[0].story?.tags).toEqual([]);
+  });
+
   it('reads one Arc with its Stories', async () => {
     const result = await controller.findOne('the-long-war');
 
