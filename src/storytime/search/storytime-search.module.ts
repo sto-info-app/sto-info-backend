@@ -6,6 +6,7 @@ import { StorytimeCharacterEntity } from '../characters/entities/storytime-chara
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeArcsModule } from '../arcs/storytime-arcs.module';
 import { StorytimeStoriesModule } from '../stories/storytime-stories.module';
+import { StorytimeTaggingModule } from '../tags/storytime-tagging.module';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { PublicStorytimeCreatorsController } from './public-storytime-creators.controller';
 import { PublicStorytimeSearchController } from './public-storytime-search.controller';
@@ -32,6 +33,10 @@ import { StorytimeSearchService } from './storytime-search.service';
     ]),
     StorytimeStoriesModule,
     StorytimeArcsModule,
+
+    // The creator page lists Story and Arc panels, and those say what each
+    // work is about the way every other listing does.
+    StorytimeTaggingModule,
   ],
   controllers: [
     PublicStorytimeSearchController,

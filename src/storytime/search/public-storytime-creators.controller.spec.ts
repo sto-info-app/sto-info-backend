@@ -7,6 +7,9 @@ import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constant
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeStoryMapper } from '../stories/storytime-story.mapper';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
+import { StorytimeTagEntity } from '../tags/entities/storytime-tag.entity';
+import { StorytimeTagMapper } from '../tags/storytime-tag.mapper';
+import { StorytimeTaggingService } from '../tags/storytime-tagging.service';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { PublicStorytimeCreatorsController } from './public-storytime-creators.controller';
 
@@ -15,8 +18,18 @@ describe('PublicStorytimeCreatorsController', () => {
   let storyService: { findPublicPaginated: jest.Mock };
   let arcService: { findPublicByOwner: jest.Mock };
   let featureService: { assertFlagEnabled: jest.Mock };
+  let taggingService: { findForMany: jest.Mock };
 
   const userId = 'e6d3a1b2-0000-4000-8000-000000000001';
+
+  const tag = Object.assign(new StorytimeTagEntity(), {
+    id: 'tag-1',
+    slug: 'war',
+    name: 'War',
+    description: null,
+    category: 'THEME',
+    displayOrder: 0,
+  });
 
   beforeEach(async () => {
     storyService = {
@@ -46,6 +59,17 @@ describe('PublicStorytimeCreatorsController', () => {
         }),
       ]),
     };
+    taggingService = {
+      findForMany: jest
+        .fn()
+        .mockImplementation((targetType: string) =>
+          Promise.resolve(
+            targetType === 'STORY'
+              ? new Map([['story-1', [tag]]])
+              : new Map([['arc-1', [tag]]]),
+          ),
+        ),
+    };
     featureService = {
       assertFlagEnabled: jest.fn().mockResolvedValue(undefined),
     };
@@ -57,6 +81,8 @@ describe('PublicStorytimeCreatorsController', () => {
         { provide: StorytimeArcService, useValue: arcService },
         StorytimeStoryMapper,
         StorytimeArcMapper,
+        { provide: StorytimeTaggingService, useValue: taggingService },
+        StorytimeTagMapper,
         { provide: StorytimeFeatureService, useValue: featureService },
       ],
     }).compile();
@@ -79,6 +105,19 @@ describe('PublicStorytimeCreatorsController', () => {
 
     expect(work.stories[0].title).toBe('A Story');
     expect(work.arcs[0].title).toBe('The Long War');
+  });
+
+  // The creator page is a Story listing and an Arc listing, and says what each
+  // work is about the way the other listings do.
+  it('names what each Story and Arc is tagged with', async () => {
+    const work = await controller.findByCreator(userId);
+
+    expect(taggingService.findForMany).toHaveBeenCalledWith('STORY', [
+      'story-1',
+    ]);
+    expect(taggingService.findForMany).toHaveBeenCalledWith('ARC', ['arc-1']);
+    expect(work.stories[0].tags.map(each => each.name)).toEqual(['War']);
+    expect(work.arcs[0].tags.map(each => each.name)).toEqual(['War']);
   });
 
   // The listing services own the rule about what "published" means, so asking

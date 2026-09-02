@@ -5,6 +5,9 @@ import { StorytimeArcService } from '../arcs/storytime-arc.service';
 import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constants';
 import { StorytimeStoryMapper } from '../stories/storytime-story.mapper';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
+import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
+import { StorytimeTagMapper } from '../tags/storytime-tag.mapper';
+import { StorytimeTaggingService } from '../tags/storytime-tagging.service';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { CreatorWorkDto } from './dto/creator-work.dto';
 
@@ -28,6 +31,8 @@ export class PublicStorytimeCreatorsController {
    * @param _arcService - Resolves the member's Arcs.
    * @param _storyMapper - Maps Stories to their reader-facing shape.
    * @param _arcMapper - Maps Arcs to their reader-facing shape.
+   * @param _taggingService - Reads what their work is tagged with.
+   * @param _tagMapper - Maps those tags to their response shape.
    * @param _featureService - Reports whether public reading is switched on.
    */
   constructor(
@@ -35,6 +40,8 @@ export class PublicStorytimeCreatorsController {
     private readonly _arcService: StorytimeArcService,
     private readonly _storyMapper: StorytimeStoryMapper,
     private readonly _arcMapper: StorytimeArcMapper,
+    private readonly _taggingService: StorytimeTaggingService,
+    private readonly _tagMapper: StorytimeTagMapper,
     private readonly _featureService: StorytimeFeatureService,
   ) {}
 
@@ -60,8 +67,24 @@ export class PublicStorytimeCreatorsController {
     const arcs = await this._arcService.findPublicByOwner(userId);
 
     return {
-      stories: this._storyMapper.toPublicList(stories.items),
-      arcs: this._arcMapper.toPublicList(arcs),
+      stories: this._storyMapper.toPublicList(
+        stories.items,
+        this._tagMapper.toListsByTarget(
+          await this._taggingService.findForMany(
+            StorytimeTargetType.STORY,
+            stories.items.map(story => story.id),
+          ),
+        ),
+      ),
+      arcs: this._arcMapper.toPublicList(
+        arcs,
+        this._tagMapper.toListsByTarget(
+          await this._taggingService.findForMany(
+            StorytimeTargetType.ARC,
+            arcs.map(arc => arc.id),
+          ),
+        ),
+      ),
     };
   }
 }
