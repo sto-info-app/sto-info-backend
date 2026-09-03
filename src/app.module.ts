@@ -37,6 +37,7 @@ import { TypeOrmExceptionFilter } from './shared/filters/typeorm-exception.filte
 import { SharedModule } from './shared/shared.module';
 import { ValidatorsService } from './shared/utilities/validators.service';
 import { AccountModule } from './sto/account/account.module';
+import { CharacterAdmiraltyModule } from './sto/character-admiralty/character-admiralty.module';
 import { CharacterRdModule } from './sto/character-rd/character-rd.module';
 import { CharacterReputationModule } from './sto/character-reputation/character-reputation.module';
 import { CharacterSpecializationModule } from './sto/character-specialization/character-specialization.module';
@@ -101,6 +102,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     ContactModule,
     AccountModule,
     CharacterModule,
+    CharacterAdmiraltyModule,
     EndeavourModule,
     CharacterReputationModule,
     CharacterRdModule,
