@@ -3,18 +3,22 @@ export default {
   packageManager: 'npm',
   reporters: ['html', 'clear-text', 'progress'],
   testRunner: 'jest',
-  // --max-old-space-size raises the test runner child process's heap
-  // ceiling. Jest retains full AggregatedResult data (titles, assertion
-  // messages, mock call data) for every test executed for the lifetime of
-  // the process, which grows steadily across a long run regardless of
-  // garbage collection — confirmed by profiling with --logHeapUsage and
-  // --expose-gc, where heap climbed from ~450MB to ~3.3GB across a single
-  // run with no plateau. The default ceiling is too low for that on a
-  // GitHub Actions runner; see maxTestRunnerReuse below for the other half
-  // of the fix.
+  // Jest retains full AggregatedResult data (titles, assertion messages,
+  // mock call data) for every test it has ever run, for the lifetime of the
+  // process, so a test runner worker's heap only ever grows. Measured
+  // locally: a worker went from 111MB to 2.8GB over 18 mutant runs, roughly
+  // 150MB per run with no plateau.
+  //
+  // Note that raising --max-old-space-size on its own buys nothing on a
+  // 16GB GitHub Actions runner: Node already defaults its heap ceiling to
+  // ~4.3GB there, so the previous '--max-old-space-size=4096' was slightly
+  // *below* the default and had no effect. The ceiling is set explicitly
+  // here only to bound the worst case across `concurrency` workers
+  // (4 x 3GB = 12GB of the runner's 16GB); maxTestRunnerReuse below is what
+  // actually keeps a worker from reaching it.
   testRunnerNodeArgs: [
     '--experimental-vm-modules',
-    '--max-old-space-size=4096',
+    '--max-old-space-size=3072',
   ],
   jest: {
     projectType: 'custom',
@@ -48,16 +52,22 @@ export default {
   ],
   checkers: ['typescript'],
   coverageAnalysis: 'perTest',
-  concurrency: 2,
+  // With a checker configured Stryker splits this budget: ceil(n / 2)
+  // checker processes and floor(n / 2) test runners, handing the checker
+  // tokens back as extra test runners once type checking finishes. At the
+  // previous value of 2 that meant a single test runner for the whole
+  // checking phase, leaving half of a 4-vCPU runner idle. 4 matches the
+  // vCPU count of a GitHub-hosted ubuntu-latest runner.
+  concurrency: 4,
   // Static mutants force a full reload + full test run per mutant. Stryker
   // measured these at 1% of mutants but 72% of run time on this project.
   ignoreStatic: true,
-  // Recycle the worker well before the accumulated Jest reporting data
-  // (see testRunnerNodeArgs above) can grow large enough to OOM it. The
-  // original OOM warnings kept recurring roughly every 4 minutes, faster
-  // than 100 reuses were ever reached, so that ceiling was never actually
-  // being hit before the process crashed.
-  maxTestRunnerReuse: 25,
+  // Recycle the worker before the growth described in testRunnerNodeArgs
+  // above can reach the heap ceiling. At ~150MB per mutant run a worker
+  // hits ~4GB somewhere around run 25, which is why the previous ceiling of
+  // 25 never won the race — the process died at almost exactly the point it
+  // was due to be recycled. 8 keeps the peak near 1.5GB.
+  maxTestRunnerReuse: 8,
   thresholds: {
     high: 80,
     low: 60,
