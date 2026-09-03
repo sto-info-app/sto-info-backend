@@ -93,10 +93,8 @@ function main() {
       'run',
       '--mutate',
       mutateArg,
-      '--concurrency',
-      '2',
-      '--incremental',
-      '--force',
+      // No --concurrency here: stryker.config.mjs owns that, so the two run
+      // modes cannot drift.
     ],
     { stdio: 'inherit', shell: process.platform === 'win32' },
   );

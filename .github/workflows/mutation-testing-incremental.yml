@@ -86,15 +86,6 @@ jobs:
           use-cache: ${{ steps.cache-toggle.outputs.use_cache }}
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Restore Stryker incremental cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: .stryker-tmp/incremental.json
-          key: stryker-incremental-${{ github.base_ref }}-${{ hashFiles('src/**/*.ts') }}
-          restore-keys: |
-            stryker-incremental-${{ github.base_ref }}-
-            stryker-incremental-
-
       - name: Run Incremental Mutation Testing
         shell: bash
         run: |
