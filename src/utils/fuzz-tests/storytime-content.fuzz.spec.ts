@@ -1,7 +1,8 @@
 import * as fc from 'fast-check';
+
+import { YOUTUBE_HOSTNAMES } from '../../storytime/content/constants/youtube.constants';
 import { StorytimeMarkdownService } from '../../storytime/content/storytime-markdown.service';
 import { YouTubeUrlService } from '../../storytime/content/youtube-url.service';
-import { YOUTUBE_HOSTNAMES } from '../../storytime/content/constants/youtube.constants';
 
 /**
  * Property-based tests for the Storytime content pipeline.

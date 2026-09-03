@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -10,6 +11,7 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
+
 import { STORYTIME_LIMITS } from '../../constants/storytime-limits.constants';
 
 /** Trims a string value, leaving anything else for the validators. */

@@ -1,6 +1,7 @@
-import { OmitType, PartialType } from '@nestjs/swagger';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, OmitType, PartialType } from '@nestjs/swagger';
+
 import { ArrayNotEmpty, IsArray, IsUUID } from 'class-validator';
+
 import { AddChapterMediaDto } from './add-chapter-media.dto';
 
 /**

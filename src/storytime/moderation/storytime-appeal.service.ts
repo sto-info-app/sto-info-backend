@@ -6,7 +6,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+
 import { In, Repository } from 'typeorm';
+
 import { NotificationSeverity } from '../../notification/enums/notification-severity.enum';
 import { NotificationTarget } from '../../notification/enums/notification-target.enum';
 import { NotificationService } from '../../notification/notification.service';
@@ -16,8 +18,8 @@ import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.
 import { CreateAppealDto } from './dto/create-appeal.dto';
 import { DecideAppealDto } from './dto/decide-appeal.dto';
 import { StorytimeModerationAppealEntity } from './entities/storytime-moderation-appeal.entity';
-import { StorytimeModerationService } from './storytime-moderation.service';
 import { StorytimeModerationTargetService } from './storytime-moderation-target.service';
+import { StorytimeModerationService } from './storytime-moderation.service';
 
 /** The states an appeal has already been spent in. */
 const SPENT_STATUSES = [

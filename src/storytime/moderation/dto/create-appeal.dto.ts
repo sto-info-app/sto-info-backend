@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+
 import { Transform } from 'class-transformer';
 import {
   IsEnum,
@@ -7,6 +8,7 @@ import {
   IsUUID,
   MaxLength,
 } from 'class-validator';
+
 import { StorytimeTargetType } from '../../enums/storytime-target-type.enum';
 
 /** Trims a string value, leaving anything else for the validators. */

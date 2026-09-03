@@ -15,8 +15,6 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { stringifyError } from 'src/shared/utilities/error.utility';
-
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -25,8 +23,10 @@ import {
   ApiOkResponse,
   ApiTags,
 } from '@nestjs/swagger';
+
 import type { Request } from 'express';
 import { memoryStorage } from 'multer';
+
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
 import {
@@ -34,6 +34,8 @@ import {
   isAllowedImageMimeType,
 } from 'src/shared/constants/file-upload.constants';
 import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
+import { stringifyError } from 'src/shared/utilities/error.utility';
+
 import { CharacterService } from './character.service';
 import { CreateCharacterRequestDto } from './dto/create-character-request.dto';
 import { UpdateCharacterDto } from './dto/update-character.dto';

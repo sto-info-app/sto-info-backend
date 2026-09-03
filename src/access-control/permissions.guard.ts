@@ -5,8 +5,9 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { PermissionCode } from './constants/permission-codes.constants';
+
 import { AccessControlService } from './access-control.service';
+import { PermissionCode } from './constants/permission-codes.constants';
 import { REQUIRES_PERMISSION_KEY } from './requires-permission.decorator';
 
 /** Minimal shape of the authenticated user attached to the request. */

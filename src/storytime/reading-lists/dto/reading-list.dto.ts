@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
 import {
   IsArray,
   IsBoolean,
@@ -9,6 +10,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+
 import { StorytimeTargetType } from '../../enums/storytime-target-type.enum';
 
 /** What may go on a reading list. */

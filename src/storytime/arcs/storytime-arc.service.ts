@@ -8,17 +8,19 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+
 import { In, IsNull, Not, Repository } from 'typeorm';
-import { StorytimeArcCollaboratorAccessService } from '../collaboration/storytime-arc-collaborator-access.service';
+
 import { ArcCapability } from '../collaboration/storytime-arc-capability.enum';
-import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
-import { assertImageDescribable } from '../images/storytime-image-alt.utility';
-import { StorytimeImageService } from '../images/storytime-image.service';
+import { StorytimeArcCollaboratorAccessService } from '../collaboration/storytime-arc-collaborator-access.service';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
 import { ArcStatus } from '../enums/arc-status.enum';
+import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
 import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.enum';
 import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
 import { StorytimeVisibility } from '../enums/storytime-visibility.enum';
+import { assertImageDescribable } from '../images/storytime-image-alt.utility';
+import { StorytimeImageService } from '../images/storytime-image.service';
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
 import { StorytimeSlugService } from '../shared/storytime-slug.service';
 import { CreateArcDto } from './dto/create-arc.dto';

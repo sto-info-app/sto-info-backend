@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
 import { Transform } from 'class-transformer';
 import {
   IsEnum,
@@ -7,6 +8,7 @@ import {
   IsString,
   MaxLength,
 } from 'class-validator';
+
 import { ReportReason } from '../enums/report-reason.enum';
 
 /**

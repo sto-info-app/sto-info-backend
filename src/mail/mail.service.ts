@@ -1,10 +1,13 @@
-import { MailerService } from '@nestjs-modules/mailer';
+import * as path from 'node:path';
+
 import { Injectable, Logger } from '@nestjs/common';
+
+import { MailerService } from '@nestjs-modules/mailer';
 import sgMail from '@sendgrid/mail';
 import type { MailDataRequired } from '@sendgrid/mail';
 import * as ejs from 'ejs';
 import { convert as htmlToText } from 'html-to-text';
-import * as path from 'node:path';
+
 import { SecretsService } from 'src/shared/secrets/secrets.service';
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
 

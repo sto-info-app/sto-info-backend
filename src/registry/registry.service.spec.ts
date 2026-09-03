@@ -1,8 +1,11 @@
-import { jest } from '@jest/globals';
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
+import { jest } from '@jest/globals';
+
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
+
 import { BlockService } from '../community/block.service';
 import { RelationshipDto } from '../community/dto/friendship.dto';
 import { RelationshipStatus } from '../community/enums/relationship-status.enum';

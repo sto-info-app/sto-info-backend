@@ -8,8 +8,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { MulterModule } from '@nestjs/platform-express';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { SentryModule } from '@sentry/nestjs/setup';
 
+import { SentryModule } from '@sentry/nestjs/setup';
 import { getTypeOrmConfig } from 'config/typeorm.config';
 import { ClsModule } from 'nestjs-cls';
 
@@ -37,15 +37,16 @@ import { TypeOrmExceptionFilter } from './shared/filters/typeorm-exception.filte
 import { SharedModule } from './shared/shared.module';
 import { ValidatorsService } from './shared/utilities/validators.service';
 import { AccountModule } from './sto/account/account.module';
+import { CharacterAdmiraltyModule } from './sto/character-admiralty/character-admiralty.module';
+import { CharacterRdModule } from './sto/character-rd/character-rd.module';
+import { CharacterReputationModule } from './sto/character-reputation/character-reputation.module';
+import { CharacterSpecializationModule } from './sto/character-specialization/character-specialization.module';
 import { CharacterModule } from './sto/character/character.module';
 import { EndeavourModule } from './sto/endeavour/endeavour.module';
 import { LauncherModule } from './sto/launcher/launcher.module';
-import { CharacterReputationModule } from './sto/character-reputation/character-reputation.module';
-import { CharacterRdModule } from './sto/character-rd/character-rd.module';
-import { CharacterSpecializationModule } from './sto/character-specialization/character-specialization.module';
-import { StatsModule } from './sto/stats/stats.module';
 import { PlatformLauncherModule } from './sto/platform-launcher/platform-launcher.module';
 import { PlatformModule } from './sto/platform/platform.module';
+import { StatsModule } from './sto/stats/stats.module';
 import { StorytimeModule } from './storytime/storytime.module';
 import { UserRefreshTokenModule } from './user-refresh-token/user-refresh-token.module';
 import { UserModule } from './user/user.module';
@@ -101,6 +102,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     ContactModule,
     AccountModule,
     CharacterModule,
+    CharacterAdmiraltyModule,
     EndeavourModule,
     CharacterReputationModule,
     CharacterRdModule,

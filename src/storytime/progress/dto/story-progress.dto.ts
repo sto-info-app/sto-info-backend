@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
 import { ReaderStoryStatus } from '../../enums/reader-story-status.enum';
 
 /**

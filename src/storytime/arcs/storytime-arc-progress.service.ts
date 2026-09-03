@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { StorytimeProgressService } from '../progress/storytime-progress.service';
+
 import { ReaderStoryStatus } from '../enums/reader-story-status.enum';
+import { StorytimeProgressService } from '../progress/storytime-progress.service';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 
 /**

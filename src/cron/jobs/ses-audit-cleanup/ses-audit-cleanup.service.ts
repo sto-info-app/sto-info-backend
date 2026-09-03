@@ -1,11 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+
+import { LessThan, Repository } from 'typeorm';
+
 import {
   SES_AUDIT_RETENTION_DAYS,
   SES_SUPPRESSION_RETENTION_DAYS,
 } from 'src/cron/constants/cron.constants';
 import { SesEventEntity } from 'src/webhooks/ses/entities/ses-event.entity';
-import { LessThan, Repository } from 'typeorm';
 
 /**
  * Nightly cleanup job for the `audit_ses_event` table.

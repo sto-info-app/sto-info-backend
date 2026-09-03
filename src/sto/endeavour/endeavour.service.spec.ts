@@ -1,13 +1,16 @@
-import { jest } from '@jest/globals';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
+import { jest } from '@jest/globals';
+
 import { AccountEntity } from 'src/sto/account/entities/account.entity';
+
 import { EndeavourProgressQueryDto } from './dto/endeavour-progress-query.dto';
 import { UpdateEndeavourProgressDto } from './dto/update-endeavour-progress.dto';
+import { EndeavourService } from './endeavour.service';
 import { AccountEndeavourProgressEntity } from './entities/account-endeavour-progress.entity';
 import { EndeavourPerkEntity } from './entities/endeavour-perk.entity';
-import { EndeavourService } from './endeavour.service';
 
 describe('EndeavourService', () => {
   let service: EndeavourService;

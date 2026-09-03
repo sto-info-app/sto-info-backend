@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
 import { Transform } from 'class-transformer';
 import {
   Equals,
@@ -8,6 +9,7 @@ import {
   IsUUID,
   MaxLength,
 } from 'class-validator';
+
 import { CollaborationInvitationStatus } from '../../enums/collaboration-invitation-status.enum';
 
 /** Trims a string value, leaving anything else for the validators. */

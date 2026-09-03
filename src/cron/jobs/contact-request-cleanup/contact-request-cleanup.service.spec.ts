@@ -1,9 +1,12 @@
-import { jest } from '@jest/globals';
 import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { ContactRequestEntity } from 'src/contact/entities/contact-request.entity';
+
+import { jest } from '@jest/globals';
 import { Repository } from 'typeorm';
+
+import { ContactRequestEntity } from 'src/contact/entities/contact-request.entity';
+
 import { ContactRequestCleanupService } from './contact-request-cleanup.service';
 
 describe('ContactRequestCleanupService', () => {

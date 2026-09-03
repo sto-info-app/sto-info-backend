@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+
 import { ConfigCheckService } from './config-check.service';
 
 describe('ConfigCheckService', () => {

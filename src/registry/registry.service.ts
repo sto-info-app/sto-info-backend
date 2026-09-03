@@ -1,8 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+
+import { Repository, SelectQueryBuilder } from 'typeorm';
+
 import { isValidCloudflareImageUrl } from 'src/shared/constants/image.constants';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
-import { Repository, SelectQueryBuilder } from 'typeorm';
+
 import { BlockService } from '../community/block.service';
 import { RelationshipDto } from '../community/dto/friendship.dto';
 import { FriendshipService } from '../community/friendship.service';
@@ -10,6 +13,8 @@ import {
   PublicMemberService,
   PublicMemberStats,
 } from '../community/public-member.service';
+import { joinWithOptionalSelect } from '../shared/utilities/query-builder.utility';
+import { escapeSqlLikeTerm } from '../shared/utilities/sql-like.utility';
 import { AccountEntity } from '../sto/account/entities/account.entity';
 import { CharacterEntity } from '../sto/character/entities/character.entity';
 import { PlatformLauncherEntity } from '../sto/platform-launcher/entities/platform-launcher.entity';
@@ -17,8 +22,6 @@ import {
   buildAccountBackgroundImageLookup,
   resolveAccountTypeImageUrl,
 } from '../sto/shared/account-image.utility';
-import { joinWithOptionalSelect } from '../shared/utilities/query-builder.utility';
-import { escapeSqlLikeTerm } from '../shared/utilities/sql-like.utility';
 import {
   RegistryAccountDto,
   RegistryAccountSummaryDto,

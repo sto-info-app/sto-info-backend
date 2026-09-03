@@ -1,8 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
+
 import { StorytimeActivityType } from '../enums/storytime-activity-type.enum';
-import { FeedEntry } from './storytime-activity-feed.service';
 import { StorytimeActivityFeedItemEntity } from './entities/storytime-activity-feed-item.entity';
-import { StorytimeActivityFeedService } from './storytime-activity-feed.service';
+import {
+  FeedEntry,
+  StorytimeActivityFeedService,
+} from './storytime-activity-feed.service';
 import {
   FollowTargetKind,
   StorytimeFollowService,

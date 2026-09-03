@@ -1,5 +1,6 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
+
 import { NotificationTarget } from '../enums/notification-target.enum';
 import { CreateNotificationDto } from './create-notification.dto';
 

@@ -1,6 +1,5 @@
 import { Expose } from 'class-transformer';
 import { IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
-import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 import {
   Column,
   CreateDateColumn,
@@ -11,6 +10,9 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+
+import { CharacterEntity } from 'src/sto/character/entities/character.entity';
+
 import {
   CharacterSpecializationEntity,
   SPECIALIZATION_PRIMARY_MAX_POINTS,

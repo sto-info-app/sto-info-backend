@@ -28,9 +28,11 @@ import {
   ApiPayloadTooLargeResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
+
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
+import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
+
 import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constants';
 import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
 import { StorytimeImageUploadDto } from '../images/dto/storytime-image-upload.dto';

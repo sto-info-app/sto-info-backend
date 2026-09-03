@@ -1,5 +1,6 @@
 import { ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+
 import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constants';
 import { ReaderChapterStatus } from '../enums/reader-chapter-status.enum';
 import { ReaderStoryStatus } from '../enums/reader-story-status.enum';
@@ -12,8 +13,8 @@ import { StorytimeUserStoryProgressEntity } from './entities/storytime-user-stor
 import { StorytimeProgressController } from './storytime-progress.controller';
 import { StorytimeProgressMapper } from './storytime-progress.mapper';
 import {
-  StorytimeProgressService,
   StoryProgressSummary,
+  StorytimeProgressService,
 } from './storytime-progress.service';
 
 describe('StorytimeProgressController', () => {

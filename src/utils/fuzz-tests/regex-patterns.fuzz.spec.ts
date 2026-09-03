@@ -1,4 +1,5 @@
 import * as fc from 'fast-check';
+
 import { ValidatorsService } from '../../shared/utilities/validators.service';
 
 describe('ValidatorsService Regex Fuzz Tests', () => {

@@ -4,14 +4,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+
 import { QueryFailedError, Repository } from 'typeorm';
+
+import { normaliseToSlug } from 'src/shared/utilities/slug.utility';
+
 import { CreateNewsPostDto } from './dto/create-news-post.dto';
 import { NewsQueryDto } from './dto/news-query.dto';
 import { UpdateNewsPostDto } from './dto/update-news-post.dto';
 import { NewsPostEntity } from './entities/news-post.entity';
 import { NewsCategory } from './enums/news-category.enum';
 import { NewsStatus } from './enums/news-status.enum';
-import { normaliseToSlug } from 'src/shared/utilities/slug.utility';
 
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;

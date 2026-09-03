@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
+
 import { IsIn, IsString } from 'class-validator';
+
 import {
   ASSIGNABLE_USER_ROLES,
   UserRole,

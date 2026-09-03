@@ -5,11 +5,12 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+
 import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constants';
+import { StorytimeAuthorService } from '../shared/storytime-author.service';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { ChapterSummaryDto, ChapterWithNavigationDto } from './dto/chapter.dto';
-import { StorytimeAuthorService } from '../shared/storytime-author.service';
 import { StorytimeChapterMapper } from './storytime-chapter.mapper';
 import { StorytimeChapterService } from './storytime-chapter.service';
 

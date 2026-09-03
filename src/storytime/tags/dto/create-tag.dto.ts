@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
 import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -13,6 +14,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+
 import { StorytimeTagCategory } from '../../enums/storytime-tag-category.enum';
 
 /** The most tags one piece of content may carry. */

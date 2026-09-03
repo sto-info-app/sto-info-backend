@@ -1,11 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+
+import { LessThan, Repository } from 'typeorm';
+
 import { CLOSED_ACCOUNT_RETENTION_DAYS } from 'src/cron/constants/cron.constants';
+import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
-import { AccountEntity } from 'src/sto/account/entities/account.entity';
-import { LessThan, Repository } from 'typeorm';
 
 @Injectable()
 export class UserAccountCleanupService {

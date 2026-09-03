@@ -1,6 +1,4 @@
 import { validateOrReject } from 'class-validator';
-import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
-import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
 import {
   EntitySubscriberInterface,
   EntityTarget,
@@ -10,8 +8,11 @@ import {
   UpdateEvent,
 } from 'typeorm';
 
-import { AuditEntity } from '../entities/audit.entity';
+import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
+import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
+
 import { AuditLoginAttemptEntity } from '../entities/audit-login-attempt.entity';
+import { AuditEntity } from '../entities/audit.entity';
 
 // Define the type alias
 type AuditEventType = InsertEvent<any> | UpdateEvent<any> | RemoveEvent<any>;

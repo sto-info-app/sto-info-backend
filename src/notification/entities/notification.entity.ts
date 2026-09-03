@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+
 import {
   Column,
   CreateDateColumn,
@@ -7,6 +8,7 @@ import {
   Index,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+
 import { NotificationSeverity } from '../enums/notification-severity.enum';
 import { NotificationTarget } from '../enums/notification-target.enum';
 

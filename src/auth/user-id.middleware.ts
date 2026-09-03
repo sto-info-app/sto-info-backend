@@ -1,7 +1,9 @@
 import { Injectable, Logger, NestMiddleware } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+
 import { NextFunction, Request, Response } from 'express';
 import * as jwt from 'jsonwebtoken';
+
 import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
 

@@ -1,4 +1,5 @@
 import { validate } from 'class-validator';
+
 import {
   CreateCharacterRequestDto,
   emptyStringToUndefined,

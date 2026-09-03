@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+
 import { StoryDto } from '../../stories/dto/story.dto';
 import { StoryProgressDto } from './story-progress.dto';
 

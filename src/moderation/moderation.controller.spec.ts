@@ -1,8 +1,10 @@
-import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
+
+import { jest } from '@jest/globals';
+
 import { CreateUserReportDto } from './dto/create-user-report.dto';
-import { ModerationController } from './moderation.controller';
 import { ReportReason } from './enums/report-reason.enum';
+import { ModerationController } from './moderation.controller';
 import { ReportService } from './report.service';
 
 const USER_ID = 'reporter-1';

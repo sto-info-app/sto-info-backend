@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+
 import { NotificationModule } from '../../notification/notification.module';
 import { StorytimeChapterEntity } from '../chapters/entities/storytime-chapter.entity';
 import { StorytimeCharacterEntity } from '../characters/entities/storytime-character.entity';

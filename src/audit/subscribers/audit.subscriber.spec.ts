@@ -1,7 +1,5 @@
 import { jest } from '@jest/globals';
 import { validateOrReject } from 'class-validator';
-import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
-import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
 import {
   EntityManager,
   InsertEvent,
@@ -9,6 +7,10 @@ import {
   Repository,
   UpdateEvent,
 } from 'typeorm';
+
+import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
+import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
+
 import { AuditLoginAttemptEntity } from '../entities/audit-login-attempt.entity';
 import { AuditEntity } from '../entities/audit.entity';
 import { AuditSubscriber } from './audit.subscriber';

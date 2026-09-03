@@ -14,10 +14,12 @@ import {
   ApiOkResponse,
   ApiTags,
 } from '@nestjs/swagger';
+
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
-import { UpdateCharacterRdProgressDto } from './dto/update-character-rd-progress.dto';
+
 import { CharacterRdService } from './character-rd.service';
+import { UpdateCharacterRdProgressDto } from './dto/update-character-rd-progress.dto';
 
 @ApiTags('Character R&D APIs')
 @ApiBearerAuth()

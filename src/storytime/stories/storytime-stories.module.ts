@@ -1,14 +1,15 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+
 import { StorytimeCollaborationModule } from '../collaboration/storytime-collaboration.module';
 import { StorytimeContentModule } from '../content/storytime-content.module';
 import { StorytimeImagesModule } from '../images/storytime-images.module';
 import { StorytimeAuthorModule } from '../shared/storytime-author.module';
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
-import { StorytimeSocialModule } from '../social/storytime-social.module';
 import { StorytimeSlugService } from '../shared/storytime-slug.service';
-import { StorytimeTaggingModule } from '../tags/storytime-tagging.module';
+import { StorytimeSocialModule } from '../social/storytime-social.module';
 import { StorytimeFeatureService } from '../storytime-feature.service';
+import { StorytimeTaggingModule } from '../tags/storytime-tagging.module';
 import { StorytimeSlugHistoryEntity } from './entities/storytime-slug-history.entity';
 import { StorytimeStoryEntity } from './entities/storytime-story.entity';
 import { PublicStorytimeStoriesController } from './public-storytime-stories.controller';

@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+
 import { MediaProvider } from '../../enums/media-provider.enum';
 
 /**

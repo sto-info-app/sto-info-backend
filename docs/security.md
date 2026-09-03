@@ -20,64 +20,23 @@ Current overrides in `package.json`:
 
 ```json
 "overrides": {
-  "mailparser": {
-    ".": "^3.9.10",
-    "nodemailer": "^9.0.1"
-  },
-  "nanoid": "3.3.18",
-  "qs": "^6.15.2",
-  "js-yaml": ">=5.2.2",
-  "typeorm": {
-    "ioredis": "^6.0.0"
-  }
+  "qs": "^6.16.0"
 }
 ```
 
-#### `nanoid`
-
-- **Vulnerability**: [GHSA-2v37-7h3g-55p8](https://github.com/advisories/GHSA-2v37-7h3g-55p8) — custom generators can loop indefinitely when their size is zero. Affected versions are `< 3.3.18`. Severity: High.
-- **Root cause**: `postcss@8.5.26`, used by `mjml-core` through `@nestjs-modules/mailer`, accepts `nanoid@^3.3.16` and the lockfile previously resolved it to vulnerable `3.3.17`.
-- **Override**: `"nanoid": "3.3.18"` — pins the transitive dependency to the first patched version.
-
-**When it can be removed**: When the dependency tree resolves `nanoid >= 3.3.18` without the override. Check with:
-
-```sh
-npm ls nanoid
-```
-
-#### `js-yaml`
-
-- **Vulnerability**: [GHSA-pm4m-ph32-ghv5](https://github.com/advisories/GHSA-pm4m-ph32-ghv5) — exponential parsing time in nested flow collections allows a small YAML document to block the Node.js event loop. Affected versions are `5.0.0 - 5.2.1`; patched in `5.2.2`. Severity: High.
-- **Root cause**: `@nestjs/swagger@11.4.7` still exact-pins `js-yaml@5.3.0` (itself patched). Without a global override, other tooling (`cosmiconfig`, `@istanbuljs/load-nyc-config`) can also install nested `js-yaml` 3.x / 4.x copies alongside that pin.
-- **Override**: `"js-yaml": ">=5.2.2"` — forces the whole tree onto the patched 5.x line (currently `5.4.1`).
-
-**When it can be removed**: When `@nestjs/swagger` requests `js-yaml >= 5.2.2` as a range (not an exact pin) and the remaining dependency tree resolves no affected copies. Check with:
-
-```sh
-npm view @nestjs/swagger@latest dependencies.js-yaml
-npm ls js-yaml
-```
-
-#### `mailparser` + nested `nodemailer`
-
-- **Vulnerability family**: SMTP command/header injection and access-control-bypass issues in older `nodemailer` lines (for example GHSA-c7w3-x93f-qmm8 and GHSA-p6gq-j5cr-w38f), plus [GHSA-22p9-wv53-3rq4](https://github.com/advisories/GHSA-22p9-wv53-3rq4) — quadratic complexity in `linkify-it <= 5.0.0`, a `mailparser` dependency.
-- **Root cause**: `preview-email@3.4.0` (pulled in by `@nestjs-modules/mailer`) still exact-pins `mailparser@3.9.17`. That release is itself patched, but an exact pin lets a later `npm update` drop back onto an older exact pin if upstream regresses, and npm will not hoist a newer `3.9.18` without an override.
-- **Override**: `"mailparser": { ".": "^3.9.10", "nodemailer": "^9.0.1" }` — keeps the patched parent on `^3.9.10` (currently `3.9.18`), which resolves to `nodemailer@9.1.0` and `linkify-it@5.0.2`.
-
-**When it can be removed**: When `preview-email` raises its own `mailparser` pin to a range (`>= 3.9.9` or `^3.9.10`) and the transitive dependency chain resolves fully patched. Check with:
-
-```sh
-npm view preview-email@latest dependencies.mailparser
-npm view mailparser@latest dependencies.nodemailer
-```
+As of **2026-09-03** `qs` is the only override the backend still needs. The
+`mailparser`, `nanoid`, `js-yaml`, and `typeorm.ioredis` entries were all
+verified redundant against the removal checklist above and dropped — see
+[Recently Removed Overrides](#recently-removed-overrides).
 
 #### `qs`
 
-- **Vulnerability**: [GHSA-q8mj-m7cp-5q26](https://github.com/advisories/GHSA-q8mj-m7cp-5q26) — remotely triggerable DoS in `qs 6.11.1 - 6.15.1` (`qs.stringify` crashes on null/undefined entries in comma-format arrays).
+- **Vulnerabilities**: [GHSA-q8mj-m7cp-5q26](https://github.com/advisories/GHSA-q8mj-m7cp-5q26) — remotely triggerable DoS (`qs.stringify` crashes on null/undefined entries in comma-format arrays); [GHSA-x5fp-wj9c-mxmx](https://github.com/advisories/GHSA-x5fp-wj9c-mxmx) — array-limit bypass via bracket-key comma parsing; [GHSA-4mjr-xmp4-gh2g](https://github.com/advisories/GHSA-4mjr-xmp4-gh2g) — DoS via attacker-controlled `isBuffer`. Together these cover `qs 2.2.5 - 6.15.3`; `6.16.0` is the first release patched against all three.
 - **Root cause**: `typed-rest-client@2.3.1` (via `@stryker-mutator/core`) pins `qs@6.15.1` exactly.
-- **Override**: `"qs": "^6.15.2"` — global pin; the whole tree dedupes to a single patched `qs` (currently `6.16.0`). A nested `"typed-rest-client": { "qs": ... }` form was tried first but npm did not reify it reliably, so the global form is used.
+- **Override**: `"qs": "^6.16.0"` — global pin; the whole tree dedupes to a single patched `qs` (currently `6.16.0`). A nested `"typed-rest-client": { "qs": ... }` form was tried first but npm did not reify it reliably, so the global form is used.
+- **Raised from `^6.15.2` on 2026-09-03**: the two later advisories extended the vulnerable range up to and including `6.15.3`, which the old caret range still permitted.
 
-**When it can be removed**: When `typed-rest-client` raises its `qs` pin to `>= 6.15.2` (or Stryker moves to `typed-rest-client@3`). Check with:
+**When it can be removed**: When `typed-rest-client` raises its `qs` pin to `>= 6.16.0` (or Stryker moves to `typed-rest-client@3`). Check with:
 
 ```sh
 npm view typed-rest-client@latest dependencies.qs
@@ -95,29 +54,74 @@ npm view typed-rest-client@latest dependencies.qs
 npm ls deepmerge-ts html-to-text
 ```
 
-#### `typeorm` + `ioredis`
-
-- **Issue**: `typeorm@1.1.0` declares an optional peer on `ioredis@^5.0.4`, which npm reports as a peer conflict when the app installs `ioredis@^6` directly.
-- **Why this is safe here**: the project does not rely on TypeORM's optional Redis cache integration for its main PostgreSQL work; the active runtime Redis usage is the direct `express-rate-limit` stack in [src/main.ts](src/main.ts).
-- **Override**: `"typeorm": { "ioredis": "^6.0.0" }` — keeps npm's resolution valid while respecting the fact that this peer is optional and not required for the app's database path.
-
-**When it can be removed**: When upstream `typeorm` publishes a compatible optional peer for `ioredis@^6` or the project no longer uses the direct `ioredis` client for rate limiting.
-
 #### Babel 7 (Jest) and Babel 8 (Stryker)
 
 - **Issue**: `@jest/transform` and related Jest packages depend on `@babel/core@^7.27.4`. `@stryker-mutator/core@10` instruments through Babel 8. `ts-jest@29` still declares an optional Babel 7 peer. CI installs with `npm ci --legacy-peer-deps`, which keeps both lines: Babel 7 at the top of the tree for Jest, Babel 8 nested under `@stryker-mutator/instrumenter`.
 - **No override**: forcing `ts-jest` onto Babel 8 drops `@babel/core@7.29.7` from the lockfile. `npm ci --legacy-peer-deps` then fails with "Missing: @babel/core@7.29.7 from lock file".
 - **How to refresh the lockfile**: `npm install --legacy-peer-deps` (never a plain `npm install` / `npm update`). Confirm with `npm ci --ignore-scripts --legacy-peer-deps` and `npm ls @babel/core`.
 
-#### NestJS 12 — deferred (2026-08-31)
+##### `.npmrc` — `legacy-peer-deps=true` (added 2026-09-03)
 
-Dependabot opened isolated majors for `@nestjs/common`, `@nestjs/core`, `@nestjs/config`, `@nestjs/swagger`, `@nestjs/typeorm`, `@nestjs/passport`, `@nestjs/cli`, and `@nestjs/schematics` onto the 12.x line. Those packages are now native ESM. They are **not** included in this refresh, for all of the following:
+Until 2026-09-03 this repo had no `.npmrc`, so a plain `npm install` failed
+outright with `ERESOLVE could not resolve`:
 
-1. **Ecosystem packages have no Nest 12 release yet.** `nestjs-cls@6.2.2` declares `@nestjs/common` / `@nestjs/core` `>= 10 < 12`. `@nestjs/terminus@11.1.1` and `@nestjs/throttler@6.5.0` still peer onto Nest 10/11 only. The app uses all three (`ClsModule` in `src/app.module.ts`, `TerminusModule` in `src/health/health.module.ts`, and `@nestjs/throttler` on the tree).
-2. **Isolated ESM majors fail this Jest setup unless Node VM modules are enabled.** Dependabot's Nest 12 PRs failed `Security: Fuzz` with `Must use import to load ES Module`. Jest 30 can `require()` ESM on Node 24.9+, but that path needs `vm.SourceTextModule` (`--experimental-vm-modules`). Test scripts now set that flag so `@nestjs/jwt@12` loads; a whole-framework ESM cutover is still a separate Jest/Vitest piece of work, not a lockfile bump.
-3. **CLI 12 is the Nest 12 toolchain.** `@nestjs/cli@12` stops bundling webpack, defaults new apps to ESM / Vitest / oxlint / Rspack, and ships `nest upgrade`. It belongs with the Nest 12 cutover, not a Nest 11 runtime.
+```
+While resolving: ts-jest@29.4.12
+Found: @babel/core@8.0.1
+Could not resolve dependency:
+peerOptional @babel/core@">=7.0.0-beta.0 <8" from ts-jest@29.4.12
+```
 
-Take Nest 12 as its own change once `nestjs-cls`, `@nestjs/terminus`, and `@nestjs/throttler` publish Nest 12-compatible releases, then upgrade every `@nestjs/*` package together (the CLI's `nest upgrade` command is the intended path) and rework the Jest config for ESM.
+CI already installs with `npm ci --ignore-scripts --legacy-peer-deps`
+(see [.github/actions/cached-dependencies/action.yml](../.github/actions/cached-dependencies/action.yml)),
+and the frontend repo already carried the matching `.npmrc`, so local installs
+were the only place the flag was missing. The committed `.npmrc`:
+
+```ini
+legacy-peer-deps=true
+```
+
+makes a bare `npm install` / `npm update` resolve the same way CI does, which
+keeps the lockfile reproducible. **Do not remove it** while the Babel 7 / Babel 8
+split above persists.
+
+#### NestJS 12 — still deferred (re-checked 2026-09-03)
+
+`@nestjs/*` 12.x is available for every package the backend uses directly, but
+the upgrade remains blocked by **two ecosystem packages whose latest releases
+still refuse Nest 12 in their peer ranges**:
+
+| Package          | Latest    | Declared `@nestjs/core` peer range | Used by                                                  |
+| ---------------- | --------- | ---------------------------------- | -------------------------------------------------------- |
+| `nestjs-cls`     | `6.2.2`   | `>= 10 < 12`                       | `ClsModule` in [src/app.module.ts](../src/app.module.ts) |
+| `@sentry/nestjs` | `10.73.0` | `^8 \|\| ^9 \|\| ^10 \|\| ^11`     | Error reporting throughout `src/`                        |
+
+Two packages previously listed here are no longer blockers:
+
+- **`@nestjs/terminus`** now publishes `12.0.0` with `@nestjs/core: ^11 || ^12`.
+  It is still used (`TerminusModule` in `src/health/health.module.ts`) but no
+  longer constrains the upgrade.
+- **`@nestjs/throttler`** was **removed from the project on 2026-09-03** — it was
+  declared in `dependencies` but never imported anywhere in `src/`. Request
+  throttling is done by the `express-rate-limit` + `rate-limit-redis` stack
+  configured in [src/main.ts](../src/main.ts), not by Nest's throttler. Earlier
+  revisions of this document described it as load-bearing; that was incorrect.
+
+The other reasons recorded on 2026-08-31 still stand:
+
+1. **Isolated ESM majors need Node VM modules.** Nest 12 packages are native
+   ESM. Jest 30 can `require()` ESM on Node 24.9+, but that path needs
+   `vm.SourceTextModule` (`--experimental-vm-modules`). The test scripts already
+   set that flag so `@nestjs/jwt@12` loads; a whole-framework ESM cutover is a
+   separate Jest/Vitest piece of work, not a lockfile bump.
+2. **CLI 12 is the Nest 12 toolchain.** `@nestjs/cli@12` stops bundling webpack,
+   defaults new apps to ESM / Vitest / oxlint / Rspack, and ships `nest upgrade`.
+   It belongs with the Nest 12 cutover, not a Nest 11 runtime.
+
+Take Nest 12 as its own change once `nestjs-cls` and `@sentry/nestjs` publish
+Nest 12-compatible peer ranges, then upgrade every `@nestjs/*` package together
+(the CLI's `nest upgrade` command is the intended path) and rework the Jest
+config for ESM.
 
 `@nestjs/jwt@12.0.1` is already on the Nest 11 tree (its peer range includes Nest 8–12). It is a native ESM package with no `require` export condition. Jest 30's `require(esm)` support is gated on `vm.SourceTextModule.prototype.hasAsyncGraph`, which on Node 24.15 still needs `--experimental-vm-modules`. The Jest npm scripts and Stryker `testRunnerNodeArgs` therefore set that flag so auth specs can load `@nestjs/jwt`. Runtime (`node dist/src/main`) does not need the flag: Node 24 can `require()` the ESM build via the `default` export condition.
 
@@ -125,30 +129,165 @@ Take Nest 12 as its own change once `nestjs-cls`, `@nestjs/terminus`, and `@nest
 
 ```sh
 npm view nestjs-cls@latest peerDependencies
-npm view @nestjs/terminus@latest peerDependencies
-npm view @nestjs/throttler@latest peerDependencies
+npm view @sentry/nestjs@latest peerDependencies
 ```
 
-#### TypeScript compatibility gate
+#### TypeScript compatibility gate (re-checked 2026-09-03)
 
-- **Issue**: `@nestjs/cli` in this project requires the TypeScript compiler API, which is not exposed in `typescript@7` at the time of this upgrade. The CLI fails with: `The installed TypeScript version (7.0.2) does not expose the programmatic compiler API that the Nest CLI requires.`
-- **Constraint**: the project remains pinned to `typescript@^6.0.3` until the Nest CLI ecosystem adds support for the TypeScript 7 compiler API.
-- **Why this is intentional**: the backend is currently on a stable Nest 11 toolchain, and the compatibility boundary is lower than the newest TypeScript release.
+`typescript@7.0.2` is published, but the backend stays on `^6.0.3`. Two hard
+constraints block it:
+
+| Blocker              | Declared constraint            | Effect                                                                               |
+| -------------------- | ------------------------------ | ------------------------------------------------------------------------------------ |
+| `ts-jest@29.4.12`    | peer `typescript >=4.3 <7`     | The Jest transform chain excludes TypeScript 7 outright; `ts-jest` has no 30.x line. |
+| `@nestjs/cli@12.0.0` | dependency `typescript ~6.0.2` | Even the newest Nest CLI still installs a TypeScript 6 compiler for itself.          |
+
+The Nest CLI also fails at runtime under TypeScript 7 with
+`The installed TypeScript version (7.0.2) does not expose the programmatic
+compiler API that the Nest CLI requires.`
+
+**When it can be retried**: when `ts-jest` publishes a release whose peer range
+admits TypeScript 7 (or the project moves off `ts-jest`), and the Nest CLI
+depends on a TypeScript 7 compiler. Check with:
+
+```sh
+npm view ts-jest@latest peerDependencies.typescript
+npm view @nestjs/cli@latest dependencies.typescript
+```
+
+#### Unused dependencies removed (2026-09-03)
+
+A dependency audit (`depcheck`, then a manual check of every candidate against
+the source, the npm scripts, and every config file) removed ten packages that
+nothing in the project referenced. Each removal was confirmed by reinstalling
+and re-running `npm run lint`, `npm run format:check`, `npm run build`,
+`npm run test:cov`, and `npm run test:fuzz`.
+
+| Removed                  | Section | Why it was safe                                                                                                                                                       |
+| ------------------------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@nestjs/throttler`      | prod    | Never imported. Throttling is the `express-rate-limit` + `rate-limit-redis` stack in `src/main.ts`. Removing it also cleared one NestJS 12 blocker.                   |
+| `crypto`                 | prod    | Dead npm placeholder that shadows Node's builtin — see below.                                                                                                         |
+| `superagent`             | prod    | Not imported. `supertest` (dev) pulls the same `10.3.0` for e2e tests, so the tree is unchanged.                                                                      |
+| `swagger-ui-express`     | prod    | Not imported, and `@nestjs/swagger@11` neither depends on nor peers on it — it bundles `swagger-ui-dist` and serves the UI itself. `SwaggerModule.setup` still works. |
+| `uuid`                   | prod    | Not imported. Every id in the codebase comes from `randomUUID` in `node:crypto` or from Postgres.                                                                     |
+| `@eslint/config-array`   | dev     | Not referenced by `eslint.config.mjs`; leftover from an old transitive-deprecation workaround.                                                                        |
+| `@eslint/object-schema`  | dev     | Same.                                                                                                                                                                 |
+| `eslint-config-prettier` | dev     | An **optional** peer of `eslint-plugin-prettier` and never referenced by the flat config, which spreads only `prettierPlugin.configs.recommended.rules`.              |
+| `source-map-support`     | dev     | Not imported. `tsconfig.json` sets `"sourceMap": true`, which only controls emit; Node 24 reads source maps natively.                                                 |
+| `ts-loader`              | dev     | Only needed for webpack builds. `nest-cli.json` declares no builder, so `nest build` uses `tsc`. The project already omitted `webpack` and its other webpack peers.   |
+
+**Verified against CI**: no workflow in `.github/` references any removed
+package, and none of the removals touch a command the workflows run.
+
+Two pieces of dead configuration went with them:
+
+- **`eslintConfig` in `package.json`** — a legacy `.eslintrc`-style block naming
+  `eslint:recommended`, `plugin:@typescript-eslint/recommended`, and
+  `plugin:prettier/recommended`. ESLint 10 uses flat config exclusively and never
+  reads it, so it described rules that were not being applied.
+- **`arrayBracketSpacing` in `.prettierrc`** — not a Prettier option at all (it is
+  an ESLint rule name). Prettier logged `Ignored unknown option` for it on every
+  run. Also removed from the frontend's `.prettierrc`, which carried the same key.
+
+#### Import ordering is now actually enforced (2026-09-03)
+
+`.prettierrc` had declared an `importOrder` for some time, but **it never ran**.
+Three separate faults:
+
+1. **The plugin was never loaded.** `@ianvs/prettier-plugin-sort-imports` was
+   installed but `.prettierrc` had no `plugins` key, so Prettier logged
+   `Ignored unknown option { importOrder: ... }` and formatted without it.
+2. **Two options had been removed upstream.** `importOrderSeparation` and
+   `importOrderSortSpecifiers` are v3 options; the project is on v4, where
+   separation is expressed with `""` entries in `importOrder` and specifier
+   sorting is unconditional.
+3. **Two of the five groups matched nothing.** `^@sto/` and `^@/` are not
+   TypeScript path aliases in this project — `tsconfig.json` defines only
+   `"src/*"`, and 139 files import through it.
+
+`eslint-plugin-simple-import-sort` was not covering the gap either: it is
+registered as a plugin in `eslint.config.mjs` but none of its rules are enabled.
+So import order was unenforced by both tools.
+
+The working configuration:
+
+```json
+"plugins": ["@ianvs/prettier-plugin-sort-imports"],
+"importOrder": [
+  "^node:",
+  "",
+  "^@nestjs/(.*)$",
+  "",
+  "<THIRD_PARTY_MODULES>",
+  "",
+  "^src/(.*)$",
+  "",
+  "^[./]"
+],
+"importOrderParserPlugins": ["typescript", "decorators-legacy"]
+```
+
+`importOrderParserPlugins` is required: without `decorators-legacy` the plugin's
+Babel parser aborts on every decorated Nest class with
+`This experimental syntax requires enabling one of the following parser plugin(s): "decorators", "decorators-legacy"`.
+
+Turning it on reformatted the imports of **588 files**. That is a one-off cost,
+not optional: CI runs `npm run format:check` (`prettier --check "src/**/*.ts"`)
+in [lint-test.yml](../.github/workflows/lint-test.yml), and `eslint-plugin-prettier`
+surfaces the same formatting through `npm run lint`, so the tree has to match the
+config either way. VS Code picks the plugin up automatically through
+`esbenp.prettier-vscode` with the existing `editor.formatOnSave`.
+
+#### `crypto` package removed (2026-09-03)
+
+The backend declared a direct dependency on the npm package `crypto@1.0.1`. That
+package is a long-dead placeholder — npm marks it
+`This package is no longer supported. It's now a built-in Node module.` — and
+having it in `node_modules` risks shadowing Node's real `crypto` builtin in any
+resolver that prefers `node_modules` over builtins.
+
+It has been removed from `dependencies`, and the two files that imported the
+bare specifier now use the explicit builtin form, matching the other eight
+`node:crypto` call sites already in `src/`:
+
+```ts
+import { randomUUID } from 'node:crypto';
+```
+
+Affected files: [src/common/http/request-id.middleware.ts](../src/common/http/request-id.middleware.ts)
+and its spec (whose `jest.mock('crypto', ...)` became `jest.mock('node:crypto', ...)`).
 
 #### Recently Removed Overrides
+
+Overrides removed on **2026-09-03** during dependency and audit maintenance. Each
+was verified against the removal checklist above: with the override deleted and
+the lockfile regenerated, `npm audit` reports **0 vulnerabilities** at every
+severity, and `npm run lint`, `npm run test:cov`, `npm run test:fuzz`, and
+`npm run build` all pass.
+
+| Override          | Previously forced                            | Resolves to without the override            | Reason for removal                                                                                                                                                                       |
+| ----------------- | -------------------------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nanoid`          | `3.3.18`                                     | `nanoid@3.3.18`                             | `postcss@8.5.26` accepts `^3.3.16` and npm now selects the patched `3.3.18` on its own, so the pin no longer changes the tree.                                                           |
+| `js-yaml`         | `>=5.2.2`                                    | `js-yaml@3.15.2`, `4.3.2`, `5.3.0`, `5.4.1` | Every installed copy is at or above its advisory's patched version, so audit is clean. Dropping the global force also returns each consumer to the `js-yaml` line it was tested against. |
+| `mailparser`      | `{ ".": "^3.9.10", "nodemailer": "^9.0.1" }` | `mailparser@3.9.17`, `nodemailer@9.1.1`     | `preview-email@3.4.0` now resolves a patched `mailparser`, and no nested `nodemailer` copy is installed anywhere in the tree.                                                            |
+| `typeorm.ioredis` | `^6.0.0`                                     | `ioredis@6.0.0`                             | `typeorm@1.1.1` resolves `ioredis@6.0.0` natively; the nested override no longer has any effect.                                                                                         |
+
+The postinstall patches in `scripts/patch-nested-packages.js` were **kept** —
+they are already no-ops (see below) and remain a cheap safety net if upstream
+re-resolution regresses.
 
 The `preview-email/node_modules/uuid` postinstall patch was removed on **2026-08-31**: `preview-email@3.4.0` no longer installs a nested `uuid`, and the top-level `uuid@14.0.2` is the only copy.
 
 Overrides removed on **2026-08-15** during dependency and audit maintenance:
 
-| Override   | Previously forced | Reason for removal                                                                                         |
-| ---------- | ----------------- | ---------------------------------------------------------------------------------------------------------- |
-| `ioredis`  | `^5.11.1`         | Direct dependencies already constrain the tree to `5.11.1`; regenerating the lockfile leaves audit clean. |
+| Override  | Previously forced | Reason for removal                                                                                        |
+| --------- | ----------------- | --------------------------------------------------------------------------------------------------------- |
+| `ioredis` | `^5.11.1`         | Direct dependencies already constrain the tree to `5.11.1`; regenerating the lockfile leaves audit clean. |
 
 Overrides removed on **2026-08-05** during dependency and audit maintenance:
 
-| Override          | Previously forced | Reason for removal                                                                                  |
-| ----------------- | ----------------- | --------------------------------------------------------------------------------------------------- |
+| Override          | Previously forced | Reason for removal                                                                                |
+| ----------------- | ----------------- | ------------------------------------------------------------------------------------------------- |
 | `brace-expansion` | `^5.0.8`          | Dependency tree now resolves naturally to `5.0.9` or newer; `npm audit` remains clean without it. |
 
 Overrides removed on **2026-07-21** during the dependency security review — all verified redundant by the removal checklist above (audit clean, lint, build, and full test suite pass without them):
@@ -227,7 +366,7 @@ const patches = [
 - **Root cause**: `mailparser` and `preview-email` can install nested `nodemailer` versions behind the secure top-level dependency. npm 11.x nested-override behavior can leave those copies in place.
 - **Patch**: `['mailparser/node_modules/nodemailer', 'nodemailer']` and `['preview-email/node_modules/nodemailer', 'nodemailer']` copy the safe top-level `nodemailer` into nested installs after every `npm install` / `npm ci`.
 
-**Status (2026-08-31)**: With the `mailparser` override resolving `3.9.18` (which depends on patched `nodemailer` natively) and `preview-email@3.4.0` requesting `nodemailer@^9.0.6`, no nested `nodemailer` copies are currently installed — both entries are no-ops kept as a safety net against future re-resolution.
+**Status (2026-09-03)**: The `mailparser` override has been removed. `preview-email@3.4.0` now resolves `mailparser@3.9.17` and `nodemailer@9.1.1` natively, and `npm ls nodemailer` shows a single hoisted copy — so both entries are no-ops, kept as a safety net against future re-resolution.
 
 **When it can be removed**: When `mailparser` and `preview-email` both resolve patched `nodemailer` natively and nested vulnerable copies are no longer installed. Verify with:
 

@@ -1,5 +1,5 @@
-import { FriendRequestDirection } from '../enums/friend-request-direction.enum';
 import { validateDto } from '../../utils/testing/dto-validation.util';
+import { FriendRequestDirection } from '../enums/friend-request-direction.enum';
 import { CreateBlockDto } from './create-block.dto';
 import { CreateFriendRequestDto } from './create-friend-request.dto';
 import { FriendRequestsQueryDto } from './friend-requests-query.dto';

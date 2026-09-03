@@ -1,6 +1,7 @@
-import { Logger } from '@nestjs/common';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+
+import { Logger } from '@nestjs/common';
 
 const SRC_TEMPLATES_DIR = path.resolve(
   process.cwd(),

@@ -1,0 +1,113 @@
+name: Mutation Testing (Incremental)
+
+on:
+  pull_request:
+    branches:
+      - development
+      - 'epic/*'
+      - production
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions: {}
+
+env:
+  NODE_VERSION: 24.15.0
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check_changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      src_changed: ${{ steps.filter.outputs.src_changed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          filters: |
+            src_changed:
+              - 'src/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'nx.json'
+              - 'tsconfig.json'
+              - 'jest.config.mjs'
+
+  mutation_incremental:
+    name: 'Mutation Testing (Incremental)'
+    needs: check_changes
+    # Skip if dependabot, skip draft PRs, skip when nothing relevant changed
+    if: |
+      github.actor != 'dependabot[bot]' &&
+      needs.check_changes.outputs.src_changed == 'true' &&
+      github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    # Incremental mutation only mutates the changed-file subset, not the
+    # whole repo (unlike mutation-testing.yml's 180-min full run), so it
+    # gets a smaller dedicated budget: enough margin over the worst case
+    # (a huge diff after a cache miss) without silently burning 3 hours
+    # of CI time if a run is actually hung rather than just slow.
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Resolve cache toggle
+        id: cache-toggle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          value=$(gh api repos/$REPO/actions/variables/CACHE_NODE_MODULES --jq '.value' 2>/dev/null || echo '')
+          if [ -z "$value" ]; then
+            value=true
+          fi
+          echo "use_cache=$value" >> "$GITHUB_OUTPUT"
+
+      - name: Load & cache dependencies
+        uses: ./.github/actions/cached-dependencies
+        with:
+          use-cache: ${{ steps.cache-toggle.outputs.use_cache }}
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Restore Stryker incremental cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .stryker-tmp/incremental.json
+          key: stryker-incremental-${{ github.base_ref }}-${{ hashFiles('src/**/*.ts') }}
+          restore-keys: |
+            stryker-incremental-${{ github.base_ref }}-
+            stryker-incremental-
+
+      - name: Run Incremental Mutation Testing
+        shell: bash
+        run: |
+          # Fetch the base branch to compare against
+          git fetch origin ${{ github.base_ref }} --depth=1
+
+          # Compute and run incremental mutation testing (exits 0 when nothing to mutate)
+          BASE_REF=origin/${{ github.base_ref }} npm run test:mutation:incremental
+
+      - name: Upload Mutation Report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: stryker-incremental-report
+          path: reports/mutation/
+          retention-days: 30

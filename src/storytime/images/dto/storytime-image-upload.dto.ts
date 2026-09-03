@@ -1,6 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
+
 import { Transform } from 'class-transformer';
 import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
+
 import { STORYTIME_IMAGE_ALT_MAX_LENGTH } from '../../constants/storytime-image.constants';
 
 /** Trims a string value, leaving anything else untouched for the validators. */

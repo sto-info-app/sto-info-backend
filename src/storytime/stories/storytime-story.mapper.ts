@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
+
 import { STORYTIME_POLICY_VERSION } from '../constants/storytime-policy.constants';
-import { ManagedStoryDto, StoryDto } from './dto/story.dto';
-import { StorytimeStoryEntity } from './entities/storytime-story.entity';
 import { StorytimeAuthorDto } from '../dto/storytime-author.dto';
 import { TagDto } from '../tags/dto/create-tag.dto';
+import { ManagedStoryDto, StoryDto } from './dto/story.dto';
+import { StorytimeStoryEntity } from './entities/storytime-story.entity';
 
 /**
  * Turns Story entities into the shapes the API returns.

@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+
 import { Repository } from 'typeorm';
+
 import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
 import { StorytimeArcFollowEntity } from './entities/storytime-arc-follow.entity';
 import { StorytimeCreatorFollowEntity } from './entities/storytime-creator-follow.entity';

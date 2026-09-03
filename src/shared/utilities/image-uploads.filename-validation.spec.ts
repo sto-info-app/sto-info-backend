@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+
 describe('ImageUploadsService SAFE_FILENAME_PATTERN branch', () => {
   it('should throw when sanitised filename fails SAFE_FILENAME_PATTERN', async () => {
     jest.resetModules();

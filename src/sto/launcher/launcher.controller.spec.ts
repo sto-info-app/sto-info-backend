@@ -1,6 +1,8 @@
-import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
+import { jest } from '@jest/globals';
+
 import { LauncherEntity } from './entities/launcher.entity';
 import { LauncherController } from './launcher.controller';
 import { LauncherService } from './launcher.service';

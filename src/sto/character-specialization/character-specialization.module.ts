@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+
 import { CharacterModule } from 'src/sto/character/character.module';
+
 import { CharacterSpecializationController } from './character-specialization.controller';
 import { CharacterSpecializationService } from './character-specialization.service';
 import { CharacterSpecializationProgressEntity } from './entities/character-specialization-progress.entity';

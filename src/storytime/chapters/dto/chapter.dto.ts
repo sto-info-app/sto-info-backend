@@ -1,8 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+import { StorytimeAuthorDto } from '../../dto/storytime-author.dto';
 import { ChapterStatus } from '../../enums/chapter-status.enum';
 import { ContentRating } from '../../enums/content-rating.enum';
 import { StorytimeModerationStatus } from '../../enums/storytime-moderation-status.enum';
-import { StorytimeAuthorDto } from '../../dto/storytime-author.dto';
 
 /**
  * A Chapter summarised for a list.

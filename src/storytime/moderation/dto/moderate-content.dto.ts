@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
 import { Transform } from 'class-transformer';
 import {
   IsEnum,
@@ -8,6 +9,7 @@ import {
   IsUUID,
   MaxLength,
 } from 'class-validator';
+
 import { StorytimeReportReason } from '../../enums/storytime-report-reason.enum';
 import { StorytimeTargetType } from '../../enums/storytime-target-type.enum';
 

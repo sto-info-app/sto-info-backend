@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+
 import { NotificationModule } from '../../notification/notification.module';
 import { StorytimeArcEntity } from '../arcs/entities/storytime-arc.entity';
 import { StorytimeChapterEntity } from '../chapters/entities/storytime-chapter.entity';
@@ -10,10 +11,10 @@ import { StorytimeModerationActionEntity } from './entities/storytime-moderation
 import { StorytimeModerationAppealEntity } from './entities/storytime-moderation-appeal.entity';
 import { StorytimeReportEntity } from './entities/storytime-report.entity';
 import { StorytimeAppealService } from './storytime-appeal.service';
+import { StorytimeModerationTargetService } from './storytime-moderation-target.service';
 import { StorytimeModerationController } from './storytime-moderation.controller';
 import { StorytimeModerationMapper } from './storytime-moderation.mapper';
 import { StorytimeModerationService } from './storytime-moderation.service';
-import { StorytimeModerationTargetService } from './storytime-moderation-target.service';
 import { StorytimeReportService } from './storytime-report.service';
 
 /**

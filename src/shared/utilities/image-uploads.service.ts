@@ -1,14 +1,15 @@
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+
 import {
   DeleteObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import * as Cloudmersive from 'cloudmersive-virus-api-client';
-
 import FormData from 'form-data';
+
 import {
   SAFE_FILENAME_PATTERN,
   UNSAFE_FILENAME_PATTERN,

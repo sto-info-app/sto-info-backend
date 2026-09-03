@@ -17,12 +17,14 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { Public } from 'src/auth/public.decorator';
 import { Roles } from 'src/auth/roles.decorator';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { UserId } from 'src/auth/user-id.decorator';
 import { UserRole } from 'src/user/enums/user-role.enum';
+
 import { CreateNewsPostDto } from './dto/create-news-post.dto';
 import { NewsQueryDto } from './dto/news-query.dto';
 import { UpdateNewsPostDto } from './dto/update-news-post.dto';

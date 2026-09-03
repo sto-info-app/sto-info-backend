@@ -9,7 +9,6 @@ import {
   IsUUID,
   Min,
 } from 'class-validator';
-import { CLOUDFLARE_R2_CDN_ROOT_URL } from 'src/shared/constants/image.constants';
 import {
   Column,
   CreateDateColumn,
@@ -21,6 +20,9 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+
+import { CLOUDFLARE_R2_CDN_ROOT_URL } from 'src/shared/constants/image.constants';
+
 import { AccountEntity } from '../../account/entities/account.entity';
 import { CharacterClassEntity } from './character-class.entity';
 import { FactionEntity } from './faction.entity';

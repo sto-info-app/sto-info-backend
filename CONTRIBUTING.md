@@ -48,6 +48,45 @@ If you find a bug or have a feature request, please open an issue on GitHub.
 - Write clear and concise commit messages.
 - Ensure your code passes all tests before submitting a pull request.
 
+### Git hooks
+
+[Husky](https://typicode.github.io/husky/) installs two hooks when you run
+`npm install`:
+
+- **`pre-commit`** ([.husky/pre-commit](.husky/pre-commit)) runs
+  [lint-staged](https://github.com/lint-staged/lint-staged) over the files you
+  have staged. Staged TypeScript gets `eslint --fix` and `prettier --write`, so
+  formatting and import order are corrected in place and restaged. Import order
+  is enforced rather than advisory — the lint-test workflow runs
+  `npm run format:check` as its own step — so let the hook order your imports
+  instead of arranging them by hand.
+- **`commit-msg`** ([.husky/commit-msg](.husky/commit-msg)) requires a
+  `Signed-off-by` trailer on every commit. Use `git commit -s`, or add the line
+  yourself. DCO is also enforced in CI by the
+  [DCO workflow](.github/workflows/dco.yml).
+
+Write hook scripts as bare commands: no shebang, and no
+`. "$(dirname "$0")/_/husky.sh"` line. Husky invokes them through `.husky/_/h`
+with `sh -e` and already puts `node_modules/.bin` on `PATH`. Both lines are
+deprecated in husky 9 and will break the hook in husky 10.
+
+To skip the hooks for a single commit — rarely a good idea — use
+`git commit --no-verify`.
+
+### Formatting
+
+Prettier owns the layout of the TypeScript sources, including import order. To
+check or apply it without committing:
+
+```sh
+npm run format:check   # verify, changing nothing
+npm run format         # apply
+```
+
+`format:check` runs as its own step in the
+[lint-test workflow](.github/workflows/lint-test.yml), so unformatted code fails
+the build rather than being quietly corrected.
+
 ## Testing
 
 Please ensure that your changes do not break any existing tests and add new tests for new features.

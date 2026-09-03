@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+
 import {
   MINIMUM_DIVISIBLE_GAP,
   ORDER_INDEX_GAP,

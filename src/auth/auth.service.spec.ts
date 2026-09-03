@@ -1,4 +1,3 @@
-import { jest } from '@jest/globals';
 import {
   BadRequestException,
   ConflictException,
@@ -11,16 +10,19 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
+import { jest } from '@jest/globals';
 import * as bcrypt from 'bcrypt';
-import { AuditEntity } from 'src/audit/entities/audit.entity';
+import { QueryFailedError, Repository } from 'typeorm';
+
 import { AuditLoginAttemptEntity } from 'src/audit/entities/audit-login-attempt.entity';
+import { AuditEntity } from 'src/audit/entities/audit.entity';
 import { MailService } from 'src/mail/mail.service';
 import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
 import { UserRefreshTokenService } from 'src/user-refresh-token/user-refresh-token.service';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
 import { UserService } from 'src/user/user.service';
-import { QueryFailedError, Repository } from 'typeorm';
 
 import { AuthService } from './auth.service';
 

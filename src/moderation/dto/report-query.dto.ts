@@ -1,5 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
+
 import { IsEnum, IsOptional } from 'class-validator';
+
 import { SearchPaginatedQueryDto } from '../../shared/dto/paginated-query.dto';
 import { ReportReason } from '../enums/report-reason.enum';
 import { ReportStatus } from '../enums/report-status.enum';

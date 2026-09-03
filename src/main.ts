@@ -1,7 +1,10 @@
 import { config } from 'dotenv';
-config({ path: 'config/environments/.env' });
 
 import './common/sentry/sentry.init';
+
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { performance } from 'node:perf_hooks';
 
 import { HttpStatus, Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -16,10 +19,7 @@ import rateLimit, {
 } from 'express-rate-limit';
 import helmet from 'helmet';
 import Redis from 'ioredis';
-import { readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { performance } from 'node:perf_hooks';
-import { type RedisReply, RedisStore } from 'rate-limit-redis';
+import { RedisStore, type RedisReply } from 'rate-limit-redis';
 
 import { AppModule } from './app.module';
 import { NonceMiddleware } from './auth/nonce.middleware';
@@ -31,11 +31,13 @@ import {
   AUTH_RATE_LIMITED_ROUTES,
   EXPENSIVE_RATE_LIMITED_ROUTES,
   RATE_LIMIT_CONFIGS,
-  REGISTRY_RATE_LIMITED_ROUTES,
   RATE_LIMIT_EXCLUDED_PATHS,
+  REGISTRY_RATE_LIMITED_ROUTES,
 } from './shared/constants/rate-limit.constants';
 import { SWAGGER_UI_DARK_THEME_CSS } from './shared/constants/swagger.constants';
 import { getAppVersion } from './shared/utilities/version.utility';
+
+config({ path: 'config/environments/.env' });
 
 /**
  * Converts bytes to megabytes.

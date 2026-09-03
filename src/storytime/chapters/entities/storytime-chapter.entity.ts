@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+
 import {
   Column,
   CreateDateColumn,
@@ -8,6 +9,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+
 import { buildCloudflareImageUrl } from '../../../shared/constants/image.constants';
 import { STORYTIME_IMAGE_VARIANTS } from '../../constants/storytime-image.constants';
 import { ChapterStatus } from '../../enums/chapter-status.enum';

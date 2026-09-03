@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+
 import { IS_PUBLIC_KEY, Public } from './public.decorator';
 
 describe('PublicDecorator', () => {

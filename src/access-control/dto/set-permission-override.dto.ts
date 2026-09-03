@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
 import { Transform, Type } from 'class-transformer';
 import {
   IsDate,
@@ -10,6 +11,7 @@ import {
   MaxLength,
   MinDate,
 } from 'class-validator';
+
 import {
   PERMISSION_CODES,
   PermissionCode,

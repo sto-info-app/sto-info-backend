@@ -1,10 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
+
 import { StorytimeArcEntity } from '../arcs/entities/storytime-arc.entity';
 import { StorytimeChapterEntity } from '../chapters/entities/storytime-chapter.entity';
 import { StorytimeActivityType } from '../enums/storytime-activity-type.enum';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
-import { FeedEntry } from './storytime-activity-feed.service';
 import { StorytimeActivityFeedItemEntity } from './entities/storytime-activity-feed-item.entity';
+import { FeedEntry } from './storytime-activity-feed.service';
 import { StorytimeSocialMapper } from './storytime-social.mapper';
 
 describe('StorytimeSocialMapper', () => {

@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+
+import { StorytimeAuthorDto } from '../dto/storytime-author.dto';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import {
   ChapterDto,
@@ -7,7 +9,6 @@ import {
   ManagedChapterDto,
 } from './dto/chapter.dto';
 import { StorytimeChapterEntity } from './entities/storytime-chapter.entity';
-import { StorytimeAuthorDto } from '../dto/storytime-author.dto';
 
 /**
  * Turns Chapter entities into the shapes the API returns.

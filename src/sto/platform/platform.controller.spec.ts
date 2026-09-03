@@ -1,5 +1,7 @@
-import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
+
+import { jest } from '@jest/globals';
+
 import { PlatformController } from './platform.controller';
 import { PlatformService } from './platform.service';
 

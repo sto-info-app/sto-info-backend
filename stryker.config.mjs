@@ -3,7 +3,19 @@ export default {
   packageManager: 'npm',
   reporters: ['html', 'clear-text', 'progress'],
   testRunner: 'jest',
-  testRunnerNodeArgs: ['--experimental-vm-modules'],
+  // --max-old-space-size raises the test runner child process's heap
+  // ceiling. Jest retains full AggregatedResult data (titles, assertion
+  // messages, mock call data) for every test executed for the lifetime of
+  // the process, which grows steadily across a long run regardless of
+  // garbage collection — confirmed by profiling with --logHeapUsage and
+  // --expose-gc, where heap climbed from ~450MB to ~3.3GB across a single
+  // run with no plateau. The default ceiling is too low for that on a
+  // GitHub Actions runner; see maxTestRunnerReuse below for the other half
+  // of the fix.
+  testRunnerNodeArgs: [
+    '--experimental-vm-modules',
+    '--max-old-space-size=4096',
+  ],
   jest: {
     projectType: 'custom',
     configFile: 'jest.config.mjs',
@@ -37,6 +49,15 @@ export default {
   checkers: ['typescript'],
   coverageAnalysis: 'perTest',
   concurrency: 2,
+  // Static mutants force a full reload + full test run per mutant. Stryker
+  // measured these at 1% of mutants but 72% of run time on this project.
+  ignoreStatic: true,
+  // Recycle the worker well before the accumulated Jest reporting data
+  // (see testRunnerNodeArgs above) can grow large enough to OOM it. The
+  // original OOM warnings kept recurring roughly every 4 minutes, faster
+  // than 100 reuses were ever reached, so that ceiling was never actually
+  // being hit before the process crashed.
+  maxTestRunnerReuse: 25,
   thresholds: {
     high: 80,
     low: 60,

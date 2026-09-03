@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+
 import { plainToClass } from 'class-transformer';
 import {
   IsBooleanString,
@@ -13,6 +14,7 @@ import {
   ValidateIf,
   validateSync,
 } from 'class-validator';
+
 import {
   LOG_LEVEL_PATTERN,
   REDIS_URL_PATTERN,

@@ -1,4 +1,3 @@
-import { jest } from '@jest/globals';
 import {
   BadRequestException,
   InternalServerErrorException,
@@ -6,7 +5,10 @@ import {
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
+import { jest } from '@jest/globals';
 import { Repository } from 'typeorm';
+
 import { PlatformLauncherEntity } from './entities/platform-launcher.entity';
 import { PlatformLauncherService } from './platform-launcher.service';
 

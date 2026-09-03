@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
+
 import { IsEnum } from 'class-validator';
+
 import { ReaderStoryStatus } from '../../enums/reader-story-status.enum';
 
 /**

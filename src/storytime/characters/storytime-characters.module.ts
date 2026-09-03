@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
-import { StorytimeImagesModule } from '../images/storytime-images.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { StorytimeChaptersModule } from '../chapters/storytime-chapters.module';
+
 import { StorytimeChapterEntity } from '../chapters/entities/storytime-chapter.entity';
+import { StorytimeChaptersModule } from '../chapters/storytime-chapters.module';
 import { StorytimeContentModule } from '../content/storytime-content.module';
+import { StorytimeImagesModule } from '../images/storytime-images.module';
 import { StorytimeStoriesModule } from '../stories/storytime-stories.module';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { StorytimeChapterCharacterEntity } from './entities/storytime-chapter-character.entity';

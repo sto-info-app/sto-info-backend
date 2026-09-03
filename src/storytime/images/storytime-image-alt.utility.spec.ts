@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+
 import { assertImageDescribable } from './storytime-image-alt.utility';
 
 describe('assertImageDescribable', () => {

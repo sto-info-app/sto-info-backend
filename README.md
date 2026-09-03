@@ -104,7 +104,7 @@ cd sto-info-backend
 npm install
 ```
 
-> Note: the backend currently uses `ioredis` 5.x because the installed TypeORM release still declares `ioredis` as a peer dependency on the 5.x line. Keeping that version aligned avoids npm install peer-resolution failures after dependency updates.
+> Note: the repository ships an [.npmrc](.npmrc) setting `legacy-peer-deps=true`. It is required — Jest's toolchain sits on Babel 7 while `@stryker-mutator/core@10` instruments through Babel 8, so a strict peer resolution fails with `ERESOLVE`. The flag matches how CI installs (`npm ci --ignore-scripts --legacy-peer-deps`), which keeps the lockfile reproducible. See [docs/security.md](docs/security.md#babel-7-jest-and-babel-8-stryker) for the detail.
 
 ### Configuration
 

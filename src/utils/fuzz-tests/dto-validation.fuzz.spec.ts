@@ -1,6 +1,7 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import * as fc from 'fast-check';
+
 import { UserLoginDto } from '../../user/dto/user-login.dto';
 
 describe('DTO validation fuzz tests', () => {

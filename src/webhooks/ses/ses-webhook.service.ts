@@ -1,9 +1,12 @@
+import { createHmac } from 'node:crypto';
+import * as https from 'node:https';
+
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { createHmac } from 'node:crypto';
-import * as https from 'node:https';
+
 import { Repository } from 'typeorm';
+
 import { SecretsService } from '../../shared/secrets/secrets.service';
 import {
   SesBounce,

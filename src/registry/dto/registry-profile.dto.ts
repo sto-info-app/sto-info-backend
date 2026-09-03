@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
 import { RelationshipDto } from '../../community/dto/friendship.dto';
 import { PublicMemberSummaryDto } from '../../shared/dto/public-member-summary.dto';
 import { RegistryAccountSummaryDto } from './registry-account.dto';

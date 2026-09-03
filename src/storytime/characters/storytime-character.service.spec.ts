@@ -8,11 +8,14 @@ import {
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
 import { LimitService } from '../../access-control/limit.service';
 import { STORYTIME_LIMITS } from '../constants/storytime-limits.constants';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
+import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
 import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.enum';
 import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
+import { StorytimeImageService } from '../images/storytime-image.service';
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
 import {
   SlugRequest,
@@ -20,8 +23,6 @@ import {
 } from '../shared/storytime-slug.service';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
-import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
-import { StorytimeImageService } from '../images/storytime-image.service';
 import { StorytimeCharacterEntity } from './entities/storytime-character.entity';
 import { StorytimeCharacterService } from './storytime-character.service';
 

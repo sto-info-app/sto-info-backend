@@ -1,20 +1,21 @@
 import { Module } from '@nestjs/common';
+
 import { AdminStorytimeConfigurationController } from './admin-storytime-configuration.controller';
 import { StorytimeArcsModule } from './arcs/storytime-arcs.module';
 import { StorytimeChaptersModule } from './chapters/storytime-chapters.module';
+import { StorytimeCharactersModule } from './characters/storytime-characters.module';
+import { StorytimeContentModule } from './content/storytime-content.module';
 import { StorytimeCrewModule } from './crew/storytime-crew.module';
 import { StorytimeMediaModule } from './media/storytime-media.module';
 import { StorytimeModerationModule } from './moderation/storytime-moderation.module';
-import { StorytimeCharactersModule } from './characters/storytime-characters.module';
-import { StorytimeContentModule } from './content/storytime-content.module';
 import { StorytimeProgressModule } from './progress/storytime-progress.module';
 import { StorytimeReadingListsModule } from './reading-lists/storytime-reading-lists.module';
-import { StorytimeConfigurationController } from './storytime-configuration.controller';
-import { StorytimeFeatureService } from './storytime-feature.service';
 import { StorytimeSearchModule } from './search/storytime-search.module';
 import { StorytimeSocialModule } from './social/storytime-social.module';
 import { StorytimeSpotlightModule } from './spotlight/storytime-spotlight.module';
 import { StorytimeStoriesModule } from './stories/storytime-stories.module';
+import { StorytimeConfigurationController } from './storytime-configuration.controller';
+import { StorytimeFeatureService } from './storytime-feature.service';
 import { StorytimeTagsModule } from './tags/storytime-tags.module';
 
 /**

@@ -5,9 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+
 import { In, Repository } from 'typeorm';
-import { StorytimeTagCategory } from '../enums/storytime-tag-category.enum';
+
 import { normaliseToSlug } from '../../shared/utilities/slug.utility';
+import { StorytimeTagCategory } from '../enums/storytime-tag-category.enum';
 import { CreateTagDto, UpdateTagDto } from './dto/create-tag.dto';
 import { StorytimeTagEntity } from './entities/storytime-tag.entity';
 

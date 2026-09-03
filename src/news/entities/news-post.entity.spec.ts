@@ -1,6 +1,6 @@
-import { NewsPostEntity } from './news-post.entity';
 import { NewsCategory } from '../enums/news-category.enum';
 import { NewsStatus } from '../enums/news-status.enum';
+import { NewsPostEntity } from './news-post.entity';
 
 describe('NewsPostEntity', () => {
   it('stores assigned post fields', () => {

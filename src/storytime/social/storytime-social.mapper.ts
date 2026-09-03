@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { FeedEntry } from './storytime-activity-feed.service';
+
 import { FeedEntryDto } from './dto/follow.dto';
+import { FeedEntry } from './storytime-activity-feed.service';
 
 /**
  * Turns feed entries into the shape the API returns.

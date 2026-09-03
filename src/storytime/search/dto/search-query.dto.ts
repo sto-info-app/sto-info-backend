@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
 import { Transform } from 'class-transformer';
 import {
   ArrayUnique,
@@ -12,6 +13,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+
 import { StorytimeTargetType } from '../../enums/storytime-target-type.enum';
 
 /** The kinds of content search can look in. */

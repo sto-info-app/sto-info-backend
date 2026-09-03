@@ -8,20 +8,21 @@ import {
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { StorytimeArcCollaboratorAccessService } from '../collaboration/storytime-arc-collaborator-access.service';
+
 import { ArcCapability } from '../collaboration/storytime-arc-capability.enum';
+import { StorytimeArcCollaboratorAccessService } from '../collaboration/storytime-arc-collaborator-access.service';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
 import { ArcStatus } from '../enums/arc-status.enum';
+import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
 import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.enum';
 import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
 import { StorytimeVisibility } from '../enums/storytime-visibility.enum';
+import { StorytimeImageService } from '../images/storytime-image.service';
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
 import {
   SlugRequest,
   StorytimeSlugService,
 } from '../shared/storytime-slug.service';
-import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
-import { StorytimeImageService } from '../images/storytime-image.service';
 import { StorytimeArcEntity } from './entities/storytime-arc.entity';
 import { StorytimeArcService } from './storytime-arc.service';
 

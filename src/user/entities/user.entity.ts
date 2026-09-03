@@ -1,6 +1,8 @@
-import { ApiProperty } from '@nestjs/swagger';
-import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'node:crypto';
+
+import { ApiProperty } from '@nestjs/swagger';
+
+import * as bcrypt from 'bcrypt';
 import { Exclude } from 'class-transformer';
 import { IsEmail, IsNotEmpty, IsString, IsUUID } from 'class-validator';
 import {
@@ -16,6 +18,7 @@ import {
   UpdateDateColumn,
   VirtualColumn,
 } from 'typeorm';
+
 import { AccountEntity } from '../../sto/account/entities/account.entity';
 import { UserRefreshTokenEntity } from '../../user-refresh-token/entities/user-refresh-token.entity';
 import { UserRole } from '../enums/user-role.enum';

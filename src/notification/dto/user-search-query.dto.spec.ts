@@ -1,5 +1,6 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
+
 import { UserRole } from '../../user/enums/user-role.enum';
 import { UserSearchQueryDto } from './user-search-query.dto';
 import {

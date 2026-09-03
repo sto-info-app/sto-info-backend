@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
+
 import { IsEnum, IsUUID } from 'class-validator';
+
 import { StorytimeReaction } from '../../enums/storytime-reaction.enum';
 import { StorytimeTargetType } from '../../enums/storytime-target-type.enum';
 

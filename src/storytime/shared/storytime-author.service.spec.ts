@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { PublicMemberService } from '../../community/public-member.service';
+
 import { CommunityMemberDto } from '../../community/dto/community-member.dto';
+import { PublicMemberService } from '../../community/public-member.service';
 import { StorytimeAuthorService } from './storytime-author.service';
 
 describe('StorytimeAuthorService', () => {

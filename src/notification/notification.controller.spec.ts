@@ -1,11 +1,14 @@
-import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotificationController } from './notification.controller';
-import { NotificationService } from './notification.service';
-import { NotificationSeverity } from './enums/notification-severity.enum';
-import { NotificationTarget } from './enums/notification-target.enum';
+
+import { jest } from '@jest/globals';
+
 import { UserRole } from 'src/user/enums/user-role.enum';
 import { UserService } from 'src/user/user.service';
+
+import { NotificationSeverity } from './enums/notification-severity.enum';
+import { NotificationTarget } from './enums/notification-target.enum';
+import { NotificationController } from './notification.controller';
+import { NotificationService } from './notification.service';
 
 describe('NotificationController', () => {
   let controller: NotificationController;

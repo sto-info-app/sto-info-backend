@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+
 import {
   Column,
   CreateDateColumn,
@@ -6,6 +7,7 @@ import {
   Index,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+
 import { StorytimeTargetType } from '../../enums/storytime-target-type.enum';
 
 /**
