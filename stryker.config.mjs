@@ -68,6 +68,15 @@ export default {
   // 25 never won the race — the process died at almost exactly the point it
   // was due to be recycled. 8 keeps the peak near 1.5GB.
   maxTestRunnerReuse: 8,
+  // Stryker allows a mutant timeoutMS + timeoutFactor * netTime before calling
+  // it timed out, and the 5000ms default is not enough to boot this project's
+  // Nest testing modules. character-ownership.service.ts is 59 lines with no
+  // loop and no recursion, so none of its mutants can hang, yet all 11 of them
+  // were being recorded as timeouts. Because Stryker scores a timeout as a
+  // kill, the file reported a perfect 100% off zero actual kills. At 30000ms
+  // the same file returns 7 killed, 3 timed out and 1 survived: a real gap the
+  // spurious timeouts had been hiding.
+  timeoutMS: 30000,
   thresholds: {
     high: 80,
     low: 60,
