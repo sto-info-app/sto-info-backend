@@ -73,6 +73,20 @@ deprecated in husky 9 and will break the hook in husky 10.
 To skip the hooks for a single commit — rarely a good idea — use
 `git commit --no-verify`.
 
+### Formatting
+
+Prettier owns the layout of the TypeScript sources, including import order. To
+check or apply it without committing:
+
+```sh
+npm run format:check   # verify, changing nothing
+npm run format         # apply
+```
+
+`format:check` runs as its own step in the
+[lint-test workflow](.github/workflows/lint-test.yml), so unformatted code fails
+the build rather than being quietly corrected.
+
 ## Testing
 
 Please ensure that your changes do not break any existing tests and add new tests for new features.
