@@ -1,7 +1,6 @@
 import tsPlugin from '@typescript-eslint/eslint-plugin';
 import tsParser from '@typescript-eslint/parser';
 import prettierPlugin from 'eslint-plugin-prettier';
-import simpleImportSort from 'eslint-plugin-simple-import-sort';
 import globals from 'globals';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,7 +33,6 @@ export default [
     },
     plugins: {
       '@typescript-eslint': tsPlugin,
-      'simple-import-sort': simpleImportSort,
       prettier: prettierPlugin,
     },
     rules: {
