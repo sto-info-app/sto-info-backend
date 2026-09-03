@@ -893,11 +893,44 @@ describe('AuthService', () => {
       const d = service.generateTokenExpiryDate();
       expect(d.getTime()).toBeGreaterThan(Date.now());
     });
+  });
 
-    it('calculateExpiryTime should return correct date', () => {
-      const now = new Date();
-      const exp = service.calculateExpiryTime(1);
-      expect(exp.getHours()).toBe((now.getHours() + 1) % 24);
+  describe('session lifetimes', () => {
+    const originalAccessExpiry = process.env.AUTH_TOKEN_EXPIRES_IN;
+    const originalRefreshExpiry = process.env.AUTH_REFRESH_TOKEN_EXPIRES_IN;
+
+    afterEach(() => {
+      process.env.AUTH_TOKEN_EXPIRES_IN = originalAccessExpiry;
+      process.env.AUTH_REFRESH_TOKEN_EXPIRES_IN = originalRefreshExpiry;
+    });
+
+    it('getAccessTokenExpirySeconds should read the environment', () => {
+      process.env.AUTH_TOKEN_EXPIRES_IN = '900';
+      expect(service.getAccessTokenExpirySeconds()).toBe(900);
+    });
+
+    it('getAccessTokenExpirySeconds should default to an hour', () => {
+      delete process.env.AUTH_TOKEN_EXPIRES_IN;
+      expect(service.getAccessTokenExpirySeconds()).toBe(3600);
+    });
+
+    it('getSessionTimeoutMinutes should use the profile choice', () => {
+      expect(
+        service.getSessionTimeoutMinutes({
+          profile: { sessionTimeoutMinutes: 60 },
+        } as any),
+      ).toBe(60);
+    });
+
+    it('getSessionTimeoutMinutes should fall back without a profile', () => {
+      process.env.AUTH_REFRESH_TOKEN_EXPIRES_IN = '14400';
+      expect(service.getSessionTimeoutMinutes({} as any)).toBe(240);
+    });
+
+    it('getRefreshTokenLifetimeSeconds should add one access lifetime of grace', () => {
+      process.env.AUTH_TOKEN_EXPIRES_IN = '3600';
+      expect(service.getRefreshTokenLifetimeSeconds(60)).toBe(60 * 60 + 3600);
+      expect(service.getRefreshTokenLifetimeSeconds(480)).toBe(480 * 60 + 3600);
     });
   });
 

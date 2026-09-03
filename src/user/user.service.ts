@@ -18,6 +18,7 @@ import { UserProfileEntity } from './entities/user-profile.entity';
 import { UserEntity } from './entities/user.entity';
 import { UserSearchQueryDto } from 'src/notification/dto/user-search-query.dto';
 import { UserSearchPageDto } from 'src/notification/dto/user-search-result.dto';
+import { resolveSessionTimeoutMinutes } from './constants/session-timeout.constants';
 
 @Injectable()
 export class UserService {
@@ -51,7 +52,10 @@ export class UserService {
    */
   async getSettings(userId: string): Promise<UserSettingsDto> {
     const profile = await this._getUserProfile(userId);
-    return new UserSettingsDto(profile.privacyMode);
+    return new UserSettingsDto(
+      profile.privacyMode,
+      this.getSessionTimeoutMinutes(profile),
+    );
   }
 
   /**
@@ -67,9 +71,30 @@ export class UserService {
   ): Promise<UserSettingsDto> {
     const profile = await this._getUserProfile(userId);
     profile.privacyMode = settings.privacyMode;
+    // A client that does not know about the timeout omits it; leave the
+    // stored choice alone rather than resetting it to the default.
+    if (settings.sessionTimeoutMinutes !== undefined) {
+      profile.sessionTimeoutMinutes = settings.sessionTimeoutMinutes;
+    }
     const updatedProfile = await this._userProfileRepository.save(profile);
 
-    return new UserSettingsDto(updatedProfile.privacyMode);
+    return new UserSettingsDto(
+      updatedProfile.privacyMode,
+      this.getSessionTimeoutMinutes(updatedProfile),
+    );
+  }
+
+  /**
+   * Returns the user's inactivity timeout, falling back to the deployment
+   * default when they have never chosen one.
+   *
+   * @param profile - The profile holding the stored choice.
+   * @returns The inactivity timeout to apply, in minutes.
+   */
+  getSessionTimeoutMinutes(
+    profile: Pick<UserProfileEntity, 'sessionTimeoutMinutes'>,
+  ): number {
+    return resolveSessionTimeoutMinutes(profile.sessionTimeoutMinutes);
   }
 
   /**

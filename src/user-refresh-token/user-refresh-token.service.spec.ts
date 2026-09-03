@@ -104,6 +104,31 @@ describe('UserRefreshTokenService', () => {
       expect(repo.save).toHaveBeenCalled();
     });
 
+    it('should keep an expiry supplied by the caller', async () => {
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+      (
+        bcrypt.hash as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue('hashed');
+      (repo.save as jest.Mock).mockImplementation(val => val);
+
+      const result = await service.create({ tokenId: 'raw', expiresAt } as any);
+      expect(result.expiresAt).toBe(expiresAt);
+    });
+
+    it('should fall back to four hours when the environment is unset', async () => {
+      const original = process.env.AUTH_REFRESH_TOKEN_EXPIRES_IN;
+      delete process.env.AUTH_REFRESH_TOKEN_EXPIRES_IN;
+      (repo.save as jest.Mock).mockImplementation(val => val);
+      const before = Date.now();
+
+      const result = await service.create({} as any);
+
+      expect(result.expiresAt.getTime()).toBeGreaterThanOrEqual(
+        before + 14400 * 1000,
+      );
+      process.env.AUTH_REFRESH_TOKEN_EXPIRES_IN = original;
+    });
+
     it('should throw BadRequestException if dto is missing', async () => {
       await expect(service.create(null as any)).rejects.toThrow(
         BadRequestException,

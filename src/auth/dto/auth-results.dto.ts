@@ -25,6 +25,14 @@ export class AuthLoginResultDto {
   expires_in: number;
 
   @ApiProperty({
+    description:
+      "The user's inactivity timeout in minutes. The session ends this long after the last sign of activity, and the client warns before it does.",
+    example: 240,
+    minimum: 1,
+  })
+  session_timeout_minutes: number;
+
+  @ApiProperty({
     description: 'User UUID associated with the issued tokens.',
     example: '67f8ce9a-283c-4aaa-8e47-e7b8b2c0d217',
     format: 'uuid',
@@ -53,4 +61,12 @@ export class AuthRefreshResultDto {
     minimum: 1,
   })
   expires_in: number;
+
+  @ApiProperty({
+    description:
+      "The user's inactivity timeout in minutes, as it stands after this refresh. A change made in settings takes effect from the next refresh.",
+    example: 240,
+    minimum: 1,
+  })
+  session_timeout_minutes: number;
 }

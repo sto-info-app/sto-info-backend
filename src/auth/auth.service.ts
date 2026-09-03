@@ -30,6 +30,7 @@ import { UserLoginDto } from 'src/user/dto/user-login.dto';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
 import { UserService } from 'src/user/user.service';
+import { resolveSessionTimeoutMinutes } from 'src/user/constants/session-timeout.constants';
 import { QueryFailedError, Repository } from 'typeorm';
 
 import { JwtPayloadInterface } from './entities/jwt-payload.entity';
@@ -290,6 +291,7 @@ export class AuthService {
     access_token: string;
     refresh_token: string;
     expires_in: number;
+    session_timeout_minutes: number;
     user_id: string;
   }> {
     const userIpAddress: string | null = CurrentContextHelper.ip;
@@ -360,7 +362,8 @@ export class AuthService {
     return {
       access_token: this._jwtService.sign(payload),
       refresh_token: newUserRefreshToken,
-      expires_in: +process.env.AUTH_TOKEN_EXPIRES_IN!,
+      expires_in: this.getAccessTokenExpirySeconds(),
+      session_timeout_minutes: this.getSessionTimeoutMinutes(user),
       user_id: user.id,
     };
   }
@@ -477,6 +480,7 @@ export class AuthService {
   async refreshToken(refreshToken: string): Promise<{
     access_token: string;
     expires_in: number;
+    session_timeout_minutes: number;
     refresh_token: string;
   }> {
     try {
@@ -485,7 +489,7 @@ export class AuthService {
       // Load the user with their refresh tokens using the user ID
       const user = await this._userRepository.findOne({
         where: { id: payload.sub },
-        relations: { refreshTokens: true },
+        relations: { refreshTokens: true, profile: true },
       });
 
       if (!user) {
@@ -511,7 +515,8 @@ export class AuthService {
       return {
         access_token: this._jwtService.sign(newPayload),
         refresh_token: newUserRefreshToken,
-        expires_in: +process.env.AUTH_TOKEN_EXPIRES_IN!,
+        expires_in: this.getAccessTokenExpirySeconds(),
+        session_timeout_minutes: this.getSessionTimeoutMinutes(user),
       };
     } catch (error: unknown) {
       // Log the error for debugging purposes
@@ -540,24 +545,40 @@ export class AuthService {
   }
 
   /**
-   * Calculates the expiry time for a token.
-   * @param hours - The number of hours until the token expires.
-   * @returns A date object representing the token expiry time.
+   * Retrieves the configured access-token lifetime.
+   *
+   * @returns The number of seconds an access token remains valid.
    */
-  calculateExpiryTime(hours: number): Date {
-    const expiry = new Date();
-    expiry.setHours(expiry.getHours() + hours);
-    return expiry;
+  getAccessTokenExpirySeconds(): number {
+    return Number(process.env.AUTH_TOKEN_EXPIRES_IN) || 3600; // Default to 1 hour if not specified
   }
 
   /**
-   * Retrieves the expiration duration in hours for the refresh token.
-   * @returns The number of hours until the refresh token expires.
+   * Retrieves the inactivity window a user's sessions run to.
+   *
+   * @param user - The user, with their profile loaded.
+   * @returns The inactivity window, in minutes.
    */
-  getRefreshTokenExpiryHours(): number {
-    const refreshSeconds =
-      Number(process.env.AUTH_REFRESH_TOKEN_EXPIRES_IN) || 14400; // Default to 4 hours if not specified
-    return refreshSeconds / 60 / 60;
+  getSessionTimeoutMinutes(user: Pick<UserEntity, 'profile'>): number {
+    return resolveSessionTimeoutMinutes(user.profile?.sessionTimeoutMinutes);
+  }
+
+  /**
+   * Works out how long a refresh token issued now should live.
+   *
+   * The refresh token has to outlive the inactivity window it protects. The
+   * client keeps that window locally, sliding it forward as the user works,
+   * but it only exchanges the refresh token when the access token is close to
+   * expiring - so the stored token can lag real activity by up to one
+   * access-token lifetime. Granting that lifetime as extra means a session
+   * still inside its inactivity window can always be renewed, while an
+   * abandoned one still dies shortly after the window it was given.
+   *
+   * @param sessionTimeoutMinutes - The user's inactivity window, in minutes.
+   * @returns The refresh token lifetime, in seconds.
+   */
+  getRefreshTokenLifetimeSeconds(sessionTimeoutMinutes: number): number {
+    return sessionTimeoutMinutes * 60 + this.getAccessTokenExpirySeconds();
   }
 
   /**
@@ -582,18 +603,24 @@ export class AuthService {
   }
 
   /**
-   * Generates, signs and persists a refresh token for a user.
+   * Generates, signs and persists a refresh token for a user, sized to the
+   * inactivity window that user has chosen.
+   *
+   * @param user - The user the token is issued to, with their profile loaded.
+   * @returns A promise that resolves with the signed refresh token.
    */
   private async issueRefreshToken(
-    user: Pick<UserEntity, 'id' | 'email'>,
+    user: Pick<UserEntity, 'id' | 'email' | 'profile'>,
   ): Promise<string> {
-    const expiryHours = this.getRefreshTokenExpiryHours();
+    const expirySeconds = this.getRefreshTokenLifetimeSeconds(
+      this.getSessionTimeoutMinutes(user),
+    );
     const jwtId = this.generateToken();
 
     const token = this._jwtService.sign(
       { email: user.email, sub: user.id },
       {
-        expiresIn: `${expiryHours}h`,
+        expiresIn: `${expirySeconds}s`,
         jwtid: jwtId,
       },
     );
@@ -603,7 +630,7 @@ export class AuthService {
       tokenId: token,
       jwtId,
       isRevoked: false,
-      expiresAt: this.calculateExpiryTime(expiryHours),
+      expiresAt: new Date(Date.now() + expirySeconds * 1000),
     });
 
     return token;

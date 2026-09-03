@@ -108,10 +108,15 @@ describe('UserService', () => {
         userProfileRepository.findOne as jest.Mock<
           (...args: any[]) => Promise<any>
         >
-      ).mockResolvedValue({ userId: 'uuid', privacyMode: true });
+      ).mockResolvedValue({
+        userId: 'uuid',
+        privacyMode: true,
+        sessionTimeoutMinutes: null,
+      });
 
       await expect(service.getSettings('uuid')).resolves.toEqual({
         privacyMode: true,
+        sessionTimeoutMinutes: 240,
       });
       expect(userProfileRepository.findOne).toHaveBeenCalledWith({
         where: { userId: 'uuid' },
@@ -143,7 +148,42 @@ describe('UserService', () => {
 
   describe('updateSettings', () => {
     it('should persist and return the updated settings', async () => {
-      const profile = { userId: 'uuid', privacyMode: false };
+      const profile = {
+        userId: 'uuid',
+        privacyMode: false,
+        sessionTimeoutMinutes: null,
+      };
+      (
+        userProfileRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(profile);
+      (
+        userProfileRepository.save as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockImplementation(async (value: any) => value);
+
+      await expect(
+        service.updateSettings('uuid', {
+          privacyMode: true,
+          sessionTimeoutMinutes: 480,
+        }),
+      ).resolves.toEqual({ privacyMode: true, sessionTimeoutMinutes: 480 });
+      expect(userProfileRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          privacyMode: true,
+          sessionTimeoutMinutes: 480,
+        }),
+      );
+    });
+
+    it('should keep the stored timeout when the payload omits it', async () => {
+      const profile = {
+        userId: 'uuid',
+        privacyMode: false,
+        sessionTimeoutMinutes: 480,
+      };
       (
         userProfileRepository.findOne as jest.Mock<
           (...args: any[]) => Promise<any>
@@ -157,9 +197,9 @@ describe('UserService', () => {
 
       await expect(
         service.updateSettings('uuid', { privacyMode: true }),
-      ).resolves.toEqual({ privacyMode: true });
+      ).resolves.toEqual({ privacyMode: true, sessionTimeoutMinutes: 480 });
       expect(userProfileRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({ privacyMode: true }),
+        expect.objectContaining({ sessionTimeoutMinutes: 480 }),
       );
     });
 
@@ -171,7 +211,10 @@ describe('UserService', () => {
       ).mockResolvedValue(null);
 
       await expect(
-        service.updateSettings('uuid', { privacyMode: true }),
+        service.updateSettings('uuid', {
+          privacyMode: true,
+          sessionTimeoutMinutes: 240,
+        }),
       ).rejects.toThrow(HttpException);
       expect(userProfileRepository.save).not.toHaveBeenCalled();
     });
