@@ -134,10 +134,11 @@ Both the full dependency audit (`npm audit`) and the production audit gate (`npm
 
 The current overrides remediate these upstream dependency advisories:
 
-- `js-yaml` [GHSA-pm4m-ph32-ghv5](https://github.com/advisories/GHSA-pm4m-ph32-ghv5) — `@nestjs/swagger@11.4.7` still exact-pins `js-yaml@5.3.0`; the global override keeps the tree on patched `5.2.2` or newer (currently `5.4.1`).
-- Additional active overrides for `mailparser`/`nodemailer`, `nanoid`, `qs`, and TypeORM's optional `ioredis` peer remain documented in `docs/security.md`, including their upstream removal criteria.
+- `qs` [GHSA-q8mj-m7cp-5q26](https://github.com/advisories/GHSA-q8mj-m7cp-5q26), [GHSA-x5fp-wj9c-mxmx](https://github.com/advisories/GHSA-x5fp-wj9c-mxmx), [GHSA-4mjr-xmp4-gh2g](https://github.com/advisories/GHSA-4mjr-xmp4-gh2g) — `typed-rest-client@2.3.1` (via `@stryker-mutator/core`) exact-pins `qs@6.15.1`; the global override keeps the tree on `6.16.0`, the first release patched against all three.
 
-NestJS 12 majors from Dependabot are **deferred**: `nestjs-cls`, `@nestjs/terminus`, and `@nestjs/throttler` do not yet support Nest 12, and the ESM packages fail Jest fuzz tests on the current CommonJS + ts-jest setup. See `docs/security.md`.
+As of **2026-09-03** `qs` is the only override this repository needs. The former `mailparser`/`nodemailer`, `nanoid`, `js-yaml`, and TypeORM `ioredis` entries were each verified redundant and removed; see `docs/security.md` for the evidence and for the removal criteria on the remaining entry.
+
+NestJS 12 majors from Dependabot are **deferred**: `nestjs-cls` and `@sentry/nestjs` do not yet declare Nest 12 in their peer ranges, and the ESM packages need a Jest/Vitest rework on the current CommonJS + ts-jest setup. `@nestjs/terminus@12` now supports Nest 12, and `@nestjs/throttler` was removed from the project on 2026-09-03 as unused — neither is a blocker any more. See `docs/security.md`.
 
 ### Non-breaking remediation strategy
 
