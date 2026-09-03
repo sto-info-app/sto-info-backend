@@ -84,6 +84,8 @@ function main() {
   const mutateArg = changedFiles.join(',');
   process.stdout.write(`Mutating files: ${mutateArg}\n`);
 
+  // `shell` is required on Windows, where `npx` resolves to `npx.cmd` and a
+  // shell-less spawn fails with ENOENT, so the script cannot be run locally.
   const result = spawnSync(
     'npx',
     [
@@ -96,8 +98,12 @@ function main() {
       '--incremental',
       '--force',
     ],
-    { stdio: 'inherit' },
+    { stdio: 'inherit', shell: process.platform === 'win32' },
   );
+
+  if (result.error) {
+    throw result.error;
+  }
 
   process.exit(result.status ?? 1);
 }
