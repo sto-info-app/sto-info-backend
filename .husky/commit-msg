@@ -1,5 +1,3 @@
-#!/usr/bin/env sh
-
 msg_file="$1"
 
 # Skip merge commits (CI DCO check skips merges as well)
