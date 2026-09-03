@@ -1,6 +1,8 @@
 import { ConsoleLogger, Logger } from '@nestjs/common';
+import { TestingModuleBuilder } from '@nestjs/testing';
+import type { TestingModule } from '@nestjs/testing';
 
-import { jest } from '@jest/globals';
+import { afterEach, jest } from '@jest/globals';
 
 /**
  * Global NestJS Logger configuration for tests.
@@ -40,3 +42,32 @@ ConsoleLogger.prototype.fatal = silentMock();
 (Logger as any).debug = silentMock();
 (Logger as any).verbose = silentMock();
 (Logger as any).fatal = silentMock();
+
+/**
+ * Auto-close every TestingModule after the test that created it.
+ *
+ * Almost none of the specs in this project call `module.close()` themselves.
+ * An unclosed TestingModule keeps its whole DI container alive, including
+ * anything registered via @Cron/@Interval (cron, launcher, platform,
+ * storytime-chapter-scheduler, user-refresh-token) whose real timers and
+ * handles never get torn down. Over a long run (e.g. Stryker mutation
+ * testing) those accumulate across thousands of module instantiations,
+ * which is why test runner workers keep running out of memory. Patching
+ * the builder here fixes this for every spec without editing all of them.
+ */
+const openTestingModules = new Set<TestingModule>();
+const originalCompile = TestingModuleBuilder.prototype.compile;
+
+TestingModuleBuilder.prototype.compile = async function (
+  ...args: Parameters<typeof originalCompile>
+) {
+  const module = await originalCompile.apply(this, args);
+  openTestingModules.add(module);
+  return module;
+};
+
+afterEach(async () => {
+  const modules = Array.from(openTestingModules);
+  openTestingModules.clear();
+  await Promise.all(modules.map(module => module.close().catch(() => {})));
+});
