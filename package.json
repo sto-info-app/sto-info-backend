@@ -31,6 +31,7 @@
     "start:dist": "npm run build && npm run migration:run && npm run start:prod",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
     "lint:fix": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
     "test": "cross-env TZ=UTC NODE_OPTIONS=--experimental-vm-modules jest --testPathIgnorePatterns='.fuzz.spec.ts'",
     "test:fuzz": "cross-env TZ=UTC NODE_OPTIONS=--experimental-vm-modules FUZZ_NUM_RUNS=${FUZZ_NUM_RUNS:-50} jest --config jest.config.mjs --testRegex='.*\\.fuzz\\.spec\\.ts$' --coverage=false",
