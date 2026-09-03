@@ -71,7 +71,6 @@
     "class-validator": "^0.15.1",
     "cloudmersive-virus-api-client": "^1.4.0",
     "cross-env": "^10.1.0",
-    "crypto": "^1.0.1",
     "dotenv": "^17.4.2",
     "ejs": "^6.0.1",
     "express": "^5.2.1",

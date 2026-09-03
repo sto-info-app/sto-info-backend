@@ -1,6 +1,6 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import * as Sentry from '@sentry/nestjs';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
 
 export type RequestWithId = Request & { requestId: string };
