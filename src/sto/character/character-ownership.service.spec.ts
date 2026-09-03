@@ -49,7 +49,7 @@ describe('CharacterOwnershipService', () => {
 
     expect(characterRepository.findOne).toHaveBeenCalledWith({
       where: { id: 'character-1' },
-      relations: { account: true },
+      relations: { account: true, generalFaction: true },
     });
   });
 

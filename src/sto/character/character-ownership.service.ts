@@ -39,7 +39,9 @@ export class CharacterOwnershipService {
   ): Promise<CharacterEntity> {
     const character = await this._characterRepository.findOne({
       where: { id: characterId },
-      relations: { account: true },
+      // The general faction comes back alongside the account because trackers
+      // that vary by allegiance (commendations) filter their catalogue on it.
+      relations: { account: true, generalFaction: true },
     });
 
     if (!character) {
