@@ -50,10 +50,11 @@ ConsoleLogger.prototype.fatal = silentMock();
  * An unclosed TestingModule keeps its whole DI container alive, including
  * anything registered via @Cron/@Interval (cron, launcher, platform,
  * storytime-chapter-scheduler, user-refresh-token) whose real timers and
- * handles never get torn down. Over a long run (e.g. Stryker mutation
- * testing) those accumulate across thousands of module instantiations,
- * which is why test runner workers keep running out of memory. Patching
- * the builder here fixes this for every spec without editing all of them.
+ * handles never get torn down — real leaks worth fixing, though profiling
+ * (see stryker.config.mjs) found the OOM warnings during mutation testing
+ * were actually caused by Jest itself, which retains reporting data for
+ * every test run for the life of the process. Patching the builder here
+ * fixes this for every spec without editing all of them.
  */
 const openTestingModules = new Set<TestingModule>();
 const originalCompile = TestingModuleBuilder.prototype.compile;
