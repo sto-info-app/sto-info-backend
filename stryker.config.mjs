@@ -37,6 +37,13 @@ export default {
   checkers: ['typescript'],
   coverageAnalysis: 'perTest',
   concurrency: 2,
+  // Static mutants force a full reload + full test run per mutant. Stryker
+  // measured these at 1% of mutants but 72% of run time on this project.
+  ignoreStatic: true,
+  // Test runner workers were repeatedly OOMing on long runs (see
+  // test/setup.ts for the underlying TestingModule leak fix). Recycling
+  // workers periodically bounds the damage from any leak we haven't caught.
+  maxTestRunnerReuse: 100,
   thresholds: {
     high: 80,
     low: 60,
