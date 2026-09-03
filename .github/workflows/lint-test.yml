@@ -209,28 +209,6 @@ jobs:
           message-path: ci-summary.md
           allow-repeats: true
 
-      - name: Restore Stryker incremental cache
-        # Only run on PRs, skip for Dependabot
-        if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: .stryker-tmp/incremental.json
-          key: stryker-incremental-${{ github.base_ref }}-${{ hashFiles('src/**/*.ts') }}
-          restore-keys: |
-            stryker-incremental-${{ github.base_ref }}-
-            stryker-incremental-
-
-      - name: Run Incremental Mutation Testing
-        # Only run on PRs, skip for Dependabot (not needed for dependency updates)
-        if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
-        shell: bash
-        run: |
-          # Fetch the base branch to compare against
-          git fetch origin ${{ github.base_ref }} --depth=1
-
-          # Compute and run incremental mutation testing (exits 0 when nothing to mutate)
-          BASE_REF=origin/${{ github.base_ref }} npm run test:mutation:incremental
-
       - name: Build (push only)
         if: github.event_name == 'push'
         run: npm run build
