@@ -47,12 +47,14 @@ jobs:
       needs.check_changes.outputs.src_changed == 'true' &&
       github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    # Incremental mutation only mutates the changed-file subset, not the
-    # whole repo (unlike mutation-testing.yml's 180-min full run), so it
-    # gets a smaller dedicated budget: enough margin over the worst case
-    # (a huge diff after a cache miss) without silently burning 3 hours
-    # of CI time if a run is actually hung rather than just slow.
-    timeout-minutes: 90
+    # Incremental mutation normally mutates a small changed-file subset, but
+    # a wide-touching PR can approach a full run: PR #975 changed 610 files,
+    # 164 of which are in the mutate set out of the repo's 184, producing
+    # ~8,800 mutants that were tracking at roughly 3h45m. That run was
+    # cancelled by a 90 minute budget. The budget here is deliberately large
+    # enough to let such a PR finish rather than be gated on nothing, and is
+    # still a backstop against a genuinely hung run.
+    timeout-minutes: 240
     permissions:
       contents: read
       actions: read
@@ -95,7 +97,8 @@ jobs:
           # `git diff base...HEAD` needs.
           git fetch origin ${{ github.base_ref }}
 
-          # Compute and run incremental mutation testing (exits 0 when nothing to mutate)
+          # Compute and run incremental mutation testing (exits 0 when nothing
+          # to mutate, and when the diff is too wide to be incremental)
           BASE_REF=origin/${{ github.base_ref }} npm run test:mutation:incremental
 
       - name: Upload Mutation Report
@@ -105,3 +108,6 @@ jobs:
           name: stryker-incremental-report
           path: reports/mutation/
           retention-days: 30
+          # The run legitimately produces no report when the diff has nothing
+          # mutatable, or is too wide to be run incrementally.
+          if-no-files-found: ignore
