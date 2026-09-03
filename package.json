@@ -45,7 +45,7 @@
     "test:mutation:dry": "stryker run --reporters clear-text --reporters html --reporters progress --dryRunOnly",
     "test:mutation:incremental": "node ./scripts/run-incremental-mutation.mjs",
     "summary:ci": "node scripts/generate-ci-summary.mjs",
-    "verify": "npm audit --audit-level=high --omit=dev && npm run lint && npm run test:cov && npm run test:fuzz && npm run build",
+    "verify": "npm audit --audit-level=high --omit=dev && npm run lint && npm run format:check && npm run test:cov && npm run test:fuzz && npm run build",
     "postinstall": "node scripts/patch-nested-packages.js",
     "prepare": "husky"
   },
