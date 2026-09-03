@@ -98,8 +98,11 @@ jobs:
       - name: Run Incremental Mutation Testing
         shell: bash
         run: |
-          # Fetch the base branch to compare against
-          git fetch origin ${{ github.base_ref }} --depth=1
+          # Fetch the base branch to compare against. This must not be a
+          # shallow fetch: the checkout above is already unshallow, and
+          # truncating the base ref's history here breaks the merge base that
+          # `git diff base...HEAD` needs.
+          git fetch origin ${{ github.base_ref }}
 
           # Compute and run incremental mutation testing (exits 0 when nothing to mutate)
           BASE_REF=origin/${{ github.base_ref }} npm run test:mutation:incremental
