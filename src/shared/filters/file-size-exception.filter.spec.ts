@@ -1,6 +1,8 @@
-import { jest } from '@jest/globals';
 import { ArgumentsHost, HttpStatus } from '@nestjs/common';
+
+import { jest } from '@jest/globals';
 import { MulterError } from 'multer';
+
 import { FileSizeExceptionFilter } from './file-size-exception.filter';
 
 describe('FileSizeExceptionFilter', () => {

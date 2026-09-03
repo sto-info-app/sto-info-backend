@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+
 import { PlatformLauncherEntity } from './entities/platform-launcher.entity';
 import { PlatformLauncherController } from './platform-launcher.controller';
 import { PlatformLauncherService } from './platform-launcher.service';

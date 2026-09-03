@@ -1,9 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+
 import { Repository } from 'typeorm';
+
 import { joinWithOptionalSelect } from '../shared/utilities/query-builder.utility';
-import { UserProfileEntity } from '../user/entities/user-profile.entity';
 import { AccountEntity } from '../sto/account/entities/account.entity';
+import { UserProfileEntity } from '../user/entities/user-profile.entity';
 import { CommunityMemberDto } from './dto/community-member.dto';
 
 /**

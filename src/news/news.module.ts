@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+
 import { NewsPostEntity } from './entities/news-post.entity';
 import { NewsController } from './news.controller';
 import { NewsService } from './news.service';

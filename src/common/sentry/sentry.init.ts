@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/nestjs';
+
 import { getAppVersion } from '../../shared/utilities/version.utility';
 
 if (process.env.SENTRY_DSN) {

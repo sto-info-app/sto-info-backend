@@ -1,10 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+import { StorytimeAuthorDto } from '../../dto/storytime-author.dto';
 import { CompletionState } from '../../enums/completion-state.enum';
 import { ContentRating } from '../../enums/content-rating.enum';
 import { StoryStatus } from '../../enums/story-status.enum';
 import { StorytimeModerationStatus } from '../../enums/storytime-moderation-status.enum';
 import { StorytimeVisibility } from '../../enums/storytime-visibility.enum';
-import { StorytimeAuthorDto } from '../../dto/storytime-author.dto';
 import { TagDto } from '../../tags/dto/create-tag.dto';
 
 /**

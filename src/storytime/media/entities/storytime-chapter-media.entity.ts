@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+
 import {
   Column,
   CreateDateColumn,
@@ -8,6 +9,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+
 import { YOUTUBE_EMBED_HOST } from '../../content/constants/youtube.constants';
 import { MediaProvider } from '../../enums/media-provider.enum';
 

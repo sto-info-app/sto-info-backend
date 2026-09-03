@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
@@ -10,6 +11,7 @@ import {
   IsUrl,
   MaxLength,
 } from 'class-validator';
+
 import { NotificationSeverity } from '../enums/notification-severity.enum';
 
 export class CreateBannerDto {

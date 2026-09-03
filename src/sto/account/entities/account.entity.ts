@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+
 import {
   IsBoolean,
   IsDateString,
@@ -8,9 +9,6 @@ import {
   IsString,
   IsUUID,
 } from 'class-validator';
-import { LauncherEntity } from 'src/sto/launcher/entities/launcher.entity';
-import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
-import { UserEntity } from 'src/user/entities/user.entity';
 import {
   Column,
   CreateDateColumn,
@@ -24,6 +22,11 @@ import {
   UpdateDateColumn,
   VirtualColumn,
 } from 'typeorm';
+
+import { LauncherEntity } from 'src/sto/launcher/entities/launcher.entity';
+import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
+import { UserEntity } from 'src/user/entities/user.entity';
+
 import { CharacterEntity } from '../../character/entities/character.entity';
 
 @Entity({ name: 'account' })

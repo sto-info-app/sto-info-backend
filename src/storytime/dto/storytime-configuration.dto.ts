@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+
 import { ContentRating } from '../enums/content-rating.enum';
 
 /**

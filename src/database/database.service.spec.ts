@@ -1,6 +1,8 @@
-import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
+
+import { jest } from '@jest/globals';
 import { DataSource } from 'typeorm';
+
 import { DatabaseService } from './database.service';
 
 describe('DatabaseService', () => {

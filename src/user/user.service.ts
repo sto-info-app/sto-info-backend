@@ -1,24 +1,27 @@
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+
 import * as bcrypt from 'bcrypt';
+import { In, Repository } from 'typeorm';
+
 import { MailService } from 'src/mail/mail.service';
+import { UserSearchQueryDto } from 'src/notification/dto/user-search-query.dto';
+import { UserSearchPageDto } from 'src/notification/dto/user-search-result.dto';
 import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
-import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
+import { ValidatorsService } from 'src/shared/utilities/validators.service';
 import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
-import { ValidatorsService } from 'src/shared/utilities/validators.service';
-import { In, Repository } from 'typeorm';
+import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
+
+import { resolveSessionTimeoutMinutes } from './constants/session-timeout.constants';
 import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserSettingsDto } from './dto/update-user-settings.dto';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
+import { UpdateUserSettingsDto } from './dto/update-user-settings.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdatedUserProfileResultDto } from './dto/updated-user-profile-result.dto';
 import { UserSettingsDto } from './dto/user-settings.dto';
 import { UserProfileEntity } from './entities/user-profile.entity';
 import { UserEntity } from './entities/user.entity';
-import { UserSearchQueryDto } from 'src/notification/dto/user-search-query.dto';
-import { UserSearchPageDto } from 'src/notification/dto/user-search-result.dto';
-import { resolveSessionTimeoutMinutes } from './constants/session-timeout.constants';
 
 @Injectable()
 export class UserService {

@@ -1,15 +1,18 @@
-import { jest } from '@jest/globals';
 import { HttpException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
+import { jest } from '@jest/globals';
 import * as bcrypt from 'bcrypt';
+import { Repository } from 'typeorm';
+
 import { MailService } from 'src/mail/mail.service';
 import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
-import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
 import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
-import { Repository } from 'typeorm';
+import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
+
 import { UserProfileEntity } from './entities/user-profile.entity';
 import { UserEntity } from './entities/user.entity';
 import { UserRole } from './enums/user-role.enum';

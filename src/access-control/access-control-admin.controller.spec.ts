@@ -1,7 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
+
+import { UserRole } from '../user/enums/user-role.enum';
 import { AccessControlAdminController } from './access-control-admin.controller';
 import { AccessControlAdminService } from './access-control-admin.service';
-import { UserRole } from '../user/enums/user-role.enum';
 import { PERMISSION_CODES } from './constants/permission-codes.constants';
 import { PermissionEffect } from './enums/permission-effect.enum';
 

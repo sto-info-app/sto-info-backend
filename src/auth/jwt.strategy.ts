@@ -1,12 +1,13 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
+
 import { instanceToPlain } from 'class-transformer';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { ensureError } from 'src/shared/utilities/error.utility';
 
 import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
+import { ensureError } from 'src/shared/utilities/error.utility';
 
 import { AuthService } from './auth.service';
 import { JwtPayloadInterface } from './entities/jwt-payload.entity';

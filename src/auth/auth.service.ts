@@ -1,3 +1,6 @@
+import * as crypto from 'node:crypto';
+import * as path from 'node:path';
+
 import {
   BadRequestException,
   ConflictException,
@@ -10,28 +13,27 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
+
 import * as bcrypt from 'bcrypt';
 import { instanceToPlain } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
 import * as ejs from 'ejs';
 import { convert as htmlToText } from 'html-to-text';
-import * as crypto from 'node:crypto';
-import * as path from 'node:path';
-import { AuditEntity } from 'src/audit/entities/audit.entity';
+import { QueryFailedError, Repository } from 'typeorm';
+
 import { AuditLoginAttemptEntity } from 'src/audit/entities/audit-login-attempt.entity';
+import { AuditEntity } from 'src/audit/entities/audit.entity';
 import { MailService } from 'src/mail/mail.service';
 import { EMAIL_PATTERN } from 'src/shared/constants/regex-patterns.constants';
-import { stringifyError } from 'src/shared/utilities/error.utility';
-
 import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
+import { stringifyError } from 'src/shared/utilities/error.utility';
 import { UserRefreshTokenService } from 'src/user-refresh-token/user-refresh-token.service';
+import { resolveSessionTimeoutMinutes } from 'src/user/constants/session-timeout.constants';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { UserLoginDto } from 'src/user/dto/user-login.dto';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
 import { UserService } from 'src/user/user.service';
-import { resolveSessionTimeoutMinutes } from 'src/user/constants/session-timeout.constants';
-import { QueryFailedError, Repository } from 'typeorm';
 
 import { JwtPayloadInterface } from './entities/jwt-payload.entity';
 

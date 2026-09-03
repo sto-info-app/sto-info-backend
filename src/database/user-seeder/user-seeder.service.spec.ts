@@ -1,10 +1,13 @@
-import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
+import { jest } from '@jest/globals';
 import * as bcrypt from 'bcrypt';
+import { Repository } from 'typeorm';
+
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
-import { Repository } from 'typeorm';
+
 import { UserSeederService } from './user-seeder.service';
 
 jest.mock('bcrypt');

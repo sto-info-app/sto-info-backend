@@ -10,14 +10,17 @@
   "tabWidth": 2,
   "trailingComma": "all",
   "useTabs": false,
-  "arrayBracketSpacing": true,
+  "plugins": ["@ianvs/prettier-plugin-sort-imports"],
   "importOrder": [
     "^node:",
+    "",
     "^@nestjs/(.*)$",
-    "^@sto/(.*)$",
-    "^@/(.*)$",
+    "",
+    "<THIRD_PARTY_MODULES>",
+    "",
+    "^src/(.*)$",
+    "",
     "^[./]"
   ],
-  "importOrderSeparation": true,
-  "importOrderSortSpecifiers": true
+  "importOrderParserPlugins": ["typescript", "decorators-legacy"]
 }

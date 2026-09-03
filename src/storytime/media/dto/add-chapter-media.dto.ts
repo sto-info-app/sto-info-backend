@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
@@ -10,6 +11,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+
 import { YOUTUBE_MAX_OFFSET_SECONDS } from '../../content/constants/youtube.constants';
 
 /** Trims a string value, leaving anything else for the validators. */

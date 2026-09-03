@@ -1,6 +1,5 @@
 import { Expose } from 'class-transformer';
 import { IsNotEmpty, IsOptional, IsUUID } from 'class-validator';
-import { CLOUDFLARE_R2_CDN_ROOT_URL } from 'src/shared/constants/image.constants';
 import {
   Column,
   CreateDateColumn,
@@ -12,6 +11,9 @@ import {
   Unique,
   UpdateDateColumn,
 } from 'typeorm';
+
+import { CLOUDFLARE_R2_CDN_ROOT_URL } from 'src/shared/constants/image.constants';
+
 import { UserEntity } from './user.entity';
 
 @Entity({ name: 'user_profile' })

@@ -1,12 +1,13 @@
 import { validate } from 'class-validator';
+
 import { UpdateUserSettingsDto } from '../dto/update-user-settings.dto';
 import {
   DEFAULT_SESSION_TIMEOUT_MINUTES,
+  isAllowedSessionTimeoutMinutes,
   MAX_SESSION_TIMEOUT_MINUTES,
   MIN_SESSION_TIMEOUT_MINUTES,
-  SESSION_TIMEOUT_OPTIONS_MINUTES,
-  isAllowedSessionTimeoutMinutes,
   resolveSessionTimeoutMinutes,
+  SESSION_TIMEOUT_OPTIONS_MINUTES,
 } from './session-timeout.constants';
 
 describe('session timeout constants', () => {

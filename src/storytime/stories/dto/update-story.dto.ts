@@ -1,4 +1,5 @@
 import { ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+
 import { Transform, Type } from 'class-transformer';
 import {
   IsInt,
@@ -8,6 +9,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+
 import { STORYTIME_IMAGE_ALT_MAX_LENGTH } from '../../constants/storytime-image.constants';
 import { CreateStoryDto } from './create-story.dto';
 

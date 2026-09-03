@@ -4,6 +4,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+
+import { IsNull, Repository, SelectQueryBuilder } from 'typeorm';
+
 import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { CharacterClassEntity } from 'src/sto/character/entities/character-class.entity';
 import { CharacterRankEntity } from 'src/sto/character/entities/character-rank.entity';
@@ -17,7 +20,7 @@ import { AccountEndeavourProgressEntity } from 'src/sto/endeavour/entities/accou
 import { EndeavourPerkEntity } from 'src/sto/endeavour/entities/endeavour-perk.entity';
 import { LauncherEntity } from 'src/sto/launcher/entities/launcher.entity';
 import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
-import { IsNull, Repository, SelectQueryBuilder } from 'typeorm';
+
 import { CountItemDto, StatsResponseDto } from './dto/stats-response.dto';
 
 /** Faction name used as the source of truth for level-range tier definitions. */

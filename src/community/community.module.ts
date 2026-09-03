@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+
 import { NotificationModule } from '../notification/notification.module';
 import { AccountEntity } from '../sto/account/entities/account.entity';
 import { UserProfileEntity } from '../user/entities/user-profile.entity';

@@ -1,8 +1,9 @@
+import { Injectable, Logger } from '@nestjs/common';
+
 import {
   GetSecretValueCommand,
   SecretsManagerClient,
 } from '@aws-sdk/client-secrets-manager';
-import { Injectable, Logger } from '@nestjs/common';
 
 @Injectable()
 export class SecretsService {

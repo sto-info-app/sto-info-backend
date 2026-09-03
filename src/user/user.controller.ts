@@ -1,3 +1,6 @@
+import * as crypto from 'node:crypto';
+import { extname } from 'node:path';
+
 import {
   BadRequestException,
   Body,
@@ -28,11 +31,11 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+
 import { instanceToPlain } from 'class-transformer';
 import type { Request } from 'express';
 import { memoryStorage } from 'multer';
-import * as crypto from 'node:crypto';
-import { extname } from 'node:path';
+
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
 import {
@@ -40,6 +43,7 @@ import {
   isAllowedImageMimeType,
 } from 'src/shared/constants/file-upload.constants';
 import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
+
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 import { UpdateUserSettingsDto } from './dto/update-user-settings.dto';
 import { UpdatedUserProfileResultDto } from './dto/updated-user-profile-result.dto';

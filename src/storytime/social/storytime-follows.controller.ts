@@ -15,15 +15,17 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
+
 import { FeedEntryDto, FollowStateDto, UnreadCountDto } from './dto/follow.dto';
 import { StorytimeActivityFeedService } from './storytime-activity-feed.service';
-import { StorytimeSocialMapper } from './storytime-social.mapper';
 import {
   FollowTargetKind,
   StorytimeFollowService,
 } from './storytime-follow.service';
+import { StorytimeSocialMapper } from './storytime-social.mapper';
 
 /**
  * Following creators, Stories and Arcs, and the feed that comes of it.

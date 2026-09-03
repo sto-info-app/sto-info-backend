@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
-import { StorytimeImagesModule } from '../images/storytime-images.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
+
 import { StorytimeContentModule } from '../content/storytime-content.module';
-import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
+import { StorytimeImagesModule } from '../images/storytime-images.module';
 import { StorytimeProgressModule } from '../progress/storytime-progress.module';
+import { StorytimeAuthorModule } from '../shared/storytime-author.module';
 import { StorytimeSocialModule } from '../social/storytime-social.module';
+import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeStoriesModule } from '../stories/storytime-stories.module';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { StorytimeChapterEntity } from './entities/storytime-chapter.entity';
@@ -13,7 +15,6 @@ import { StorytimeChapterSchedulerService } from './storytime-chapter-scheduler.
 import { StorytimeChapterMapper } from './storytime-chapter.mapper';
 import { StorytimeChapterService } from './storytime-chapter.service';
 import { StorytimeCreatorChaptersController } from './storytime-creator-chapters.controller';
-import { StorytimeAuthorModule } from '../shared/storytime-author.module';
 
 /**
  * Chapters: the ordered instalments within a Story.

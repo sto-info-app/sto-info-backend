@@ -5,6 +5,7 @@ import {
   Logger,
   NestInterceptor,
 } from '@nestjs/common';
+
 import * as Sentry from '@sentry/nestjs';
 import type { Request } from 'express';
 import { Observable } from 'rxjs';

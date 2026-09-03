@@ -1,12 +1,15 @@
-import { jest } from '@jest/globals';
 import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
+import { jest } from '@jest/globals';
+import { Repository } from 'typeorm';
+
+import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
-import { AccountEntity } from 'src/sto/account/entities/account.entity';
-import { Repository } from 'typeorm';
+
 import { UserAccountCleanupService } from './user-account-cleanup.service';
 
 describe('UserAccountCleanupService', () => {

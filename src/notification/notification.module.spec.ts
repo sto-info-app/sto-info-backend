@@ -1,6 +1,6 @@
-import { NotificationModule } from './notification.module';
 import { AppStateController } from './app-state.controller';
 import { NotificationController } from './notification.controller';
+import { NotificationModule } from './notification.module';
 import { NotificationService } from './notification.service';
 
 describe('NotificationModule', () => {

@@ -1,4 +1,5 @@
 import { getMetadataArgsStorage, ValueTransformer } from 'typeorm';
+
 import { ReaderChapterStatus } from '../../enums/reader-chapter-status.enum';
 import { StorytimeUserChapterProgressEntity } from './storytime-user-chapter-progress.entity';
 

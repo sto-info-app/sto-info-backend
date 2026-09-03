@@ -1,5 +1,6 @@
-import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
+
+import { jest } from '@jest/globals';
 
 import { PlatformLauncherEntity } from './entities/platform-launcher.entity';
 import { PlatformLauncherController } from './platform-launcher.controller';

@@ -1,4 +1,5 @@
 import { OmitType, PartialType } from '@nestjs/swagger';
+
 import { InviteCollaboratorDto } from './invite-collaborator.dto';
 
 /**

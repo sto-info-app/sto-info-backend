@@ -1,6 +1,8 @@
-import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
+import { jest } from '@jest/globals';
+
 import { AccountController } from './account.controller';
 import { AccountService } from './account.service';
 import { CreateAccountRequestDto } from './dto/create-account-request.dto';

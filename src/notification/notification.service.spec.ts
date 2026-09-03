@@ -1,13 +1,15 @@
-import { jest } from '@jest/globals';
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
+import { jest } from '@jest/globals';
 import { Repository } from 'typeorm';
+
 import { BannerEntity } from './entities/banner.entity';
 import { NotificationReadEntity } from './entities/notification-read.entity';
 import { NotificationEntity } from './entities/notification.entity';
-import { NotificationTarget } from './enums/notification-target.enum';
 import { NotificationSeverity } from './enums/notification-severity.enum';
+import { NotificationTarget } from './enums/notification-target.enum';
 import { NotificationService } from './notification.service';
 
 /**

@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+
 import {
   Column,
   CreateDateColumn,
@@ -8,6 +9,7 @@ import {
   Unique,
   UpdateDateColumn,
 } from 'typeorm';
+
 import { StorytimeReaction } from '../../enums/storytime-reaction.enum';
 import { StorytimeTargetType } from '../../enums/storytime-target-type.enum';
 

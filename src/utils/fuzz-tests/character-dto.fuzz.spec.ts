@@ -1,6 +1,7 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import * as fc from 'fast-check';
+
 import { CreateCharacterRequestDto } from '../../sto/character/dto/create-character-request.dto';
 
 describe('Character DTO validation fuzz tests', () => {

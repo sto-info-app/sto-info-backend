@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
+
+import { StorytimeAuthorDto } from '../dto/storytime-author.dto';
 import { StorytimeCommentStatus } from '../enums/storytime-comment-status.enum';
 import { CommentDto } from './dto/comment.dto';
 import { StorytimeCommentEntity } from './entities/storytime-comment.entity';
-import { StorytimeAuthorDto } from '../dto/storytime-author.dto';
 
 /**
  * Turns comments into the shape the API returns.

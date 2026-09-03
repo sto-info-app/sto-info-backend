@@ -1,6 +1,8 @@
-import { jest } from '@jest/globals';
 import { BadRequestException, Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+
+import { jest } from '@jest/globals';
+
 import { CharacterController } from './character.controller';
 import { CharacterService } from './character.service';
 

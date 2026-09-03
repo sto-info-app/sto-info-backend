@@ -1,8 +1,10 @@
-import { jest } from '@jest/globals';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
+import { jest } from '@jest/globals';
 import { QueryFailedError, Repository } from 'typeorm';
+
 import { NewsPostEntity } from './entities/news-post.entity';
 import { NewsCategory } from './enums/news-category.enum';
 import { NewsStatus } from './enums/news-status.enum';

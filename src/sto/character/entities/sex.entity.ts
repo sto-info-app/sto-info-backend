@@ -1,4 +1,5 @@
 import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+
 import { CharacterEntity } from './character.entity';
 
 @Entity({ name: 'character_sex' })

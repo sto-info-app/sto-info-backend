@@ -15,8 +15,10 @@ import {
   ApiOkResponse,
   ApiTags,
 } from '@nestjs/swagger';
+
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
+
 import { EndeavourProgressQueryDto } from './dto/endeavour-progress-query.dto';
 import { UpdateEndeavourProgressDto } from './dto/update-endeavour-progress.dto';
 import { EndeavourService } from './endeavour.service';

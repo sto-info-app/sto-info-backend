@@ -9,6 +9,7 @@ import {
   IsUUID,
   Matches,
 } from 'class-validator';
+
 import { STO_HANDLE_PATTERN } from 'src/shared/constants/regex-patterns.constants';
 
 const emptyStringToUndefined = ({ value }: { value: unknown }) =>

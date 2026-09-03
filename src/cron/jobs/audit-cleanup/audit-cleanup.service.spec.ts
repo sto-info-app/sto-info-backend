@@ -1,9 +1,12 @@
-import { jest } from '@jest/globals';
 import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { AuditEntity } from 'src/audit/entities/audit.entity';
+
+import { jest } from '@jest/globals';
 import { Repository } from 'typeorm';
+
+import { AuditEntity } from 'src/audit/entities/audit.entity';
+
 import { AuditCleanupService } from './audit-cleanup.service';
 
 describe('AuditCleanupService', () => {

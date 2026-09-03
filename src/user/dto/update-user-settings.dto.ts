@@ -1,5 +1,7 @@
-import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
 import { IsBoolean, IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
+
 import {
   MAX_SESSION_TIMEOUT_MINUTES,
   MIN_SESSION_TIMEOUT_MINUTES,

@@ -5,6 +5,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+
 import * as Sentry from '@sentry/nestjs';
 import { TypeORMError } from 'typeorm';
 

@@ -10,6 +10,7 @@ import {
   Matches,
   Min,
 } from 'class-validator';
+
 import { CHARACTER_NAME_PATTERN } from 'src/shared/constants/regex-patterns.constants';
 
 export const emptyStringToUndefined = ({ value }: { value: unknown }) =>

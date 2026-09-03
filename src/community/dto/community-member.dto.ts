@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+
 import { PublicMemberSummaryDto } from '../../shared/dto/public-member-summary.dto';
 
 /**

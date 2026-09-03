@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+
 import { AppService } from './app.service';
 import { Public } from './auth/public.decorator';
 import { getAppVersion } from './shared/utilities/version.utility';

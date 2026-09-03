@@ -1,4 +1,3 @@
-import { jest } from '@jest/globals';
 import {
   HealthCheckResult,
   HealthCheckService,
@@ -6,6 +5,9 @@ import {
   TypeOrmHealthIndicator,
 } from '@nestjs/terminus';
 import { Test, TestingModule } from '@nestjs/testing';
+
+import { jest } from '@jest/globals';
+
 import { HealthController } from './health.controller';
 
 describe('HealthController', () => {

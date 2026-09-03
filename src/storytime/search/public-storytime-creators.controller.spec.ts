@@ -1,5 +1,6 @@
 import { ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+
 import { StorytimeArcEntity } from '../arcs/entities/storytime-arc.entity';
 import { StorytimeArcMapper } from '../arcs/storytime-arc.mapper';
 import { StorytimeArcService } from '../arcs/storytime-arc.service';
@@ -7,10 +8,10 @@ import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constant
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeStoryMapper } from '../stories/storytime-story.mapper';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
+import { StorytimeFeatureService } from '../storytime-feature.service';
 import { StorytimeTagEntity } from '../tags/entities/storytime-tag.entity';
 import { StorytimeTagMapper } from '../tags/storytime-tag.mapper';
 import { StorytimeTaggingService } from '../tags/storytime-tagging.service';
-import { StorytimeFeatureService } from '../storytime-feature.service';
 import { PublicStorytimeCreatorsController } from './public-storytime-creators.controller';
 
 describe('PublicStorytimeCreatorsController', () => {

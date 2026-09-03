@@ -1,6 +1,8 @@
 import { IsIn, IsInt, Max, Min, ValidateIf } from 'class-validator';
-import { CatalogItemEntity } from 'src/sto/shared/entities/catalog-item.entity';
 import { BeforeInsert, Column, Entity, Index, OneToMany } from 'typeorm';
+
+import { CatalogItemEntity } from 'src/sto/shared/entities/catalog-item.entity';
+
 import { CharacterSpecializationProgressEntity } from './character-specialization-progress.entity';
 
 /**

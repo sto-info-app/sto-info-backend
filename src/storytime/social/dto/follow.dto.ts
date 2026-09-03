@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+
 import { StorytimeActivityType } from '../../enums/storytime-activity-type.enum';
 
 /**

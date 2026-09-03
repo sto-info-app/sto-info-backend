@@ -1,20 +1,21 @@
 import { BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
 import { NotificationService } from '../../notification/notification.service';
 import { StorytimeArcEntity } from '../arcs/entities/storytime-arc.entity';
 import { StorytimeArcService } from '../arcs/storytime-arc.service';
 import { SpotlightEntityType } from '../enums/spotlight-entity-type.enum';
+import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
 import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
 import { StorytimeVisibility } from '../enums/storytime-visibility.enum';
-import { StorytimeSlugService } from '../shared/storytime-slug.service';
+import { StorytimeImageService } from '../images/storytime-image.service';
 import { StorytimeAuthorService } from '../shared/storytime-author.service';
+import { StorytimeSlugService } from '../shared/storytime-slug.service';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
 import { StorytimeTagEntity } from '../tags/entities/storytime-tag.entity';
 import { StorytimeTaggingService } from '../tags/storytime-tagging.service';
-import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
-import { StorytimeImageService } from '../images/storytime-image.service';
 import { StorytimeSpotlightEntity } from './entities/storytime-spotlight.entity';
 import { StorytimeSpotlightService } from './storytime-spotlight.service';
 

@@ -1,12 +1,15 @@
-import { jest } from '@jest/globals';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
+import { jest } from '@jest/globals';
+
 import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { CharacterRankEntity } from 'src/sto/character/entities/character-rank.entity';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 import { AccountEndeavourProgressEntity } from 'src/sto/endeavour/entities/account-endeavour-progress.entity';
 import { EndeavourPerkEntity } from 'src/sto/endeavour/entities/endeavour-perk.entity';
+
 import { StatsService } from './stats.service';
 
 /** Returns a fully-chainable query-builder stub. */

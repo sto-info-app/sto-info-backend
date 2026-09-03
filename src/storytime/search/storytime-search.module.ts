@@ -1,13 +1,14 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+
 import { StorytimeArcEntity } from '../arcs/entities/storytime-arc.entity';
+import { StorytimeArcsModule } from '../arcs/storytime-arcs.module';
 import { StorytimeChapterEntity } from '../chapters/entities/storytime-chapter.entity';
 import { StorytimeCharacterEntity } from '../characters/entities/storytime-character.entity';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
-import { StorytimeArcsModule } from '../arcs/storytime-arcs.module';
 import { StorytimeStoriesModule } from '../stories/storytime-stories.module';
-import { StorytimeTaggingModule } from '../tags/storytime-tagging.module';
 import { StorytimeFeatureService } from '../storytime-feature.service';
+import { StorytimeTaggingModule } from '../tags/storytime-tagging.module';
 import { PublicStorytimeCreatorsController } from './public-storytime-creators.controller';
 import { PublicStorytimeSearchController } from './public-storytime-search.controller';
 import { StorytimeSearchService } from './storytime-search.service';

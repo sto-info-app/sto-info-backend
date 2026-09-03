@@ -1,8 +1,11 @@
-import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { MailService } from 'src/mail/mail.service';
+
+import { jest } from '@jest/globals';
 import { Repository } from 'typeorm';
+
+import { MailService } from 'src/mail/mail.service';
+
 import { ContactService } from './contact.service';
 import { ContactRequestEntity } from './entities/contact-request.entity';
 

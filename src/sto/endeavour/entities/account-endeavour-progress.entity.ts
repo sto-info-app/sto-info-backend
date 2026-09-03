@@ -1,6 +1,5 @@
 import { Expose } from 'class-transformer';
 import { IsInt, IsUUID, Max, Min } from 'class-validator';
-import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import {
   Column,
   CreateDateColumn,
@@ -11,6 +10,9 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+
+import { AccountEntity } from 'src/sto/account/entities/account.entity';
+
 import { EndeavourPerkEntity } from './endeavour-perk.entity';
 
 @Entity({ name: 'account_endeavour_progress' })

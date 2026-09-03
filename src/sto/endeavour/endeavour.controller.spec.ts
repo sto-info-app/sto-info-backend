@@ -1,5 +1,7 @@
-import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
+
+import { jest } from '@jest/globals';
+
 import { EndeavourProgressQueryDto } from './dto/endeavour-progress-query.dto';
 import { UpdateEndeavourProgressDto } from './dto/update-endeavour-progress.dto';
 import { EndeavourController } from './endeavour.controller';

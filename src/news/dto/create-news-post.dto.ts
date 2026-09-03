@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
 import {
   IsEnum,
   IsNotEmpty,
@@ -8,9 +9,11 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+
+import { NEWS_SLUG_PATTERN } from 'src/shared/constants/regex-patterns.constants';
+
 import { NewsCategory } from '../enums/news-category.enum';
 import { NewsStatus } from '../enums/news-status.enum';
-import { NEWS_SLUG_PATTERN } from 'src/shared/constants/regex-patterns.constants';
 
 export class CreateNewsPostDto {
   @ApiProperty({ description: 'Post title.' })

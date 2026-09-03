@@ -1,7 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { SpotlightEntityType } from '../../enums/spotlight-entity-type.enum';
+
 import { ArcDto } from '../../arcs/dto/arc.dto';
 import { StorytimeAuthorDto } from '../../dto/storytime-author.dto';
+import { SpotlightEntityType } from '../../enums/spotlight-entity-type.enum';
 import { StoryDto } from '../../stories/dto/story.dto';
 import { TagDto } from '../../tags/dto/create-tag.dto';
 

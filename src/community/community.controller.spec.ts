@@ -1,5 +1,7 @@
-import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
+
+import { jest } from '@jest/globals';
+
 import { BlockService } from './block.service';
 import { CommunityController } from './community.controller';
 import { FriendRequestDirection } from './enums/friend-request-direction.enum';

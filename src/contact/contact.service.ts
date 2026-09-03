@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { MailService } from 'src/mail/mail.service';
+
 import { Repository } from 'typeorm';
+
+import { MailService } from 'src/mail/mail.service';
 import { NEWLINE_PATTERN } from 'src/shared/constants/regex-patterns.constants';
+
 import { ContactRequestDto } from './dto/contact-request.dto';
 import { ContactRequestEntity } from './entities/contact-request.entity';
 

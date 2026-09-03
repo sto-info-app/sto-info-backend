@@ -14,6 +14,7 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+
 import { FactionEntity } from './faction.entity';
 
 @Entity({ name: 'character_rank' })

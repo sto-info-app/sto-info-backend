@@ -1,5 +1,6 @@
 import { jest } from '@jest/globals';
 import { ClsServiceManager } from 'nestjs-cls';
+
 import { CurrentContextHelper } from './current-context.helper';
 
 jest.mock('nestjs-cls', () => ({

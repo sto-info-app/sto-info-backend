@@ -1,5 +1,7 @@
-import { CatalogItemEntity } from 'src/sto/shared/entities/catalog-item.entity';
 import { Entity, Index, OneToMany } from 'typeorm';
+
+import { CatalogItemEntity } from 'src/sto/shared/entities/catalog-item.entity';
+
 import { CharacterRdProgressEntity } from './character-rd-progress.entity';
 
 /** The maximum level a character can attain in an R&D school. */

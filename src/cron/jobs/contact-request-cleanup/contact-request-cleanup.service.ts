@@ -1,11 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+
+import { IsNull, LessThan, Not, Repository } from 'typeorm';
+
 import { ContactRequestEntity } from 'src/contact/entities/contact-request.entity';
 import {
   CONTACT_REQUEST_EMAIL_MASK_RETENTION_DAYS,
   CONTACT_REQUEST_RECORD_RETENTION_DAYS,
 } from 'src/cron/constants/cron.constants';
-import { IsNull, LessThan, Not, Repository } from 'typeorm';
 
 @Injectable()
 export class ContactRequestCleanupService {

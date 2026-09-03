@@ -1,12 +1,15 @@
-import { jest } from '@jest/globals';
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
+import { jest } from '@jest/globals';
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
-import { SecretsService } from 'src/shared/secrets/secrets.service';
 import { Repository } from 'typeorm';
+
+import { SecretsService } from 'src/shared/secrets/secrets.service';
+
 import { UserRefreshTokenEntity } from './entities/user-refresh-token.entity';
 import { UserRefreshTokenService } from './user-refresh-token.service';
 

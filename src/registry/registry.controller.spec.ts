@@ -1,5 +1,7 @@
-import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
+
+import { jest } from '@jest/globals';
+
 import { RegistrySort } from './enums/registry-sort.enum';
 import { RegistryController } from './registry.controller';
 import { RegistryService } from './registry.service';

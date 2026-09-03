@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
 import { Transform } from 'class-transformer';
 import {
   IsEnum,
@@ -8,9 +9,10 @@ import {
   IsUUID,
   MaxLength,
 } from 'class-validator';
+
+import { StorytimeAuthorDto } from '../../dto/storytime-author.dto';
 import { StorytimeCommentStatus } from '../../enums/storytime-comment-status.enum';
 import { StorytimeTargetType } from '../../enums/storytime-target-type.enum';
-import { StorytimeAuthorDto } from '../../dto/storytime-author.dto';
 
 /** The longest a comment may be. */
 export const MAX_COMMENT_LENGTH = 2000;

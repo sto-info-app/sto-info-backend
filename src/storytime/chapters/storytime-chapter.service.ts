@@ -7,24 +7,26 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+
 import { DataSource, IsNull, Not, Repository } from 'typeorm';
+
 import { LimitService } from '../../access-control/limit.service';
+import { StoryCapability } from '../collaboration/storytime-story-capability.enum';
 import { STORYTIME_LANGUAGE_CODES } from '../constants/storytime-language.constants';
 import { STORYTIME_LIMITS } from '../constants/storytime-limits.constants';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
 import { ChapterStatus } from '../enums/chapter-status.enum';
+import { StorytimeActivityType } from '../enums/storytime-activity-type.enum';
+import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
 import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.enum';
 import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
-import { StoryCapability } from '../collaboration/storytime-story-capability.enum';
-import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
 import { assertImageDescribable } from '../images/storytime-image-alt.utility';
 import { StorytimeImageService } from '../images/storytime-image.service';
 import { StorytimeProgressService } from '../progress/storytime-progress.service';
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
 import { StorytimeSlugService } from '../shared/storytime-slug.service';
-import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
-import { StorytimeActivityType } from '../enums/storytime-activity-type.enum';
 import { StorytimeActivityFeedService } from '../social/storytime-activity-feed.service';
+import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
 import { CreateChapterDto } from './dto/create-chapter.dto';
 import { UpdateChapterDto } from './dto/update-chapter.dto';

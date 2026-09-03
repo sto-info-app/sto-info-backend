@@ -1,11 +1,13 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+
 import { In, Repository } from 'typeorm';
+
+import { StorytimeChapterEntity } from '../chapters/entities/storytime-chapter.entity';
 import { ChapterStatus } from '../enums/chapter-status.enum';
 import { ReaderChapterStatus } from '../enums/reader-chapter-status.enum';
 import { ReaderStoryStatus } from '../enums/reader-story-status.enum';
 import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.enum';
-import { StorytimeChapterEntity } from '../chapters/entities/storytime-chapter.entity';
 import {
   CHAPTER_COMPLETE_PERCENT,
   MEANINGFUL_PROGRESS_PERCENT,

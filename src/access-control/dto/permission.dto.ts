@@ -1,7 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
 import { UserRole } from '../../user/enums/user-role.enum';
-import { PermissionModule } from '../enums/permission-module.enum';
 import { PermissionEffect } from '../enums/permission-effect.enum';
+import { PermissionModule } from '../enums/permission-module.enum';
 
 /**
  * A permission as presented to administrators.

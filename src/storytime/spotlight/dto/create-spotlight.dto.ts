@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
 import { Transform } from 'class-transformer';
 import {
   IsBoolean,
@@ -13,6 +14,7 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
+
 import { STORYTIME_IMAGE_ALT_MAX_LENGTH } from '../../constants/storytime-image.constants';
 import { SpotlightEntityType } from '../../enums/spotlight-entity-type.enum';
 
