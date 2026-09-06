@@ -751,6 +751,24 @@ The resulting 64-character hex digest (`emailHashed`) is stored instead. This me
 - **API Keys/Secrets**: Cloudflare tokens, R2 credentials
 - **Credit Card Numbers**: If payment processing added
 - **Personal Identification Numbers**: Social security, passport, etc.
+- **User-authored content**: Custom Tracking values, picture descriptions and
+  the video identifiers a member chose. These are the one category a user can
+  put anything into, including things about themselves we asked them not to.
+
+Custom Tracking enforces the last of those in a way an instruction cannot.
+`CustomTrackingObservabilityService` is the only place the feature writes about
+its own failures, and every parameter it takes is an identifier, a count or a
+value from one of our own enumerations. There is no parameter that could carry
+what somebody wrote, so no later edit can start logging it by accident. The
+reason a value was refused is deliberately not recorded either — validation
+messages name the rule, and one of them could one day name the value.
+
+The same rule holds in the audit trail. Value fragments and picture
+descriptions are marked `@RedactFromAudit()`, so they are not copied into a
+second table with a different retention period and a different set of readers,
+where deleting the original would not remove the copy. Field, tab and section
+**names** are not redacted: they are what an investigation into a report needs,
+and they are already visible to everybody who can see the field.
 
 ### What to Log:
 
@@ -774,6 +792,51 @@ The resulting 64-character hex digest (`emailHashed`) is stored instead. This me
 - More verbose for debugging
 - May include more request details
 - Never use in production
+
+## User-authored content (Custom Tracking)
+
+Custom Tracking is the only feature where a member defines their own fields and
+writes free text, uploads pictures and chooses videos against them. That makes
+it the feature with the widest input surface on the site.
+
+**What limits the damage:**
+
+- Every definition and value is private by default. Public visibility is opt-in
+  at each of member profile, STO account, character, section, tab and field, and
+  the projection re-asks the database for every gate rather than trusting the
+  route that called it.
+- The content agreement prohibits personal information about the member or
+  anybody else, and the wording does not claim the site can prevent it — free
+  text and uploaded pictures cannot be made to refuse it.
+- Pictures go through the same `ImageSlotService` pipeline as the rest of the
+  site: virus scanning, MIME and dimension checks, and a fixed set of Cloudflare
+  variants. A picture cannot be set through the ordinary value route, so a
+  caller cannot point a field at an arbitrary image in the Cloudflare account.
+- YouTube fields store an eleven-character identifier, validated on the way in
+  and again on the way out. No player is loaded, and so none of the cookies and
+  scripts a player brings with it, until a reader presses play. The poster
+  image is the exception and is worth being straight about: it is fetched from
+  Google's thumbnail host as the page loads, so a reader's address is known to
+  Google before they have pressed anything. That is the same bargain Storytime
+  already makes, and the alternative — proxying or storing thumbnails
+  ourselves — is a larger change than this feature should make on its own.
+- Markdown is rendered through the site's existing pipeline, under the same CSP
+  as everything else.
+
+**What answers abuse:**
+
+- An administrator can suppress a section, tab or field, hiding it from
+  everybody but its owner without deleting anything.
+- Disabling the account through the existing moderation routes hides everything
+  the member has published at once — the public projection checks
+  `isAccountDisabled` as its first gate.
+- Ceilings are enforced per tab, per scope, and per scope including
+  soft-deleted rows, so a member cannot create and delete indefinitely to evade
+  the live limit. Refusals are logged with the name of the ceiling, which is
+  what makes a pattern of them legible as abuse.
+
+Retention, hard-deletion order and the Cloudflare deletion queue are described
+in `docs/custom-tracking.md`.
 
 ## API Key Management
 
