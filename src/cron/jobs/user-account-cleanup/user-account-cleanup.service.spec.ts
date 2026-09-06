@@ -5,6 +5,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { jest } from '@jest/globals';
 import { Repository } from 'typeorm';
 
+import { CustomTrackingPurgeService } from 'src/custom-tracking/retention/custom-tracking-purge.service';
 import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
@@ -19,6 +20,7 @@ describe('UserAccountCleanupService', () => {
   let userRefreshTokenRepository: Repository<UserRefreshTokenEntity>;
   let accountRepository: Repository<AccountEntity>;
   let loggerLogSpy: jest.SpiedFunction<(...args: any[]) => any>;
+  let purgeUsers: jest.Mock<(userIds: string[]) => Promise<unknown>>;
 
   const createDeleteQueryBuilder = () => {
     const queryBuilder = {
@@ -31,9 +33,23 @@ describe('UserAccountCleanupService', () => {
   };
 
   beforeEach(async () => {
+    purgeUsers = jest.fn(async () => ({
+      sections: 1,
+      tabs: 1,
+      fields: 2,
+      options: 0,
+      values: 3,
+      images: 1,
+      retained: 0,
+    }));
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UserAccountCleanupService,
+        {
+          provide: CustomTrackingPurgeService,
+          useValue: { purgeUsers },
+        },
         {
           provide: getRepositoryToken(UserEntity),
           useValue: {
@@ -144,6 +160,51 @@ describe('UserAccountCleanupService', () => {
       expect(loggerLogSpy).toHaveBeenCalledWith(
         expect.stringContaining('Hard deleted 2 closed user account(s)'),
       );
+    });
+
+    // The database would take the rows with the user on its own. The pictures
+    // those rows point at live in Cloudflare, which no cascade can reach, so
+    // they have to be queued while something still knows they are there.
+    it('removes their custom tracking data before the user row goes', async () => {
+      (
+        userRepository.find as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue([{ id: 'u1' }]);
+
+      const userDeleteQb = createDeleteQueryBuilder();
+
+      for (const repository of [
+        userRefreshTokenRepository,
+        userProfileRepository,
+        accountRepository,
+      ]) {
+        (
+          repository.createQueryBuilder as jest.Mock<(...args: any[]) => any>
+        ).mockReturnValue(createDeleteQueryBuilder());
+      }
+
+      (
+        userRepository.createQueryBuilder as jest.Mock<(...args: any[]) => any>
+      ).mockReturnValue(userDeleteQb);
+
+      await service.cleanup();
+
+      expect(purgeUsers).toHaveBeenCalledWith(['u1']);
+      expect(purgeUsers.mock.invocationCallOrder[0]).toBeLessThan(
+        (userDeleteQb.execute as jest.Mock).mock.invocationCallOrder[0],
+      );
+      expect(loggerLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('1 image(s) queued'),
+      );
+    });
+
+    it('asks for no purge when nothing is eligible', async () => {
+      (
+        userRepository.find as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue([]);
+
+      await service.cleanup();
+
+      expect(purgeUsers).not.toHaveBeenCalled();
     });
   });
 });
