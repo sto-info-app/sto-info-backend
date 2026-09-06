@@ -2,6 +2,7 @@ import { BadRequestException, Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 
 import { LimitService } from 'src/access-control/limit.service';
+import { ImageSlotService } from 'src/shared/images/image-slot.service';
 import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
 
 import { STORYTIME_LIMITS } from '../constants/storytime-limits.constants';
@@ -82,6 +83,10 @@ describe('StorytimeImageService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         StorytimeImageService,
+        // The real shared checker, not a stand-in. What is worth asserting is
+        // that a crop of the wrong shape never reaches Cloudflare, and only
+        // running the actual checks says that.
+        ImageSlotService,
         { provide: ImageUploadsService, useValue: imageUploads },
         { provide: LimitService, useValue: limitService },
       ],
