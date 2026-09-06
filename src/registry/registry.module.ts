@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 
 import { CommunityModule } from '../community/community.module';
+import { CustomTrackingModule } from '../custom-tracking/custom-tracking.module';
 import { AccountEntity } from '../sto/account/entities/account.entity';
 import { CharacterEntity } from '../sto/character/entities/character.entity';
 import { PlatformLauncherEntity } from '../sto/platform-launcher/entities/platform-launcher.entity';
@@ -19,6 +20,7 @@ import { RegistryService } from './registry.service';
       PlatformLauncherEntity,
     ]),
     CommunityModule,
+    CustomTrackingModule,
   ],
   controllers: [RegistryController],
   providers: [RegistryService],

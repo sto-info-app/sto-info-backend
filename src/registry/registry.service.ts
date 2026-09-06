@@ -13,6 +13,10 @@ import {
   PublicMemberService,
   PublicMemberStats,
 } from '../community/public-member.service';
+import { CustomTrackingPublicSectionDto } from '../custom-tracking/dto/custom-tracking-public.dto';
+import { CustomTrackingTargetScope } from '../custom-tracking/enums/custom-tracking-target-scope.enum';
+import { CustomTrackingPublicMapper } from '../custom-tracking/public/custom-tracking-public.mapper';
+import { CustomTrackingPublicService } from '../custom-tracking/public/custom-tracking-public.service';
 import { joinWithOptionalSelect } from '../shared/utilities/query-builder.utility';
 import { escapeSqlLikeTerm } from '../shared/utilities/sql-like.utility';
 import { AccountEntity } from '../sto/account/entities/account.entity';
@@ -85,6 +89,8 @@ export class RegistryService {
    * @param _publicMemberService - Shared public-visibility counts.
    * @param _blockService - Resolves which members a caller may not see.
    * @param _friendshipService - Resolves the caller's relationship to a member.
+   * @param _customTracking - Projects the custom data a visitor may see.
+   * @param _customTrackingMapper - Maps that projection to its response shape.
    */
   constructor(
     @InjectRepository(UserProfileEntity)
@@ -98,6 +104,8 @@ export class RegistryService {
     private readonly _publicMemberService: PublicMemberService,
     private readonly _blockService: BlockService,
     private readonly _friendshipService: FriendshipService,
+    private readonly _customTracking: CustomTrackingPublicService,
+    private readonly _customTrackingMapper: CustomTrackingPublicMapper,
   ) {}
 
   /**
@@ -222,6 +230,10 @@ export class RegistryService {
       characters: characters.map(character =>
         this.toCharacterSummary(character),
       ),
+      customSections: await this.customSections(
+        CustomTrackingTargetScope.ACCOUNT,
+        account.id,
+      ),
     };
   }
 
@@ -273,7 +285,34 @@ export class RegistryService {
       lastName: character.lastName,
       biography: character.biography,
       createdDate: character.createdDate,
+      customSections: await this.customSections(
+        CustomTrackingTargetScope.CHARACTER,
+        character.id,
+      ),
     };
+  }
+
+  /**
+   * Projects the custom tracking a visitor may see of one record.
+   *
+   * The projection asks the whole visibility chain of the database again for
+   * itself rather than inheriting the answer this method already has. That
+   * repetition is deliberate: this route reaches it after four gates, and the
+   * projection has to be as safe for the fifth caller as for the first.
+   *
+   * @param scope - Whether an Account or a Character is being read.
+   * @param targetId - The record being read.
+   * @returns The permitted Sections, which may be none.
+   */
+  private async customSections(
+    scope: CustomTrackingTargetScope,
+    targetId: string,
+  ): Promise<CustomTrackingPublicSectionDto[]> {
+    const sections = await this._customTracking.project(scope, targetId);
+
+    return sections.map(section =>
+      this._customTrackingMapper.toSection(section),
+    );
   }
 
   /**

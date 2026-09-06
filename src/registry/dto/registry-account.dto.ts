@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+import { CustomTrackingPublicSectionDto } from '../../custom-tracking/dto/custom-tracking-public.dto';
 import { RegistryCharacterSummaryDto } from './registry-character.dto';
 
 /**
@@ -53,4 +54,13 @@ export class RegistryAccountSummaryDto {
 export class RegistryAccountDto extends RegistryAccountSummaryDto {
   @ApiProperty({ type: [RegistryCharacterSummaryDto] })
   characters: RegistryCharacterSummaryDto[];
+
+  @ApiProperty({
+    description:
+      'The owner’s own tracked information, so far as it is public. Empty ' +
+      'where they have published none, and indistinguishable from that where ' +
+      'they have published some but kept it private.',
+    type: [CustomTrackingPublicSectionDto],
+  })
+  customSections: CustomTrackingPublicSectionDto[];
 }
