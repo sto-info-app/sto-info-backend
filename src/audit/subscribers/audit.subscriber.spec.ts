@@ -11,6 +11,7 @@ import {
 import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
 import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
 
+import { AUDIT_REDACTED, RedactFromAudit } from '../audit-redaction';
 import { AuditLoginAttemptEntity } from '../entities/audit-login-attempt.entity';
 import { AuditEntity } from '../entities/audit.entity';
 import { AuditSubscriber } from './audit.subscriber';
@@ -372,6 +373,76 @@ describe('AuditSubscriber', () => {
 
       expect(validateOrReject).toHaveBeenCalled();
       expect(mockRepository.save).toHaveBeenCalled();
+    });
+  });
+
+  describe('redaction', () => {
+    class NotedEntity {
+      id: string;
+
+      @RedactFromAudit()
+      note: string;
+    }
+
+    const eventFor = (
+      entity: Record<string, unknown>,
+    ): Partial<InsertEvent<any>> => ({
+      entity,
+      metadata: {
+        target: NotedEntity,
+        name: 'NotedEntity',
+        primaryColumns: [{ getEntityValue: jest.fn().mockReturnValue('1') }],
+      } as any,
+      manager: mockManager as EntityManager,
+    });
+
+    // The trail must still say who changed what and when. What it must not do
+    // is take a second copy of content the user wrote about themselves, into a
+    // table with its own retention period that deleting the original leaves
+    // untouched.
+    it('withholds a marked property from the recorded snapshot', async () => {
+      await subscriber.afterInsert(
+        eventFor({ id: '1', note: 'something private' }) as InsertEvent<any>,
+      );
+
+      expect(mockRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entityId: '1',
+          newValue: { id: '1', note: AUDIT_REDACTED },
+        }),
+      );
+    });
+
+    it('withholds a marked property from both sides of an update', async () => {
+      const event = {
+        ...eventFor({ id: '1', note: 'the new note' }),
+        databaseEntity: { id: '1', note: 'the old note' },
+      };
+
+      await subscriber.afterUpdate(event as unknown as UpdateEvent<any>);
+
+      expect(mockRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          oldValue: { id: '1', note: AUDIT_REDACTED },
+          newValue: { id: '1', note: AUDIT_REDACTED },
+        }),
+      );
+    });
+
+    it('records unmarked properties as they are', async () => {
+      await subscriber.afterInsert(
+        eventFor({
+          id: '1',
+          note: 'private',
+          label: 'Ships',
+        }) as InsertEvent<any>,
+      );
+
+      expect(mockRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          newValue: { id: '1', note: AUDIT_REDACTED, label: 'Ships' },
+        }),
+      );
     });
   });
 });
