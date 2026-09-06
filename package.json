@@ -41,6 +41,7 @@
     "test:debug": "cross-env TZ=UTC NODE_OPTIONS=--experimental-vm-modules node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "cross-env TZ=UTC NODE_OPTIONS=--experimental-vm-modules jest --config ./test/jest-e2e.json",
     "e2e": "npm run test:e2e",
+    "e2e:support": "ts-node -r tsconfig-paths/register scripts/e2e-support.ts",
     "test:mutation": "stryker run --reporters clear-text --reporters html --reporters progress",
     "test:mutation:dry": "stryker run --reporters clear-text --reporters html --reporters progress --dryRunOnly",
     "test:mutation:incremental": "node ./scripts/run-incremental-mutation.mjs",
