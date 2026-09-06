@@ -67,6 +67,20 @@ describe('CustomTrackingConfigurationController', () => {
     });
   });
 
+  // The builder hides the toggle rather than offering a rule it cannot show
+  // being kept, and it hides it on what the server says rather than on a list
+  // of its own that would drift from this one.
+  it('says a switch and a tick box may not demand an answer', async () => {
+    const { fieldTypes } = await controller.getConfiguration();
+    const requirable = new Map(
+      fieldTypes.map(type => [type.fieldType, type.allowsRequired]),
+    );
+
+    expect(requirable.get(CustomTrackingFieldType.TOGGLE)).toBe(false);
+    expect(requirable.get(CustomTrackingFieldType.CHECKBOX)).toBe(false);
+    expect(requirable.get(CustomTrackingFieldType.TEXT_SINGLE_LINE)).toBe(true);
+  });
+
   it('reports the tag field as drawing from a user-defined list', async () => {
     const { fieldTypes } = await controller.getConfiguration();
     const tags = fieldTypes.find(

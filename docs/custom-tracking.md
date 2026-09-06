@@ -35,8 +35,15 @@ Twenty-seven types, described in
 `src/custom-tracking/constants/custom-tracking-field-catalogue.constants.ts`.
 The catalogue is the single statement of what each type can do — whether it
 draws answers from a user-defined option list, whether it permits more than
-one, where its default comes from, and whether its values name a timezone.
-Every layer reads it rather than switching on the type itself.
+one, where its default comes from, whether its values name a timezone, and
+whether a Field of that type may demand an answer. Every layer reads it rather
+than switching on the type itself.
+
+`allowsRequired` is false for `TOGGLE` and `CHECKBOX`. Both are drawn as a
+control that is always showing one of its two positions, so a record obliged
+to answer one would be keeping a rule nobody looking at it could see. The
+stored value stays three-state — unanswered is not the same as answered no —
+and the builder simply never offers the requirement for those types.
 
 Types that differ only in presentation — `TOGGLE` and `CHECKBOX`, `RADIO` and
 `DROPDOWN`, `CHECKBOX_LIST` and `MULTI_SELECT`, `MULTI_SELECT` and `TAGS` —

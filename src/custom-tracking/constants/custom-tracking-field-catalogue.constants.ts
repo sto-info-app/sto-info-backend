@@ -75,6 +75,17 @@ export interface CustomTrackingFieldTypeSpec {
    * September into the third.
    */
   readonly usesTimezone: boolean;
+  /**
+   * Whether a Field of this type may demand an answer.
+   *
+   * A switch and a tick box are drawn as a control that is always showing one
+   * of its two positions, so asking their owner to insist on an answer offers
+   * a rule nobody looking at the record could tell was being kept. The value
+   * itself is still three-state underneath — unanswered is not the same as
+   * answered no — and a Field of this type is simply never made to require
+   * one.
+   */
+  readonly allowsRequired: boolean;
 }
 
 /**
@@ -99,6 +110,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: false,
     defaultSource: CustomTrackingDefaultSource.VALUE_FRAGMENT,
     usesTimezone: false,
+    allowsRequired: true,
   },
   MARKDOWN: {
     label: 'Multi-line text',
@@ -109,6 +121,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: false,
     defaultSource: CustomTrackingDefaultSource.VALUE_FRAGMENT,
     usesTimezone: false,
+    allowsRequired: true,
   },
   INTEGER: {
     label: 'Whole number',
@@ -118,6 +131,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: false,
     defaultSource: CustomTrackingDefaultSource.VALUE_FRAGMENT,
     usesTimezone: false,
+    allowsRequired: true,
   },
   DECIMAL: {
     label: 'Decimal number',
@@ -127,6 +141,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: false,
     defaultSource: CustomTrackingDefaultSource.VALUE_FRAGMENT,
     usesTimezone: false,
+    allowsRequired: true,
   },
   PERCENTAGE: {
     label: 'Percentage',
@@ -136,6 +151,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: false,
     defaultSource: CustomTrackingDefaultSource.VALUE_FRAGMENT,
     usesTimezone: false,
+    allowsRequired: true,
   },
   RANGE: {
     label: 'Slider',
@@ -145,6 +161,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: false,
     defaultSource: CustomTrackingDefaultSource.VALUE_FRAGMENT,
     usesTimezone: false,
+    allowsRequired: true,
   },
   RATING: {
     label: 'Rating',
@@ -154,6 +171,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: false,
     defaultSource: CustomTrackingDefaultSource.VALUE_FRAGMENT,
     usesTimezone: false,
+    allowsRequired: true,
   },
   PROGRESS: {
     label: 'Progress',
@@ -163,6 +181,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: false,
     defaultSource: CustomTrackingDefaultSource.VALUE_FRAGMENT,
     usesTimezone: false,
+    allowsRequired: true,
   },
   DATE: {
     label: 'Date',
@@ -172,6 +191,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: false,
     defaultSource: CustomTrackingDefaultSource.VALUE_FRAGMENT,
     usesTimezone: false,
+    allowsRequired: true,
   },
   TIME: {
     label: 'Time',
@@ -181,6 +201,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: false,
     defaultSource: CustomTrackingDefaultSource.VALUE_FRAGMENT,
     usesTimezone: true,
+    allowsRequired: true,
   },
   DATE_TIME: {
     label: 'Date and time',
@@ -190,6 +211,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: false,
     defaultSource: CustomTrackingDefaultSource.VALUE_FRAGMENT,
     usesTimezone: true,
+    allowsRequired: true,
   },
   MONTH_YEAR: {
     label: 'Month and year',
@@ -199,6 +221,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: false,
     defaultSource: CustomTrackingDefaultSource.VALUE_FRAGMENT,
     usesTimezone: false,
+    allowsRequired: true,
   },
   YEAR: {
     label: 'Year',
@@ -208,6 +231,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: false,
     defaultSource: CustomTrackingDefaultSource.VALUE_FRAGMENT,
     usesTimezone: false,
+    allowsRequired: true,
   },
   DURATION: {
     label: 'Duration',
@@ -218,6 +242,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: false,
     defaultSource: CustomTrackingDefaultSource.VALUE_FRAGMENT,
     usesTimezone: false,
+    allowsRequired: true,
   },
   DATE_RANGE: {
     label: 'Date range',
@@ -227,6 +252,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: false,
     defaultSource: CustomTrackingDefaultSource.VALUE_FRAGMENT,
     usesTimezone: false,
+    allowsRequired: true,
   },
   DATE_TIME_RANGE: {
     label: 'Date and time range',
@@ -237,6 +263,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: false,
     defaultSource: CustomTrackingDefaultSource.VALUE_FRAGMENT,
     usesTimezone: true,
+    allowsRequired: true,
   },
   TOGGLE: {
     label: 'Switch',
@@ -246,6 +273,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: false,
     defaultSource: CustomTrackingDefaultSource.VALUE_FRAGMENT,
     usesTimezone: false,
+    allowsRequired: false,
   },
   CHECKBOX: {
     label: 'Tick box',
@@ -255,6 +283,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: false,
     defaultSource: CustomTrackingDefaultSource.VALUE_FRAGMENT,
     usesTimezone: false,
+    allowsRequired: false,
   },
   RADIO: {
     label: 'Option list',
@@ -264,6 +293,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: false,
     defaultSource: CustomTrackingDefaultSource.OPTIONS,
     usesTimezone: false,
+    allowsRequired: true,
   },
   DROPDOWN: {
     label: 'Dropdown',
@@ -273,6 +303,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: false,
     defaultSource: CustomTrackingDefaultSource.OPTIONS,
     usesTimezone: false,
+    allowsRequired: true,
   },
   CHECKBOX_LIST: {
     label: 'Tick box list',
@@ -282,6 +313,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: true,
     defaultSource: CustomTrackingDefaultSource.OPTIONS,
     usesTimezone: false,
+    allowsRequired: true,
   },
   MULTI_SELECT: {
     label: 'Multiple select',
@@ -291,6 +323,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: true,
     defaultSource: CustomTrackingDefaultSource.OPTIONS,
     usesTimezone: false,
+    allowsRequired: true,
   },
   YES_NO_UNKNOWN: {
     label: 'Yes, no or unknown',
@@ -301,6 +334,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: false,
     defaultSource: CustomTrackingDefaultSource.VALUE_FRAGMENT,
     usesTimezone: false,
+    allowsRequired: true,
   },
   COLOUR: {
     label: 'Colour',
@@ -310,6 +344,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: false,
     defaultSource: CustomTrackingDefaultSource.VALUE_FRAGMENT,
     usesTimezone: false,
+    allowsRequired: true,
   },
   TAGS: {
     label: 'Tags',
@@ -320,6 +355,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: true,
     defaultSource: CustomTrackingDefaultSource.OPTIONS,
     usesTimezone: false,
+    allowsRequired: true,
   },
   IMAGE: {
     label: 'Image',
@@ -330,6 +366,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: false,
     defaultSource: CustomTrackingDefaultSource.NONE,
     usesTimezone: false,
+    allowsRequired: true,
   },
   YOUTUBE: {
     label: 'YouTube video',
@@ -339,6 +376,7 @@ export const CUSTOM_TRACKING_FIELD_CATALOGUE = {
     allowsMultipleOptions: false,
     defaultSource: CustomTrackingDefaultSource.NONE,
     usesTimezone: false,
+    allowsRequired: true,
   },
 } as const satisfies Record<
   CustomTrackingFieldType,
