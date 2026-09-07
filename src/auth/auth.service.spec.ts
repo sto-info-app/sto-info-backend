@@ -468,6 +468,14 @@ describe('AuthService', () => {
   });
 
   describe('validateUserFromPayload', () => {
+    it('rejects a disabled account with an existing token', async () => {
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: '1', email: 'e', isAccountDisabled: true });
+      await expect(
+        service.validateUserFromPayload({ sub: '1', email: 'e' }),
+      ).resolves.toBeNull();
+    });
     it('should return user and set context if user exists', async () => {
       const user = { id: 'uuid-123', email: 'test@example.com' };
       const payload = { sub: 'uuid-123', email: 'test@example.com' };
@@ -778,6 +786,31 @@ describe('AuthService', () => {
   });
 
   describe('refreshToken', () => {
+    it('rejects refresh for disabled accounts before issuing tokens', async () => {
+      (jwtService.verify as jest.Mock).mockReturnValue({
+        sub: '1',
+        jti: 'jti',
+        tokenUse: 'refresh',
+      });
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: '1', isAccountDisabled: true });
+      await expect(service.refreshToken('token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(jwtService.sign).not.toHaveBeenCalled();
+    });
+    it('rejects access tokens at the refresh endpoint', async () => {
+      (jwtService.verify as jest.Mock).mockReturnValue({
+        sub: '1',
+        tokenUse: 'access',
+      });
+      await expect(service.refreshToken('token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(userRepository.findOne).not.toHaveBeenCalled();
+      expect(jwtService.sign).not.toHaveBeenCalled();
+    });
     it('should refresh token successfully', async () => {
       const payload = { sub: '1', jti: 'jti' };
       (jwtService.verify as jest.Mock).mockReturnValue(payload);
@@ -793,6 +826,13 @@ describe('AuthService', () => {
 
       const result = await service.refreshToken('old-token');
       expect(result.access_token).toBe('new-token');
+      expect(jwtService.sign).toHaveBeenCalledWith(
+        expect.objectContaining({ tokenUse: 'access' }),
+      );
+      expect(jwtService.sign).toHaveBeenCalledWith(
+        expect.objectContaining({ tokenUse: 'refresh' }),
+        expect.objectContaining({ jwtid: expect.any(String) }),
+      );
     });
 
     it('should handle non-Error thrown values during refreshToken validation', async () => {
