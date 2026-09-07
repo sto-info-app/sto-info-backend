@@ -37,7 +37,7 @@
     "test:fuzz": "cross-env TZ=UTC NODE_OPTIONS=--experimental-vm-modules FUZZ_NUM_RUNS=${FUZZ_NUM_RUNS:-50} jest --config jest.config.mjs --testRegex='.*\\.fuzz\\.spec\\.ts$' --coverage=false",
     "test:fuzz:full": "cross-env TZ=UTC NODE_OPTIONS=--experimental-vm-modules FUZZ_NUM_RUNS=${FUZZ_NUM_RUNS:-1000} jest --testRegex='.*\\.fuzz\\.spec\\.ts$' --coverage=false",
     "test:watch": "cross-env TZ=UTC NODE_OPTIONS=--experimental-vm-modules jest --watch",
-    "test:cov": "cross-env TZ=UTC NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.mjs --runInBand --coverage --coverageDirectory=reports/coverage --testPathIgnorePatterns='.fuzz.spec.ts'",
+    "test:cov": "cross-env TZ=UTC NODE_OPTIONS=\"--experimental-vm-modules --max-old-space-size=8192\" jest --config jest.config.mjs --runInBand --coverage --coverageDirectory=reports/coverage --testPathIgnorePatterns='.fuzz.spec.ts'",
     "test:debug": "cross-env TZ=UTC NODE_OPTIONS=--experimental-vm-modules node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "cross-env TZ=UTC NODE_OPTIONS=--experimental-vm-modules jest --config ./test/jest-e2e.json",
     "e2e": "npm run test:e2e",
