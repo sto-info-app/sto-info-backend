@@ -188,7 +188,8 @@ describe('CustomTrackingModule', () => {
   // this one can reach the definitions without importing their repositories.
   it('exports what the rest of the feature will need', () => {
     const exported = Reflect.getMetadata('exports', CustomTrackingModule) as
-      unknown[] | undefined;
+      | unknown[]
+      | undefined;
 
     expect(exported).toEqual(
       expect.arrayContaining([

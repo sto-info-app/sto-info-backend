@@ -53,7 +53,8 @@ const PUBLICLY_READABLE_VISIBILITIES = [
 
 /** The artwork a Story carries. */
 export type StoryImageSlot =
-  StorytimeImageSlot.STORY_BANNER | StorytimeImageSlot.STORY_PROFILE;
+  | StorytimeImageSlot.STORY_BANNER
+  | StorytimeImageSlot.STORY_PROFILE;
 
 /**
  * Which pair of columns each of a Story's images occupies.

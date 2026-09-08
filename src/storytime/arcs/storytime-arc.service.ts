@@ -34,7 +34,8 @@ import {
 
 /** The artwork an Arc carries. */
 export type ArcImageSlot =
-  StorytimeImageSlot.ARC_BANNER | StorytimeImageSlot.ARC_PROFILE;
+  | StorytimeImageSlot.ARC_BANNER
+  | StorytimeImageSlot.ARC_PROFILE;
 
 /**
  * Which pair of columns each of an Arc's images occupies.

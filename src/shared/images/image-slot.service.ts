@@ -71,7 +71,8 @@ export const IMAGE_SLOT_ASPECT_TOLERANCE = 0.01;
  * its being absent. There is no such state: a failure always has a message.
  */
 export type ImageReleaseOutcome =
-  { released: true; error: null } | { released: false; error: string };
+  | { released: true; error: null }
+  | { released: false; error: string };
 
 /** Bytes in a megabyte, for a message somebody will read. */
 const BYTES_PER_MEGABYTE = 1_048_576;
