@@ -100,13 +100,10 @@ export class AuditSubscriber implements EntitySubscriberInterface {
     // records who changed what and when while content a user wrote about
     // themselves is not duplicated into a table with its own retention period.
     const entityClass = event.metadata.target as object;
-    const previous =
-      action === 'UPDATE'
-        ? ((oldEntity ? { ...oldEntity } : null) as Record<
-            string,
-            unknown
-          > | null)
-        : this.getEntityData(event, 'old');
+    let previous = this.getEntityData(event, 'old');
+    if (action === 'UPDATE') {
+      previous = oldEntity ? { ...oldEntity } : null;
+    }
 
     audit.oldValue = redactForAudit(entityClass, previous);
     audit.newValue = redactForAudit(
