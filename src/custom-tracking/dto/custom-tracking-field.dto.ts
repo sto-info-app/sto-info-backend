@@ -3,7 +3,6 @@ import { ApiProperty } from '@nestjs/swagger';
 import {
   IsBoolean,
   IsEnum,
-  IsNotEmpty,
   IsObject,
   IsOptional,
   IsString,
@@ -13,6 +12,10 @@ import {
 import { CUSTOM_TRACKING_LIMITS } from '../constants/custom-tracking-limits.constants';
 import { CustomTrackingEmptyMode } from '../enums/custom-tracking-empty-mode.enum';
 import { CustomTrackingFieldType } from '../enums/custom-tracking-field-type.enum';
+import {
+  CreateCustomTrackingDefinitionDto,
+  UpdateCustomTrackingDefinitionDto,
+} from './custom-tracking-definition.dto';
 import { CustomTrackingOptionDto } from './custom-tracking-option.dto';
 
 /**
@@ -22,42 +25,13 @@ import { CustomTrackingOptionDto } from './custom-tracking-option.dto';
  * against the Field is stored, validated and rendered, so it is the one
  * property whose choice is permanent.
  */
-export class CreateCustomTrackingFieldDto {
+export class CreateCustomTrackingFieldDto extends CreateCustomTrackingDefinitionDto {
   @ApiProperty({
     description: 'The kind of answer this Field asks for. Cannot be changed.',
     enum: CustomTrackingFieldType,
   })
   @IsEnum(CustomTrackingFieldType)
   fieldType: CustomTrackingFieldType;
-
-  @ApiProperty({
-    description: 'The label shown beside the answer.',
-    maxLength: CUSTOM_TRACKING_LIMITS.MAX_LABEL_LENGTH,
-    example: 'Ship name',
-  })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(CUSTOM_TRACKING_LIMITS.MAX_LABEL_LENGTH)
-  name: string;
-
-  @ApiProperty({
-    description: 'Help text explaining what to enter.',
-    maxLength: CUSTOM_TRACKING_LIMITS.MAX_DESCRIPTION_LENGTH,
-    nullable: true,
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(CUSTOM_TRACKING_LIMITS.MAX_DESCRIPTION_LENGTH)
-  description: string | null = null;
-
-  @ApiProperty({
-    description:
-      'Whether the Field may be shown publicly. Off unless asked for.',
-    default: false,
-  })
-  @IsOptional()
-  @IsBoolean()
-  publiclyVisible = false;
 
   @ApiProperty({
     description:
@@ -113,37 +87,7 @@ export class CreateCustomTrackingFieldDto {
  * The type is absent, and a request naming one is refused rather than ignored,
  * so a user who believed they were changing it finds out that they were not.
  */
-export class UpdateCustomTrackingFieldDto {
-  @ApiProperty({
-    description: 'The label shown beside the answer.',
-    maxLength: CUSTOM_TRACKING_LIMITS.MAX_LABEL_LENGTH,
-    required: false,
-  })
-  @IsOptional()
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(CUSTOM_TRACKING_LIMITS.MAX_LABEL_LENGTH)
-  name?: string;
-
-  @ApiProperty({
-    description: 'Help text explaining what to enter.',
-    maxLength: CUSTOM_TRACKING_LIMITS.MAX_DESCRIPTION_LENGTH,
-    nullable: true,
-    required: false,
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(CUSTOM_TRACKING_LIMITS.MAX_DESCRIPTION_LENGTH)
-  description?: string | null;
-
-  @ApiProperty({
-    description: 'Whether the Field may be shown publicly.',
-    required: false,
-  })
-  @IsOptional()
-  @IsBoolean()
-  publiclyVisible?: boolean;
-
+export class UpdateCustomTrackingFieldDto extends UpdateCustomTrackingDefinitionDto {
   @ApiProperty({
     description: 'Whether a value is required to save the record being edited.',
     required: false,

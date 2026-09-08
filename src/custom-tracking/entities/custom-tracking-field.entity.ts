@@ -1,22 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import {
-  Column,
-  CreateDateColumn,
-  DeleteDateColumn,
-  Entity,
-  Index,
-  JoinColumn,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { CustomTrackingFieldConfiguration } from '../constants/custom-tracking-field-configuration.interface';
 import { CustomTrackingDefaultValue } from '../constants/custom-tracking-value.interface';
 import { CustomTrackingEmptyMode } from '../enums/custom-tracking-empty-mode.enum';
 import { CustomTrackingFieldType } from '../enums/custom-tracking-field-type.enum';
 import { CustomTrackingTargetScope } from '../enums/custom-tracking-target-scope.enum';
+import { CustomTrackingDefinitionEntity } from './custom-tracking-definition.entity';
 import { CustomTrackingTabEntity } from './custom-tracking-tab.entity';
 
 /**
@@ -50,11 +41,7 @@ import { CustomTrackingTabEntity } from './custom-tracking-tab.entity';
 })
 @Index('IDX_custom_tracking_field_tab_order', ['tabId', 'orderIndex'])
 @Index('IDX_custom_tracking_field_user_scope', ['userId', 'targetScope'])
-export class CustomTrackingFieldEntity {
-  @ApiProperty({ description: 'Unique identifier.' })
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
+export class CustomTrackingFieldEntity extends CustomTrackingDefinitionEntity {
   @ApiProperty({ description: 'The Tab this Field belongs to.' })
   @Column({ type: 'uuid', nullable: false })
   tabId: string;
@@ -94,35 +81,6 @@ export class CustomTrackingFieldEntity {
     nullable: false,
   })
   fieldType: CustomTrackingFieldType;
-
-  @ApiProperty({ description: 'The label shown beside the answer.' })
-  @Column({ type: 'varchar', length: 100, nullable: false })
-  name: string;
-
-  @ApiProperty({
-    description:
-      'The name lower-cased, so sibling names are unique without regard to case.',
-  })
-  @Column({ type: 'varchar', length: 100, nullable: false })
-  nameNormalized: string;
-
-  @ApiProperty({
-    description: 'Help text explaining what to enter.',
-    nullable: true,
-  })
-  @Column({ type: 'varchar', length: 500, nullable: true, default: null })
-  description: string | null;
-
-  @ApiProperty({ description: 'Position among its siblings.' })
-  @Column({ type: 'integer', nullable: false })
-  orderIndex: number;
-
-  @ApiProperty({
-    description:
-      'Whether the Field may be shown publicly. A private ancestor hides it regardless.',
-  })
-  @Column({ type: 'boolean', nullable: false, default: false })
-  publiclyVisible: boolean;
 
   @ApiProperty({
     description:
@@ -178,28 +136,4 @@ export class CustomTrackingFieldEntity {
   })
   @Column({ type: 'jsonb', nullable: true, default: null })
   defaultValue: CustomTrackingDefaultValue;
-
-  @ApiProperty({
-    description:
-      'When an administrator suppressed this Field from public view, if they have.',
-    nullable: true,
-  })
-  @Column({ type: 'timestamp', nullable: true, default: null })
-  suppressedAt: Date | null;
-
-  @ApiProperty({
-    description: 'The administrator who suppressed it.',
-    nullable: true,
-  })
-  @Column({ type: 'uuid', nullable: true, default: null })
-  suppressedByUserId: string | null;
-
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
-
-  @DeleteDateColumn()
-  deletedAt: Date | null;
 }

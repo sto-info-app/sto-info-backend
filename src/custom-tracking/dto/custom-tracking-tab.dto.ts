@@ -1,14 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 import {
-  IsBoolean,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  MaxLength,
-} from 'class-validator';
-
-import { CUSTOM_TRACKING_LIMITS } from '../constants/custom-tracking-limits.constants';
+  CreateCustomTrackingDefinitionDto,
+  UpdateCustomTrackingDefinitionDto,
+} from './custom-tracking-definition.dto';
 
 /**
  * Creating a Tab.
@@ -17,70 +12,12 @@ import { CUSTOM_TRACKING_LIMITS } from '../constants/custom-tracking-limits.cons
  * between Sections, so its parent is part of where it lives rather than
  * something the body describes.
  */
-export class CreateCustomTrackingTabDto {
-  @ApiProperty({
-    description: 'The label on the tab itself.',
-    maxLength: CUSTOM_TRACKING_LIMITS.MAX_LABEL_LENGTH,
-    example: 'Escorts',
-  })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(CUSTOM_TRACKING_LIMITS.MAX_LABEL_LENGTH)
-  name: string;
-
-  @ApiProperty({
-    description: 'What the Tab groups together.',
-    maxLength: CUSTOM_TRACKING_LIMITS.MAX_DESCRIPTION_LENGTH,
-    nullable: true,
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(CUSTOM_TRACKING_LIMITS.MAX_DESCRIPTION_LENGTH)
-  description: string | null = null;
-
-  @ApiProperty({
-    description: 'Whether the Tab may be shown publicly. Off unless asked for.',
-    default: false,
-  })
-  @IsOptional()
-  @IsBoolean()
-  publiclyVisible = false;
-}
+export class CreateCustomTrackingTabDto extends CreateCustomTrackingDefinitionDto {}
 
 /**
  * Changing a Tab. Absent means leave alone, not clear.
  */
-export class UpdateCustomTrackingTabDto {
-  @ApiProperty({
-    description: 'The label on the tab itself.',
-    maxLength: CUSTOM_TRACKING_LIMITS.MAX_LABEL_LENGTH,
-    required: false,
-  })
-  @IsOptional()
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(CUSTOM_TRACKING_LIMITS.MAX_LABEL_LENGTH)
-  name?: string;
-
-  @ApiProperty({
-    description: 'What the Tab groups together.',
-    maxLength: CUSTOM_TRACKING_LIMITS.MAX_DESCRIPTION_LENGTH,
-    nullable: true,
-    required: false,
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(CUSTOM_TRACKING_LIMITS.MAX_DESCRIPTION_LENGTH)
-  description?: string | null;
-
-  @ApiProperty({
-    description: 'Whether the Tab may be shown publicly.',
-    required: false,
-  })
-  @IsOptional()
-  @IsBoolean()
-  publiclyVisible?: boolean;
-}
+export class UpdateCustomTrackingTabDto extends UpdateCustomTrackingDefinitionDto {}
 
 /**
  * A Tab as its owner sees it.

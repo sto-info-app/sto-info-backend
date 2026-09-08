@@ -96,4 +96,6 @@ export class MarkdownConfigurationDto {
  * anywhere else, which is what stops configuration being smuggled onto a type
  * that has none.
  */
-export class EmptyConfigurationDto {}
+export class EmptyConfigurationDto {
+  // Intentionally has no properties: whitelist validation rejects every key.
+}

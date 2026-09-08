@@ -1,17 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import {
-  Column,
-  CreateDateColumn,
-  DeleteDateColumn,
-  Entity,
-  Index,
-  JoinColumn,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
+import { CustomTrackingDefinitionEntity } from './custom-tracking-definition.entity';
 import { CustomTrackingSectionEntity } from './custom-tracking-section.entity';
 
 /**
@@ -31,11 +22,7 @@ import { CustomTrackingSectionEntity } from './custom-tracking-section.entity';
   where: '"deletedAt" IS NULL',
 })
 @Index('IDX_custom_tracking_tab_section_order', ['sectionId', 'orderIndex'])
-export class CustomTrackingTabEntity {
-  @ApiProperty({ description: 'Unique identifier.' })
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
+export class CustomTrackingTabEntity extends CustomTrackingDefinitionEntity {
   @ApiProperty({ description: 'The Section this Tab belongs to.' })
   @Column({ type: 'uuid', nullable: false })
   sectionId: string;
@@ -43,57 +30,4 @@ export class CustomTrackingTabEntity {
   @ManyToOne('CustomTrackingSectionEntity', { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'sectionId' })
   section: CustomTrackingSectionEntity;
-
-  @ApiProperty({ description: 'The label on the tab itself.' })
-  @Column({ type: 'varchar', length: 100, nullable: false })
-  name: string;
-
-  @ApiProperty({
-    description:
-      'The name lower-cased, so sibling names are unique without regard to case.',
-  })
-  @Column({ type: 'varchar', length: 100, nullable: false })
-  nameNormalized: string;
-
-  @ApiProperty({
-    description: 'What the Tab groups together.',
-    nullable: true,
-  })
-  @Column({ type: 'varchar', length: 500, nullable: true, default: null })
-  description: string | null;
-
-  @ApiProperty({ description: 'Position among its siblings.' })
-  @Column({ type: 'integer', nullable: false })
-  orderIndex: number;
-
-  @ApiProperty({
-    description:
-      'Whether the Tab may be shown publicly. A private Section hides it regardless.',
-  })
-  @Column({ type: 'boolean', nullable: false, default: false })
-  publiclyVisible: boolean;
-
-  @ApiProperty({
-    description:
-      'When an administrator suppressed this Tab from public view, if they have.',
-    nullable: true,
-  })
-  @Column({ type: 'timestamp', nullable: true, default: null })
-  suppressedAt: Date | null;
-
-  @ApiProperty({
-    description: 'The administrator who suppressed it.',
-    nullable: true,
-  })
-  @Column({ type: 'uuid', nullable: true, default: null })
-  suppressedByUserId: string | null;
-
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
-
-  @DeleteDateColumn()
-  deletedAt: Date | null;
 }

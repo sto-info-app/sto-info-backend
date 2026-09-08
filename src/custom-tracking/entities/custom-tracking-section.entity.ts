@@ -1,16 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import {
-  Column,
-  CreateDateColumn,
-  DeleteDateColumn,
-  Entity,
-  Index,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Column, Entity, Index } from 'typeorm';
 
 import { CustomTrackingTargetScope } from '../enums/custom-tracking-target-scope.enum';
+import { CustomTrackingDefinitionEntity } from './custom-tracking-definition.entity';
 
 /**
  * A Section: the outermost grouping a user organises their own Fields into.
@@ -40,11 +33,7 @@ import { CustomTrackingTargetScope } from '../enums/custom-tracking-target-scope
   'targetScope',
   'orderIndex',
 ])
-export class CustomTrackingSectionEntity {
-  @ApiProperty({ description: 'Unique identifier.' })
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
+export class CustomTrackingSectionEntity extends CustomTrackingDefinitionEntity {
   @ApiProperty({ description: 'The user who owns this Section.' })
   @Column({ type: 'uuid', nullable: false })
   userId: string;
@@ -61,60 +50,4 @@ export class CustomTrackingSectionEntity {
     nullable: false,
   })
   targetScope: CustomTrackingTargetScope;
-
-  @ApiProperty({ description: 'The heading shown on the Section bar.' })
-  @Column({ type: 'varchar', length: 100, nullable: false })
-  name: string;
-
-  @ApiProperty({
-    description:
-      'The name lower-cased, so sibling names are unique without regard to case.',
-  })
-  @Column({ type: 'varchar', length: 100, nullable: false })
-  nameNormalized: string;
-
-  @ApiProperty({
-    description: 'What the Section is for, shown beneath its heading.',
-    nullable: true,
-  })
-  @Column({ type: 'varchar', length: 500, nullable: true, default: null })
-  description: string | null;
-
-  @ApiProperty({
-    description:
-      'Position among its siblings. Gapped, so a move writes one row rather than renumbering the rest.',
-  })
-  @Column({ type: 'integer', nullable: false })
-  orderIndex: number;
-
-  @ApiProperty({
-    description:
-      'Whether the Section may be shown publicly. Opt-in, and only ever one gate of several.',
-  })
-  @Column({ type: 'boolean', nullable: false, default: false })
-  publiclyVisible: boolean;
-
-  @ApiProperty({
-    description:
-      'When an administrator suppressed this Section from public view, if they have.',
-    nullable: true,
-  })
-  @Column({ type: 'timestamp', nullable: true, default: null })
-  suppressedAt: Date | null;
-
-  @ApiProperty({
-    description: 'The administrator who suppressed it.',
-    nullable: true,
-  })
-  @Column({ type: 'uuid', nullable: true, default: null })
-  suppressedByUserId: string | null;
-
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
-
-  @DeleteDateColumn()
-  deletedAt: Date | null;
 }
