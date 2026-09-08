@@ -107,6 +107,20 @@ Creation limits. Each falls back to the value shown if unset or invalid, and an 
 
 > `STORYTIME_ENABLED` is **not** an environment variable. It is a runtime switch in the `app_setting` table so it can be thrown without a redeployment — see the Feature Switches section of `backend.md`.
 
+## Optional (Custom Tracking)
+
+All default to enabled, so once Custom Tracking itself is switched on its parts work unless an environment deliberately disables one. Set to `false` to disable.
+
+- `CUSTOM_TRACKING_PUBLIC_READ_ENABLED`: Whether anonymous visitors may read public custom content
+- `CUSTOM_TRACKING_DEFINITION_EDITING_ENABLED`: Whether users may create and edit definitions
+- `CUSTOM_TRACKING_VALUE_EDITING_ENABLED`: Whether users may record and edit values
+- `CUSTOM_TRACKING_IMAGES_ENABLED`: Whether image fields may be uploaded to and rendered
+- `CUSTOM_TRACKING_YOUTUBE_ENABLED`: Whether YouTube fields may be filled in and rendered
+
+The structural limits are fixed rather than configurable. They decide how large a hierarchy the value editor and the detail pages have to render in one go, so raising one for a single user would produce a page nobody can use on a phone rather than unlocking anything for them. See `custom-tracking.md`.
+
+> `CUSTOM_TRACKING_ENABLED` is **not** an environment variable. It is a runtime switch in the `app_setting` table, seeded off by the feature's first migration, so the feature can be taken offline without a redeployment — which matters here because it stores content users write themselves.
+
 ## Optional
 
 - `TRUST_PROXY_HOPS`: Express trust proxy hops (default is `1` when not provided)

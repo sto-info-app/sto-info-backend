@@ -5,6 +5,7 @@ import { CRON_TIMEZONE } from './constants/cron.constants';
 import { AuditCleanupService } from './jobs/audit-cleanup/audit-cleanup.service';
 import { AuditLoginAttemptCleanupService } from './jobs/audit-login-attempt-cleanup/audit-login-attempt-cleanup.service';
 import { ContactRequestCleanupService } from './jobs/contact-request-cleanup/contact-request-cleanup.service';
+import { CustomTrackingCleanupService } from './jobs/custom-tracking-cleanup/custom-tracking-cleanup.service';
 import { SesAuditCleanupService } from './jobs/ses-audit-cleanup/ses-audit-cleanup.service';
 import { UserAccountCleanupService } from './jobs/user-account-cleanup/user-account-cleanup.service';
 
@@ -20,6 +21,7 @@ export class CronService {
    * @param _contactRequestCleanupService - The contact request cleanup service.
    * @param _sesAuditCleanupService - The ses audit cleanup service.
    * @param _userAccountCleanupService - The user account cleanup service.
+   * @param _customTrackingCleanupService - The custom tracking cleanup service.
    */
   constructor(
     private readonly _auditCleanupService: AuditCleanupService,
@@ -27,6 +29,7 @@ export class CronService {
     private readonly _contactRequestCleanupService: ContactRequestCleanupService,
     private readonly _sesAuditCleanupService: SesAuditCleanupService,
     private readonly _userAccountCleanupService: UserAccountCleanupService,
+    private readonly _customTrackingCleanupService: CustomTrackingCleanupService,
   ) {}
 
   /**
@@ -50,6 +53,7 @@ export class CronService {
       await this.handleContactRequestCleanup();
       await this.handleSesAuditCleanup();
       await this.handleUserAccountCleanup();
+      await this.handleCustomTrackingCleanup();
     } catch (error) {
       this._logger.error('Error running daily midnight jobs:', error);
     }
@@ -131,6 +135,23 @@ export class CronService {
       this._logger.log('User account cleanup job completed successfully.');
     } catch (error) {
       this._logger.error('Error running user account cleanup job:', error);
+    }
+  }
+
+  /**
+   * Invokes the Custom Tracking cleanup job: expired definitions and answers,
+   * and then the pictures that leaves behind in Cloudflare.
+   *
+   * Last of the five, so that its picture-deletion pass also drains whatever
+   * the account cleanup queued a moment earlier.
+   */
+  private async handleCustomTrackingCleanup() {
+    this._logger.log('Starting custom tracking cleanup job...');
+    try {
+      await this._customTrackingCleanupService.cleanup();
+      this._logger.log('Custom tracking cleanup job completed successfully.');
+    } catch (error) {
+      this._logger.error('Error running custom tracking cleanup job:', error);
     }
   }
 }

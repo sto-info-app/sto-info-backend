@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 
 import type { Response } from 'express';
 
+import { StorytimeStoryArcsService } from '../arcs/storytime-story-arcs.service';
 import { StorytimeAuthorService } from '../shared/storytime-author.service';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { StorytimeTagEntity } from '../tags/entities/storytime-tag.entity';
@@ -21,7 +22,8 @@ describe('PublicStorytimeStoriesController', () => {
     findPublicBySlug: jest.Mock;
     findPublicByRetiredSlug: jest.Mock;
   };
-  let authorService: { findAuthor: jest.Mock };
+  let authorService: { findAuthor: jest.Mock; findAuthors: jest.Mock };
+  let storyArcsService: { findForStory: jest.Mock; findForStories: jest.Mock };
   let taggingService: { findFor: jest.Mock; findForMany: jest.Mock };
   let featureService: { assertFlagEnabled: jest.Mock };
   let response: { status: jest.Mock; setHeader: jest.Mock };
@@ -30,9 +32,16 @@ describe('PublicStorytimeStoriesController', () => {
     id: 'story-1',
     slug: 'the-long-way-home',
     title: 'The Long Way Home',
+    ownerUserId: 'user-1',
     upVoteCount: 0,
     downVoteCount: 0,
   });
+
+  const arc = {
+    id: 'arc-1',
+    title: 'The Dominion Trilogy',
+    slug: 'the-dominion-trilogy',
+  };
 
   const tag = Object.assign(new StorytimeTagEntity(), {
     id: 'tag-1',
@@ -56,6 +65,20 @@ describe('PublicStorytimeStoriesController', () => {
         username: 'midniteshadow7',
         publiclyVisible: true,
       }),
+      findAuthors: jest
+        .fn()
+        .mockResolvedValue(
+          new Map([
+            [
+              story.ownerUserId,
+              { username: 'midniteshadow7', publiclyVisible: true },
+            ],
+          ]),
+        ),
+    };
+    storyArcsService = {
+      findForStory: jest.fn().mockResolvedValue([arc]),
+      findForStories: jest.fn().mockResolvedValue(new Map([[story.id, [arc]]])),
     };
     taggingService = {
       findFor: jest.fn().mockResolvedValue([tag]),
@@ -72,6 +95,7 @@ describe('PublicStorytimeStoriesController', () => {
         { provide: StorytimeStoryService, useValue: storyService },
         StorytimeStoryMapper,
         { provide: StorytimeAuthorService, useValue: authorService },
+        { provide: StorytimeStoryArcsService, useValue: storyArcsService },
         { provide: StorytimeTaggingService, useValue: taggingService },
         StorytimeTagMapper,
         { provide: StorytimeFeatureService, useValue: featureService },
@@ -122,6 +146,38 @@ describe('PublicStorytimeStoriesController', () => {
       expect((result.items[0] as StoryDto).tags).toEqual([]);
     });
 
+    // A listing that only says a Story exists leaves a reader to open each one
+    // to find out whose it is. One lookup for the page is what makes naming
+    // them affordable.
+    it('names who wrote each Story on the page', async () => {
+      const result = await controller.findAll({});
+
+      expect(authorService.findAuthors).toHaveBeenCalledWith(['user-1']);
+      expect((result.items[0] as StoryDto).author).toEqual({
+        username: 'midniteshadow7',
+        publiclyVisible: true,
+      });
+    });
+
+    it('names the Arcs each Story on the page belongs to', async () => {
+      const result = await controller.findAll({});
+
+      expect(storyArcsService.findForStories).toHaveBeenCalledWith(['story-1']);
+      expect((result.items[0] as StoryDto).arcs).toEqual([arc]);
+    });
+
+    // A Story whose author has closed their account, or that is in no Arc, is
+    // still worth listing. Neither absence may cost the reader the page.
+    it('lists a Story with no author and no Arc', async () => {
+      authorService.findAuthors.mockResolvedValue(new Map());
+      storyArcsService.findForStories.mockResolvedValue(new Map());
+
+      const result = await controller.findAll({});
+
+      expect((result.items[0] as StoryDto).author).toBeNull();
+      expect((result.items[0] as StoryDto).arcs).toEqual([]);
+    });
+
     it('passes the query through', async () => {
       await controller.findAll({ languageCode: 'de' });
 
@@ -154,6 +210,18 @@ describe('PublicStorytimeStoriesController', () => {
 
       expect(taggingService.findFor).toHaveBeenCalledWith('STORY', 'story-1');
       expect(result?.tags.map(each => each.name)).toEqual(['First contact']);
+    });
+
+    it('names the Arcs the Story belongs to', async () => {
+      storyService.findPublicBySlug.mockResolvedValue(story);
+
+      const result = await controller.findOne(
+        'the-long-way-home',
+        response as unknown as Response,
+      );
+
+      expect(storyArcsService.findForStory).toHaveBeenCalledWith('story-1');
+      expect(result?.arcs).toEqual([arc]);
     });
 
     // Links shared before a rename have to keep working, and a redirect lets

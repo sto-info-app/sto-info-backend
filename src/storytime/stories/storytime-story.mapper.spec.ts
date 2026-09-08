@@ -56,6 +56,41 @@ describe('StorytimeStoryMapper', () => {
       expect(mapper.toPublic(buildStory()).rating).toBe(5);
     });
 
+    // Every one of these is looked up once for a whole listing and handed in,
+    // so a mapper asked for a Story on its own carries none of them rather
+    // than going and fetching them a row at a time.
+    it('leaves the author, tags and Arcs empty when none are supplied', () => {
+      const dto = mapper.toPublic(buildStory());
+
+      expect(dto.author).toBeNull();
+      expect(dto.tags).toEqual([]);
+      expect(dto.arcs).toEqual([]);
+    });
+
+    it('carries the author, tags and Arcs it is handed', () => {
+      const dto = mapper.toPublic(
+        buildStory(),
+        { username: 'midniteshadow7', publiclyVisible: true },
+        [
+          {
+            id: 'tag-1',
+            slug: 'first-contact',
+            name: 'First contact',
+            description: null,
+            category: 'THEME',
+            displayOrder: 0,
+          },
+        ] as never,
+        [{ id: 'arc-1', title: 'An Arc', slug: 'an-arc' }],
+      );
+
+      expect(dto.author?.username).toBe('midniteshadow7');
+      expect(dto.tags).toHaveLength(1);
+      expect(dto.arcs).toEqual([
+        { id: 'arc-1', title: 'An Arc', slug: 'an-arc' },
+      ]);
+    });
+
     // Building the public shape explicitly means a column added later stays
     // private until somebody decides otherwise.
     it('omits the editable source, working state and moderation notes', () => {
@@ -131,6 +166,33 @@ describe('StorytimeStoryMapper', () => {
   describe('list mapping', () => {
     it('maps a list of Stories for readers', () => {
       expect(mapper.toPublicList([buildStory(), buildStory()])).toHaveLength(2);
+    });
+
+    // The authors arrive keyed by owner rather than by Story, because one
+    // member may have written several of the Stories on a page.
+    it('gives each Story on the page its author and Arcs', () => {
+      const dtos = mapper.toPublicList(
+        [buildStory()],
+        new Map(),
+        new Map([
+          ['owner-1', { username: 'midniteshadow7', publiclyVisible: false }],
+        ]),
+        new Map([
+          ['story-1', [{ id: 'arc-1', title: 'An Arc', slug: 'an-arc' }]],
+        ]),
+      );
+
+      expect(dtos[0].author?.username).toBe('midniteshadow7');
+      expect(dtos[0].arcs).toHaveLength(1);
+    });
+
+    // A Story whose author has closed their account is still worth listing.
+    it('leaves a Story with no author rather than dropping it', () => {
+      const dtos = mapper.toPublicList([buildStory()], new Map(), new Map());
+
+      expect(dtos).toHaveLength(1);
+      expect(dtos[0].author).toBeNull();
+      expect(dtos[0].arcs).toEqual([]);
     });
 
     it('maps a list of Stories for their owner', () => {

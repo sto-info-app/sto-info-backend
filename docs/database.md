@@ -146,6 +146,27 @@ Adding unique constraints may fail if existing data violates uniqueness. Clean o
 
 ## Constraints and Triggers
 
+### Custom Tracking
+
+Three constraints here do work a service could only do less reliably, so they
+are worth knowing about before changing the tables:
+
+| Constraint | Table | What it guarantees |
+| --- | --- | --- |
+| `CK_custom_tracking_value_target` | `custom_tracking_value` | A value names an Account or a Character, never both and never neither |
+| `FK_custom_tracking_value_field` | `custom_tracking_value` | Composite key on `(fieldId, targetScope)`, so an Account value cannot be recorded against a Character-scoped field. Needs `UX_custom_tracking_field_id_scope` on the field table |
+| `FK_custom_tracking_value_option_option` | `custom_tracking_value_option` | `ON DELETE RESTRICT`, so a withdrawn option cannot be hard-deleted while any value still names it — however long that outlasts its retention window |
+| `UX_custom_tracking_image_cleanup_image` | `custom_tracking_image_cleanup` | One row per Cloudflare image, so queueing the same picture twice — a retried replacement, a sweep that ran twice — writes the same row rather than a second one to delete twice |
+
+Sibling-name uniqueness across the definition hierarchy is a set of **partial**
+unique indexes covering only rows where `deletedAt IS NULL`. That is what lets
+a name be reused once its definition is deleted, while still refusing two live
+siblings with the same name under concurrent creation.
+
+One live answer per field and target is **two** partial unique indexes rather
+than one, because a null does not compare equal to anything in SQL: a single
+index over both target columns would let the same Account be answered twice.
+
 **Document any database constraints:**
 
 - Unique constraints (e.g., email, handleNormalized)
@@ -171,6 +192,20 @@ Currently: Review if any triggers are in use.
 | `contact_request`                     | Email masked after `CONTACT_REQUEST_EMAIL_MASK_RETENTION_DAYS` days; record deleted after `CONTACT_REQUEST_RECORD_RETENTION_DAYS` days |
 | `user_refresh_token`                  | Expired and revoked tokens deleted nightly                                                                                             |
 | `user`, `user_profile`, `account`, `character` | Soft-deleted immediately on account closure; hard-deleted by cron after `CLOSED_ACCOUNT_RETENTION_DAYS` (validated to be >= `AUDIT_DATA_NUKE_THRESHOLD_DAYS`) |
+| `custom_tracking_*` | Soft-deleted immediately; hard-deleted after **180 days** by `CustomTrackingCleanupService`, except options still referenced by a retained value, which the `ON DELETE RESTRICT` foreign key protects for as long as the reference lasts. Purged in full, ahead of the user row, when a closed account is erased |
+| `custom_tracking_image_cleanup` | A queue, not a record: a row exists only between a Cloudflare picture losing its last reference and Cloudflare confirming the deletion. Drained nightly and after every change that orphans a picture |
+
+The Custom Tracking window is a constant rather than an environment variable,
+unlike every other row above. It is published — the content agreement and the
+Privacy Policy both state 180 days — so it is part of what a member agreed to
+rather than part of how a deployment is tuned. A variable would let one
+environment quietly keep data longer than the page promised.
+
+The hard deletion runs bottom-up in one statement per table rather than relying
+on the cascades. PostgreSQL may process a cascade's branches in any order, and
+one of those orders reaches an option while an answer still references it,
+which fails the whole job on `FK_custom_tracking_value_option_option`. See
+`docs/custom-tracking.md` for the order.
 
 ### SES Audit Storage & Ownership
 

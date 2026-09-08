@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+import { StorytimeArcReferenceDto } from '../../dto/storytime-arc-reference.dto';
 import { StorytimeAuthorDto } from '../../dto/storytime-author.dto';
 import { CompletionState } from '../../enums/completion-state.enum';
 import { ContentRating } from '../../enums/content-rating.enum';
@@ -115,6 +116,16 @@ export class StoryDto {
     type: [TagDto],
   })
   readonly tags: TagDto[];
+
+  @ApiProperty({
+    description:
+      'The Arcs it is read as part of, by title. Only Arcs anybody may ' +
+      'browse: an unlisted one is not advertised on a Story’s behalf. ' +
+      'Empty where a Story is already being shown inside an Arc, and on the ' +
+      'creator’s own management views.',
+    type: [StorytimeArcReferenceDto],
+  })
+  readonly arcs: StorytimeArcReferenceDto[];
 }
 
 /**

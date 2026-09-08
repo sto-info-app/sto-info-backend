@@ -268,7 +268,7 @@ export class AuthService {
         email: payload.email,
       },
     });
-    if (user) {
+    if (user && !user.isAccountDisabled) {
       if (!CurrentContextHelper.userUuid) {
         // Store the user ID for audit logging
         CurrentContextHelper.userUuid = user.id;
@@ -345,6 +345,7 @@ export class AuthService {
     await this.logLoginAttempt(userLogin.email, userIpAddress, true);
 
     const payload = {
+      tokenUse: 'access',
       email: user.email,
       sub: user.id,
       role: user.role,
@@ -486,7 +487,14 @@ export class AuthService {
     refresh_token: string;
   }> {
     try {
-      const payload = this._jwtService.verify(refreshToken);
+      const payload = this._jwtService.verify(refreshToken, {
+        algorithms: ['HS256'],
+      });
+      // Legacy refresh tokens have no tokenUse, but still require a matching
+      // unrevoked database record below. Access tokens must never be exchanged.
+      if (payload.tokenUse !== undefined && payload.tokenUse !== 'refresh') {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
 
       // Load the user with their refresh tokens using the user ID
       const user = await this._userRepository.findOne({
@@ -494,7 +502,7 @@ export class AuthService {
         relations: { refreshTokens: true, profile: true },
       });
 
-      if (!user) {
+      if (!user || user.isAccountDisabled) {
         throw new UnauthorizedException('User not found');
       }
 
@@ -508,7 +516,12 @@ export class AuthService {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
-      const newPayload = { email: user.email, sub: user.id, role: user.role };
+      const newPayload = {
+        tokenUse: 'access',
+        email: user.email,
+        sub: user.id,
+        role: user.role,
+      };
       const newUserRefreshToken = await this.issueRefreshToken(user);
 
       // Revoke the old refresh token
@@ -620,7 +633,7 @@ export class AuthService {
     const jwtId = this.generateToken();
 
     const token = this._jwtService.sign(
-      { email: user.email, sub: user.id },
+      { tokenUse: 'refresh', email: user.email, sub: user.id },
       {
         expiresIn: `${expirySeconds}s`,
         jwtid: jwtId,

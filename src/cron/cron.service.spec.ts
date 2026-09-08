@@ -7,6 +7,7 @@ import { CronService } from './cron.service';
 import { AuditCleanupService } from './jobs/audit-cleanup/audit-cleanup.service';
 import { AuditLoginAttemptCleanupService } from './jobs/audit-login-attempt-cleanup/audit-login-attempt-cleanup.service';
 import { ContactRequestCleanupService } from './jobs/contact-request-cleanup/contact-request-cleanup.service';
+import { CustomTrackingCleanupService } from './jobs/custom-tracking-cleanup/custom-tracking-cleanup.service';
 import { SesAuditCleanupService } from './jobs/ses-audit-cleanup/ses-audit-cleanup.service';
 import { UserAccountCleanupService } from './jobs/user-account-cleanup/user-account-cleanup.service';
 
@@ -17,6 +18,7 @@ describe('CronService', () => {
   let contactRequestCleanupService: ContactRequestCleanupService;
   let sesAuditCleanupService: SesAuditCleanupService;
   let userAccountCleanupService: UserAccountCleanupService;
+  let customTrackingCleanupService: CustomTrackingCleanupService;
   let loggerLogSpy: jest.SpiedFunction<(...args: any[]) => any>;
   let loggerErrorSpy: jest.SpiedFunction<(...args: any[]) => any>;
 
@@ -35,6 +37,9 @@ describe('CronService', () => {
     > = jest.fn();
     const cleanupUserAccountMock: jest.MockedFunction<
       UserAccountCleanupService['cleanup']
+    > = jest.fn();
+    const cleanupCustomTrackingMock: jest.MockedFunction<
+      CustomTrackingCleanupService['cleanup']
     > = jest.fn();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -70,6 +75,12 @@ describe('CronService', () => {
             cleanup: cleanupUserAccountMock,
           } satisfies Pick<UserAccountCleanupService, 'cleanup'>,
         },
+        {
+          provide: CustomTrackingCleanupService,
+          useValue: {
+            cleanup: cleanupCustomTrackingMock,
+          } satisfies Pick<CustomTrackingCleanupService, 'cleanup'>,
+        },
       ],
     }).compile();
 
@@ -87,6 +98,9 @@ describe('CronService', () => {
     );
     userAccountCleanupService = module.get<UserAccountCleanupService>(
       UserAccountCleanupService,
+    );
+    customTrackingCleanupService = module.get<CustomTrackingCleanupService>(
+      CustomTrackingCleanupService,
     );
 
     loggerLogSpy = jest
@@ -133,6 +147,7 @@ describe('CronService', () => {
       expect(contactRequestCleanupService.cleanup).toHaveBeenCalled();
       expect(sesAuditCleanupService.cleanup).toHaveBeenCalled();
       expect(userAccountCleanupService.cleanup).toHaveBeenCalled();
+      expect(customTrackingCleanupService.cleanup).toHaveBeenCalled();
     });
 
     it('should handle errors inside audit cleanup job', async () => {
@@ -335,6 +350,45 @@ describe('CronService', () => {
 
       expect(loggerErrorSpy).toHaveBeenCalledWith(
         'Error running SES audit cleanup job:',
+        error,
+      );
+    });
+  });
+
+  describe('handleCustomTrackingCleanup', () => {
+    it('should run custom tracking cleanup successfully', async () => {
+      jest
+        .spyOn(customTrackingCleanupService, 'cleanup')
+        .mockResolvedValue(undefined);
+
+      const instance = service as unknown as {
+        handleCustomTrackingCleanup: () => Promise<void>;
+      };
+      await instance.handleCustomTrackingCleanup();
+
+      expect(loggerLogSpy).toHaveBeenCalledWith(
+        'Starting custom tracking cleanup job...',
+      );
+      expect(customTrackingCleanupService.cleanup).toHaveBeenCalled();
+      expect(loggerLogSpy).toHaveBeenCalledWith(
+        'Custom tracking cleanup job completed successfully.',
+      );
+    });
+
+    // A failure here must not take the other four jobs down with it.
+    it('should handle custom tracking cleanup errors', async () => {
+      const error = new Error('Cleanup failed');
+      jest
+        .spyOn(customTrackingCleanupService, 'cleanup')
+        .mockRejectedValue(error);
+
+      const instance = service as unknown as {
+        handleCustomTrackingCleanup: () => Promise<void>;
+      };
+      await instance.handleCustomTrackingCleanup();
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        'Error running custom tracking cleanup job:',
         error,
       );
     });

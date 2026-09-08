@@ -11,6 +11,7 @@ import {
 import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
 import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
 
+import { redactForAudit } from '../audit-redaction';
 import { AuditLoginAttemptEntity } from '../entities/audit-login-attempt.entity';
 import { AuditEntity } from '../entities/audit.entity';
 
@@ -95,13 +96,20 @@ export class AuditSubscriber implements EntitySubscriberInterface {
     }
     audit.entityId = entityId;
 
+    // Withheld here rather than where the data is read, so the trail still
+    // records who changed what and when while content a user wrote about
+    // themselves is not duplicated into a table with its own retention period.
+    const entityClass = event.metadata.target as object;
+    let previous = this.getEntityData(event, 'old');
     if (action === 'UPDATE') {
-      audit.oldValue = oldEntity ? { ...oldEntity } : null;
-    } else {
-      audit.oldValue = this.getEntityData(event, 'old');
+      previous = oldEntity ? { ...oldEntity } : null;
     }
 
-    audit.newValue = this.getEntityData(event, 'new');
+    audit.oldValue = redactForAudit(entityClass, previous);
+    audit.newValue = redactForAudit(
+      entityClass,
+      this.getEntityData(event, 'new'),
+    );
     audit.userId = CurrentContextHelper.userUuid;
     audit.ipAddress = CurrentContextHelper.ip;
 

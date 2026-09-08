@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { StorytimeStoryArcsModule } from '../arcs/storytime-story-arcs.module';
 import { StorytimeCollaborationModule } from '../collaboration/storytime-collaboration.module';
 import { StorytimeContentModule } from '../content/storytime-content.module';
 import { StorytimeImagesModule } from '../images/storytime-images.module';
@@ -38,6 +39,11 @@ import { StorytimeStoryService } from './storytime-story.service';
     // A published work says who wrote it, and the member behind an owner ID
     // is the community's to resolve rather than Storytime's.
     StorytimeAuthorModule,
+
+    // A listing says which reading orders a Story belongs to. Only the two Arc
+    // tables, not the Arc routes: those ask Stories who owns what, and
+    // importing them here would close the circle.
+    StorytimeStoryArcsModule,
 
     // A listing says what each Story is about. The tables behind that are in
     // a module of their own precisely so this import does not run in a circle

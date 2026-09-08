@@ -4,8 +4,8 @@
  * Ordering uses gapped integers so inserting between two neighbours is a single
  * write to the new row, rather than a renumber of everything after it. With a
  * gap of 1000 a position can be halved roughly ten times before the space runs
- * out, which in practice means a creator never triggers a renumber by dragging
- * a Chapter around.
+ * out, which in practice means a creator never triggers a renumber by moving a
+ * Chapter around.
  */
 export const ORDER_INDEX_GAP = 1000;
 

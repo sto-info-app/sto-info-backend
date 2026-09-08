@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { STORYTIME_POLICY_VERSION } from '../constants/storytime-policy.constants';
+import { StorytimeArcReferenceDto } from '../dto/storytime-arc-reference.dto';
 import { StorytimeAuthorDto } from '../dto/storytime-author.dto';
 import { TagDto } from '../tags/dto/create-tag.dto';
 import { ManagedStoryDto, StoryDto } from './dto/story.dto';
@@ -19,19 +20,21 @@ export class StorytimeStoryMapper {
   /**
    * Maps a Story to its reader-facing shape.
    *
-   * The author and the tags are passed in rather than read here: both are
-   * looked up once for a whole listing, and a mapper that fetched its own
-   * would turn a page of twenty Stories into forty extra queries.
+   * The author, the tags and the Arcs are passed in rather than read here:
+   * each is looked up once for a whole listing, and a mapper that fetched its
+   * own would turn a page of twenty Stories into eighty extra queries.
    *
    * @param story - The Story entity.
    * @param author - Who published it, when the caller is being told.
    * @param tags - What it is tagged with, when the caller is being told.
+   * @param arcs - The Arcs it is read as part of, when the caller is told.
    * @returns The reader-facing Story.
    */
   toPublic(
     story: StorytimeStoryEntity,
     author: StorytimeAuthorDto | null = null,
     tags: TagDto[] = [],
+    arcs: StorytimeArcReferenceDto[] = [],
   ): StoryDto {
     return {
       id: story.id,
@@ -55,6 +58,7 @@ export class StorytimeStoryMapper {
       publishedAt: story.publishedAt,
       lastContentUpdateAt: story.lastContentUpdateAt,
       tags,
+      arcs,
     };
   }
 
@@ -84,16 +88,29 @@ export class StorytimeStoryMapper {
   /**
    * Maps several Stories to their reader-facing shape.
    *
+   * Every lookup arrives as a map keyed the way the caller already has it: by
+   * owner for the authors, because one member may have written several of the
+   * Stories on a page, and by Story for the rest.
+   *
    * @param stories - The Story entities.
    * @param tagsByStory - What each is tagged with, keyed by Story.
+   * @param authorsByUser - Who published each, keyed by owner.
+   * @param arcsByStory - The Arcs each is read as part of, keyed by Story.
    * @returns The reader-facing Stories.
    */
   toPublicList(
     stories: StorytimeStoryEntity[],
     tagsByStory: Map<string, TagDto[]> = new Map(),
+    authorsByUser: Map<string, StorytimeAuthorDto> = new Map(),
+    arcsByStory: Map<string, StorytimeArcReferenceDto[]> = new Map(),
   ): StoryDto[] {
     return stories.map(story =>
-      this.toPublic(story, null, tagsByStory.get(story.id) ?? []),
+      this.toPublic(
+        story,
+        authorsByUser.get(story.ownerUserId) ?? null,
+        tagsByStory.get(story.id) ?? [],
+        arcsByStory.get(story.id) ?? [],
+      ),
     );
   }
 

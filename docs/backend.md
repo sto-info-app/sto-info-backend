@@ -136,6 +136,10 @@ The master switch wins: with it off every capability reports as off, so callers 
 
 `StorytimeFeatureService.assertFlagEnabled` raises **NotFound**, not a "disabled" error. A feature that is switched off should be indistinguishable from one that does not exist, so a staged rollout does not advertise what is coming.
 
+`CUSTOM_TRACKING_ENABLED` follows the same pattern and is likewise **seeded disabled**, with capability flags `CUSTOM_TRACKING_PUBLIC_READ_ENABLED`, `CUSTOM_TRACKING_DEFINITION_EDITING_ENABLED`, `CUSTOM_TRACKING_VALUE_EDITING_ENABLED`, `CUSTOM_TRACKING_IMAGES_ENABLED` and `CUSTOM_TRACKING_YOUTUBE_ENABLED`. Having its master switch in the database matters more here than anywhere else: the feature stores content users write themselves, so an incident may need it stopped in minutes rather than at the next deploy.
+
+Custom Tracking adds a second gate in front of everything that writes. `CustomTrackingEditingGuard` requires the capability **and** the current content agreement to have been accepted, in that order — asking somebody to agree to terms for a feature that is switched off would be strange, and would reveal that it is coming. Reading is deliberately not guarded: a user whose acceptance has been superseded keeps full sight of what they have already recorded.
+
 ## Middleware Execution Order
 
 Middleware executes in the following order:
@@ -433,6 +437,10 @@ This ensures account access is disabled immediately while preserving short-term 
 Closed-account hard deletion is executed by the daily cron cleanup pipeline. The job permanently deletes records for users whose `deletedAt` exceeds `CLOSED_ACCOUNT_RETENTION_DAYS`.
 
 `CLOSED_ACCOUNT_RETENTION_DAYS` is configured via environment variable and validated at startup.
+
+Before the user row goes, the job purges the member's Custom Tracking data explicitly rather than leaving it to the foreign keys. The cascade would take the rows; it cannot take the pictures, which live in Cloudflare Images. Queueing those while the references still exist is what stops an erased account leaving images behind that nothing will ever look for again. See `docs/custom-tracking.md`.
+
+The pipeline runs five jobs in order — audit, login attempts, contact requests, SES events, closed accounts — and then Custom Tracking retention last, so that its picture-deletion pass also drains whatever the closed-account job queued a moment earlier. Each job's failures are caught and logged individually, so one failing does not stop the others.
 
 $$
 	ext{CLOSED\_ACCOUNT\_RETENTION\_DAYS} \ge \text{AUDIT\_DATA\_NUKE\_THRESHOLD\_DAYS}

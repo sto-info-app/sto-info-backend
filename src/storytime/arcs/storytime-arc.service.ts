@@ -26,17 +26,11 @@ import { StorytimeSlugService } from '../shared/storytime-slug.service';
 import { CreateArcDto } from './dto/create-arc.dto';
 import { UpdateArcDto } from './dto/update-arc.dto';
 import { StorytimeArcEntity } from './entities/storytime-arc.entity';
-
-/** Statuses an Arc can hold and still be reachable by the public. */
-const PUBLICLY_READABLE_STATUSES = [ArcStatus.PUBLISHED];
-
-/**
- * Visibilities that allow a published Arc to be opened by anyone with a link.
- */
-const PUBLICLY_READABLE_VISIBILITIES = [
-  StorytimeVisibility.PUBLIC,
-  StorytimeVisibility.UNLISTED,
-];
+import {
+  discoverableArcConditions,
+  PUBLICLY_READABLE_ARC_STATUSES,
+  PUBLICLY_READABLE_ARC_VISIBILITIES,
+} from './storytime-arc-visibility.utility';
 
 /** The artwork an Arc carries. */
 export type ArcImageSlot =
@@ -364,7 +358,7 @@ export class StorytimeArcService {
     // public: saying "removed" about a draft would confirm it exists.
     if (
       arc &&
-      PUBLICLY_READABLE_STATUSES.includes(arc.status) &&
+      PUBLICLY_READABLE_ARC_STATUSES.includes(arc.status) &&
       arc.visibility === StorytimeVisibility.PUBLIC &&
       arc.moderationStatus === StorytimeModerationStatus.REMOVED
     ) {
@@ -388,11 +382,7 @@ export class StorytimeArcService {
    */
   findPublic(): Promise<StorytimeArcEntity[]> {
     return this._arcRepository.find({
-      where: {
-        status: In(PUBLICLY_READABLE_STATUSES),
-        visibility: StorytimeVisibility.PUBLIC,
-        moderationStatus: StorytimeModerationStatus.ACTIVE,
-      },
+      where: discoverableArcConditions(),
       order: { publishedAt: 'DESC' },
     });
   }
@@ -405,12 +395,7 @@ export class StorytimeArcService {
    */
   findPublicByOwner(ownerUserId: string): Promise<StorytimeArcEntity[]> {
     return this._arcRepository.find({
-      where: {
-        ownerUserId,
-        status: In(PUBLICLY_READABLE_STATUSES),
-        visibility: StorytimeVisibility.PUBLIC,
-        moderationStatus: StorytimeModerationStatus.ACTIVE,
-      },
+      where: { ...discoverableArcConditions(), ownerUserId },
       order: { publishedAt: 'DESC' },
     });
   }
@@ -609,8 +594,8 @@ export class StorytimeArcService {
    */
   private isPubliclyReadable(arc: StorytimeArcEntity): boolean {
     return (
-      PUBLICLY_READABLE_STATUSES.includes(arc.status) &&
-      PUBLICLY_READABLE_VISIBILITIES.includes(arc.visibility) &&
+      PUBLICLY_READABLE_ARC_STATUSES.includes(arc.status) &&
+      PUBLICLY_READABLE_ARC_VISIBILITIES.includes(arc.visibility) &&
       arc.moderationStatus === StorytimeModerationStatus.ACTIVE
     );
   }

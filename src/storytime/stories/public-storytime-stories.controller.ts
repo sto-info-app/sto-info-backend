@@ -17,6 +17,7 @@ import {
 
 import type { Response } from 'express';
 
+import { StorytimeStoryArcsService } from '../arcs/storytime-story-arcs.service';
 import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constants';
 import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
 import { StorytimeAuthorService } from '../shared/storytime-author.service';
@@ -45,6 +46,7 @@ export class PublicStorytimeStoriesController {
    * @param _storyService - The Story service.
    * @param _mapper - Maps Stories to their response shapes.
    * @param _authorService - Names whoever published a Story.
+   * @param _storyArcsService - Names the Arcs a Story is read as part of.
    * @param _taggingService - Reads what a Story is tagged with.
    * @param _tagMapper - Maps those tags to their response shape.
    * @param _featureService - Reports whether public reading is switched on.
@@ -53,6 +55,7 @@ export class PublicStorytimeStoriesController {
     private readonly _storyService: StorytimeStoryService,
     private readonly _mapper: StorytimeStoryMapper,
     private readonly _authorService: StorytimeAuthorService,
+    private readonly _storyArcsService: StorytimeStoryArcsService,
     private readonly _taggingService: StorytimeTaggingService,
     private readonly _tagMapper: StorytimeTagMapper,
     private readonly _featureService: StorytimeFeatureService,
@@ -74,18 +77,26 @@ export class PublicStorytimeStoriesController {
 
     const result = await this._storyService.findPublicPaginated(query);
 
-    // One lookup for the whole page. A reader scanning a listing is choosing
-    // what to open, and what a Story is about decides that as much as its
-    // title does — asking them to open it to find out is the wrong way round.
-    const tags = this._tagMapper.toListsByTarget(
-      await this._taggingService.findForMany(
-        StorytimeTargetType.STORY,
-        result.items.map(story => story.id),
+    // One lookup apiece for the whole page. A reader scanning a listing is
+    // choosing what to open, and who wrote a Story, what it is about and which
+    // reading order it belongs to decide that as much as its title does —
+    // asking them to open it to find out is the wrong way round.
+    const storyIds = result.items.map(story => story.id);
+    const [tagsByTarget, authors, arcs] = await Promise.all([
+      this._taggingService.findForMany(StorytimeTargetType.STORY, storyIds),
+      this._authorService.findAuthors(
+        result.items.map(story => story.ownerUserId),
       ),
-    );
+      this._storyArcsService.findForStories(storyIds),
+    ]);
 
     return {
-      items: this._mapper.toPublicList(result.items, tags),
+      items: this._mapper.toPublicList(
+        result.items,
+        this._tagMapper.toListsByTarget(tagsByTarget),
+        authors,
+        arcs,
+      ),
       total: result.total,
       page: result.page,
       pageSize: result.pageSize,
@@ -133,6 +144,7 @@ export class PublicStorytimeStoriesController {
             story.id,
           ),
         ),
+        await this._storyArcsService.findForStory(story.id),
       );
     }
 

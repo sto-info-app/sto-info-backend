@@ -23,6 +23,7 @@ import { CommunityModule } from './community/community.module';
 import { ConfigCheckService } from './config-check/config-check.service';
 import { ContactModule } from './contact/contact.module';
 import { CronModule } from './cron/cron.module';
+import { CustomTrackingModule } from './custom-tracking/custom-tracking.module';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
 import { MailModule } from './mail/mail.module';
@@ -95,6 +96,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     SettingsModule,
     AccessControlModule,
     StorytimeModule,
+    CustomTrackingModule,
     UserModule,
     AuthModule,
     MailModule,

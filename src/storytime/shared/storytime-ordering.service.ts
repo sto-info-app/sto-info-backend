@@ -27,8 +27,8 @@ export interface OrderPlacement {
  *
  * Positions are gapped integers rather than consecutive ones, so moving an item
  * between two neighbours writes a single row instead of renumbering everything
- * after it. That matters because reordering is a drag-and-drop action a creator
- * may perform repeatedly, and rewriting a whole Story's Chapters each time
+ * after it. That matters because reordering is something a creator may do
+ * repeatedly, and rewriting a whole Story's Chapters each time
  * would be both slow and a much larger surface for a concurrent edit to
  * conflict with.
  *
