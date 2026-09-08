@@ -20,7 +20,7 @@ jobs:
     # lets that dry run fit on a 16GB ubuntu-latest runner; it is slower than
     # the config default of 4, so this budget matches the frontend full job
     # rather than cancelling a run that would have finished.
-    timeout-minutes: 240
+    timeout-minutes: 480
     permissions:
       contents: read
 
