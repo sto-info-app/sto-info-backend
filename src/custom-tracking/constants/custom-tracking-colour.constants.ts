@@ -34,78 +34,29 @@ export interface CustomTrackingPaletteColour {
  * published under. The stylesheet remains the single place any LCARS colour is
  * written down, and this list is the set of them a user may choose from.
  */
-export const CUSTOM_TRACKING_PALETTE: readonly CustomTrackingPaletteColour[] = [
-  {
-    token: 'LCARS_SUNFLOWER',
-    label: 'Sunflower',
-    cssVariable: '--lcars-sunflower',
-  },
-  {
-    token: 'LCARS_GOLD',
-    label: 'Gold',
-    cssVariable: '--lcars-gold',
-  },
-  {
-    token: 'LCARS_ORANGE',
-    label: 'Orange',
-    cssVariable: '--lcars-orange',
-  },
-  {
-    token: 'LCARS_TANGERINE',
-    label: 'Tangerine',
-    cssVariable: '--lcars-tangerine',
-  },
-  {
-    token: 'LCARS_CARDINAL',
-    label: 'Cardinal',
-    cssVariable: '--lcars-cardinal',
-  },
-  {
-    token: 'LCARS_RED',
-    label: 'Red',
-    cssVariable: '--lcars-red',
-  },
-  {
-    token: 'LCARS_GREEN',
-    label: 'Green',
-    cssVariable: '--lcars-green',
-  },
-  {
-    token: 'LCARS_COOL',
-    label: 'Cool blue',
-    cssVariable: '--lcars-cool',
-  },
-  {
-    token: 'LCARS_BLUEY',
-    label: 'Bluey',
-    cssVariable: '--lcars-bluey',
-  },
-  {
-    token: 'LCARS_PERANO',
-    label: 'Perano',
-    cssVariable: '--lcars-perano',
-  },
-  {
-    token: 'LCARS_SKY',
-    label: 'Sky',
-    cssVariable: '--lcars-sky',
-  },
-  {
-    token: 'LCARS_VIOLET',
-    label: 'Violet',
-    cssVariable: '--lcars-violet',
-  },
-  {
-    token: 'LCARS_WHITE',
-    label: 'Space white',
-    cssVariable: '--lcars-white',
-  },
-  {
-    token: 'LCARS_GREY_LIGHT',
-    label: 'Light grey',
-    cssVariable: '--lcars-grey-light',
-  },
+const PALETTE_NAMES: readonly (readonly [string, string])[] = [
+  ['sunflower', 'Sunflower'],
+  ['gold', 'Gold'],
+  ['orange', 'Orange'],
+  ['tangerine', 'Tangerine'],
+  ['cardinal', 'Cardinal'],
+  ['red', 'Red'],
+  ['green', 'Green'],
+  ['cool', 'Cool blue'],
+  ['bluey', 'Bluey'],
+  ['perano', 'Perano'],
+  ['sky', 'Sky'],
+  ['violet', 'Violet'],
+  ['white', 'Space white'],
+  ['grey-light', 'Light grey'],
 ];
+
+export const CUSTOM_TRACKING_PALETTE: readonly CustomTrackingPaletteColour[] =
+  PALETTE_NAMES.map(([name, label]) => ({
+    token: 'LCARS_' + name.toUpperCase().replaceAll('-', '_'),
+    label,
+    cssVariable: '--lcars-' + name,
+  }));
 
 /**
  * The palette tokens, for validating a stored value.
@@ -124,17 +75,6 @@ export const CUSTOM_TRACKING_PALETTE_TOKENS: ReadonlySet<string> = new Set(
  */
 export const CUSTOM_TRACKING_HEX_COLOUR_PATTERN =
   /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
-
-/**
- * A colour written as `rgba(r, g, b, a)` or `rgb(r, g, b)`.
- *
- * Offered because transparency is the one thing hexadecimal in its common form
- * cannot express, and a user tinting a panel behind text may genuinely need
- * it. The components are checked for range after matching; the pattern only
- * establishes the shape.
- */
-export const CUSTOM_TRACKING_RGBA_COLOUR_PATTERN =
-  /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*(0|1|0?\.\d{1,3})\s*)?\)$/;
 
 /** The largest value any red, green or blue component may take. */
 export const CUSTOM_TRACKING_MAX_COLOUR_COMPONENT = 255;

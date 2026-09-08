@@ -4,9 +4,7 @@ import { YouTubeUrlService } from 'src/storytime/content/youtube-url.service';
 
 import {
   CUSTOM_TRACKING_HEX_COLOUR_PATTERN,
-  CUSTOM_TRACKING_MAX_COLOUR_COMPONENT,
   CUSTOM_TRACKING_PALETTE_TOKENS,
-  CUSTOM_TRACKING_RGBA_COLOUR_PATTERN,
 } from '../constants/custom-tracking-colour.constants';
 import { CUSTOM_TRACKING_LIMITS } from '../constants/custom-tracking-limits.constants';
 import { CustomTrackingValue } from '../constants/custom-tracking-value.interface';
@@ -20,6 +18,7 @@ import {
   isWallClockTime,
   isYearInRange,
 } from '../shared/custom-tracking-calendar.utility';
+import { isRgbColour } from '../shared/custom-tracking-colour.utility';
 import {
   canonicaliseDecimal,
   compareDecimals,
@@ -1346,14 +1345,7 @@ export class CustomTrackingValueValidationService {
       return this.expandHex(candidate);
     }
 
-    const rgba = CUSTOM_TRACKING_RGBA_COLOUR_PATTERN.exec(candidate);
-
-    if (
-      rgba &&
-      [rgba[1], rgba[2], rgba[3]].every(
-        component => Number(component) <= CUSTOM_TRACKING_MAX_COLOUR_COMPONENT,
-      )
-    ) {
+    if (isRgbColour(candidate)) {
       return candidate;
     }
 

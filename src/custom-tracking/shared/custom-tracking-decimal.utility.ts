@@ -119,7 +119,11 @@ function parseDecimal(value: unknown): DecimalParts | null {
   const [rawWhole, rawFraction = ''] = unsigned.split('.');
 
   const whole = rawWhole.replace(/^0+(?=\d)/, '');
-  const fraction = rawFraction.replace(/0+$/, '');
+  let fractionEnd = rawFraction.length;
+  while (fractionEnd > 0 && rawFraction[fractionEnd - 1] === '0') {
+    fractionEnd -= 1;
+  }
+  const fraction = rawFraction.slice(0, fractionEnd);
 
   // Compared on the digits rather than by converting, so a figure far beyond
   // what a double can hold is refused rather than silently accepted as
