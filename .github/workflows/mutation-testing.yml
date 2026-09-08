@@ -15,7 +15,12 @@ jobs:
     name: Full Mutation Analysis
     if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    # Full analysis instruments ~9k mutants, then the dry run loads that tree
+    # in one Jest process. --concurrency 2 (1 checker + 1 test runner) is what
+    # lets that dry run fit on a 16GB ubuntu-latest runner; it is slower than
+    # the config default of 4, so this budget matches the frontend full job
+    # rather than cancelling a run that would have finished.
+    timeout-minutes: 240
     permissions:
       contents: read
 
@@ -37,7 +42,13 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Run Stryker (Full)
-        run: npx stryker run
+        # concurrency 2 => 1 TypeScript checker + 1 test runner, so the dry run
+        # does not start two instrumented Jest processes on a 16GB runner.
+        # NODE_OPTIONS raises the parent Stryker process; testRunnerNodeArgs in
+        # stryker.config.mjs raises the child workers to the same 8GB ceiling.
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+        run: npx stryker run --concurrency 2
 
       - name: Upload Mutation Report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

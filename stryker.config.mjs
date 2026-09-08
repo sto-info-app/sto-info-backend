@@ -9,16 +9,17 @@ export default {
   // locally: a worker went from 111MB to 2.8GB over 18 mutant runs, roughly
   // 150MB per run with no plateau.
   //
-  // Note that raising --max-old-space-size on its own buys nothing on a
-  // 16GB GitHub Actions runner: Node already defaults its heap ceiling to
-  // ~4.3GB there, so the previous '--max-old-space-size=4096' was slightly
-  // *below* the default and had no effect. The ceiling is set explicitly
-  // here only to bound the worst case across `concurrency` workers
-  // (4 x 3GB = 12GB of the runner's 16GB); maxTestRunnerReuse below is what
-  // actually keeps a worker from reaching it.
+  // The dry run of a full mutate set (~9k mutants) has to load every
+  // instrumented file in one Jest process. That is heavier than uninstrumented
+  // `test:cov`, which already needs 8GB. Previous caps of 3072/4096 were at or
+  // below Node's ~4.3GB default on a 16GB GitHub runner and OOM'd the dry run
+  // before maxTestRunnerReuse could help. 8192 is a ceiling, not a reservation:
+  // incremental runs stay small, and maxTestRunnerReuse below keeps mutant-
+  // testing workers near ~1.5GB. The full CI workflow also passes
+  // --concurrency 2 so only one runner holds the instrumented tree.
   testRunnerNodeArgs: [
     '--experimental-vm-modules',
-    '--max-old-space-size=3072',
+    '--max-old-space-size=8192',
   ],
   jest: {
     projectType: 'custom',
