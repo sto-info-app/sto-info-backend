@@ -220,7 +220,7 @@ export class CreateCharacterRank1767566000000 implements MigrationInterface {
           'Fleet Admiral',
           'Fleet Admiral',
           'Dahar Master',
-          'Subadmiral I',
+          'Fleet Admiral',
           'Honored First',
         ],
         urls: [

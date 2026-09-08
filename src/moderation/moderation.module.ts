@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+
 import { CommunityModule } from '../community/community.module';
 import { UserRefreshTokenModule } from '../user-refresh-token/user-refresh-token.module';
 import { UserEntity } from '../user/entities/user.entity';

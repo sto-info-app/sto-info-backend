@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+
 import { UserProfileEntity } from '../entities/user-profile.entity';
 
 export class UpdatedUserProfileResultDto {

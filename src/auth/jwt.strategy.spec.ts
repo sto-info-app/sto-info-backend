@@ -1,7 +1,10 @@
-import { jest } from '@jest/globals';
 import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
+
+import { jest } from '@jest/globals';
+import * as jwt from 'jsonwebtoken';
+
 import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
 
@@ -55,6 +58,44 @@ describe('JwtStrategy', () => {
     expect(strategy).toBeDefined();
   });
 
+  it.each([
+    ['access', 'access', 'dummy-secret', 300, true],
+    ['refresh', 'refresh', 'dummy-secret', 300, false],
+    ['legacy refresh', undefined, 'dummy-secret', 300, false],
+    ['wrong signature', 'access', 'wrong-secret', 300, false],
+    ['expired', 'access', 'dummy-secret', -120, false],
+  ] as const)(
+    'authenticates signed %s tokens correctly',
+    async (_name, tokenUse, secret, expiresIn, accepted) => {
+      (
+        authService.validateUserFromPayload as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({ id: 'user-uuid' });
+      const token = jwt.sign(
+        { sub: 'user-uuid', email: 'test@example.com', tokenUse },
+        secret,
+        { expiresIn, jwtid: 'test-session' },
+      );
+      // Exercise Passport's signature/expiry verification and our validation hook.
+      const result = await new Promise<boolean>((resolve, reject) => {
+        const passportStrategy = strategy as any;
+        passportStrategy.success = () => resolve(true);
+        passportStrategy.fail = () => resolve(false);
+        passportStrategy.error = (error: Error) => {
+          if (error instanceof UnauthorizedException) resolve(false);
+          else reject(error);
+        };
+        passportStrategy.authenticate({
+          headers: { authorization: 'Bearer ' + token },
+        });
+      });
+      expect(result).toBe(accepted);
+      if (!accepted)
+        expect(authService.validateUserFromPayload).not.toHaveBeenCalled();
+    },
+  );
+
   describe('secretOrKeyProvider', () => {
     it('should call done with secret on success', async () => {
       const done = jest.fn();
@@ -99,8 +140,25 @@ describe('JwtStrategy', () => {
   });
 
   describe('validate', () => {
+    it.each(['refresh', undefined, 'unknown'])(
+      'rejects token purpose %s before looking up the user',
+      async tokenUse => {
+        await expect(
+          strategy.validate({
+            sub: 'user-uuid',
+            email: 'test@example.com',
+            tokenUse,
+          } as any),
+        ).rejects.toThrow(UnauthorizedException);
+        expect(authService.validateUserFromPayload).not.toHaveBeenCalled();
+      },
+    );
     it('should return plain user object when validation succeeds', async () => {
-      const payload = { sub: 'user-uuid', email: 'test@example.com' };
+      const payload = {
+        tokenUse: 'access',
+        sub: 'user-uuid',
+        email: 'test@example.com',
+      };
       const user = { id: 'user-uuid', email: 'test@example.com' };
       (
         authService.validateUserFromPayload as jest.Mock<
@@ -119,7 +177,11 @@ describe('JwtStrategy', () => {
           (...args: any[]) => Promise<any>
         >
       ).mockResolvedValue(null);
-      const payload = { sub: 'user-uuid', email: 'test@example.com' };
+      const payload = {
+        tokenUse: 'access',
+        sub: 'user-uuid',
+        email: 'test@example.com',
+      };
 
       await expect(strategy.validate(payload as any)).rejects.toThrow(
         UnauthorizedException,
@@ -127,7 +189,11 @@ describe('JwtStrategy', () => {
     });
 
     it('should set CurrentContextHelper.userUuid if not already set', async () => {
-      const payload = { sub: 'new-uuid', email: 'test@example.com' };
+      const payload = {
+        tokenUse: 'access',
+        sub: 'new-uuid',
+        email: 'test@example.com',
+      };
       const user = { id: 'new-uuid', email: 'test@example.com' };
       (
         authService.validateUserFromPayload as jest.Mock<
@@ -149,7 +215,11 @@ describe('JwtStrategy', () => {
     });
 
     it('should NOT set CurrentContextHelper.userUuid if already set', async () => {
-      const payload = { sub: 'new-uuid', email: 'test@example.com' };
+      const payload = {
+        tokenUse: 'access',
+        sub: 'new-uuid',
+        email: 'test@example.com',
+      };
       const user = { id: 'new-uuid', email: 'test@example.com' };
       (
         authService.validateUserFromPayload as jest.Mock<

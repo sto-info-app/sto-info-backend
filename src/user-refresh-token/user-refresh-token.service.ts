@@ -6,12 +6,14 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
+
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
-import { SecretsService } from 'src/shared/secrets/secrets.service';
 import { Repository } from 'typeorm';
 
+import { SecretsService } from 'src/shared/secrets/secrets.service';
 import { UserEntity } from 'src/user/entities/user.entity';
+
 import { CreateUserRefreshTokenDto } from './dto/create-user-refresh-token.dto';
 import { UserRefreshTokenEntity } from './entities/user-refresh-token.entity';
 
@@ -88,14 +90,17 @@ export class UserRefreshTokenService {
       );
     }
 
-    // Set the expiresAt value to AUTH_REFRESH_TOKEN_EXPIRES_IN seconds from now
-    const expiresAt = new Date();
-    expiresAt.setSeconds(
-      expiresAt.getSeconds() +
-        Number(process.env.AUTH_REFRESH_TOKEN_EXPIRES_IN),
-    );
-
-    refreshToken.expiresAt = expiresAt;
+    // Authentication sizes the expiry to the user's own inactivity window, so
+    // an expiry that came in with the token is kept. The environment value is
+    // only a fallback for a caller that supplies none.
+    if (!refreshToken.expiresAt) {
+      const expiresAt = new Date();
+      expiresAt.setSeconds(
+        expiresAt.getSeconds() +
+          (Number(process.env.AUTH_REFRESH_TOKEN_EXPIRES_IN) || 14400),
+      );
+      refreshToken.expiresAt = expiresAt;
+    }
 
     return this._refreshTokenRepository.save(refreshToken);
   }

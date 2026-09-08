@@ -1,4 +1,5 @@
 import { IsIn } from 'class-validator';
+
 import { SpecializationSlot } from '../entities/character-specialization-progress.entity';
 
 export class UpdateCharacterSpecializationSlotDto {

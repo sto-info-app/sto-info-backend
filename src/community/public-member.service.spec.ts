@@ -1,9 +1,11 @@
-import { jest } from '@jest/globals';
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { UserProfileEntity } from '../user/entities/user-profile.entity';
+
+import { jest } from '@jest/globals';
+
 import { AccountEntity } from '../sto/account/entities/account.entity';
+import { UserProfileEntity } from '../user/entities/user-profile.entity';
 import { PublicMemberService } from './public-member.service';
 
 /**

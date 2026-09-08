@@ -1,6 +1,6 @@
-import { NotificationEntity } from './notification.entity';
 import { NotificationSeverity } from '../enums/notification-severity.enum';
 import { NotificationTarget } from '../enums/notification-target.enum';
+import { NotificationEntity } from './notification.entity';
 
 describe('NotificationEntity', () => {
   it('stores assigned notification fields', () => {

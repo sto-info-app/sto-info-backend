@@ -5,8 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { isValidCloudflareImageUrl } from 'src/shared/constants/image.constants';
+
 import { Repository } from 'typeorm';
+
+import { isValidCloudflareImageUrl } from 'src/shared/constants/image.constants';
+
 import { PlatformLauncherEntity } from './entities/platform-launcher.entity';
 
 @Injectable()

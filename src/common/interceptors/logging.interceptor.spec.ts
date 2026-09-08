@@ -1,7 +1,9 @@
-import { jest } from '@jest/globals';
 import { CallHandler, ExecutionContext } from '@nestjs/common';
+
+import { jest } from '@jest/globals';
 import * as Sentry from '@sentry/nestjs';
 import { of, throwError } from 'rxjs';
+
 import { LoggingInterceptor } from './logging.interceptor';
 
 jest.mock('@sentry/nestjs', () => ({

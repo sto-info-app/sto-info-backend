@@ -1,11 +1,11 @@
+import { Injectable } from '@nestjs/common';
+
 import {
   EMAIL_PATTERN,
   PASSWORD_PATTERN,
   USERNAME_PATTERN,
   UUID_PATTERN,
 } from '../constants/regex-patterns.constants';
-
-import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class ValidatorsService {

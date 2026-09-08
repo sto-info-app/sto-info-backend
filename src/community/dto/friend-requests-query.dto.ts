@@ -1,5 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
+
 import { IsEnum, IsOptional } from 'class-validator';
+
 import { FriendRequestDirection } from '../enums/friend-request-direction.enum';
 
 /**

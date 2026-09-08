@@ -3,13 +3,15 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AuditEntity } from 'src/audit/entities/audit.entity';
+
 import { AuditLoginAttemptEntity } from 'src/audit/entities/audit-login-attempt.entity';
+import { AuditEntity } from 'src/audit/entities/audit.entity';
 import { MailModule } from 'src/mail/mail.module';
 import { MailService } from 'src/mail/mail.service';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserRefreshTokenModule } from 'src/user-refresh-token/user-refresh-token.module';
+
 import { UserModule } from '../user/user.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';

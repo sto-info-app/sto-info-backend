@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
 import { FriendRequestDirection } from '../enums/friend-request-direction.enum';
 import { RelationshipStatus } from '../enums/relationship-status.enum';
 import { CommunityMemberDto } from './community-member.dto';

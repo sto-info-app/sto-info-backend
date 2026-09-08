@@ -6,9 +6,11 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+
 import { OptionalJwtAuthGuard } from 'src/auth/optional-jwt-auth.guard';
 import { Public } from 'src/auth/public.decorator';
 import { OptionalUserId } from 'src/auth/user-id.decorator';
+
 import { RegistryAccountDto } from './dto/registry-account.dto';
 import { RegistryCharacterDto } from './dto/registry-character.dto';
 import {

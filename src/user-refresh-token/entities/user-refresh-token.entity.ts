@@ -8,6 +8,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+
 import { UserEntity } from '../../user/entities/user.entity';
 
 @Entity({ name: 'user_refresh_token' })

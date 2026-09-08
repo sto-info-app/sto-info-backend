@@ -26,6 +26,7 @@ In addition to Codecov reporting, Jest enforces coverage thresholds during CI.
 
 - **Local**: `npm run test:cov` runs tests and enforces configured thresholds.
 - **CI**: `npm run verify` runs `test:cov` as part of the lint/test pipeline.
+- **ESM packages**: Jest scripts set `NODE_OPTIONS=--experimental-vm-modules` so Jest 30 can `require()` native ESM packages such as `@nestjs/jwt@12`. Run tests through the npm scripts rather than invoking `jest` directly.
 
 If the test suite passes but the job fails, check the per-file coverage output in the Jest summary and the generated report in `reports/coverage/`.
 

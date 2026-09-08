@@ -1,5 +1,6 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
+
 import { NewsStatus } from '../enums/news-status.enum';
 import { CreateNewsPostDto } from './create-news-post.dto';
 

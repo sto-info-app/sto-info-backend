@@ -1,8 +1,10 @@
-import { jest } from '@jest/globals';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
+import { jest } from '@jest/globals';
 import { IsNull } from 'typeorm';
+
 import { BlockService } from './block.service';
 import { CommunityMemberDto } from './dto/community-member.dto';
 import { FriendshipEntity } from './entities/friendship.entity';

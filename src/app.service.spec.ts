@@ -1,8 +1,11 @@
-import { jest } from '@jest/globals';
-import { Logger } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+
+import { Logger } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+
+import { jest } from '@jest/globals';
+
 import { AppService } from './app.service';
 import { SecretsService } from './shared/secrets/secrets.service';
 

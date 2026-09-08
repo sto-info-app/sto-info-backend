@@ -1,6 +1,8 @@
-import { jest } from '@jest/globals';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+
+import { jest } from '@jest/globals';
+
 import { getAppVersion } from './version.utility';
 
 jest.mock('node:fs');

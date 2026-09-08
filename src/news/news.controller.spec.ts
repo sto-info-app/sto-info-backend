@@ -1,5 +1,7 @@
-import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
+
+import { jest } from '@jest/globals';
+
 import { NewsController } from './news.controller';
 import { NewsService } from './news.service';
 

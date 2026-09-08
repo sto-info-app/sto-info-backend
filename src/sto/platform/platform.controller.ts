@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+
 import { PlatformService } from './platform.service';
 
 @ApiTags('STO Account APIs')

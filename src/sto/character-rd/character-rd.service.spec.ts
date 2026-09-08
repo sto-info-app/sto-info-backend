@@ -1,13 +1,16 @@
-import { jest } from '@jest/globals';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
+import { jest } from '@jest/globals';
+
 import { CharacterOwnershipService } from 'src/sto/character/character-ownership.service';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
+
+import { CharacterRdService } from './character-rd.service';
 import { UpdateCharacterRdProgressDto } from './dto/update-character-rd-progress.dto';
 import { CharacterRdProgressEntity } from './entities/character-rd-progress.entity';
 import { CharacterRdSchoolEntity } from './entities/character-rd-school.entity';
-import { CharacterRdService } from './character-rd.service';
 
 describe('CharacterRdService', () => {
   let service: CharacterRdService;

@@ -1,8 +1,11 @@
-import { jest } from '@jest/globals';
 import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
+import { jest } from '@jest/globals';
+
 import { SesEventEntity } from 'src/webhooks/ses/entities/ses-event.entity';
+
 import { SesAuditCleanupService } from './ses-audit-cleanup.service';
 
 type MockRepo = { delete: jest.Mock<(...args: any[]) => Promise<any>> };

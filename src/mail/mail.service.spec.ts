@@ -1,12 +1,15 @@
-import { jest } from '@jest/globals';
-import { MailerService } from '@nestjs-modules/mailer';
 import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+
+import { jest } from '@jest/globals';
+import { MailerService } from '@nestjs-modules/mailer';
 import * as sgMail from '@sendgrid/mail';
 import * as ejs from 'ejs';
 import { convert as htmlToText } from 'html-to-text';
+
 import { SecretsService } from 'src/shared/secrets/secrets.service';
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
+
 import { EmailMessage, MailService } from './mail.service';
 
 jest.mock('@sendgrid/mail');

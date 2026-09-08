@@ -1,5 +1,6 @@
 import { Logger, Module, OnModuleInit } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+
 import { LauncherEntity } from 'src/sto/launcher/entities/launcher.entity';
 import { LauncherModule } from 'src/sto/launcher/launcher.module';
 import { PlatformLauncherEntity } from 'src/sto/platform-launcher/entities/platform-launcher.entity';
@@ -8,6 +9,7 @@ import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
 import { PlatformModule } from 'src/sto/platform/platform.module';
 import { UserEntity } from 'src/user/entities/user.entity';
 import { UserModule } from 'src/user/user.module';
+
 import { AccountSeederService } from './account-seeder/account-seeder.service';
 import { DatabaseService } from './database.service';
 import { UserSeederService } from './user-seeder/user-seeder.service';

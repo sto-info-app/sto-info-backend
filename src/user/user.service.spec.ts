@@ -1,17 +1,21 @@
-import { jest } from '@jest/globals';
 import { HttpException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
+import { jest } from '@jest/globals';
 import * as bcrypt from 'bcrypt';
+import { Repository } from 'typeorm';
+
 import { MailService } from 'src/mail/mail.service';
 import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
-import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
 import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
-import { Repository } from 'typeorm';
+import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
+
 import { UserProfileEntity } from './entities/user-profile.entity';
 import { UserEntity } from './entities/user.entity';
+import { UserRole } from './enums/user-role.enum';
 import { UserService } from './user.service';
 
 jest.mock('bcrypt');
@@ -99,6 +103,124 @@ describe('UserService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('getSettings', () => {
+    it('should return the settings for a valid user', async () => {
+      (
+        userProfileRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
+        userId: 'uuid',
+        privacyMode: true,
+        sessionTimeoutMinutes: null,
+      });
+
+      await expect(service.getSettings('uuid')).resolves.toEqual({
+        privacyMode: true,
+        sessionTimeoutMinutes: 240,
+      });
+      expect(userProfileRepository.findOne).toHaveBeenCalledWith({
+        where: { userId: 'uuid' },
+      });
+    });
+
+    it('should throw when the user id is missing', async () => {
+      await expect(service.getSettings('')).rejects.toThrow(HttpException);
+      expect(userProfileRepository.findOne).not.toHaveBeenCalled();
+    });
+
+    it('should throw when the user id is not a valid uuid', async () => {
+      (validatorsService.validateUuid as jest.Mock).mockReturnValue(false);
+
+      await expect(service.getSettings('bad')).rejects.toThrow(HttpException);
+      expect(userProfileRepository.findOne).not.toHaveBeenCalled();
+    });
+
+    it('should throw when the profile does not exist', async () => {
+      (
+        userProfileRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(null);
+
+      await expect(service.getSettings('uuid')).rejects.toThrow(HttpException);
+    });
+  });
+
+  describe('updateSettings', () => {
+    it('should persist and return the updated settings', async () => {
+      const profile = {
+        userId: 'uuid',
+        privacyMode: false,
+        sessionTimeoutMinutes: null,
+      };
+      (
+        userProfileRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(profile);
+      (
+        userProfileRepository.save as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockImplementation(async (value: any) => value);
+
+      await expect(
+        service.updateSettings('uuid', {
+          privacyMode: true,
+          sessionTimeoutMinutes: 480,
+        }),
+      ).resolves.toEqual({ privacyMode: true, sessionTimeoutMinutes: 480 });
+      expect(userProfileRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          privacyMode: true,
+          sessionTimeoutMinutes: 480,
+        }),
+      );
+    });
+
+    it('should keep the stored timeout when the payload omits it', async () => {
+      const profile = {
+        userId: 'uuid',
+        privacyMode: false,
+        sessionTimeoutMinutes: 480,
+      };
+      (
+        userProfileRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(profile);
+      (
+        userProfileRepository.save as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockImplementation(async (value: any) => value);
+
+      await expect(
+        service.updateSettings('uuid', { privacyMode: true }),
+      ).resolves.toEqual({ privacyMode: true, sessionTimeoutMinutes: 480 });
+      expect(userProfileRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ sessionTimeoutMinutes: 480 }),
+      );
+    });
+
+    it('should throw when the profile does not exist', async () => {
+      (
+        userProfileRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(null);
+
+      await expect(
+        service.updateSettings('uuid', {
+          privacyMode: true,
+          sessionTimeoutMinutes: 240,
+        }),
+      ).rejects.toThrow(HttpException);
+      expect(userProfileRepository.save).not.toHaveBeenCalled();
+    });
   });
 
   describe('create', () => {
@@ -812,6 +934,178 @@ describe('UserService', () => {
         'captain@example.com',
         'Captain',
       );
+    });
+  });
+
+  describe('searchUsers', () => {
+    it('returns paginated users with defaults when page/pageSize not provided', async () => {
+      const mockUsers = [
+        {
+          id: 'u1',
+          role: UserRole.ADMIN,
+          lastLoginAt: new Date('2026-05-01T09:00:00.000Z'),
+          profile: { username: 'kirk', firstName: 'James', lastName: 'Kirk' },
+        },
+      ];
+      const qb: any = {
+        innerJoin: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getManyAndCount: (jest.fn() as any).mockResolvedValue([mockUsers, 1]),
+      };
+      (userRepository.createQueryBuilder as jest.Mock).mockReturnValue(qb);
+
+      const result = await service.searchUsers({ q: 'kirk' });
+
+      expect(userRepository.createQueryBuilder).toHaveBeenCalledWith('u');
+      expect(qb.innerJoin).toHaveBeenCalledWith('u.profile', 'p');
+      expect(qb.select).toHaveBeenCalledWith([
+        'u.id',
+        'u.role',
+        'u.lastLoginAt',
+        'p.username',
+        'p.firstName',
+        'p.lastName',
+      ]);
+
+      // No address is searched: a site notification is not an email, and the
+      // screen that picks its reader says nothing about one.
+      const [clause, parameters] = qb.where.mock.calls[0] as [
+        string,
+        Record<string, string>,
+      ];
+
+      expect(clause).not.toContain('email');
+      expect(clause).toContain('p.username ILIKE :term');
+      expect(clause).toContain('p.firstName ILIKE :term');
+      expect(clause).toContain('p.lastName ILIKE :term');
+      expect(clause).toContain("CONCAT(p.firstName, ' ', p.lastName)");
+      expect(parameters).toEqual({ term: '%kirk%' });
+      expect(qb.andWhere).toHaveBeenCalledWith('u.deletedAt IS NULL');
+      expect(qb.orderBy).toHaveBeenCalledWith('p.username', 'ASC');
+      expect(qb.skip).toHaveBeenCalledWith(0);
+      expect(qb.take).toHaveBeenCalledWith(5);
+      expect(result).toEqual({
+        items: [
+          {
+            id: 'u1',
+            username: 'kirk',
+            fullName: 'James Kirk',
+            role: UserRole.ADMIN,
+            lastLoginAt: new Date('2026-05-01T09:00:00.000Z'),
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 5,
+      });
+    });
+
+    it('returns paginated users with custom page and pageSize', async () => {
+      const mockUsers = [
+        {
+          id: 'u2',
+          role: UserRole.USER,
+          lastLoginAt: null,
+          profile: null,
+        },
+      ];
+      const qb: any = {
+        innerJoin: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getManyAndCount: (jest.fn() as any).mockResolvedValue([mockUsers, 10]),
+      };
+      (userRepository.createQueryBuilder as jest.Mock).mockReturnValue(qb);
+
+      const result = await service.searchUsers({
+        q: 'spock',
+        page: 2,
+        pageSize: 3,
+      });
+
+      expect(qb.skip).toHaveBeenCalledWith(3);
+      expect(qb.take).toHaveBeenCalledWith(3);
+      // An account that has never signed in, and a member who gave no name,
+      // carry nothing rather than a stand-in, so the screen can say so in its
+      // own words.
+      expect(result).toEqual({
+        items: [
+          {
+            id: 'u2',
+            username: '',
+            fullName: null,
+            role: UserRole.USER,
+            lastLoginAt: null,
+          },
+        ],
+        total: 10,
+        page: 2,
+        pageSize: 3,
+      });
+    });
+
+    it('names a member by whichever half of their name they gave', async () => {
+      const qb: any = {
+        innerJoin: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getManyAndCount: (jest.fn() as any).mockResolvedValue([
+          [
+            {
+              id: 'u3',
+              role: UserRole.USER,
+              lastLoginAt: null,
+              profile: {
+                username: 'mccoy',
+                firstName: null,
+                lastName: 'McCoy',
+              },
+            },
+          ],
+          1,
+        ]),
+      };
+      (userRepository.createQueryBuilder as jest.Mock).mockReturnValue(qb);
+
+      const result = await service.searchUsers({ q: 'mccoy' });
+
+      expect(result.items[0].fullName).toBe('McCoy');
+    });
+
+    it('returns empty list when no users match', async () => {
+      const qb: any = {
+        innerJoin: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getManyAndCount: (jest.fn() as any).mockResolvedValue([[], 0]),
+      };
+      (userRepository.createQueryBuilder as jest.Mock).mockReturnValue(qb);
+
+      const result = await service.searchUsers({ q: 'nonexistent' });
+
+      expect(result).toEqual({
+        items: [],
+        total: 0,
+        page: 1,
+        pageSize: 5,
+      });
     });
   });
 });

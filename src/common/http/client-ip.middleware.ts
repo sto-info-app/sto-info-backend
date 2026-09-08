@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+
 import { getClientIp } from './client-ip.utility';
 
 declare module 'express-serve-static-core' {

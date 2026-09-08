@@ -4,8 +4,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { CharacterOwnershipService } from 'src/sto/character/character-ownership.service';
+
 import { Not, Repository } from 'typeorm';
+
+import { CharacterOwnershipService } from 'src/sto/character/character-ownership.service';
+
 import { UpdateCharacterSpecializationProgressDto } from './dto/update-character-specialization-progress.dto';
 import { UpdateCharacterSpecializationSlotDto } from './dto/update-character-specialization-slot.dto';
 import { CharacterSpecializationProgressEntity } from './entities/character-specialization-progress.entity';

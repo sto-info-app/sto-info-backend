@@ -1,7 +1,9 @@
-import { jest } from '@jest/globals';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
+import { jest } from '@jest/globals';
+
 import { CharacterOwnershipService } from './character-ownership.service';
 import { CharacterEntity } from './entities/character.entity';
 
@@ -47,7 +49,7 @@ describe('CharacterOwnershipService', () => {
 
     expect(characterRepository.findOne).toHaveBeenCalledWith({
       where: { id: 'character-1' },
-      relations: { account: true },
+      relations: { account: true, generalFaction: true },
     });
   });
 

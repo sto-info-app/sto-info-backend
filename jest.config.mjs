@@ -1,4 +1,8 @@
 export default {
+  // Jest 30 can require() ESM on Node 24.9+, but that path needs
+  // vm.SourceTextModule (still behind --experimental-vm-modules). npm test
+  // scripts set NODE_OPTIONS=--experimental-vm-modules so @nestjs/jwt@12
+  // (ESM, no "require" export condition) loads from CommonJS specs.
   moduleFileExtensions: ['js', 'json', 'ts'],
   testRegex: String.raw`\.spec\.ts$`,
   transform: {
@@ -67,6 +71,12 @@ export default {
     },
   },
   coverageDirectory: '<rootDir>/reports/coverage',
-  testPathIgnorePatterns: ['/node_modules/'],
+  // <rootDir> anchors this to the real project root. A Stryker sandbox left
+  // behind by a cancelled or crashed mutation run is a full copy of src/, so
+  // without this the next plain `jest` run discovers and executes every spec
+  // twice. The anchor matters: an unanchored '/.stryker-tmp/' would also match
+  // inside the sandbox, where Stryker runs Jest with rootDir set to the sandbox
+  // itself, and would leave that run with no tests at all.
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/.stryker-tmp/'],
   modulePathIgnorePatterns: [],
 };

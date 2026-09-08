@@ -1,0 +1,113 @@
+name: Mutation Testing (Incremental)
+
+on:
+  pull_request:
+    branches:
+      - development
+      - 'epic/*'
+      - production
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions: {}
+
+env:
+  NODE_VERSION: 24.15.0
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check_changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      src_changed: ${{ steps.filter.outputs.src_changed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          filters: |
+            src_changed:
+              - 'src/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'nx.json'
+              - 'tsconfig.json'
+              - 'jest.config.mjs'
+
+  mutation_incremental:
+    name: 'Mutation Testing (Incremental)'
+    needs: check_changes
+    # Skip if dependabot, skip draft PRs, skip when nothing relevant changed
+    if: |
+      github.actor != 'dependabot[bot]' &&
+      needs.check_changes.outputs.src_changed == 'true' &&
+      github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    # Incremental mutation normally mutates a small changed-file subset, but
+    # a wide-touching PR can approach a full run: PR #975 changed 610 files,
+    # 164 of which are in the mutate set out of the repo's 184, producing
+    # ~8,800 mutants that were tracking at roughly 3h45m. That run was
+    # cancelled by a 90 minute budget. The budget here is deliberately large
+    # enough to let such a PR finish rather than be gated on nothing, and is
+    # still a backstop against a genuinely hung run.
+    timeout-minutes: 240
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Resolve cache toggle
+        id: cache-toggle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          value=$(gh api repos/$REPO/actions/variables/CACHE_NODE_MODULES --jq '.value' 2>/dev/null || echo '')
+          if [ -z "$value" ]; then
+            value=true
+          fi
+          echo "use_cache=$value" >> "$GITHUB_OUTPUT"
+
+      - name: Load & cache dependencies
+        uses: ./.github/actions/cached-dependencies
+        with:
+          use-cache: ${{ steps.cache-toggle.outputs.use_cache }}
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Run Incremental Mutation Testing
+        shell: bash
+        run: |
+          # Fetch the base branch to compare against. This must not be a
+          # shallow fetch: the checkout above is already unshallow, and
+          # truncating the base ref's history here breaks the merge base that
+          # `git diff base...HEAD` needs.
+          git fetch origin ${{ github.base_ref }}
+
+          # Compute and run incremental mutation testing (exits 0 when nothing
+          # to mutate, and when the diff is too wide to be incremental)
+          BASE_REF=origin/${{ github.base_ref }} npm run test:mutation:incremental
+
+      - name: Upload Mutation Report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: stryker-incremental-report
+          path: reports/mutation/
+          retention-days: 30
+          # The run legitimately produces no report when the diff has nothing
+          # mutatable, or is too wide to be run incrementally.
+          if-no-files-found: ignore

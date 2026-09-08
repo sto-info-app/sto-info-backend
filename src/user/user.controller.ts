@@ -1,3 +1,6 @@
+import * as crypto from 'node:crypto';
+import { extname } from 'node:path';
+
 import {
   BadRequestException,
   Body,
@@ -8,6 +11,7 @@ import {
   HttpException,
   HttpStatus,
   Post,
+  Put,
   Req,
   UseFilters,
   UseGuards,
@@ -27,11 +31,11 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+
 import { instanceToPlain } from 'class-transformer';
 import type { Request } from 'express';
 import { memoryStorage } from 'multer';
-import * as crypto from 'node:crypto';
-import { extname } from 'node:path';
+
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
 import {
@@ -39,8 +43,11 @@ import {
   isAllowedImageMimeType,
 } from 'src/shared/constants/file-upload.constants';
 import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
+
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
+import { UpdateUserSettingsDto } from './dto/update-user-settings.dto';
 import { UpdatedUserProfileResultDto } from './dto/updated-user-profile-result.dto';
+import { UserSettingsDto } from './dto/user-settings.dto';
 import { UserEntity } from './entities/user.entity';
 import { UserService } from './user.service';
 
@@ -104,6 +111,41 @@ export class UserController {
   @HttpCode(HttpStatus.OK)
   async findUser(@UserId() userId: string): Promise<UserEntity> {
     return await this._userService.findById(userId);
+  }
+
+  /**
+   * Retrieves the authenticated user's application settings.
+   *
+   * @param userId Authenticated user ID (injected).
+   * @returns The user's settings.
+   */
+  @ApiOperation({ summary: 'Get the current user settings' })
+  @ApiOkResponse({ type: UserSettingsDto })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid access token.' })
+  @Get('settings')
+  @HttpCode(HttpStatus.OK)
+  async getSettings(@UserId() userId: string): Promise<UserSettingsDto> {
+    return this._userService.getSettings(userId);
+  }
+
+  /**
+   * Updates the authenticated user's application settings.
+   *
+   * @param userId Authenticated user ID (injected).
+   * @param settings Settings to persist.
+   * @returns The updated settings.
+   */
+  @ApiOperation({ summary: 'Update the current user settings' })
+  @ApiOkResponse({ type: UserSettingsDto })
+  @ApiBadRequestResponse({ description: 'Settings fail validation.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid access token.' })
+  @Put('settings')
+  @HttpCode(HttpStatus.OK)
+  async updateSettings(
+    @UserId() userId: string,
+    @Body() settings: UpdateUserSettingsDto,
+  ): Promise<UserSettingsDto> {
+    return this._userService.updateSettings(userId, settings);
   }
 
   /**

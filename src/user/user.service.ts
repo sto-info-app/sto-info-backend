@@ -1,17 +1,25 @@
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+
 import * as bcrypt from 'bcrypt';
+import { In, Repository } from 'typeorm';
+
 import { MailService } from 'src/mail/mail.service';
+import { UserSearchQueryDto } from 'src/notification/dto/user-search-query.dto';
+import { UserSearchPageDto } from 'src/notification/dto/user-search-result.dto';
 import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
-import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
+import { ValidatorsService } from 'src/shared/utilities/validators.service';
 import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
-import { ValidatorsService } from 'src/shared/utilities/validators.service';
-import { In, Repository } from 'typeorm';
+import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
+
+import { resolveSessionTimeoutMinutes } from './constants/session-timeout.constants';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
+import { UpdateUserSettingsDto } from './dto/update-user-settings.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdatedUserProfileResultDto } from './dto/updated-user-profile-result.dto';
+import { UserSettingsDto } from './dto/user-settings.dto';
 import { UserProfileEntity } from './entities/user-profile.entity';
 import { UserEntity } from './entities/user.entity';
 
@@ -38,6 +46,59 @@ export class UserService {
     private readonly _imageUploadsService: ImageUploadsService,
     private readonly _mailService: MailService,
   ) {}
+
+  /**
+   * Retrieves the authenticated user's application settings.
+   *
+   * @param userId Authenticated user ID.
+   * @returns The user's settings.
+   */
+  async getSettings(userId: string): Promise<UserSettingsDto> {
+    const profile = await this._getUserProfile(userId);
+    return new UserSettingsDto(
+      profile.privacyMode,
+      this.getSessionTimeoutMinutes(profile),
+    );
+  }
+
+  /**
+   * Updates the authenticated user's application settings.
+   *
+   * @param userId Authenticated user ID.
+   * @param settings Settings to persist.
+   * @returns The updated settings.
+   */
+  async updateSettings(
+    userId: string,
+    settings: UpdateUserSettingsDto,
+  ): Promise<UserSettingsDto> {
+    const profile = await this._getUserProfile(userId);
+    profile.privacyMode = settings.privacyMode;
+    // A client that does not know about the timeout omits it; leave the
+    // stored choice alone rather than resetting it to the default.
+    if (settings.sessionTimeoutMinutes !== undefined) {
+      profile.sessionTimeoutMinutes = settings.sessionTimeoutMinutes;
+    }
+    const updatedProfile = await this._userProfileRepository.save(profile);
+
+    return new UserSettingsDto(
+      updatedProfile.privacyMode,
+      this.getSessionTimeoutMinutes(updatedProfile),
+    );
+  }
+
+  /**
+   * Returns the user's inactivity timeout, falling back to the deployment
+   * default when they have never chosen one.
+   *
+   * @param profile - The profile holding the stored choice.
+   * @returns The inactivity timeout to apply, in minutes.
+   */
+  getSessionTimeoutMinutes(
+    profile: Pick<UserProfileEntity, 'sessionTimeoutMinutes'>,
+  ): number {
+    return resolveSessionTimeoutMinutes(profile.sessionTimeoutMinutes);
+  }
 
   /**
    * Create a new user account.
@@ -282,6 +343,29 @@ export class UserService {
   }
 
   /**
+   * Gets the profile owned by an authenticated user.
+   *
+   * @param userId Authenticated user ID.
+   * @returns The user's profile.
+   * @throws HttpException when the identifier is invalid or the profile is absent.
+   */
+  private async _getUserProfile(userId: string): Promise<UserProfileEntity> {
+    if (!userId || !this._validatorsService.validateUuid(userId)) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    const profile = await this._userProfileRepository.findOne({
+      where: { userId },
+    });
+
+    if (!profile) {
+      throw new HttpException('User data not found', HttpStatus.NOT_FOUND);
+    }
+
+    return profile;
+  }
+
+  /**
    * Update a user's profile information.
    *
    * @param userId - The UUID of the user owning the profile.
@@ -461,5 +545,86 @@ export class UserService {
       affected: 1,
       userProfileData: updatedUserProfile,
     };
+  }
+
+  /**
+   * Searches users by username or real name.
+   *
+   * Called by the admin notification controller so an administrator can find a
+   * recipient without knowing their UUID. Only non-deleted accounts appear.
+   *
+   * Addresses are searched neither by nor for. A site notification is read
+   * where it was written, and an address on the screen that picks its reader
+   * only suggests otherwise. What is left is what an administrator actually
+   * knows somebody by: their handle, or their name.
+   *
+   * Each result carries the account's role and last sign-in as well, because a
+   * list of names alone leaves an administrator guessing which of two similar
+   * accounts they are about to write to.
+   *
+   * @param query - The search term and pagination options.
+   * @returns A paginated page of matching users.
+   */
+  async searchUsers(query: UserSearchQueryDto): Promise<UserSearchPageDto> {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 5;
+    const term = `%${query.q}%`;
+
+    const [rows, total] = await this._userRepository
+      .createQueryBuilder('u')
+      .innerJoin('u.profile', 'p')
+      .select([
+        'u.id',
+        'u.role',
+        'u.lastLoginAt',
+        'p.username',
+        'p.firstName',
+        'p.lastName',
+      ])
+      // The two names are matched together as well as apart, so somebody
+      // typing a person's whole name finds them rather than nothing.
+      .where(
+        `p.username ILIKE :term
+         OR p.firstName ILIKE :term
+         OR p.lastName ILIKE :term
+         OR CONCAT(p.firstName, ' ', p.lastName) ILIKE :term`,
+        { term },
+      )
+      .andWhere('u.deletedAt IS NULL')
+      .orderBy('p.username', 'ASC')
+      .skip((page - 1) * pageSize)
+      .take(pageSize)
+      .getManyAndCount();
+
+    return {
+      items: rows.map(u => ({
+        id: u.id,
+        username: u.profile?.username ?? '',
+        fullName: this.fullNameOf(u.profile),
+        role: u.role,
+        lastLoginAt: u.lastLoginAt,
+      })),
+      total,
+      page,
+      pageSize,
+    };
+  }
+
+  /**
+   * A member's real name, as much of it as they have given.
+   *
+   * Either half may be missing, and somebody who gave neither has no real name
+   * rather than an empty one, so the screen showing them can say so instead of
+   * leaving a blank line where a name should be.
+   *
+   * @param profile - The member's profile, when they have one.
+   * @returns The name, or null when there is none.
+   */
+  private fullNameOf(profile?: UserProfileEntity | null): string | null {
+    return (
+      [profile?.firstName, profile?.lastName]
+        .filter(part => part?.trim())
+        .join(' ') || null
+    );
   }
 }

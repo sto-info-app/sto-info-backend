@@ -1,13 +1,19 @@
-import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotificationController } from './notification.controller';
-import { NotificationService } from './notification.service';
+
+import { jest } from '@jest/globals';
+
+import { UserRole } from 'src/user/enums/user-role.enum';
+import { UserService } from 'src/user/user.service';
+
 import { NotificationSeverity } from './enums/notification-severity.enum';
 import { NotificationTarget } from './enums/notification-target.enum';
+import { NotificationController } from './notification.controller';
+import { NotificationService } from './notification.service';
 
 describe('NotificationController', () => {
   let controller: NotificationController;
   let service: jest.Mocked<NotificationService>;
+  let userService: jest.Mocked<UserService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -32,11 +38,18 @@ describe('NotificationController', () => {
             removeNotification: jest.fn(),
           },
         },
+        {
+          provide: UserService,
+          useValue: {
+            searchUsers: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
     controller = module.get(NotificationController);
     service = module.get(NotificationService);
+    userService = module.get(UserService);
   });
 
   it('should be defined', () => {
@@ -275,6 +288,53 @@ describe('NotificationController', () => {
     it('passes different notification id', () => {
       controller.removeNotification('different-id');
       expect(service.removeNotification).toHaveBeenCalledWith('different-id');
+    });
+  });
+
+  describe('searchUsers', () => {
+    it('delegates to userService', () => {
+      const query = { q: 'john', page: 1, pageSize: 5 };
+      userService.searchUsers.mockResolvedValue({
+        items: [],
+        total: 0,
+        page: 1,
+        pageSize: 5,
+      });
+      controller.searchUsers(query as any);
+      expect(userService.searchUsers).toHaveBeenCalledWith(query);
+    });
+
+    it('passes a search with results through', async () => {
+      const result = {
+        items: [
+          {
+            id: 'u1',
+            username: 'kirk',
+            fullName: 'James Kirk',
+            role: UserRole.USER,
+            lastLoginAt: new Date('2026-05-01T09:00:00.000Z'),
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 5,
+      };
+      userService.searchUsers.mockResolvedValue(result);
+      await expect(
+        controller.searchUsers({ q: 'kirk' } as any),
+      ).resolves.toEqual(result);
+    });
+
+    it('passes empty results through', async () => {
+      userService.searchUsers.mockResolvedValue({
+        items: [],
+        total: 0,
+        page: 1,
+        pageSize: 5,
+      });
+      await expect(
+        controller.searchUsers({ q: 'nobody' } as any),
+      ).resolves.toMatchObject({ total: 0 });
     });
   });
 });

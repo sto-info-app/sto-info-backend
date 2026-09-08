@@ -1,4 +1,5 @@
 import { validate } from 'class-validator';
+
 import {
   CharacterSpecializationEntity,
   SPECIALIZATION_PRIMARY_MAX_POINTS,

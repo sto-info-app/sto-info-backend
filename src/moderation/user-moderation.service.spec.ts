@@ -1,4 +1,3 @@
-import { jest } from '@jest/globals';
 import {
   BadRequestException,
   ForbiddenException,
@@ -6,6 +5,9 @@ import {
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
+import { jest } from '@jest/globals';
+
 import { UserRefreshTokenService } from '../user-refresh-token/user-refresh-token.service';
 import { UserEntity } from '../user/entities/user.entity';
 import { UserRole } from '../user/enums/user-role.enum';

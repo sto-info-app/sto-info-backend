@@ -6,6 +6,7 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+
 import { CharacterEntity } from './character.entity';
 import type { FactionEntity } from './faction.entity';
 import type { SpeciesEntity } from './species.entity';

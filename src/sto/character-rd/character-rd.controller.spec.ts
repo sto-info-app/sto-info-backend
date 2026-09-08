@@ -1,8 +1,10 @@
-import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
-import { UpdateCharacterRdProgressDto } from './dto/update-character-rd-progress.dto';
+
+import { jest } from '@jest/globals';
+
 import { CharacterRdController } from './character-rd.controller';
 import { CharacterRdService } from './character-rd.service';
+import { UpdateCharacterRdProgressDto } from './dto/update-character-rd-progress.dto';
 
 describe('CharacterRdController', () => {
   let controller: CharacterRdController;

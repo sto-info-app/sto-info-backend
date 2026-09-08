@@ -1,6 +1,8 @@
-import { jest } from '@jest/globals';
 import { UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+
+import { jest } from '@jest/globals';
+
 import { AuthService } from './auth.service';
 import { LocalStrategy } from './local.strategy';
 

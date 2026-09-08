@@ -1,5 +1,5 @@
-import { RegistrySort } from '../enums/registry-sort.enum';
 import { validateDto } from '../../utils/testing/dto-validation.util';
+import { RegistrySort } from '../enums/registry-sort.enum';
 import { RegistryQueryDto } from './registry-query.dto';
 
 describe('RegistryQueryDto Validation', () => {

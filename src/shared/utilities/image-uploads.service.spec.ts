@@ -1,9 +1,11 @@
-import { S3Client } from '@aws-sdk/client-s3';
-import { jest } from '@jest/globals';
 import { BadRequestException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
+
+import { S3Client } from '@aws-sdk/client-s3';
+import { jest } from '@jest/globals';
 import axios from 'axios';
+
 import { SecretsService } from '../secrets/secrets.service';
 import { ImageUploadsService } from './image-uploads.service';
 

@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+
 import {
   Column,
   CreateDateColumn,
@@ -10,6 +11,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+
 import { UserEntity } from '../../user/entities/user.entity';
 import { FriendshipStatus } from '../enums/friendship-status.enum';
 

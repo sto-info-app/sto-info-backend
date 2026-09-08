@@ -1,5 +1,5 @@
-import { BannerEntity } from './banner.entity';
 import { NotificationSeverity } from '../enums/notification-severity.enum';
+import { BannerEntity } from './banner.entity';
 
 describe('BannerEntity', () => {
   it('stores assigned banner fields', () => {

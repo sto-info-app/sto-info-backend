@@ -1,4 +1,3 @@
-import { jest } from '@jest/globals';
 import {
   BadRequestException,
   ConflictException,
@@ -9,8 +8,12 @@ import {
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
+
+import { jest } from '@jest/globals';
 import { Repository } from 'typeorm';
+
+import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
+
 import { AccountEntity } from '../account/entities/account.entity';
 import { CharacterService } from './character.service';
 import { CharacterClassEntity } from './entities/character-class.entity';

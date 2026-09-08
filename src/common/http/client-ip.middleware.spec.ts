@@ -1,5 +1,6 @@
 import { jest } from '@jest/globals';
 import type { NextFunction, Request, Response } from 'express';
+
 import { clientIpMiddleware } from './client-ip.middleware';
 import * as clientIpUtility from './client-ip.utility';
 

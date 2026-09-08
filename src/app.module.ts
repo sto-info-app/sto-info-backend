@@ -8,11 +8,12 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { MulterModule } from '@nestjs/platform-express';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { SentryModule } from '@sentry/nestjs/setup';
 
+import { SentryModule } from '@sentry/nestjs/setup';
 import { getTypeOrmConfig } from 'config/typeorm.config';
 import { ClsModule } from 'nestjs-cls';
 
+import { AccessControlModule } from './access-control/access-control.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -22,6 +23,7 @@ import { CommunityModule } from './community/community.module';
 import { ConfigCheckService } from './config-check/config-check.service';
 import { ContactModule } from './contact/contact.module';
 import { CronModule } from './cron/cron.module';
+import { CustomTrackingModule } from './custom-tracking/custom-tracking.module';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
 import { MailModule } from './mail/mail.module';
@@ -30,20 +32,24 @@ import { ModerationModule } from './moderation/moderation.module';
 import { NewsModule } from './news/news.module';
 import { NotificationModule } from './notification/notification.module';
 import { RegistryModule } from './registry/registry.module';
+import { SettingsModule } from './settings/settings.module';
 import { DEFAULT_MULTER_LIMITS } from './shared/constants/file-upload.constants';
 import { TypeOrmExceptionFilter } from './shared/filters/typeorm-exception.filter';
 import { SharedModule } from './shared/shared.module';
 import { ValidatorsService } from './shared/utilities/validators.service';
 import { AccountModule } from './sto/account/account.module';
+import { CharacterAdmiraltyModule } from './sto/character-admiralty/character-admiralty.module';
+import { CharacterCommendationModule } from './sto/character-commendation/character-commendation.module';
+import { CharacterRdModule } from './sto/character-rd/character-rd.module';
+import { CharacterReputationModule } from './sto/character-reputation/character-reputation.module';
+import { CharacterSpecializationModule } from './sto/character-specialization/character-specialization.module';
 import { CharacterModule } from './sto/character/character.module';
 import { EndeavourModule } from './sto/endeavour/endeavour.module';
 import { LauncherModule } from './sto/launcher/launcher.module';
-import { CharacterReputationModule } from './sto/character-reputation/character-reputation.module';
-import { CharacterRdModule } from './sto/character-rd/character-rd.module';
-import { CharacterSpecializationModule } from './sto/character-specialization/character-specialization.module';
-import { StatsModule } from './sto/stats/stats.module';
 import { PlatformLauncherModule } from './sto/platform-launcher/platform-launcher.module';
 import { PlatformModule } from './sto/platform/platform.module';
+import { StatsModule } from './sto/stats/stats.module';
+import { StorytimeModule } from './storytime/storytime.module';
 import { UserRefreshTokenModule } from './user-refresh-token/user-refresh-token.module';
 import { UserModule } from './user/user.module';
 import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
@@ -87,6 +93,10 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
       global: true,
       middleware: { mount: true },
     }),
+    SettingsModule,
+    AccessControlModule,
+    StorytimeModule,
+    CustomTrackingModule,
     UserModule,
     AuthModule,
     MailModule,
@@ -95,6 +105,8 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     ContactModule,
     AccountModule,
     CharacterModule,
+    CharacterAdmiraltyModule,
+    CharacterCommendationModule,
     EndeavourModule,
     CharacterReputationModule,
     CharacterRdModule,

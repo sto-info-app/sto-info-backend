@@ -5,8 +5,10 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+
 import { OptionalJwtAuthGuard } from 'src/auth/optional-jwt-auth.guard';
 import { OptionalUserId } from 'src/auth/user-id.decorator';
+
 import { NotificationService } from './notification.service';
 
 @ApiTags('App State')

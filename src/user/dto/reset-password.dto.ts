@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
+
 import { IsNotEmpty } from 'class-validator';
+
 import { HEX_TOKEN_PATTERN } from 'src/shared/constants/regex-patterns.constants';
 
 export class ResetPasswordDto {

@@ -1,8 +1,11 @@
-import { jest } from '@jest/globals';
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
+import { jest } from '@jest/globals';
+
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
+
 import { BlockService } from '../community/block.service';
 import { RelationshipDto } from '../community/dto/friendship.dto';
 import { RelationshipStatus } from '../community/enums/relationship-status.enum';
@@ -11,6 +14,12 @@ import {
   PublicMemberService,
   PublicMemberStats,
 } from '../community/public-member.service';
+import { CustomTrackingTargetScope } from '../custom-tracking/enums/custom-tracking-target-scope.enum';
+import { CustomTrackingPublicMapper } from '../custom-tracking/public/custom-tracking-public.mapper';
+import {
+  CustomTrackingPublicSection,
+  CustomTrackingPublicService,
+} from '../custom-tracking/public/custom-tracking-public.service';
 import { AccountEntity } from '../sto/account/entities/account.entity';
 import { CharacterEntity } from '../sto/character/entities/character.entity';
 import { PlatformLauncherEntity } from '../sto/platform-launcher/entities/platform-launcher.entity';
@@ -206,6 +215,9 @@ describe('RegistryService', () => {
     getRelationship: jest.Mock<() => Promise<RelationshipDto>>;
     getRelationships: jest.Mock<() => Promise<Map<string, RelationshipDto>>>;
   };
+  let customTrackingService: {
+    project: jest.Mock<() => Promise<CustomTrackingPublicSection[]>>;
+  };
   const originalImagesHash = process.env.CLOUDFLARE_IMAGES_HASH;
 
   beforeEach(async () => {
@@ -247,6 +259,12 @@ describe('RegistryService', () => {
       ),
     };
 
+    customTrackingService = {
+      project: jest.fn(() =>
+        Promise.resolve([] as CustomTrackingPublicSection[]),
+      ),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RegistryService,
@@ -269,6 +287,11 @@ describe('RegistryService', () => {
         { provide: PublicMemberService, useValue: publicMemberService },
         { provide: BlockService, useValue: blockService },
         { provide: FriendshipService, useValue: friendshipService },
+        {
+          provide: CustomTrackingPublicService,
+          useValue: customTrackingService,
+        },
+        CustomTrackingPublicMapper,
       ],
     }).compile();
 
@@ -883,6 +906,86 @@ describe('RegistryService', () => {
 
       expect(result.species?.iconUrl).toBeNull();
       expect(result.rank?.iconUrl).toBeNull();
+    });
+  });
+
+  describe('custom tracking on a detail page', () => {
+    const aSection = (): CustomTrackingPublicSection =>
+      ({
+        section: {
+          id: 'section-1',
+          name: 'Fleet duties',
+          description: null,
+        },
+        tabs: [
+          {
+            tab: { id: 'tab-1', name: 'Provisioning', description: null },
+            fields: [
+              {
+                field: {
+                  id: 'field-1',
+                  fieldType: 'TEXT_SINGLE_LINE',
+                  name: 'Ship name',
+                  description: null,
+                  configuration: {},
+                  publicEmptyMode: 'HIDE',
+                  emptyPlaceholder: null,
+                },
+                chosen: [],
+                answer: {
+                  fieldId: 'field-1',
+                  fragment: { text: 'Bellerophon' },
+                  optionIds: [],
+                  image: null,
+                },
+              },
+            ],
+          },
+        ],
+      }) as unknown as CustomTrackingPublicSection;
+
+    beforeEach(() => {
+      profileQb.getOne.mockResolvedValue(buildProfile());
+      accountQb.getOne.mockResolvedValue(buildAccount());
+      characterQb.getOne.mockResolvedValue(buildCharacter());
+    });
+
+    it('carries the permitted sections on an account', async () => {
+      customTrackingService.project.mockResolvedValue([aSection()]);
+
+      const result = await service.findAccount('captain.picard', 'SteveX~1234');
+
+      expect(customTrackingService.project).toHaveBeenCalledWith(
+        CustomTrackingTargetScope.ACCOUNT,
+        'account-1',
+      );
+      expect(result.customSections[0].tabs[0].fields[0].value).toEqual({
+        text: 'Bellerophon',
+      });
+    });
+
+    it('carries the permitted sections on a captain', async () => {
+      customTrackingService.project.mockResolvedValue([aSection()]);
+
+      const result = await service.findCharacter(
+        'captain.picard',
+        'SteveX~1234',
+        'Rex',
+      );
+
+      expect(customTrackingService.project).toHaveBeenCalledWith(
+        CustomTrackingTargetScope.CHARACTER,
+        'character-1',
+      );
+      expect(result.customSections).toHaveLength(1);
+    });
+
+    // A member who has published nothing and one who has published something
+    // and kept it private have to look identical from out here.
+    it('says nothing where the projection permits nothing', async () => {
+      const result = await service.findAccount('captain.picard', 'SteveX~1234');
+
+      expect(result.customSections).toEqual([]);
     });
   });
 

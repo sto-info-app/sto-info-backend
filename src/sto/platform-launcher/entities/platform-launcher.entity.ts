@@ -1,6 +1,4 @@
 import { IsOptional, IsString, IsUUID } from 'class-validator';
-import { LauncherEntity } from 'src/sto/launcher/entities/launcher.entity';
-import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
 import {
   Column,
   CreateDateColumn,
@@ -11,6 +9,9 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+
+import { LauncherEntity } from 'src/sto/launcher/entities/launcher.entity';
+import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
 
 @Entity({ name: 'platform_launcher' })
 export class PlatformLauncherEntity {

@@ -1,6 +1,8 @@
-import { jest } from '@jest/globals';
 import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+
+import { jest } from '@jest/globals';
+
 import { SecretsService } from './secrets.service';
 
 const mockSend = jest.fn<(...args: any[]) => Promise<any>>();

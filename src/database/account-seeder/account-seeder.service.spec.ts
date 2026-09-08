@@ -1,9 +1,12 @@
-import { jest } from '@jest/globals';
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+
+import { jest } from '@jest/globals';
+
 import { LauncherService } from 'src/sto/launcher/launcher.service';
 import { PlatformLauncherService } from 'src/sto/platform-launcher/platform-launcher.service';
 import { PlatformService } from 'src/sto/platform/platform.service';
+
 import { AccountSeederService } from './account-seeder.service';
 
 describe('AccountSeederService', () => {

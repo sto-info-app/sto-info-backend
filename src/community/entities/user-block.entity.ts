@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+
 import {
   Column,
   CreateDateColumn,
@@ -9,6 +10,7 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+
 import { UserEntity } from '../../user/entities/user.entity';
 
 /**

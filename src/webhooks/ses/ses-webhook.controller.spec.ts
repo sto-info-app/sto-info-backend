@@ -1,6 +1,8 @@
-import { jest } from '@jest/globals';
 import { ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+
+import { jest } from '@jest/globals';
+
 import { SnsEnvelope } from './dto/sns-notification.interfaces';
 import { SesWebhookController } from './ses-webhook.controller';
 import { SesWebhookService } from './ses-webhook.service';

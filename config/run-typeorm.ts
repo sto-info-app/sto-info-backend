@@ -1,8 +1,12 @@
-import { Logger } from '@nestjs/common';
-import { config as dotenvConfig } from 'dotenv';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
+
+import { Logger } from '@nestjs/common';
+
+import { config as dotenvConfig } from 'dotenv';
+
 import 'tsconfig-paths/register';
+
 import { connectionSourcePromise } from './typeorm.datasource';
 
 const execAsync = promisify(exec);

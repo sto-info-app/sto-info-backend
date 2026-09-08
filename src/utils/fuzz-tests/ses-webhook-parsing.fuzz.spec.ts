@@ -1,7 +1,9 @@
-import { jest } from '@jest/globals';
 import { ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+
+import { jest } from '@jest/globals';
 import * as fc from 'fast-check';
+
 import { SesWebhookController } from '../../webhooks/ses/ses-webhook.controller';
 import { SesWebhookService } from '../../webhooks/ses/ses-webhook.service';
 

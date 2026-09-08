@@ -6,7 +6,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+
 import { Repository } from 'typeorm';
+
 import { UserRefreshTokenService } from '../user-refresh-token/user-refresh-token.service';
 import { UserEntity } from '../user/entities/user.entity';
 import { UserRole } from '../user/enums/user-role.enum';

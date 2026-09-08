@@ -6,10 +6,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+
 import { IsNull, Repository, SelectQueryBuilder } from 'typeorm';
+
 import { NotificationSeverity } from '../notification/enums/notification-severity.enum';
 import { NotificationTarget } from '../notification/enums/notification-target.enum';
 import { NotificationService } from '../notification/notification.service';
+import { escapeSqlLikeTerm } from '../shared/utilities/sql-like.utility';
 import { UserProfileEntity } from '../user/entities/user-profile.entity';
 import { BlockService } from './block.service';
 import { CreateFriendRequestDto } from './dto/create-friend-request.dto';
@@ -26,7 +29,6 @@ import { FriendRequestDirection } from './enums/friend-request-direction.enum';
 import { FriendshipStatus } from './enums/friendship-status.enum';
 import { RelationshipStatus } from './enums/relationship-status.enum';
 import { PublicMemberService } from './public-member.service';
-import { escapeSqlLikeTerm } from '../shared/utilities/sql-like.utility';
 
 const DEFAULT_PAGE_SIZE = 12;
 const MAX_PAGE_SIZE = 50;

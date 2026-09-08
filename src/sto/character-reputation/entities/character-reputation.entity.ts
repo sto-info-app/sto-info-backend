@@ -1,6 +1,8 @@
 import { IsOptional, IsString } from 'class-validator';
-import { CatalogItemEntity } from 'src/sto/shared/entities/catalog-item.entity';
 import { Column, Entity, Index, OneToMany } from 'typeorm';
+
+import { CatalogItemEntity } from 'src/sto/shared/entities/catalog-item.entity';
+
 import { CharacterReputationProgressEntity } from './character-reputation-progress.entity';
 
 /** The maximum reputation tier a character can attain. */

@@ -7,17 +7,19 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+
 import { LessThan, Not, Repository } from 'typeorm';
+
 import {
   generateSlug,
   normalizeHandle,
 } from 'src/shared/utilities/handle.utility';
+
 import { PlatformLauncherEntity } from '../platform-launcher/entities/platform-launcher.entity';
 import {
   buildAccountBackgroundImageLookup,
   resolveAccountTypeImageUrl,
 } from '../shared/account-image.utility';
-
 import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
 import { AccountEntity } from './entities/account.entity';

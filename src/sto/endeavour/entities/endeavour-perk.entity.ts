@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+
 import {
   IsIn,
   IsInt,
@@ -18,6 +19,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+
 import { AccountEndeavourProgressEntity } from './account-endeavour-progress.entity';
 
 @Entity({ name: 'endeavour_perk' })

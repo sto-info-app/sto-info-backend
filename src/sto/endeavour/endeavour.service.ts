@@ -4,8 +4,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { AccountEntity } from 'src/sto/account/entities/account.entity';
+
 import { Repository } from 'typeorm';
+
+import { AccountEntity } from 'src/sto/account/entities/account.entity';
+
 import { EndeavourProgressQueryDto } from './dto/endeavour-progress-query.dto';
 import { UpdateEndeavourProgressDto } from './dto/update-endeavour-progress.dto';
 import { AccountEndeavourProgressEntity } from './entities/account-endeavour-progress.entity';

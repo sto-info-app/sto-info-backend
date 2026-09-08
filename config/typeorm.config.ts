@@ -1,10 +1,12 @@
+import { join } from 'node:path';
+
 import { config as dotenvConfig } from 'dotenv';
 import fg from 'fast-glob';
-import { join } from 'node:path';
+import { DataSourceOptions } from 'typeorm';
+
 import { AuditEntity } from 'src/audit/entities/audit.entity';
 import { AuditSubscriber } from 'src/audit/subscribers/audit.subscriber';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
-import { DataSourceOptions } from 'typeorm';
 
 dotenvConfig({ path: './config/environments/.env' });
 

@@ -1,4 +1,3 @@
-import { jest } from '@jest/globals';
 import {
   BadRequestException,
   ConflictException,
@@ -11,16 +10,19 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
+import { jest } from '@jest/globals';
 import * as bcrypt from 'bcrypt';
-import { AuditEntity } from 'src/audit/entities/audit.entity';
+import { QueryFailedError, Repository } from 'typeorm';
+
 import { AuditLoginAttemptEntity } from 'src/audit/entities/audit-login-attempt.entity';
+import { AuditEntity } from 'src/audit/entities/audit.entity';
 import { MailService } from 'src/mail/mail.service';
 import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
 import { UserRefreshTokenService } from 'src/user-refresh-token/user-refresh-token.service';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
 import { UserService } from 'src/user/user.service';
-import { QueryFailedError, Repository } from 'typeorm';
 
 import { AuthService } from './auth.service';
 
@@ -466,6 +468,14 @@ describe('AuthService', () => {
   });
 
   describe('validateUserFromPayload', () => {
+    it('rejects a disabled account with an existing token', async () => {
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: '1', email: 'e', isAccountDisabled: true });
+      await expect(
+        service.validateUserFromPayload({ sub: '1', email: 'e' }),
+      ).resolves.toBeNull();
+    });
     it('should return user and set context if user exists', async () => {
       const user = { id: 'uuid-123', email: 'test@example.com' };
       const payload = { sub: 'uuid-123', email: 'test@example.com' };
@@ -776,6 +786,31 @@ describe('AuthService', () => {
   });
 
   describe('refreshToken', () => {
+    it('rejects refresh for disabled accounts before issuing tokens', async () => {
+      (jwtService.verify as jest.Mock).mockReturnValue({
+        sub: '1',
+        jti: 'jti',
+        tokenUse: 'refresh',
+      });
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: '1', isAccountDisabled: true });
+      await expect(service.refreshToken('token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(jwtService.sign).not.toHaveBeenCalled();
+    });
+    it('rejects access tokens at the refresh endpoint', async () => {
+      (jwtService.verify as jest.Mock).mockReturnValue({
+        sub: '1',
+        tokenUse: 'access',
+      });
+      await expect(service.refreshToken('token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(userRepository.findOne).not.toHaveBeenCalled();
+      expect(jwtService.sign).not.toHaveBeenCalled();
+    });
     it('should refresh token successfully', async () => {
       const payload = { sub: '1', jti: 'jti' };
       (jwtService.verify as jest.Mock).mockReturnValue(payload);
@@ -791,6 +826,13 @@ describe('AuthService', () => {
 
       const result = await service.refreshToken('old-token');
       expect(result.access_token).toBe('new-token');
+      expect(jwtService.sign).toHaveBeenCalledWith(
+        expect.objectContaining({ tokenUse: 'access' }),
+      );
+      expect(jwtService.sign).toHaveBeenCalledWith(
+        expect.objectContaining({ tokenUse: 'refresh' }),
+        expect.objectContaining({ jwtid: expect.any(String) }),
+      );
     });
 
     it('should handle non-Error thrown values during refreshToken validation', async () => {
@@ -893,11 +935,44 @@ describe('AuthService', () => {
       const d = service.generateTokenExpiryDate();
       expect(d.getTime()).toBeGreaterThan(Date.now());
     });
+  });
 
-    it('calculateExpiryTime should return correct date', () => {
-      const now = new Date();
-      const exp = service.calculateExpiryTime(1);
-      expect(exp.getHours()).toBe((now.getHours() + 1) % 24);
+  describe('session lifetimes', () => {
+    const originalAccessExpiry = process.env.AUTH_TOKEN_EXPIRES_IN;
+    const originalRefreshExpiry = process.env.AUTH_REFRESH_TOKEN_EXPIRES_IN;
+
+    afterEach(() => {
+      process.env.AUTH_TOKEN_EXPIRES_IN = originalAccessExpiry;
+      process.env.AUTH_REFRESH_TOKEN_EXPIRES_IN = originalRefreshExpiry;
+    });
+
+    it('getAccessTokenExpirySeconds should read the environment', () => {
+      process.env.AUTH_TOKEN_EXPIRES_IN = '900';
+      expect(service.getAccessTokenExpirySeconds()).toBe(900);
+    });
+
+    it('getAccessTokenExpirySeconds should default to an hour', () => {
+      delete process.env.AUTH_TOKEN_EXPIRES_IN;
+      expect(service.getAccessTokenExpirySeconds()).toBe(3600);
+    });
+
+    it('getSessionTimeoutMinutes should use the profile choice', () => {
+      expect(
+        service.getSessionTimeoutMinutes({
+          profile: { sessionTimeoutMinutes: 60 },
+        } as any),
+      ).toBe(60);
+    });
+
+    it('getSessionTimeoutMinutes should fall back without a profile', () => {
+      process.env.AUTH_REFRESH_TOKEN_EXPIRES_IN = '14400';
+      expect(service.getSessionTimeoutMinutes({} as any)).toBe(240);
+    });
+
+    it('getRefreshTokenLifetimeSeconds should add one access lifetime of grace', () => {
+      process.env.AUTH_TOKEN_EXPIRES_IN = '3600';
+      expect(service.getRefreshTokenLifetimeSeconds(60)).toBe(60 * 60 + 3600);
+      expect(service.getRefreshTokenLifetimeSeconds(480)).toBe(480 * 60 + 3600);
     });
   });
 

@@ -3,6 +3,24 @@ export default {
   packageManager: 'npm',
   reporters: ['html', 'clear-text', 'progress'],
   testRunner: 'jest',
+  // Jest retains full AggregatedResult data (titles, assertion messages,
+  // mock call data) for every test it has ever run, for the lifetime of the
+  // process, so a test runner worker's heap only ever grows. Measured
+  // locally: a worker went from 111MB to 2.8GB over 18 mutant runs, roughly
+  // 150MB per run with no plateau.
+  //
+  // The dry run of a full mutate set (~9k mutants) has to load every
+  // instrumented file in one Jest process. That is heavier than uninstrumented
+  // `test:cov`, which already needs 8GB. Previous caps of 3072/4096 were at or
+  // below Node's ~4.3GB default on a 16GB GitHub runner and OOM'd the dry run
+  // before maxTestRunnerReuse could help. 8192 is a ceiling, not a reservation:
+  // incremental runs stay small, and maxTestRunnerReuse below keeps mutant-
+  // testing workers near ~1.5GB. The full CI workflow also passes
+  // --concurrency 2 so only one runner holds the instrumented tree.
+  testRunnerNodeArgs: [
+    '--experimental-vm-modules',
+    '--max-old-space-size=8192',
+  ],
   jest: {
     projectType: 'custom',
     configFile: 'jest.config.mjs',
@@ -35,7 +53,31 @@ export default {
   ],
   checkers: ['typescript'],
   coverageAnalysis: 'perTest',
-  concurrency: 2,
+  // With a checker configured Stryker splits this budget: ceil(n / 2)
+  // checker processes and floor(n / 2) test runners, handing the checker
+  // tokens back as extra test runners once type checking finishes. At the
+  // previous value of 2 that meant a single test runner for the whole
+  // checking phase, leaving half of a 4-vCPU runner idle. 4 matches the
+  // vCPU count of a GitHub-hosted ubuntu-latest runner.
+  concurrency: 4,
+  // Static mutants force a full reload + full test run per mutant. Stryker
+  // measured these at 1% of mutants but 72% of run time on this project.
+  ignoreStatic: true,
+  // Recycle the worker before the growth described in testRunnerNodeArgs
+  // above can reach the heap ceiling. At ~150MB per mutant run a worker
+  // hits ~4GB somewhere around run 25, which is why the previous ceiling of
+  // 25 never won the race — the process died at almost exactly the point it
+  // was due to be recycled. 8 keeps the peak near 1.5GB.
+  maxTestRunnerReuse: 8,
+  // Stryker allows a mutant timeoutMS + timeoutFactor * netTime before calling
+  // it timed out, and the 5000ms default is not enough to boot this project's
+  // Nest testing modules. character-ownership.service.ts is 59 lines with no
+  // loop and no recursion, so none of its mutants can hang, yet all 11 of them
+  // were being recorded as timeouts. Because Stryker scores a timeout as a
+  // kill, the file reported a perfect 100% off zero actual kills. At 30000ms
+  // the same file returns 7 killed, 3 timed out and 1 survived: a real gap the
+  // spurious timeouts had been hiding.
+  timeoutMS: 30000,
   thresholds: {
     high: 80,
     low: 60,

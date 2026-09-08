@@ -1,12 +1,13 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
+
 import { instanceToPlain } from 'class-transformer';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { ensureError } from 'src/shared/utilities/error.utility';
 
 import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
+import { ensureError } from 'src/shared/utilities/error.utility';
 
 import { AuthService } from './auth.service';
 import { JwtPayloadInterface } from './entities/jwt-payload.entity';
@@ -28,6 +29,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
+      algorithms: ['HS256'],
       secretOrKeyProvider: (_request, _rawJwtToken, done) => {
         const secretName = this._configService.get<string>('AWS_SECRET_NAME')!;
         this._secretsService
@@ -51,6 +53,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
    * @returns The user object if the payload is valid.
    */
   async validate(payload: JwtPayloadInterface) {
+    if (payload.tokenUse !== 'access') {
+      throw new UnauthorizedException('Invalid access token');
+    }
+
     const user = await this._authService.validateUserFromPayload(payload);
     if (!user) {
       throw new UnauthorizedException();

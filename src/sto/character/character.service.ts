@@ -8,6 +8,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+
+import { Not, Repository } from 'typeorm';
+
 import { isValidCloudflareImageUrl } from 'src/shared/constants/image.constants';
 import { stringifyError } from 'src/shared/utilities/error.utility';
 import {
@@ -16,7 +19,6 @@ import {
 } from 'src/shared/utilities/handle.utility';
 import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
 
-import { Not, Repository } from 'typeorm';
 import { AccountEntity } from '../account/entities/account.entity';
 import { CreateCharacterDto } from './dto/create-character.dto';
 import { UpdateCharacterDto } from './dto/update-character.dto';

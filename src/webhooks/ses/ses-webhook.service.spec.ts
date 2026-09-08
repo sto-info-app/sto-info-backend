@@ -1,11 +1,14 @@
-import { jest } from '@jest/globals';
+import { createHmac } from 'node:crypto';
+import { EventEmitter } from 'node:events';
+import * as https from 'node:https';
+
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { createHmac } from 'node:crypto';
-import { EventEmitter } from 'node:events';
-import * as https from 'node:https';
+
+import { jest } from '@jest/globals';
+
 import { SecretsService } from '../../shared/secrets/secrets.service';
 import {
   SesNotification,

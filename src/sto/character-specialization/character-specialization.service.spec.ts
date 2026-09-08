@@ -1,4 +1,3 @@
-import { jest } from '@jest/globals';
 import {
   BadRequestException,
   ForbiddenException,
@@ -6,9 +5,13 @@ import {
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
+import { jest } from '@jest/globals';
+import { Not } from 'typeorm';
+
 import { CharacterOwnershipService } from 'src/sto/character/character-ownership.service';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
-import { Not } from 'typeorm';
+
 import { CharacterSpecializationService } from './character-specialization.service';
 import { UpdateCharacterSpecializationProgressDto } from './dto/update-character-specialization-progress.dto';
 import { CharacterSpecializationProgressEntity } from './entities/character-specialization-progress.entity';

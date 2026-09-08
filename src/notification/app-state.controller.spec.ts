@@ -1,5 +1,7 @@
-import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
+
+import { jest } from '@jest/globals';
+
 import { AppStateController } from './app-state.controller';
 import { NotificationService } from './notification.service';
 

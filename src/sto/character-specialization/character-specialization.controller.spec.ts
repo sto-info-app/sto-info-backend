@@ -1,5 +1,7 @@
-import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
+
+import { jest } from '@jest/globals';
+
 import { CharacterSpecializationController } from './character-specialization.controller';
 import { CharacterSpecializationService } from './character-specialization.service';
 import { UpdateCharacterSpecializationProgressDto } from './dto/update-character-specialization-progress.dto';

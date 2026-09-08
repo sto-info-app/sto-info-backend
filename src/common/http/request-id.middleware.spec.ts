@@ -1,13 +1,15 @@
+import { randomUUID } from 'node:crypto';
+
 import { jest } from '@jest/globals';
 import * as Sentry from '@sentry/nestjs';
-import { randomUUID } from 'crypto';
 import type { NextFunction, Response } from 'express';
+
 import {
   RequestIdMiddleware,
   type RequestWithId,
 } from './request-id.middleware';
 
-jest.mock('crypto', () => ({
+jest.mock('node:crypto', () => ({
   randomUUID: jest.fn(),
 }));
 

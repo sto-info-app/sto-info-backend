@@ -4,7 +4,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+
 import { Repository } from 'typeorm';
+
 import { CharacterEntity } from './entities/character.entity';
 
 /**
@@ -37,7 +39,9 @@ export class CharacterOwnershipService {
   ): Promise<CharacterEntity> {
     const character = await this._characterRepository.findOne({
       where: { id: characterId },
-      relations: { account: true },
+      // The general faction comes back alongside the account because trackers
+      // that vary by allegiance (commendations) filter their catalogue on it.
+      relations: { account: true, generalFaction: true },
     });
 
     if (!character) {

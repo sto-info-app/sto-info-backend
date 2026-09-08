@@ -7,6 +7,7 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+
 import type { CharacterRankEntity } from './character-rank.entity';
 import { CharacterEntity } from './character.entity';
 import type { GeneralFactionEntity } from './general-faction.entity';

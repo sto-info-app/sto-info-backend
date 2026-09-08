@@ -1,4 +1,3 @@
-import { jest } from '@jest/globals';
 import {
   BadRequestException,
   ConflictException,
@@ -8,7 +7,10 @@ import {
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
+import { jest } from '@jest/globals';
 import { Repository } from 'typeorm';
+
 import { PlatformLauncherEntity } from '../platform-launcher/entities/platform-launcher.entity';
 import { AccountService } from './account.service';
 import { AccountEntity } from './entities/account.entity';

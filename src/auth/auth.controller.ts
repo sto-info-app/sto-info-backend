@@ -24,7 +24,9 @@ import {
   ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+
 import type { Request } from 'express';
+
 import { UserRefreshTokenDto } from 'src/user-refresh-token/dto/user-refresh-token.dto';
 import { UserRefreshTokenService } from 'src/user-refresh-token/user-refresh-token.service';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
@@ -33,6 +35,7 @@ import { ResendVerificationEmailDto } from 'src/user/dto/resend-verification-ema
 import { ResetPasswordDto } from 'src/user/dto/reset-password.dto';
 import { UserLoginDto } from 'src/user/dto/user-login.dto';
 import { VerifyEmailDto } from 'src/user/dto/verify-email.dto';
+
 import { AuthService } from './auth.service';
 import {
   AuthLoginResultDto,

@@ -1,11 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+
+import { LessThan, Repository } from 'typeorm';
+
 import { CLOSED_ACCOUNT_RETENTION_DAYS } from 'src/cron/constants/cron.constants';
+import { CustomTrackingPurgeService } from 'src/custom-tracking/retention/custom-tracking-purge.service';
+import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
-import { AccountEntity } from 'src/sto/account/entities/account.entity';
-import { LessThan, Repository } from 'typeorm';
 
 @Injectable()
 export class UserAccountCleanupService {
@@ -18,6 +21,8 @@ export class UserAccountCleanupService {
    * @param _userProfileRepository - User profile repository.
    * @param _userRefreshTokenRepository - User refresh token repository.
    * @param _accountRepository - Account repository.
+   * @param _customTracking - Removes their Custom Tracking data, including the
+   *   pictures a database cascade cannot reach.
    */
   constructor(
     @InjectRepository(UserEntity)
@@ -31,6 +36,8 @@ export class UserAccountCleanupService {
 
     @InjectRepository(AccountEntity)
     private readonly _accountRepository: Repository<AccountEntity>,
+
+    private readonly _customTracking: CustomTrackingPurgeService,
   ) {}
 
   /**
@@ -57,6 +64,19 @@ export class UserAccountCleanupService {
     }
 
     const userIds = usersToDelete.map(user => user.id);
+
+    // Custom Tracking first. Its foreign keys would take the rows with the
+    // user, but the pictures those rows point at live in Cloudflare, and a
+    // cascade has no way to queue them for deletion. Doing it here, before the
+    // references disappear, is what stops a closed account leaving images
+    // behind that nothing will ever look for again.
+    const purged = await this._customTracking.purgeUsers(userIds);
+
+    this._logger.log(
+      `Removed custom tracking data for ${userIds.length} closed account(s): ` +
+        `${purged.sections} section(s), ${purged.fields} field(s), ` +
+        `${purged.values} value(s), ${purged.images} image(s) queued.`,
+    );
 
     // Purge dependent records with non-cascading FKs first.
     await this._userRefreshTokenRepository

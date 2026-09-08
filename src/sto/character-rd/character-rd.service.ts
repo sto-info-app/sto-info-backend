@@ -1,7 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { CharacterOwnershipService } from 'src/sto/character/character-ownership.service';
+
 import { Repository } from 'typeorm';
+
+import { CharacterOwnershipService } from 'src/sto/character/character-ownership.service';
+
 import { UpdateCharacterRdProgressDto } from './dto/update-character-rd-progress.dto';
 import { CharacterRdProgressEntity } from './entities/character-rd-progress.entity';
 import {

@@ -1,14 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
 import {
   IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
-  IsUUID,
   IsUrl,
+  IsUUID,
   MaxLength,
   ValidateIf,
 } from 'class-validator';
+
 import { NotificationSeverity } from '../enums/notification-severity.enum';
 import { NotificationTarget } from '../enums/notification-target.enum';
 
