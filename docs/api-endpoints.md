@@ -285,6 +285,20 @@ Publishing or unpublishing a Chapter updates its Story's `publishedChapterCount`
 
 `schedule` takes a UTC instant and must be in the future. A job publishes due Chapters every five minutes, so a Chapter goes out within five minutes of its scheduled time. The job does nothing while Storytime is switched off.
 
+### Content
+
+| Method | Path                               | Purpose                                  |
+| ------ | ---------------------------------- | ---------------------------------------- |
+| POST   | `/storytime/manage/content/preview` | Render Storytime Markdown without saving |
+
+Takes `{ contentSource }` and answers `{ html }` — the same HTML the same source would produce on save, because it is the same renderer. Answers `200`, since nothing is created.
+
+Serves every field that takes Storytime Markdown: a Chapter body, a Story or Arc description, a Character biography. The editors show it behind a Preview tab beside the writing.
+
+The client does not render Markdown itself, on purpose. Storytime's renderer demotes headings, anchors every block and drops any link that leaves the site, so a second implementation in the browser would drift and eventually show an author a document their readers never see.
+
+Behind sign-in alone rather than a creator permission, matching Arcs: the four fields are not all behind one permission, and this route reads nothing, writes nothing and returns only the caller's own text. Capped at the Chapter body's length whatever the caller may save, and counted against the general write rate limit — the editors fetch once per switch into Preview and cache the result against the source, so typing costs nothing.
+
 ### PATCH /admin/storytime/configuration
 
 Switch Storytime on or off at runtime. `GET` on the same path reports the current state. Both require the `ADMIN` role.
