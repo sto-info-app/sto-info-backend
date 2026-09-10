@@ -35,6 +35,7 @@ import { CrewCreditDto } from './dto/crew-credit.dto';
 import { InviteCollaboratorDto } from './dto/invite-collaborator.dto';
 import { UpdateCollaboratorDto } from './dto/update-collaborator.dto';
 import { UpdateCrewCreditDto } from './dto/update-crew-credit.dto';
+import { StorytimeCrewCreditEntity } from './entities/storytime-crew-credit.entity';
 import { StorytimeCollaboratorService } from './storytime-collaborator.service';
 import { StorytimeCrewCreditService } from './storytime-crew-credit.service';
 import { StorytimeCrewMapper } from './storytime-crew.mapper';
@@ -249,12 +250,8 @@ export class StorytimeCrewController {
     await this.assertEnabled();
 
     const credit = await this._creditService.create(storyId, dto, userId);
-    const [mapped] = this._mapper.toCreditList(
-      [credit],
-      await this._creditService.findRolesByIds([credit.roleId]),
-    );
 
-    return mapped;
+    return this.mapOne(credit);
   }
 
   /**
@@ -276,12 +273,8 @@ export class StorytimeCrewController {
     await this.assertEnabled();
 
     const credit = await this._creditService.update(creditId, dto, userId);
-    const [mapped] = this._mapper.toCreditList(
-      [credit],
-      await this._creditService.findRolesByIds([credit.roleId]),
-    );
 
-    return mapped;
+    return this.mapOne(credit);
   }
 
   /**
@@ -301,6 +294,24 @@ export class StorytimeCrewController {
     await this.assertEnabled();
 
     await this._creditService.remove(creditId, userId);
+  }
+
+  /**
+   * Maps one credit, with the role and username it needs to read properly.
+   *
+   * @param credit - The credit as the server now holds it.
+   * @returns The credit as the API returns it.
+   */
+  private async mapOne(
+    credit: StorytimeCrewCreditEntity,
+  ): Promise<CrewCreditDto> {
+    const [mapped] = this._mapper.toCreditList(
+      [credit],
+      await this._creditService.findRolesByIds([credit.roleId]),
+      await this._creditService.findUsernamesFor([credit]),
+    );
+
+    return mapped;
   }
 
   /**

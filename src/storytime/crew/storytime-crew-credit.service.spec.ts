@@ -16,6 +16,7 @@ import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
 import { StorytimeCrewCreditEntity } from './entities/storytime-crew-credit.entity';
 import { StorytimeCrewRoleEntity } from './entities/storytime-crew-role.entity';
+import { StorytimeCreditableMemberService } from './storytime-creditable-member.service';
 import { StorytimeCrewCreditService } from './storytime-crew-credit.service';
 
 describe('StorytimeCrewCreditService', () => {
@@ -32,6 +33,10 @@ describe('StorytimeCrewCreditService', () => {
   let chapterRepository: { findOne: jest.Mock };
   let characterRepository: { findOne: jest.Mock };
   let storyService: { findEditableOrFail: jest.Mock };
+  let memberService: {
+    requireUserId: jest.Mock;
+    findUsernames: jest.Mock;
+  };
 
   const ownerId = 'e6d3a1b2-0000-4000-8000-000000000001';
   const memberId = 'e6d3a1b2-0000-4000-8000-000000000002';
@@ -40,6 +45,7 @@ describe('StorytimeCrewCreditService', () => {
   const chapterId = 'e6d3a1b2-0000-4000-8000-0000000000bb';
   const characterId = 'e6d3a1b2-0000-4000-8000-0000000000cc';
   const roleId = 'e6d3a1b2-0000-4000-8000-0000000000ee';
+  const username = 'captain.picard';
   const creditId = 'e6d3a1b2-0000-4000-8000-0000000000ff';
 
   /**
@@ -99,6 +105,10 @@ describe('StorytimeCrewCreditService', () => {
     storyService = {
       findEditableOrFail: jest.fn().mockResolvedValue({ id: storyId }),
     };
+    memberService = {
+      requireUserId: jest.fn().mockResolvedValue(memberId),
+      findUsernames: jest.fn().mockResolvedValue(new Map()),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -120,6 +130,10 @@ describe('StorytimeCrewCreditService', () => {
           useValue: characterRepository,
         },
         { provide: StorytimeStoryService, useValue: storyService },
+        {
+          provide: StorytimeCreditableMemberService,
+          useValue: memberService,
+        },
         StorytimeOrderingService,
       ],
     }).compile();
@@ -143,7 +157,7 @@ describe('StorytimeCrewCreditService', () => {
     it('credits them on the Story', async () => {
       const credit = await service.create(
         storyId,
-        { userId: memberId, roleId },
+        { username, roleId },
         ownerId,
       );
 
@@ -155,7 +169,7 @@ describe('StorytimeCrewCreditService', () => {
     // Crediting is public thanks, so it needs the crew capability rather than
     // the far heavier one that hands somebody the Story.
     it('needs permission to manage crew', async () => {
-      await service.create(storyId, { userId: memberId, roleId }, ownerId);
+      await service.create(storyId, { username, roleId }, ownerId);
 
       expect(storyService.findEditableOrFail).toHaveBeenCalledWith(
         storyId,
@@ -170,7 +184,7 @@ describe('StorytimeCrewCreditService', () => {
       );
 
       await expect(
-        service.create(storyId, { userId: memberId, roleId }, ownerId),
+        service.create(storyId, { username, roleId }, ownerId),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -181,7 +195,7 @@ describe('StorytimeCrewCreditService', () => {
 
       const credit = await service.create(
         storyId,
-        { userId: memberId, roleId },
+        { username, roleId },
         ownerId,
       );
 
@@ -192,7 +206,7 @@ describe('StorytimeCrewCreditService', () => {
       roleRepository.count.mockResolvedValue(0);
 
       await expect(
-        service.create(storyId, { userId: memberId, roleId }, ownerId),
+        service.create(storyId, { username, roleId }, ownerId),
       ).rejects.toThrow(/role does not exist/);
     });
 
@@ -202,7 +216,7 @@ describe('StorytimeCrewCreditService', () => {
       creditRepository.count.mockResolvedValue(1);
 
       await expect(
-        service.create(storyId, { userId: memberId, roleId }, ownerId),
+        service.create(storyId, { username, roleId }, ownerId),
       ).rejects.toThrow(/already credited/);
     });
   });
@@ -211,7 +225,7 @@ describe('StorytimeCrewCreditService', () => {
     it('credits the whole Story when nothing else is named', async () => {
       const credit = await service.create(
         storyId,
-        { userId: memberId, roleId },
+        { username, roleId },
         ownerId,
       );
 
@@ -223,7 +237,7 @@ describe('StorytimeCrewCreditService', () => {
     it('credits a Chapter when one is named', async () => {
       const credit = await service.create(
         storyId,
-        { userId: memberId, roleId, chapterId },
+        { username, roleId, chapterId },
         ownerId,
       );
 
@@ -233,7 +247,7 @@ describe('StorytimeCrewCreditService', () => {
     it('credits a Character when one is named', async () => {
       const credit = await service.create(
         storyId,
-        { userId: memberId, roleId, characterId },
+        { username, roleId, characterId },
         ownerId,
       );
 
@@ -244,7 +258,7 @@ describe('StorytimeCrewCreditService', () => {
     it('credits a Character within a Chapter', async () => {
       const credit = await service.create(
         storyId,
-        { userId: memberId, roleId, chapterId, characterId },
+        { username, roleId, chapterId, characterId },
         ownerId,
       );
 
@@ -263,11 +277,7 @@ describe('StorytimeCrewCreditService', () => {
       );
 
       await expect(
-        service.create(
-          storyId,
-          { userId: memberId, roleId, chapterId },
-          ownerId,
-        ),
+        service.create(storyId, { username, roleId, chapterId }, ownerId),
       ).rejects.toThrow(/Chapter does not belong/);
     });
 
@@ -275,11 +285,7 @@ describe('StorytimeCrewCreditService', () => {
       chapterRepository.findOne.mockResolvedValue(null);
 
       await expect(
-        service.create(
-          storyId,
-          { userId: memberId, roleId, chapterId },
-          ownerId,
-        ),
+        service.create(storyId, { username, roleId, chapterId }, ownerId),
       ).rejects.toThrow(/Chapter does not belong/);
     });
 
@@ -292,11 +298,7 @@ describe('StorytimeCrewCreditService', () => {
       );
 
       await expect(
-        service.create(
-          storyId,
-          { userId: memberId, roleId, characterId },
-          ownerId,
-        ),
+        service.create(storyId, { username, roleId, characterId }, ownerId),
       ).rejects.toThrow(/Character does not belong/);
     });
 
@@ -304,11 +306,7 @@ describe('StorytimeCrewCreditService', () => {
       characterRepository.findOne.mockResolvedValue(null);
 
       await expect(
-        service.create(
-          storyId,
-          { userId: memberId, roleId, characterId },
-          ownerId,
-        ),
+        service.create(storyId, { username, roleId, characterId }, ownerId),
       ).rejects.toThrow(/Character does not belong/);
     });
   });
@@ -419,11 +417,46 @@ describe('StorytimeCrewCreditService', () => {
     });
   });
 
+  describe('reading usernames back', () => {
+    it('reads back the usernames a set of credits names', async () => {
+      const names = new Map([[memberId, username]]);
+      memberService.findUsernames.mockResolvedValue(names);
+
+      await expect(service.findUsernamesFor([buildCredit()])).resolves.toBe(
+        names,
+      );
+
+      expect(memberService.findUsernames).toHaveBeenCalledWith([memberId]);
+    });
+  });
+
+  // The name typed into the form is what is wrong, so it is a refusal rather
+  // than a not-found.
+  it('refuses a credit naming somebody who is not a member', async () => {
+    memberService.requireUserId.mockRejectedValue(
+      new BadRequestException("No member is called 'nobody'"),
+    );
+
+    await expect(
+      service.create(storyId, { username: 'nobody', roleId }, ownerId),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(creditRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('stores the member the username resolved to, not the username', async () => {
+    const saved = await service.create(storyId, { username, roleId }, ownerId);
+
+    expect(memberService.requireUserId).toHaveBeenCalledWith(username);
+    expect(saved.userId).toBe(memberId);
+    expect(saved).not.toHaveProperty('username');
+  });
+
   it('refuses a credit whose role check throws', async () => {
     roleRepository.count.mockResolvedValue(0);
 
     await expect(
-      service.create(storyId, { userId: memberId, roleId }, ownerId),
+      service.create(storyId, { username, roleId }, ownerId),
     ).rejects.toThrow(BadRequestException);
   });
 });

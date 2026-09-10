@@ -29,6 +29,7 @@ describe('StorytimeCrewController', () => {
     update: jest.Mock;
     remove: jest.Mock;
     findRolesByIds: jest.Mock;
+    findUsernamesFor: jest.Mock;
   };
   let featureService: { assertFlagEnabled: jest.Mock };
 
@@ -37,6 +38,7 @@ describe('StorytimeCrewController', () => {
   const collaboratorId = 'collaborator-1';
   const creditId = 'credit-1';
   const roleId = 'role-1';
+  const username = 'captain.picard';
 
   const collaborator = Object.assign(new StorytimeStoryCollaboratorEntity(), {
     id: collaboratorId,
@@ -89,6 +91,9 @@ describe('StorytimeCrewController', () => {
       update: jest.fn().mockResolvedValue(credit),
       remove: jest.fn().mockResolvedValue(undefined),
       findRolesByIds: jest.fn().mockResolvedValue([role]),
+      findUsernamesFor: jest
+        .fn()
+        .mockResolvedValue(new Map([['member-1', username]])),
     };
     featureService = {
       assertFlagEnabled: jest.fn().mockResolvedValue(undefined),
@@ -178,7 +183,7 @@ describe('StorytimeCrewController', () => {
     it('adds a credit and returns it with its role', async () => {
       const result = await controller.createCredit(
         storyId,
-        { userId: 'member-1', roleId },
+        { username, roleId },
         userId,
       );
 
@@ -205,6 +210,26 @@ describe('StorytimeCrewController', () => {
       await controller.removeCredit(creditId, userId);
 
       expect(creditService.remove).toHaveBeenCalledWith(creditId, userId);
+    });
+
+    it('names the member a newly added credit is for', async () => {
+      const result = await controller.createCredit(
+        storyId,
+        { username, roleId },
+        userId,
+      );
+
+      expect(result.username).toBe(username);
+    });
+
+    it('names the member a reworded credit is for', async () => {
+      const result = await controller.updateCredit(
+        creditId,
+        { creditLabel: 'Additional dialogue' },
+        userId,
+      );
+
+      expect(result.username).toBe(username);
     });
   });
 
@@ -233,7 +258,7 @@ describe('StorytimeCrewController', () => {
       ['revoke', () => controller.revoke(collaboratorId, userId)],
       [
         'createCredit',
-        () => controller.createCredit(storyId, { userId: 'm', roleId }, userId),
+        () => controller.createCredit(storyId, { username, roleId }, userId),
       ],
       ['updateCredit', () => controller.updateCredit(creditId, {}, userId)],
       ['removeCredit', () => controller.removeCredit(creditId, userId)],

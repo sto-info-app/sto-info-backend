@@ -18,6 +18,7 @@ import { CreateCrewCreditDto } from './dto/create-crew-credit.dto';
 import { UpdateCrewCreditDto } from './dto/update-crew-credit.dto';
 import { StorytimeCrewCreditEntity } from './entities/storytime-crew-credit.entity';
 import { StorytimeCrewRoleEntity } from './entities/storytime-crew-role.entity';
+import { StorytimeCreditableMemberService } from './storytime-creditable-member.service';
 
 /**
  * Who gets credited for what.
@@ -40,6 +41,7 @@ export class StorytimeCrewCreditService {
    * @param _characterRepository - Repository of Characters, to check the Story.
    * @param _storyService - Decides who may manage credits.
    * @param _orderingService - Calculates positions within the credits.
+   * @param _memberService - Resolves the credited member's username.
    */
   constructor(
     @InjectRepository(StorytimeCrewCreditEntity)
@@ -52,6 +54,7 @@ export class StorytimeCrewCreditService {
     private readonly _characterRepository: Repository<StorytimeCharacterEntity>,
     private readonly _storyService: StorytimeStoryService,
     private readonly _orderingService: StorytimeOrderingService,
+    private readonly _memberService: StorytimeCreditableMemberService,
   ) {}
 
   /**
@@ -68,6 +71,20 @@ export class StorytimeCrewCreditService {
       },
       order: { orderIndex: 'ASC' },
     });
+  }
+
+  /**
+   * Reads back the usernames of the members a set of credits names.
+   *
+   * @param credits - The credits.
+   * @returns A map from user identifier to username.
+   */
+  findUsernamesFor(
+    credits: StorytimeCrewCreditEntity[],
+  ): Promise<Map<string, string>> {
+    return this._memberService.findUsernames(
+      credits.map(credit => credit.userId),
+    );
   }
 
   /**
@@ -107,13 +124,27 @@ export class StorytimeCrewCreditService {
 
     await this.assertRoleExists(dto.roleId);
     await this.assertBelongsToStory(storyId, dto.chapterId, dto.characterId);
-    await this.assertNotAlreadyCredited(storyId, dto);
 
+    // Resolved before the duplicate check, because whether this credit already
+    // exists is a question about the member rather than about the name typed.
+    const userId = await this._memberService.requireUserId(dto.username);
+
+    await this.assertNotAlreadyCredited(storyId, userId, dto);
+
+    // Named field by field rather than spread from the request. The username
+    // is how the credit was asked for and not part of what is stored, and
+    // copying it onto the row alongside the member it resolved to would leave
+    // two answers to who is credited.
     const credit = this._creditRepository.create({
-      ...dto,
+      userId,
       storyId,
+      roleId: dto.roleId,
       chapterId: dto.chapterId ?? null,
       characterId: dto.characterId ?? null,
+      creditLabel: dto.creditLabel ?? null,
+      notes: dto.notes ?? null,
+      validFromChapterId: dto.validFromChapterId ?? null,
+      validToChapterId: dto.validToChapterId ?? null,
       orderIndex: await this.nextOrderIndex(storyId),
       createdByUserId: actingUserId,
       updatedByUserId: actingUserId,
@@ -122,7 +153,7 @@ export class StorytimeCrewCreditService {
     const saved = await this._creditRepository.save(credit);
 
     this._logger.log(
-      `Credit added on Story ${storyId} for member ${dto.userId} by ${actingUserId}`,
+      `Credit added on Story ${storyId} for member ${userId} by ${actingUserId}`,
     );
 
     return saved;
@@ -263,17 +294,19 @@ export class StorytimeCrewCreditService {
    * credit twice gets a sentence rather than a constraint violation.
    *
    * @param storyId - The Story.
+   * @param userId - The member the credit is for.
    * @param dto - The credit being added.
    * @throws BadRequestException when the same credit already exists.
    */
   private async assertNotAlreadyCredited(
     storyId: string,
+    userId: string,
     dto: CreateCrewCreditDto,
   ): Promise<void> {
     const existing = await this._creditRepository.count({
       where: {
         storyId,
-        userId: dto.userId,
+        userId,
         roleId: dto.roleId,
         chapterId: dto.chapterId ?? IsNull(),
         characterId: dto.characterId ?? IsNull(),

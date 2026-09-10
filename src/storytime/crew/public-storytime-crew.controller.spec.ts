@@ -14,7 +14,11 @@ import { StorytimeCrewMapper } from './storytime-crew.mapper';
 describe('PublicStorytimeCrewController', () => {
   let controller: PublicStorytimeCrewController;
   let roleRepository: { find: jest.Mock };
-  let creditService: { findByStory: jest.Mock; findRolesByIds: jest.Mock };
+  let creditService: {
+    findByStory: jest.Mock;
+    findRolesByIds: jest.Mock;
+    findUsernamesFor: jest.Mock;
+  };
   let storyService: { findPublicBySlug: jest.Mock };
   let featureService: { assertFlagEnabled: jest.Mock };
 
@@ -43,6 +47,9 @@ describe('PublicStorytimeCrewController', () => {
     creditService = {
       findByStory: jest.fn().mockResolvedValue([credit]),
       findRolesByIds: jest.fn().mockResolvedValue([role]),
+      findUsernamesFor: jest
+        .fn()
+        .mockResolvedValue(new Map([['member-1', 'captain.picard']])),
     };
     storyService = {
       findPublicBySlug: jest.fn().mockResolvedValue(
@@ -98,6 +105,31 @@ describe('PublicStorytimeCrewController', () => {
     const result = await controller.findCredits('a-story');
 
     expect(result).toHaveLength(1);
+    expect(result[0].displayLabel).toBe('Narrator');
+  });
+
+  // A credit that does not say who it is for credits nobody.
+  it('names the member each credit is for', async () => {
+    const result = await controller.findCredits('a-story');
+
+    expect(result[0].username).toBe('captain.picard');
+  });
+
+  // The username is the only identity the rest of the application exposes, and
+  // the credits roll is not the place to start making an exception.
+  it('never answers with a user identifier', async () => {
+    const result = await controller.findCredits('a-story');
+
+    expect(result[0]).not.toHaveProperty('userId');
+  });
+
+  // Somebody who has closed their account is not there to be pointed at.
+  it('leaves a credit unattributed when its member has gone', async () => {
+    creditService.findUsernamesFor.mockResolvedValue(new Map());
+
+    const result = await controller.findCredits('a-story');
+
+    expect(result[0].username).toBeNull();
     expect(result[0].displayLabel).toBe('Narrator');
   });
 
