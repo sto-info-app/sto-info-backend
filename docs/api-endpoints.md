@@ -285,6 +285,43 @@ Publishing or unpublishing a Chapter updates its Story's `publishedChapterCount`
 
 `schedule` takes a UTC instant and must be in the future. A job publishes due Chapters every five minutes, so a Chapter goes out within five minutes of its scheduled time. The job does nothing while Storytime is switched off.
 
+### Crew
+
+Collaboration and credits are deliberately separate throughout. Inviting somebody hands them the ability to change the Story and needs the collaborator capability; crediting somebody is public thanks that confers nothing and needs only the crew one.
+
+| Method | Path                                                       | Purpose                                     |
+| ------ | ---------------------------------------------------------- | ------------------------------------------- |
+| GET    | `/storytime/crew-roles`                                    | List the roles a credit may be given in     |
+| GET    | `/storytime/stories/:storySlug/credits`                    | Read a published Story's credits            |
+| GET    | `/storytime/manage/stories/:storyId/collaborators`         | List who is helping write a Story           |
+| POST   | `/storytime/manage/stories/:storyId/collaborators`         | Invite somebody to help write a Story       |
+| PATCH  | `/storytime/manage/collaborators/:collaboratorId`          | Change what a collaborator may do           |
+| POST   | `/storytime/manage/collaborators/:collaboratorId/accept`   | Accept an invitation                        |
+| POST   | `/storytime/manage/collaborators/:collaboratorId/decline`  | Decline an invitation                       |
+| POST   | `/storytime/manage/collaborators/:collaboratorId/revoke`   | Withdraw an invitation, or step down        |
+| GET    | `/storytime/manage/collaborations/invitations`             | List the invitations waiting on you         |
+| GET    | `/storytime/manage/stories/:storyId/credits`               | List the credits on a Story you manage      |
+| GET    | `/storytime/manage/stories/:storyId/creditable-members`    | Find members you could credit               |
+| POST   | `/storytime/manage/stories/:storyId/credits`               | Credit somebody on a Story                  |
+| PATCH  | `/storytime/manage/credits/:creditId`                      | Reword a credit                             |
+| DELETE | `/storytime/manage/credits/:creditId`                      | Soft-delete a credit                        |
+
+#### Naming the member
+
+A credit says who it is for by **username**, never by user identifier. `POST .../credits` takes `username` and the server resolves it; `creditable-members` and every credit response answer with the username alone. This is the same rule the registry listing keeps — the profile username is the only identity the API exposes — so no client ever has to be told who somebody is beyond the name they already display.
+
+A credit whose member has since closed their account comes back with `username: null`. It survives them unattributed rather than pointing at somebody who is not there, and stays until the creator removes it.
+
+`creditable-members` matches part of a username against members with a public registry record **plus the Story's own collaborators**, whose profiles may be private. Without the second half a private collaborator could not be credited at all, which would make the credits roll least accurate for the people who did the most. With no search term only the Story's crew comes back — listing every public member would be a directory rather than a search.
+
+#### Scope and validity
+
+Which scope a credit is at is derived from what it names rather than stored separately, so the two can never disagree: naming neither a Chapter nor a Character credits the whole Story, naming a Chapter credits that Chapter, and naming a Character credits that Character — optionally within one Chapter. `validFromChapterId` and `validToChapterId` bound the stretch of the Story a credit applies to; an end without a beginning is refused, because a credit that stops applying without ever having started describes nothing.
+
+`PATCH .../credits/:creditId` changes the wording and notes only. Who is credited, in what role, and against what are absent: changing any of them makes it a different credit — one needing its duplicate and permission checks run again — so that is a delete and an add.
+
+Managing credits needs the crew capability on the Story, which the owner always has and a collaborator has only if it was granted. `GET .../manage/stories/:storyId/credits` exists alongside the public roll because that one is read by slug and only for a published Story, which is no use to somebody still assembling the credits on a draft.
+
 ### Content
 
 | Method | Path                               | Purpose                                  |
