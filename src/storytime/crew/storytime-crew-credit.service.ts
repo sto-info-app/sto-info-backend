@@ -15,6 +15,7 @@ import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
 import { CreateCrewCreditDto } from './dto/create-crew-credit.dto';
+import { CreditableMemberDto } from './dto/creditable-member.dto';
 import { UpdateCrewCreditDto } from './dto/update-crew-credit.dto';
 import { StorytimeCrewCreditEntity } from './entities/storytime-crew-credit.entity';
 import { StorytimeCrewRoleEntity } from './entities/storytime-crew-role.entity';
@@ -71,6 +72,54 @@ export class StorytimeCrewCreditService {
       },
       order: { orderIndex: 'ASC' },
     });
+  }
+
+  /**
+   * Lists a Story's credits for whoever manages them.
+   *
+   * Separate from {@link findByStory}, which serves the published credits
+   * roll: this one answers for a Story that may not be published yet, and so
+   * has to establish that the caller is entitled to see it.
+   *
+   * @param storyId - The Story.
+   * @param actingUserId - The caller.
+   * @returns The credits, in credits-roll order.
+   * @throws ForbiddenException when the caller may not manage this Story's crew.
+   */
+  async findByStoryForManager(
+    storyId: string,
+    actingUserId: string,
+  ): Promise<StorytimeCrewCreditEntity[]> {
+    await this._storyService.findEditableOrFail(
+      storyId,
+      actingUserId,
+      StoryCapability.MANAGE_CREW,
+    );
+
+    return this.findByStory(storyId);
+  }
+
+  /**
+   * Finds the members who may be credited on a Story.
+   *
+   * @param storyId - The Story.
+   * @param actingUserId - The caller.
+   * @param search - Part of a username to match, if any.
+   * @returns The members worth offering.
+   * @throws ForbiddenException when the caller may not manage this Story's crew.
+   */
+  async findCreditableMembers(
+    storyId: string,
+    actingUserId: string,
+    search?: string,
+  ): Promise<CreditableMemberDto[]> {
+    await this._storyService.findEditableOrFail(
+      storyId,
+      actingUserId,
+      StoryCapability.MANAGE_CREW,
+    );
+
+    return this._memberService.search(storyId, search);
   }
 
   /**

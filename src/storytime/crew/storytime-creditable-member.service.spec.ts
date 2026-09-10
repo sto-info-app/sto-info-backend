@@ -5,6 +5,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { jest } from '@jest/globals';
 
 import { UserProfileEntity } from '../../user/entities/user-profile.entity';
+import { StorytimeStoryCollaboratorEntity } from './entities/storytime-story-collaborator.entity';
 import { StorytimeCreditableMemberService } from './storytime-creditable-member.service';
 
 /**
@@ -14,6 +15,7 @@ interface MockQueryBuilder {
   innerJoin: jest.Mock;
   where: jest.Mock;
   andWhere: jest.Mock;
+  take: jest.Mock;
   getOne: jest.Mock<() => Promise<unknown>>;
   getMany: jest.Mock<() => Promise<unknown[]>>;
 }
@@ -26,7 +28,7 @@ interface MockQueryBuilder {
 function createQueryBuilderMock(): MockQueryBuilder {
   const queryBuilder = {} as MockQueryBuilder;
 
-  for (const method of ['innerJoin', 'where', 'andWhere'] as const) {
+  for (const method of ['innerJoin', 'where', 'andWhere', 'take'] as const) {
     queryBuilder[method] = jest.fn(() => queryBuilder);
   }
 
@@ -39,8 +41,13 @@ function createQueryBuilderMock(): MockQueryBuilder {
 describe('StorytimeCreditableMemberService', () => {
   let service: StorytimeCreditableMemberService;
   let profileQb: MockQueryBuilder;
+  let collaboratorRepository: {
+    find: jest.Mock<() => Promise<{ userId: string }[]>>;
+  };
 
+  const storyId = 'e6d3a1b2-0000-4000-8000-0000000000aa';
   const memberId = 'e6d3a1b2-0000-4000-8000-000000000002';
+  const otherMemberId = 'e6d3a1b2-0000-4000-8000-000000000003';
 
   /**
    * Builds a profile fixture.
@@ -66,6 +73,7 @@ describe('StorytimeCreditableMemberService', () => {
 
   beforeEach(async () => {
     profileQb = createQueryBuilderMock();
+    collaboratorRepository = { find: jest.fn(() => Promise.resolve([])) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -73,6 +81,10 @@ describe('StorytimeCreditableMemberService', () => {
         {
           provide: getRepositoryToken(UserProfileEntity),
           useValue: { createQueryBuilder: jest.fn(() => profileQb) },
+        },
+        {
+          provide: getRepositoryToken(StorytimeStoryCollaboratorEntity),
+          useValue: collaboratorRepository,
         },
       ],
     }).compile();
@@ -84,6 +96,99 @@ describe('StorytimeCreditableMemberService', () => {
 
   it('is defined', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('searching for somebody to credit', () => {
+    it('matches part of a username, case-insensitively', async () => {
+      profileQb.getMany.mockResolvedValue([profile()]);
+
+      await expect(service.search(storyId, 'pic')).resolves.toEqual([
+        {
+          username: 'captain.picard',
+          profilePicture100: null,
+          isCollaborator: false,
+        },
+      ]);
+
+      expect(conditions()).toContain('LOWER(profile.username) LIKE LOWER');
+      expect(profileQb.andWhere).toHaveBeenCalledWith(expect.any(String), {
+        term: '%pic%',
+      });
+    });
+
+    // A credit says who somebody is, not where to find them. Returning the
+    // user identifier would undo the rule the registry listing states.
+    it('never answers with a user identifier', async () => {
+      profileQb.getMany.mockResolvedValue([profile()]);
+
+      const [found] = await service.search(storyId, 'pic');
+
+      expect(found).not.toHaveProperty('userId');
+    });
+
+    it('leaves out members who are neither public nor on the Story', async () => {
+      await service.search(storyId, 'pic');
+
+      expect(conditions()).toContain('profile.publiclyVisible = true');
+    });
+
+    // Somebody already working on the Story has opted into being known to its
+    // creator, and refusing to credit them because their public profile is off
+    // would make the roll least accurate for the people who did the most.
+    it('finds a private member who is working on the Story', async () => {
+      collaboratorRepository.find.mockResolvedValue([{ userId: memberId }]);
+      profileQb.getMany.mockResolvedValue([profile()]);
+
+      const [found] = await service.search(storyId, 'pic');
+
+      expect(found.isCollaborator).toBe(true);
+      expect(conditions()).toContain(
+        '(profile.publiclyVisible = true OR profile.userId IN (:...collaboratorIds))',
+      );
+    });
+
+    it('puts the Story crew first, then sorts by name', async () => {
+      collaboratorRepository.find.mockResolvedValue([
+        { userId: otherMemberId },
+      ]);
+      profileQb.getMany.mockResolvedValue([
+        profile({ username: 'aardvark' }),
+        profile({ userId: otherMemberId, username: 'zoe' }),
+      ]);
+
+      const found = await service.search(storyId, 'a');
+
+      expect(found.map(member => member.username)).toEqual(['zoe', 'aardvark']);
+    });
+
+    // Two members of equal standing still need a settled order, or the same
+    // search would come back shuffled between one call and the next.
+    it('sorts by name where neither is on the Story', async () => {
+      profileQb.getMany.mockResolvedValue([
+        profile({ username: 'zoe' }),
+        profile({ userId: otherMemberId, username: 'aardvark' }),
+      ]);
+
+      const found = await service.search(storyId, 'a');
+
+      expect(found.map(member => member.username)).toEqual(['aardvark', 'zoe']);
+    });
+
+    // Listing every public member would be a directory rather than a search.
+    it('answers with nothing when there is neither a term nor a crew', async () => {
+      await expect(service.search(storyId)).resolves.toEqual([]);
+      expect(profileQb.getMany).not.toHaveBeenCalled();
+    });
+
+    it('answers with the crew when there is no term', async () => {
+      collaboratorRepository.find.mockResolvedValue([{ userId: memberId }]);
+      profileQb.getMany.mockResolvedValue([profile()]);
+
+      const found = await service.search(storyId);
+
+      expect(found).toHaveLength(1);
+      expect(conditions()).toContain('profile.userId IN (:...collaboratorIds)');
+    });
   });
 
   describe('resolving a username', () => {

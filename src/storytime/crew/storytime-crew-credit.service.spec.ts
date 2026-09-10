@@ -35,6 +35,7 @@ describe('StorytimeCrewCreditService', () => {
   let storyService: { findEditableOrFail: jest.Mock };
   let memberService: {
     requireUserId: jest.Mock;
+    search: jest.Mock;
     findUsernames: jest.Mock;
   };
 
@@ -107,6 +108,7 @@ describe('StorytimeCrewCreditService', () => {
     };
     memberService = {
       requireUserId: jest.fn().mockResolvedValue(memberId),
+      search: jest.fn().mockResolvedValue([]),
       findUsernames: jest.fn().mockResolvedValue(new Map()),
     };
 
@@ -417,7 +419,69 @@ describe('StorytimeCrewCreditService', () => {
     });
   });
 
-  describe('reading usernames back', () => {
+  // The published roll is read by slug and only once a Story is out. A creator
+  // assembling the credits on a draft has neither, so the manager's listing
+  // establishes for itself that they are entitled to look.
+  describe('reading credits as their manager', () => {
+    it('lists them once the caller may manage crew', async () => {
+      const credit = buildCredit();
+      creditRepository.find.mockResolvedValue([credit]);
+
+      await expect(
+        service.findByStoryForManager(storyId, ownerId),
+      ).resolves.toEqual([credit]);
+
+      expect(storyService.findEditableOrFail).toHaveBeenCalledWith(
+        storyId,
+        ownerId,
+        StoryCapability.MANAGE_CREW,
+      );
+    });
+
+    it('refuses somebody who may not manage crew', async () => {
+      storyService.findEditableOrFail.mockRejectedValue(
+        new ForbiddenException(),
+      );
+
+      await expect(
+        service.findByStoryForManager(storyId, memberId),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(creditRepository.find).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('finding somebody to credit', () => {
+    it('searches once the caller may manage crew', async () => {
+      const found = [
+        { username, profilePicture100: null, isCollaborator: true },
+      ];
+      memberService.search.mockResolvedValue(found);
+
+      await expect(
+        service.findCreditableMembers(storyId, ownerId, 'pic'),
+      ).resolves.toEqual(found);
+
+      expect(storyService.findEditableOrFail).toHaveBeenCalledWith(
+        storyId,
+        ownerId,
+        StoryCapability.MANAGE_CREW,
+      );
+      expect(memberService.search).toHaveBeenCalledWith(storyId, 'pic');
+    });
+
+    it('refuses somebody who may not manage crew', async () => {
+      storyService.findEditableOrFail.mockRejectedValue(
+        new ForbiddenException(),
+      );
+
+      await expect(
+        service.findCreditableMembers(storyId, memberId, 'pic'),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(memberService.search).not.toHaveBeenCalled();
+    });
+
     it('reads back the usernames a set of credits names', async () => {
       const names = new Map([[memberId, username]]);
       memberService.findUsernames.mockResolvedValue(names);
