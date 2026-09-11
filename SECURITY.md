@@ -130,13 +130,13 @@ Both fast-check and ZAP are updated regularly via Dependabot to ensure the lates
 
 ## Known Dependency Advisory Follow-up
 
-Both the full dependency audit (`npm audit`) and the production audit gate (`npm audit --audit-level=high --omit=dev`) currently pass with **zero advisories at any severity** (last verified 2026-08-31).
+Both the full dependency audit (`npm audit`) and the production audit gate (`npm audit --audit-level=high --omit=dev`) currently pass with **zero advisories at any severity** (last verified 2026-09-11).
 
 The current overrides remediate these upstream dependency advisories:
 
 - `qs` [GHSA-q8mj-m7cp-5q26](https://github.com/advisories/GHSA-q8mj-m7cp-5q26), [GHSA-x5fp-wj9c-mxmx](https://github.com/advisories/GHSA-x5fp-wj9c-mxmx), [GHSA-4mjr-xmp4-gh2g](https://github.com/advisories/GHSA-4mjr-xmp4-gh2g) — `typed-rest-client@2.3.1` (via `@stryker-mutator/core`) exact-pins `qs@6.15.1`; the global override keeps the tree on `6.16.0`, the first release patched against all three.
 
-As of **2026-09-03** `qs` is the only override this repository needs. The former `mailparser`/`nodemailer`, `nanoid`, `js-yaml`, and TypeORM `ioredis` entries were each verified redundant and removed; see `docs/security.md` for the evidence and for the removal criteria on the remaining entry.
+As of **2026-09-11**, `qs` is the only override this repository needs. The former `mailparser`/`nodemailer`, `nanoid`, `js-yaml`, and TypeORM `ioredis` entries were each verified redundant and removed; see `docs/security.md` for the evidence and for the removal criteria on the remaining entry.
 
 NestJS 12 majors from Dependabot are **deferred**: `nestjs-cls` and `@sentry/nestjs` do not yet declare Nest 12 in their peer ranges, and the ESM packages need a Jest/Vitest rework on the current CommonJS + ts-jest setup. `@nestjs/terminus@12` now supports Nest 12, and `@nestjs/throttler` was removed from the project on 2026-09-03 as unused — neither is a blocker any more. See `docs/security.md`.
 
