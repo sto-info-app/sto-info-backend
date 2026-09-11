@@ -8,6 +8,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -23,6 +24,7 @@ import { UserId } from 'src/auth/user-id.decorator';
 import { AccountService } from './account.service';
 import { CreateAccountRequestDto } from './dto/create-account-request.dto';
 import { CreateAccountDto } from './dto/create-account.dto';
+import { FindAccountsQueryDto } from './dto/find-accounts-query.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
 
 @ApiTags('STO Account APIs')
@@ -62,7 +64,10 @@ export class AccountController {
   /**
    * Lists all STO accounts for the authenticated user.
    *
+   * Pinned accounts lead the list whichever ordering is requested.
+   *
    * @param userId Authenticated user ID (injected).
+   * @param query Optional ordering options.
    * @returns The user's accounts.
    */
   @Get()
@@ -71,8 +76,15 @@ export class AccountController {
     description: "The user's accounts cannot be found.",
   })
   @HttpCode(HttpStatus.OK)
-  findAllUsersAccounts(@UserId() userId: string) {
-    return this._accountService.findAllUsersAccounts(userId);
+  findAllUsersAccounts(
+    @UserId() userId: string,
+    @Query() query: FindAccountsQueryDto,
+  ) {
+    return this._accountService.findAllUsersAccounts(
+      userId,
+      query.sortBy,
+      query.sortOrder,
+    );
   }
 
   /**

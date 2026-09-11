@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { jest } from '@jest/globals';
 
+import { AccountSortBy, AccountSortOrder } from './account-sort.utility';
 import { AccountController } from './account.controller';
 import { AccountService } from './account.service';
 import { CreateAccountRequestDto } from './dto/create-account-request.dto';
@@ -79,10 +80,34 @@ describe('AccountController', () => {
         >
       ).mockResolvedValue(expected);
 
-      const result = await controller.findAllUsersAccounts(userId);
+      const result = await controller.findAllUsersAccounts(userId, {});
 
       expect(result).toEqual(expected);
-      expect(service.findAllUsersAccounts).toHaveBeenCalledWith(userId);
+      expect(service.findAllUsersAccounts).toHaveBeenCalledWith(
+        userId,
+        undefined,
+        undefined,
+      );
+    });
+
+    it('should pass the requested ordering through to the service', async () => {
+      const userId = 'user-123';
+      (
+        service.findAllUsersAccounts as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue([]);
+
+      await controller.findAllUsersAccounts(userId, {
+        sortBy: AccountSortBy.CharacterCount,
+        sortOrder: AccountSortOrder.Desc,
+      });
+
+      expect(service.findAllUsersAccounts).toHaveBeenCalledWith(
+        userId,
+        AccountSortBy.CharacterCount,
+        AccountSortOrder.Desc,
+      );
     });
   });
 

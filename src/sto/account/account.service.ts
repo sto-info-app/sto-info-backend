@@ -20,6 +20,13 @@ import {
   buildAccountBackgroundImageLookup,
   resolveAccountTypeImageUrl,
 } from '../shared/account-image.utility';
+import {
+  AccountSortBy,
+  AccountSortOrder,
+  DEFAULT_ACCOUNT_SORT_BY,
+  DEFAULT_ACCOUNT_SORT_ORDER,
+  sortAccounts,
+} from './account-sort.utility';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
 import { AccountEntity } from './entities/account.entity';
@@ -122,10 +129,19 @@ export class AccountService {
   /**
    * Returns all accounts owned by the specified user.
    *
+   * Pinned accounts always lead the list; the requested ordering then applies
+   * within the pinned and unpinned groups alike.
+   *
    * @param userId Owner user ID.
+   * @param sortBy Field to order by. Defaults to handle.
+   * @param sortOrder Direction to order in. Defaults to ascending.
    * @returns List of the user's accounts.
    */
-  async findAllUsersAccounts(userId: string): Promise<AccountListItem[]> {
+  async findAllUsersAccounts(
+    userId: string,
+    sortBy: AccountSortBy = DEFAULT_ACCOUNT_SORT_BY,
+    sortOrder: AccountSortOrder = DEFAULT_ACCOUNT_SORT_ORDER,
+  ): Promise<AccountListItem[]> {
     if (!userId) {
       throw new BadRequestException('User ID is required');
     }
@@ -154,13 +170,15 @@ export class AccountService {
     const backgroundImageLookup =
       buildAccountBackgroundImageLookup(platformLaunchers);
 
-    return accounts.map(account => ({
+    const listItems = accounts.map(account => ({
       ...account,
       accountTypeImageUrl: resolveAccountTypeImageUrl(
         account,
         backgroundImageLookup,
       ),
     }));
+
+    return sortAccounts(listItems, sortBy, sortOrder);
   }
 
   /**
