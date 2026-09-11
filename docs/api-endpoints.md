@@ -445,6 +445,23 @@ Response includes `accountTypeImageUrl`, resolved from `platform_launcher`
 mapping rows (exact match -> platform default -> launcher default -> global default).
 Returned URL values are verified as valid Cloudflare Images delivery URLs.
 
+**Query parameters:**
+
+| Parameter   | Values                                                                 | Default  |
+| ----------- | ---------------------------------------------------------------------- | -------- |
+| `sortBy`    | `handle`, `characterCount`, `endeavourTotalNodes`, `accountCreatedDate` | `handle` |
+| `sortOrder` | `ASC`, `DESC`                                                          | `ASC`    |
+
+Pinned accounts always lead the list, whichever ordering is requested; the
+requested ordering then applies within the pinned and unpinned groups alike.
+Accounts with no `accountCreatedDate` recorded sort last in both directions, and
+`handle` ascending breaks any remaining tie so the order is stable between
+identical requests.
+
+Ordering is applied in the service rather than in SQL, because `characterCount`
+and `endeavourTotalNodes` are virtual columns that `Repository.find` cannot
+order by.
+
 **Headers:** `Authorization: Bearer <access_token>`
 
 ### GET /account/:id
@@ -456,6 +473,20 @@ Get a single account by id.
 ### PUT /account/:id
 
 Update an account by id.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+### PUT /account/:id/pin
+
+Pin or unpin an account, so it leads the owner's own account list.
+
+**Body:** `{ "pinned": true }`
+
+Pins are private to the owner: `pinnedAt` is never included in the public
+registry DTOs, so a visitor cannot see which accounts a member has pinned. Any
+number of accounts may be pinned. Pinning an already pinned account (or
+unpinning an already unpinned one) is a no-op and does not rewrite the
+timestamp.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
