@@ -1,4 +1,5 @@
 import {
+  HealthCheckAttempt,
   HealthCheckResult,
   HealthCheckService,
   HealthIndicatorFunction,
@@ -59,7 +60,13 @@ describe('HealthController', () => {
         indicators: HealthIndicatorFunction[],
       ): Promise<HealthCheckResult> => {
         const results = await Promise.all(
-          indicators.map(i => Promise.resolve(i())),
+          indicators.map(indicator =>
+            Promise.resolve(
+              typeof indicator === 'function'
+                ? indicator()
+                : (indicator as HealthCheckAttempt),
+            ),
+          ),
         );
         return results[0] as unknown as HealthCheckResult;
       },
@@ -72,7 +79,12 @@ describe('HealthController', () => {
     expect(Array.isArray(indicatorsArg)).toBe(true);
     expect(indicatorsArg).toHaveLength(1);
 
-    const indicatorResult = await indicatorsArg[0]();
+    const liveIndicator = indicatorsArg[0];
+    expect(typeof liveIndicator).toBe('function');
+    if (typeof liveIndicator !== 'function') {
+      throw new Error('Expected the liveness indicator to be callable');
+    }
+    const indicatorResult = await liveIndicator();
     expect(indicatorResult).toEqual(expectedResult);
     expect(result).toEqual(expectedResult);
   });
@@ -88,7 +100,13 @@ describe('HealthController', () => {
         indicators: HealthIndicatorFunction[],
       ): Promise<HealthCheckResult> => {
         const results = await Promise.all(
-          indicators.map(i => Promise.resolve(i())),
+          indicators.map(indicator =>
+            Promise.resolve(
+              typeof indicator === 'function'
+                ? indicator()
+                : (indicator as HealthCheckAttempt),
+            ),
+          ),
         );
         return results[0] as unknown as HealthCheckResult;
       },

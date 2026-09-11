@@ -76,6 +76,10 @@ const patches = [
   ['@nestjs/platform-express/node_modules/multer', 'multer'],
   ['mailparser/node_modules/nodemailer', 'nodemailer'],
   ['preview-email/node_modules/nodemailer', 'nodemailer'],
+  [
+    'preview-email/node_modules/mailparser/node_modules/nodemailer',
+    'nodemailer',
+  ],
 ];
 
 for (const [nestedPath, topLevelName] of patches) {
