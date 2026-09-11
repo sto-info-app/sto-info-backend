@@ -123,7 +123,7 @@ Nest 12-compatible peer ranges, then upgrade every `@nestjs/*` package together
 (the CLI's `nest upgrade` command is the intended path) and rework the Jest
 config for ESM.
 
-`@nestjs/jwt@12.0.1` is already on the Nest 11 tree (its peer range includes Nest 8–12). It is a native ESM package with no `require` export condition. Jest 30's `require(esm)` support is gated on `vm.SourceTextModule.prototype.hasAsyncGraph`, which on Node 24.15 still needs `--experimental-vm-modules`. The Jest npm scripts and Stryker `testRunnerNodeArgs` therefore set that flag so auth specs can load `@nestjs/jwt`. Runtime (`node dist/src/main`) does not need the flag: Node 24 can `require()` the ESM build via the `default` export condition.
+`@nestjs/jwt@12.0.1` is on the Nest 12 tree (its peer range includes Nest 8–12). It is a native ESM package with no `require` export condition. Jest 30's `require(esm)` support is gated on `vm.SourceTextModule.prototype.hasAsyncGraph`, which on Node 24.21 still needs `--experimental-vm-modules`. The Jest npm scripts and Stryker `testRunnerNodeArgs` therefore set that flag so auth specs can load `@nestjs/jwt`. Runtime (`node dist/src/main`) does not need the flag: Node 24 can `require()` the ESM build via the `default` export condition.
 
 **When it can be retried**:
 
@@ -355,6 +355,10 @@ const patches = [
   ['@nestjs/platform-express/node_modules/multer', 'multer'],
   ['mailparser/node_modules/nodemailer', 'nodemailer'],
   ['preview-email/node_modules/nodemailer', 'nodemailer'],
+  [
+    'preview-email/node_modules/mailparser/node_modules/nodemailer',
+    'nodemailer',
+  ],
 ];
 ```
 
