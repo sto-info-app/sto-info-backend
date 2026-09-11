@@ -7,6 +7,12 @@
  * administrator, and because the rendered HTML is cached and must be
  * trustworthy wherever it is served from.
  *
+ * Two constructs are the site's own rather than Markdown's, because prose
+ * needs them and Markdown has no spelling for either: `{indent}` opening a
+ * paragraph indents its first line, and `{spacer}` alone in a block leaves a
+ * gap between scenes. Both are matched narrowly enough that a literal one
+ * written anywhere else is left as the text it is.
+ *
  * Storytime's rules are stricter than the News subset in one respect: no link
  * ever leaves the site. External targets are not refused — content containing
  * one is accepted and simply rendered as inert text — but nothing outside the
@@ -59,6 +65,31 @@ export const MARKDOWN_HEADING_PATTERN = /^(#{1,6})\s/;
 
 /** A horizontal rule. */
 export const MARKDOWN_HORIZONTAL_RULE_PATTERN = /^(?:---+|\*\*\*+|___+)$/;
+
+/**
+ * The indent marker opening a paragraph.
+ *
+ * Matched exactly and in lower case: `{Indent}` and `{ indent }` are left as
+ * the text they are. A marker whose spelling shifts under the author is a
+ * marker they cannot trust, and the closed set this renderer accepts is worth
+ * more here than forgiveness.
+ *
+ * Trailing spaces are consumed so `{indent} A sentence` does not open with one,
+ * and are bounded rather than left open-ended for the same reason every other
+ * quantifier in this file is.
+ */
+export const MARKDOWN_INDENT_MARKER_PATTERN = /^\{indent\}[ \t]{0,64}/;
+
+/** A block consisting solely of the spacer marker. */
+export const MARKDOWN_SPACER_BLOCK_PATTERN = /^\{spacer\}$/;
+
+/**
+ * Either custom marker, wherever it appears.
+ *
+ * Used only for counting: the markers are syntax rather than prose, so they are
+ * stripped before words are counted, exactly as Markdown's own syntax is.
+ */
+export const MARKDOWN_CUSTOM_MARKER_PATTERN = /\{(?:indent|spacer)\}/g;
 
 /** An unordered list item marker. */
 export const MARKDOWN_UNORDERED_LIST_ITEM_PATTERN = /^\s*[-*+]\s+/;
@@ -118,8 +149,17 @@ export const READING_WORDS_PER_MINUTE = 200;
 /** Prefix given to every generated block anchor. */
 export const CONTENT_BLOCK_ID_PREFIX = 'b';
 
-/** The schema version stamped on newly rendered content. */
-export const CONTENT_SCHEMA_VERSION = 1;
+/**
+ * The schema version stamped on newly rendered content.
+ *
+ * Raised whenever this renderer's output changes, so a stored row says which
+ * renderer produced it. Version 2 added `{indent}` and `{spacer}`.
+ *
+ * Nothing re-renders on a mismatch: content stamped with an earlier version
+ * keeps the HTML it was given until it is next saved. The stamp is what a
+ * backfill would select on if one is ever wanted.
+ */
+export const CONTENT_SCHEMA_VERSION = 2;
 
 /** Splits plain text into words for counting. */
 export const WORD_SPLIT_PATTERN = /\s+/;

@@ -11,15 +11,18 @@ import {
   MARKDOWN_BOLD_UNDERSCORE_PATTERN,
   MARKDOWN_CODE_PLACEHOLDER_BLOCK_PATTERN,
   MARKDOWN_CODE_PLACEHOLDER_PATTERN,
+  MARKDOWN_CUSTOM_MARKER_PATTERN,
   MARKDOWN_FENCED_CODE_BLOCK_PATTERN,
   MARKDOWN_HEADING_PATTERN,
   MARKDOWN_HORIZONTAL_RULE_PATTERN,
+  MARKDOWN_INDENT_MARKER_PATTERN,
   MARKDOWN_INLINE_CODE_PATTERN,
   MARKDOWN_ITALIC_ASTERISK_PATTERN,
   MARKDOWN_ITALIC_UNDERSCORE_PATTERN,
   MARKDOWN_LEADING_NEWLINE_PATTERN,
   MARKDOWN_LINK_PATTERN,
   MARKDOWN_ORDERED_LIST_ITEM_PATTERN,
+  MARKDOWN_SPACER_BLOCK_PATTERN,
   MARKDOWN_SYNTAX_PATTERN,
   MARKDOWN_UNORDERED_LIST_ITEM_PATTERN,
   READING_WORDS_PER_MINUTE,
@@ -37,7 +40,12 @@ export interface RenderedContent {
   wordCount: number;
   /** Estimated reading time in whole minutes, never less than one. */
   estimatedReadingMinutes: number;
-  /** How many anchored blocks the content produced. */
+  /**
+   * How many block positions the content produced.
+   *
+   * A spacer occupies one without being anchored, so this is the number of
+   * positions rather than the number of anchors.
+   */
   blockCount: number;
   /** The renderer version that produced this HTML. */
   schemaVersion: number;
@@ -67,7 +75,13 @@ export interface RenderedContent {
  * rule. There is no upstream validator to fall back on.
  *
  * Every block carries a stable anchor so reading progress can be recorded
- * against a position in the text rather than a pixel offset.
+ * against a position in the text rather than a pixel offset. The one exception
+ * is a spacer, which holds no text to return to.
+ *
+ * Two of the constructs are this site's own rather than Markdown's: `{indent}`
+ * opening a paragraph indents its first line, and `{spacer}` alone in a block
+ * leaves a gap. They are kept in step with the client's `MarkdownPipe`, so the
+ * same writing reads the same way wherever it is rendered.
  */
 @Injectable()
 export class StorytimeMarkdownService {
@@ -184,6 +198,14 @@ export class StorytimeMarkdownService {
       return `<hr id="${id}" />`;
     }
 
+    // A spacer carries no text, so there is nothing for a returning reader to
+    // be put back to and nothing for a screen reader to announce. It takes no
+    // anchor of its own, but it has still consumed a position: every block
+    // after it keeps the anchor it would have had were the spacer a paragraph.
+    if (MARKDOWN_SPACER_BLOCK_PATTERN.test(block)) {
+      return '<div class="sto-spacer" aria-hidden="true"></div>';
+    }
+
     const lines = block.split('\n');
 
     // A heading is only ever a single line; multi-line blocks are excluded
@@ -214,7 +236,30 @@ export class StorytimeMarkdownService {
       return `<blockquote id="${id}">${this.renderInline(quote)}</blockquote>`;
     }
 
-    return `<p id="${id}">${this.renderInline(lines.join('<br />'))}</p>`;
+    return this.renderParagraph(lines, id);
+  }
+
+  /**
+   * Renders a paragraph block, honouring an opening `{indent}` marker.
+   *
+   * `{indent}` is a marker only here, as the very first thing in a paragraph.
+   * Keeping it that narrow means the rule fits in a sentence, and that a
+   * literal `{indent}` written anywhere else survives without an escape — which
+   * matters, because this renderer offers no escape syntax at all.
+   *
+   * @param lines - The block's escaped lines.
+   * @param id - The block's anchor.
+   * @returns The rendered paragraph HTML.
+   */
+  private renderParagraph(lines: string[], id: string): string {
+    const [first, ...rest] = lines;
+    const indented = MARKDOWN_INDENT_MARKER_PATTERN.test(first);
+    const body = indented
+      ? [first.replace(MARKDOWN_INDENT_MARKER_PATTERN, ''), ...rest]
+      : lines;
+    const indentClass = indented ? ' class="sto-indent"' : '';
+
+    return `<p id="${id}"${indentClass}>${this.renderInline(body.join('<br />'))}</p>`;
   }
 
   /**
@@ -283,7 +328,10 @@ export class StorytimeMarkdownService {
    * @returns The number of words.
    */
   private countWords(source: string): number {
-    const plain = source.replace(MARKDOWN_SYNTAX_PATTERN, ' ').trim();
+    const plain = source
+      .replace(MARKDOWN_CUSTOM_MARKER_PATTERN, ' ')
+      .replace(MARKDOWN_SYNTAX_PATTERN, ' ')
+      .trim();
 
     if (!plain) {
       return 0;
