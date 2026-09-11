@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 import {
   IsBoolean,
@@ -108,6 +108,24 @@ export class AccountEntity {
   @IsBoolean()
   @Column({ type: 'boolean', default: false })
   lifetimeSubscription: boolean;
+
+  /**
+   * When the owner pinned this account to the top of their own list.
+   *
+   * Private to the owner: pinning is dashboard curation and is never published
+   * to the registry, so this is deliberately absent from the public account
+   * DTOs. A timestamp rather than a flag so that when the pin was made is
+   * recoverable; ordering within the pinned group follows the chosen sort.
+   */
+  @ApiPropertyOptional({
+    description:
+      'When the owner pinned this account to the top of their own list, or null when unpinned.',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsDateString()
+  @Column({ type: 'timestamp', nullable: true })
+  pinnedAt: Date | null;
 
   @CreateDateColumn()
   createdAt: Date;
