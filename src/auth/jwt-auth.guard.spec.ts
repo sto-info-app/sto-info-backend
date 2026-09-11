@@ -16,6 +16,11 @@ describe('JwtAuthGuard', () => {
     expect(guard).toBeDefined();
   });
 
+  it('should instantiate with options', () => {
+    const customGuard = new JwtAuthGuard({ defaultStrategy: 'jwt' } as any);
+    expect(customGuard).toBeDefined();
+  });
+
   describe('canActivate', () => {
     it('should return true when super.canActivate returns true', async () => {
       const context = {
