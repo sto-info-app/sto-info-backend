@@ -20,6 +20,13 @@ import {
 import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
 
 import { AccountEntity } from '../account/entities/account.entity';
+import {
+  CharacterSortBy,
+  CharacterSortOrder,
+  DEFAULT_CHARACTER_SORT_BY,
+  DEFAULT_CHARACTER_SORT_ORDER,
+  sortCharacters,
+} from './character-sort.utility';
 import { CreateCharacterDto } from './dto/create-character.dto';
 import { UpdateCharacterDto } from './dto/update-character.dto';
 import { CharacterClassEntity } from './entities/character-class.entity';
@@ -246,13 +253,20 @@ export class CharacterService {
   /**
    * Finds all for account.
    *
+   * Pinned captains always lead the list; the requested ordering then applies
+   * within the pinned and unpinned groups alike.
+   *
    * @param accountId - The account id.
    * @param userId - The user id.
+   * @param sortBy - Field to order by. Defaults to handle.
+   * @param sortOrder - Direction to order in. Defaults to ascending.
    * @returns A promise that resolves when the operation completes.
    */
   async findAllForAccount(
     accountId: string,
     userId: string,
+    sortBy: CharacterSortBy = DEFAULT_CHARACTER_SORT_BY,
+    sortOrder: CharacterSortOrder = DEFAULT_CHARACTER_SORT_ORDER,
   ): Promise<CharacterEntity[]> {
     if (!accountId) {
       throw new BadRequestException('Account ID is required');
@@ -277,9 +291,57 @@ export class CharacterService {
       order: { handle: 'ASC' },
     });
 
-    return characters.map(character =>
-      this.sanitizeCharacterImageUrls(character),
+    return sortCharacters(
+      characters.map(character => this.sanitizeCharacterImageUrls(character)),
+      sortBy,
+      sortOrder,
     );
+  }
+
+  /**
+   * Pins or unpins a captain on an account the specified user owns.
+   *
+   * Pinning is recorded as the moment it happened rather than a flag, and is
+   * private to the owner: it never reaches the public registry.
+   *
+   * @param id - The character id.
+   * @param userId - The user id.
+   * @param pinned - True to pin the captain, false to unpin it.
+   * @returns The updated captain.
+   * @throws {BadRequestException} If the character or user ID is missing.
+   * @throws {NotFoundException} If the character does not exist.
+   * @throws {ForbiddenException} If the captain is not owned by the user.
+   */
+  async setPinnedForUser(
+    id: string,
+    userId: string,
+    pinned: boolean,
+  ): Promise<CharacterEntity> {
+    if (!id) {
+      throw new BadRequestException('Character ID is required');
+    }
+
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
+    const character = await this.findOneForUser(id, userId);
+
+    // Re-pinning an already pinned captain would otherwise move its timestamp
+    // for no visible effect, since pin order does not drive the list order.
+    if (pinned === !!character.pinnedAt) {
+      return character;
+    }
+
+    const pinnedAt = pinned ? new Date() : null;
+
+    await this._characterRepository.update(id, { pinnedAt });
+
+    // Assigned rather than spread onto a copy: the entity carries getters for
+    // the captain's rank and image URLs, which a plain spread would flatten.
+    character.pinnedAt = pinnedAt;
+
+    return character;
   }
 
   /**

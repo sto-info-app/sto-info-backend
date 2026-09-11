@@ -1,10 +1,13 @@
-import { validate } from 'class-validator';
+import { validate, ValidationError } from 'class-validator';
 
+import { CharacterSortBy, CharacterSortOrder } from '../character-sort.utility';
 import {
   CreateCharacterRequestDto,
   emptyStringToUndefined,
 } from './create-character-request.dto';
 import { CreateCharacterDto } from './create-character.dto';
+import { FindCharactersQueryDto } from './find-characters-query.dto';
+import { UpdateCharacterPinDto } from './update-character-pin.dto';
 
 describe('DTO Transformations', () => {
   it('should transform empty strings to undefined', () => {
@@ -159,5 +162,112 @@ describe('CreateCharacterRequestDto Validation', () => {
       const fieldError = errors.find(e => e.property === 'level');
       expect(fieldError?.constraints).toHaveProperty('min');
     });
+  });
+});
+
+describe('FindCharactersQueryDto Validation', () => {
+  const accountId = '00000000-0000-0000-0000-000000000000';
+
+  const validateQuery = (
+    values: Record<string, unknown>,
+  ): Promise<ValidationError[]> => {
+    const dto = new FindCharactersQueryDto();
+    Object.assign(dto, values);
+
+    return validate(dto);
+  };
+
+  // The list endpoint is reachable without any ordering, in which case the
+  // service applies its own defaults.
+  it('should accept an account on its own', async () => {
+    const errors = await validateQuery({ accountId });
+
+    expect(errors.length).toBe(0);
+  });
+
+  it('should reject a missing account', async () => {
+    const errors = await validateQuery({});
+
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0].property).toBe('accountId');
+  });
+
+  it('should reject an account that is not a UUID', async () => {
+    const errors = await validateQuery({ accountId: 'not-a-uuid' });
+
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0].constraints).toHaveProperty('isUuid');
+  });
+
+  it('should accept every supported sort field', async () => {
+    for (const sortBy of Object.values(CharacterSortBy)) {
+      const errors = await validateQuery({ accountId, sortBy });
+
+      expect(errors.length).toBe(0);
+    }
+  });
+
+  it('should accept both sort directions', async () => {
+    for (const sortOrder of Object.values(CharacterSortOrder)) {
+      const errors = await validateQuery({ accountId, sortOrder });
+
+      expect(errors.length).toBe(0);
+    }
+  });
+
+  it('should reject an unknown sort field', async () => {
+    const errors = await validateQuery({ accountId, sortBy: 'biography' });
+
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0].constraints).toHaveProperty('isEnum');
+  });
+
+  it('should reject an unknown sort direction', async () => {
+    const errors = await validateQuery({ accountId, sortOrder: 'sideways' });
+
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0].constraints).toHaveProperty('isEnum');
+  });
+
+  // Ordering is case-sensitive on the wire, so a lower-case direction is a
+  // client bug worth reporting rather than quietly coercing.
+  it('should reject a lower-case sort direction', async () => {
+    const errors = await validateQuery({ accountId, sortOrder: 'asc' });
+
+    expect(errors.length).toBeGreaterThan(0);
+  });
+});
+
+describe('UpdateCharacterPinDto Validation', () => {
+  const validatePin = (
+    values: Record<string, unknown>,
+  ): Promise<ValidationError[]> => {
+    const dto = new UpdateCharacterPinDto();
+    Object.assign(dto, values);
+
+    return validate(dto);
+  };
+
+  it('should accept pinning and unpinning', async () => {
+    for (const pinned of [true, false]) {
+      const errors = await validatePin({ pinned });
+
+      expect(errors.length).toBe(0);
+    }
+  });
+
+  it('should reject a missing pinned flag', async () => {
+    const errors = await validatePin({});
+
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0].constraints).toHaveProperty('isBoolean');
+  });
+
+  // A string would otherwise make "false" pin the captain.
+  it('should reject a stringified boolean', async () => {
+    const errors = await validatePin({ pinned: 'false' });
+
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0].constraints).toHaveProperty('isBoolean');
   });
 });

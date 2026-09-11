@@ -38,6 +38,8 @@ import { stringifyError } from 'src/shared/utilities/error.utility';
 
 import { CharacterService } from './character.service';
 import { CreateCharacterRequestDto } from './dto/create-character-request.dto';
+import { FindCharactersQueryDto } from './dto/find-characters-query.dto';
+import { UpdateCharacterPinDto } from './dto/update-character-pin.dto';
 import { UpdateCharacterDto } from './dto/update-character.dto';
 
 @ApiTags('STO Character APIs')
@@ -256,17 +258,24 @@ export class CharacterController {
   /**
    * Lists all STO characters for a specific account owned by the authenticated user.
    *
+   * Pinned captains lead the list whichever ordering is requested.
+   *
    * @param userId Authenticated user ID (injected).
-   * @param accountId Account ID.
+   * @param query The account to list, and optional ordering options.
    * @returns The account's characters.
    */
   @Get()
   @ApiOkResponse({ description: 'Successfully found the account characters.' })
   findAllForAccount(
     @UserId() userId: string,
-    @Query('accountId') accountId: string,
+    @Query() query: FindCharactersQueryDto,
   ) {
-    return this._characterService.findAllForAccount(accountId, userId);
+    return this._characterService.findAllForAccount(
+      query.accountId,
+      userId,
+      query.sortBy,
+      query.sortOrder,
+    );
   }
 
   /**
@@ -300,6 +309,33 @@ export class CharacterController {
     @Body() updateCharacterDto: UpdateCharacterDto,
   ) {
     return this._characterService.updateForUser(id, userId, updateCharacterDto);
+  }
+
+  /**
+   * Pins or unpins a STO character for the authenticated user.
+   *
+   * Pins are private to the owner and are never published to the registry.
+   *
+   * @param userId Authenticated user ID (injected).
+   * @param id Character ID.
+   * @param updateCharacterPinDto Whether the character should be pinned.
+   * @returns The updated character.
+   */
+  @Put(':id/pin')
+  @ApiOkResponse({ description: 'Successfully updated the character pin.' })
+  @ApiBadRequestResponse({
+    description: 'Failed to update the character pin.',
+  })
+  setPinned(
+    @UserId() userId: string,
+    @Param('id') id: string,
+    @Body() updateCharacterPinDto: UpdateCharacterPinDto,
+  ) {
+    return this._characterService.setPinnedForUser(
+      id,
+      userId,
+      updateCharacterPinDto.pinned,
+    );
   }
 
   /**
