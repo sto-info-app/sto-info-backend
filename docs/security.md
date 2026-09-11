@@ -24,10 +24,7 @@ Current overrides in `package.json`:
 }
 ```
 
-As of **2026-09-03** `qs` is the only override the backend still needs. The
-`mailparser`, `nanoid`, `js-yaml`, and `typeorm.ioredis` entries were all
-verified redundant against the removal checklist above and dropped — see
-[Recently Removed Overrides](#recently-removed-overrides).
+As of **2026-09-11**, rechecked after the recent dependency refresh, `qs` is the only override the backend still needs. The `mailparser`, `nanoid`, `js-yaml`, and `typeorm.ioredis` entries were all verified redundant against the removal checklist above and dropped — see [Recently Removed Overrides](#recently-removed-overrides).
 
 #### `qs`
 
