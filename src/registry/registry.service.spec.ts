@@ -1215,6 +1215,32 @@ describe('RegistryService', () => {
       expect(keys).not.toContain('publiclyVisible');
     });
 
+    // Pinning is the owner's own dashboard curation. A visitor must not be able
+    // to read which of an account's captains the owner keeps at the top.
+    it('should not expose when the owner pinned a captain', async () => {
+      profileQb.getOne.mockResolvedValue(buildProfile());
+      accountQb.getOne.mockResolvedValue(buildAccount());
+      characterQb.getOne.mockResolvedValue(
+        buildCharacter({ pinnedAt: new Date('2026-01-01') }),
+      );
+      characterRepository.find.mockResolvedValue([
+        buildCharacter({ pinnedAt: new Date('2026-01-01') }),
+      ]);
+
+      const detail = await service.findCharacter(
+        'captain.picard',
+        'SteveX~1234',
+        'Rex',
+      );
+      const listing = await service.findAccount(
+        'captain.picard',
+        'SteveX~1234',
+      );
+
+      expect(Object.keys(detail)).not.toContain('pinnedAt');
+      expect(Object.keys(listing.characters[0])).not.toContain('pinnedAt');
+    });
+
     it('should not expose captain notes on the account listing either', async () => {
       profileQb.getOne.mockResolvedValue(buildProfile());
       accountQb.getOne.mockResolvedValue(buildAccount());
