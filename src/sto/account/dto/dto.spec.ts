@@ -3,6 +3,7 @@ import { validate, ValidationError } from 'class-validator';
 import { AccountSortBy, AccountSortOrder } from '../account-sort.utility';
 import { CreateAccountRequestDto } from './create-account-request.dto';
 import { FindAccountsQueryDto } from './find-accounts-query.dto';
+import { UpdateAccountPinDto } from './update-account-pin.dto';
 
 describe('CreateAccountRequestDto Validation', () => {
   let dto: CreateAccountRequestDto;
@@ -118,5 +119,39 @@ describe('FindAccountsQueryDto Validation', () => {
     const errors = await validateQuery({ sortOrder: 'asc' });
 
     expect(errors.length).toBeGreaterThan(0);
+  });
+});
+
+describe('UpdateAccountPinDto Validation', () => {
+  const validatePin = (
+    values: Record<string, unknown>,
+  ): Promise<ValidationError[]> => {
+    const dto = new UpdateAccountPinDto();
+    Object.assign(dto, values);
+
+    return validate(dto);
+  };
+
+  it('should accept pinning and unpinning', async () => {
+    for (const pinned of [true, false]) {
+      const errors = await validatePin({ pinned });
+
+      expect(errors.length).toBe(0);
+    }
+  });
+
+  it('should reject a missing pinned flag', async () => {
+    const errors = await validatePin({});
+
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0].constraints).toHaveProperty('isBoolean');
+  });
+
+  // A string would otherwise make "false" pin the account.
+  it('should reject a stringified boolean', async () => {
+    const errors = await validatePin({ pinned: 'false' });
+
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0].constraints).toHaveProperty('isBoolean');
   });
 });

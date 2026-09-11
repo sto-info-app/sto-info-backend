@@ -182,6 +182,48 @@ export class AccountService {
   }
 
   /**
+   * Pins or unpins an account owned by the specified user.
+   *
+   * Pinning is recorded as the moment it happened rather than a flag, and is
+   * private to the owner: it never reaches the public registry.
+   *
+   * @param id Account ID.
+   * @param userId Owner user ID.
+   * @param pinned True to pin the account, false to unpin it.
+   * @returns The updated account.
+   * @throws {BadRequestException} If the account or user ID is missing.
+   * @throws {NotFoundException} If the account does not exist.
+   * @throws {ForbiddenException} If the account is not owned by the user.
+   */
+  async setPinnedForUser(
+    id: string,
+    userId: string,
+    pinned: boolean,
+  ): Promise<AccountEntity> {
+    if (!id) {
+      throw new BadRequestException('Account ID is required');
+    }
+
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
+    const account = await this.requireOwnedAccount(id, userId);
+
+    const pinnedAt = pinned ? new Date() : null;
+
+    // Re-pinning an already pinned account would otherwise move its timestamp
+    // for no visible effect, since pin order does not drive the list order.
+    if (pinned === !!account.pinnedAt) {
+      return account;
+    }
+
+    await this._accountRepository.update(id, { pinnedAt });
+
+    return { ...account, pinnedAt };
+  }
+
+  /**
    * Finds an account by ID (no ownership check).
    *
    * Note: prefer `findOneForUser` for user-scoped access.
