@@ -62,9 +62,12 @@ jobs:
       needs.check_changes.outputs.src_changed == 'true' &&
       github.actor != 'github-actions[bot]' &&
       !startsWith(github.event.head_commit.message, 'chore: bump version to ') &&
+      !startsWith(github.event.head_commit.message, 'chore: sync version to ') &&
       !startsWith(github.event.head_commit.message, 'docs: update contributors') &&
       !contains(github.event.head_commit.message, 'Automated version bump from') &&
-      !(contains(github.event.head_commit.message, 'Merge pull request') && contains(github.event.head_commit.message, 'chore/bump-version-to'))
+      !contains(github.event.head_commit.message, 'Automated version sync from') &&
+      !(contains(github.event.head_commit.message, 'Merge pull request') && contains(github.event.head_commit.message, 'chore/bump-version-to')) &&
+      !(contains(github.event.head_commit.message, 'Merge pull request') && contains(github.event.head_commit.message, 'chore/sync-version-to'))
 
     steps:
       - name: Checkout
