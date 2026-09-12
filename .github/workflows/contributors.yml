@@ -32,9 +32,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          # 1. Skip if it's a version bump or contributors commit (mutual exclusion)
+          # 1. Skip if it's a version bump/sync or contributors commit (mutual exclusion)
           COMMIT_MSG=$(git log -1 --pretty=%B)
-          if [[ "$COMMIT_MSG" == *"chore: bump version to"* ]] || [[ "$COMMIT_MSG" == *"docs: update contributors"* ]]; then
+          if [[ "$COMMIT_MSG" == *"chore: bump version to"* ]] || [[ "$COMMIT_MSG" == *"chore: sync version to"* ]] || [[ "$COMMIT_MSG" == *"docs: update contributors"* ]]; then
             echo "Skipping: restricted commit message detected."
             echo "should_run=false" >> "$GITHUB_OUTPUT"
             exit 0

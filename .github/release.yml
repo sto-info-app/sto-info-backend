@@ -2,6 +2,7 @@ changelog:
   exclude:
     labels:
       - version-bump
+      - version-sync
     authors:
       - github-actions[bot]
   categories:
