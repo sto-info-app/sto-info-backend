@@ -3,6 +3,13 @@ import { OptionalJwtAuthGuard } from './optional-jwt-auth.guard';
 describe('OptionalJwtAuthGuard', () => {
   const guard = new OptionalJwtAuthGuard();
 
+  it('should instantiate with options', () => {
+    const customGuard = new OptionalJwtAuthGuard({
+      defaultStrategy: 'jwt',
+    } as any);
+    expect(customGuard).toBeDefined();
+  });
+
   it('returns the authenticated user when present', () => {
     const user = { id: 'user-1' };
     expect(guard.handleRequest(null, user)).toBe(user);
