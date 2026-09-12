@@ -1,12 +1,17 @@
 import {
   ExecutionContext,
   Injectable,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
+import { AuthGuard, AuthModuleOptions } from '@nestjs/passport';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
+  constructor(@Optional() options?: AuthModuleOptions) {
+    super(options);
+  }
+
   /**
    * Determines whether the current request can proceed.
    *

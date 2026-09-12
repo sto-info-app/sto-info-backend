@@ -106,10 +106,14 @@ Chapter content is written by any member, so `src/storytime/content` is the feat
 
 **`StorytimeMarkdownService`** renders a small Markdown subset to sanitised HTML. It is safe **by construction, not by filtering**: the source is HTML-escaped first, and only then are recognised constructs turned into markup the renderer itself emits. There is no path by which author text reaches the output unescaped. Do not reorder this — rendering first and sanitising afterwards is one missed case away from injection.
 
+**Two of the constructs are the site's own rather than Markdown's.** `{indent}` opening a paragraph indents its first line (`<p class="sto-indent">`); `{spacer}` alone in a block emits an empty, `aria-hidden` `div` (`<div class="sto-spacer">`). Both are matched narrowly on purpose — exact spelling, lower case, one position each — so a literal one written anywhere else is left as the text it is. That is what keeps the renderer free of an escape syntax it would otherwise have to get right. The client's `MarkdownPipe` implements the same two for News, and the pair has to move together.
+
 Other properties worth preserving:
 
 - Author headings are shifted down one level, so a Chapter can never emit an `h1` and compete with its own title in the document outline.
 - Every block carries an ordinal anchor (`id="b1"`, `b2`, …). These are the progress anchors stored in `storytime_user_chapter_progress."lastPositionValue"`. Inserting a block shifts later anchors, which is accepted: a stored position then resolves to a nearby point rather than an exact one.
+- A spacer takes no anchor of its own — it holds no text for a reader to be returned to — but it still consumes a position, so every block after it keeps the anchor it would otherwise have had.
+- Rendered HTML is cached on the record alongside `contentSchemaVersion`. `CONTENT_SCHEMA_VERSION` is raised whenever the renderer's output changes — it is `2` as of `{indent}` and `{spacer}`. Nothing re-renders on a mismatch: existing content keeps the HTML it was given until it is next saved, and the stamp is what a backfill would select on if one is ever wanted.
 - Fenced code placeholders are wrapped in a private-use sentinel (U+E000) that is stripped from incoming source first. Without this an author writing the literal text `CODE0` would have it replaced by somebody else's extracted code.
 
 **External links are never refused, and never rendered.** Content naming an off-site target is accepted and stored as written. A **bare URL** stays visible as plain text. A **Markdown link is removed entirely, label included** — a label such as "click here" reads as a broken promise once there is nothing to click. Only site-relative paths and in-page fragments become anchors.

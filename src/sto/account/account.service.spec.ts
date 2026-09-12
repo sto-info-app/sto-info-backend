@@ -12,6 +12,7 @@ import { jest } from '@jest/globals';
 import { Repository } from 'typeorm';
 
 import { PlatformLauncherEntity } from '../platform-launcher/entities/platform-launcher.entity';
+import { AccountSortBy, AccountSortOrder } from './account-sort.utility';
 import { AccountService } from './account.service';
 import { AccountEntity } from './entities/account.entity';
 
@@ -166,6 +167,7 @@ describe('AccountService', () => {
         {
           id: '1',
           userId: 'user-1',
+          handle: 'Alpha',
           platformId: 'platform-win',
           launcherId: 'launcher-steam',
           platform: { name: 'Windows' },
@@ -174,6 +176,7 @@ describe('AccountService', () => {
         {
           id: '2',
           userId: 'user-1',
+          handle: 'Bravo',
           platformId: 'platform-ps',
           launcherId: null,
           platform: { name: 'PlayStation' },
@@ -372,6 +375,186 @@ describe('AccountService', () => {
       expect(result[0].accountTypeImageUrl).toBe(
         'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/33333333-4444-4555-8666-777777777777/public',
       );
+    });
+
+    describe('ordering', () => {
+      const listed = (
+        handle: string,
+        extra: Record<string, unknown> = {},
+      ): Record<string, unknown> => ({
+        id: handle,
+        userId: 'user-1',
+        handle,
+        platformId: null,
+        launcherId: null,
+        platform: null,
+        launcher: null,
+        characterCount: 0,
+        endeavourTotalNodes: 0,
+        accountCreatedDate: null,
+        pinnedAt: null,
+        ...extra,
+      });
+
+      const listAccounts = async (
+        accounts: Record<string, unknown>[],
+        ...args: [AccountSortBy?, AccountSortOrder?]
+      ): Promise<string[]> => {
+        (
+          repository.find as jest.Mock<(...args: any[]) => Promise<any>>
+        ).mockResolvedValue(accounts);
+        (
+          platformLauncherRepository.find as jest.Mock<
+            (...args: any[]) => Promise<any>
+          >
+        ).mockResolvedValue([]);
+
+        const result = await service.findAllUsersAccounts('user-1', ...args);
+
+        return result.map(account => account.handle);
+      };
+
+      it('orders by handle ascending when no ordering is requested', async () => {
+        const handles = await listAccounts([listed('Sisko'), listed('Archer')]);
+
+        expect(handles).toEqual(['Archer', 'Sisko']);
+      });
+
+      it('orders by the requested field and direction', async () => {
+        const handles = await listAccounts(
+          [
+            listed('Archer', { characterCount: 1 }),
+            listed('Sisko', { characterCount: 9 }),
+          ],
+          AccountSortBy.CharacterCount,
+          AccountSortOrder.Desc,
+        );
+
+        expect(handles).toEqual(['Sisko', 'Archer']);
+      });
+
+      it('puts pinned accounts first regardless of the requested ordering', async () => {
+        const handles = await listAccounts(
+          [
+            listed('Archer'),
+            listed('Sisko', { pinnedAt: new Date('2026-01-01') }),
+            listed('Picard'),
+          ],
+          AccountSortBy.Handle,
+          AccountSortOrder.Asc,
+        );
+
+        expect(handles).toEqual(['Sisko', 'Archer', 'Picard']);
+      });
+    });
+  });
+
+  describe('setPinnedForUser', () => {
+    const owned = (overrides: Record<string, unknown> = {}) => ({
+      id: 'account-1',
+      userId: 'user-1',
+      handle: 'Archer',
+      pinnedAt: null,
+      ...overrides,
+    });
+
+    it('should pin an unpinned account', async () => {
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(owned());
+
+      const result = await service.setPinnedForUser(
+        'account-1',
+        'user-1',
+        true,
+      );
+
+      expect(result.pinnedAt).toBeInstanceOf(Date);
+      expect(repository.update).toHaveBeenCalledWith('account-1', {
+        pinnedAt: expect.any(Date),
+      });
+    });
+
+    it('should unpin a pinned account', async () => {
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(owned({ pinnedAt: new Date('2026-01-01') }));
+
+      const result = await service.setPinnedForUser(
+        'account-1',
+        'user-1',
+        false,
+      );
+
+      expect(result.pinnedAt).toBeNull();
+      expect(repository.update).toHaveBeenCalledWith('account-1', {
+        pinnedAt: null,
+      });
+    });
+
+    // Pin order does not drive the list order, so rewriting the timestamp would
+    // be a write with no observable effect.
+    it('should not write when the account is already pinned', async () => {
+      const pinnedAt = new Date('2026-01-01');
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(owned({ pinnedAt }));
+
+      const result = await service.setPinnedForUser(
+        'account-1',
+        'user-1',
+        true,
+      );
+
+      expect(result.pinnedAt).toBe(pinnedAt);
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+
+    it('should not write when the account is already unpinned', async () => {
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(owned());
+
+      const result = await service.setPinnedForUser(
+        'account-1',
+        'user-1',
+        false,
+      );
+
+      expect(result.pinnedAt).toBeNull();
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+
+    it('should throw when the account ID is missing', async () => {
+      await expect(
+        service.setPinnedForUser('', 'user-1', true),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw when the user ID is missing', async () => {
+      await expect(
+        service.setPinnedForUser('account-1', '', true),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw when the account does not exist', async () => {
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
+
+      await expect(
+        service.setPinnedForUser('account-1', 'user-1', true),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw when the account belongs to another user', async () => {
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(owned({ userId: 'someone-else' }));
+
+      await expect(
+        service.setPinnedForUser('account-1', 'user-1', true),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 

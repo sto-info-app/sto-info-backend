@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
+import { Injectable, Optional } from '@nestjs/common';
+import { AuthGuard, AuthModuleOptions } from '@nestjs/passport';
 
 /**
  * JWT guard that authenticates the user when a valid token is present but lets
@@ -11,6 +11,10 @@ import { AuthGuard } from '@nestjs/passport';
  */
 @Injectable()
 export class OptionalJwtAuthGuard extends AuthGuard('jwt') {
+  constructor(@Optional() options?: AuthModuleOptions) {
+    super(options);
+  }
+
   /**
    * Returns the authenticated user when one is resolved, otherwise `null`.
    *

@@ -23,9 +23,18 @@ const trim = ({ value }: { value: unknown }) =>
  * scene is recorded.
  */
 export class CreateCrewCreditDto {
-  @ApiProperty({ description: 'The member being credited.' })
-  @IsUUID('4')
-  readonly userId: string;
+  // Named rather than identified. The rest of the application refuses to hand
+  // out user identifiers, so a credit says who it is for by the name they
+  // display and the server resolves it.
+  @ApiProperty({
+    description: 'The username of the member being credited.',
+    example: 'captain.picard',
+    maxLength: 50,
+  })
+  @Transform(trim)
+  @IsString()
+  @MaxLength(50)
+  readonly username: string;
 
   @ApiProperty({ description: 'The role they are credited in.' })
   @IsUUID('4')

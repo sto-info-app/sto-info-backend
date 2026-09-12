@@ -15,6 +15,7 @@ import { Repository } from 'typeorm';
 import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
 
 import { AccountEntity } from '../account/entities/account.entity';
+import { CharacterSortBy, CharacterSortOrder } from './character-sort.utility';
 import { CharacterService } from './character.service';
 import { CharacterClassEntity } from './entities/character-class.entity';
 import { CharacterEntity } from './entities/character.entity';
@@ -311,6 +312,168 @@ describe('CharacterService', () => {
       await expect(service.findAllForAccount('acc-1', '')).rejects.toThrow(
         BadRequestException,
       );
+    });
+
+    // The ordering itself is covered by the sort utility's own spec; what
+    // matters here is that the list the caller asked for is the list it gets.
+    it('should order the captains by the requested field', async () => {
+      (
+        accountRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: 'account-1', userId: 'user-1' });
+      (
+        characterRepository.find as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue([
+        { id: 'char-1', handle: 'Archer', level: 10, pinnedAt: null },
+        { id: 'char-2', handle: 'Sisko', level: 65, pinnedAt: null },
+      ]);
+
+      const result = await service.findAllForAccount(
+        'account-1',
+        'user-1',
+        CharacterSortBy.Level,
+        CharacterSortOrder.Desc,
+      );
+
+      expect(result.map(character => character.handle)).toEqual([
+        'Sisko',
+        'Archer',
+      ]);
+    });
+
+    it('should put pinned captains first whichever ordering is asked for', async () => {
+      (
+        accountRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: 'account-1', userId: 'user-1' });
+      (
+        characterRepository.find as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue([
+        { id: 'char-1', handle: 'Archer', level: 65, pinnedAt: null },
+        {
+          id: 'char-2',
+          handle: 'Sisko',
+          level: 10,
+          pinnedAt: new Date('2026-01-01'),
+        },
+      ]);
+
+      const result = await service.findAllForAccount(
+        'account-1',
+        'user-1',
+        CharacterSortBy.Level,
+        CharacterSortOrder.Desc,
+      );
+
+      expect(result.map(character => character.handle)).toEqual([
+        'Sisko',
+        'Archer',
+      ]);
+    });
+  });
+
+  describe('setPinnedForUser', () => {
+    const owned = (overrides: Record<string, unknown> = {}) => ({
+      id: 'char-1',
+      handle: 'Archer',
+      pinnedAt: null,
+      account: { id: 'account-1', userId: 'user-1' },
+      ...overrides,
+    });
+
+    it('should pin an unpinned captain', async () => {
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(owned());
+
+      const result = await service.setPinnedForUser('char-1', 'user-1', true);
+
+      expect(result.pinnedAt).toBeInstanceOf(Date);
+      expect(characterRepository.update).toHaveBeenCalledWith('char-1', {
+        pinnedAt: expect.any(Date),
+      });
+    });
+
+    it('should unpin a pinned captain', async () => {
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(owned({ pinnedAt: new Date('2026-01-01') }));
+
+      const result = await service.setPinnedForUser('char-1', 'user-1', false);
+
+      expect(result.pinnedAt).toBeNull();
+      expect(characterRepository.update).toHaveBeenCalledWith('char-1', {
+        pinnedAt: null,
+      });
+    });
+
+    // Pin order does not drive the list order, so rewriting the timestamp would
+    // be a write with no observable effect.
+    it('should not write when the captain is already pinned', async () => {
+      const pinnedAt = new Date('2026-01-01');
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(owned({ pinnedAt }));
+
+      const result = await service.setPinnedForUser('char-1', 'user-1', true);
+
+      expect(result.pinnedAt).toBe(pinnedAt);
+      expect(characterRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('should not write when the captain is already unpinned', async () => {
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(owned());
+
+      const result = await service.setPinnedForUser('char-1', 'user-1', false);
+
+      expect(result.pinnedAt).toBeNull();
+      expect(characterRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('should throw when the character ID is missing', async () => {
+      await expect(
+        service.setPinnedForUser('', 'user-1', true),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw when the user ID is missing', async () => {
+      await expect(
+        service.setPinnedForUser('char-1', '', true),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw when the captain does not exist', async () => {
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(null);
+
+      await expect(
+        service.setPinnedForUser('char-1', 'user-1', true),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw when the captain belongs to another user', async () => {
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(
+        owned({ account: { id: 'account-1', userId: 'someone-else' } }),
+      );
+
+      await expect(
+        service.setPinnedForUser('char-1', 'user-1', true),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 

@@ -88,11 +88,15 @@ export class StorytimeCrewMapper {
    *
    * @param credits - The credit entities.
    * @param roles - The roles they name.
+   * @param usernames - The credited members' names, keyed by identifier. A
+   *   member missing from it has closed their account, and the credit comes
+   *   back unattributed rather than pointing at somebody who is not there.
    * @returns The credits as a credits roll.
    */
   toCreditList(
     credits: StorytimeCrewCreditEntity[],
     roles: StorytimeCrewRoleEntity[],
+    usernames: Map<string, string> = new Map(),
   ): CrewCreditDto[] {
     const byId = new Map(roles.map(role => [role.id, role]));
 
@@ -104,7 +108,7 @@ export class StorytimeCrewMapper {
         storyId: credit.storyId,
         chapterId: credit.chapterId,
         characterId: credit.characterId,
-        userId: credit.userId,
+        username: usernames.get(credit.userId) ?? null,
         scope: credit.scope,
         role: role ? this.toRole(role) : null,
         displayLabel: credit.creditLabel ?? role?.name ?? 'Contributor',

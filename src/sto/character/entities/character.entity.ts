@@ -189,6 +189,19 @@ export class CharacterEntity {
   @Column({ type: 'boolean', default: true })
   publiclyVisible: boolean;
 
+  /**
+   * When the owner pinned this captain to the top of the account's own list.
+   *
+   * Private to the owner: pinning is dashboard curation and is never published
+   * to the registry, so this is deliberately absent from the public captain
+   * DTOs. A timestamp rather than a flag so that when the pin was made is
+   * recoverable; ordering within the pinned group follows the chosen sort.
+   */
+  @IsOptional()
+  @IsDateString()
+  @Column({ type: 'timestamp', nullable: true })
+  pinnedAt: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

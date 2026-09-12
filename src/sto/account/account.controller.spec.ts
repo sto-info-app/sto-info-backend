@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { jest } from '@jest/globals';
 
+import { AccountSortBy, AccountSortOrder } from './account-sort.utility';
 import { AccountController } from './account.controller';
 import { AccountService } from './account.service';
 import { CreateAccountRequestDto } from './dto/create-account-request.dto';
@@ -25,6 +26,7 @@ describe('AccountController', () => {
             findAllUsersAccounts: jest.fn(),
             findOneForUser: jest.fn(),
             updateForUser: jest.fn(),
+            setPinnedForUser: jest.fn(),
             removeForUser: jest.fn(),
           },
         },
@@ -79,10 +81,68 @@ describe('AccountController', () => {
         >
       ).mockResolvedValue(expected);
 
-      const result = await controller.findAllUsersAccounts(userId);
+      const result = await controller.findAllUsersAccounts(userId, {});
 
       expect(result).toEqual(expected);
-      expect(service.findAllUsersAccounts).toHaveBeenCalledWith(userId);
+      expect(service.findAllUsersAccounts).toHaveBeenCalledWith(
+        userId,
+        undefined,
+        undefined,
+      );
+    });
+
+    it('should pass the requested ordering through to the service', async () => {
+      const userId = 'user-123';
+      (
+        service.findAllUsersAccounts as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue([]);
+
+      await controller.findAllUsersAccounts(userId, {
+        sortBy: AccountSortBy.CharacterCount,
+        sortOrder: AccountSortOrder.Desc,
+      });
+
+      expect(service.findAllUsersAccounts).toHaveBeenCalledWith(
+        userId,
+        AccountSortBy.CharacterCount,
+        AccountSortOrder.Desc,
+      );
+    });
+  });
+
+  describe('setPinned', () => {
+    it('should pin an account for the authenticated user', async () => {
+      const expected = { id: 'account-1', pinnedAt: new Date() };
+      (
+        service.setPinnedForUser as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(expected);
+
+      const result = await controller.setPinned('user-123', 'account-1', {
+        pinned: true,
+      });
+
+      expect(result).toEqual(expected);
+      expect(service.setPinnedForUser).toHaveBeenCalledWith(
+        'account-1',
+        'user-123',
+        true,
+      );
+    });
+
+    it('should unpin an account for the authenticated user', async () => {
+      (
+        service.setPinnedForUser as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: 'account-1', pinnedAt: null });
+
+      await controller.setPinned('user-123', 'account-1', { pinned: false });
+
+      expect(service.setPinnedForUser).toHaveBeenCalledWith(
+        'account-1',
+        'user-123',
+        false,
+      );
     });
   });
 

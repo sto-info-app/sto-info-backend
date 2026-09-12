@@ -287,6 +287,85 @@ describe('StorytimeMarkdownService', () => {
     });
   });
 
+  describe('indents and spacers', () => {
+    it('indents a paragraph opened with the marker', () => {
+      expect(service.render('{indent}A sentence.').html).toBe(
+        '<p id="b1" class="sto-indent">A sentence.</p>',
+      );
+    });
+
+    it('swallows the space between the marker and the first word', () => {
+      expect(service.render('{indent}   A sentence.').html).toBe(
+        '<p id="b1" class="sto-indent">A sentence.</p>',
+      );
+    });
+
+    it('still renders the rest of the paragraph as Markdown', () => {
+      expect(service.render('{indent}A **bold** word.').html).toBe(
+        '<p id="b1" class="sto-indent">A <strong>bold</strong> word.</p>',
+      );
+    });
+
+    // The narrow rule is what removes the need for an escape syntax: a marker
+    // that only means something in one place is literal text everywhere else.
+    it('leaves the marker as text anywhere but the start of a paragraph', () => {
+      expect(service.render('A sentence {indent} interrupted.').html).toBe(
+        '<p id="b1">A sentence {indent} interrupted.</p>',
+      );
+    });
+
+    it('leaves the marker as text on a later line of a paragraph', () => {
+      expect(service.render('First line.\n{indent}Second line.').html).toBe(
+        '<p id="b1">First line.<br />{indent}Second line.</p>',
+      );
+    });
+
+    it('matches the marker exactly, so a capital or a space is just text', () => {
+      expect(service.render('{Indent}A sentence.').html).toBe(
+        '<p id="b1">{Indent}A sentence.</p>',
+      );
+      expect(service.render('{ indent }A sentence.').html).toBe(
+        '<p id="b1">{ indent }A sentence.</p>',
+      );
+    });
+
+    // A heading is recognised by how the block opens, so a marker in front of
+    // one means the block was never a heading; the hash is shown as typed.
+    it('does not turn another construct into an indented one', () => {
+      expect(service.render('{indent}# Not a heading').html).toBe(
+        '<p id="b1" class="sto-indent"># Not a heading</p>',
+      );
+    });
+
+    it('renders a spacer block with nothing for a reader to hear', () => {
+      expect(service.render('{spacer}').html).toBe(
+        '<div class="sto-spacer" aria-hidden="true"></div>',
+      );
+    });
+
+    // The spacer takes no anchor, but it has taken a position: the block after
+    // it keeps the anchor it would have had were the spacer a paragraph.
+    it('leaves the anchors of the blocks around it undisturbed', () => {
+      const { html, blockCount } = service.render(
+        'First.\n\n{spacer}\n\nThird.',
+      );
+
+      expect(html).toContain('<p id="b1">First.</p>');
+      expect(html).toContain('<p id="b3">Third.</p>');
+      expect(html).not.toContain('id="b2"');
+      expect(blockCount).toBe(3);
+    });
+
+    it('leaves the spacer as text when it is not a block of its own', () => {
+      expect(service.render('Before {spacer} after.').html).toBe(
+        '<p id="b1">Before {spacer} after.</p>',
+      );
+      expect(service.render('A line.\n{spacer}').html).toBe(
+        '<p id="b1">A line.<br />{spacer}</p>',
+      );
+    });
+  });
+
   describe('word count and reading time', () => {
     it('counts words', () => {
       expect(service.render('one two three four five').wordCount).toBe(5);
@@ -294,6 +373,12 @@ describe('StorytimeMarkdownService', () => {
 
     it('ignores Markdown syntax when counting', () => {
       expect(service.render('**one** *two* `three`').wordCount).toBe(3);
+    });
+
+    it('ignores the site’s own markers when counting', () => {
+      expect(
+        service.render('{indent}one two\n\n{spacer}\n\nthree').wordCount,
+      ).toBe(3);
     });
 
     it('counts nothing for empty content', () => {
@@ -321,6 +406,6 @@ describe('StorytimeMarkdownService', () => {
   });
 
   it('stamps the schema version so content can be re-rendered later', () => {
-    expect(service.render('x').schemaVersion).toBe(1);
+    expect(service.render('x').schemaVersion).toBe(2);
   });
 });

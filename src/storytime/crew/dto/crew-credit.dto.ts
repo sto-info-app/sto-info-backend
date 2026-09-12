@@ -44,8 +44,14 @@ export class CrewCreditDto {
   })
   characterId: string | null;
 
-  @ApiProperty({ description: 'The member credited.' })
-  userId: string;
+  @ApiProperty({
+    description:
+      'The username of the member credited, or null when they are no longer ' +
+      'a member. Their user identifier is deliberately not returned.',
+    nullable: true,
+    example: 'captain.picard',
+  })
+  username: string | null;
 
   @ApiProperty({
     enum: CrewCreditScope,

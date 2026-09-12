@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 
 import { jest } from '@jest/globals';
 
+import { CharacterSortBy, CharacterSortOrder } from './character-sort.utility';
 import { CharacterController } from './character.controller';
 import { CharacterService } from './character.service';
 
@@ -22,6 +23,7 @@ describe('CharacterController', () => {
             findOneForUser: jest.fn(),
             updateForUser: jest.fn(),
             removeForUser: jest.fn(),
+            setPinnedForUser: jest.fn(),
             getGeneralFactions: jest.fn(),
             getFactions: jest.fn(),
             getSexes: jest.fn(),
@@ -59,8 +61,48 @@ describe('CharacterController', () => {
 
   describe('findAllForAccount', () => {
     it('should call service.findAllForAccount', async () => {
-      await controller.findAllForAccount('user-1', 'acc-1');
-      expect(service.findAllForAccount).toHaveBeenCalledWith('acc-1', 'user-1');
+      await controller.findAllForAccount('user-1', { accountId: 'acc-1' });
+      expect(service.findAllForAccount).toHaveBeenCalledWith(
+        'acc-1',
+        'user-1',
+        undefined,
+        undefined,
+      );
+    });
+
+    it('should pass the requested ordering through', async () => {
+      await controller.findAllForAccount('user-1', {
+        accountId: 'acc-1',
+        sortBy: CharacterSortBy.Level,
+        sortOrder: CharacterSortOrder.Desc,
+      });
+
+      expect(service.findAllForAccount).toHaveBeenCalledWith(
+        'acc-1',
+        'user-1',
+        CharacterSortBy.Level,
+        CharacterSortOrder.Desc,
+      );
+    });
+  });
+
+  describe('setPinned', () => {
+    it('should call service.setPinnedForUser', async () => {
+      await controller.setPinned('user-1', 'char-1', { pinned: true });
+      expect(service.setPinnedForUser).toHaveBeenCalledWith(
+        'char-1',
+        'user-1',
+        true,
+      );
+    });
+
+    it('should pass an unpin through', async () => {
+      await controller.setPinned('user-1', 'char-1', { pinned: false });
+      expect(service.setPinnedForUser).toHaveBeenCalledWith(
+        'char-1',
+        'user-1',
+        false,
+      );
     });
   });
 
