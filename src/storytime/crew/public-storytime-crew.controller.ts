@@ -92,6 +92,7 @@ export class PublicStorytimeCrewController {
       await this._creditService.findRolesByIds(
         credits.map(credit => credit.roleId),
       ),
+      await this._creditService.findUsernamesFor(credits),
     );
   }
 }

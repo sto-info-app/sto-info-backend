@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -31,10 +32,15 @@ import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constant
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { CollaboratorDto } from './dto/collaborator.dto';
 import { CreateCrewCreditDto } from './dto/create-crew-credit.dto';
+import {
+  CreditableMemberDto,
+  CreditableMembersQueryDto,
+} from './dto/creditable-member.dto';
 import { CrewCreditDto } from './dto/crew-credit.dto';
 import { InviteCollaboratorDto } from './dto/invite-collaborator.dto';
 import { UpdateCollaboratorDto } from './dto/update-collaborator.dto';
 import { UpdateCrewCreditDto } from './dto/update-crew-credit.dto';
+import { StorytimeCrewCreditEntity } from './entities/storytime-crew-credit.entity';
 import { StorytimeCollaboratorService } from './storytime-collaborator.service';
 import { StorytimeCrewCreditService } from './storytime-crew-credit.service';
 import { StorytimeCrewMapper } from './storytime-crew.mapper';
@@ -228,6 +234,70 @@ export class StorytimeCrewController {
   }
 
   /**
+   * Lists a Story's credits, published or not.
+   *
+   * The public roll is read by slug and only for a published Story, which is
+   * no use to somebody still assembling the credits on a draft.
+   *
+   * @param storyId - The Story.
+   * @param userId - The caller.
+   * @returns The credits, in credits-roll order.
+   */
+  @Get('stories/:storyId/credits')
+  @ApiOperation({ summary: 'List the credits on a Story you manage' })
+  @ApiOkResponse({ type: [CrewCreditDto] })
+  @ApiForbiddenResponse({ description: 'No access to this Story.' })
+  async findCredits(
+    @Param('storyId', ParseUUIDPipe) storyId: string,
+    @UserId() userId: string,
+  ): Promise<CrewCreditDto[]> {
+    await this.assertEnabled();
+
+    const credits = await this._creditService.findByStoryForManager(
+      storyId,
+      userId,
+    );
+
+    return this._mapper.toCreditList(
+      credits,
+      await this._creditService.findRolesByIds(
+        credits.map(credit => credit.roleId),
+      ),
+      await this._creditService.findUsernamesFor(credits),
+    );
+  }
+
+  /**
+   * Finds members who may be credited on a Story.
+   *
+   * Answers with usernames only. A credit names its member by username and the
+   * server resolves it, so a client never has to be told who anybody is beyond
+   * the name they already display.
+   *
+   * @param storyId - The Story.
+   * @param query - What to search by.
+   * @param userId - The caller.
+   * @returns The members worth offering.
+   */
+  @Get('stories/:storyId/creditable-members')
+  @ApiOperation({ summary: 'Find members you could credit on a Story' })
+  @ApiOkResponse({ type: [CreditableMemberDto] })
+  @ApiForbiddenResponse({ description: 'No access to this Story.' })
+  async findCreditableMembers(
+    @Param('storyId', ParseUUIDPipe) storyId: string,
+    @Query() query: CreditableMembersQueryDto,
+    @UserId() userId: string,
+  ): Promise<CreditableMemberDto[]> {
+    await this.assertEnabled();
+
+    return this._creditService.findCreditableMembers(
+      storyId,
+      userId,
+      query.search,
+    );
+  }
+
+  /**
    * Adds a credit to a Story.
    *
    * @param storyId - The Story.
@@ -249,12 +319,8 @@ export class StorytimeCrewController {
     await this.assertEnabled();
 
     const credit = await this._creditService.create(storyId, dto, userId);
-    const [mapped] = this._mapper.toCreditList(
-      [credit],
-      await this._creditService.findRolesByIds([credit.roleId]),
-    );
 
-    return mapped;
+    return this.mapOne(credit);
   }
 
   /**
@@ -276,12 +342,8 @@ export class StorytimeCrewController {
     await this.assertEnabled();
 
     const credit = await this._creditService.update(creditId, dto, userId);
-    const [mapped] = this._mapper.toCreditList(
-      [credit],
-      await this._creditService.findRolesByIds([credit.roleId]),
-    );
 
-    return mapped;
+    return this.mapOne(credit);
   }
 
   /**
@@ -301,6 +363,24 @@ export class StorytimeCrewController {
     await this.assertEnabled();
 
     await this._creditService.remove(creditId, userId);
+  }
+
+  /**
+   * Maps one credit, with the role and username it needs to read properly.
+   *
+   * @param credit - The credit as the server now holds it.
+   * @returns The credit as the API returns it.
+   */
+  private async mapOne(
+    credit: StorytimeCrewCreditEntity,
+  ): Promise<CrewCreditDto> {
+    const [mapped] = this._mapper.toCreditList(
+      [credit],
+      await this._creditService.findRolesByIds([credit.roleId]),
+      await this._creditService.findUsernamesFor([credit]),
+    );
+
+    return mapped;
   }
 
   /**

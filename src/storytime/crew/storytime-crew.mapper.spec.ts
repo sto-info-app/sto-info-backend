@@ -168,6 +168,33 @@ describe('StorytimeCrewMapper', () => {
       expect(dto.scope).toBe(CrewCreditScope.CHARACTER);
     });
 
+    it('names the member the credit is for', () => {
+      const [dto] = mapper.toCreditList(
+        [buildCredit()],
+        [role],
+        new Map([['user-1', 'captain.picard']]),
+      );
+
+      expect(dto.username).toBe('captain.picard');
+    });
+
+    // The username is the only identity the rest of the application exposes,
+    // and a credits roll is not the place to start making an exception.
+    it('never carries the credited member’s identifier', () => {
+      const [dto] = mapper.toCreditList([buildCredit()], [role]);
+
+      expect(dto).not.toHaveProperty('userId');
+    });
+
+    // Somebody who has closed their account is not there to be pointed at, so
+    // the credit survives them unattributed rather than naming a stranger.
+    it('leaves a credit unattributed when its member has gone', () => {
+      const [dto] = mapper.toCreditList([buildCredit()], [role], new Map());
+
+      expect(dto.username).toBeNull();
+      expect(dto.displayLabel).toBe('Narrator');
+    });
+
     it('maps an empty credits roll', () => {
       expect(mapper.toCreditList([], [])).toEqual([]);
     });
