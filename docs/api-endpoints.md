@@ -464,6 +464,29 @@ order by.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
+### GET /account/switcher
+
+List every account the current user owns together with its captains, reduced to
+the fields the dashboard's quick switcher draws: handle, platform and launcher
+names, lifetime flag and `pinnedAt` for an account; handle, 100px avatar,
+faction name and icon, general faction name and `pinnedAt` for a captain.
+
+One request rather than `GET /account` followed by a captain call per account:
+the switcher offers any-to-any jumps, so it needs the whole set before it can
+show anything.
+
+Accounts and captains are both ordered pinned first, then by handle ascending,
+matching the owner's own lists. Accounts with no captains are included, with an
+empty `characters` array.
+
+Faction icon URLs are verified as valid Cloudflare Images delivery URLs, and
+anything else is returned as `null`.
+
+Declared above `GET /account/:id` in the controller so the path is not read as
+an account ID.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
 ### GET /account/:id
 
 Get a single account by id.
