@@ -15,14 +15,21 @@
 # container is removed on exit, including on failure or interrupt.
 #
 # Usage:
-#   bash scripts/migration-rehearsal/run-rehearsal.sh <migration.ts> <name>
+#   bash scripts/migration-rehearsal/run-rehearsal.sh <migration.ts>[,<migration.ts>...] <name>
 #
-# <name> selects sql/<name>-seed.sql and sql/<name>-assert.sql.
+# <name> selects sql/<name>-seed.sql and sql/<name>-assert.sql, and
+# sql/../race-<name>.sh when one exists.
+#
+# A migration that builds on an earlier one is given the whole chain, comma
+# separated and in application order. The ups are applied in that order and the
+# downs in the reverse, so the rollback check still ends at the bare stubs.
 #
 set -euo pipefail
 
-MIGRATION="${1:-src/database/migrations/1791600000000-CreateFleetCommunityDomainTables.ts}"
+MIGRATIONS="${1:-src/database/migrations/1791600000000-CreateFleetCommunityDomainTables.ts}"
 SUITE="${2:-fleet-community}"
+
+IFS=',' read -r -a MIGRATION_LIST <<<"${MIGRATIONS}"
 
 PG_IMAGE="${REHEARSAL_PG_IMAGE:-postgres:17-alpine}"
 CONTAINER="migration-rehearsal-$$"
@@ -53,7 +60,7 @@ psql_value() {
     psql -qtA -U postgres -d rehearsal -c "$1"
 }
 
-for file in "${MIGRATION}" "${SEED}" "${ASSERT}"; do
+for file in "${MIGRATION_LIST[@]}" "${SEED}" "${ASSERT}"; do
   if [ ! -f "${REPO}/${file}" ] && [ ! -f "${file}" ]; then
     echo "Not found: ${file}" >&2
     exit 1
@@ -65,10 +72,13 @@ if ! docker version >/dev/null 2>&1; then
   exit 1
 fi
 
-step "Emitting SQL from ${MIGRATION}"
 cd "${REPO}"
-npx ts-node -r tsconfig-paths/register \
-  "${HERE}/emit-migration-sql.ts" "${MIGRATION}" "${WORK}/up.sql" "${WORK}/down.sql"
+for index in "${!MIGRATION_LIST[@]}"; do
+  step "Emitting SQL from ${MIGRATION_LIST[${index}]}"
+  npx ts-node -r tsconfig-paths/register \
+    "${HERE}/emit-migration-sql.ts" "${MIGRATION_LIST[${index}]}" \
+    "${WORK}/up.${index}.sql" "${WORK}/down.${index}.sql"
+done
 
 step "Starting ${PG_IMAGE}"
 docker run -d --name "${CONTAINER}" \
@@ -84,8 +94,10 @@ done
 step 'Applying stub parent tables'
 psql_file "${HERE}/sql/stubs.sql"
 
-step 'Applying the migration (up)'
-psql_file "${WORK}/up.sql"
+step 'Applying the migrations (up)'
+for index in "${!MIGRATION_LIST[@]}"; do
+  psql_file "${WORK}/up.${index}.sql"
+done
 
 step 'Seeding'
 psql_file "${SEED}"
@@ -93,15 +105,17 @@ psql_file "${SEED}"
 step 'Asserting — every statement below is meant to be rejected'
 psql_file "${ASSERT}"
 
-if [ "${SUITE}" = 'fleet-community' ]; then
+if [ -f "${HERE}/race-${SUITE}.sh" ]; then
   step 'Racing concurrent writers'
-  bash "${HERE}/race-fleet-community.sh" "${CONTAINER}"
+  bash "${HERE}/race-${SUITE}.sh" "${CONTAINER}"
 fi
 
 # Rolling back an empty schema proves very little. This rolls back over the
 # rows the assertions left behind, which is the case that actually goes wrong.
 step 'Rolling back (down) with data present'
-psql_file "${WORK}/down.sql"
+for ((index = ${#MIGRATION_LIST[@]} - 1; index >= 0; index--)); do
+  psql_file "${WORK}/down.${index}.sql"
+done
 
 remaining="$(psql_value "SELECT count(*) FROM information_schema.tables WHERE table_schema='sto_info_app'")"
 types="$(psql_value "SELECT count(*) FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='sto_info_app' AND t.typtype='e'")"
@@ -117,7 +131,9 @@ if [ "${remaining}" -ne "${expected_stubs}" ]; then
 fi
 echo "PASS: rollback left only the ${expected_stubs} stub tables and no enum types"
 
-step 'Re-applying the migration to the same database'
-psql_file "${WORK}/up.sql"
+step 'Re-applying the migrations to the same database'
+for index in "${!MIGRATION_LIST[@]}"; do
+  psql_file "${WORK}/up.${index}.sql"
+done
 
 printf '\nREHEARSAL PASSED: up -> assert -> down (with data) -> up, on %s\n' "${PG_IMAGE}"

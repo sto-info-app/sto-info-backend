@@ -7,13 +7,29 @@ rule it claims to enforce.
 npm run rehearse:migration
 ```
 
-That rehearses the Fleet Community schema. To rehearse a different migration:
+That rehearses the FC-004 Fleet Community schema. The FC-005 delegation table
+builds on it, so its rehearsal replays both:
+
+```bash
+npm run rehearse:migration:fleet-authorisation
+```
+
+To rehearse a different migration:
 
 ```bash
 npm run rehearse:migration -- src/database/migrations/<migration>.ts <suite>
 ```
 
-where `<suite>` selects `sql/<suite>-seed.sql` and `sql/<suite>-assert.sql`.
+where `<suite>` selects `sql/<suite>-seed.sql` and `sql/<suite>-assert.sql`, and
+`race-<suite>.sh` when that file exists. A migration that depends on an earlier
+one is given the whole chain, comma separated and in application order:
+
+```bash
+npm run rehearse:migration -- src/database/migrations/<first>.ts,src/database/migrations/<second>.ts <suite>
+```
+
+The ups are applied in that order and the downs in the reverse, so the rollback
+check still ends at the bare stub tables.
 
 ## Why this exists alongside the unit specs
 
@@ -33,7 +49,7 @@ Two things in particular are not provable any other way:
 
 ## What a run does
 
-1. Records the migration's `up` and `down` SQL without a database
+1. Records each migration's `up` and `down` SQL without a database
    (`emit-migration-sql.ts` hands it a query runner that collects statements instead of
    executing them, so this is what TypeORM would send rather than a transcription of it).
 2. Starts `postgres:17-alpine` in a container.
@@ -62,7 +78,10 @@ for.
 
 ## Adding a suite
 
-Add `sql/<suite>-seed.sql` and `sql/<suite>-assert.sql`. The assertion file gets three helpers,
+Add `sql/<suite>-seed.sql` and `sql/<suite>-assert.sql`, and `race-<suite>.sh`
+when the migration claims an invariant worded "under concurrent writes". Seed
+files are self-contained: a suite that expected another suite's rows to be
+loaded first would only work in one order, and nothing enforces an order. The assertion file gets three helpers,
 defined at the top of the Fleet Community one and worth copying:
 
 - `expect_rejected(label, statement, sqlstate)` — fails the run if the database **accepts** the

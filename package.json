@@ -44,6 +44,7 @@
     "e2e:support": "ts-node -r tsconfig-paths/register scripts/e2e-support.ts",
     "fixtures:fleet-corpus": "ts-node -r tsconfig-paths/register scripts/generate-fleet-corpus-fixtures.ts",
     "rehearse:migration": "bash scripts/migration-rehearsal/run-rehearsal.sh",
+    "rehearse:migration:fleet-authorisation": "bash scripts/migration-rehearsal/run-rehearsal.sh src/database/migrations/1791600000000-CreateFleetCommunityDomainTables.ts,src/database/migrations/1791700000000-CreateScopeCapabilityGrants.ts fleet-authorisation",
     "test:mutation": "stryker run --reporters clear-text --reporters html --reporters progress",
     "test:mutation:dry": "stryker run --reporters clear-text --reporters html --reporters progress --dryRunOnly",
     "test:mutation:incremental": "node ./scripts/run-incremental-mutation.mjs",
