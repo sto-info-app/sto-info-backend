@@ -43,6 +43,7 @@
     "e2e": "npm run test:e2e",
     "e2e:support": "ts-node -r tsconfig-paths/register scripts/e2e-support.ts",
     "fixtures:fleet-corpus": "ts-node -r tsconfig-paths/register scripts/generate-fleet-corpus-fixtures.ts",
+    "rehearse:migration": "bash scripts/migration-rehearsal/run-rehearsal.sh",
     "test:mutation": "stryker run --reporters clear-text --reporters html --reporters progress",
     "test:mutation:dry": "stryker run --reporters clear-text --reporters html --reporters progress --dryRunOnly",
     "test:mutation:incremental": "node ./scripts/run-incremental-mutation.mjs",
