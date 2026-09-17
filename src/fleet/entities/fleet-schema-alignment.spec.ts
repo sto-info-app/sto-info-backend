@@ -2,11 +2,13 @@ import { jest } from '@jest/globals';
 import { getMetadataArgsStorage, QueryRunner } from 'typeorm';
 
 import { CreateFleetCommunityDomainTables1791600000000 } from '../../database/migrations/1791600000000-CreateFleetCommunityDomainTables';
+import { CreateScopeCapabilityGrants1791700000000 } from '../../database/migrations/1791700000000-CreateScopeCapabilityGrants';
 import { ArmadaFleetMembershipEntity } from './armada-fleet-membership.entity';
 import { CharacterFleetMembershipEntity } from './character-fleet-membership.entity';
 import { CommunitySubscriptionEntity } from './community-subscription.entity';
 import { FleetCommunityEntity } from './fleet-community.entity';
 import { FleetNameAliasEntity } from './fleet-name-alias.entity';
+import { ScopeCapabilityGrantEntity } from './scope-capability-grant.entity';
 import { ScopeMembershipEntity } from './scope-membership.entity';
 import { ScopeRoleAssignmentEntity } from './scope-role-assignment.entity';
 import { StoArmadaEntity } from './sto-armada.entity';
@@ -35,6 +37,7 @@ describe('Fleet schema alignment', () => {
     CommunitySubscriptionEntity,
     ScopeMembershipEntity,
     ScopeRoleAssignmentEntity,
+    ScopeCapabilityGrantEntity,
     CharacterFleetMembershipEntity,
   ];
 
@@ -42,8 +45,11 @@ describe('Fleet schema alignment', () => {
 
   let statements: string[];
 
+  // Both migrations are replayed into one transcript. The feature's schema is
+  // spread over more than one file and will spread further; comparing the
+  // entities against only the first one would quietly stop checking every table
+  // added after it.
   beforeAll(async () => {
-    const migration = new CreateFleetCommunityDomainTables1791600000000();
     const captured: string[] = [];
     const queryRunner = {
       query: jest.fn((sql: string) => {
@@ -53,7 +59,8 @@ describe('Fleet schema alignment', () => {
       }),
     } as unknown as QueryRunner;
 
-    await migration.up(queryRunner);
+    await new CreateFleetCommunityDomainTables1791600000000().up(queryRunner);
+    await new CreateScopeCapabilityGrants1791700000000().up(queryRunner);
     statements = captured;
   });
 

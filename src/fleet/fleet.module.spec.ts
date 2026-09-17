@@ -4,11 +4,17 @@ import { join } from 'node:path';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { CommunityModule } from '../community/community.module';
+import { UserEntity } from '../user/entities/user.entity';
+import { FleetAudienceService } from './authorisation/fleet-audience.service';
+import { FleetAuthorisationRevisionService } from './authorisation/fleet-authorisation-revision.service';
+import { FleetAuthorisationService } from './authorisation/fleet-authorisation.service';
+import { ScopeCapabilityGuard } from './authorisation/scope-capability.guard';
 import { ArmadaFleetMembershipEntity } from './entities/armada-fleet-membership.entity';
 import { CharacterFleetMembershipEntity } from './entities/character-fleet-membership.entity';
 import { CommunitySubscriptionEntity } from './entities/community-subscription.entity';
 import { FleetCommunityEntity } from './entities/fleet-community.entity';
 import { FleetNameAliasEntity } from './entities/fleet-name-alias.entity';
+import { ScopeCapabilityGrantEntity } from './entities/scope-capability-grant.entity';
 import { ScopeMembershipEntity } from './entities/scope-membership.entity';
 import { ScopeRoleAssignmentEntity } from './entities/scope-role-assignment.entity';
 import { StoArmadaEntity } from './entities/sto-armada.entity';
@@ -29,7 +35,18 @@ describe('FleetModule', () => {
     CommunitySubscriptionEntity,
     ScopeMembershipEntity,
     ScopeRoleAssignmentEntity,
+    ScopeCapabilityGrantEntity,
     CharacterFleetMembershipEntity,
+  ];
+
+  /** Registered for its repository, but owned by the user module. */
+  const BORROWED_ENTITIES = [UserEntity];
+
+  const SERVICES = [
+    FleetAuthorisationService,
+    FleetAudienceService,
+    FleetAuthorisationRevisionService,
+    ScopeCapabilityGuard,
   ];
 
   const registeredTokens = (): unknown[] => {
@@ -44,7 +61,7 @@ describe('FleetModule', () => {
   it('registers a repository for every Fleet entity', () => {
     const tokens = registeredTokens();
 
-    for (const entity of ENTITIES) {
+    for (const entity of [...ENTITIES, ...BORROWED_ENTITIES]) {
       expect(tokens).toContain(getRepositoryToken(entity));
     }
   });
@@ -61,7 +78,31 @@ describe('FleetModule', () => {
     );
 
     expect(files).toHaveLength(ENTITIES.length);
-    expect(registeredTokens()).toHaveLength(ENTITIES.length);
+    expect(registeredTokens()).toHaveLength(
+      ENTITIES.length + BORROWED_ENTITIES.length,
+    );
+  });
+
+  it('provides and exports the authorisation policy', () => {
+    const providers = Reflect.getMetadata(
+      'providers',
+      FleetModule,
+    ) as unknown[];
+    const exported = Reflect.getMetadata('exports', FleetModule) as unknown[];
+
+    for (const service of SERVICES) {
+      expect(providers).toContain(service);
+      expect(exported).toContain(service);
+    }
+  });
+
+  /**
+   * A scoped capability means nothing outside this feature, and a globally
+   * available scope policy is an invitation to reach for it from somewhere that
+   * should be asking the site-wide service instead.
+   */
+  it('is not registered globally', () => {
+    expect(Reflect.getMetadata('__module:global__', FleetModule)).toBeFalsy();
   });
 
   // ADR-0008. FleetModule may depend on the social graph; the social graph must
