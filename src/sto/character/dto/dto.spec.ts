@@ -129,17 +129,40 @@ describe('CreateCharacterRequestDto Validation', () => {
   });
 
   describe('createdDate', () => {
-    it('should pass when createdDate is a valid ISO date string', async () => {
-      (dto as any).createdDate = '2024-01-01T00:00:00.000Z';
+    it('should pass when createdDate is a calendar date', async () => {
+      (dto as any).createdDate = '2024-01-01';
       const errors = await validate(dto);
       expect(errors.length).toBe(0);
     });
 
-    it('should fail when createdDate is not a valid date string', async () => {
+    /**
+     * An instant with an offset names two different days depending on where it
+     * is read, so it is refused rather than silently resolved to one of them.
+     */
+    it('should fail when createdDate is an instant rather than a day', async () => {
+      (dto as any).createdDate = '2024-01-01T00:00:00.000Z';
+      const errors = await validate(dto);
+      const fieldError = errors.find(e => e.property === 'createdDate');
+      expect(fieldError?.constraints).toHaveProperty('isCalendarDate');
+    });
+
+    it('should fail when createdDate is not a date at all', async () => {
       (dto as any).createdDate = 'not-a-date';
       const errors = await validate(dto);
       const fieldError = errors.find(e => e.property === 'createdDate');
-      expect(fieldError?.constraints).toHaveProperty('isDateString');
+      expect(fieldError?.constraints).toHaveProperty('isCalendarDate');
+    });
+
+    /**
+     * The pattern alone would accept this; the thirtieth of February is not a
+     * day, and storing it would move to the second of March the moment
+     * anything parsed it.
+     */
+    it('should fail when createdDate is a day that does not exist', async () => {
+      (dto as any).createdDate = '2024-02-30';
+      const errors = await validate(dto);
+      const fieldError = errors.find(e => e.property === 'createdDate');
+      expect(fieldError?.constraints).toHaveProperty('isCalendarDate');
     });
   });
 

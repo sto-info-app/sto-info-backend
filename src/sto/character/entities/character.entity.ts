@@ -8,6 +8,7 @@ import {
   IsString,
   IsUUID,
   Min,
+  Validate,
 } from 'class-validator';
 import {
   Column,
@@ -23,6 +24,7 @@ import {
 
 import { CLOUDFLARE_R2_CDN_ROOT_URL } from 'src/shared/constants/image.constants';
 
+import { IsCalendarDateConstraint } from '../../../shared/utilities/is-calendar-date.constraint';
 import { AccountEntity } from '../../account/entities/account.entity';
 import { CharacterClassEntity } from './character-class.entity';
 import { FactionEntity } from './faction.entity';
@@ -155,10 +157,19 @@ export class CharacterEntity {
   @JoinColumn({ name: 'speciesId' })
   species: SpeciesEntity;
 
+  /**
+   * The day this Character was created in Star Trek Online, as `YYYY-MM-DD`.
+   *
+   * A `date` column and a string, not a timestamp and a `Date`. It is a day
+   * somebody typed, with no time and no timezone, and the two go together: a
+   * `Date` invites conversion, and converting midnight to another zone moves
+   * the day. Kept as text, the fourth of March is the fourth of March wherever
+   * it is read.
+   */
   @IsOptional()
-  @IsDateString()
-  @Column({ type: 'timestamp', nullable: true })
-  createdDate: Date | null;
+  @Validate(IsCalendarDateConstraint)
+  @Column({ type: 'date', nullable: true })
+  createdDate: string | null;
 
   @IsOptional()
   @IsString()

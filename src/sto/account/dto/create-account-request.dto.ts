@@ -1,16 +1,17 @@
 import { Transform } from 'class-transformer';
 import {
   IsBoolean,
-  IsDateString,
   IsEmail,
   IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
   Matches,
+  Validate,
 } from 'class-validator';
 
 import { STO_HANDLE_PATTERN } from 'src/shared/constants/regex-patterns.constants';
+import { IsCalendarDateConstraint } from 'src/shared/utilities/is-calendar-date.constraint';
 
 const emptyStringToUndefined = ({ value }: { value: unknown }) =>
   value === '' ? undefined : value;
@@ -39,9 +40,18 @@ export class CreateAccountRequestDto {
   @IsString()
   readonly notes?: string;
 
+  /**
+   * The day the STO account was created, as `YYYY-MM-DD`.
+   *
+   * A calendar date rather than an instant. `@IsDateString` would also accept
+   * `2015-03-04T23:00:00-05:00`, which is the fourth of March in New York and
+   * the fifth in UTC — so storing it would mean choosing one and silently
+   * discarding the other. Refusing it asks the client to say which day it
+   * means instead.
+   */
   @IsOptional()
   @Transform(emptyStringToUndefined)
-  @IsDateString()
+  @Validate(IsCalendarDateConstraint)
   readonly accountCreatedDate?: string;
 
   @IsOptional()

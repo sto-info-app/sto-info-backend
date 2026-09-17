@@ -45,6 +45,9 @@ jest.mock('class-validator', () => ({
   IsJSON: () => () => {},
   IsIP: () => () => {},
   Validate: () => () => {},
+  // Entities now reach custom constraint classes, which call this at module
+  // load rather than at decoration time, so a no-op decorator is not enough.
+  ValidatorConstraint: () => () => {},
 }));
 
 describe('AuditSubscriber', () => {

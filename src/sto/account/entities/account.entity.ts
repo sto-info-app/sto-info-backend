@@ -8,6 +8,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Validate,
 } from 'class-validator';
 import {
   Column,
@@ -27,6 +28,7 @@ import { LauncherEntity } from 'src/sto/launcher/entities/launcher.entity';
 import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
 
+import { IsCalendarDateConstraint } from '../../../shared/utilities/is-calendar-date.constraint';
 import { CharacterEntity } from '../../character/entities/character.entity';
 
 @Entity({ name: 'account' })
@@ -96,10 +98,19 @@ export class AccountEntity {
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 
+  /**
+   * The day this account was made in Star Trek Online, as `YYYY-MM-DD`.
+   *
+   * A `date` column and a string, not a timestamp and a `Date`. It is a day
+   * somebody typed, with no time and no timezone, and the two go together: a
+   * `Date` invites conversion, and converting midnight to another zone moves
+   * the day. Kept as text, the fourth of March is the fourth of March wherever
+   * it is read.
+   */
   @IsOptional()
-  @IsDateString()
-  @Column({ type: 'timestamp', nullable: true })
-  accountCreatedDate: Date | null;
+  @Validate(IsCalendarDateConstraint)
+  @Column({ type: 'date', nullable: true })
+  accountCreatedDate: string | null;
 
   @IsBoolean()
   @Column({ type: 'boolean', default: true })

@@ -1,7 +1,6 @@
 import { Transform } from 'class-transformer';
 import {
   IsBoolean,
-  IsDateString,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -9,9 +8,11 @@ import {
   IsUUID,
   Matches,
   Min,
+  Validate,
 } from 'class-validator';
 
 import { CHARACTER_NAME_PATTERN } from 'src/shared/constants/regex-patterns.constants';
+import { IsCalendarDateConstraint } from 'src/shared/utilities/is-calendar-date.constraint';
 
 export const emptyStringToUndefined = ({ value }: { value: unknown }) =>
   value === '' ? undefined : value;
@@ -64,9 +65,16 @@ export class CreateCharacterRequestDto {
   @IsUUID()
   readonly speciesId: string;
 
+  /**
+   * The day the captain was created, as `YYYY-MM-DD`.
+   *
+   * A calendar date rather than an instant, for the same reason as the
+   * account's: an offset makes the day ambiguous, and picking one silently is
+   * worse than asking.
+   */
   @IsOptional()
   @Transform(emptyStringToUndefined)
-  @IsDateString()
+  @Validate(IsCalendarDateConstraint)
   readonly createdDate?: string;
 
   @IsOptional()

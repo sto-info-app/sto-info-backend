@@ -144,7 +144,7 @@ function buildAccount(overrides: Partial<AccountEntity> = {}): AccountEntity {
     platform: { name: 'Steam' },
     launcher: { name: 'Arc' },
     lifetimeSubscription: true,
-    accountCreatedDate: new Date('2015-03-04T00:00:00.000Z'),
+    accountCreatedDate: '2015-03-04',
     publiclyVisible: true,
     ...overrides,
   } as unknown as AccountEntity;
@@ -183,7 +183,7 @@ function buildCharacter(
     lastName: 'Sorek',
     biography: 'A long and storied career.',
     notes: 'private captain notes',
-    createdDate: new Date('2020-06-01T00:00:00.000Z'),
+    createdDate: '2020-06-01',
     publiclyVisible: true,
     ...overrides,
   } as unknown as CharacterEntity;
@@ -518,7 +518,7 @@ describe('RegistryService', () => {
             {
               accountCount: 2,
               characterCount: 11,
-              playingSince: new Date('2015-03-04T00:00:00.000Z'),
+              playingSince: '2015-03-04',
             },
           ],
         ]),
@@ -528,9 +528,7 @@ describe('RegistryService', () => {
 
       expect(result.items[0].publicAccountCount).toBe(2);
       expect(result.items[0].publicCharacterCount).toBe(11);
-      expect(result.items[0].playingSince).toEqual(
-        new Date('2015-03-04T00:00:00.000Z'),
-      );
+      expect(result.items[0].playingSince).toBe('2015-03-04');
     });
 
     it('should report zero counts for a member with no visible accounts', async () => {
@@ -605,7 +603,7 @@ describe('RegistryService', () => {
             {
               accountCount: 1,
               characterCount: 4,
-              playingSince: new Date('2015-03-04T00:00:00.000Z'),
+              playingSince: '2015-03-04',
             },
           ],
         ]),
@@ -613,7 +611,7 @@ describe('RegistryService', () => {
 
       const result = await service.findProfileByUsername('captain.picard');
 
-      expect(result.playingSince).toEqual(new Date('2015-03-04T00:00:00.000Z'));
+      expect(result.playingSince).toBe('2015-03-04');
     });
 
     it('should report a zero captain count for an account with none visible', async () => {
@@ -706,9 +704,7 @@ describe('RegistryService', () => {
 
       expect(result.handle).toBe('SteveX#1234');
       expect(result.lifetimeSubscription).toBe(true);
-      expect(result.accountCreatedDate).toEqual(
-        new Date('2015-03-04T00:00:00.000Z'),
-      );
+      expect(result.accountCreatedDate).toBe('2015-03-04');
       expect(result.publicCharacterCount).toBe(1);
       expect(result.characters).toHaveLength(1);
       expect(result.characters[0].handle).toBe('Rex');
@@ -805,7 +801,7 @@ describe('RegistryService', () => {
       expect(result.middleName).toBeNull();
       expect(result.lastName).toBe('Sorek');
       expect(result.biography).toBe('A long and storied career.');
-      expect(result.createdDate).toEqual(new Date('2020-06-01T00:00:00.000Z'));
+      expect(result.createdDate).toBe('2020-06-01');
     });
 
     it('should map the derived rank', async () => {

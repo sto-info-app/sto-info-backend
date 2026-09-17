@@ -97,8 +97,14 @@ export class RegistryCharacterDto extends RegistryCharacterSummaryDto {
   @ApiPropertyOptional({ nullable: true })
   biography: string | null;
 
-  @ApiPropertyOptional({ nullable: true })
-  createdDate: Date | null;
+  @ApiPropertyOptional({
+    description:
+      'The day the captain was created, as YYYY-MM-DD. A day rather than an ' +
+      'instant: it carries no time and no timezone.',
+    nullable: true,
+    example: '2015-03-04',
+  })
+  createdDate: string | null;
 
   @ApiProperty({
     description:

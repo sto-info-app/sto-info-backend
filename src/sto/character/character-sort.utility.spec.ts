@@ -143,8 +143,8 @@ describe('sortCharacters', () => {
   });
 
   describe('by created date', () => {
-    const dated = (handle: string, iso: string): SortableCharacter =>
-      captain(handle, { createdDate: new Date(iso) });
+    const dated = (handle: string, day: string): SortableCharacter =>
+      captain(handle, { createdDate: day });
 
     it('orders oldest first ascending', () => {
       const result = sortCharacters(
