@@ -10,11 +10,14 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { LessThan, Not, Repository } from 'typeorm';
 
+import { isValidCloudflareImageUrl } from 'src/shared/constants/image.constants';
 import {
   generateSlug,
   normalizeHandle,
 } from 'src/shared/utilities/handle.utility';
 
+import { sortCharacters } from '../character/character-sort.utility';
+import { CharacterEntity } from '../character/entities/character.entity';
 import { PlatformLauncherEntity } from '../platform-launcher/entities/platform-launcher.entity';
 import {
   buildAccountBackgroundImageLookup,
@@ -27,6 +30,10 @@ import {
   DEFAULT_ACCOUNT_SORT_ORDER,
   sortAccounts,
 } from './account-sort.utility';
+import {
+  AccountSwitcherAccountDto,
+  AccountSwitcherCharacterDto,
+} from './dto/account-switcher.dto';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
 import { AccountEntity } from './entities/account.entity';
@@ -179,6 +186,96 @@ export class AccountService {
     }));
 
     return sortAccounts(listItems, sortBy, sortOrder);
+  }
+
+  /**
+   * Returns every account the user owns together with its captains, reduced to
+   * the fields a quick-switch list draws.
+   *
+   * One request rather than an account call followed by a captain call per
+   * account: the switcher offers any-to-any jumps, so it needs the whole set
+   * before it can show anything, and a user with several accounts would
+   * otherwise pay a round trip for each of them every time they opened it.
+   *
+   * Ordering matches the lists the switcher jumps between — pinned first, then
+   * by handle — so an entry sits where its owner already expects to find it.
+   *
+   * Accounts with no captains are kept. They are somewhere to switch to, and
+   * dropping them would hide an account from its own owner.
+   *
+   * @param userId Owner user ID.
+   * @returns The user's accounts, each with its captains.
+   * @throws {BadRequestException} If the user ID is missing.
+   */
+  async findSwitcherListForUser(
+    userId: string,
+  ): Promise<AccountSwitcherAccountDto[]> {
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
+    const accounts = await this._accountRepository.find({
+      where: { user: { id: userId } },
+      relations: {
+        platform: true,
+        launcher: true,
+        characters: {
+          faction: true,
+          generalFaction: true,
+        },
+      },
+    });
+
+    return sortAccounts(accounts).map(account =>
+      this.toSwitcherAccount(account),
+    );
+  }
+
+  /**
+   * Reduces an account and its captains to the quick-switch shape.
+   *
+   * @param account - The loaded account.
+   * @returns The switcher entry for the account.
+   */
+  private toSwitcherAccount(account: AccountEntity): AccountSwitcherAccountDto {
+    return {
+      id: account.id,
+      handle: account.handle,
+      platformName: account.platform?.name ?? null,
+      launcherName: account.launcher?.name ?? null,
+      lifetimeSubscription: account.lifetimeSubscription,
+      pinnedAt: account.pinnedAt,
+      characters: sortCharacters(account.characters ?? []).map(character =>
+        this.toSwitcherCharacter(character),
+      ),
+    };
+  }
+
+  /**
+   * Reduces a captain to the quick-switch shape.
+   *
+   * Icon URLs are checked against the image host the same way the captain APIs
+   * check them, so a row never points at something the CDN will not serve.
+   *
+   * @param character - The loaded captain.
+   * @returns The switcher entry for the captain.
+   */
+  private toSwitcherCharacter(
+    character: CharacterEntity,
+  ): AccountSwitcherCharacterDto {
+    const factionIconUrl = character.faction?.iconUrl ?? null;
+
+    return {
+      id: character.id,
+      handle: character.handle,
+      profilePicture100: character.profilePicture100,
+      factionName: character.faction?.name ?? null,
+      factionIconUrl: isValidCloudflareImageUrl(factionIconUrl)
+        ? factionIconUrl
+        : null,
+      generalFactionName: character.generalFaction?.name ?? null,
+      pinnedAt: character.pinnedAt,
+    };
   }
 
   /**

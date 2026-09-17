@@ -24,6 +24,7 @@ describe('AccountController', () => {
           useValue: {
             create: jest.fn(),
             findAllUsersAccounts: jest.fn(),
+            findSwitcherListForUser: jest.fn(),
             findOneForUser: jest.fn(),
             updateForUser: jest.fn(),
             setPinnedForUser: jest.fn(),
@@ -108,6 +109,36 @@ describe('AccountController', () => {
         userId,
         AccountSortBy.CharacterCount,
         AccountSortOrder.Desc,
+      );
+    });
+  });
+
+  describe('findSwitcherList', () => {
+    it('should return the switcher list for the authenticated user', async () => {
+      const userId = 'user-123';
+      const expected = [
+        { id: 'account-1', handle: 'Steve#1234', characters: [] },
+      ];
+      (
+        service.findSwitcherListForUser as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(expected);
+
+      const result = await controller.findSwitcherList(userId);
+
+      expect(result).toEqual(expected);
+      expect(service.findSwitcherListForUser).toHaveBeenCalledWith(userId);
+    });
+
+    // Nest matches routes in declaration order, so `GET switcher` only reaches
+    // this handler while it is declared above `GET :id`. Move it below and the
+    // request is read as a request for the account whose ID is "switcher".
+    it('should be declared above the account-by-ID handler', () => {
+      const handlers = Object.getOwnPropertyNames(AccountController.prototype);
+
+      expect(handlers.indexOf('findSwitcherList')).toBeLessThan(
+        handlers.indexOf('findOne'),
       );
     });
   });
