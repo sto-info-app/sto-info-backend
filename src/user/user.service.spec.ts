@@ -16,6 +16,10 @@ import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-ref
 import { UserProfileEntity } from './entities/user-profile.entity';
 import { UserEntity } from './entities/user.entity';
 import { UserRole } from './enums/user-role.enum';
+import {
+  DEFAULT_USER_PREFERENCES,
+  UserPreferenceService,
+} from './user-preference.service';
 import { UserService } from './user.service';
 
 jest.mock('bcrypt');
@@ -27,6 +31,24 @@ describe('UserService', () => {
   let validatorsService: ValidatorsService;
   let imageUploadsService: ImageUploadsService;
   let mailService: Pick<MailService, 'sendAccountClosureEmail'>;
+  let preferenceService: {
+    get: jest.Mock<(...args: any[]) => Promise<any>>;
+    update: jest.Mock<(...args: any[]) => Promise<any>>;
+  };
+
+  /** A stored preference row, defaults unless overridden. */
+  const preferencesFor = (overrides: Record<string, unknown> = {}) => ({
+    userId: 'uuid',
+    ...DEFAULT_USER_PREFERENCES,
+    ...overrides,
+  });
+
+  /** What the settings endpoint returns for those preferences. */
+  const settingsFor = (overrides: Record<string, unknown> = {}) => ({
+    ...DEFAULT_USER_PREFERENCES,
+    sessionTimeoutMinutes: 240,
+    ...overrides,
+  });
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -85,6 +107,13 @@ describe('UserService', () => {
             sendAccountClosureEmail: jest.fn(),
           },
         },
+        {
+          provide: UserPreferenceService,
+          useValue: {
+            get: jest.fn(),
+            update: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -99,6 +128,12 @@ describe('UserService', () => {
     imageUploadsService = module.get<ImageUploadsService>(ImageUploadsService);
     mailService =
       module.get<Pick<MailService, 'sendAccountClosureEmail'>>(MailService);
+    preferenceService = module.get(UserPreferenceService);
+    preferenceService.get.mockResolvedValue(preferencesFor());
+    preferenceService.update.mockImplementation(
+      async (_userId: string, changes: Record<string, unknown>) =>
+        preferencesFor(changes),
+    );
   });
 
   it('should be defined', () => {
@@ -106,24 +141,60 @@ describe('UserService', () => {
   });
 
   describe('getSettings', () => {
+    // The account exists unless a test says otherwise; the interesting cases
+    // here are about preferences, not about missing users.
+    beforeEach(() => {
+      (
+        userProfileRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({ userId: 'uuid' });
+    });
+
     it('should return the settings for a valid user', async () => {
       (
         userProfileRepository.findOne as jest.Mock<
           (...args: any[]) => Promise<any>
         >
-      ).mockResolvedValue({
-        userId: 'uuid',
-        privacyMode: true,
-        sessionTimeoutMinutes: null,
-      });
+      ).mockResolvedValue({ userId: 'uuid' });
+      preferenceService.get.mockResolvedValue(
+        preferencesFor({ privacyMode: true, sessionTimeoutMinutes: null }),
+      );
 
-      await expect(service.getSettings('uuid')).resolves.toEqual({
-        privacyMode: true,
-        sessionTimeoutMinutes: 240,
-      });
+      await expect(service.getSettings('uuid')).resolves.toEqual(
+        settingsFor({ privacyMode: true, sessionTimeoutMinutes: 240 }),
+      );
+      expect(preferenceService.get).toHaveBeenCalledWith('uuid');
+    });
+
+    /**
+     * The profile lookup stayed after the preferences moved out of it. It is
+     * the only thing that knows whether the account exists at all, and without
+     * it a request naming a user who is not there would answer with a tidy set
+     * of defaults instead of a 404.
+     */
+    it('should still check that the account exists', async () => {
+      await service.getSettings('uuid');
+
       expect(userProfileRepository.findOne).toHaveBeenCalledWith({
         where: { userId: 'uuid' },
       });
+    });
+
+    it('should report the timezone preferences', async () => {
+      preferenceService.get.mockResolvedValue(
+        preferencesFor({
+          displayTimezone: 'Europe/London',
+          stoExportTimezone: 'America/New_York',
+        }),
+      );
+
+      await expect(service.getSettings('uuid')).resolves.toEqual(
+        expect.objectContaining({
+          displayTimezone: 'Europe/London',
+          stoExportTimezone: 'America/New_York',
+        }),
+      );
     });
 
     it('should throw when the user id is missing', async () => {
@@ -150,59 +221,70 @@ describe('UserService', () => {
   });
 
   describe('updateSettings', () => {
-    it('should persist and return the updated settings', async () => {
-      const profile = {
-        userId: 'uuid',
-        privacyMode: false,
-        sessionTimeoutMinutes: null,
-      };
+    // The account exists unless a test says otherwise; the interesting cases
+    // here are about preferences, not about missing users.
+    beforeEach(() => {
       (
         userProfileRepository.findOne as jest.Mock<
           (...args: any[]) => Promise<any>
         >
-      ).mockResolvedValue(profile);
+      ).mockResolvedValue({ userId: 'uuid' });
+    });
+
+    it('should persist and return the updated settings', async () => {
       (
-        userProfileRepository.save as jest.Mock<
+        userProfileRepository.findOne as jest.Mock<
           (...args: any[]) => Promise<any>
         >
-      ).mockImplementation(async (value: any) => value);
+      ).mockResolvedValue({ userId: 'uuid' });
 
       await expect(
         service.updateSettings('uuid', {
           privacyMode: true,
           sessionTimeoutMinutes: 480,
         }),
-      ).resolves.toEqual({ privacyMode: true, sessionTimeoutMinutes: 480 });
-      expect(userProfileRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          privacyMode: true,
-          sessionTimeoutMinutes: 480,
-        }),
+      ).resolves.toEqual(
+        settingsFor({ privacyMode: true, sessionTimeoutMinutes: 480 }),
       );
+      expect(preferenceService.update).toHaveBeenCalledWith('uuid', {
+        privacyMode: true,
+        sessionTimeoutMinutes: 480,
+      });
     });
 
-    it('should keep the stored timeout when the payload omits it', async () => {
-      const profile = {
-        userId: 'uuid',
-        privacyMode: false,
-        sessionTimeoutMinutes: 480,
-      };
-      (
-        userProfileRepository.findOne as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue(profile);
-      (
-        userProfileRepository.save as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockImplementation(async (value: any) => value);
+    /**
+     * The payload is passed through whole rather than field by field. A client
+     * omits what it does not know about, and `UserPreferenceService` changes
+     * only what is present — so an omitted field must arrive as an absent key,
+     * not as an explicit undefined that overwrites a stored choice.
+     */
+    it('should pass only the fields the client sent', async () => {
+      await service.updateSettings('uuid', { privacyMode: true });
 
-      await expect(
-        service.updateSettings('uuid', { privacyMode: true }),
-      ).resolves.toEqual({ privacyMode: true, sessionTimeoutMinutes: 480 });
-      expect(userProfileRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({ sessionTimeoutMinutes: 480 }),
+      expect(preferenceService.update).toHaveBeenCalledWith('uuid', {
+        privacyMode: true,
+      });
+    });
+
+    it('should forward every new preference', async () => {
+      await service.updateSettings('uuid', {
+        privacyMode: false,
+        displayTimezone: 'Europe/London',
+        stoExportTimezone: null,
+        appearOffline: true,
+        typingIndicatorsEnabled: true,
+        notifyRosterAssociation: false,
+      });
+
+      expect(preferenceService.update).toHaveBeenCalledWith(
+        'uuid',
+        expect.objectContaining({
+          displayTimezone: 'Europe/London',
+          stoExportTimezone: null,
+          appearOffline: true,
+          typingIndicatorsEnabled: true,
+          notifyRosterAssociation: false,
+        }),
       );
     });
 
@@ -219,7 +301,7 @@ describe('UserService', () => {
           sessionTimeoutMinutes: 240,
         }),
       ).rejects.toThrow(HttpException);
-      expect(userProfileRepository.save).not.toHaveBeenCalled();
+      expect(preferenceService.update).not.toHaveBeenCalled();
     });
   });
 

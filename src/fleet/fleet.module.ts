@@ -16,6 +16,9 @@ import { ScopeMembershipEntity } from './entities/scope-membership.entity';
 import { ScopeRoleAssignmentEntity } from './entities/scope-role-assignment.entity';
 import { StoArmadaEntity } from './entities/sto-armada.entity';
 import { StoFleetEntity } from './entities/sto-fleet.entity';
+import { FleetConfigurationController } from './fleet-configuration.controller';
+import { FleetFeatureService } from './fleet-feature.service';
+import { FleetPolicyService } from './fleet-policy.service';
 
 /**
  * Fleet Community — Communities, Fleets, Armadas, the records that relate users
@@ -36,9 +39,11 @@ import { StoFleetEntity } from './entities/sto-fleet.entity';
  * from the global access-control module, because `forFeature` registrations are
  * per-module even when the module declaring them is global.
  *
- * The module being loaded is not the same thing as the feature being on. The
- * runtime master switch lands in `app_setting` in FC-006, following the
- * existing `STORYTIME_ENABLED` pattern.
+ * The module being loaded is not the same thing as the feature being on.
+ * `FleetFeatureService` answers that, from the `FLEET_COMMUNITIES_ENABLED`
+ * row seeded disabled in `app_setting`. Nothing to do with file scanning,
+ * quarantine or retention consults it: those are site-wide and run whether
+ * Fleet is switched on or not.
  */
 @Module({
   imports: [
@@ -56,13 +61,18 @@ import { StoFleetEntity } from './entities/sto-fleet.entity';
       UserEntity,
     ]),
   ],
+  controllers: [FleetConfigurationController],
   providers: [
+    FleetFeatureService,
+    FleetPolicyService,
     FleetAuthorisationService,
     FleetAudienceService,
     FleetAuthorisationRevisionService,
     ScopeCapabilityGuard,
   ],
   exports: [
+    FleetFeatureService,
+    FleetPolicyService,
     FleetAuthorisationService,
     FleetAudienceService,
     FleetAuthorisationRevisionService,

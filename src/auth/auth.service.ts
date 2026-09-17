@@ -499,7 +499,7 @@ export class AuthService {
       // Load the user with their refresh tokens using the user ID
       const user = await this._userRepository.findOne({
         where: { id: payload.sub },
-        relations: { refreshTokens: true, profile: true },
+        relations: { refreshTokens: true, profile: true, preference: true },
       });
 
       if (!user || user.isAccountDisabled) {
@@ -571,11 +571,11 @@ export class AuthService {
   /**
    * Retrieves the inactivity window a user's sessions run to.
    *
-   * @param user - The user, with their profile loaded.
+   * @param user - The user, with their preferences loaded.
    * @returns The inactivity window, in minutes.
    */
-  getSessionTimeoutMinutes(user: Pick<UserEntity, 'profile'>): number {
-    return resolveSessionTimeoutMinutes(user.profile?.sessionTimeoutMinutes);
+  getSessionTimeoutMinutes(user: Pick<UserEntity, 'preference'>): number {
+    return resolveSessionTimeoutMinutes(user.preference?.sessionTimeoutMinutes);
   }
 
   /**
@@ -621,11 +621,11 @@ export class AuthService {
    * Generates, signs and persists a refresh token for a user, sized to the
    * inactivity window that user has chosen.
    *
-   * @param user - The user the token is issued to, with their profile loaded.
+   * @param user - The user the token is issued to, with their preferences loaded.
    * @returns A promise that resolves with the signed refresh token.
    */
   private async issueRefreshToken(
-    user: Pick<UserEntity, 'id' | 'email' | 'profile'>,
+    user: Pick<UserEntity, 'id' | 'email' | 'preference'>,
   ): Promise<string> {
     const expirySeconds = this.getRefreshTokenLifetimeSeconds(
       this.getSessionTimeoutMinutes(user),

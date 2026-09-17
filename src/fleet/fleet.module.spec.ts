@@ -19,6 +19,9 @@ import { ScopeMembershipEntity } from './entities/scope-membership.entity';
 import { ScopeRoleAssignmentEntity } from './entities/scope-role-assignment.entity';
 import { StoArmadaEntity } from './entities/sto-armada.entity';
 import { StoFleetEntity } from './entities/sto-fleet.entity';
+import { FleetConfigurationController } from './fleet-configuration.controller';
+import { FleetFeatureService } from './fleet-feature.service';
+import { FleetPolicyService } from './fleet-policy.service';
 import { FleetModule } from './fleet.module';
 
 interface FeatureModule {
@@ -43,6 +46,8 @@ describe('FleetModule', () => {
   const BORROWED_ENTITIES = [UserEntity];
 
   const SERVICES = [
+    FleetFeatureService,
+    FleetPolicyService,
     FleetAuthorisationService,
     FleetAudienceService,
     FleetAuthorisationRevisionService,
@@ -83,7 +88,7 @@ describe('FleetModule', () => {
     );
   });
 
-  it('provides and exports the authorisation policy', () => {
+  it('provides and exports the feature switch and authorisation policy', () => {
     const providers = Reflect.getMetadata(
       'providers',
       FleetModule,
@@ -101,6 +106,15 @@ describe('FleetModule', () => {
    * available scope policy is an invitation to reach for it from somewhere that
    * should be asking the site-wide service instead.
    */
+  it('exposes the client configuration endpoint', () => {
+    const controllers = Reflect.getMetadata(
+      'controllers',
+      FleetModule,
+    ) as unknown[];
+
+    expect(controllers).toContain(FleetConfigurationController);
+  });
+
   it('is not registered globally', () => {
     expect(Reflect.getMetadata('__module:global__', FleetModule)).toBeFalsy();
   });

@@ -20,8 +20,10 @@ import { UpdateUserSettingsDto } from './dto/update-user-settings.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdatedUserProfileResultDto } from './dto/updated-user-profile-result.dto';
 import { UserSettingsDto } from './dto/user-settings.dto';
+import { UserPreferenceEntity } from './entities/user-preference.entity';
 import { UserProfileEntity } from './entities/user-profile.entity';
 import { UserEntity } from './entities/user.entity';
+import { UserPreferenceService } from './user-preference.service';
 
 @Injectable()
 export class UserService {
@@ -34,6 +36,8 @@ export class UserService {
    * @param _userProfileRepository - The user profile repository.
    * @param _validatorsService - The validators service.
    * @param _imageUploadsService - The image uploads service.
+   * @param _mailService - The mail service.
+   * @param _userPreferenceService - Reads and writes account preferences.
    */
   constructor(
     @InjectRepository(UserEntity)
@@ -45,6 +49,7 @@ export class UserService {
     private readonly _validatorsService: ValidatorsService,
     private readonly _imageUploadsService: ImageUploadsService,
     private readonly _mailService: MailService,
+    private readonly _userPreferenceService: UserPreferenceService,
   ) {}
 
   /**
@@ -54,10 +59,16 @@ export class UserService {
    * @returns The user's settings.
    */
   async getSettings(userId: string): Promise<UserSettingsDto> {
-    const profile = await this._getUserProfile(userId);
+    // Still resolved through the profile so that a request for a user who does
+    // not exist fails the same way it always has, rather than quietly returning
+    // a set of defaults for an account that is not there.
+    await this._getUserProfile(userId);
+
+    const preference = await this._userPreferenceService.get(userId);
+
     return new UserSettingsDto(
-      profile.privacyMode,
-      this.getSessionTimeoutMinutes(profile),
+      preference,
+      this.getSessionTimeoutMinutes(preference),
     );
   }
 
@@ -72,32 +83,30 @@ export class UserService {
     userId: string,
     settings: UpdateUserSettingsDto,
   ): Promise<UserSettingsDto> {
-    const profile = await this._getUserProfile(userId);
-    profile.privacyMode = settings.privacyMode;
-    // A client that does not know about the timeout omits it; leave the
-    // stored choice alone rather than resetting it to the default.
-    if (settings.sessionTimeoutMinutes !== undefined) {
-      profile.sessionTimeoutMinutes = settings.sessionTimeoutMinutes;
-    }
-    const updatedProfile = await this._userProfileRepository.save(profile);
+    await this._getUserProfile(userId);
 
-    return new UserSettingsDto(
-      updatedProfile.privacyMode,
-      this.getSessionTimeoutMinutes(updatedProfile),
-    );
+    // Spread rather than assigned field by field: every optional field is
+    // absent when the client did not send it, and `UserPreferenceService`
+    // changes only what is present. Listing them here would mean a new
+    // preference silently failing to save until somebody remembered this line.
+    const updated = await this._userPreferenceService.update(userId, {
+      ...settings,
+    });
+
+    return new UserSettingsDto(updated, this.getSessionTimeoutMinutes(updated));
   }
 
   /**
    * Returns the user's inactivity timeout, falling back to the deployment
    * default when they have never chosen one.
    *
-   * @param profile - The profile holding the stored choice.
+   * @param preference - The preferences holding the stored choice.
    * @returns The inactivity timeout to apply, in minutes.
    */
   getSessionTimeoutMinutes(
-    profile: Pick<UserProfileEntity, 'sessionTimeoutMinutes'>,
+    preference: Pick<UserPreferenceEntity, 'sessionTimeoutMinutes'>,
   ): number {
-    return resolveSessionTimeoutMinutes(profile.sessionTimeoutMinutes);
+    return resolveSessionTimeoutMinutes(preference.sessionTimeoutMinutes);
   }
 
   /**
@@ -300,9 +309,12 @@ export class UserService {
    * @returns A promise that resolves to the UserEntity or null if not found.
    */
   async findByEmail(email: string): Promise<UserEntity | null> {
+    // Preferences come along because the login path sizes the refresh token to
+    // the user's chosen inactivity window; without them every session would
+    // silently fall back to the deployment default.
     return await this._userRepository.findOne({
       where: { email: email },
-      relations: { profile: true },
+      relations: { profile: true, preference: true },
     });
   }
 

@@ -956,15 +956,15 @@ describe('AuthService', () => {
       expect(service.getAccessTokenExpirySeconds()).toBe(3600);
     });
 
-    it('getSessionTimeoutMinutes should use the profile choice', () => {
+    it('getSessionTimeoutMinutes should use the stored choice', () => {
       expect(
         service.getSessionTimeoutMinutes({
-          profile: { sessionTimeoutMinutes: 60 },
+          preference: { sessionTimeoutMinutes: 60 },
         } as any),
       ).toBe(60);
     });
 
-    it('getSessionTimeoutMinutes should fall back without a profile', () => {
+    it('getSessionTimeoutMinutes should fall back without preferences', () => {
       process.env.AUTH_REFRESH_TOKEN_EXPIRES_IN = '14400';
       expect(service.getSessionTimeoutMinutes({} as any)).toBe(240);
     });

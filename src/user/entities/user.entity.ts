@@ -22,6 +22,7 @@ import {
 import { AccountEntity } from '../../sto/account/entities/account.entity';
 import { UserRefreshTokenEntity } from '../../user-refresh-token/entities/user-refresh-token.entity';
 import { UserRole } from '../enums/user-role.enum';
+import { UserPreferenceEntity } from './user-preference.entity';
 import { UserProfileEntity } from './user-profile.entity';
 
 @Entity({ name: 'user' })
@@ -131,6 +132,11 @@ export class UserEntity {
 
   @OneToOne(() => UserProfileEntity, profile => profile.user, { cascade: true })
   profile: UserProfileEntity;
+
+  @OneToOne(() => UserPreferenceEntity, preference => preference.user, {
+    cascade: true,
+  })
+  preference: UserPreferenceEntity;
 
   /**
    * Compares a password against the stored hash.

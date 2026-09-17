@@ -1,20 +1,27 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 import { plainToClass } from 'class-transformer';
 import {
   IsBooleanString,
   IsEmail,
   IsIn,
+  IsInt,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
   IsUrl,
   Matches,
+  Min,
   ValidateIf,
   validateSync,
 } from 'class-validator';
 
+import {
+  CHAT_TRANSCRIPT_HISTORY_DAYS,
+  PUBLISHED_CHAT_RETENTION_DAYS,
+  PUBLISHED_IMPORT_SOURCE_RETENTION_DAYS,
+} from 'src/fleet/constants/fleet-policy.constants';
 import {
   LOG_LEVEL_PATTERN,
   REDIS_URL_PATTERN,
@@ -259,6 +266,23 @@ class EnvironmentVariables {
   @IsOptional()
   @IsNumber()
   STORYTIME_UPLOAD_MAX_BYTES?: number;
+
+  // The only two Fleet policy figures that read from the environment. R22 calls
+  // chat retention "environment configurable" and R27 says import-source
+  // retention "starts at" 180 days; the four-hour history window, the seven-day
+  // transcript window and the three custom channels per level are constants in
+  // fleet-policy.constants.ts with nothing behind them, because nothing in the
+  // requirements describes those as configurable and a policy an operator can
+  // quietly widen is one that can stop being true without being corrected.
+  @IsOptional()
+  @IsInt()
+  @Min(CHAT_TRANSCRIPT_HISTORY_DAYS)
+  CHAT_RETENTION_DAYS?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  IMPORT_SOURCE_RETENTION_DAYS?: number;
 }
 
 @Injectable()
@@ -290,6 +314,33 @@ export class ConfigCheckService {
     ) {
       throw new Error(
         `Validation error: CLOSED_ACCOUNT_RETENTION_DAYS (${config.CLOSED_ACCOUNT_RETENTION_DAYS}) must be greater than or equal to AUDIT_DATA_NUKE_THRESHOLD_DAYS (${config.AUDIT_DATA_NUKE_THRESHOLD_DAYS}).`,
+      );
+    }
+
+    // Warned about rather than refused. R22 makes this configurable, so an
+    // environment is entitled to set it — but the figure is published in the
+    // privacy policy, and a deployment that quietly retains chat for longer
+    // than the policy says is the failure plan section 9 calls an undocumented
+    // increase. Refusing it would contradict the requirement; saying nothing
+    // would let the two drift apart unnoticed.
+    if (
+      config.CHAT_RETENTION_DAYS !== undefined &&
+      config.CHAT_RETENTION_DAYS > PUBLISHED_CHAT_RETENTION_DAYS
+    ) {
+      Logger.warn(
+        `CHAT_RETENTION_DAYS (${config.CHAT_RETENTION_DAYS}) exceeds the published policy of ${PUBLISHED_CHAT_RETENTION_DAYS} days. Publish the change before this reaches production.`,
+        ConfigCheckService.name,
+      );
+    }
+
+    if (
+      config.IMPORT_SOURCE_RETENTION_DAYS !== undefined &&
+      config.IMPORT_SOURCE_RETENTION_DAYS >
+        PUBLISHED_IMPORT_SOURCE_RETENTION_DAYS
+    ) {
+      Logger.warn(
+        `IMPORT_SOURCE_RETENTION_DAYS (${config.IMPORT_SOURCE_RETENTION_DAYS}) exceeds the published policy of ${PUBLISHED_IMPORT_SOURCE_RETENTION_DAYS} days. Publish the change before this reaches production.`,
+        ConfigCheckService.name,
       );
     }
 

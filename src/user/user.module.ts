@@ -6,8 +6,10 @@ import { MailModule } from 'src/mail/mail.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
 
+import { UserPreferenceEntity } from './entities/user-preference.entity';
 import { UserProfileEntity } from './entities/user-profile.entity';
 import { UserEntity } from './entities/user.entity';
+import { UserPreferenceService } from './user-preference.service';
 import { UserController } from './user.controller';
 import { UserService } from './user.service';
 
@@ -15,11 +17,15 @@ import { UserService } from './user.service';
   imports: [
     SharedModule,
     MailModule,
-    TypeOrmModule.forFeature([UserEntity, UserProfileEntity]),
+    TypeOrmModule.forFeature([
+      UserEntity,
+      UserProfileEntity,
+      UserPreferenceEntity,
+    ]),
     forwardRef(() => AuthModule), // Use forwardRef to handle circular dependency
   ],
   controllers: [UserController],
-  providers: [UserService, ValidatorsService],
-  exports: [UserService, TypeOrmModule],
+  providers: [UserService, UserPreferenceService, ValidatorsService],
+  exports: [UserService, UserPreferenceService, TypeOrmModule],
 })
 export class UserModule {}

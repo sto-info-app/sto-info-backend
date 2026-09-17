@@ -43,12 +43,6 @@ export class UserProfileEntity {
   @Column({ type: 'boolean', default: false })
   publiclyVisible: boolean;
 
-  @Column({ type: 'boolean', default: false })
-  privacyMode: boolean;
-
-  @Column({ type: 'integer', nullable: true, default: null })
-  sessionTimeoutMinutes: number | null;
-
   @CreateDateColumn()
   createdAt: Date;
 
