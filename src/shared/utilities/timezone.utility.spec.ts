@@ -3,7 +3,7 @@ import {
   isKnownTimezone,
   toLocalDateTime,
   toUtcInstant,
-} from './custom-tracking-timezone.utility';
+} from './timezone.utility';
 
 describe('canonicaliseTimezone', () => {
   it('accepts an identifier already in its canonical spelling', () => {

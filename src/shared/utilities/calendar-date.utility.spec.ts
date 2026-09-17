@@ -3,7 +3,7 @@ import {
   isCalendarDate,
   isWallClockTime,
   isYearInRange,
-} from './custom-tracking-calendar.utility';
+} from './calendar-date.utility';
 
 describe('isCalendarDate', () => {
   it.each([

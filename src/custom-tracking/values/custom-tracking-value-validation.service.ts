@@ -3,6 +3,16 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { YouTubeUrlService } from 'src/storytime/content/youtube-url.service';
 
 import {
+  compareCalendarDates,
+  isCalendarDate,
+  isWallClockTime,
+  isYearInRange,
+} from '../../shared/utilities/calendar-date.utility';
+import {
+  canonicaliseTimezone,
+  toUtcInstant,
+} from '../../shared/utilities/timezone.utility';
+import {
   CUSTOM_TRACKING_HEX_COLOUR_PATTERN,
   CUSTOM_TRACKING_PALETTE_TOKENS,
 } from '../constants/custom-tracking-colour.constants';
@@ -12,12 +22,6 @@ import { CustomTrackingFieldEntity } from '../entities/custom-tracking-field.ent
 import { CustomTrackingOptionEntity } from '../entities/custom-tracking-option.entity';
 import { CustomTrackingFieldType } from '../enums/custom-tracking-field-type.enum';
 import { CustomTrackingTriState } from '../enums/custom-tracking-tri-state.enum';
-import {
-  compareCalendarDates,
-  isCalendarDate,
-  isWallClockTime,
-  isYearInRange,
-} from '../shared/custom-tracking-calendar.utility';
 import { isRgbColour } from '../shared/custom-tracking-colour.utility';
 import {
   canonicaliseDecimal,
@@ -25,10 +29,6 @@ import {
   decimalPlaces,
   isExactDecimal,
 } from '../shared/custom-tracking-decimal.utility';
-import {
-  canonicaliseTimezone,
-  toUtcInstant,
-} from '../shared/custom-tracking-timezone.utility';
 
 /**
  * A checked answer, ready to be stored.

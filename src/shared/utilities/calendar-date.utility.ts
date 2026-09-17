@@ -1,7 +1,13 @@
-import {
-  CUSTOM_TRACKING_MAX_YEAR,
-  CUSTOM_TRACKING_MIN_YEAR,
-} from '../constants/custom-tracking-limits.constants';
+/**
+ * The earliest and latest year a calendar date may name.
+ *
+ * The bounds of the four-digit grammar rather than a product decision: a year
+ * outside them cannot be written as `YYYY-MM-DD` at all.
+ */
+export const MIN_CALENDAR_YEAR = 1;
+
+/** The latest year a calendar date may name. */
+export const MAX_CALENDAR_YEAR = 9999;
 
 /** A calendar date, as `YYYY-MM-DD`. */
 const CALENDAR_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -55,8 +61,8 @@ export function isCalendarDate(value: unknown): value is string {
 export function isYearInRange(year: number): boolean {
   return (
     Number.isInteger(year) &&
-    year >= CUSTOM_TRACKING_MIN_YEAR &&
-    year <= CUSTOM_TRACKING_MAX_YEAR
+    year >= MIN_CALENDAR_YEAR &&
+    year <= MAX_CALENDAR_YEAR
   );
 }
 

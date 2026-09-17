@@ -4,7 +4,7 @@ import {
   ValidatorConstraintInterface,
 } from 'class-validator';
 
-import { isKnownTimezone } from '../shared/custom-tracking-timezone.utility';
+import { isKnownTimezone } from './timezone.utility';
 
 /**
  * Requires a timezone to be an IANA identifier this runtime can convert with.

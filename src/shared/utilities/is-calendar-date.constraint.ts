@@ -4,7 +4,7 @@ import {
   ValidatorConstraintInterface,
 } from 'class-validator';
 
-import { isCalendarDate } from '../shared/custom-tracking-calendar.utility';
+import { isCalendarDate } from './calendar-date.utility';
 
 /**
  * Requires a date to be a real day, written as `YYYY-MM-DD`.
