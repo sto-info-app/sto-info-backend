@@ -18,7 +18,14 @@
 #   bash scripts/migration-rehearsal/run-rehearsal.sh <migration.ts>[,<migration.ts>...] <name>
 #
 # <name> selects sql/<name>-seed.sql and sql/<name>-assert.sql, and
-# sql/../race-<name>.sh when one exists.
+# sql/../race-<name>.sh, sql/<name>-pre-up.sql and sql/<name>-post-down.sql
+# when they exist.
+#
+# The two optional files exist for a migration that moves existing data rather
+# than only adding to the schema. A pre-up file loads rows into the stub tables
+# before the migration runs, so there is something for it to move; a post-down
+# file runs after the rollback and before the table count, which is the only
+# place a claim that the rollback put the data back can be tested.
 #
 # A migration that builds on an earlier one is given the whole chain, comma
 # separated and in application order. The ups are applied in that order and the
@@ -39,6 +46,8 @@ WORK="$(mktemp -d)"
 
 SEED="${HERE}/sql/${SUITE}-seed.sql"
 ASSERT="${HERE}/sql/${SUITE}-assert.sql"
+PRE_UP="${HERE}/sql/${SUITE}-pre-up.sql"
+POST_DOWN="${HERE}/sql/${SUITE}-post-down.sql"
 
 cleanup() {
   docker rm -f "${CONTAINER}" >/dev/null 2>&1 || true
@@ -94,6 +103,11 @@ done
 step 'Applying stub parent tables'
 psql_file "${HERE}/sql/stubs.sql"
 
+if [ -f "${PRE_UP}" ]; then
+  step 'Loading rows the migration will have to carry across'
+  psql_file "${PRE_UP}"
+fi
+
 step 'Applying the migrations (up)'
 for index in "${!MIGRATION_LIST[@]}"; do
   psql_file "${WORK}/up.${index}.sql"
@@ -116,6 +130,11 @@ step 'Rolling back (down) with data present'
 for ((index = ${#MIGRATION_LIST[@]} - 1; index >= 0; index--)); do
   psql_file "${WORK}/down.${index}.sql"
 done
+
+if [ -f "${POST_DOWN}" ]; then
+  step 'Asserting what the rollback put back'
+  psql_file "${POST_DOWN}"
+fi
 
 remaining="$(psql_value "SELECT count(*) FROM information_schema.tables WHERE table_schema='sto_info_app'")"
 types="$(psql_value "SELECT count(*) FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='sto_info_app' AND t.typtype='e'")"

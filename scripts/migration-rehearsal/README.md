@@ -14,6 +14,13 @@ builds on it, so its rehearsal replays both:
 npm run rehearse:migration:fleet-authorisation
 ```
 
+FC-006 moves two existing settings out of `user_profile` and seeds the Fleet
+master switch:
+
+```bash
+npm run rehearse:migration:user-preferences
+```
+
 To rehearse a different migration:
 
 ```bash
@@ -21,8 +28,9 @@ npm run rehearse:migration -- src/database/migrations/<migration>.ts <suite>
 ```
 
 where `<suite>` selects `sql/<suite>-seed.sql` and `sql/<suite>-assert.sql`, and
-`race-<suite>.sh` when that file exists. A migration that depends on an earlier
-one is given the whole chain, comma separated and in application order:
+`race-<suite>.sh`, `sql/<suite>-pre-up.sql` and `sql/<suite>-post-down.sql` when
+those files exist. A migration that depends on an earlier one is given the whole
+chain, comma separated and in application order:
 
 ```bash
 npm run rehearse:migration -- src/database/migrations/<first>.ts,src/database/migrations/<second>.ts <suite>
@@ -46,6 +54,10 @@ Two things in particular are not provable any other way:
 - **Concurrency.** "One current membership per Character **under concurrent writes**" is not
   demonstrated by inserting twice in one session — that only shows the index exists. The race
   script runs many writers at once and checks exactly one commits.
+- **A move that has to be reversible.** A migration that carries live data into a new table can
+  be read very carefully and still lose it. The `pre-up` and `post-down` files put real rows in
+  front of the `up` and then check what the `down` handed back, which is the one claim no unit
+  spec can reach.
 
 ## What a run does
 
@@ -54,11 +66,13 @@ Two things in particular are not provable any other way:
    executing them, so this is what TypeORM would send rather than a transcription of it).
 2. Starts `postgres:17-alpine` in a container.
 3. Creates the stub parent tables from `sql/stubs.sql`.
-4. Applies `up`, seeds, and runs the assertion suite.
-5. Races concurrent writers against the invariants that are worded that way.
-6. Applies `down` **with data present**, and checks nothing but the stubs and no enum type
-   survived.
-7. Applies `up` again to the same database.
+4. Loads `sql/<suite>-pre-up.sql` when it exists, so a migration that moves data has data to
+   move.
+5. Applies `up`, seeds, and runs the assertion suite.
+6. Races concurrent writers against the invariants that are worded that way.
+7. Applies `down` **with data present**, runs `sql/<suite>-post-down.sql` when it exists, and
+   checks nothing but the stubs and no enum type survived.
+8. Applies `up` again to the same database.
 
 ## Safety
 
@@ -70,8 +84,11 @@ process ID and is removed on exit, including on failure or interrupt.
 ## The stub tables
 
 `sql/stubs.sql` holds stand-ins for the tables an earlier migration created — `user`,
-`platform`, `character`, `character_general_faction` — carrying only the columns the foreign keys
-under rehearsal need. Using stubs rather than replaying the whole migration history keeps a
+`platform`, `character`, `character_general_faction`, `user_profile`, `app_setting` — carrying
+only the columns the migrations under rehearsal need. A stub carries a column that a migration
+*alters* as well as one a foreign key points at: `user_profile` keeps `privacyMode`,
+`sessionTimeoutMinutes` and the check constraint FC-006 drops by name, or that migration would
+have nothing to drop. Using stubs rather than replaying the whole migration history keeps a
 rehearsal independent of every migration before it, and keeps it fast. It also means a rehearsal
 says nothing about interactions with real data in those tables; that is what a staging restore is
 for.
@@ -79,9 +96,12 @@ for.
 ## Adding a suite
 
 Add `sql/<suite>-seed.sql` and `sql/<suite>-assert.sql`, and `race-<suite>.sh`
-when the migration claims an invariant worded "under concurrent writes". Seed
-files are self-contained: a suite that expected another suite's rows to be
-loaded first would only work in one order, and nothing enforces an order. The assertion file gets three helpers,
+when the migration claims an invariant worded "under concurrent writes". Add
+`sql/<suite>-pre-up.sql` and `sql/<suite>-post-down.sql` when the migration
+moves or rewrites rows that already exist, rather than only adding to the
+schema. Seed files are self-contained: a suite that expected another suite's
+rows to be loaded first would only work in one order, and nothing enforces an
+order. The assertion file gets three helpers,
 defined at the top of the Fleet Community one and worth copying:
 
 - `expect_rejected(label, statement, sqlstate)` — fails the run if the database **accepts** the
