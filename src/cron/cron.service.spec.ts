@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 
 import { jest } from '@jest/globals';
 
+import { MemoryDiagnosticsService } from '../diagnostics/memory-diagnostics.service';
 import { CronService } from './cron.service';
 import { AuditCleanupService } from './jobs/audit-cleanup/audit-cleanup.service';
 import { AuditLoginAttemptCleanupService } from './jobs/audit-login-attempt-cleanup/audit-login-attempt-cleanup.service';
@@ -13,6 +14,7 @@ import { UserAccountCleanupService } from './jobs/user-account-cleanup/user-acco
 
 describe('CronService', () => {
   let service: CronService;
+  let diagnostics: MemoryDiagnosticsService;
   let auditCleanupService: AuditCleanupService;
   let auditLoginAttemptCleanupService: AuditLoginAttemptCleanupService;
   let contactRequestCleanupService: ContactRequestCleanupService;
@@ -45,6 +47,10 @@ describe('CronService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CronService,
+        {
+          provide: MemoryDiagnosticsService,
+          useValue: { recordCronExecution: jest.fn(), logMemory: jest.fn() },
+        },
         {
           provide: AuditCleanupService,
           useValue: {
@@ -85,6 +91,7 @@ describe('CronService', () => {
     }).compile();
 
     service = module.get<CronService>(CronService);
+    diagnostics = module.get(MemoryDiagnosticsService);
     auditCleanupService = module.get<AuditCleanupService>(AuditCleanupService);
     auditLoginAttemptCleanupService =
       module.get<AuditLoginAttemptCleanupService>(
@@ -122,6 +129,42 @@ describe('CronService', () => {
   });
 
   describe('dailyMidnightJobs', () => {
+    it.each([false, true])(
+      'samples all six jobs and counts attempts even when cleanup fails: %s',
+      async fail => {
+        const jobs = [
+          auditCleanupService,
+          auditLoginAttemptCleanupService,
+          contactRequestCleanupService,
+          sesAuditCleanupService,
+          userAccountCleanupService,
+          customTrackingCleanupService,
+        ];
+        const labels = [
+          'audit-cleanup',
+          'audit-login-attempt-cleanup',
+          'contact-request-cleanup',
+          'ses-audit-cleanup',
+          'user-account-cleanup',
+          'custom-tracking-cleanup',
+        ];
+        const events: string[] = [];
+        jest.spyOn(diagnostics, 'logMemory').mockImplementation(reason => {
+          events.push(reason);
+        });
+        jobs.forEach((job, index) => {
+          jest.spyOn(job, 'cleanup').mockImplementation(async () => {
+            events.push(labels[index]);
+            if (fail) throw new Error('test failure');
+          });
+        });
+        await service.dailyMidnightJobs();
+        expect(events).toEqual(
+          labels.flatMap(label => [label + ':before', label, label + ':after']),
+        );
+        expect(diagnostics.recordCronExecution).toHaveBeenCalledTimes(6);
+      },
+    );
     it('should run all cleanup jobs successfully', async () => {
       jest.spyOn(auditCleanupService, 'cleanup').mockResolvedValue(undefined);
       jest
