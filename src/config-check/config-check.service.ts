@@ -11,6 +11,8 @@ import {
   IsString,
   IsUrl,
   Matches,
+  Max,
+  Min,
   ValidateIf,
   validateSync,
 } from 'class-validator';
@@ -23,6 +25,17 @@ import {
 //NOTE: Define ALL environment variables in this class.
 //NOTE: The app will throw an error when it starts up if missing/invalid.
 class EnvironmentVariables {
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  MEMORY_DIAGNOSTICS_ENABLED?: string;
+
+  // Node timers accept delays from 1 through 2^31 - 1 milliseconds.
+  @IsOptional()
+  @IsNumber()
+  @Min(1 / 60_000)
+  @Max(2_147_483_647 / 60_000)
+  MEMORY_DIAGNOSTICS_INTERVAL_MINUTES?: number;
+
   @IsNotEmpty()
   @IsIn(['local', 'dev', 'staging', 'prod'])
   NODE_ENV: string;
