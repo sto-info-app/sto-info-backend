@@ -48,3 +48,57 @@ CREATE TABLE "sto_info_app"."account" (
   CONSTRAINT "PK_account" PRIMARY KEY ("id"));
 
 ALTER TABLE "sto_info_app"."character" ADD COLUMN "createdDate" TIMESTAMP NULL DEFAULT NULL;
+
+-- Stand-ins for the tables FC-008's backfill reads. Only the columns it
+-- selects: the image reference, and whatever leads from it to a user. Every
+-- Storytime table keeps the owner path the backfill follows, which is why
+-- `storytime_chapter` and `storytime_character` carry a `storyId` and nothing
+-- else about a chapter or a character.
+ALTER TABLE "sto_info_app"."user_profile" ADD COLUMN "profilePictureId" character varying(255) NULL DEFAULT NULL;
+ALTER TABLE "sto_info_app"."character" ADD COLUMN "profilePictureId" character varying(255) NULL DEFAULT NULL;
+ALTER TABLE "sto_info_app"."character" ADD COLUMN "accountId" uuid NULL DEFAULT NULL;
+ALTER TABLE "sto_info_app"."account" ADD COLUMN "userId" uuid NULL DEFAULT NULL;
+
+CREATE TABLE "sto_info_app"."storytime_arc" (
+  "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+  "ownerUserId" uuid NULL DEFAULT NULL,
+  "bannerImageId" character varying(255) NULL DEFAULT NULL,
+  "profileImageId" character varying(255) NULL DEFAULT NULL,
+  CONSTRAINT "PK_storytime_arc" PRIMARY KEY ("id"));
+
+CREATE TABLE "sto_info_app"."storytime_story" (
+  "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+  "ownerUserId" uuid NULL DEFAULT NULL,
+  "bannerImageId" character varying(255) NULL DEFAULT NULL,
+  "profileImageId" character varying(255) NULL DEFAULT NULL,
+  CONSTRAINT "PK_storytime_story" PRIMARY KEY ("id"));
+
+CREATE TABLE "sto_info_app"."storytime_chapter" (
+  "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+  "storyId" uuid NULL DEFAULT NULL,
+  "coverImageId" character varying(255) NULL DEFAULT NULL,
+  CONSTRAINT "PK_storytime_chapter" PRIMARY KEY ("id"));
+
+CREATE TABLE "sto_info_app"."storytime_character" (
+  "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+  "storyId" uuid NULL DEFAULT NULL,
+  "portraitImageId" character varying(255) NULL DEFAULT NULL,
+  CONSTRAINT "PK_storytime_character" PRIMARY KEY ("id"));
+
+CREATE TABLE "sto_info_app"."storytime_spotlight" (
+  "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+  "createdByUserId" uuid NULL DEFAULT NULL,
+  "overrideImageId" character varying(255) NULL DEFAULT NULL,
+  CONSTRAINT "PK_storytime_spotlight" PRIMARY KEY ("id"));
+
+CREATE TABLE "sto_info_app"."custom_tracking_value" (
+  "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+  "accountId" uuid NULL DEFAULT NULL,
+  "characterId" uuid NULL DEFAULT NULL,
+  CONSTRAINT "PK_custom_tracking_value" PRIMARY KEY ("id"));
+
+CREATE TABLE "sto_info_app"."custom_tracking_image_value" (
+  "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+  "valueId" uuid NULL DEFAULT NULL,
+  "cloudflareImageId" character varying(255) NOT NULL,
+  CONSTRAINT "PK_custom_tracking_image_value" PRIMARY KEY ("id"));
