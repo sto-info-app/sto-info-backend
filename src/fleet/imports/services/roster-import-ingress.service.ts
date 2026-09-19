@@ -1,0 +1,322 @@
+import { createHash } from 'node:crypto';
+
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+
+import { Repository } from 'typeorm';
+
+import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
+import { FileAssetAudience } from 'src/file-assets/enums/file-asset-audience.enum';
+import { FileAssetKind } from 'src/file-assets/enums/file-asset-kind.enum';
+import { FileAssetService } from 'src/file-assets/services/file-asset.service';
+import { QuarantineStorageService } from 'src/file-assets/services/quarantine-storage.service';
+
+import { FleetPolicyService } from '../../fleet-policy.service';
+import {
+  ROSTER_FILENAME_MAX_LENGTH,
+  SANITISED_ROSTER_CONTENT_TYPE,
+} from '../constants/roster-upload.constants';
+import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
+import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum';
+import { RosterSourceHeaderShape } from '../enums/roster-source-header-shape.enum';
+import { RosterCsvRejectedError } from '../errors/roster-csv-rejected.error';
+import { RosterCsvPrivacyParserService } from './roster-csv-privacy-parser.service';
+
+/** What the controller knows about an arriving upload. */
+export interface RosterUploadInput {
+  /** The Fleet the export was uploaded against. */
+  readonly fleetId: string;
+  /** Who is uploading. */
+  readonly uploadedByUserId: string;
+  /** The filename as the browser sent it. */
+  readonly originalFilename: string;
+  /** What the browser claimed the file was. Recorded, never believed. */
+  readonly declaredContentType: string | null;
+  /**
+   * The received bytes.
+   *
+   * **Overwritten in place before this method returns**, whether it succeeds
+   * or fails. The caller must not read the buffer afterwards.
+   */
+  readonly source: Buffer;
+}
+
+/** An upload that was accepted. */
+export interface AcceptedRosterUpload {
+  /** The provenance record. */
+  readonly record: RosterImportSourceEntity;
+  /** The registry entry for the stored sanitised CSV. */
+  readonly asset: FileAssetEntity;
+}
+
+/** What the parser reports about an upload, beyond the bytes it produced. */
+interface SanitisedSummary {
+  /** Which of the two export headers the upload carried. */
+  readonly sourceHeaderShape: RosterSourceHeaderShape;
+  /** How many data rows it held. */
+  readonly rowCount: number;
+  /** How many of those carried an officer tail that was discarded. */
+  readonly officerTailRowCount: number;
+  /** The grammar and redaction version that produced the bytes. */
+  readonly parserVersion: number;
+}
+
+/** The lowest code point a filename may hold: everything below is a control. */
+const FIRST_PRINTABLE_CHARACTER = 0x20;
+
+/** The code point of the delete character. */
+const DELETE_CHARACTER = 0x7f;
+
+/** How many milliseconds there are in a day. */
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Takes an uploaded roster export as far as private quarantine, and no
+ * further.
+ *
+ * The order of what happens here is the ticket. The bytes are hashed, parsed
+ * and redacted *before* a registry row exists, before an object is written and
+ * before anything is logged, so that the three officer columns are gone by the
+ * time any of those sinks is constructed. Nothing downstream has to remember
+ * to avoid them, because by then there is nothing to avoid.
+ *
+ * ## The raw buffer
+ *
+ * It is overwritten with zeroes in a `finally`, so the disposal happens on the
+ * failure path as well as the success one — and the failure path is the one
+ * that matters, because a rejected upload is exactly the upload somebody would
+ * otherwise be tempted to keep a sample of. ADR-0001 is explicit: no raw
+ * failure sample, including in Sentry, dead-letter payloads or backups.
+ *
+ * Node cannot promise that no copy of those bytes remains anywhere in the
+ * heap — a `Buffer` may have been moved by the garbage collector before this
+ * runs. What zeroing does guarantee is that the object every caller in this
+ * process still holds a reference to, including Multer's, no longer contains
+ * the file. That is the difference between "the officer columns are gone" and
+ * "nothing we wrote goes looking for them".
+ *
+ * ## What it does not do
+ *
+ * It does not enqueue a scan, because there is no scanner yet: the asset is
+ * left `QUARANTINED` and FC-010 claims it from there. It does not check the
+ * filename's grammar or compare the Fleet label in it to the Fleet being
+ * uploaded to — that is FC-016, which owns exact-name validation, and putting
+ * a second implementation here would give the two a chance to disagree. And
+ * it makes no roster observations at all; FC-016 does that from the sanitised
+ * file, once something has said the file is safe to read.
+ */
+@Injectable()
+export class RosterImportIngressService {
+  private readonly _logger = new Logger(RosterImportIngressService.name);
+
+  /**
+   * Creates an instance of RosterImportIngressService.
+   *
+   * @param _repository - Repository of roster import provenance records.
+   * @param _parser - The privacy boundary.
+   * @param _fileAssetService - The asset registry.
+   * @param _quarantineStorage - The private bucket.
+   * @param _policyService - Supplies the published retention window.
+   */
+  constructor(
+    @InjectRepository(RosterImportSourceEntity)
+    private readonly _repository: Repository<RosterImportSourceEntity>,
+    private readonly _parser: RosterCsvPrivacyParserService,
+    private readonly _fileAssetService: FileAssetService,
+    private readonly _quarantineStorage: QuarantineStorageService,
+    private readonly _policyService: FleetPolicyService,
+  ) {}
+
+  /**
+   * Accepts an upload, or refuses it without keeping any of it.
+   *
+   * @param input - What arrived.
+   * @returns The provenance record and the registry entry.
+   * @throws BadRequestException when the upload is refused. The body carries a
+   *   structural code and, where one applies, a line number — never content.
+   */
+  async accept(input: RosterUploadInput): Promise<AcceptedRosterUpload> {
+    const sourceByteSize = input.source.length;
+
+    // Everything that touches the received bytes happens inside this block,
+    // and the block disposes of them however it ends.
+    let sourceSha256: string;
+    let sanitisedCsv: Buffer;
+    let summary: SanitisedSummary;
+
+    try {
+      this.assertFilenameUsable(input.originalFilename);
+
+      sourceSha256 = this.hash(input.source);
+
+      const sanitised = this._parser.sanitise(input.source);
+
+      sanitisedCsv = sanitised.csv;
+      summary = {
+        sourceHeaderShape: sanitised.headerShape,
+        rowCount: sanitised.rowCount,
+        officerTailRowCount: sanitised.officerTailRowCount,
+        parserVersion: sanitised.parserVersion,
+      };
+    } catch (error) {
+      // A bug in this service is not a complaint about somebody's file and
+      // must not be reported to them as one.
+      if (!(error instanceof RosterCsvRejectedError)) {
+        throw error;
+      }
+
+      throw this.refuse(error);
+    } finally {
+      input.source.fill(0);
+    }
+
+    const sanitisedSha256 = this.hash(sanitisedCsv);
+
+    const asset = await this._fileAssetService.register({
+      kind: FileAssetKind.ROSTER_IMPORT_SOURCE,
+      // Not SCOPE. A scoped audience would make the sanitised CSV reachable
+      // through the generic delivery endpoint by anyone the Fleet's audience
+      // policy admits, and a roster export holds every member's handle and
+      // Last Active. Its readers are whoever holds `roster.source.download`,
+      // which is a capability rather than an audience, and the route that
+      // honours it is FC-037's. Until then nothing serves these bytes, which
+      // is the correct state for a file no scanner has looked at.
+      audience: FileAssetAudience.RESTRICTED,
+      ownerUserId: input.uploadedByUserId,
+      fleetId: input.fleetId,
+      declaredContentType: input.declaredContentType,
+      originalFilename: input.originalFilename,
+      retainUntil: this.retainUntil(),
+    });
+
+    const objectKey = this._quarantineStorage.buildObjectKey(asset.id);
+    const stored = await this._quarantineStorage.put(objectKey, sanitisedCsv);
+
+    const quarantined = await this._fileAssetService.recordStored(asset.id, {
+      objectKey: stored.objectKey,
+      objectVersion: stored.objectVersion,
+      sha256: sanitisedSha256,
+      byteSize: sanitisedCsv.length,
+      detectedContentType: SANITISED_ROSTER_CONTENT_TYPE,
+    });
+
+    const record = await this._repository.save(
+      this._repository.create({
+        assetId: asset.id,
+        fleetId: input.fleetId,
+        uploadedByUserId: input.uploadedByUserId,
+        originalFilename: input.originalFilename,
+        sourceSha256,
+        sanitisedSha256,
+        sourceByteSize: String(sourceByteSize),
+        sanitisedByteSize: String(sanitisedCsv.length),
+        ...summary,
+      }),
+    );
+
+    // Identifiers and counts. Not the filename: it is text somebody supplied,
+    // it is not subject to the parser's control-character rule, and a log line
+    // is a sink like any other.
+    this._logger.log(
+      `[accept] Roster export quarantined - AssetId: ${asset.id}, ` +
+        `FleetId: ${input.fleetId}, Rows: ${summary.rowCount}, ` +
+        `OfficerTailsDiscarded: ${summary.officerTailRowCount}, ` +
+        `Header: ${summary.sourceHeaderShape}, ` +
+        `ParserVersion: ${summary.parserVersion}`,
+    );
+
+    return { record, asset: quarantined };
+  }
+
+  /**
+   * Refuses a filename that cannot be recorded as it stands.
+   *
+   * @param filename - The filename as the browser sent it.
+   * @throws RosterCsvRejectedError when it is unusable.
+   */
+  private assertFilenameUsable(filename: string): void {
+    if (
+      filename.trim().length === 0 ||
+      filename.length > ROSTER_FILENAME_MAX_LENGTH ||
+      this.hasUnusableCharacter(filename)
+    ) {
+      throw new RosterCsvRejectedError(
+        RosterCsvRejectionCode.FILENAME_UNUSABLE,
+      );
+    }
+  }
+
+  /**
+   * Reports whether a filename holds a character it may not.
+   *
+   * Control characters, because the filename is written to a log line and
+   * shown back to people and neither survives a newline in the middle of one.
+   * Path separators, because a filename that looks like a path invites some
+   * later caller to treat it as one — this application never does, since the
+   * storage key comes from the asset's own identifier, but the invitation is
+   * worth declining at the door.
+   *
+   * @param filename - The filename as the browser sent it.
+   * @returns True when it cannot be recorded as it stands.
+   */
+  private hasUnusableCharacter(filename: string): boolean {
+    for (let index = 0; index < filename.length; index += 1) {
+      const code = filename.charCodeAt(index);
+
+      if (code < FIRST_PRINTABLE_CHARACTER || code === DELETE_CHARACTER) {
+        return true;
+      }
+    }
+
+    return filename.includes('/') || filename.includes('\\');
+  }
+
+  /**
+   * Turns a refusal into an HTTP response the uploader can act on.
+   *
+   * The body is the code and the line number and nothing else — no excerpt,
+   * no field, no sample. Both values were produced by this application rather
+   * than read out of the file.
+   *
+   * @param error - The refusal.
+   * @returns The exception to throw in its place.
+   */
+  private refuse(error: RosterCsvRejectedError): BadRequestException {
+    this._logger.warn(
+      `[accept] Roster export refused - Code: ${error.code}, Line: ${error.line ?? 'n/a'}`,
+    );
+
+    return new BadRequestException({
+      message:
+        'This roster export could not be read. Nothing has been imported.',
+      code: error.code,
+      line: error.line,
+    });
+  }
+
+  /**
+   * Hashes bytes.
+   *
+   * @param bytes - The bytes.
+   * @returns Their SHA-256, lowercase hexadecimal.
+   */
+  private hash(bytes: Buffer): string {
+    return createHash('sha256').update(bytes).digest('hex');
+  }
+
+  /**
+   * Works out when the sanitised source may be destroyed.
+   *
+   * Measured from upload rather than from the export's own date, so that a
+   * historical export uploaded today still gets its full window — ADR-0001,
+   * and the figure is the published one rather than a copy of it.
+   *
+   * @returns The retention deadline.
+   */
+  private retainUntil(): Date {
+    return new Date(
+      Date.now() +
+        this._policyService.importSourceRetentionDays * MILLISECONDS_PER_DAY,
+    );
+  }
+}

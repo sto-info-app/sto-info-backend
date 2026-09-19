@@ -28,6 +28,7 @@ import { DatabaseModule } from './database/database.module';
 import { DiagnosticsModule } from './diagnostics/diagnostics.module';
 import { FileAssetsModule } from './file-assets/file-assets.module';
 import { FleetModule } from './fleet/fleet.module';
+import { FleetRosterImportsModule } from './fleet/imports/fleet-roster-imports.module';
 import { HealthModule } from './health/health.module';
 import { MailModule } from './mail/mail.module';
 import { MailService } from './mail/mail.service';
@@ -128,6 +129,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     CommunityModule,
     FleetModule,
     FileAssetsModule,
+    FleetRosterImportsModule,
     RegistryModule,
     ModerationModule,
   ],

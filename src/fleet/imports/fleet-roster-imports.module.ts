@@ -1,0 +1,34 @@
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+
+import { FileAssetsModule } from 'src/file-assets/file-assets.module';
+
+import { FleetModule } from '../fleet.module';
+import { RosterImportSourceEntity } from './entities/roster-import-source.entity';
+import { RosterImportsController } from './roster-imports.controller';
+import { RosterCsvPrivacyParserService } from './services/roster-csv-privacy-parser.service';
+import { RosterImportIngressService } from './services/roster-import-ingress.service';
+
+/**
+ * Roster CSV ingress: the privacy boundary and the route that runs it.
+ *
+ * Its own module rather than part of {@link FleetModule}, and that is a
+ * dependency decision rather than a filing one. {@link FileAssetsModule}
+ * already imports `FleetModule` for the audience service (ADR-0015), so a
+ * roster importer registered inside `FleetModule` and needing the asset
+ * registry would close the loop. This module sits below both of them:
+ * imports → file-assets → fleet, in one direction.
+ *
+ * It is wired into `AppModule` directly for the same reason.
+ */
+@Module({
+  imports: [
+    FleetModule,
+    FileAssetsModule,
+    TypeOrmModule.forFeature([RosterImportSourceEntity]),
+  ],
+  controllers: [RosterImportsController],
+  providers: [RosterCsvPrivacyParserService, RosterImportIngressService],
+  exports: [RosterCsvPrivacyParserService, RosterImportIngressService],
+})
+export class FleetRosterImportsModule {}
