@@ -67,8 +67,27 @@ Note: the app reads `config/environments/.env` at startup (see `src/main.ts`).
 - `CLOUDFLARE_R2_BUCKET_NAME`: R2 bucket name
 - `CLOUDFLARE_CDN_ROOT_URL`: Base Cloudflare URL used to construct delivery URLs
 - `CLOUDFLARE_IMAGES_HASH`: Cloudflare Images account hash
+- `CLOUDFLARE_R2_QUARANTINE_BUCKET_NAME`: The private bucket uploaded bytes land in before they are scanned
+
+That bucket name is the **only** variable quarantine adds. R2's S3 endpoint is scoped to the
+account, not to a bucket, so `CLOUDFLARE_R2_ENDPOINT` reaches the quarantine bucket as well — the
+separation that matters is the credentials, not the URL. The one exception is a bucket created
+under a [jurisdiction](https://developers.cloudflare.com/r2/reference/data-location/), which is
+reachable only through that jurisdiction's own endpoint (`<account>.eu.r2.cloudflarestorage.com`)
+and cannot be moved afterwards; giving quarantine a different jurisdiction from the delivery bucket
+would mean adding an endpoint variable for it.
 
 > TODO: Confirm the correct `CLOUDFLARE_CDN_ROOT_URL` and `CLOUDFLARE_IMAGES_HASH` values for each environment.
+
+The quarantine bucket is a **separate bucket**, not a prefix in `CLOUDFLARE_R2_BUCKET_NAME`. It must
+have no public access, no custom domain, no `r2.dev` subdomain and no Cloudflare Images variant.
+Nothing in the application validates that — a config validator cannot see a Cloudflare account — so
+it is checked by running `npm run probe:asset-delivery` against the environment.
+
+**One bucket serves every environment**, with the environment as the first key segment, the same way
+`CLOUDFLARE_R2_BUCKET_NAME` is laid out. `CLOUDFLARE_R2_QUARANTINE_BUCKET_NAME` therefore holds the
+same value in every environment; it stays a configuration value rather than a constant so that a
+future split needs no code change. See [File assets](file-assets.md) for the full bucket settings.
 
 ### Upload limits
 
@@ -149,6 +168,12 @@ The secret referenced by `AWS_SECRET_NAME` is expected to be JSON with at least:
 - `cloudflareImagesAccountId`: Used for Cloudflare Images uploads
 - `cloudflareImagesApiKey`: Used for Cloudflare Images uploads
 - `cloudmersiveApiKey`: Used for virus scanning of uploads
+- `cloudflareR2QuarantineAccessKey`: Reads and writes the private quarantine bucket
+- `cloudflareR2QuarantineSecret`: Reads and writes the private quarantine bucket
+
+The quarantine credentials are deliberately separate from `cloudflareR2AccessKey`. The key that
+publishes must not be able to read quarantine, and the key that reads quarantine must not be able to
+publish; a shared credential would put back exactly what the separate bucket exists to prevent.
 
 ## Validation
 

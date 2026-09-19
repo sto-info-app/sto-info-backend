@@ -880,6 +880,34 @@ deleted is refused with `404`: it is invisible already.
 Put suppressed content back into public view. The timestamp and the
 administrator are both cleared; who did what stays in the audit trail.
 
+## File Asset Endpoints
+
+### GET /file-assets/:assetId/content
+
+Serve a stored file's bytes to a reader entitled to them.
+
+**Headers:** `Authorization: Bearer <access_token>` — optional. An asset published to everybody is
+readable by a signed-out visitor; a token is honoured when one is sent.
+
+The asset's own state and audience are re-read on **every** request. A file is served only when it
+is `AVAILABLE`; a clean scanner verdict is not enough, because publication additionally requires an
+allowed type, successful processing and an audience to publish to.
+
+**Responses**
+
+| Status | When |
+| ------ | ---- |
+| `200`  | The bytes, with `Cache-Control: no-store, private`, `Content-Disposition: attachment` and `X-Content-Type-Options: nosniff` |
+| `404`  | No such asset, the asset is not available, **or** the reader may not see it |
+
+The three `404` cases are deliberately indistinguishable. Telling them apart would let somebody
+enumerate what is stored and, for a quarantined file, confirm that the scanner rejected it — which
+is a fact about the scanner and belongs with the rest of its diagnostics.
+
+This route serves what is in the private quarantine bucket. An image delivered through Cloudflare
+Images or the legacy public CDN has its own URL and is refused here. See
+[File assets](file-assets.md).
+
 ## Contact Endpoint
 
 ### POST /contact

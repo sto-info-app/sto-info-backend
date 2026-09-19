@@ -19,6 +19,7 @@ The database uses PostgreSQL with TypeORM for object-relational mapping.
 | `PlatformLauncherEntity`  | `platform_launcher`    | Platform/launcher mapping and account background image URL rules              |
 | `AccountEntity`           | `account`              | STO in-game account records                                                   |
 | `CharacterEntity`         | `character`            | STO character profiles linked to accounts                                     |
+| `FileAssetEntity`         | `file_asset`           | Every stored file: its identity, hash, state and audience — see [File assets](file-assets.md) |
 
 ### Platform Launcher Image Mapping
 
@@ -173,11 +174,35 @@ index over both target columns would let the same Account be answered twice.
 - Check constraints (e.g., valid email format)
 - Foreign key constraints
 
-**Document any triggers:**
+### File assets
 
-Currently: Review if any triggers are in use.
+| Constraint | Table | What it guarantees |
+| --- | --- | --- |
+| `TR_file_asset_guard` | `file_asset` | See below |
+| `CHK_file_asset_scope_audience` | `file_asset` | A scope audience is held if and only if the audience is `SCOPE`, so no row carries a visibility rule it never consults |
+| `CHK_file_asset_scope_named` | `file_asset` | A scoped asset names exactly one Community, Fleet or Armada, so nothing is published to the members of nothing |
+| `CHK_file_asset_available_object` | `file_asset` | An `AVAILABLE` asset has an object key and a real storage location, so "available" cannot mean "published, location unknown" |
+| `UX_file_asset_object` | `file_asset` | One row per stored object, so one set of bytes cannot acquire two verdicts and two audiences. Partial, so assets registered but not yet stored do not collide on a null key |
+| `FK_file_asset_owner` | `file_asset` | `ON DELETE SET NULL`, so deleting an account severs the personal link without destroying the record that tells the cleanup cron an object exists |
 
-> TODO: Verify whether any triggers exist (and document them if they do).
+**Triggers:**
+
+`TR_file_asset_guard` is the only trigger in the schema. It runs `BEFORE UPDATE` on `file_asset`
+and raises a check violation (`23514`) in four cases:
+
+1. `objectKey` changed once it held a value;
+2. `objectVersion` changed once it held a value;
+3. `sha256` changed once it held a value;
+4. `state` set to `AVAILABLE` from anything but `AVAILABLE`, `CLEAN` or `UNVERIFIED`.
+
+The first three make object identity write-once, so a verdict cannot be transferred to different
+bytes by editing a row — replacing a file means registering a new asset, which gets its own
+verdict. The fourth means there is no sequence of writes that publishes a file a scanner refused or
+an administrator withdrew.
+
+It is a trigger rather than a service check because both properties have to hold against every
+future caller, including a migration, a repair script and a hand-typed `UPDATE`, rather than
+against the callers that exist today.
 
 ## Data Retention Policies
 

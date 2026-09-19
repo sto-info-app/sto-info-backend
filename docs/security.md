@@ -514,6 +514,20 @@ Always block SVG uploads unless you have a specific need and implement SVG sanit
 2. **Backend Validation**: Multer checks MIME type and size
 3. **Virus scanning**: Uploads are scanned via Cloudmersive before being stored
 
+**What a rejected upload is told.** A file refused on safety grounds produces one generic sentence
+— `FILE_REJECTED_BY_SCANNER_MESSAGE` in `src/shared/constants/file-rejection.constants.ts` — and
+nothing else. The signature name goes to the log and no further. Naming what matched tells somebody
+probing the scanner precisely what gets through it, which is information the person who uploaded a
+holiday photograph has no use for. The same sentence covers an infection, an unsupported payload and
+a scanner that would not answer, because to the uploader those are the same event.
+
+**Where this is going.** The synchronous scan above publishes a file the moment the scanner answers,
+and it leaves no durable record about the object that ends up stored. The `file_asset` registry
+replaces that with a private quarantine bucket, an explicit state machine in which only `AVAILABLE`
+is served, and an authenticated delivery route that rechecks state and audience on every request.
+Migrating the existing upload callers onto it is FC-012. See [File assets](file-assets.md) for the
+registry, the inventory of every delivery path and what withdrawing an object costs on each one.
+
 **Magic Bytes Validation:**
 
 Consider checking file magic bytes (file signature) to verify file type independently of MIME type and extension (prevents type spoofing).

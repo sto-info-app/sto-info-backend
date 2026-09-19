@@ -197,13 +197,54 @@ GET /health/live
 
 - `startrekonline.info`: Frontend
 - `api.startrekonline.info`: Backend API
-- `cdn.startrekonline.info`: Cloudflare R2 Images CDN
+- `cdn.startrekonline.info`: Asset delivery — **two products behind one hostname**, see below
 
 **Development Domains:**
 
 - `dev.startrekonline.info`: Development frontend
 - `dev-api.startrekonline.info`: Development backend API
-- `dev-cdn.startrekonline.info`: Development Cloudflare R2 Images CDN
+- `dev-cdn.startrekonline.info`: Development asset delivery
+
+### How the CDN hostname is used — read this before touching images
+
+`cdn.startrekonline.info` is **one Cloudflare custom domain fronting two different products**,
+told apart by the path. This is the single most confusing thing about the image setup and it has
+already caused one wrong conclusion, so it is written down here explicitly.
+
+| Path | Product | What it serves |
+| --- | --- | --- |
+| `/cdn-cgi/imagedelivery/<hash>/<imageId>/<variant>` | **Cloudflare Images** | Every image the site uploads today |
+| `/cdn-cgi/image/<options>/<key>` | **Cloudflare Image Resizing**, over an R2 object | Legacy Character portraits only |
+| `/<key>` — anything else | **The delivery R2 bucket** | Legacy Character portraits only |
+
+Both are live: the domain is bound to the delivery R2 bucket *and* fronts Cloudflare Images. The
+quarantine bucket is not bound to it, which is checked by
+`npm run probe:asset-delivery`.
+
+So the presence of `CLOUDFLARE_CDN_ROOT_URL` in the code says nothing about **which** of the two
+a given line of code is using — it is the Images custom domain far more often than it is an R2
+route, and the two are told apart only by the path.
+
+Two further things are easy to miss:
+
+- **Every Cloudflare Images object is also reachable at `https://imagedelivery.net/<hash>/<id>/<variant>`**,
+  a hostname this custom domain's cache purge does not touch. Withdrawing a published image must
+  therefore be a *delete* of the image, not a cache purge.
+- **The CDN hostname differs per environment** (`cdn.` and `dev-cdn.`), while the R2 buckets behind
+  the estate are single buckets with the environment as a key prefix. Domain is per environment;
+  bucket is not.
+
+### What writes where, as of FC-008
+
+| Store | Written by | Read by |
+| --- | --- | --- |
+| **Cloudflare Images** | `ImageUploadsService.uploadImageToCloudflareImages` — every upload the site accepts | The custom domain and `imagedelivery.net` |
+| **Public R2 bucket** | **Nothing.** `uploadImageToCloudflareR2` and `deleteImageFromCloudflareR2` have no callers | Legacy Character portraits, via the two `cdn-cgi` paths above |
+| **Quarantine R2 bucket** | `QuarantineStorageService.put` | `FileAssetDeliveryService`, and the scan worker |
+
+The public R2 bucket is kept rather than retired because document uploads are a likely future
+feature and Cloudflare Images cannot serve a PDF. See [File assets](file-assets.md) for how such
+an upload should reach it — through the asset registry, not through the old image method.
 
 ### Proxy Settings
 
@@ -279,7 +320,22 @@ Example rules might include:
 - `thumbnail`: Smaller size for thumbnails
 - Custom variants can be configured in Cloudflare dashboard
 
-> TODO: Document the exact variant names used by the app (and the Cloudflare Images variant settings for each).
+**Variants configured on the account — twelve:** `public` (1366x768), `square40`, `square100`,
+`square200`, `square300`, `square512`, `banner1200x240`, `banner2400x480`, `cover640x360`,
+`cover1920x1080`, `portrait133x200`, `portrait400x600`.
+
+Each is a separate URL for the same object and each keeps working until the image itself is
+deleted, which is why withdrawing a published image is a delete rather than a cache operation.
+Every object is additionally reachable at `https://imagedelivery.net/<hash>/<id>/<variant>`, a
+hostname no purge of the custom domain touches.
+
+**The dashboard is the authority.** Only nine of the twelve are referenced in the backend and two
+in the frontend; `square200` and `square512` appear in no repository. They are public URLs for
+every image all the same. Adding a variant creates a delivery route that no code change records,
+so `scripts/asset-delivery-probe/probe.mjs` keeps its own list and that list has to be updated by
+hand when the dashboard changes.
+
+> TODO: Document the dimensions and fit settings for each of the twelve (only `public` is recorded above).
 
 **Upload API:**
 
@@ -297,8 +353,15 @@ Authorization: Bearer <Images API key/token (from AWS Secrets Manager)>
 **Purpose:**
 
 - S3-compatible object storage
-- Stores original image files or backups
 - Lower cost than Cloudflare Images for storage alone
+
+**Current use: none for writes, but it IS publicly served.** Every image upload goes to Cloudflare
+Images; the backend's `uploadImageToCloudflareR2` and `deleteImageFromCloudflareR2` have no
+callers. The bucket is nonetheless bound to `cdn.startrekonline.info` and objects in it are
+fetched at `<CDN_ROOT>/<key>` — confirmed on 19 September 2026 by putting a canary object in it
+and getting a `200`. What is left in it is legacy Character portraits; see
+[File assets](file-assets.md) for the query that settles whether any remain, and for why reading
+response headers is not a reliable way to test this.
 
 **Configuration:**
 
@@ -311,6 +374,56 @@ Authorization: Bearer <Images API key/token (from AWS Secrets Manager)>
 - Private by default
 - Public URLs can be enabled per bucket
 - Use presigned URLs for temporary access
+
+### The quarantine bucket
+
+A **second, private R2 bucket**, named by `CLOUDFLARE_R2_QUARANTINE_BUCKET_NAME`, holding uploaded
+bytes from the moment they arrive until they have been scanned and published. It is separate from
+the delivery bucket rather than a prefix inside it: the delivery bucket is already reachable through
+the custom domain, and a prefix would be quarantined only for as long as nobody added a rule, a
+redirect or a Worker that reached it.
+
+**One bucket serves every environment**, with the environment as the first key segment
+(`prod/assets/…`, `dev/assets/…`), matching the delivery bucket's layout — ADR-0017. R2 cannot scope
+a token to a prefix, only to a bucket, so a quarantine credential reaches every environment and must
+be treated as a production credential whichever one issued it.
+
+It reuses `CLOUDFLARE_R2_ENDPOINT`: R2's S3 endpoint is scoped to the account, not to a bucket, so
+the only new configuration value is the bucket name. A bucket created under a jurisdiction is the
+exception — it is reachable only through that jurisdiction's endpoint — which is another reason to
+give quarantine the same jurisdiction as the delivery bucket.
+
+It must have, and be checked to have:
+
+- no public access
+- no custom domain
+- no `r2.dev` subdomain
+- no Cloudflare Images variant
+- no lifecycle expiry rule, no bucket lock rule and no event notifications
+- Data Access Logs enabled
+- its own credentials — Object Read & Write for the backend, Object Read only for the worker, both
+  scoped to this bucket and neither holding an Admin permission
+
+Nothing in the application can verify any of that. Run `npm run probe:asset-delivery` against the
+environment; it attempts every public route to a known quarantined object and reports what answered.
+See [File assets](file-assets.md) for the full inventory of delivery paths and what withdrawing an
+object costs on each one.
+
+### Two objects in R2 that must not be deleted
+
+| Bucket | Key |
+| --- | --- |
+| `stoi-quarantine` | `334843800-example-file-q.txt` |
+| `stoi-uploads` | `334843800-example-file-cdn.txt` |
+
+These are fixtures for `npm run probe:asset-delivery`, at the bucket root. They look like stray
+test files in a bucket listing and their contents say nothing about themselves, which is why they
+are recorded here.
+
+Neither has a database record, so nothing will recreate one if it is removed — and **if either is
+deleted the probe silently starts reporting `PASS`**, because a key that was never written is
+refused by every route exactly as a properly closed one is. See
+[File assets](file-assets.md) for what each of them proves.
 
 ### Firewall Rules
 
