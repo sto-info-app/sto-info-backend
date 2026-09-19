@@ -11,6 +11,7 @@ import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
 import { SesEventEntity } from 'src/webhooks/ses/entities/ses-event.entity';
 
+import { DiagnosticsModule } from '../../diagnostics/diagnostics.module';
 import { CronService } from '../cron.service';
 import { AuditCleanupService } from './audit-cleanup/audit-cleanup.service';
 import { AuditLoginAttemptCleanupService } from './audit-login-attempt-cleanup/audit-login-attempt-cleanup.service';
@@ -21,6 +22,7 @@ import { UserAccountCleanupService } from './user-account-cleanup/user-account-c
 
 @Module({
   imports: [
+    DiagnosticsModule,
     TypeOrmModule.forFeature([
       AuditEntity,
       AuditLoginAttemptEntity,

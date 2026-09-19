@@ -206,11 +206,9 @@ The application uses NestJS's built-in `Logger` class throughout controllers, se
 
 The `LOG_LEVEL` environment variable controls logging verbosity:
 
-- **Development** (`LOG_LEVEL=debug`): All log levels are output
-- **Production** (`LOG_LEVEL=log`): Only warnings and errors are output
-- This reduces noise in production while maintaining critical error visibility
-
-> TODO: Confirm the production `LOG_LEVEL` value actually set in Render.
+- **Development** (`LOG_LEVEL=debug`): Errors, warnings, normal logs, and debug logs are output.
+- **Production** (`LOG_LEVEL=warn`): Only warnings and errors are output. `LOG_LEVEL=log` also outputs normal application logs, including enabled memory diagnostics.
+- This reduces noise in production while maintaining critical error visibility.
 
 ### Logging Guidelines
 
@@ -243,6 +241,14 @@ For investigating intermittent startup memory jumps (especially in production), 
 
 - Set `STARTUP_DIAGNOSTICS=true` to log `rss`, `heapUsed`, `heapTotal`, `external`, and `arrayBuffers` at key stages (bootstrap start, after app creation, after module init, and after listening).
 - Leave unset/false for normal operation.
+
+### Periodic Memory Diagnostics
+
+Set `MEMORY_DIAGNOSTICS_ENABLED=true`, `MEMORY_DIAGNOSTICS_INTERVAL_MINUTES=10`, and a `LOG_LEVEL` that includes `log`, then restart/deploy the backend. Look for `MemoryDiagnosticsService` startup, interval, and cleanup-job samples. Diagnostics default to disabled.
+
+To stop collection, set `MEMORY_DIAGNOSTICS_ENABLED=false` and restart/deploy. Restore the previous `LOG_LEVEL` if it was changed for diagnostics. `STARTUP_DIAGNOSTICS` is independent.
+
+See [enable/disable instructions and verification steps](environment-variables.md#enable-in-render) for the Render procedure and [metric and counter definitions](environment-variables.md#process-memory-diagnostics).
 
 ## Rate Limiting
 

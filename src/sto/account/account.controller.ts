@@ -22,6 +22,7 @@ import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
 
 import { AccountService } from './account.service';
+import { AccountSwitcherAccountDto } from './dto/account-switcher.dto';
 import { CreateAccountRequestDto } from './dto/create-account-request.dto';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { FindAccountsQueryDto } from './dto/find-accounts-query.dto';
@@ -86,6 +87,28 @@ export class AccountController {
       query.sortBy,
       query.sortOrder,
     );
+  }
+
+  /**
+   * Lists every account the authenticated user owns together with its
+   * captains, reduced to what a quick-switch list draws.
+   *
+   * Declared above `:id` so the path is not read as an account ID.
+   *
+   * @param userId Authenticated user ID (injected).
+   * @returns The user's accounts, each with its captains.
+   */
+  @Get('switcher')
+  @ApiOkResponse({
+    description: "Successfully found the user's accounts and captains.",
+    type: [AccountSwitcherAccountDto],
+  })
+  @ApiBadRequestResponse({
+    description: 'The switcher list cannot be built.',
+  })
+  @HttpCode(HttpStatus.OK)
+  findSwitcherList(@UserId() userId: string) {
+    return this._accountService.findSwitcherListForUser(userId);
   }
 
   /**

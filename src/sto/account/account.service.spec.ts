@@ -449,6 +449,206 @@ describe('AccountService', () => {
     });
   });
 
+  describe('findSwitcherListForUser', () => {
+    const CDN_ROOT = 'https://cdn.startrekonline.info';
+    const IMAGES_HASH = 'jQ0uSdJ3ty-KasNpXGxyuA';
+    const cdnImage = (id: string) =>
+      `${CDN_ROOT}/cdn-cgi/imagedelivery/${IMAGES_HASH}/${id}/public`;
+
+    beforeEach(() => {
+      process.env.CLOUDFLARE_CDN_ROOT_URL = CDN_ROOT;
+      process.env.CLOUDFLARE_IMAGES_HASH = IMAGES_HASH;
+    });
+
+    const switcherAccount = (
+      handle: string,
+      overrides: Record<string, unknown> = {},
+    ) => ({
+      id: `account-${handle}`,
+      userId: 'user-1',
+      handle,
+      lifetimeSubscription: false,
+      pinnedAt: null,
+      characterCount: 0,
+      endeavourTotalNodes: 0,
+      accountCreatedDate: null,
+      platform: null,
+      launcher: null,
+      characters: [],
+      ...overrides,
+    });
+
+    const switcherCharacter = (
+      handle: string,
+      overrides: Record<string, unknown> = {},
+    ) => ({
+      id: `character-${handle}`,
+      handle,
+      profilePicture100: null,
+      pinnedAt: null,
+      createdDate: null,
+      faction: null,
+      generalFaction: null,
+      ...overrides,
+    });
+
+    const listSwitcher = async (accounts: unknown[]) => {
+      (
+        repository.find as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(accounts);
+
+      return service.findSwitcherListForUser('user-1');
+    };
+
+    it('should throw BadRequestException if user ID is missing', async () => {
+      await expect(service.findSwitcherListForUser('')).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(repository.find).not.toHaveBeenCalled();
+    });
+
+    it('should load every account with its captains and their factions in one query', async () => {
+      await listSwitcher([]);
+
+      expect(repository.find).toHaveBeenCalledWith({
+        where: { user: { id: 'user-1' } },
+        relations: {
+          platform: true,
+          launcher: true,
+          characters: {
+            faction: true,
+            generalFaction: true,
+          },
+        },
+      });
+    });
+
+    it('should reduce accounts and captains to the switcher shape', async () => {
+      const pinnedAt = new Date('2026-01-01');
+
+      const result = await listSwitcher([
+        switcherAccount('Steve#1234', {
+          lifetimeSubscription: true,
+          platform: { name: 'Windows' },
+          launcher: { name: 'Steam' },
+          characters: [
+            switcherCharacter('Kaelith', {
+              profilePicture100: cdnImage('avatar-1'),
+              pinnedAt,
+              faction: {
+                name: 'TOS Starfleet',
+                iconUrl: cdnImage('faction-1'),
+              },
+              generalFaction: { name: 'Federation' },
+            }),
+          ],
+        }),
+      ]);
+
+      expect(result).toEqual([
+        {
+          id: 'account-Steve#1234',
+          handle: 'Steve#1234',
+          platformName: 'Windows',
+          launcherName: 'Steam',
+          lifetimeSubscription: true,
+          pinnedAt: null,
+          characters: [
+            {
+              id: 'character-Kaelith',
+              handle: 'Kaelith',
+              profilePicture100: cdnImage('avatar-1'),
+              factionName: 'TOS Starfleet',
+              factionIconUrl: cdnImage('faction-1'),
+              generalFactionName: 'Federation',
+              pinnedAt,
+            },
+          ],
+        },
+      ]);
+    });
+
+    it('should report absent platform, launcher and captain relations as null', async () => {
+      const result = await listSwitcher([
+        switcherAccount('Archer', {
+          characters: [switcherCharacter('Nameless')],
+        }),
+      ]);
+
+      expect(result[0].platformName).toBeNull();
+      expect(result[0].launcherName).toBeNull();
+      expect(result[0].characters[0]).toEqual({
+        id: 'character-Nameless',
+        handle: 'Nameless',
+        profilePicture100: null,
+        factionName: null,
+        factionIconUrl: null,
+        generalFactionName: null,
+        pinnedAt: null,
+      });
+    });
+
+    it('should drop a faction icon that is not served by the image host', async () => {
+      const result = await listSwitcher([
+        switcherAccount('Archer', {
+          characters: [
+            switcherCharacter('Kaelith', {
+              faction: {
+                name: 'Klingon',
+                iconUrl: 'https://evil.test/icon.png',
+              },
+            }),
+          ],
+        }),
+      ]);
+
+      expect(result[0].characters[0].factionName).toBe('Klingon');
+      expect(result[0].characters[0].factionIconUrl).toBeNull();
+    });
+
+    it('should order accounts pinned first and then by handle', async () => {
+      const result = await listSwitcher([
+        switcherAccount('Sisko'),
+        switcherAccount('Archer'),
+        switcherAccount('Picard', { pinnedAt: new Date('2026-01-01') }),
+      ]);
+
+      expect(result.map(account => account.handle)).toEqual([
+        'Picard',
+        'Archer',
+        'Sisko',
+      ]);
+    });
+
+    it('should order captains pinned first and then by handle within their account', async () => {
+      const result = await listSwitcher([
+        switcherAccount('Archer', {
+          characters: [
+            switcherCharacter('Tuvok'),
+            switcherCharacter('Kaelith'),
+            switcherCharacter('Seven', { pinnedAt: new Date('2026-01-01') }),
+          ],
+        }),
+      ]);
+
+      expect(result[0].characters.map(character => character.handle)).toEqual([
+        'Seven',
+        'Kaelith',
+        'Tuvok',
+      ]);
+    });
+
+    it('should keep an account that has no captains, so its owner can still switch to it', async () => {
+      const result = await listSwitcher([
+        switcherAccount('Empty', { characters: undefined }),
+      ]);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].handle).toBe('Empty');
+      expect(result[0].characters).toEqual([]);
+    });
+  });
+
   describe('setPinnedForUser', () => {
     const owned = (overrides: Record<string, unknown> = {}) => ({
       id: 'account-1',
