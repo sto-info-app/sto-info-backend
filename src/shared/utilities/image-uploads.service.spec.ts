@@ -6,6 +6,7 @@ import { S3Client } from '@aws-sdk/client-s3';
 import { jest } from '@jest/globals';
 import axios from 'axios';
 
+import { FILE_REJECTED_BY_SCANNER_MESSAGE } from '../constants/file-rejection.constants';
 import { SecretsService } from '../secrets/secrets.service';
 import { ImageUploadsService } from './image-uploads.service';
 
@@ -231,7 +232,27 @@ describe('ImageUploadsService', () => {
           'user-1',
           createImageFile() as unknown as UploadImagesFileParam,
         ),
-      ).rejects.toThrow('File is infected');
+      ).rejects.toThrow(FILE_REJECTED_BY_SCANNER_MESSAGE);
+    });
+
+    it('should not name the signature that matched in what the user is told', async () => {
+      mockScanFile.mockImplementation((_buf, cb) =>
+        cb(null, { FoundViruses: [{ VirusName: 'Win.Test.EICAR_HDB-1' }] }),
+      );
+
+      const rejection = await service
+        .uploadImageToCloudflareImages(
+          'user-1',
+          createImageFile() as unknown as UploadImagesFileParam,
+        )
+        .catch((error: Error) => error);
+
+      // The assertion is about what is absent. R24 draws the line at the
+      // signature name, so the test names the thing that must not appear
+      // rather than restating the sentence that does.
+      expect((rejection as Error).message).not.toContain('EICAR');
+      expect((rejection as Error).message).not.toContain('Win.Test');
+      expect((rejection as Error).message).not.toMatch(/virus/i);
     });
 
     it('should throw if scan fails', async () => {

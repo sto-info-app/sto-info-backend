@@ -10,6 +10,7 @@ import axios from 'axios';
 import * as Cloudmersive from 'cloudmersive-virus-api-client';
 import FormData from 'form-data';
 
+import { FILE_REJECTED_BY_SCANNER_MESSAGE } from '../constants/file-rejection.constants';
 import {
   SAFE_FILENAME_PATTERN,
   UNSAFE_FILENAME_PATTERN,
@@ -134,12 +135,16 @@ export class ImageUploadsService {
           (v: Cloudmersive.VirusFound) => v.VirusName,
         ).join(', ');
 
+        // The names go to the log and no further. Telling an uploader which
+        // signature matched tells somebody probing the scanner exactly what
+        // gets through and what does not, which is the one piece of
+        // information a person uploading a file has no use for and a person
+        // testing the scanner has every use for. R24: generic rejection to the
+        // user, scanner detail to administrators.
         this._logger.error(
           `[scanFileForViruses] Viruses detected: ${virusNames}`,
         );
-        throw new BadRequestException(
-          `File is infected with viruses: ${virusNames}`,
-        );
+        throw new BadRequestException(FILE_REJECTED_BY_SCANNER_MESSAGE);
       }
 
       this._logger.debug(
@@ -156,6 +161,19 @@ export class ImageUploadsService {
 
   /**
    * Upload an image to Cloudflare R2 bucket.
+   *
+   * **Currently unused.** Every upload the site accepts goes to Cloudflare
+   * Images through {@link uploadImageToCloudflareImages}; the R2 bucket now
+   * only serves Character portraits stored before that move. Kept because
+   * document uploads are a likely future feature and Cloudflare Images cannot
+   * serve a PDF.
+   *
+   * **Do not wire a new feature to this method.** It builds its key from the
+   * uploaded filename, which is safe for an image that is scanned before it is
+   * stored and unsafe for anything that is scanned afterwards: R2 has no
+   * object versioning, so a reusable key lets a second upload overwrite the
+   * first and inherit its clean verdict. New uploads belong in the asset
+   * registry — see `docs/file-assets.md`, "Adding a new kind of upload later".
    *
    * @param userId - The ID of the user uploading the image.
    * @param file - The Multer file object containing the image.
@@ -220,6 +238,14 @@ export class ImageUploadsService {
 
   /**
    * Delete an image from the Cloudflare R2 bucket.
+   *
+   * **Currently unused**, and kept for the same reason as
+   * {@link uploadImageToCloudflareR2}. Note that deleting the object is only
+   * half of withdrawing it: an object served through the CDN root may sit in
+   * a cache, and the resized `cdn-cgi/image` variants of it are separate URLs.
+   * A caller that needs the bytes to stop being reachable also needs a purge —
+   * which is why the registry tracks `purgeRequiredAt` and `purgedAt`
+   * separately rather than treating a delete as the whole job.
    *
    * @param userId - The user ID associated with the image.
    * @param imageUrl - The full URL or key of the image to delete.
