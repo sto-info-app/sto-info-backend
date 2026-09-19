@@ -190,6 +190,26 @@ class EnvironmentVariables {
   @IsString()
   CLOUDFLARE_IMAGES_HASH: string;
 
+  /**
+   * The private bucket uploaded bytes land in.
+   *
+   * The only new variable quarantine needs. R2's S3 endpoint is scoped to the
+   * account rather than to a bucket, so `CLOUDFLARE_R2_ENDPOINT` reaches this
+   * one too — the exception being a bucket created under a **jurisdiction**,
+   * which is reachable only through that jurisdiction's own endpoint and
+   * cannot be moved afterwards. Should quarantine ever be given a different
+   * jurisdiction from the delivery bucket, it needs its own endpoint variable
+   * and this comment is the reason why.
+   *
+   * It must not be the bucket the site delivers from. Nothing checks that here
+   * — a validator cannot see a Cloudflare account — which is why
+   * `scripts/asset-delivery-probe` exists and why the second acceptance
+   * criterion is evidenced by running it rather than by reading this file.
+   */
+  @IsNotEmpty()
+  @IsString()
+  CLOUDFLARE_R2_QUARANTINE_BUCKET_NAME: string;
+
   @IsNotEmpty()
   @IsNumber()
   MAX_IMAGE_SIZE_IN_BYTES: number;

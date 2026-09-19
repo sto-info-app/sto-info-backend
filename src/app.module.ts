@@ -25,6 +25,7 @@ import { ContactModule } from './contact/contact.module';
 import { CronModule } from './cron/cron.module';
 import { CustomTrackingModule } from './custom-tracking/custom-tracking.module';
 import { DatabaseModule } from './database/database.module';
+import { FileAssetsModule } from './file-assets/file-assets.module';
 import { FleetModule } from './fleet/fleet.module';
 import { HealthModule } from './health/health.module';
 import { MailModule } from './mail/mail.module';
@@ -124,6 +125,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     NotificationModule,
     CommunityModule,
     FleetModule,
+    FileAssetsModule,
     RegistryModule,
     ModerationModule,
   ],
