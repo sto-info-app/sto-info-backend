@@ -25,6 +25,7 @@ import { ContactModule } from './contact/contact.module';
 import { CronModule } from './cron/cron.module';
 import { CustomTrackingModule } from './custom-tracking/custom-tracking.module';
 import { DatabaseModule } from './database/database.module';
+import { DiagnosticsModule } from './diagnostics/diagnostics.module';
 import { FileAssetsModule } from './file-assets/file-assets.module';
 import { FleetModule } from './fleet/fleet.module';
 import { HealthModule } from './health/health.module';
@@ -118,6 +119,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     LauncherModule,
     PlatformLauncherModule,
     DatabaseModule,
+    DiagnosticsModule,
     CronModule,
     HealthModule,
     SesWebhookModule,

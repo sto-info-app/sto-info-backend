@@ -74,6 +74,8 @@ Optional (Storytime):
 
 Optional (diagnostics):
 
+- Periodic memory diagnostics: set `MEMORY_DIAGNOSTICS_ENABLED=true`, `MEMORY_DIAGNOSTICS_INTERVAL_MINUTES=10`, and ensure `LOG_LEVEL` includes `log`; deploy/restart to apply. Disable with `MEMORY_DIAGNOSTICS_ENABLED=false` and deploy/restart again. Restore the previous log level when finished. See the [enable/disable runbook](environment-variables.md#enable-in-render), including how to verify the logs.
+
 - `STARTUP_DIAGNOSTICS=true` (temporarily) to emit additional startup memory/timing logs in Render. Useful when investigating intermittent RSS jumps on boot.
 
 Optional (seed user):

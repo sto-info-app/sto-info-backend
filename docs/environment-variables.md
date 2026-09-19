@@ -178,3 +178,42 @@ publish; a shared credential would put back exactly what the separate bucket exi
 ## Validation
 
 - Startup validation runs via `ConfigCheckService`; missing or invalid required values will stop the app from starting.
+
+### Process memory diagnostics
+
+- `MEMORY_DIAGNOSTICS_ENABLED`: `true` or `false`; defaults to `false` in every environment.
+- `MEMORY_DIAGNOSTICS_INTERVAL_MINUTES`: defaults to `10`. Finite numeric minutes corresponding to 1–2,147,483,647 milliseconds; invalid supplied settings fail startup even when diagnostics are disabled.
+- Diagnostics use Nest's normal `log` level. Set `LOG_LEVEL=log` (or include `log` in an explicit list) in Render alongside `MEMORY_DIAGNOSTICS_ENABLED=true`. This also enables other application logs at that level. No console fallback is used.
+
+A startup sample after module initialisation establishes the baseline. Periodic samples emit process uptime, all `process.memoryUsage()` fields, V8 used/total heap, heap limit, malloced memory and external memory, in bytes. RSS and used-heap deltas compare with the preceding periodic/startup sample and the startup baseline. Only those two pairs of numbers are retained; no history is accumulated.
+
+Counters cover HTTP requests admitted by guards, authenticated requests with `req.user`, explicit GET requests to the app-state handler, and individual cleanup job attempts. Guard-rejected, rate-limited, unmatched and preflight requests that never reach a controller are excluded. Counts reset only on periodic samples. Each of the six nightly cleanup jobs logs before and after (also on failure); these samples show interval-to-date counters without resetting them or changing the periodic baseline. Concurrent traffic may affect cron snapshots, which do not measure retained memory attributable solely to a job.
+
+The timer is unreferenced and cleared on Nest shutdown; SIGTERM/SIGINT invoke shutdown hooks. There is no forced GC, snapshot-file capture, automatic restart, dependency change or cleanup behaviour change. Disable with `MEMORY_DIAGNOSTICS_ENABLED=false` and redeploy.
+
+#### Enable in Render
+
+1. Open the backend service for the intended environment in Render and open its Environment settings. Record the existing `LOG_LEVEL` value so it can be restored afterwards.
+2. Set:
+
+   ```env
+   MEMORY_DIAGNOSTICS_ENABLED=true
+   MEMORY_DIAGNOSTICS_INTERVAL_MINUTES=10
+   LOG_LEVEL=log
+   ```
+
+   If using an explicit comma-separated `LOG_LEVEL` list, add `log` while preserving the other levels. An existing `debug` or `verbose` setting already includes normal logs. Enabling `log` also exposes other application logs at that level.
+3. Save the settings and deploy/restart the service with the updated environment. These settings are read at startup; changing a value without restarting the process does not update the sampler.
+4. Filter the service logs for `MemoryDiagnosticsService`. After initialisation, expect a JSON message with `reason` set to `startup`, followed by `interval` every ten minutes. Cleanup executions additionally emit labels such as `audit-cleanup:before` and `audit-cleanup:after`.
+
+If no samples appear, check that the running deployment contains the diagnostics code, `MEMORY_DIAGNOSTICS_ENABLED` is exactly `true`, and `LOG_LEVEL` includes `log`. Invalid diagnostic settings fail startup and must be corrected before retrying the deployment.
+
+#### Disable in Render
+
+1. Set `MEMORY_DIAGNOSTICS_ENABLED=false`, or remove it to use the disabled default. The interval can remain set to `10` or be removed.
+2. Restore the previous `LOG_LEVEL` if it was changed solely for this investigation.
+3. Save and deploy/restart the service. The replacement process will not start the diagnostic timer or update diagnostic counters. Verify that no new `MemoryDiagnosticsService` samples appear from that process; historical logs remain available.
+
+Changing only `LOG_LEVEL` hides the samples but does not disable collection. Use `MEMORY_DIAGNOSTICS_ENABLED=false` to turn diagnostics off.
+
+For local/development runs, set the same variables in the environment used to launch the backend and restart it. `STARTUP_DIAGNOSTICS` is a separate bootstrap-only switch: enabling or disabling it does not change periodic memory diagnostics. If it was also enabled during the investigation, set `STARTUP_DIAGNOSTICS=false` separately when finished.
