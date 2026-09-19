@@ -10,6 +10,7 @@ import { FileAssetAudience } from 'src/file-assets/enums/file-asset-audience.enu
 import { FileAssetKind } from 'src/file-assets/enums/file-asset-kind.enum';
 import { FileAssetService } from 'src/file-assets/services/file-asset.service';
 import { QuarantineStorageService } from 'src/file-assets/services/quarantine-storage.service';
+import { ScanRequestProducerService } from 'src/file-scanning/services/scan-request-producer.service';
 
 import { FleetPolicyService } from '../../fleet-policy.service';
 import {
@@ -47,6 +48,8 @@ export interface AcceptedRosterUpload {
   readonly record: RosterImportSourceEntity;
   /** The registry entry for the stored sanitised CSV. */
   readonly asset: FileAssetEntity;
+  /** The identifier the scan request carries, for following it in the logs. */
+  readonly traceId: string;
 }
 
 /** What the parser reports about an upload, beyond the bytes it produced. */
@@ -124,6 +127,7 @@ export class RosterImportIngressService {
     private readonly _parser: RosterCsvPrivacyParserService,
     private readonly _fileAssetService: FileAssetService,
     private readonly _quarantineStorage: QuarantineStorageService,
+    private readonly _scanRequestProducer: ScanRequestProducerService,
     private readonly _policyService: FleetPolicyService,
   ) {}
 
@@ -214,6 +218,12 @@ export class RosterImportIngressService {
       }),
     );
 
+    // The provenance row is written before the scan is requested. A crash
+    // between the two leaves an asset in QUARANTINED with nothing scanning
+    // it, which is safe and recoverable; the other order would leave a
+    // scanned asset with no record of where it came from, which is not.
+    const scanning = await this._scanRequestProducer.requestScan(quarantined);
+
     // Identifiers and counts. Not the filename: it is text somebody supplied,
     // it is not subject to the parser's control-character rule, and a log line
     // is a sink like any other.
@@ -222,10 +232,11 @@ export class RosterImportIngressService {
         `FleetId: ${input.fleetId}, Rows: ${summary.rowCount}, ` +
         `OfficerTailsDiscarded: ${summary.officerTailRowCount}, ` +
         `Header: ${summary.sourceHeaderShape}, ` +
-        `ParserVersion: ${summary.parserVersion}`,
+        `ParserVersion: ${summary.parserVersion}, ` +
+        `TraceId: ${scanning.traceId}`,
     );
 
-    return { record, asset: quarantined };
+    return { record, asset: scanning.asset, traceId: scanning.traceId };
   }
 
   /**

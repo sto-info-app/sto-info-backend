@@ -11,6 +11,7 @@ import { FileAssetKind } from 'src/file-assets/enums/file-asset-kind.enum';
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
 import { FileAssetService } from 'src/file-assets/services/file-asset.service';
 import { QuarantineStorageService } from 'src/file-assets/services/quarantine-storage.service';
+import { ScanRequestProducerService } from 'src/file-scanning/services/scan-request-producer.service';
 
 import { FleetPolicyService } from '../../fleet-policy.service';
 import { ROSTER_OFFICER_HEADER_LINE } from '../constants/roster-csv.constants';
@@ -53,6 +54,7 @@ describe('RosterImportIngressService', () => {
   let repository: { create: jest.Mock; save: jest.Mock };
   let fileAssetService: { register: jest.Mock; recordStored: jest.Mock };
   let quarantineStorage: { buildObjectKey: jest.Mock; put: jest.Mock };
+  let scanRequestProducer: { requestScan: jest.Mock };
   let saved: Partial<RosterImportSourceEntity> | undefined;
 
   beforeEach(() => {
@@ -96,11 +98,24 @@ describe('RosterImportIngressService', () => {
       ),
     };
 
+    scanRequestProducer = {
+      requestScan: jest.fn((asset: unknown) =>
+        Promise.resolve({
+          asset: {
+            ...(asset as FileAssetEntity),
+            state: FileAssetState.SCANNING,
+          },
+          traceId: '0b5d4f6a-1c2e-4d3b-8a7f-9e8d7c6b5a40',
+        }),
+      ),
+    };
+
     service = new RosterImportIngressService(
       repository as unknown as Repository<RosterImportSourceEntity>,
       parser as unknown as RosterCsvPrivacyParserService,
       fileAssetService as unknown as FileAssetService,
       quarantineStorage as unknown as QuarantineStorageService,
+      scanRequestProducer as unknown as ScanRequestProducerService,
       { importSourceRetentionDays: RETENTION_DAYS } as FleetPolicyService,
     );
   });
@@ -222,10 +237,36 @@ describe('RosterImportIngressService', () => {
       );
     });
 
-    it('reports the asset as quarantined, never as available', async () => {
+    it('reports the asset as scanning, never as available', async () => {
       const accepted = await accept(officerExport());
 
-      expect(accepted.asset.state).toBe(FileAssetState.QUARANTINED);
+      expect(accepted.asset.state).toBe(FileAssetState.SCANNING);
+    });
+
+    it('sends the sanitised asset to be scanned, and nothing else', async () => {
+      // FC-009's fourth criterion said only the sanitised asset enters the
+      // scan queue, and until now there was no queue for it to enter. The
+      // asset handed over is the one the registry returned, which holds the
+      // hash of the bytes that were written rather than of the upload.
+      const accepted = await accept(officerExport());
+
+      const [[handed]] = scanRequestProducer.requestScan.mock.calls as [
+        [FileAssetEntity],
+      ];
+
+      expect(handed.id).toBe(ASSET_ID);
+      expect(accepted.traceId).toBe('0b5d4f6a-1c2e-4d3b-8a7f-9e8d7c6b5a40');
+    });
+
+    it('records the import before it asks for a scan', async () => {
+      // A crash between the two leaves an asset in quarantine with nothing
+      // scanning it, which is safe and recoverable. The other order leaves
+      // a scanned asset with no record of where it came from.
+      await accept(officerExport());
+
+      expect(repository.save.mock.invocationCallOrder[0]).toBeLessThan(
+        scanRequestProducer.requestScan.mock.invocationCallOrder[0],
+      );
     });
   });
 
@@ -263,6 +304,14 @@ describe('RosterImportIngressService', () => {
 
       await expect(accept(source)).rejects.toBeInstanceOf(TypeError);
       expect(source.every(byte => byte === 0)).toBe(true);
+    });
+
+    it('asks for no scan when the parse fails', async () => {
+      await expect(
+        accept(Buffer.from('not a roster export at all\r\n', 'utf8')),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(scanRequestProducer.requestScan).not.toHaveBeenCalled();
     });
 
     it('stores nothing when the parse fails', async () => {

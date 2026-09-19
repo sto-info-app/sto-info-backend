@@ -11,12 +11,14 @@ import {
   it,
   jest,
 } from '@jest/globals';
+import { Queue } from 'bullmq';
 import { Repository } from 'typeorm';
 
 import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
 import { FileAssetService } from 'src/file-assets/services/file-asset.service';
 import { QuarantineStorageService } from 'src/file-assets/services/quarantine-storage.service';
+import { ScanRequestProducerService } from 'src/file-scanning/services/scan-request-producer.service';
 
 import { FleetFeatureService } from '../../fleet-feature.service';
 import { FleetPolicyService } from '../../fleet-policy.service';
@@ -32,11 +34,16 @@ import { RosterImportIngressService } from '../services/roster-import-ingress.se
  * This one checks that one thing is absent, everywhere, and it drives the
  * whole ingress to do it rather than any single class.
  *
- * The sinks it watches are the five places officer text could plausibly end
+ * The sinks it watches are the six places officer text could plausibly end
  * up: the HTTP response, the log, the bytes written to quarantine, the
- * arguments handed to the registry and the row written to the database. Plus
- * the sixth, which is the one people forget — the error thrown when the
- * upload is *refused*, including its stack.
+ * arguments handed to the registry, the row written to the database and the
+ * message put on the scan queue. Plus the seventh, which is the one people
+ * forget — the error thrown when the upload is *refused*, including its
+ * stack.
+ *
+ * The queue arrived with FC-010 and is the reason this list is worth
+ * keeping. A sink sweep is only as good as its list of sinks, and a new one
+ * is added by somebody who is thinking about something else.
  *
  * It is paired with `officer-canary-containment.spec.ts`, which sweeps the
  * repository itself. This one proves today's code is clean; that one stops
@@ -129,9 +136,20 @@ describe('Officer canary sinks', () => {
         return Promise.resolve({
           id: assetId,
           state: FileAssetState.QUARANTINED,
+          objectKey: `local/assets/${assetId as string}`,
+          objectVersion: null,
+          sha256: (input as { sha256: string }).sha256,
+          policyVersion: 1,
           retainUntil: null,
         } as FileAssetEntity);
       }),
+      markScanning: jest.fn((assetId: unknown) =>
+        Promise.resolve({
+          id: assetId,
+          state: FileAssetState.SCANNING,
+        } as FileAssetEntity),
+      ),
+      markRetryPending: jest.fn(() => Promise.resolve({} as FileAssetEntity)),
     } as unknown as FileAssetService;
 
     const quarantineStorage = {
@@ -143,11 +161,24 @@ describe('Officer canary sinks', () => {
       }),
     } as unknown as QuarantineStorageService;
 
+    // The queue is a sink like any other, and it is the newest one. The
+    // real producer is used rather than a stand-in, so what is swept is the
+    // message that would actually be sent rather than a test's idea of it.
+    const scanQueue = {
+      add: jest.fn((name: unknown, message: unknown) => {
+        watched.push(String(name));
+        watched.push(JSON.stringify(message));
+
+        return Promise.resolve({});
+      }),
+    } as unknown as Queue;
+
     const ingressService = new RosterImportIngressService(
       repository,
       new RosterCsvPrivacyParserService(),
       fileAssetService,
       quarantineStorage,
+      new ScanRequestProducerService(scanQueue, fileAssetService),
       { importSourceRetentionDays: 180 } as FleetPolicyService,
     );
 

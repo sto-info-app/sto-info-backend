@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { FileAssetsModule } from 'src/file-assets/file-assets.module';
+import { FileScanningModule } from 'src/file-scanning/file-scanning.module';
 
 import { FleetModule } from '../fleet.module';
 import { RosterImportSourceEntity } from './entities/roster-import-source.entity';
@@ -25,6 +26,7 @@ import { RosterImportIngressService } from './services/roster-import-ingress.ser
   imports: [
     FleetModule,
     FileAssetsModule,
+    FileScanningModule,
     TypeOrmModule.forFeature([RosterImportSourceEntity]),
   ],
   controllers: [RosterImportsController],
