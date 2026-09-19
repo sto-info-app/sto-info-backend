@@ -534,6 +534,31 @@ Consider checking file magic bytes (file signature) to verify file type independ
 
 > TODO: Decide whether to implement magic-bytes validation (and document the chosen approach/library if implemented).
 
+### Roster CSV uploads are a different boundary
+
+Everything above is about images. A roster CSV upload
+(`POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports`) follows different rules,
+and the differences are deliberate:
+
+- **No MIME filter.** A CSV has no magic number, and a browser sends `text/csv`,
+  `application/vnd.ms-excel` or `application/octet-stream` for the same file depending on the
+  operating system's file association. Filtering on it would refuse real uploads while stopping
+  nothing, since the header is supplied by whoever is uploading. What the bytes are is decided by
+  parsing them.
+- **A 2 MiB ceiling**, not 10 MB, along with caps on rows, line length, field length, quotes per
+  line and the work one row's parse may cost.
+- **Memory storage is load-bearing**, not a performance choice. Multer's disk storage would write
+  the received bytes to a temporary file before any of this application's code had seen them, and
+  those bytes may contain private officer notes.
+- **The received bytes are overwritten** once parsed, on the failure path as well as the success
+  one.
+- **A refused upload leaves nothing**: no sample in the response, the log, a dead-letter payload
+  or Sentry. The caller gets a structural code and a line number, both produced by this
+  application rather than read out of the file.
+
+See [Roster imports](roster-imports.md) for the grammar, the limits and how the absence of officer
+data is tested.
+
 ### MIME Type Constants
 
 **Centralised Constants:**

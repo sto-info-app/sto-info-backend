@@ -418,9 +418,11 @@ built at startup and nothing else, and they are a working reference for the S3 c
 
 ## What is not here yet
 
-- **Nothing registers an asset.** FC-009 is the first producer and FC-012 moves the existing
-  upload callers across. `ImageUploadsService` still scans synchronously and publishes
-  immediately; it is untouched by this work apart from no longer naming the signature it matched.
+- **One thing registers an asset: roster imports.** FC-009 is the first producer, and its
+  sanitised CSVs are the only rows this registry holds that are not legacy `UNVERIFIED` ones —
+  see [Roster imports](roster-imports.md). Every *image* caller is still on the old path. FC-012
+  moves them across; `ImageUploadsService` still scans synchronously and publishes immediately,
+  and is untouched by this work apart from no longer naming the signature it matched.
 - **Nothing scans one.** The worker's `upload_files` row records what a scanner did; joining the
   two and driving `SCANNING` → `CLEAN` is FC-010.
 - **Nothing purges a public route.** `confirmPurged` records that it happened; performing it is

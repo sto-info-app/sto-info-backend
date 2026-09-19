@@ -351,6 +351,12 @@ Only the following image types are accepted:
 
 - **User Profile Image**: `POST /user/update-profile-pic` (authenticated)
 - **Character Image**: `POST /character/:id/profile-image` (authenticated, ownership check)
+- **Roster export**: `POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports`
+  (authenticated, `roster.import` capability at the Fleet)
+
+The roster endpoint does **not** follow the image rules above: no MIME filter, a 2 MiB ceiling,
+and a bounded parser that discards the three officer columns before anything durable exists. See
+[Roster imports](roster-imports.md).
 
 ## Image Upload Service
 
@@ -510,3 +516,16 @@ This keeps primary user records at least as long as the general audit data reten
 - `npm run migration:revert`: Revert the last executed migration. Use to roll back a migration.
 - `npm run migration:show`: Show which migrations have been run and which are pending. Use to check migration status.
 - `npm run typeorm`: Run TypeORM CLI commands directly with ts-node and path mapping. Use for advanced TypeORM operations.
+
+### Migration Rehearsal Scripts
+
+Each replays a migration into a throwaway `postgres:17-alpine` container and then tries to break
+every rule it claims to enforce. They need Docker and never touch a real database. See
+`scripts/migration-rehearsal/README.md`.
+
+- `npm run rehearse:migration`: Rehearse the FC-004 Fleet Community schema.
+- `npm run rehearse:migration:fleet-authorisation`: FC-005's delegation table, on top of FC-004's.
+- `npm run rehearse:migration:user-preferences`: FC-006's move of two settings out of `user_profile`.
+- `npm run rehearse:migration:calendar-dates`: The entered-days column rewrite (ADR-0013).
+- `npm run rehearse:migration:file-assets`: FC-008's asset registry and its backfill.
+- `npm run rehearse:migration:roster-import-source`: FC-009's import provenance, on top of both.

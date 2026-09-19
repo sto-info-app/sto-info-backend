@@ -20,6 +20,7 @@ The database uses PostgreSQL with TypeORM for object-relational mapping.
 | `AccountEntity`           | `account`              | STO in-game account records                                                   |
 | `CharacterEntity`         | `character`            | STO character profiles linked to accounts                                     |
 | `FileAssetEntity`         | `file_asset`           | Every stored file: its identity, hash, state and audience — see [File assets](file-assets.md) |
+| `RosterImportSourceEntity` | `fleet_roster_import_source` | What is known about an uploaded roster export once the export itself has been discarded — see [Roster imports](roster-imports.md) |
 
 ### Platform Launcher Image Mapping
 
@@ -199,6 +200,28 @@ The first three make object identity write-once, so a verdict cannot be transfer
 bytes by editing a row — replacing a file means registering a new asset, which gets its own
 verdict. The fourth means there is no sequence of writes that publishes a file a scanner refused or
 an administrator withdrew.
+
+### Roster import provenance
+
+| Constraint | Table | What it guarantees |
+| --- | --- | --- |
+| `TR_roster_import_source_guard` | `fleet_roster_import_source` | See below |
+| `UQ_roster_import_source_asset` | `fleet_roster_import_source` | One import record per stored object, so there is never more than one answer to which export produced a given file |
+| `CHK_roster_import_source_source_hash` | `fleet_roster_import_source` | Lowercase hexadecimal. The source hash is the only surviving evidence of the uploaded file, and a malformed one looks like evidence while answering nothing |
+| `CHK_roster_import_source_officer_rows` | `fleet_roster_import_source` | The officer-tail count is between zero and the row count |
+| `CHK_roster_import_source_officer_shape` | `fleet_roster_import_source` | A twelve-column export discarded no officer notes, so a non-zero count against a `NORMAL` header means the parser and the record disagree about what arrived |
+| `FK_roster_import_source_asset` | `fleet_roster_import_source` | `ON DELETE RESTRICT`, so the registry row cannot be removed while the record of where its bytes came from still stands |
+| `FK_roster_import_source_user` | `fleet_roster_import_source` | `ON DELETE SET NULL`, matching `file_asset`: closing an account severs the personal link and does not destroy the evidence that an import happened |
+
+**Triggers:**
+
+`TR_roster_import_source_guard` runs `BEFORE UPDATE` and raises a check violation (`23514`) if the
+asset, the Fleet, the filename, either hash, either size, the header shape, the parser version or
+the upload time changes. The row is the answer to "what was actually uploaded", and an answer that
+can be edited afterwards is not evidence; a correction means a new import, not a rewritten record.
+
+The two counts stay mutable, because a recount is a correction to a derived figure rather than to
+the record of the upload.
 
 It is a trigger rather than a service check because both properties have to hold against every
 future caller, including a migration, a repair script and a hand-typed `UPDATE`, rather than

@@ -427,6 +427,50 @@ Invalid Cloudflare image URLs are sanitised to `null` before returning.
 
 **No Authentication Required**
 
+## Fleet Community Endpoints
+
+Fleet Community is behind a master switch held in `app_setting`, and each area behind its own
+environment flag. A switched-off area answers `404` rather than "disabled", so a staged rollout
+does not advertise what is coming.
+
+### GET /fleet/configuration
+
+Report the feature switches and the published policy figures — retention windows, chat history
+limits, the custom channel limit.
+
+Reachable while Fleet Community is switched off: this is how the client learns that it is off.
+It says nothing about any Community, Fleet or person.
+
+**No Authentication Required**
+
+### POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports
+
+Upload an STO roster export for a Fleet.
+
+**Authentication Required.** The caller must hold the `roster.import` capability at that Fleet. A
+Fleet belonging to a different Community than the path claims resolves to nothing and the caller
+is told it does not exist.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Request:** `multipart/form-data` with a single `roster` file part and no other fields. Maximum
+2 MiB. There is no MIME filter — a CSV has no magic number and the browser's content type for one
+is whatever the operating system's file association happens to say, so it is recorded and never
+believed.
+
+**What happens to the file.** The three officer columns are discarded before any DTO, log line,
+queue payload, database row or stored byte exists, and the received bytes are overwritten in
+memory. What is retained is a canonical twelve-column CSV in the private quarantine bucket, which
+no route yet serves. See [Roster imports](roster-imports.md).
+
+**Response (201):** the provenance record — both hashes, both sizes, the header shape, the row
+count, **how many officer notes were discarded**, the parser version, the asset's state
+(`QUARANTINED`) and when the sanitised file may be destroyed. No roster content of any kind.
+
+**Response (400):** a structural code and, where one applies, the physical line at fault. The
+codes describe shape rather than content, and no part of the file appears in the response, the
+log or anywhere else. Refused uploads leave nothing behind.
+
 ## Account Endpoints
 
 All account endpoints are under `/account/*` and require authentication.
