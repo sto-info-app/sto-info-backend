@@ -1,0 +1,69 @@
+{
+  "contractVersion": 1,
+  "request": {
+    "schemaVersion": 1,
+    "assetId": "4f1a0e2c-8b3d-4a59-9c21-6f7e5d4c3b2a",
+    "objectKey": "prod/assets/4f1a0e2c-8b3d-4a59-9c21-6f7e5d4c3b2a",
+    "objectVersion": null,
+    "expectedSha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+    "policyVersion": 1,
+    "campaignId": null,
+    "traceId": "0b5d4f6a-1c2e-4d3b-8a7f-9e8d7c6b5a40"
+  },
+  "verdicts": {
+    "clean": {
+      "schemaVersion": 1,
+      "assetId": "4f1a0e2c-8b3d-4a59-9c21-6f7e5d4c3b2a",
+      "attemptId": "7c9e1b2d-3a4f-4e5b-9c8d-1a2b3c4d5e6f",
+      "objectKey": "prod/assets/4f1a0e2c-8b3d-4a59-9c21-6f7e5d4c3b2a",
+      "objectVersion": null,
+      "expectedSha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "observedSha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "policyVersion": 1,
+      "definitionEpoch": "27412",
+      "outcome": "CLEAN",
+      "rejectionCode": null,
+      "engine": "clamav",
+      "engineVersion": "1.4.2",
+      "signatureVersion": "27412",
+      "scannedAt": "2026-09-19T12:00:00.000Z",
+      "traceId": "0b5d4f6a-1c2e-4d3b-8a7f-9e8d7c6b5a40"
+    },
+    "rejected": {
+      "schemaVersion": 1,
+      "assetId": "4f1a0e2c-8b3d-4a59-9c21-6f7e5d4c3b2a",
+      "attemptId": "7c9e1b2d-3a4f-4e5b-9c8d-1a2b3c4d5e6f",
+      "objectKey": "prod/assets/4f1a0e2c-8b3d-4a59-9c21-6f7e5d4c3b2a",
+      "objectVersion": null,
+      "expectedSha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "observedSha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "policyVersion": 1,
+      "definitionEpoch": "27412",
+      "outcome": "REJECTED",
+      "rejectionCode": "INFECTED",
+      "engine": "clamav",
+      "engineVersion": "1.4.2",
+      "signatureVersion": "27412",
+      "scannedAt": "2026-09-19T12:00:00.000Z",
+      "traceId": "0b5d4f6a-1c2e-4d3b-8a7f-9e8d7c6b5a40"
+    },
+    "retry": {
+      "schemaVersion": 1,
+      "assetId": "4f1a0e2c-8b3d-4a59-9c21-6f7e5d4c3b2a",
+      "attemptId": "7c9e1b2d-3a4f-4e5b-9c8d-1a2b3c4d5e6f",
+      "objectKey": "prod/assets/4f1a0e2c-8b3d-4a59-9c21-6f7e5d4c3b2a",
+      "objectVersion": null,
+      "expectedSha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "observedSha256": null,
+      "policyVersion": 1,
+      "definitionEpoch": "27412",
+      "outcome": "RETRY",
+      "rejectionCode": null,
+      "engine": "clamav",
+      "engineVersion": null,
+      "signatureVersion": null,
+      "scannedAt": "2026-09-19T12:00:00.000Z",
+      "traceId": "0b5d4f6a-1c2e-4d3b-8a7f-9e8d7c6b5a40"
+    }
+  }
+}
