@@ -80,7 +80,7 @@ describe('FileSizeExceptionFilter', () => {
       },
       {
         code: 'LIMIT_UNEXPECTED_FILE' as const,
-        expectedMessage: 'Upload failed: Unexpected field',
+        expectedMessage: 'Upload failed: Unexpected file field',
       },
     ];
 
