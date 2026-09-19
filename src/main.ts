@@ -403,8 +403,9 @@ async function bootstrap() {
     });
   }
 
-  // Force module initialization before listening so we can log a stable "post-init" baseline.
+  // Force module initialisation before listening so we can log a stable "post-init" baseline.
   // `app.listen()` calls init internally if needed, but calling it explicitly helps diagnostics.
+  app.enableShutdownHooks(['SIGTERM', 'SIGINT']);
   await app.init();
 
   if (startupDiagnosticsEnabled) {

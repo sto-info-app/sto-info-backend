@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
+import { MemoryDiagnosticsService } from '../diagnostics/memory-diagnostics.service';
 import { CRON_TIMEZONE } from './constants/cron.constants';
 import { AuditCleanupService } from './jobs/audit-cleanup/audit-cleanup.service';
 import { AuditLoginAttemptCleanupService } from './jobs/audit-login-attempt-cleanup/audit-login-attempt-cleanup.service';
@@ -16,6 +17,7 @@ export class CronService {
   /**
    * Creates an instance of CronService.
    *
+   * @param _memoryDiagnostics - The shared process diagnostics service.
    * @param _auditCleanupService - The audit cleanup service.
    * @param _auditLoginAttemptCleanupService - The audit login attempt cleanup service.
    * @param _contactRequestCleanupService - The contact request cleanup service.
@@ -24,6 +26,7 @@ export class CronService {
    * @param _customTrackingCleanupService - The custom tracking cleanup service.
    */
   constructor(
+    private readonly _memoryDiagnostics: MemoryDiagnosticsService,
     private readonly _auditCleanupService: AuditCleanupService,
     private readonly _auditLoginAttemptCleanupService: AuditLoginAttemptCleanupService,
     private readonly _contactRequestCleanupService: ContactRequestCleanupService,
@@ -66,11 +69,15 @@ export class CronService {
    */
   private async handleAuditCleanup() {
     this._logger.log('Starting audit cleanup job...');
+    this._memoryDiagnostics.recordCronExecution();
+    this._memoryDiagnostics.logMemory('audit-cleanup:before');
     try {
       await this._auditCleanupService.cleanup();
       this._logger.log('Audit cleanup job completed successfully.');
     } catch (error) {
       this._logger.error('Error running audit cleanup job:', error);
+    } finally {
+      this._memoryDiagnostics.logMemory('audit-cleanup:after');
     }
   }
 
@@ -81,6 +88,8 @@ export class CronService {
    */
   private async handleAuditLoginAttemptCleanup() {
     this._logger.log('Starting audit login attempt cleanup job...');
+    this._memoryDiagnostics.recordCronExecution();
+    this._memoryDiagnostics.logMemory('audit-login-attempt-cleanup:before');
     try {
       await this._auditLoginAttemptCleanupService.cleanup();
       this._logger.log(
@@ -91,6 +100,8 @@ export class CronService {
         'Error running audit login attempt cleanup job:',
         error,
       );
+    } finally {
+      this._memoryDiagnostics.logMemory('audit-login-attempt-cleanup:after');
     }
   }
 
@@ -101,11 +112,15 @@ export class CronService {
    */
   private async handleContactRequestCleanup() {
     this._logger.log('Starting contact request cleanup job...');
+    this._memoryDiagnostics.recordCronExecution();
+    this._memoryDiagnostics.logMemory('contact-request-cleanup:before');
     try {
       await this._contactRequestCleanupService.cleanup();
       this._logger.log('Contact request cleanup job completed successfully.');
     } catch (error) {
       this._logger.error('Error running contact request cleanup job:', error);
+    } finally {
+      this._memoryDiagnostics.logMemory('contact-request-cleanup:after');
     }
   }
 
@@ -116,11 +131,15 @@ export class CronService {
    */
   private async handleSesAuditCleanup() {
     this._logger.log('Starting SES audit cleanup job...');
+    this._memoryDiagnostics.recordCronExecution();
+    this._memoryDiagnostics.logMemory('ses-audit-cleanup:before');
     try {
       await this._sesAuditCleanupService.cleanup();
       this._logger.log('SES audit cleanup job completed successfully.');
     } catch (error) {
       this._logger.error('Error running SES audit cleanup job:', error);
+    } finally {
+      this._memoryDiagnostics.logMemory('ses-audit-cleanup:after');
     }
   }
 
@@ -130,11 +149,15 @@ export class CronService {
    */
   private async handleUserAccountCleanup() {
     this._logger.log('Starting user account cleanup job...');
+    this._memoryDiagnostics.recordCronExecution();
+    this._memoryDiagnostics.logMemory('user-account-cleanup:before');
     try {
       await this._userAccountCleanupService.cleanup();
       this._logger.log('User account cleanup job completed successfully.');
     } catch (error) {
       this._logger.error('Error running user account cleanup job:', error);
+    } finally {
+      this._memoryDiagnostics.logMemory('user-account-cleanup:after');
     }
   }
 
@@ -142,16 +165,20 @@ export class CronService {
    * Invokes the Custom Tracking cleanup job: expired definitions and answers,
    * and then the pictures that leaves behind in Cloudflare.
    *
-   * Last of the five, so that its picture-deletion pass also drains whatever
+   * Last of the six, so that its picture-deletion pass also drains whatever
    * the account cleanup queued a moment earlier.
    */
   private async handleCustomTrackingCleanup() {
     this._logger.log('Starting custom tracking cleanup job...');
+    this._memoryDiagnostics.recordCronExecution();
+    this._memoryDiagnostics.logMemory('custom-tracking-cleanup:before');
     try {
       await this._customTrackingCleanupService.cleanup();
       this._logger.log('Custom tracking cleanup job completed successfully.');
     } catch (error) {
       this._logger.error('Error running custom tracking cleanup job:', error);
+    } finally {
+      this._memoryDiagnostics.logMemory('custom-tracking-cleanup:after');
     }
   }
 }

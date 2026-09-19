@@ -61,6 +61,46 @@ describe('ConfigCheckService', () => {
       REDIS_URL: 'redis://localhost:6379',
     };
 
+    it.each(['yes', 'TRUE', '1', ''])(
+      'rejects an invalid memory diagnostic switch: %s',
+      value => {
+        expect(() =>
+          service.validateInput({
+            ...validConfig,
+            MEMORY_DIAGNOSTICS_ENABLED: value,
+          }),
+        ).toThrow();
+      },
+    );
+
+    it.each(['0', '-1', 'NaN', 'Infinity', 'abc', '', '40000', '0.000001'])(
+      'rejects an invalid memory diagnostic interval: %s',
+      value => {
+        expect(() =>
+          service.validateInput({
+            ...validConfig,
+            MEMORY_DIAGNOSTICS_INTERVAL_MINUTES: value,
+          }),
+        ).toThrow();
+      },
+    );
+
+    it.each(['true', 'false'])(
+      'accepts memory diagnostics configuration: %s',
+      value => {
+        expect(
+          service.validateInput({
+            ...validConfig,
+            MEMORY_DIAGNOSTICS_ENABLED: value,
+            MEMORY_DIAGNOSTICS_INTERVAL_MINUTES: '10',
+          }),
+        ).toMatchObject({
+          MEMORY_DIAGNOSTICS_ENABLED: value,
+          MEMORY_DIAGNOSTICS_INTERVAL_MINUTES: 10,
+        });
+      },
+    );
+
     it('should validate correct configuration', () => {
       const result = service.validateInput(validConfig);
       expect(result).toBeDefined();
