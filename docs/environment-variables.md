@@ -43,6 +43,12 @@ Note: the app reads `config/environments/.env` at startup (see `src/main.ts`).
 ### Redis
 
 - `REDIS_URL`: Full connection string for Redis (e.g. `redis://localhost:6379`). Render provides this automatically for managed Redis.
+- `QUEUE_PREFIX`: Prefix for BullMQ keys (default `bull:sto-info:`). It must match the file scan worker's, or the two will be talking to different queues in the same Redis and each will look idle to the other.
+
+Redis is used for two unrelated things: rate limiting, and the file scan queues. Since FC-010 it is
+**load-bearing for file safety** as well as for throttling — an upload cannot be scanned, and
+therefore cannot be published, while it is down. ADR-0006 accepted that and asked for the queue's
+connection budget to be sized and monitored separately from the limiter's.
 
 ### Email
 

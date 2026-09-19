@@ -227,6 +227,31 @@ It is a trigger rather than a service check because both properties have to hold
 future caller, including a migration, a repair script and a hand-typed `UPDATE`, rather than
 against the callers that exist today.
 
+### A second schema, owned by the file scan worker
+
+`sto_info_app` is not the only schema in this database. The file scan worker owns
+`sto_info_worker`, migrates it itself, and keeps its own `_migrations` table inside it.
+
+[ADR-0006](../../../Plans/Fleets/ADR/0006-worker-job-transport-and-ownership.md) split schema
+ownership by table and warned that two migration owners against one database "needs care:
+separate TypeORM migration tables, no overlapping table names". Both repositories had in fact
+named their migration table `_migrations`; in one schema they would have shared it, and each
+would have read the other's history as its own. FC-010 gave the worker a schema instead.
+
+Three consequences for anybody working in this repository:
+
+- **Do not migrate `sto_info_worker`, and do not read or write anything in it.** The contract
+  between the two applications is the two queue messages, not the tables.
+- **`sto_info_worker.file_scan_attempt` holds a foreign key into `file_asset`**, `ON DELETE
+  RESTRICT`. A hard delete of a `file_asset` row that has ever been scanned will be refused.
+  This is deliberate: the attempt is the only record of what a scanner said about bytes that may
+  no longer exist. Soft deletion is unaffected.
+- **Deploy ordering is fixed.** This repository's migrations must run before the worker's, or the
+  worker's foreign key has nothing to point at. The failure is loud.
+
+The worker's own [database documentation](../../sto-info-file-scan-worker/docs/database.md)
+describes that table.
+
 ## Data Retention Policies
 
 **Current behaviour in code:**

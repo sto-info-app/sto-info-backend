@@ -409,6 +409,32 @@ The `ImageUploadsService` handles uploading images to Cloudflare Images.
 
 > TODO: Replace placeholders with your real delivery root/hash (and list the variants the frontend should use).
 
+## File scanning
+
+`src/file-scanning` is this application's end of the contract with the file scan worker. It is a
+module of its own rather than part of `FileAssetsModule`, because the registry and the queue have
+different failure modes: the registry is a table this application owns outright, and the queue is
+a conversation with another application over infrastructure that can be down. Keeping them apart
+means the delivery endpoint does not depend on Redis in order to serve a file.
+
+| Piece | What it does |
+| --- | --- |
+| `contract/file-scan-contract.ts` | The message shapes and their parsers. **Duplicated byte for byte in the worker.** |
+| `ScanRequestProducerService` | Moves an asset to `SCANNING` and puts a request on `file-scan`. |
+| `ScanVerdictProcessor` | Takes verdicts off `file-scan-verdict` and parses them before touching a field. |
+| `ScanVerdictService` | Applies a verdict to the registry, after rechecking it against the row. |
+
+**Redis is now load-bearing for file safety**, which it was not before — it was a rate-limiting
+dependency. ADR-0006 accepted that and required the queue's connection budget to be sized and
+monitored separately from the limiter's, so the connection configured here is its own, built from
+the same `REDIS_URL` rather than shared with the limiter's client.
+
+The contract carries an asset identifier, an object key, an object version, a hash, a policy
+version and two identifiers, and nothing else — no URL, no bucket, no credentials, no filename and
+no row of anybody's data. See [file-assets.md](file-assets.md) for the path an asset takes through
+it, and the worker's [queues documentation](../../sto-info-file-scan-worker/docs/queues.md) for the
+shapes themselves.
+
 ## Guards
 
 ### Available Guards

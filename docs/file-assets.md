@@ -416,15 +416,51 @@ been asked yet.
 `ImageUploadsService`'s two R2 methods can stay where they are meanwhile. They cost an `S3Client`
 built at startup and nothing else, and they are a working reference for the S3 call shapes.
 
+## How an asset gets scanned
+
+FC-010 joined the two halves. The path is a queue in each direction, and neither side can act on
+its own messages — [ADR-0015](../../../Plans/Fleets/ADR/0015-asset-registry-ownership.md)'s
+authority boundary expressed as an absence rather than as a check.
+
+| Step | Who | What |
+| --- | --- | --- |
+| 1 | backend | `recordStored` puts the asset in `QUARANTINED` with its key and hash. |
+| 2 | backend | `ScanRequestProducerService.requestScan` moves it to `SCANNING` and puts a message on `file-scan`. |
+| 3 | worker | Reads the object, scans it, writes an attempt row, puts a verdict on `file-scan-verdict`. |
+| 4 | backend | `ScanVerdictService.apply` rechecks the hash and calls `recordCleanVerdict`, `reject` or `markRetryPending`. |
+| 5 | FC-012 | `publish`, against a fresh look at the registry. **Not step 4.** |
+
+Three things about step 2 and step 4 are worth knowing before changing either.
+
+**The asset moves to `SCANNING` before the message is sent.** A second request for the same asset
+then fails the state check instead of queueing a duplicate, and an asset stuck in `SCANNING` is a
+visible symptom of a queue that is not moving. If the send then fails the asset is put back to
+`RETRY_PENDING`, because an asset left in `SCANNING` with nothing scanning it is the one outcome
+nobody would notice.
+
+**The verdict is rechecked against the registry, not trusted.** ADR-0006 required publication to be
+performed "against current permissions with a hash recheck". `ScanVerdictService` refuses a verdict
+whose object key, object version or expected hash no longer match the row, which is the case where
+an asset was replaced while the scanner was working — the answer belongs to a file that no longer
+exists.
+
+**A clean verdict reaches `CLEAN` and stops.** Publication additionally needs an allowed type,
+successful processing and an audience, and a scanner knows none of those.
+
+The message shapes, the versioning and the recovery path after a Redis loss are in the worker's
+[queues documentation](../../sto-info-file-scan-worker/docs/queues.md); the contract file itself is
+duplicated byte for byte in both repositories and held together by a digest.
+
 ## What is not here yet
 
-- **One thing registers an asset: roster imports.** FC-009 is the first producer, and its
-  sanitised CSVs are the only rows this registry holds that are not legacy `UNVERIFIED` ones —
-  see [Roster imports](roster-imports.md). Every *image* caller is still on the old path. FC-012
-  moves them across; `ImageUploadsService` still scans synchronously and publishes immediately,
-  and is untouched by this work apart from no longer naming the signature it matched.
-- **Nothing scans one.** The worker's `upload_files` row records what a scanner did; joining the
-  two and driving `SCANNING` → `CLEAN` is FC-010.
+- **One thing registers an asset: roster imports.** FC-009 is the first producer and FC-010 wired
+  it to the scanner, so a sanitised CSV now travels `RECEIVING` → `QUARANTINED` → `SCANNING` →
+  `CLEAN` end to end. Every *image* caller is still on the old path. FC-012 moves them across;
+  `ImageUploadsService` still scans synchronously and publishes immediately, and is untouched by
+  this work apart from no longer naming the signature it matched.
+- **Nothing calls `publish`.** A scanned roster source reaches `CLEAN` and stays there, which is
+  correct — it is `RESTRICTED` evidence and has no audience to be published to. FC-012 is what
+  publishes an image.
 - **Nothing purges a public route.** `confirmPurged` records that it happened; performing it is
   W10's, with the rescan campaigns.
 - **Legacy assets are counted, not gated.** Every one of them is `UNVERIFIED` and still served by

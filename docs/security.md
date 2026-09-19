@@ -878,6 +878,35 @@ it the feature with the widest input surface on the site.
 Retention, hard-deletion order and the Cloudflare deletion queue are described
 in `docs/custom-tracking.md`.
 
+## What travels to the file scan worker
+
+The worker is a separate application with its own credentials, and the only things that cross
+between them are two queue messages. What a scan request carries is fixed by
+[ADR-0006](../../../Plans/Fleets/ADR/0006-worker-job-transport-and-ownership.md) and is worth
+reading as a list of absences:
+
+| Carried | Not carried |
+| --- | --- |
+| The asset's identifier | Any URL |
+| The object key the registry built | Any bucket or endpoint name |
+| The object version and the SHA-256 | Any credential |
+| The policy version, a campaign, a trace | The original filename |
+| | Any row, field or byte of a user's file |
+
+The worker resolves where to read from out of its own configuration, so there is no code path in
+which a message can influence where a request goes. That is why there is no SSRF surface to defend
+here rather than a defence against one.
+
+**The queue is a sink, and the officer-canary sweep treats it as one.** FC-009's
+`officer-canary-sinks.spec.ts` drives the whole roster ingress and asserts the canary reaches none
+of seven places; FC-010 added the queue message as the sixth, using the real producer rather than a
+stand-in so that what is swept is the message that would actually be sent.
+
+A verdict coming back is untrusted input. It is parsed against the contract before a single field
+is read, and then rechecked against the registry: a verdict whose object key, version or expected
+hash no longer match the row is discarded, because the asset was replaced while the scanner was
+working.
+
 ## API Key Management
 
 ### Cloudflare API Token
