@@ -8,7 +8,7 @@ Thank you for considering contributing to sto-info-backend! We welcome contribut
 2. **Clone your fork**: Clone your forked repository to your local machine.
 
 ```sh
-git clone https://github.com/steverobertsuk/sto-info-backend.git
+git clone https://github.com/sto-info-app/sto-info-backend.git
 ```
 
 3. **Create a branch**: Create a new branch for your changes.

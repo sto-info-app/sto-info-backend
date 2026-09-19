@@ -89,7 +89,7 @@ Documentation is in [docs/](docs/).
 1. Clone the repository:
 
 ```sh
-git clone https://github.com/steverobertsuk/sto-info-backend.git
+git clone https://github.com/sto-info-app/sto-info-backend.git
 ```
 
 2. Navigate to the project directory:
@@ -266,7 +266,7 @@ Install the [SonarQube IDE](https://www.sonarsource.com/products/sonarlint/) and
 
 ```json
 {
-  "sonarCloudOrganization": "steverobertsuk",
+  "sonarCloudOrganization": "sto-info-app",
   "projectKey": "sto-info-app_sto-info-backend"
 }
 ```
