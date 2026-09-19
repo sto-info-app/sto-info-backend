@@ -21,6 +21,26 @@ master switch:
 npm run rehearse:migration:user-preferences
 ```
 
+The entered-days change rewrites an existing column rather than adding one
+(ADR-0013):
+
+```bash
+npm run rehearse:migration:calendar-dates
+```
+
+FC-008's asset registry and its backfill of the existing image estate:
+
+```bash
+npm run rehearse:migration:file-assets
+```
+
+FC-009's roster import provenance builds on FC-004's schema and FC-008's
+registry, so its rehearsal replays all three:
+
+```bash
+npm run rehearse:migration:roster-import-source
+```
+
 To rehearse a different migration:
 
 ```bash
