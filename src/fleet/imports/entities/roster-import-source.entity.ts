@@ -83,6 +83,19 @@ export class RosterImportSourceEntity {
 
   @ApiProperty({
     description:
+      'The Content-Type the upload arrived with, exactly as sent. Evidence ' +
+      'of what was claimed and nothing more: a browser reports whatever the ' +
+      'operating system associates with the extension, so the same export ' +
+      'arrives as text/csv, application/vnd.ms-excel or ' +
+      'application/octet-stream depending on the machine. Null for rows ' +
+      'written before the column existed.',
+    nullable: true,
+  })
+  @Column({ type: 'varchar', length: 255, nullable: true, default: null })
+  declaredContentType: string | null;
+
+  @ApiProperty({
+    description:
       'SHA-256 of the received bytes, computed transiently. The bytes ' +
       'themselves are never stored — ADR-0001.',
   })

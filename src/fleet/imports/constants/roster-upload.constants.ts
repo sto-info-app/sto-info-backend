@@ -25,6 +25,40 @@ export const ROSTER_FILENAME_MAX_LENGTH = 512;
 export const SANITISED_ROSTER_CONTENT_TYPE = 'text/csv; charset=utf-8';
 
 /**
+ * What the registered asset is declared to be.
+ *
+ * The same type without the parameter, because this one crosses the scan
+ * contract, which carries bare media types only. It is a declaration this
+ * application makes about its own output rather than a claim it is passing
+ * on: the asset holds the sanitised CSV, so `text/csv` is what the worker
+ * should find when it looks — ADR-0020.
+ */
+export const DECLARED_ROSTER_CONTENT_TYPE = 'text/csv';
+
+/** The longest claimed content type the provenance record will hold. */
+export const ROSTER_DECLARED_TYPE_MAX_LENGTH = 255;
+
+/**
+ * Bounds the uploader's claim so it fits the column that records it.
+ *
+ * Stored as sent, believed by nothing, and shortened rather than refused: a
+ * header this long is a curiosity, not a reason to reject an import that is
+ * otherwise fine.
+ *
+ * @param declared - Whatever arrived on the part's Content-Type.
+ * @returns The claim, bounded, or null when there was none.
+ */
+export function boundDeclaredContentType(
+  declared: string | null | undefined,
+): string | null {
+  const trimmed = declared?.trim() ?? '';
+
+  return trimmed === ''
+    ? null
+    : trimmed.slice(0, ROSTER_DECLARED_TYPE_MAX_LENGTH);
+}
+
+/**
  * How a roster upload is parsed off the wire.
  *
  * Memory storage, and that is load-bearing rather than a performance choice.

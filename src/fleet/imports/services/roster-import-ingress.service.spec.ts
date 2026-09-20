@@ -150,10 +150,30 @@ describe('RosterImportIngressService', () => {
           audience: FileAssetAudience.RESTRICTED,
           ownerUserId: USER_ID,
           fleetId: FLEET_ID,
-          declaredContentType: 'application/vnd.ms-excel',
           originalFilename: 'Fixture Basic Fleet_20240101-120000.Csv',
         }),
       );
+    });
+
+    it('declares the asset as the CSV it wrote, not as what arrived', async () => {
+      // The registered asset is the sanitised export this service
+      // serialised; the uploaded file is gone by the time the row exists.
+      // The worker checks the declared type against the bytes it reads, so
+      // the claim has to describe those bytes — ADR-0020.
+      await accept(officerExport());
+
+      expect(fileAssetService.register).toHaveBeenCalledWith(
+        expect.objectContaining({ declaredContentType: 'text/csv' }),
+      );
+    });
+
+    it('keeps what the upload claimed on the provenance record', async () => {
+      // Kept because the provenance record answers "what was actually
+      // uploaded" once the upload is gone, and believed by nothing: this is
+      // a Windows machine with Excel installed calling a CSV a spreadsheet.
+      await accept(officerExport());
+
+      expect(saved?.declaredContentType).toBe('application/vnd.ms-excel');
     });
 
     it('retains the sanitised source for the published window', async () => {

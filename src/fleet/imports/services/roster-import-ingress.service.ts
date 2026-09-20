@@ -14,6 +14,8 @@ import { ScanRequestProducerService } from 'src/file-scanning/services/scan-requ
 
 import { FleetPolicyService } from '../../fleet-policy.service';
 import {
+  boundDeclaredContentType,
+  DECLARED_ROSTER_CONTENT_TYPE,
   ROSTER_FILENAME_MAX_LENGTH,
   SANITISED_ROSTER_CONTENT_TYPE,
 } from '../constants/roster-upload.constants';
@@ -188,7 +190,13 @@ export class RosterImportIngressService {
       audience: FileAssetAudience.RESTRICTED,
       ownerUserId: input.uploadedByUserId,
       fleetId: input.fleetId,
-      declaredContentType: input.declaredContentType,
+      // What this application wrote, not what arrived. The registered asset
+      // is the sanitised CSV the serialiser below produced; the uploaded
+      // file no longer exists by the time this row does. The worker checks
+      // this claim against the bytes, so it has to describe the bytes it
+      // will actually read — ADR-0020. The uploader's own Content-Type is
+      // kept on the provenance record instead.
+      declaredContentType: DECLARED_ROSTER_CONTENT_TYPE,
       originalFilename: input.originalFilename,
       retainUntil: this.retainUntil(),
     });
@@ -210,6 +218,9 @@ export class RosterImportIngressService {
         fleetId: input.fleetId,
         uploadedByUserId: input.uploadedByUserId,
         originalFilename: input.originalFilename,
+        declaredContentType: boundDeclaredContentType(
+          input.declaredContentType,
+        ),
         sourceSha256,
         sanitisedSha256,
         sourceByteSize: String(sourceByteSize),
