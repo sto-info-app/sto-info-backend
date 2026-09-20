@@ -216,12 +216,17 @@ an administrator withdrew.
 **Triggers:**
 
 `TR_roster_import_source_guard` runs `BEFORE UPDATE` and raises a check violation (`23514`) if the
-asset, the Fleet, the filename, either hash, either size, the header shape, the parser version or
-the upload time changes. The row is the answer to "what was actually uploaded", and an answer that
+asset, the Fleet, the filename, the content type the upload claimed, either hash, either size, the
+header shape, the parser version or the upload time changes. The row is the answer to "what was actually uploaded", and an answer that
 can be edited afterwards is not evidence; a correction means a new import, not a rewritten record.
 
 The two counts stay mutable, because a recount is a correction to a derived figure rather than to
 the record of the upload.
+
+**The guard names its columns one at a time**, so a column added to this table and forgotten
+here is silently editable. FC-011 added `declaredContentType` and replaced the function to
+include it; the rehearsal asserts every name in the list, which is what makes the omission a
+failing test rather than a discovery.
 
 It is a trigger rather than a service check because both properties have to hold against every
 future caller, including a migration, a repair script and a hand-typed `UPDATE`, rather than

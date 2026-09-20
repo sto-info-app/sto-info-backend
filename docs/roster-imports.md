@@ -208,6 +208,7 @@ registry holds the filename and the sanitised hash, and this holds the rest.
 | `assetId` | Unique. One import record per stored object |
 | `fleetId`, `uploadedByUserId` | `RESTRICT` and `SET NULL` respectively |
 | `originalFilename` | As uploaded. Evidence, not input |
+| `declaredContentType` | The `Content-Type` the upload arrived with, exactly as sent. Evidence, believed by nothing |
 | `sourceSha256` | Of bytes that no longer exist anywhere |
 | `sanitisedSha256` | Of what is in the bucket |
 | `sourceByteSize`, `sanitisedByteSize` | |
@@ -220,6 +221,14 @@ registry holds the filename and the sanitised hash, and this holds the rest.
 to the file somebody actually uploaded — it settles "is this the same export I sent you" and "has
 this already been imported" without a byte surviving. A SHA-256 tells nobody anything they could
 not compute from a file they already hold.
+
+**Why keep what the browser called it.** A CSV has no magic number, so the `Content-Type` on an
+upload is whatever the uploading machine's file association happens to say: `text/csv`,
+`application/vnd.ms-excel` and `application/octet-stream` are all common for the same export.
+It is worth nothing as a fact about the bytes and something as a record of the upload, which is
+why it sits here and not on the registry row. The asset the import registers declares `text/csv`
+instead, because the bytes it holds are the sanitised CSV this application wrote —
+[ADR-0020](../../../Plans/Fleets/ADR/0020-scanner-health-and-declared-types.md).
 
 **Why record the officer tail count.** It is how an administrator sees how much of the estate is
 officer-visible without reading a single note, and it is returned to the uploader so the product

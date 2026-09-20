@@ -447,6 +447,29 @@ exists.
 **A clean verdict reaches `CLEAN` and stops.** Publication additionally needs an allowed type,
 successful processing and an audience, and a scanner knows none of those.
 
+### The declared type travels with the request
+
+Contract version 2 carries `declaredContentType`, and the worker refuses an object whose bytes
+contradict it —
+[ADR-0020](../../../Plans/Fleets/ADR/0020-scanner-health-and-declared-types.md). Three
+consequences land on this side of the queue.
+
+**`declaredContentType` is normalised where it is written.** `FileAssetService.register` puts
+every value through `normaliseMediaType`, so `image/jpg` and `image/jpeg` are one string by the
+time a scanner compares it with anything, and `application/vnd.ms-excel` — what a Windows
+machine with Excel installed calls a `.csv` — is `text/csv`. A migration rewrote the rows
+already there. A claim that is not a media type at all becomes null, which is what the column
+already means by "nobody said".
+
+**An asset with no declared type is not queued.** `requestScan` refuses it rather than sending a
+message the check cannot apply to. The legacy estate is unaffected in practice: those rows have
+no hash either, and that refusal comes first.
+
+**A roster import declares `text/csv` whatever the browser said**, because the asset it
+registers is the sanitised CSV this application wrote and not the file that arrived. The
+uploader's own claim is kept on the provenance record instead, where "what was actually
+uploaded" already lives.
+
 The message shapes, the versioning and the recovery path after a Redis loss are in the worker's
 [queues documentation](../../sto-info-file-scan-worker/docs/queues.md); the contract file itself is
 duplicated byte for byte in both repositories and held together by a digest.
