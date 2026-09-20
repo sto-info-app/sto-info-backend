@@ -38,7 +38,7 @@ SUITE="${2:-fleet-community}"
 
 IFS=',' read -r -a MIGRATION_LIST <<<"${MIGRATIONS}"
 
-PG_IMAGE="${REHEARSAL_PG_IMAGE:-postgres:17-alpine}"
+PG_IMAGE="${REHEARSAL_PG_IMAGE:-postgres:18-alpine}"
 CONTAINER="migration-rehearsal-$$"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "${HERE}/../.." && pwd)"

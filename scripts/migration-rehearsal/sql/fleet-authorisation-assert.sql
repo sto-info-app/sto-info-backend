@@ -48,7 +48,10 @@ BEGIN
 END;
 $fn$;
 
--- 23505 unique_violation, 23514 check_violation, 23503 foreign_key_violation.
+-- 23505 unique_violation, 23514 check_violation, 23503 foreign_key_violation,
+-- 23001 restrict_violation. From PostgreSQL 18 a delete blocked by ON DELETE
+-- RESTRICT raises 23001; an orphan insert, and a delete blocked by NO ACTION,
+-- still raise 23503.
 
 ------------------------------------------------------------------------------
 -- AC3: a delegation names a role or a person, never both and never neither.
@@ -247,4 +250,4 @@ SELECT pg_temp.expect_true(
 SELECT pg_temp.expect_rejected(
   'AC4 a Community still holding Fleets cannot be deleted out from under them',
   $$DELETE FROM "fleet_community" WHERE "id" = '00000000-0000-0000-0000-0000000000d1'$$,
-  '23503');
+  '23001'); -- ON DELETE RESTRICT: 23001 on PostgreSQL 18

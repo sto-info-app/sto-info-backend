@@ -48,7 +48,10 @@ BEGIN
 END;
 $fn$;
 
--- 23505 unique_violation, 23514 check_violation, 23503 foreign_key_violation.
+-- 23505 unique_violation, 23514 check_violation, 23503 foreign_key_violation,
+-- 23001 restrict_violation. From PostgreSQL 18 a delete blocked by ON DELETE
+-- RESTRICT raises 23001; an orphan insert, and a delete blocked by NO ACTION,
+-- still raise 23503.
 
 ------------------------------------------------------------------------------
 -- AC1: only AVAILABLE is served, and a clean verdict alone does not get there.

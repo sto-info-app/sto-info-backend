@@ -50,6 +50,8 @@ END;
 $fn$;
 
 -- 23505 unique_violation, 23514 check_violation, 23503 foreign_key_violation,
+-- 23001 restrict_violation (PostgreSQL 18 reports a blocked ON DELETE RESTRICT
+-- this way; an orphan insert and a NO ACTION block still raise 23503),
 -- 22P02 invalid_text_representation, 42703 undefined_column.
 
 ------------------------------------------------------------------------------

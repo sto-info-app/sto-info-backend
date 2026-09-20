@@ -48,7 +48,10 @@ BEGIN
 END;
 $fn$;
 
--- 23505 unique_violation, 23514 check_violation, 23503 foreign_key_violation.
+-- 23505 unique_violation, 23514 check_violation, 23503 foreign_key_violation,
+-- 23001 restrict_violation. From PostgreSQL 18 a delete blocked by ON DELETE
+-- RESTRICT raises 23001; an orphan insert, and a delete blocked by NO ACTION,
+-- still raise 23503.
 
 ------------------------------------------------------------------------------
 -- One provenance row per asset.
@@ -266,12 +269,12 @@ SELECT pg_temp.expect_rejected(
 SELECT pg_temp.expect_rejected(
   'the asset cannot be deleted while its provenance stands',
   $$DELETE FROM "file_asset" WHERE "id" = '00000000-0000-0000-0000-0000000aa001'$$,
-  '23503');
+  '23001'); -- ON DELETE RESTRICT: 23001 on PostgreSQL 18
 
 SELECT pg_temp.expect_rejected(
   'the Fleet cannot be deleted while an import references it',
   $$DELETE FROM "sto_fleet" WHERE "id" = '00000000-0000-0000-0000-0000000ea001'$$,
-  '23503');
+  '23001'); -- ON DELETE RESTRICT: 23001 on PostgreSQL 18
 
 -- Deleting the uploader severs the personal link and keeps the evidence, the
 -- same way file_asset does. Losing the record of an import because somebody

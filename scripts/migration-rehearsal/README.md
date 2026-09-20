@@ -84,7 +84,7 @@ Two things in particular are not provable any other way:
 1. Records each migration's `up` and `down` SQL without a database
    (`emit-migration-sql.ts` hands it a query runner that collects statements instead of
    executing them, so this is what TypeORM would send rather than a transcription of it).
-2. Starts `postgres:17-alpine` in a container.
+2. Starts `postgres:18-alpine` in a container.
 3. Creates the stub parent tables from `sql/stubs.sql`.
 4. Loads `sql/<suite>-pre-up.sql` when it exists, so a migration that moves data has data to
    move.
@@ -130,5 +130,9 @@ defined at the top of the Fleet Community one and worth copying:
 - `expect_true(label, query)` — fails unless the query returns true.
 
 Name the SQLSTATE you expect rather than accepting any failure. `23505` is a unique violation,
-`23514` a check violation, `23503` a foreign-key violation — and a test that passes because the
-statement had a typo in it is worse than no test.
+`23514` a check violation, `23503` a foreign-key violation, `23001` a RESTRICT violation — and a
+test that passes because the statement had a typo in it is worse than no test.
+
+From PostgreSQL 18, a delete blocked by `ON DELETE RESTRICT` raises `23001` rather than `23503`.
+An orphan insert, and a delete blocked by `ON DELETE NO ACTION`, are unchanged. No application
+code reads either code, so this distinction lives only here.
