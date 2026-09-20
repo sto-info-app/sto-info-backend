@@ -19,6 +19,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
+  ApiAcceptedResponse,
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
@@ -38,6 +39,7 @@ import { memoryStorage } from 'multer';
 
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
+import { AssetScanStatusDto } from 'src/file-assets/dto/asset-scan-status.dto';
 import {
   DEFAULT_MULTER_LIMITS,
   isAllowedImageMimeType,
@@ -247,9 +249,11 @@ export class UserController {
       },
     },
   })
-  @ApiOkResponse({
-    description: 'Profile picture updated successfully.',
-    type: UpdatedUserProfileResultDto,
+  @ApiAcceptedResponse({
+    description:
+      'The picture was accepted and is being scanned. It replaces the ' +
+      'current one only once a scanner has cleared it.',
+    type: AssetScanStatusDto,
   })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid access token.' })
   @ApiBadRequestResponse({
@@ -263,7 +267,7 @@ export class UserController {
     description: 'User/profile not found for the authenticated user id.',
   })
   @Post('update-profile-pic')
-  @HttpCode(HttpStatus.OK)
+  @HttpCode(HttpStatus.ACCEPTED)
   @UseFilters(FileSizeExceptionFilter)
   @UseInterceptors(
     FileInterceptor('profilePicture', {
@@ -292,11 +296,6 @@ export class UserController {
     const uniqueSuffix = Date.now().toString() + '-' + crypto.randomUUID();
     file.filename = `${file.fieldname}-${uniqueSuffix}${extname(file.originalname)}`;
 
-    const result = await this._userService.uploadProfilePicture(userId, file);
-
-    return new UpdatedUserProfileResultDto(
-      result.affected,
-      instanceToPlain(result.userProfileData),
-    );
+    return this._userService.uploadProfilePicture(userId, file);
   }
 }

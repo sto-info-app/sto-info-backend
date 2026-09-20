@@ -4,21 +4,27 @@ import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { In, Repository } from 'typeorm';
 
+import { FileAssetAudience } from 'src/file-assets/enums/file-asset-audience.enum';
+import { FileAssetKind } from 'src/file-assets/enums/file-asset-kind.enum';
+import { FileAssetSlot } from 'src/file-assets/enums/file-asset-slot.enum';
+import { FileAssetSubject } from 'src/file-assets/enums/file-asset-subject.enum';
+import { AcceptedAsset } from 'src/file-assets/services/asset-ingress.service';
+import { ImageIngressService } from 'src/file-assets/services/image-ingress.service';
 import { MailService } from 'src/mail/mail.service';
 import { UserSearchQueryDto } from 'src/notification/dto/user-search-query.dto';
 import { UserSearchPageDto } from 'src/notification/dto/user-search-result.dto';
-import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
+import { DEFAULT_MULTER_LIMITS } from 'src/shared/constants/file-upload.constants';
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
 import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
 
+import { PROFILE_IMAGE_ENTITY_TAG } from './constants/profile-image.constants';
 import { resolveSessionTimeoutMinutes } from './constants/session-timeout.constants';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 import { UpdateUserSettingsDto } from './dto/update-user-settings.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { UpdatedUserProfileResultDto } from './dto/updated-user-profile-result.dto';
 import { UserSettingsDto } from './dto/user-settings.dto';
 import { UserPreferenceEntity } from './entities/user-preference.entity';
 import { UserProfileEntity } from './entities/user-profile.entity';
@@ -35,7 +41,7 @@ export class UserService {
    * @param _userRepository - The user repository.
    * @param _userProfileRepository - The user profile repository.
    * @param _validatorsService - The validators service.
-   * @param _imageUploadsService - The image uploads service.
+   * @param _imageIngress - Where an uploaded picture is checked and quarantined.
    * @param _mailService - The mail service.
    * @param _userPreferenceService - Reads and writes account preferences.
    */
@@ -47,7 +53,7 @@ export class UserService {
     private readonly _userProfileRepository: Repository<UserProfileEntity>,
 
     private readonly _validatorsService: ValidatorsService,
-    private readonly _imageUploadsService: ImageUploadsService,
+    private readonly _imageIngress: ImageIngressService,
     private readonly _mailService: MailService,
     private readonly _userPreferenceService: UserPreferenceService,
   ) {}
@@ -489,19 +495,22 @@ export class UserService {
   }
 
   /**
-   * Uploads a profile picture for a user to Cloudflare Images.
+   * Accepts a new profile picture and sends it to be scanned.
    *
-   * Automatically deletes the old profile picture from Cloudflare if one existed.
+   * Nothing is published here and the profile is not written to. The picture
+   * reaches the account when a scanner has cleared it, which is seconds
+   * later and in another process; until then the account keeps the picture
+   * it had. FC-012.
    *
    * @param userId - The ID of the user.
    * @param file - The file to be uploaded.
-   * @returns A promise that resolves to the updated user profile result object.
-   * @throws HttpException if the user is not found or the upload fails.
+   * @returns The asset to ask about, and how far along it is.
+   * @throws HttpException if the user is not found.
    */
   async uploadProfilePicture(
     userId: string,
     file: Express.Multer.File,
-  ): Promise<UpdatedUserProfileResultDto> {
+  ): Promise<AcceptedAsset> {
     if (!userId || !this._validatorsService.validateUuid(userId)) {
       throw new HttpException('User not found', HttpStatus.NOT_FOUND);
     }
@@ -519,44 +528,27 @@ export class UserService {
       throw new HttpException('User data not found', HttpStatus.NOT_FOUND);
     }
 
-    const existingProfilePictureId = user.profile.profilePictureId;
-
-    user.profile.profilePictureId =
-      await this._imageUploadsService.uploadImageToCloudflareImages(
-        userId,
-        file,
-        'user',
-        userId,
-      );
-
-    if (!user.profile.profilePictureId) {
-      throw new HttpException(
-        'Profile picture upload failed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-
-    const updatedUserProfile = await this._userProfileRepository.save(
-      user.profile,
-    );
-
-    if (!updatedUserProfile.profilePictureId) {
-      throw new HttpException(
-        'Profile picture upload failed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-
-    if (existingProfilePictureId) {
-      await this._imageUploadsService.deleteImageFromCloudflareImages(
-        existingProfilePictureId,
-      );
-    }
-
-    return {
-      affected: 1,
-      userProfileData: updatedUserProfile,
-    };
+    // The profile is left exactly as it is. Whatever picture it shows goes
+    // on being shown until a scanner has cleared the new one and
+    // UserProfileImagePublisher swaps the reference over, which is the
+    // third acceptance criterion: a replacement that is refused costs the
+    // uploader nothing.
+    return this._imageIngress.accept({
+      spec: null,
+      userId,
+      kind: FileAssetKind.PROFILE_IMAGE,
+      audience: FileAssetAudience.PUBLIC,
+      subject: FileAssetSubject.USER_PROFILE,
+      subjectId: userId,
+      slot: FileAssetSlot.PICTURE,
+      entityTag: PROFILE_IMAGE_ENTITY_TAG,
+      entityId: userId,
+      maximumBytes:
+        Number(process.env.MAX_IMAGE_SIZE_IN_BYTES) ||
+        DEFAULT_MULTER_LIMITS.fileSize,
+      sizeLimitLabel: 'Profile pictures',
+      file,
+    });
   }
 
   /**

@@ -135,10 +135,7 @@ describe('UserController', () => {
 
       const req = { user: { id: '1' }, file: fileStub };
 
-      const result = {
-        affected: 1,
-        userProfileData: { profilePictureId: 'new' },
-      };
+      const result = { assetId: 'asset-1', status: 'SCANNING' };
       jest
         .spyOn(userService, 'uploadProfilePicture')
         .mockResolvedValue(
@@ -151,7 +148,9 @@ describe('UserController', () => {
 
       expect(fileStub.filename).toContain('profilePicture-');
       expect(fileStub.filename).toContain('.png');
-      expect(response.affected).toBe(1);
+      // The picture is not the account's yet, so what comes back is
+      // something to ask about rather than a changed profile.
+      expect(response).toEqual({ assetId: 'asset-1', status: 'SCANNING' });
     });
 
     it('should throw if file missing', async () => {
