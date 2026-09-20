@@ -93,7 +93,13 @@ step "Starting ${PG_IMAGE}"
 docker run -d --name "${CONTAINER}" \
   -e POSTGRES_PASSWORD=rehearsal -e POSTGRES_DB=rehearsal \
   "${PG_IMAGE}" >/dev/null
-until docker exec "${CONTAINER}" pg_isready -U postgres >/dev/null 2>&1; do
+ready=0
+until [ "${ready}" -ge 3 ]; do
+  if docker exec "${CONTAINER}" psql -U postgres -d rehearsal -c 'SELECT 1' >/dev/null 2>&1; then
+    ready=$((ready + 1))
+  else
+    ready=0
+  fi
   sleep 1
 done
 
