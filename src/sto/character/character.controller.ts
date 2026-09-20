@@ -4,6 +4,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Logger,
   Param,
   Post,
@@ -16,6 +18,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
+  ApiAcceptedResponse,
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
@@ -29,6 +32,7 @@ import { memoryStorage } from 'multer';
 
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
+import { AssetScanStatusDto } from 'src/file-assets/dto/asset-scan-status.dto';
 import {
   DEFAULT_MULTER_LIMITS,
   isAllowedImageMimeType,
@@ -120,7 +124,13 @@ export class CharacterController {
       },
     }),
   )
-  @ApiOkResponse({ description: 'Successfully uploaded the profile image.' })
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiAcceptedResponse({
+    description:
+      'The portrait was accepted and is being scanned. It replaces the ' +
+      'current one only once a scanner has cleared it.',
+    type: AssetScanStatusDto,
+  })
   @ApiBadRequestResponse({ description: 'Failed to upload the profile image.' })
   async uploadProfileImage(
     @UserId() userId: string,

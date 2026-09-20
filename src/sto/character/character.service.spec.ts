@@ -2,7 +2,6 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
-  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
@@ -12,7 +11,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { jest } from '@jest/globals';
 import { Repository } from 'typeorm';
 
-import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
+import { ImageIngressService } from 'src/file-assets/services/image-ingress.service';
 
 import { AccountEntity } from '../account/entities/account.entity';
 import { CharacterSortBy, CharacterSortOrder } from './character-sort.utility';
@@ -35,7 +34,7 @@ describe('CharacterService', () => {
   let classRepository: Repository<CharacterClassEntity>;
   let recruitTypeRepository: Repository<RecruitTypeEntity>;
   let speciesRepository: Repository<SpeciesEntity>;
-  let imageUploadsService: ImageUploadsService;
+  let imageIngress: ImageIngressService;
 
   beforeEach(async () => {
     process.env.CLOUDFLARE_CDN_ROOT_URL = 'https://cdn.startrekonline.info';
@@ -102,10 +101,9 @@ describe('CharacterService', () => {
           },
         },
         {
-          provide: ImageUploadsService,
+          provide: ImageIngressService,
           useValue: {
-            uploadImageToCloudflareImages: jest.fn(),
-            deleteImageFromCloudflareImages: jest.fn(),
+            accept: jest.fn(),
           },
         },
       ],
@@ -136,7 +134,7 @@ describe('CharacterService', () => {
     speciesRepository = module.get<Repository<SpeciesEntity>>(
       getRepositoryToken(SpeciesEntity),
     );
-    imageUploadsService = module.get<ImageUploadsService>(ImageUploadsService);
+    imageIngress = module.get<ImageIngressService>(ImageIngressService);
     jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
     jest.spyOn(Logger.prototype, 'debug').mockImplementation(() => undefined);
@@ -1051,33 +1049,31 @@ describe('CharacterService', () => {
       size: 100,
     } as any;
 
-    it('should upload a profile image and update character', async () => {
-      const character = {
-        id: 'char-1',
-        account: { userId: 'user-1' },
-        profilePictureId: 'old-img-id',
-      };
+    /**
+     * Arranges a Character the caller owns.
+     *
+     * @param profilePictureId - What the Character is showing already.
+     */
+    const arrangeCharacter = (profilePictureId: string | null = null): void => {
       (
         characterRepository.findOne as jest.Mock<
           (...args: any[]) => Promise<any>
         >
-      ).mockResolvedValue(character);
-      (
-        imageUploadsService.uploadImageToCloudflareImages as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue('new-img-id');
-      (
-        characterRepository.save as jest.Mock<(...args: any[]) => Promise<any>>
       ).mockResolvedValue({
-        ...character,
-        profilePictureId: 'new-img-id',
+        id: 'char-1',
+        account: { userId: 'user-1' },
+        profilePictureId,
       });
+    };
+
+    beforeEach(() => {
       (
-        imageUploadsService.deleteImageFromCloudflareImages as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue('old-img-id');
+        imageIngress.accept as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ assetId: 'asset-1', status: 'SCANNING' });
+    });
+
+    it('sends the portrait to be scanned and answers with the asset', async () => {
+      arrangeCharacter('old-img-id');
 
       const result = await service.uploadProfileImage(
         'char-1',
@@ -1085,31 +1081,27 @@ describe('CharacterService', () => {
         mockFile,
       );
 
-      expect(result.profilePictureId).toBe('new-img-id');
-      expect(
-        imageUploadsService.uploadImageToCloudflareImages,
-      ).toHaveBeenCalledWith('user-1', mockFile, 'character', 'char-1');
-      expect(
-        imageUploadsService.deleteImageFromCloudflareImages,
-      ).toHaveBeenCalledWith('old-img-id');
+      expect(result).toEqual({ assetId: 'asset-1', status: 'SCANNING' });
+      expect(imageIngress.accept).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'user-1',
+          subjectId: 'char-1',
+          entityTag: 'character',
+          entityId: 'char-1',
+          sizeLimitLabel: 'Character portraits',
+          file: mockFile,
+        }),
+      );
     });
 
-    it('should throw InternalServerErrorException if upload returns no key', async () => {
-      const character = { id: 'char-1', account: { userId: 'user-1' } };
-      (
-        characterRepository.findOne as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue(character);
-      (
-        imageUploadsService.uploadImageToCloudflareImages as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue(null);
+    // The third acceptance criterion: the Character keeps the portrait it
+    // has until a scanner clears the replacement.
+    it('does not touch the Character', async () => {
+      arrangeCharacter('old-img-id');
 
-      await expect(
-        service.uploadProfileImage('char-1', 'user-1', mockFile),
-      ).rejects.toThrow(InternalServerErrorException);
+      await service.uploadProfileImage('char-1', 'user-1', mockFile);
+
+      expect(characterRepository.save).not.toHaveBeenCalled();
     });
 
     it('should log and rethrow non-Error thrown values from the upload flow', async () => {
@@ -1122,116 +1114,23 @@ describe('CharacterService', () => {
       await expect(
         service.uploadProfileImage('char-1', 'user-1', mockFile),
       ).rejects.toBe('boom');
-
-      const loggerErrorSpy = Logger.prototype.error as unknown as jest.Mock;
-      expect(loggerErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[uploadProfileImage] Upload failed'),
-        undefined,
-      );
     });
 
-    it('should swallow error if old image deletion fails', async () => {
-      const character = {
-        id: 'char-1',
-        account: { userId: 'user-1' },
-        profilePictureId: 'old-img-id',
-      };
-      (
-        characterRepository.findOne as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue(character);
-      (
-        imageUploadsService.uploadImageToCloudflareImages as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue('new-img-id');
-      (
-        characterRepository.save as jest.Mock<(...args: any[]) => Promise<any>>
-      ).mockResolvedValue({
-        ...character,
-        profilePictureId: 'new-img-id',
-      });
-      (
-        imageUploadsService.deleteImageFromCloudflareImages as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockRejectedValue(new Error('Delete failed'));
+    it('falls back to the default ceiling when none is configured', async () => {
+      const previous = process.env.MAX_IMAGE_SIZE_IN_BYTES;
 
-      const result = await service.uploadProfileImage(
-        'char-1',
-        'user-1',
-        mockFile,
-      );
-
-      expect(result.profilePictureId).toBe('new-img-id');
-    });
-
-    it('should swallow non-Error thrown values if old image deletion fails', async () => {
-      const character = {
-        id: 'char-1',
-        account: { userId: 'user-1' },
-        profilePictureId: 'old-img-id',
-      };
-      (
-        characterRepository.findOne as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue(character);
-      (
-        imageUploadsService.uploadImageToCloudflareImages as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue('new-img-id');
-      (
-        characterRepository.save as jest.Mock<(...args: any[]) => Promise<any>>
-      ).mockResolvedValue({
-        ...character,
-        profilePictureId: 'new-img-id',
-      });
-      (
-        imageUploadsService.deleteImageFromCloudflareImages as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockRejectedValue('Delete failed');
-
-      const result = await service.uploadProfileImage(
-        'char-1',
-        'user-1',
-        mockFile,
-      );
-
-      expect(result.profilePictureId).toBe('new-img-id');
-    });
-
-    it('should not try to delete if no old image exists', async () => {
-      const character = {
-        id: 'char-1',
-        account: { userId: 'user-1' },
-        profilePictureId: null,
-      };
-      (
-        characterRepository.findOne as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue(character);
-      (
-        imageUploadsService.uploadImageToCloudflareImages as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue('new-img-id');
-      (
-        characterRepository.save as jest.Mock<(...args: any[]) => Promise<any>>
-      ).mockResolvedValue({
-        ...character,
-        profilePictureId: 'new-img-id',
-      });
+      delete process.env.MAX_IMAGE_SIZE_IN_BYTES;
+      arrangeCharacter();
 
       await service.uploadProfileImage('char-1', 'user-1', mockFile);
 
-      expect(
-        imageUploadsService.deleteImageFromCloudflareImages,
-      ).not.toHaveBeenCalled();
+      expect(imageIngress.accept).toHaveBeenCalledWith(
+        expect.objectContaining({ maximumBytes: 10485760 }),
+      );
+
+      if (previous !== undefined) {
+        process.env.MAX_IMAGE_SIZE_IN_BYTES = previous;
+      }
     });
 
     it('should throw BadRequestException if id is missing', async () => {

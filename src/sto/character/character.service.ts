@@ -11,13 +11,18 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { Not, Repository } from 'typeorm';
 
+import { FileAssetAudience } from 'src/file-assets/enums/file-asset-audience.enum';
+import { FileAssetKind } from 'src/file-assets/enums/file-asset-kind.enum';
+import { FileAssetSlot } from 'src/file-assets/enums/file-asset-slot.enum';
+import { FileAssetSubject } from 'src/file-assets/enums/file-asset-subject.enum';
+import { AcceptedAsset } from 'src/file-assets/services/asset-ingress.service';
+import { ImageIngressService } from 'src/file-assets/services/image-ingress.service';
+import { DEFAULT_MULTER_LIMITS } from 'src/shared/constants/file-upload.constants';
 import { isValidCloudflareImageUrl } from 'src/shared/constants/image.constants';
-import { stringifyError } from 'src/shared/utilities/error.utility';
 import {
   generateSlug,
   normalizeHandle,
 } from 'src/shared/utilities/handle.utility';
-import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
 
 import { AccountEntity } from '../account/entities/account.entity';
 import {
@@ -27,6 +32,7 @@ import {
   DEFAULT_CHARACTER_SORT_ORDER,
   sortCharacters,
 } from './character-sort.utility';
+import { CHARACTER_IMAGE_ENTITY_TAG } from './constants/character-image.constants';
 import { CreateCharacterDto } from './dto/create-character.dto';
 import { UpdateCharacterDto } from './dto/update-character.dto';
 import { CharacterClassEntity } from './entities/character-class.entity';
@@ -52,7 +58,7 @@ export class CharacterService {
    * @param _classRepository - The class repository.
    * @param _recruitTypeRepository - The recruit type repository.
    * @param _speciesRepository - The species repository.
-   * @param _imageUploadsService - The image uploads service.
+   * @param _imageIngress - Where an uploaded picture is checked and quarantined.
    */
   constructor(
     @InjectRepository(CharacterEntity)
@@ -71,7 +77,7 @@ export class CharacterService {
     private readonly _recruitTypeRepository: Repository<RecruitTypeEntity>,
     @InjectRepository(SpeciesEntity)
     private readonly _speciesRepository: Repository<SpeciesEntity>,
-    private readonly _imageUploadsService: ImageUploadsService,
+    private readonly _imageIngress: ImageIngressService,
   ) {}
 
   /**
@@ -486,78 +492,46 @@ export class CharacterService {
   }
 
   /**
-   * Uploads a profile image for a character.
+   * Accepts a new portrait and sends it to be scanned.
+   *
+   * The character is not written to. Whatever portrait it shows goes on
+   * being shown until a scanner has cleared the new one and
+   * `CharacterImagePublisher` swaps the reference over — FC-012.
    *
    * @param id Character ID.
    * @param userId Authenticated user ID.
    * @param file File to upload.
-   * @returns The updated character.
+   * @returns The asset to ask about, and how far along it is.
    */
   async uploadProfileImage(
     id: string,
     userId: string,
     file: Express.Multer.File,
-  ): Promise<CharacterEntity> {
+  ): Promise<AcceptedAsset> {
     this.assertUploadProfileImageArgs(id, userId, file);
 
+    const character = await this.findOneForUser(id, userId);
+
     this._logger.debug(
-      `[uploadProfileImage] Starting upload - CharacterId: ${id}, UserId: ${userId}`,
+      `[uploadProfileImage] Character found - Handle: ${character.fullHandle}, ExistingProfilePictureId: ${character.profilePictureId || 'none'}`,
     );
 
-    try {
-      const character = await this.findOneForUser(id, userId);
-      this._logger.debug(
-        `[uploadProfileImage] Character found - Handle: ${character.fullHandle}, ExistingProfilePictureId: ${character.profilePictureId || 'none'}`,
-      );
-
-      const existingProfilePictureId = character.profilePictureId;
-
-      this._logger.debug(
-        `[uploadProfileImage] Starting Cloudflare Images upload - CharacterId: ${id}, UserId: ${userId}`,
-      );
-
-      character.profilePictureId =
-        await this._imageUploadsService.uploadImageToCloudflareImages(
-          userId,
-          file,
-          'character',
-          id,
-        );
-
-      this._logger.debug(
-        `[uploadProfileImage] Cloudflare Images upload complete - NewProfilePictureId: ${character.profilePictureId}`,
-      );
-
-      if (!character.profilePictureId) {
-        this._logger.error(
-          `[uploadProfileImage] Upload returned null/undefined - CharacterId: ${id}`,
-        );
-        throw new InternalServerErrorException('Profile picture upload failed');
-      }
-
-      this._logger.debug(
-        `[uploadProfileImage] Saving character to database - CharacterId: ${id}`,
-      );
-
-      const updatedCharacter = await this._characterRepository.save(character);
-
-      this._logger.log(
-        `[uploadProfileImage] Character saved successfully - CharacterId: ${id}, ProfilePictureId: ${updatedCharacter.profilePictureId}`,
-      );
-
-      await this.tryDeleteOldProfileImage(existingProfilePictureId);
-
-      return updatedCharacter;
-    } catch (error: unknown) {
-      const message = stringifyError(error);
-
-      const stack = error instanceof Error ? error.stack : undefined;
-      this._logger.error(
-        `[uploadProfileImage] Upload failed - CharacterId: ${id}, UserId: ${userId}, Error: ${message}`,
-        stack,
-      );
-      throw error;
-    }
+    return this._imageIngress.accept({
+      spec: null,
+      userId,
+      kind: FileAssetKind.CHARACTER_IMAGE,
+      audience: FileAssetAudience.PUBLIC,
+      subject: FileAssetSubject.STO_CHARACTER,
+      subjectId: character.id,
+      slot: FileAssetSlot.PORTRAIT,
+      entityTag: CHARACTER_IMAGE_ENTITY_TAG,
+      entityId: character.id,
+      maximumBytes:
+        Number(process.env.MAX_IMAGE_SIZE_IN_BYTES) ||
+        DEFAULT_MULTER_LIMITS.fileSize,
+      sizeLimitLabel: 'Character portraits',
+      file,
+    });
   }
 
   /**
@@ -582,39 +556,6 @@ export class CharacterService {
 
     if (!file) {
       throw new BadRequestException('File is required');
-    }
-  }
-
-  /**
-   * Deletes the previously stored profile image, if any.
-   *
-   * @param existingProfilePictureId - The existing profile picture id.
-   */
-  private async tryDeleteOldProfileImage(
-    existingProfilePictureId: string | null | undefined,
-  ): Promise<void> {
-    if (!existingProfilePictureId) {
-      return;
-    }
-
-    this._logger.debug(
-      `[uploadProfileImage] Deleting old image - ProfilePictureId: ${existingProfilePictureId}`,
-    );
-    try {
-      await this._imageUploadsService.deleteImageFromCloudflareImages(
-        existingProfilePictureId,
-      );
-      this._logger.debug(
-        `[uploadProfileImage] Old image deleted - ProfilePictureId: ${existingProfilePictureId}`,
-      );
-    } catch (error: unknown) {
-      const message = stringifyError(error);
-
-      const stack = error instanceof Error ? error.stack : undefined;
-      this._logger.error(
-        `[uploadProfileImage] Failed to delete old profile image from Cloudflare Images - ProfilePictureId: ${existingProfilePictureId}, Error: ${message}`,
-        stack,
-      );
     }
   }
 
