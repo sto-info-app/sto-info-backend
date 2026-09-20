@@ -31,7 +31,14 @@ separate call.
 
 `UNVERIFIED` is neither a pass nor a failure. It is the honest record for objects uploaded through
 the old synchronous scanner call, which returned nothing durable and looked at a buffer in memory
-rather than at the object that ended up stored. Gating them is FC-012; rescanning them is W10.
+rather than at the object that ended up stored.
+
+**They are still served, and FC-012 did not change that.** ADR-0015 expected FC-012 to gate them;
+FC-012 found it could not, and [ADR-0021](../../../Plans/Fleets/ADR/0021-asynchronous-publication-and-placements.md)
+records why: R26's rescans need a hash and a declared type that these rows do not have, so gating
+them now would take every existing profile picture off the site with nothing able to clear it.
+The count of `UNVERIFIED` rows is therefore the measure of how much of the estate is still
+unproven, and it falls only when W10 runs.
 
 ### Reaching `AVAILABLE`
 
@@ -399,8 +406,8 @@ The registry already is the shape a document upload wants. A new kind of upload 
    retention policy gives it one, a `retainUntil`.
 2. `QuarantineStorageService.put` under the key `buildObjectKey` returns, then
    `FileAssetService.recordStored` with the hash.
-3. The scan, then `recordCleanVerdict` — or `reject`, which tells the uploader nothing beyond
-   `FILE_REJECTED_BY_SCANNER_MESSAGE`.
+3. The scan, then `recordCleanVerdict` — or `reject`, which tells the uploader nothing beyond the
+   single word `GET /file-assets/:assetId/status` answers with.
 4. `FileAssetService.publish`, with the `FileAssetStorage` the audience calls for.
 
 Step 4 is the only one that needs new work for a public document. A restricted document needs
@@ -428,7 +435,7 @@ authority boundary expressed as an absence rather than as a check.
 | 2 | backend | `ScanRequestProducerService.requestScan` moves it to `SCANNING` and puts a message on `file-scan`. |
 | 3 | worker | Reads the object, scans it, writes an attempt row, puts a verdict on `file-scan-verdict`. |
 | 4 | backend | `ScanVerdictService.apply` rechecks the hash and calls `recordCleanVerdict`, `reject` or `markRetryPending`. |
-| 5 | FC-012 | `publish`, against a fresh look at the registry. **Not step 4.** |
+| 5 | backend | A clean verdict enqueues publication; `AssetPublicationService` publishes against a fresh look at the registry. **Not step 4.** |
 
 Three things about step 2 and step 4 are worth knowing before changing either.
 
@@ -445,7 +452,9 @@ an asset was replaced while the scanner was working — the answer belongs to a 
 exists.
 
 **A clean verdict reaches `CLEAN` and stops.** Publication additionally needs an allowed type,
-successful processing and an audience, and a scanner knows none of those.
+successful processing and an audience, and a scanner knows none of those. Since FC-012 the
+verdict processor enqueues a publication job at that point — an asset identifier and nothing
+else — and everything after it is decided against the registry when the job runs.
 
 ### The declared type travels with the request
 
@@ -474,18 +483,94 @@ The message shapes, the versioning and the recovery path after a Redis loss are 
 [queues documentation](../../sto-info-file-scan-worker/docs/queues.md); the contract file itself is
 duplicated byte for byte in both repositories and held together by a digest.
 
+## Uploading a picture, since FC-012
+
+Every picture the site accepts — a profile picture, a Character portrait, seven kinds of
+Storytime artwork and a Custom Tracking answer — goes through one path, and nothing reaches
+Cloudflare Images until a scanner has cleared it.
+[ADR-0021](../../../Plans/Fleets/ADR/0021-asynchronous-publication-and-placements.md) is the
+decision; this is the shape of it.
+
+| Step | Who | What |
+| --- | --- | --- |
+| 1 | the feature | Applies its slot's rules and calls `ImageIngressService.accept`. |
+| 2 | `ImageSlotService` | Reads the encoding out of the bytes. A PNG that is not a PNG stops here. |
+| 3 | `AssetIngressService` | Registers, quarantines, claims the slot, requests the scan. |
+| 4 | the worker | Scans, and puts a verdict on `file-scan-verdict`. |
+| 5 | `ScanVerdictProcessor` | Applies the verdict and, for a clean one, enqueues publication. |
+| 6 | `AssetPublicationService` | Pushes to Cloudflare Images, publishes the asset, tells the feature, withdraws what it replaced, drops the quarantined copy. |
+
+**The owning feature's row is not written until step 6.** That is the third acceptance
+criterion: whatever picture a record shows goes on being shown until the replacement has been
+cleared, so a refused upload costs its uploader nothing.
+
+**The order inside step 6 is the guarantee, and it is not arbitrary.** Cloudflare first, so a
+failure leaves the asset `CLEAN` and retryable. The registry before the feature's row, so no
+reference ever points at bytes the registry has not published. The previous picture last, so a
+replacement that goes wrong leaves it in place.
+
+### What a placement is
+
+`file_asset_placement` says which record and which slot a picture is for — the registry itself
+knows only the kind, the owner and the scope. At most one `PENDING` and one `ACTIVE` row exist
+per slot, enforced by partial unique indexes, which is also what makes a second upload supersede
+the first rather than race it.
+
+A placement carries the small amount a publisher needs and cannot work out for itself:
+Cloudflare's own tag and identifier, and Custom Tracking's alt text, whose row does not exist
+until the picture is published.
+
+### Adding a picture to a new feature
+
+Three things, and the first of them is the one that fails loudly if you forget it:
+
+1. **Register a publisher** for the subject, implementing `AssetPublisher`. Without one, ingress
+   refuses the upload — deliberately, because the alternative is an asset stuck at `CLEAN` an
+   hour later with nothing to say why.
+2. **Add the subject** to `FileAssetSubject`, and a slot to `FileAssetSlot` if none of the seven
+   fits.
+3. **Call `ImageIngressService.accept`** from the feature, with the slot's specification. Do not
+   call `ImageUploadsService` directly: it no longer scans anything, and a route that reaches it
+   without going through ingress is the bypass R24 forbids.
+
+### `deliveryReference`, and why it is not `objectKey`
+
+`objectKey` is write-once, and for anything this application quarantined it holds the quarantine
+key the bytes were hashed under — a historical fact rather than a current address. Publishing
+gives the object a second address in Cloudflare Images, and `deliveryReference` holds it. The
+estate's rows, registered with their Cloudflare identifier as their object key, had it copied
+across by FC-012's migration, so one column answers "what has to be deleted to withdraw this"
+for the whole estate. A unique index makes one delivered object belong to one asset, which is
+what the lookup behind every delete depends on.
+
+### What the uploader is told
+
+`GET /file-assets/:assetId/status` answers with the asset and one of five words: `UPLOADING`,
+`AWAITING_SCAN`, `SCANNING`, `AVAILABLE`, `REJECTED`. The uploader's own uploads only, and
+anything else is the same 404 as an asset that does not exist.
+
+There is no rejection code, signature, engine or key in that response, which is how the fourth
+acceptance criterion is met: not by stripping fields but by there being none to strip.
+
+### Uploads nothing comes back for
+
+A placement left pending for a day is abandoned by the nightly sweep
+(`StaleUploadSweepService`, run from the cron job beside the other cleanups). The quarantined
+bytes are dropped and the asset is `DELETED` — not `REJECTED`, because nobody refused it. An
+object the sweep cannot delete is an orphan in a private bucket with no route out of it; it is
+counted in the log line and found again only by W10's inventory.
+
 ## What is not here yet
 
-- **One thing registers an asset: roster imports.** FC-009 is the first producer and FC-010 wired
-  it to the scanner, so a sanitised CSV now travels `RECEIVING` → `QUARANTINED` → `SCANNING` →
-  `CLEAN` end to end. Every *image* caller is still on the old path. FC-012 moves them across;
-  `ImageUploadsService` still scans synchronously and publishes immediately, and is untouched by
-  this work apart from no longer naming the signature it matched.
-- **Nothing calls `publish`.** A scanned roster source reaches `CLEAN` and stays there, which is
-  correct — it is `RESTRICTED` evidence and has no audience to be published to. FC-012 is what
-  publishes an image.
-- **Nothing purges a public route.** `confirmPurged` records that it happened; performing it is
+- **Nothing purges a public route on a schedule.** A replacement or a delete purges the one
+  picture it touched, and `confirmPurged` records it; sweeping for purges that never happened is
   W10's, with the rescan campaigns.
 - **Legacy assets are counted, not gated.** Every one of them is `UNVERIFIED` and still served by
-  its existing public URL. That is deliberate — gating them before there is a scanner to clear them
-  would take every profile picture off the site.
+  its existing public URL. FC-012 confirmed the deferral rather than ending it — see the states
+  section above.
+- **Nothing alerts on a publication that failed for good.** An asset that reaches `CLEAN` and
+  whose publication job exhausts its attempts is scanned, paid for and invisible. The job is kept
+  in BullMQ's failed set so that it is findable; FC-042 should alert on it.
+- **Fleet scopes have specifications and no routes.** `FLEET_COMMUNITY`, `FLEET` and `ARMADA` are
+  registered subjects with banner and emblem specifications, and no publisher and no endpoint
+  until FC-013.

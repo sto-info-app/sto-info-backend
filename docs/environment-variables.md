@@ -173,9 +173,13 @@ The secret referenced by `AWS_SECRET_NAME` is expected to be JSON with at least:
 - `cloudflareR2Secret`: Used to write objects to Cloudflare R2
 - `cloudflareImagesAccountId`: Used for Cloudflare Images uploads
 - `cloudflareImagesApiKey`: Used for Cloudflare Images uploads
-- `cloudmersiveApiKey`: Used for virus scanning of uploads
 - `cloudflareR2QuarantineAccessKey`: Reads and writes the private quarantine bucket
 - `cloudflareR2QuarantineSecret`: Reads and writes the private quarantine bucket
+
+`cloudmersiveApiKey` is **no longer read**. FC-012 removed the synchronous scanner call along
+with the last caller that used it; malware scanning is ClamAV in the file scan worker, whose
+credentials are the worker's own. The key may be removed from the secret once nothing else in
+the estate refers to it.
 
 The quarantine credentials are deliberately separate from `cloudflareR2AccessKey`. The key that
 publishes must not be able to read quarantine, and the key that reads quarantine must not be able to

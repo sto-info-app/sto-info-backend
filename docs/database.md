@@ -20,6 +20,7 @@ The database uses PostgreSQL with TypeORM for object-relational mapping.
 | `AccountEntity`           | `account`              | STO in-game account records                                                   |
 | `CharacterEntity`         | `character`            | STO character profiles linked to accounts                                     |
 | `FileAssetEntity`         | `file_asset`           | Every stored file: its identity, hash, state and audience — see [File assets](file-assets.md) |
+| `FileAssetPlacementEntity` | `file_asset_placement` | Which record and slot a picture is for, and what is on its way to one — see [File assets](file-assets.md) |
 | `RosterImportSourceEntity` | `fleet_roster_import_source` | What is known about an uploaded roster export once the export itself has been discarded — see [Roster imports](roster-imports.md) |
 
 ### Platform Launcher Image Mapping
@@ -185,6 +186,13 @@ index over both target columns would let the same Account be answered twice.
 | `CHK_file_asset_available_object` | `file_asset` | An `AVAILABLE` asset has an object key and a real storage location, so "available" cannot mean "published, location unknown" |
 | `UX_file_asset_object` | `file_asset` | One row per stored object, so one set of bytes cannot acquire two verdicts and two audiences. Partial, so assets registered but not yet stored do not collide on a null key |
 | `FK_file_asset_owner` | `file_asset` | `ON DELETE SET NULL`, so deleting an account severs the personal link without destroying the record that tells the cleanup cron an object exists |
+| `UX_file_asset_delivery_reference` | `file_asset` | One delivered object belongs to one asset, so the lookup behind every delete cannot find two rows disagreeing about whether a purge is owed |
+| `TR_file_asset_placement_guard` | `file_asset_placement` | See below |
+| `UX_file_asset_placement_pending` | `file_asset_placement` | At most one upload is on its way to a slot, so a second upload supersedes the first rather than racing it |
+| `UX_file_asset_placement_active` | `file_asset_placement` | At most one picture is what a slot shows, so there are never two answers to that question |
+| `CHK_file_asset_placement_settled` | `file_asset_placement` | A pending placement has not settled and a settled one has, which is what the nightly sweep measures abandonment against |
+| `CHK_file_asset_placement_subject_id` | `file_asset_placement` | A placement names the record it is for |
+| `FK_file_asset_placement_asset` | `file_asset_placement` | `ON DELETE RESTRICT`, because an asset row is evidence that bytes existed and withdrawal is a state rather than a delete |
 
 **Triggers:**
 
@@ -200,6 +208,20 @@ The first three make object identity write-once, so a verdict cannot be transfer
 bytes by editing a row — replacing a file means registering a new asset, which gets its own
 verdict. The fourth means there is no sequence of writes that publishes a file a scanner refused or
 an administrator withdrew.
+
+**`deliveryReference` is deliberately not one of the write-once columns.** It is where the object
+is served from now, which changes when an asset is published, whereas `objectKey` is the key the
+bytes were hashed under and does not. FC-012's migration copied the estate's object keys into it,
+so one column answers "what has to be deleted to withdraw this" for rows written before the
+registry existed and rows written since.
+
+`TR_file_asset_placement_guard` runs `BEFORE UPDATE` on `file_asset_placement` and raises the same
+check violation in two cases:
+
+1. the asset, the subject, the subject identifier or the slot changed — placement identity is
+   write-once, so a refused upload cannot be turned into an accepted one by an `UPDATE`;
+2. the state returned to `PENDING` — without which a placement the nightly sweep had abandoned
+   could be revived after its bytes had been dropped.
 
 ### Roster import provenance
 

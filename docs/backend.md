@@ -345,7 +345,10 @@ Only the following image types are accepted:
 1. **MIME Type Check**: Multer checks `mimetype` field
 2. **File Extension Check**: Additional validation against allowed extensions
 3. **File Size Check**: Enforced by Multer limits
-4. **Virus scanning**: Uploads are scanned via Cloudmersive before being stored
+4. **Signature check**: the encoding is read out of the bytes, not taken from the request
+5. **Malware scanning**: the bytes are quarantined and scanned by the file scan worker, and
+   the upload endpoint answers `202 Accepted` with an asset to ask about rather than with the
+   record it has not changed yet — see [File assets](file-assets.md)
 
 ### Upload Endpoints
 

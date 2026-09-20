@@ -512,21 +512,40 @@ Always block SVG uploads unless you have a specific need and implement SVG sanit
 
 1. **Frontend Validation**: Check MIME type and size before upload
 2. **Backend Validation**: Multer checks MIME type and size
-3. **Virus scanning**: Uploads are scanned via Cloudmersive before being stored
+3. **Signature check**: the encoding is read out of the bytes, so a file that claims to be a
+   PNG and is not one is refused before it is stored anywhere
+4. **Malware scanning**: the bytes are held in a private bucket and scanned by ClamAV in the
+   file scan worker, and nothing is published until it answers
 
-**What a rejected upload is told.** A file refused on safety grounds produces one generic sentence
-— `FILE_REJECTED_BY_SCANNER_MESSAGE` in `src/shared/constants/file-rejection.constants.ts` — and
-nothing else. The signature name goes to the log and no further. Naming what matched tells somebody
-probing the scanner precisely what gets through it, which is information the person who uploaded a
-holiday photograph has no use for. The same sentence covers an infection, an unsupported payload and
-a scanner that would not answer, because to the uploader those are the same event.
+**What a rejected upload is told.** The word `REJECTED`, and nothing else. Since FC-012 the API
+carries no sentence about a refusal at all: the status endpoint answers with an asset identifier
+and one of five words, and the wording a person reads lives in the frontend, in
+`asset-scan.constants.ts`. The rejection code, the engine and the signature stay on the
+`file_asset` row, where an administrator can reach them.
 
-**Where this is going.** The synchronous scan above publishes a file the moment the scanner answers,
-and it leaves no durable record about the object that ends up stored. The `file_asset` registry
-replaces that with a private quarantine bucket, an explicit state machine in which only `AVAILABLE`
-is served, and an authenticated delivery route that rechecks state and audience on every request.
-Migrating the existing upload callers onto it is FC-012. See [File assets](file-assets.md) for the
-registry, the inventory of every delivery path and what withdrawing an object costs on each one.
+That is deliberate rather than incidental. Naming what matched tells somebody probing the
+scanner precisely what gets through it, which is information the person who uploaded a holiday
+photograph has no use for. One word covers an infection, an unsupported payload and a scanner
+that would not answer, because to the uploader those are the same event.
+
+**How an upload actually goes, since FC-012.** There is no synchronous scan any more, and no
+Cloudmersive: the call, the client and the key were removed when the last caller moved across.
+A picture is checked against its slot, registered in `file_asset`, written to the private
+quarantine bucket, and scanned by ClamAV in the worker. Only when the verdict is clean does a
+separate publication job push it to Cloudflare Images, mark the asset `AVAILABLE` and point the
+owning record at it — in that order, so no reference ever names bytes the registry has not
+published.
+
+Two consequences are worth stating here rather than in the registry's own document.
+**There is no route to a bucket that goes round the registry**, which is what makes the gate
+unconditional rather than a rule each caller remembers.
+**A refused upload changes nothing**: the record keeps the picture it had, and the person is
+told the file was not accepted and nothing more.
+
+See [File assets](file-assets.md) for the registry, the inventory of every delivery path, what
+withdrawing an object costs on each one, and
+[ADR-0021](../../../Plans/Fleets/ADR/0021-asynchronous-publication-and-placements.md) for why
+publication is a queue rather than a step in the verdict.
 
 **Magic Bytes Validation:**
 
