@@ -284,7 +284,7 @@ successfully here and refused later, and the parser's specs assert exactly that.
 | `__tests__/officer-canary-sinks.spec.ts` | Drives the whole ingress and asserts the canary reaches none of six sinks — response, log, stored bytes, registry arguments, database row, thrown error and its stack |
 | `__tests__/officer-canary-containment.spec.ts` | Sweeps `src`, `scripts`, `docs`, `config` and `test` for the token outside its six allowed files |
 | `roster-csv-privacy-parser.fuzz.spec.ts` | Arbitrary bytes never throw anything but a refusal; officer text never escapes; output is always twelve strict RFC 4180 columns; bounds hold |
-| `npm run rehearse:migration:roster-import-source` | 32 assertions and a ten-writer race, against `postgres:17-alpine` |
+| `npm run rehearse:migration:roster-import-source` | 32 assertions and a ten-writer race, against `postgres:18-alpine` |
 
 The canary is the synthetic token FC-001 wrote into its fixtures' officer columns; the fixtures
 and the containment spec's allowlist are where it is spelled out, and this document deliberately

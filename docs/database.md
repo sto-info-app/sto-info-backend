@@ -243,9 +243,11 @@ Three consequences for anybody working in this repository:
 - **Do not migrate `sto_info_worker`, and do not read or write anything in it.** The contract
   between the two applications is the two queue messages, not the tables.
 - **`sto_info_worker.file_scan_attempt` holds a foreign key into `file_asset`**, `ON DELETE
-  RESTRICT`. A hard delete of a `file_asset` row that has ever been scanned will be refused.
-  This is deliberate: the attempt is the only record of what a scanner said about bytes that may
-  no longer exist. Soft deletion is unaffected.
+  RESTRICT`. A hard delete of a `file_asset` row that has ever been scanned will be refused,
+  with SQLSTATE `23001` — not `23503` — because PostgreSQL 18 reports a blocked `ON DELETE
+  RESTRICT` as `restrict_violation`. Anything written to catch this must name `23001`.
+  The refusal is deliberate: the attempt is the only record of what a scanner said about bytes
+  that may no longer exist. Soft deletion is unaffected.
 - **Deploy ordering is fixed.** This repository's migrations must run before the worker's, or the
   worker's foreign key has nothing to point at. The failure is loud.
 

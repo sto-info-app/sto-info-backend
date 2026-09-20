@@ -545,7 +545,7 @@ This keeps primary user records at least as long as the general audit data reten
 
 ### Migration Rehearsal Scripts
 
-Each replays a migration into a throwaway `postgres:17-alpine` container and then tries to break
+Each replays a migration into a throwaway `postgres:18-alpine` container and then tries to break
 every rule it claims to enforce. They need Docker and never touch a real database. See
 `scripts/migration-rehearsal/README.md`.
 
