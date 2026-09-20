@@ -2,9 +2,10 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 import { jest } from '@jest/globals';
 
+import { AcceptedAsset } from 'src/file-assets/services/asset-ingress.service';
+
 import { CUSTOM_TRACKING_FEATURE_FLAGS } from '../constants/custom-tracking-feature.constants';
 import { CustomTrackingFeatureService } from '../custom-tracking-feature.service';
-import { CustomTrackingImageValueEntity } from '../entities/custom-tracking-image-value.entity';
 import { CustomTrackingImageShape } from '../enums/custom-tracking-image-shape.enum';
 import { CustomTrackingTargetScope } from '../enums/custom-tracking-target-scope.enum';
 import { CustomTrackingImageService } from './custom-tracking-image.service';
@@ -14,36 +15,45 @@ describe('CustomTrackingImagesController', () => {
   const userId = 'user-1';
   const scope = CustomTrackingTargetScope.ACCOUNT;
 
-  const stored = {
-    cloudflareImageId: 'image-1',
-    altText: 'The USS Ares at warp',
-    shape: CustomTrackingImageShape.LANDSCAPE,
-  } as CustomTrackingImageValueEntity;
+  const accepted: AcceptedAsset = {
+    assetId: 'asset-1',
+    status: 'SCANNING',
+  };
 
   const file = { size: 1024, buffer: Buffer.alloc(0) } as Express.Multer.File;
 
   let controller: CustomTrackingImagesController;
-  let store: jest.Mock<() => Promise<CustomTrackingImageValueEntity>>;
+  let accept: jest.Mock<() => Promise<AcceptedAsset>>;
+  let findStored: jest.Mock<() => Promise<unknown>>;
   let remove: jest.Mock<() => Promise<void>>;
   let assertFlagEnabled: jest.Mock<() => Promise<void>>;
 
   beforeEach(() => {
-    store = jest
-      .fn<() => Promise<CustomTrackingImageValueEntity>>()
-      .mockResolvedValue(stored);
+    accept = jest
+      .fn<() => Promise<AcceptedAsset>>()
+      .mockResolvedValue(accepted);
     remove = jest.fn<() => Promise<void>>().mockResolvedValue();
+    findStored = jest.fn<() => Promise<unknown>>().mockResolvedValue({
+      cloudflareImageId: 'image-1',
+      altText: 'The USS Ares at warp',
+      shape: CustomTrackingImageShape.LANDSCAPE,
+    });
     assertFlagEnabled = jest.fn<() => Promise<void>>().mockResolvedValue();
 
     controller = new CustomTrackingImagesController(
-      { store, remove } as unknown as CustomTrackingImageService,
+      {
+        accept,
+        remove,
+        find: findStored,
+      } as unknown as CustomTrackingImageService,
       { assertFlagEnabled } as unknown as CustomTrackingFeatureService,
     );
   });
 
-  describe('store', () => {
+  describe('accept', () => {
     it('passes the upload through with its description', async () => {
       await expect(
-        controller.store(
+        controller.accept(
           userId,
           'field-1',
           scope,
@@ -51,13 +61,9 @@ describe('CustomTrackingImagesController', () => {
           { altText: 'The USS Ares at warp' },
           file,
         ),
-      ).resolves.toEqual({
-        imageId: 'image-1',
-        altText: 'The USS Ares at warp',
-        shape: CustomTrackingImageShape.LANDSCAPE,
-      });
+      ).resolves.toEqual({ assetId: 'asset-1', status: 'SCANNING' });
 
-      expect(store).toHaveBeenCalledWith({
+      expect(accept).toHaveBeenCalledWith({
         userId,
         fieldId: 'field-1',
         scope,
@@ -71,7 +77,7 @@ describe('CustomTrackingImagesController', () => {
     // rejected it, and nothing below should have to guess at that.
     it('refuses a request that carried no file', async () => {
       await expect(
-        controller.store(
+        controller.accept(
           userId,
           'field-1',
           scope,
@@ -80,15 +86,15 @@ describe('CustomTrackingImagesController', () => {
           undefined,
         ),
       ).rejects.toThrow(BadRequestException);
-      expect(store).not.toHaveBeenCalled();
+      expect(accept).not.toHaveBeenCalled();
     });
 
     // The description is refused by the service, which owns that rule; the
     // controller only has to not lose it on the way.
     it('passes an absent description through as empty', async () => {
-      await controller.store(userId, 'field-1', scope, 'account-1', {}, file);
+      await controller.accept(userId, 'field-1', scope, 'account-1', {}, file);
 
-      expect(store).toHaveBeenCalledWith(
+      expect(accept).toHaveBeenCalledWith(
         expect.objectContaining({ altText: '' }),
       );
     });
@@ -97,7 +103,7 @@ describe('CustomTrackingImagesController', () => {
       assertFlagEnabled.mockRejectedValue(new NotFoundException());
 
       await expect(
-        controller.store(
+        controller.accept(
           userId,
           'field-1',
           scope,
@@ -106,11 +112,11 @@ describe('CustomTrackingImagesController', () => {
           file,
         ),
       ).rejects.toThrow(NotFoundException);
-      expect(store).not.toHaveBeenCalled();
+      expect(accept).not.toHaveBeenCalled();
     });
 
     it('requires the pictures capability specifically', async () => {
-      await controller.store(
+      await controller.accept(
         userId,
         'field-1',
         scope,
@@ -122,6 +128,35 @@ describe('CustomTrackingImagesController', () => {
       expect(assertFlagEnabled).toHaveBeenCalledWith(
         CUSTOM_TRACKING_FEATURE_FLAGS.IMAGES_ENABLED,
       );
+    });
+  });
+
+  describe('find', () => {
+    it('reports the picture as the editor needs it', async () => {
+      await expect(
+        controller.find(userId, 'field-1', scope, 'account-1'),
+      ).resolves.toEqual({
+        imageId: 'image-1',
+        altText: 'The USS Ares at warp',
+        shape: CustomTrackingImageShape.LANDSCAPE,
+      });
+    });
+
+    it('reports nothing when the record has no picture', async () => {
+      findStored.mockResolvedValue(null);
+
+      await expect(
+        controller.find(userId, 'field-1', scope, 'account-1'),
+      ).resolves.toBeNull();
+    });
+
+    it('reports pictures as absent when they are switched off', async () => {
+      assertFlagEnabled.mockRejectedValue(new NotFoundException());
+
+      await expect(
+        controller.find(userId, 'field-1', scope, 'account-1'),
+      ).rejects.toThrow(NotFoundException);
+      expect(findStored).not.toHaveBeenCalled();
     });
   });
 

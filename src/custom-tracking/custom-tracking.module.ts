@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { AssetIngressModule } from '../file-assets/asset-ingress.module';
 import { SettingsModule } from '../settings/settings.module';
 import { SharedModule } from '../shared/shared.module';
 import { AccountEntity } from '../sto/account/entities/account.entity';
@@ -33,6 +34,7 @@ import { CustomTrackingSectionEntity } from './entities/custom-tracking-section.
 import { CustomTrackingTabEntity } from './entities/custom-tracking-tab.entity';
 import { CustomTrackingValueOptionEntity } from './entities/custom-tracking-value-option.entity';
 import { CustomTrackingValueEntity } from './entities/custom-tracking-value.entity';
+import { CustomTrackingImagePublisher } from './images/custom-tracking-image.publisher';
 import { CustomTrackingImageService } from './images/custom-tracking-image.service';
 import { CustomTrackingImagesController } from './images/custom-tracking-images.controller';
 import { CustomTrackingModerationController } from './moderation/custom-tracking-moderation.controller';
@@ -85,6 +87,9 @@ import { CustomTrackingValuesController } from './values/custom-tracking-values.
     ]),
     SettingsModule,
     SharedModule,
+    // A picture answering a Field is registered, quarantined and scanned
+    // before it is written as an answer at all.
+    AssetIngressModule,
   ],
   controllers: [
     CustomTrackingConfigurationController,
@@ -119,6 +124,7 @@ import { CustomTrackingValuesController } from './values/custom-tracking-values.
     CustomTrackingRecordMapper,
     CustomTrackingValueEditingGuard,
     CustomTrackingImageService,
+    CustomTrackingImagePublisher,
     CustomTrackingPublicService,
     CustomTrackingPublicMapper,
     CustomTrackingImageCleanupService,

@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   HttpCode,
   HttpStatus,
   Param,
@@ -14,6 +15,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
+  ApiAcceptedResponse,
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
@@ -27,6 +29,7 @@ import {
 
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
+import { AssetScanStatusDto } from 'src/file-assets/dto/asset-scan-status.dto';
 // Reused rather than restated. How a cropped image and its description are
 // parsed off the wire is the same problem here as in Storytime, and a second
 // copy of those Multer limits would be a second place for them to drift.
@@ -77,9 +80,10 @@ export class CustomTrackingImagesController {
    * @param targetId - The record described.
    * @param body - The description accompanying the file.
    * @param file - The cropped picture.
-   * @returns The stored picture.
+   * @returns The upload to ask about, and how far along it is.
    */
   @Post('fields/:fieldId/scopes/:scope/targets/:targetId/image')
+  @HttpCode(HttpStatus.ACCEPTED)
   @UseGuards(CustomTrackingValueEditingGuard)
   @UseInterceptors(
     FileInterceptor(STORYTIME_IMAGE_FIELD, STORYTIME_IMAGE_UPLOAD_OPTIONS),
@@ -87,13 +91,13 @@ export class CustomTrackingImagesController {
   @ApiConsumes('multipart/form-data')
   @ApiBody(STORYTIME_IMAGE_UPLOAD_SCHEMA)
   @ApiOperation({ summary: 'Upload the picture for one field and record' })
-  @ApiOkResponse({ type: CustomTrackingImageAnswerDto })
+  @ApiAcceptedResponse({ type: AssetScanStatusDto })
   @ApiNotFoundResponse({ description: 'No such field or record of yours.' })
   @ApiBadRequestResponse({
     description:
       'The field takes no picture, the description is missing, or the file is unacceptable.',
   })
-  async store(
+  async accept(
     @UserId() userId: string,
     @Param('fieldId', ParseUUIDPipe) fieldId: string,
     @Param('scope', new ParseEnumPipe(CustomTrackingTargetScope))
@@ -101,13 +105,13 @@ export class CustomTrackingImagesController {
     @Param('targetId', ParseUUIDPipe) targetId: string,
     @Body() body: { altText?: string },
     @UploadedFile() file: Express.Multer.File | undefined,
-  ): Promise<CustomTrackingImageAnswerDto> {
+  ): Promise<AssetScanStatusDto> {
     await this._features.assertFlagEnabled(
       CUSTOM_TRACKING_FEATURE_FLAGS.IMAGES_ENABLED,
     );
     assertImageSupplied(file);
 
-    const stored = await this._images.store({
+    return this._images.accept({
       userId,
       fieldId,
       scope,
@@ -115,6 +119,42 @@ export class CustomTrackingImagesController {
       altText: body?.altText ?? '',
       file,
     });
+  }
+
+  /**
+   * Reports the picture answering one Field and record.
+   *
+   * What a dialogue asks once the scanner has cleared its upload. Until
+   * then there is nothing to report: the answer row is not written before
+   * the picture is published — FC-012.
+   *
+   * @param userId - The caller.
+   * @param fieldId - The image Field.
+   * @param scope - Whether an Account or a Character is described.
+   * @param targetId - The record described.
+   * @returns The picture, or null when there is none.
+   */
+  @Get('fields/:fieldId/scopes/:scope/targets/:targetId/image')
+  @UseGuards(CustomTrackingValueEditingGuard)
+  @ApiOperation({ summary: 'Read the picture for one field and record' })
+  @ApiOkResponse({ type: CustomTrackingImageAnswerDto })
+  @ApiNotFoundResponse({ description: 'No such field or record of yours.' })
+  async find(
+    @UserId() userId: string,
+    @Param('fieldId', ParseUUIDPipe) fieldId: string,
+    @Param('scope', new ParseEnumPipe(CustomTrackingTargetScope))
+    scope: CustomTrackingTargetScope,
+    @Param('targetId', ParseUUIDPipe) targetId: string,
+  ): Promise<CustomTrackingImageAnswerDto | null> {
+    await this._features.assertFlagEnabled(
+      CUSTOM_TRACKING_FEATURE_FLAGS.IMAGES_ENABLED,
+    );
+
+    const stored = await this._images.find(userId, fieldId, scope, targetId);
+
+    if (stored === null) {
+      return null;
+    }
 
     return {
       imageId: stored.cloudflareImageId,

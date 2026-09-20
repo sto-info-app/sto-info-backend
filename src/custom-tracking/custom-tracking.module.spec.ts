@@ -1,17 +1,39 @@
+import { getQueueToken } from '@nestjs/bullmq';
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { S3Client } from '@aws-sdk/client-s3';
+import { ClsModule } from 'nestjs-cls';
 import { DataSource } from 'typeorm';
 
+import { FILE_ASSET_PUBLICATION_QUEUE } from '../file-assets/constants/file-asset-publication.constants';
+import { FileAssetPlacementEntity } from '../file-assets/entities/file-asset-placement.entity';
+import { FileAssetEntity } from '../file-assets/entities/file-asset.entity';
+import { QUARANTINE_S3_CLIENT } from '../file-assets/services/quarantine-storage.service';
+import {
+  FILE_SCAN_REQUEST_QUEUE,
+  FILE_SCAN_VERDICT_QUEUE,
+} from '../file-scanning/contract/file-scan-contract';
+import { ArmadaFleetMembershipEntity } from '../fleet/entities/armada-fleet-membership.entity';
+import { CharacterFleetMembershipEntity } from '../fleet/entities/character-fleet-membership.entity';
+import { CommunitySubscriptionEntity } from '../fleet/entities/community-subscription.entity';
+import { FleetCommunityEntity } from '../fleet/entities/fleet-community.entity';
+import { FleetNameAliasEntity } from '../fleet/entities/fleet-name-alias.entity';
+import { ScopeCapabilityGrantEntity } from '../fleet/entities/scope-capability-grant.entity';
+import { ScopeMembershipEntity } from '../fleet/entities/scope-membership.entity';
+import { ScopeRoleAssignmentEntity } from '../fleet/entities/scope-role-assignment.entity';
+import { StoArmadaEntity } from '../fleet/entities/sto-armada.entity';
+import { StoFleetEntity } from '../fleet/entities/sto-fleet.entity';
 import { AppSettingEntity } from '../settings/entities/app-setting.entity';
 import { SettingsService } from '../settings/settings.service';
+import { SecretsService } from '../shared/secrets/secrets.service';
 import { ImageUploadsService } from '../shared/utilities/image-uploads.service';
 import { AccountEntity } from '../sto/account/entities/account.entity';
 import { CharacterEntity } from '../sto/character/entities/character.entity';
 import { UserProfileEntity } from '../user/entities/user-profile.entity';
+import { UserEntity } from '../user/entities/user.entity';
 import { CustomTrackingConfigurationController } from './custom-tracking-configuration.controller';
 import { CustomTrackingEditingGuard } from './custom-tracking-editing.guard';
 import { CustomTrackingFeatureService } from './custom-tracking-feature.service';
@@ -104,6 +126,22 @@ describe('CustomTrackingModule', () => {
     AccountEntity,
     CharacterEntity,
     UserProfileEntity,
+    // Reached through the asset registry, which every upload now goes
+    // through: a Custom Tracking picture is registered, quarantined and
+    // scanned before it is an answer to anything — FC-012.
+    UserEntity,
+    FileAssetEntity,
+    FileAssetPlacementEntity,
+    FleetCommunityEntity,
+    StoFleetEntity,
+    StoArmadaEntity,
+    FleetNameAliasEntity,
+    ArmadaFleetMembershipEntity,
+    CommunitySubscriptionEntity,
+    ScopeMembershipEntity,
+    ScopeRoleAssignmentEntity,
+    ScopeCapabilityGrantEntity,
+    CharacterFleetMembershipEntity,
   ];
 
   const compile = async () => {
@@ -113,6 +151,10 @@ describe('CustomTrackingModule', () => {
       // no such global, so it is supplied here.
       imports: [
         ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }),
+        // Registered globally by the application, and needed here because
+        // the registry reaches the Fleet audience service, which asks who
+        // is making the request.
+        ClsModule.forRoot({ global: true }),
         StubDataSourceModule,
         CustomTrackingModule,
       ],
@@ -123,6 +165,20 @@ describe('CustomTrackingModule', () => {
       .useValue({})
       .overrideProvider(S3Client)
       .useValue({})
+      // The quarantine client is built by an async factory that reads a
+      // secret out of AWS. Nothing here is going to do that.
+      .overrideProvider(QUARANTINE_S3_CLIENT)
+      .useValue({})
+      .overrideProvider(SecretsService)
+      .useValue({ getSecret: jest.fn() })
+      // Three queues, none of which should open a Redis connection to
+      // prove that this module's providers can be constructed.
+      .overrideProvider(getQueueToken(FILE_SCAN_REQUEST_QUEUE))
+      .useValue({ add: jest.fn() })
+      .overrideProvider(getQueueToken(FILE_SCAN_VERDICT_QUEUE))
+      .useValue({ add: jest.fn() })
+      .overrideProvider(getQueueToken(FILE_ASSET_PUBLICATION_QUEUE))
+      .useValue({ add: jest.fn() })
       .overrideProvider(ConfigService)
       .useValue({ get: jest.fn() });
 
