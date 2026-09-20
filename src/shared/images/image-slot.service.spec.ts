@@ -29,11 +29,11 @@ const buildPng = (width: number, height: number): Buffer => {
  * The shape and encoding rules are exercised thoroughly through Storytime,
  * which runs the real service. What is only visible here is the part that
  * exists so two features can share this at all: the spec and the size-limit
- * wording arrive as parameters rather than being looked up.
+ * wording arrive as parameters rather than being looked up, and a slot with
+ * no specification at all is checked as far as it can be.
  */
 describe('ImageSlotService', () => {
   const userId = 'user-1';
-  const entityId = 'entity-1';
 
   const spec: ImageSlotSpec = {
     label: 'Square image',
@@ -47,7 +47,7 @@ describe('ImageSlotService', () => {
   };
 
   let service: ImageSlotService;
-  let uploadImageToCloudflareImages: jest.Mock;
+  let validateAndSanitiseFile: jest.Mock;
   let deleteImageFromCloudflareImages: jest.Mock;
 
   const buildFile = (buffer: Buffer, size?: number): Express.Multer.File =>
@@ -59,11 +59,16 @@ describe('ImageSlotService', () => {
     }) as Express.Multer.File;
 
   beforeEach(() => {
-    uploadImageToCloudflareImages = jest.fn().mockResolvedValue('image-id');
+    validateAndSanitiseFile = jest
+      .fn()
+      .mockImplementation((_userId: string, file: Express.Multer.File) => ({
+        fileBuffer: file.buffer,
+        safeFileName: file.originalname,
+      }));
     deleteImageFromCloudflareImages = jest.fn().mockResolvedValue(undefined);
 
     service = new ImageSlotService({
-      uploadImageToCloudflareImages,
+      validateAndSanitiseFile,
       deleteImageFromCloudflareImages,
     } as unknown as ImageUploadsService);
 
@@ -75,54 +80,76 @@ describe('ImageSlotService', () => {
     jest.restoreAllMocks();
   });
 
-  const store = (file: Express.Multer.File, maximumBytes = 1_048_576) =>
-    service.store({
-      spec,
+  const inspect = (
+    file: Express.Multer.File,
+    maximumBytes = 1_048_576,
+    slotSpec: ImageSlotSpec | null = spec,
+  ) =>
+    service.inspect({
+      spec: slotSpec,
       userId,
-      entityId,
       maximumBytes,
       sizeLimitLabel: 'Custom tracking images',
       file,
     });
 
-  // The tag is what associates the image with the feature and record it
-  // belongs to, without which nothing could reconcile orphans later.
-  it('records the picture under the tag its spec names', async () => {
+  // The encoding is read out of the bytes rather than taken from the
+  // request, which is what makes the answer usable as a detected type.
+  it('reports what the bytes actually are', () => {
     const file = buildFile(buildPng(300, 300));
 
-    await expect(store(file)).resolves.toBe('image-id');
-    expect(uploadImageToCloudflareImages).toHaveBeenCalledWith(
-      userId,
-      file,
-      'custom-tracking-square',
-      entityId,
-    );
+    expect(inspect(file)).toEqual({
+      bytes: file.buffer,
+      safeFileName: 'picture.png',
+      detectedContentType: 'image/png',
+    });
   });
 
   // The sentence differs by feature, and each one's wording is its own to
   // change, so it comes from the caller rather than from the spec.
-  it('refuses an oversized picture in the caller’s own words', async () => {
-    await expect(
-      store(buildFile(buildPng(300, 300), 4_194_304), 1_048_576),
-    ).rejects.toThrow(
+  it('refuses an oversized picture in the caller’s own words', () => {
+    expect(() =>
+      inspect(buildFile(buildPng(300, 300), 4_194_304), 1_048_576),
+    ).toThrow(
       'That image is 4.0 MB. Custom tracking images must be 1.0 MB or smaller.',
     );
   });
 
-  it('applies the bounds its spec names rather than any fixed ones', async () => {
-    await expect(store(buildFile(buildPng(299, 299)))).rejects.toThrow(
+  it('applies the bounds its spec names rather than any fixed ones', () => {
+    expect(() => inspect(buildFile(buildPng(299, 299)))).toThrow(
       'at least 300 by 300',
     );
-    await expect(store(buildFile(buildPng(400, 300)))).rejects.toThrow(
+    expect(() => inspect(buildFile(buildPng(400, 300)))).toThrow(
       'cropped to 1:1',
     );
   });
 
-  it('refuses before anything reaches storage', async () => {
-    await expect(store(buildFile(Buffer.from('not an image')))).rejects.toThrow(
+  it('refuses anything that is not a readable image', () => {
+    expect(() => inspect(buildFile(Buffer.from('not an image')))).toThrow(
       'not a readable PNG or JPEG image',
     );
-    expect(uploadImageToCloudflareImages).not.toHaveBeenCalled();
+  });
+
+  // A profile picture and a Character portrait have never had a server-side
+  // shape and do not acquire one here. What they do acquire is the check
+  // that the bytes are an image at all.
+  it('checks a slot with no specification as far as it can', () => {
+    expect(inspect(buildFile(buildPng(37, 4001)), 1_048_576, null)).toEqual(
+      expect.objectContaining({ detectedContentType: 'image/png' }),
+    );
+    expect(() =>
+      inspect(buildFile(Buffer.from('still not an image')), 1_048_576, null),
+    ).toThrow('not a readable PNG or JPEG image');
+  });
+
+  it('refuses a picture the upload rules reject before reading it', () => {
+    validateAndSanitiseFile.mockImplementationOnce(() => {
+      throw new Error('File mimetype is missing');
+    });
+
+    expect(() => inspect(buildFile(buildPng(300, 300)))).toThrow(
+      'File mimetype is missing',
+    );
   });
 
   it('releases an image nothing points at any more', async () => {

@@ -1,8 +1,9 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule } from '@nestjs/config';
 
 import { FileAssetsModule } from 'src/file-assets/file-assets.module';
+import { QueueModule } from 'src/shared/queue/queue.module';
 
 import {
   FILE_SCAN_REQUEST_QUEUE,
@@ -29,22 +30,15 @@ import { ScanVerdictService } from './services/scan-verdict.service';
  *
  * Redis is already a dependency of this application for rate limiting, and
  * ADR-0006 was explicit that the queue's connection budget is sized and
- * monitored separately from it. The connection configured here is therefore
- * its own, built from the same `REDIS_URL` rather than shared with the
- * limiter's client.
+ * monitored separately from it. The connection is configured once in
+ * {@link QueueModule} and shared with asset publication, which is the other
+ * thing this application queues since FC-012.
  */
 @Module({
   imports: [
     ConfigModule,
     FileAssetsModule,
-    BullModule.forRootAsync({
-      imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        connection: { url: configService.get<string>('REDIS_URL') },
-        prefix: configService.get<string>('QUEUE_PREFIX') ?? 'bull:sto-info:',
-      }),
-      inject: [ConfigService],
-    }),
+    QueueModule,
     BullModule.registerQueue(
       { name: FILE_SCAN_REQUEST_QUEUE },
       { name: FILE_SCAN_VERDICT_QUEUE },

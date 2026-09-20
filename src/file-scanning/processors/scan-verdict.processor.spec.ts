@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { Job } from 'bullmq';
 
+import { AssetPublicationQueueService } from 'src/file-assets/services/asset-publication-queue.service';
+
 import { ScanVerdictService } from '../services/scan-verdict.service';
 import { ScanVerdictProcessor } from './scan-verdict.processor';
 
@@ -32,14 +34,17 @@ function job(data: unknown): Job<unknown> {
 
 describe('ScanVerdictProcessor', () => {
   let apply: jest.Mock;
+  let enqueue: jest.Mock;
   let processor: ScanVerdictProcessor;
 
   beforeEach(() => {
     apply = jest.fn(() => Promise.resolve({ applied: true, refusal: null }));
+    enqueue = jest.fn(() => Promise.resolve());
 
-    processor = new ScanVerdictProcessor({
-      apply,
-    } as unknown as ScanVerdictService);
+    processor = new ScanVerdictProcessor(
+      { apply } as unknown as ScanVerdictService,
+      { enqueue } as unknown as AssetPublicationQueueService,
+    );
   });
 
   it('hands a well-formed verdict on', async () => {
@@ -85,5 +90,30 @@ describe('ScanVerdictProcessor', () => {
     await expect(
       processor.process(job(FIXTURE.verdicts.clean)),
     ).rejects.toThrow('no database');
+  });
+
+  it('asks for a cleared asset to be published', async () => {
+    await processor.process(job(FIXTURE.verdicts.clean));
+
+    expect(enqueue).toHaveBeenCalledWith(FIXTURE.verdicts.clean.assetId);
+  });
+
+  it('does not ask for a refused asset to be published', async () => {
+    await processor.process(job(FIXTURE.verdicts.rejected));
+
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+
+  it('does not ask for publication when the verdict was not applied', async () => {
+    // A verdict that lost a race with a second one, or that arrived after
+    // the asset had moved on. The registry did not move, so there is
+    // nothing to publish.
+    apply.mockImplementationOnce(() =>
+      Promise.resolve({ applied: false, refusal: 'NOT_SCANNING' }),
+    );
+
+    await processor.process(job(FIXTURE.verdicts.clean));
+
+    expect(enqueue).not.toHaveBeenCalled();
   });
 });

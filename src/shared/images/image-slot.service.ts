@@ -1,6 +1,9 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 
-import { readImageContent } from 'src/storytime/images/storytime-image-content.utility';
+import {
+  readImageContent,
+  StorytimeImageContent,
+} from 'src/storytime/images/storytime-image-content.utility';
 
 import { ImageUploadsService } from '../utilities/image-uploads.service';
 
@@ -30,14 +33,19 @@ export interface ImageSlotSpec {
   readonly entityTag: string;
 }
 
-/** What one upload needs to know about itself. */
-export interface ImageSlotUpload {
-  /** The rules the picture is held to. */
-  readonly spec: ImageSlotSpec;
+/** What one upload is checked against. */
+export interface ImageSlotCheck {
+  /**
+   * The rules the picture is held to, when the slot has any.
+   *
+   * Null for a profile picture and a Character portrait, which have never
+   * had a server-side shape or a minimum size and do not acquire one here:
+   * FC-012 changes when a picture is published, not which pictures are
+   * accepted.
+   */
+  readonly spec: ImageSlotSpec | null;
   /** The person uploading, whose identity the image is recorded under. */
   readonly userId: string;
-  /** What the image belongs to, recorded against it in Cloudflare. */
-  readonly entityId: string;
   /** The largest this uploader's picture may be. */
   readonly maximumBytes: number;
   /**
@@ -50,6 +58,16 @@ export interface ImageSlotUpload {
   readonly sizeLimitLabel: string;
   /** The uploaded file. */
   readonly file: Express.Multer.File;
+}
+
+/** What reading an accepted upload established about it. */
+export interface InspectedImage {
+  /** The bytes. */
+  readonly bytes: Buffer;
+  /** A filename safe to record and to send on. */
+  readonly safeFileName: string;
+  /** What the bytes actually are, whatever the request claimed. */
+  readonly detectedContentType: string;
 }
 
 /**
@@ -104,32 +122,49 @@ export class ImageSlotService {
   constructor(private readonly _imageUploads: ImageUploadsService) {}
 
   /**
-   * Checks an upload over and stores it, returning the new image's identifier.
+   * Checks an upload over and reads what its bytes actually are.
    *
-   * The caller writes the identifier to its own row and then releases whatever
-   * was there before. Doing it in that order matters: an upload that succeeds
-   * and a save that fails leaves an unreferenced image, which costs nothing but
-   * storage, whereas releasing first would leave a record pointing at an image
-   * that no longer exists.
+   * Everything that can be decided about a picture from the picture itself,
+   * done while the request is still open so that a wrong-shaped crop is a
+   * refusal the person reads immediately rather than a state they discover a
+   * minute later. What happens next — quarantine, a scanner, publication —
+   * is {@link AssetIngressService}'s, and nothing here knows about it.
    *
-   * @param upload - The rules, the uploader, what it belongs to and the file.
-   * @returns The Cloudflare Images identifier of the stored image.
+   * The encoding is read out of the bytes rather than taken from the
+   * request, which is what makes the answer usable as the asset's detected
+   * content type: a header is a claim and this is evidence.
+   *
+   * @param check - The rules, the uploader and the file.
+   * @returns The bytes, a safe filename and what the bytes are.
    * @throws BadRequestException when the file is not acceptable for the slot.
    */
-  async store(upload: ImageSlotUpload): Promise<string> {
-    this.assertWithinUploadLimit(upload);
-    this.assertAcceptableForSlot(upload.file, upload.spec);
+  inspect(check: ImageSlotCheck): InspectedImage {
+    this.assertWithinUploadLimit(check);
+
+    const { fileBuffer, safeFileName } =
+      this._imageUploads.validateAndSanitiseFile(check.userId, check.file);
+
+    const content = readImageContent(fileBuffer);
+
+    if (!content) {
+      throw new BadRequestException(
+        'That file is not a readable PNG or JPEG image.',
+      );
+    }
+
+    if (check.spec !== null) {
+      this.assertAcceptableForSlot(content, check.spec);
+    }
 
     this._logger.debug(
-      `[store] Accepted upload - Slot: ${upload.spec.entityTag}, EntityId: ${upload.entityId}, UserId: ${upload.userId}`,
+      `[inspect] Accepted upload - Slot: ${check.spec?.entityTag ?? 'none'}, UserId: ${check.userId}`,
     );
 
-    return this._imageUploads.uploadImageToCloudflareImages(
-      upload.userId,
-      upload.file,
-      upload.spec.entityTag,
-      upload.entityId,
-    );
+    return {
+      bytes: fileBuffer,
+      safeFileName,
+      detectedContentType: `image/${content.format}`,
+    };
   }
 
   /**
@@ -190,38 +225,31 @@ export class ImageSlotService {
    * @param upload - The upload being checked.
    * @throws BadRequestException when the file is too large.
    */
-  private assertWithinUploadLimit(upload: ImageSlotUpload): void {
-    if (upload.file.size > upload.maximumBytes) {
+  private assertWithinUploadLimit(check: ImageSlotCheck): void {
+    if (check.file.size > check.maximumBytes) {
       throw new BadRequestException(
-        `That image is ${describeBytes(upload.file.size)}. ${upload.sizeLimitLabel} must be ${describeBytes(upload.maximumBytes)} or smaller.`,
+        `That image is ${describeBytes(check.file.size)}. ${check.sizeLimitLabel} must be ${describeBytes(check.maximumBytes)} or smaller.`,
       );
     }
   }
 
   /**
-   * Requires the file to be an image of the shape and size the slot needs.
+   * Requires the picture to be the shape and size the slot needs.
    *
-   * The bytes are read rather than the declared content type. A request states
-   * its own MIME type and a filename ends in whatever the person uploading
-   * chose, so neither is evidence of anything.
+   * Applied to what the bytes turned out to be rather than to what the
+   * request claimed. A request states its own MIME type and a filename ends
+   * in whatever the person uploading chose, so neither is evidence of
+   * anything.
    *
-   * @param file - The uploaded file.
+   * @param content - What reading the bytes found.
    * @param spec - The rules the slot is held to.
-   * @throws BadRequestException when the file is unreadable, the wrong
-   *   encoding, too small, or the wrong shape.
+   * @throws BadRequestException when the picture is the wrong encoding, too
+   *   small, or the wrong shape.
    */
   private assertAcceptableForSlot(
-    file: Express.Multer.File,
+    content: StorytimeImageContent,
     spec: ImageSlotSpec,
   ): void {
-    const content = readImageContent(file.buffer);
-
-    if (!content) {
-      throw new BadRequestException(
-        'That file is not a readable PNG or JPEG image.',
-      );
-    }
-
     if (content.format !== spec.outputFormat) {
       throw new BadRequestException(
         `A ${spec.label.toLowerCase()} must be uploaded as ${spec.outputFormat.toUpperCase()}.`,
