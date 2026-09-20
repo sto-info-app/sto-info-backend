@@ -10,6 +10,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { In, IsNull, Not, Repository } from 'typeorm';
 
+import { AcceptedAsset } from 'src/file-assets/services/asset-ingress.service';
+
 import { LimitService } from '../../access-control/limit.service';
 import { StoryCapability } from '../collaboration/storytime-story-capability.enum';
 import { STORYTIME_LIMITS } from '../constants/storytime-limits.constants';
@@ -351,7 +353,7 @@ export class StorytimeCharacterService {
    * @param actingUserId - The caller.
    * @param file - The cropped upload.
    * @param altText - What the portrait shows.
-   * @returns The Character, carrying its new portrait.
+   * @returns The asset to ask about, and how far along it is.
    * @throws ForbiddenException when the caller may not manage this cast.
    * @throws BadRequestException when the upload is not usable as a portrait.
    */
@@ -360,27 +362,19 @@ export class StorytimeCharacterService {
     actingUserId: string,
     file: Express.Multer.File,
     altText: string,
-  ): Promise<StorytimeCharacterEntity> {
-    const character = await this.findEditableOrFail(characterId, actingUserId);
-    const replacedImageId = character.portraitImageId;
+  ): Promise<AcceptedAsset> {
+    await this.findEditableOrFail(characterId, actingUserId);
 
-    character.portraitImageId = await this._imageService.store({
+    // The cast list keeps the portrait it has until a scanner clears the new
+    // one and StorytimeCastImagePublisher sets the portrait and its
+    // description together — FC-012.
+    return this._imageService.accept({
       slot: StorytimeImageSlot.CHARACTER_PORTRAIT,
       userId: actingUserId,
       entityId: characterId,
       file,
+      altText,
     });
-    character.portraitImageAlt = altText;
-    character.updatedByUserId = actingUserId;
-    character.version += 1;
-
-    const saved = await this._characterRepository.save(character);
-
-    // Released only once the Character points at the new portrait, so a failed
-    // save leaves an unreferenced image rather than a cast list of gaps.
-    await this._imageService.release(replacedImageId);
-
-    return saved;
   }
 
   /**
@@ -405,7 +399,11 @@ export class StorytimeCharacterService {
 
     const saved = await this._characterRepository.save(character);
 
-    await this._imageService.release(removedImageId);
+    await this._imageService.withdraw(
+      StorytimeImageSlot.CHARACTER_PORTRAIT,
+      characterId,
+      removedImageId,
+    );
 
     return saved;
   }

@@ -16,6 +16,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
+  ApiAcceptedResponse,
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
@@ -31,6 +32,7 @@ import {
 
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
+import { AssetScanStatusDto } from 'src/file-assets/dto/asset-scan-status.dto';
 import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
 
 import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constants';
@@ -295,13 +297,14 @@ export class StorytimeCreatorArcsController {
    * @param userId - The caller.
    * @param file - The cropped image.
    * @param dto - The alternative text sent alongside it.
-   * @returns The Arc, carrying its new banner.
+   * @returns The upload to ask about, and how far along it is.
    */
   @Post(':arcId/banner-image')
+  @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: 'Set the banner on an Arc you curate' })
   @ApiConsumes('multipart/form-data')
   @ApiBody(STORYTIME_IMAGE_UPLOAD_SCHEMA)
-  @ApiOkResponse({ type: ManagedArcDto })
+  @ApiAcceptedResponse({ type: AssetScanStatusDto })
   @ApiBadRequestResponse({
     description:
       'No image was supplied, the file is not a JPEG, or the crop is smaller than 2400 by 480.',
@@ -316,7 +319,7 @@ export class StorytimeCreatorArcsController {
     @UserId() userId: string,
     @UploadedFile() file: Express.Multer.File | undefined,
     @Body() dto: StorytimeImageUploadDto,
-  ): Promise<ManagedArcDto> {
+  ): Promise<AssetScanStatusDto> {
     return this.setImage(
       arcId,
       userId,
@@ -350,13 +353,14 @@ export class StorytimeCreatorArcsController {
    * @param userId - The caller.
    * @param file - The cropped image.
    * @param dto - The alternative text sent alongside it.
-   * @returns The Arc, carrying its new profile image.
+   * @returns The upload to ask about, and how far along it is.
    */
   @Post(':arcId/profile-image')
+  @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: 'Set the profile image on an Arc you curate' })
   @ApiConsumes('multipart/form-data')
   @ApiBody(STORYTIME_IMAGE_UPLOAD_SCHEMA)
-  @ApiOkResponse({ type: ManagedArcDto })
+  @ApiAcceptedResponse({ type: AssetScanStatusDto })
   @ApiBadRequestResponse({
     description:
       'No image was supplied, the file is not a PNG, or the crop is smaller than 300 by 300.',
@@ -371,7 +375,7 @@ export class StorytimeCreatorArcsController {
     @UserId() userId: string,
     @UploadedFile() file: Express.Multer.File | undefined,
     @Body() dto: StorytimeImageUploadDto,
-  ): Promise<ManagedArcDto> {
+  ): Promise<AssetScanStatusDto> {
     return this.setImage(
       arcId,
       userId,
@@ -425,7 +429,7 @@ export class StorytimeCreatorArcsController {
    * @param slot - Which image is being set.
    * @param file - Whatever Multer parsed, if anything.
    * @param dto - The alternative text sent alongside it.
-   * @returns The Arc, carrying its new artwork.
+   * @returns The upload to ask about, and how far along it is.
    */
   private async setImage(
     arcId: string,
@@ -433,13 +437,11 @@ export class StorytimeCreatorArcsController {
     slot: ArcImageSlot,
     file: Express.Multer.File | undefined,
     dto: StorytimeImageUploadDto,
-  ): Promise<ManagedArcDto> {
+  ): Promise<AssetScanStatusDto> {
     await this.assertEnabled();
     assertImageSupplied(file);
 
-    return this._mapper.toManaged(
-      await this._arcService.setImage(arcId, userId, slot, file, dto.altText),
-    );
+    return this._arcService.setImage(arcId, userId, slot, file, dto.altText);
   }
 
   /**

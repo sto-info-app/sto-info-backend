@@ -16,6 +16,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
+  ApiAcceptedResponse,
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
@@ -35,6 +36,7 @@ import { PermissionsGuard } from 'src/access-control/permissions.guard';
 import { RequiresPermission } from 'src/access-control/requires-permission.decorator';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
+import { AssetScanStatusDto } from 'src/file-assets/dto/asset-scan-status.dto';
 import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
 
 import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constants';
@@ -318,11 +320,12 @@ export class StorytimeCreatorStoriesController {
    * @returns The Story, carrying its new banner.
    */
   @Post(':storyId/banner-image')
+  @HttpCode(HttpStatus.ACCEPTED)
   @RequiresPermission(PERMISSION_CODES.STORYTIME_STORY_EDIT_OWN)
   @ApiOperation({ summary: 'Set the banner on a Story you can edit' })
   @ApiConsumes('multipart/form-data')
   @ApiBody(STORYTIME_IMAGE_UPLOAD_SCHEMA)
-  @ApiOkResponse({ type: ManagedStoryDto })
+  @ApiAcceptedResponse({ type: AssetScanStatusDto })
   @ApiBadRequestResponse({
     description:
       'No image was supplied, the file is not a JPEG, or the crop is smaller than 2400 by 480.',
@@ -338,7 +341,7 @@ export class StorytimeCreatorStoriesController {
     @UserId() userId: string,
     @UploadedFile() file: Express.Multer.File | undefined,
     @Body() dto: StorytimeImageUploadDto,
-  ): Promise<ManagedStoryDto> {
+  ): Promise<AssetScanStatusDto> {
     return this.setImage(
       storyId,
       userId,
@@ -377,11 +380,12 @@ export class StorytimeCreatorStoriesController {
    * @returns The Story, carrying its new profile image.
    */
   @Post(':storyId/profile-image')
+  @HttpCode(HttpStatus.ACCEPTED)
   @RequiresPermission(PERMISSION_CODES.STORYTIME_STORY_EDIT_OWN)
   @ApiOperation({ summary: 'Set the profile image on a Story you can edit' })
   @ApiConsumes('multipart/form-data')
   @ApiBody(STORYTIME_IMAGE_UPLOAD_SCHEMA)
-  @ApiOkResponse({ type: ManagedStoryDto })
+  @ApiAcceptedResponse({ type: AssetScanStatusDto })
   @ApiBadRequestResponse({
     description:
       'No image was supplied, the file is not a PNG, or the crop is smaller than 300 by 300.',
@@ -397,7 +401,7 @@ export class StorytimeCreatorStoriesController {
     @UserId() userId: string,
     @UploadedFile() file: Express.Multer.File | undefined,
     @Body() dto: StorytimeImageUploadDto,
-  ): Promise<ManagedStoryDto> {
+  ): Promise<AssetScanStatusDto> {
     return this.setImage(
       storyId,
       userId,
@@ -458,7 +462,7 @@ export class StorytimeCreatorStoriesController {
    * @param slot - Which image is being set.
    * @param file - Whatever Multer parsed, if anything.
    * @param dto - The alternative text sent alongside it.
-   * @returns The Story, carrying its new artwork.
+   * @returns The upload to ask about, and how far along it is.
    */
   private async setImage(
     storyId: string,
@@ -466,21 +470,19 @@ export class StorytimeCreatorStoriesController {
     slot: StoryImageSlot,
     file: Express.Multer.File | undefined,
     dto: StorytimeImageUploadDto,
-  ): Promise<ManagedStoryDto> {
+  ): Promise<AssetScanStatusDto> {
     await this._featureService.assertFlagEnabled(
       STORYTIME_FEATURE_FLAGS.CREATION_ENABLED,
     );
 
     assertImageSupplied(file);
 
-    return this._mapper.toManaged(
-      await this._storyService.setImage(
-        storyId,
-        userId,
-        slot,
-        file,
-        dto.altText,
-      ),
+    return this._storyService.setImage(
+      storyId,
+      userId,
+      slot,
+      file,
+      dto.altText,
     );
   }
 

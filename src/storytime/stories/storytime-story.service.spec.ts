@@ -64,8 +64,8 @@ describe('StorytimeStoryService', () => {
   };
   let queryBuilder: QueryBuilderStub;
   let imageService: {
-    store: jest.Mock;
-    release: jest.Mock;
+    accept: jest.Mock;
+    withdraw: jest.Mock;
   };
 
   const ownerId = 'e6d3a1b2-0000-4000-8000-000000000001';
@@ -115,8 +115,10 @@ describe('StorytimeStoryService', () => {
     // its own service's business, and these tests are about what the work
     // records afterwards.
     imageService = {
-      store: jest.fn().mockResolvedValue('stored-image-id'),
-      release: jest.fn().mockResolvedValue(undefined),
+      accept: jest
+        .fn()
+        .mockResolvedValue({ assetId: 'asset-1', status: 'SCANNING' }),
+      withdraw: jest.fn().mockResolvedValue(undefined),
     };
 
     queryBuilder = {
@@ -697,10 +699,10 @@ describe('StorytimeStoryService', () => {
   describe('artwork', () => {
     const file = { originalname: 'banner.jpg' } as Express.Multer.File;
 
-    it('records the stored image and what it shows', async () => {
+    it('sends the upload to be scanned, with what it shows', async () => {
       storyRepository.findOne.mockResolvedValue(buildStory());
 
-      const saved = await service.setImage(
+      const accepted = await service.setImage(
         storyId,
         ownerId,
         StorytimeImageSlot.STORY_BANNER,
@@ -708,24 +710,25 @@ describe('StorytimeStoryService', () => {
         'The USS Ares at warp',
       );
 
-      expect(imageService.store).toHaveBeenCalledWith({
+      expect(imageService.accept).toHaveBeenCalledWith({
         slot: StorytimeImageSlot.STORY_BANNER,
         userId: ownerId,
         entityId: storyId,
         file,
+        altText: 'The USS Ares at warp',
       });
-      expect(saved.bannerImageId).toBe('stored-image-id');
-      expect(saved.bannerImageAlt).toBe('The USS Ares at warp');
-      expect(saved.version).toBe(2);
-      expect(saved.updatedByUserId).toBe(ownerId);
+      expect(accepted).toEqual({ assetId: 'asset-1', status: 'SCANNING' });
     });
 
-    it('sets the profile image without touching the banner', async () => {
+    // The third acceptance criterion. A Story keeps the artwork it has
+    // until a scanner clears the replacement, so nothing is written here
+    // and a refused upload costs its author nothing.
+    it('leaves the Story untouched while the upload is scanned', async () => {
       storyRepository.findOne.mockResolvedValue(
         buildStory({ bannerImageId: 'banner-1', bannerImageAlt: 'A ship' }),
       );
 
-      const saved = await service.setImage(
+      await service.setImage(
         storyId,
         ownerId,
         StorytimeImageSlot.STORY_PROFILE,
@@ -733,50 +736,7 @@ describe('StorytimeStoryService', () => {
         'A crew badge',
       );
 
-      expect(saved.profileImageId).toBe('stored-image-id');
-      expect(saved.bannerImageId).toBe('banner-1');
-    });
-
-    // Released after the save rather than before it, so a failure leaves an
-    // image nothing points at rather than a Story pointing at nothing.
-    it('releases the image it replaced, once the Story is saved', async () => {
-      storyRepository.findOne.mockResolvedValue(
-        buildStory({ bannerImageId: 'old-banner' }),
-      );
-      const order: string[] = [];
-      storyRepository.save.mockImplementation((story: unknown) => {
-        order.push('save');
-        return Promise.resolve(story);
-      });
-      imageService.release.mockImplementation(() => {
-        order.push('release');
-        return Promise.resolve();
-      });
-
-      await service.setImage(
-        storyId,
-        ownerId,
-        StorytimeImageSlot.STORY_BANNER,
-        file,
-        'A ship',
-      );
-
-      expect(imageService.release).toHaveBeenCalledWith('old-banner');
-      expect(order).toEqual(['save', 'release']);
-    });
-
-    it('has nothing to release when there was no image', async () => {
-      storyRepository.findOne.mockResolvedValue(buildStory());
-
-      await service.setImage(
-        storyId,
-        ownerId,
-        StorytimeImageSlot.STORY_BANNER,
-        file,
-        'A ship',
-      );
-
-      expect(imageService.release).toHaveBeenCalledWith(null);
+      expect(storyRepository.save).not.toHaveBeenCalled();
     });
 
     it('refuses somebody with no access to the Story', async () => {
@@ -792,7 +752,7 @@ describe('StorytimeStoryService', () => {
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
 
-      expect(imageService.store).not.toHaveBeenCalled();
+      expect(imageService.accept).not.toHaveBeenCalled();
     });
 
     // The wording goes with the picture: a description left behind would be
@@ -810,7 +770,11 @@ describe('StorytimeStoryService', () => {
 
       expect(saved.bannerImageId).toBeNull();
       expect(saved.bannerImageAlt).toBeNull();
-      expect(imageService.release).toHaveBeenCalledWith('banner-1');
+      expect(imageService.withdraw).toHaveBeenCalledWith(
+        StorytimeImageSlot.STORY_BANNER,
+        storyId,
+        'banner-1',
+      );
       expect(saved.version).toBe(2);
     });
 

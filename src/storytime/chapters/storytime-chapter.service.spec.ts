@@ -100,8 +100,8 @@ describe('StorytimeChapterService', () => {
   };
 
   let imageService: {
-    store: jest.Mock;
-    release: jest.Mock;
+    accept: jest.Mock;
+    withdraw: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -109,8 +109,10 @@ describe('StorytimeChapterService', () => {
     // its own service's business, and these tests are about what the work
     // records afterwards.
     imageService = {
-      store: jest.fn().mockResolvedValue('stored-image-id'),
-      release: jest.fn().mockResolvedValue(undefined),
+      accept: jest
+        .fn()
+        .mockResolvedValue({ assetId: 'asset-1', status: 'SCANNING' }),
+      withdraw: jest.fn().mockResolvedValue(undefined),
     };
 
     manager = {
@@ -870,35 +872,36 @@ describe('StorytimeChapterService', () => {
   describe('the cover', () => {
     const file = { originalname: 'cover.jpg' } as Express.Multer.File;
 
-    it('records the stored image and what it shows', async () => {
+    it('sends the upload to be scanned, with what it shows', async () => {
       chapterRepository.findOne.mockResolvedValue(buildChapter());
 
-      const saved = await service.setCoverImage(
+      const accepted = await service.setCoverImage(
         chapterId,
         ownerId,
         file,
         'A shuttle on approach',
       );
 
-      expect(imageService.store).toHaveBeenCalledWith({
+      expect(imageService.accept).toHaveBeenCalledWith({
         slot: StorytimeImageSlot.CHAPTER_COVER,
         userId: ownerId,
         entityId: chapterId,
         file,
+        altText: 'A shuttle on approach',
       });
-      expect(saved.coverImageId).toBe('stored-image-id');
-      expect(saved.coverImageAlt).toBe('A shuttle on approach');
-      expect(saved.version).toBe(2);
+      expect(accepted).toEqual({ assetId: 'asset-1', status: 'SCANNING' });
     });
 
-    it('releases the cover it replaced', async () => {
+    // The cover is what a Chapter looks like when its link is shared, so
+    // the one it already has stays until a scanner clears the new one.
+    it('leaves the Chapter untouched while the upload is scanned', async () => {
       chapterRepository.findOne.mockResolvedValue(
         buildChapter({ coverImageId: 'old-cover' }),
       );
 
       await service.setCoverImage(chapterId, ownerId, file, 'A shuttle');
 
-      expect(imageService.release).toHaveBeenCalledWith('old-cover');
+      expect(chapterRepository.save).not.toHaveBeenCalled();
     });
 
     it('refuses somebody who may not manage these Chapters', async () => {
@@ -911,7 +914,7 @@ describe('StorytimeChapterService', () => {
         service.setCoverImage(chapterId, ownerId, file, 'A shuttle'),
       ).rejects.toThrow(ForbiddenException);
 
-      expect(imageService.store).not.toHaveBeenCalled();
+      expect(imageService.accept).not.toHaveBeenCalled();
     });
 
     it('clears the description along with the cover', async () => {
@@ -923,7 +926,11 @@ describe('StorytimeChapterService', () => {
 
       expect(saved.coverImageId).toBeNull();
       expect(saved.coverImageAlt).toBeNull();
-      expect(imageService.release).toHaveBeenCalledWith('cover-1');
+      expect(imageService.withdraw).toHaveBeenCalledWith(
+        StorytimeImageSlot.CHAPTER_COVER,
+        chapterId,
+        'cover-1',
+      );
     });
 
     it('refuses a removal from somebody who may not manage them', async () => {

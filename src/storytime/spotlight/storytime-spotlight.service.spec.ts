@@ -38,8 +38,8 @@ describe('StorytimeSpotlightService', () => {
   let authorService: { findAuthors: jest.Mock };
   let taggingService: { findForMany: jest.Mock };
   let imageService: {
-    store: jest.Mock;
-    release: jest.Mock;
+    accept: jest.Mock;
+    withdraw: jest.Mock;
   };
 
   const editorId = 'editor-1';
@@ -116,8 +116,10 @@ describe('StorytimeSpotlightService', () => {
     // its own service's business, and these tests are about what the work
     // records afterwards.
     imageService = {
-      store: jest.fn().mockResolvedValue('stored-image-id'),
-      release: jest.fn().mockResolvedValue(undefined),
+      accept: jest
+        .fn()
+        .mockResolvedValue({ assetId: 'asset-1', status: 'SCANNING' }),
+      withdraw: jest.fn().mockResolvedValue(undefined),
     };
 
     spotlightRepository = {
@@ -767,35 +769,36 @@ describe('StorytimeSpotlightService', () => {
   describe('the editorial artwork', () => {
     const file = { originalname: 'spotlight.jpg' } as Express.Multer.File;
 
-    it('records the stored image and what it shows', async () => {
+    it('sends the upload to be scanned, with what it shows', async () => {
       spotlightRepository.findOne.mockResolvedValue(buildEntry());
 
-      const saved = await service.setOverrideImage(
+      const accepted = await service.setOverrideImage(
         spotlightId,
         editorId,
         file,
         'A fleet at anchor',
       );
 
-      expect(imageService.store).toHaveBeenCalledWith({
+      expect(imageService.accept).toHaveBeenCalledWith({
         slot: StorytimeImageSlot.SPOTLIGHT_OVERRIDE,
         userId: editorId,
         entityId: spotlightId,
         file,
+        altText: 'A fleet at anchor',
       });
-      expect(saved.overrideImageId).toBe('stored-image-id');
-      expect(saved.overrideImageAlt).toBe('A fleet at anchor');
-      expect(saved.updatedByUserId).toBe(editorId);
+      expect(accepted).toEqual({ assetId: 'asset-1', status: 'SCANNING' });
     });
 
-    it('releases the artwork it replaced', async () => {
+    // An editor's upload is scanned like anybody else's. R24 makes the file
+    // gate unconditional rather than a function of who uploaded.
+    it('leaves the panel untouched while the upload is scanned', async () => {
       spotlightRepository.findOne.mockResolvedValue(
         buildEntry({ overrideImageId: 'old-artwork' }),
       );
 
       await service.setOverrideImage(spotlightId, editorId, file, 'A fleet');
 
-      expect(imageService.release).toHaveBeenCalledWith('old-artwork');
+      expect(spotlightRepository.save).not.toHaveBeenCalled();
     });
 
     it('complains about an entry that does not exist', async () => {
@@ -820,7 +823,11 @@ describe('StorytimeSpotlightService', () => {
 
       expect(saved.overrideImageId).toBeNull();
       expect(saved.overrideImageAlt).toBeNull();
-      expect(imageService.release).toHaveBeenCalledWith('artwork-1');
+      expect(imageService.withdraw).toHaveBeenCalledWith(
+        StorytimeImageSlot.SPOTLIGHT_OVERRIDE,
+        spotlightId,
+        'artwork-1',
+      );
     });
 
     it('complains about removing from an entry that does not exist', async () => {

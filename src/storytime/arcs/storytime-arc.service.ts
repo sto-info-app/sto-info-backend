@@ -11,6 +11,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { In, IsNull, Not, Repository } from 'typeorm';
 
+import { AcceptedAsset } from 'src/file-assets/services/asset-ingress.service';
+
 import { ArcCapability } from '../collaboration/storytime-arc-capability.enum';
 import { StorytimeArcCollaboratorAccessService } from '../collaboration/storytime-arc-collaborator-access.service';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
@@ -502,7 +504,7 @@ export class StorytimeArcService {
    * @param slot - Which image is being set.
    * @param file - The cropped upload.
    * @param altText - What the image shows.
-   * @returns The Arc, carrying its new artwork.
+   * @returns The asset to ask about, and how far along it is.
    * @throws ForbiddenException when the caller may not edit this Arc.
    * @throws BadRequestException when the upload is not usable for the slot.
    */
@@ -512,33 +514,19 @@ export class StorytimeArcService {
     slot: ArcImageSlot,
     file: Express.Multer.File,
     altText: string,
-  ): Promise<StorytimeArcEntity> {
-    const arc = await this.findEditableOrFail(
-      arcId,
-      actingUserId,
-      ArcCapability.EDIT_ARC,
-    );
+  ): Promise<AcceptedAsset> {
+    await this.findEditableOrFail(arcId, actingUserId, ArcCapability.EDIT_ARC);
 
-    const fields = ARC_IMAGE_FIELDS[slot];
-    const replacedImageId = arc[fields.id];
-
-    arc[fields.id] = await this._imageService.store({
+    // The Arc is not written to. It keeps the artwork it has until a scanner
+    // clears the new picture, and StorytimeArcImagePublisher sets the image
+    // and its description together at that point — FC-012.
+    return this._imageService.accept({
       slot,
       userId: actingUserId,
       entityId: arcId,
       file,
+      altText,
     });
-    arc[fields.alt] = altText;
-    arc.updatedByUserId = actingUserId;
-    arc.version += 1;
-
-    const saved = await this._arcRepository.save(arc);
-
-    // Released only once the Arc points at the new image, so a failed save
-    // leaves an unreferenced image rather than an Arc referencing nothing.
-    await this._imageService.release(replacedImageId);
-
-    return saved;
   }
 
   /**
@@ -571,7 +559,7 @@ export class StorytimeArcService {
 
     const saved = await this._arcRepository.save(arc);
 
-    await this._imageService.release(removedImageId);
+    await this._imageService.withdraw(slot, arcId, removedImageId);
 
     return saved;
   }

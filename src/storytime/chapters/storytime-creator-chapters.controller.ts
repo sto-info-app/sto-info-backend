@@ -16,6 +16,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
+  ApiAcceptedResponse,
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
@@ -35,6 +36,7 @@ import { PermissionsGuard } from 'src/access-control/permissions.guard';
 import { RequiresPermission } from 'src/access-control/requires-permission.decorator';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
+import { AssetScanStatusDto } from 'src/file-assets/dto/asset-scan-status.dto';
 import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
 
 import { StoryCapability } from '../collaboration/storytime-story-capability.enum';
@@ -321,13 +323,14 @@ export class StorytimeCreatorChaptersController {
    * @param userId - The caller.
    * @param file - The cropped image.
    * @param dto - The alternative text sent alongside it.
-   * @returns The Chapter, carrying its new cover.
+   * @returns The upload to ask about, and how far along it is.
    */
   @Post('chapters/:chapterId/cover-image')
+  @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: 'Set the cover on a Chapter you can edit' })
   @ApiConsumes('multipart/form-data')
   @ApiBody(STORYTIME_IMAGE_UPLOAD_SCHEMA)
-  @ApiOkResponse({ type: ManagedChapterDto })
+  @ApiAcceptedResponse({ type: AssetScanStatusDto })
   @ApiBadRequestResponse({
     description:
       'No image was supplied, the file is not a JPEG, or the crop is smaller than 1920 by 1080.',
@@ -342,20 +345,15 @@ export class StorytimeCreatorChaptersController {
     @UserId() userId: string,
     @UploadedFile() file: Express.Multer.File | undefined,
     @Body() dto: StorytimeImageUploadDto,
-  ): Promise<ManagedChapterDto> {
+  ): Promise<AssetScanStatusDto> {
     await this.assertEnabled();
     assertImageSupplied(file);
 
-    const chapter = await this._chapterService.setCoverImage(
+    return this._chapterService.setCoverImage(
       chapterId,
       userId,
       file,
       dto.altText,
-    );
-
-    return this._mapper.toManaged(
-      chapter,
-      await this.loadStory(chapter, userId),
     );
   }
 

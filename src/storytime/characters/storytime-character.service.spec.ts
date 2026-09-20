@@ -43,8 +43,8 @@ describe('StorytimeCharacterService', () => {
   };
   let limitService: { assertWithinLimit: jest.Mock };
   let imageService: {
-    store: jest.Mock;
-    release: jest.Mock;
+    accept: jest.Mock;
+    withdraw: jest.Mock;
   };
 
   const ownerId = 'e6d3a1b2-0000-4000-8000-000000000001';
@@ -89,8 +89,10 @@ describe('StorytimeCharacterService', () => {
     // its own service's business, and these tests are about what the work
     // records afterwards.
     imageService = {
-      store: jest.fn().mockResolvedValue('stored-image-id'),
-      release: jest.fn().mockResolvedValue(undefined),
+      accept: jest
+        .fn()
+        .mockResolvedValue({ assetId: 'asset-1', status: 'SCANNING' }),
+      withdraw: jest.fn().mockResolvedValue(undefined),
     };
 
     characterRepository = {
@@ -541,35 +543,34 @@ describe('StorytimeCharacterService', () => {
   describe('the portrait', () => {
     const file = { originalname: 'portrait.png' } as Express.Multer.File;
 
-    it('records the stored image and what it shows', async () => {
+    it('sends the upload to be scanned, with what it shows', async () => {
       characterRepository.findOne.mockResolvedValue(buildCharacter());
 
-      const saved = await service.setPortraitImage(
+      const accepted = await service.setPortraitImage(
         characterId,
         ownerId,
         file,
         'An Andorian in uniform',
       );
 
-      expect(imageService.store).toHaveBeenCalledWith({
+      expect(imageService.accept).toHaveBeenCalledWith({
         slot: StorytimeImageSlot.CHARACTER_PORTRAIT,
         userId: ownerId,
         entityId: characterId,
         file,
+        altText: 'An Andorian in uniform',
       });
-      expect(saved.portraitImageId).toBe('stored-image-id');
-      expect(saved.portraitImageAlt).toBe('An Andorian in uniform');
-      expect(saved.version).toBe(2);
+      expect(accepted).toEqual({ assetId: 'asset-1', status: 'SCANNING' });
     });
 
-    it('releases the portrait it replaced', async () => {
+    it('leaves the cast list untouched while the upload is scanned', async () => {
       characterRepository.findOne.mockResolvedValue(
         buildCharacter({ portraitImageId: 'old-portrait' }),
       );
 
       await service.setPortraitImage(characterId, ownerId, file, 'An Andorian');
 
-      expect(imageService.release).toHaveBeenCalledWith('old-portrait');
+      expect(characterRepository.save).not.toHaveBeenCalled();
     });
 
     it('refuses somebody who may not manage this cast', async () => {
@@ -582,7 +583,7 @@ describe('StorytimeCharacterService', () => {
         service.setPortraitImage(characterId, ownerId, file, 'An Andorian'),
       ).rejects.toThrow(ForbiddenException);
 
-      expect(imageService.store).not.toHaveBeenCalled();
+      expect(imageService.accept).not.toHaveBeenCalled();
     });
 
     it('clears the description along with the portrait', async () => {
@@ -597,7 +598,11 @@ describe('StorytimeCharacterService', () => {
 
       expect(saved.portraitImageId).toBeNull();
       expect(saved.portraitImageAlt).toBeNull();
-      expect(imageService.release).toHaveBeenCalledWith('portrait-1');
+      expect(imageService.withdraw).toHaveBeenCalledWith(
+        StorytimeImageSlot.CHARACTER_PORTRAIT,
+        characterId,
+        'portrait-1',
+      );
     });
 
     it('refuses a removal from somebody who may not manage it', async () => {

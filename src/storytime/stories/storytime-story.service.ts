@@ -11,6 +11,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { In, IsNull, Not, Repository } from 'typeorm';
 
+import { AcceptedAsset } from 'src/file-assets/services/asset-ingress.service';
+
 import { LimitService } from '../../access-control/limit.service';
 import { StorytimeCollaboratorAccessService } from '../collaboration/storytime-collaborator-access.service';
 import { StoryCapability } from '../collaboration/storytime-story-capability.enum';
@@ -722,7 +724,7 @@ export class StorytimeStoryService {
    * @param slot - Which image is being set.
    * @param file - The cropped upload.
    * @param altText - What the image shows.
-   * @returns The Story, carrying its new artwork.
+   * @returns The asset to ask about, and how far along it is.
    * @throws ForbiddenException when the caller may not edit this Story.
    * @throws BadRequestException when the upload is not usable for the slot.
    */
@@ -732,35 +734,23 @@ export class StorytimeStoryService {
     slot: StoryImageSlot,
     file: Express.Multer.File,
     altText: string,
-  ): Promise<StorytimeStoryEntity> {
-    const story = await this.findEditableOrFail(
+  ): Promise<AcceptedAsset> {
+    await this.findEditableOrFail(
       storyId,
       actingUserId,
       StoryCapability.EDIT_STORY,
     );
 
-    const fields = STORY_IMAGE_FIELDS[slot];
-    const replacedImageId = story[fields.id];
-
-    story[fields.id] = await this._imageService.store({
+    // The Story is not written to. It keeps the artwork it has until a
+    // scanner clears the new picture, and StorytimeStoryImagePublisher sets
+    // the image and its description together at that point — FC-012.
+    return this._imageService.accept({
       slot,
       userId: actingUserId,
       entityId: storyId,
       file,
+      altText,
     });
-    story[fields.alt] = altText;
-    story.updatedByUserId = actingUserId;
-    story.version += 1;
-
-    const saved = await this._storyRepository.save(story);
-
-    // Released only once the Story points at the new image. An upload that
-    // succeeds against a save that fails leaves an image nothing references,
-    // which costs storage; the other order would leave the Story pointing at
-    // an image that no longer exists, which costs the reader a broken page.
-    await this._imageService.release(replacedImageId);
-
-    return saved;
   }
 
   /**
@@ -796,7 +786,7 @@ export class StorytimeStoryService {
 
     const saved = await this._storyRepository.save(story);
 
-    await this._imageService.release(removedImageId);
+    await this._imageService.withdraw(slot, storyId, removedImageId);
 
     return saved;
   }

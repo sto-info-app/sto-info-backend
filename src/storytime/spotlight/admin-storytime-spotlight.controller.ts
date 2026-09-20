@@ -16,6 +16,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
+  ApiAcceptedResponse,
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
@@ -34,6 +35,7 @@ import { PermissionsGuard } from 'src/access-control/permissions.guard';
 import { RequiresPermission } from 'src/access-control/requires-permission.decorator';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
+import { AssetScanStatusDto } from 'src/file-assets/dto/asset-scan-status.dto';
 import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
 
 import { StorytimeImageUploadDto } from '../images/dto/storytime-image-upload.dto';
@@ -207,14 +209,15 @@ export class AdminStorytimeSpotlightController {
    * @param actingUserId - The editor.
    * @param file - The cropped image.
    * @param dto - The alternative text sent alongside it.
-   * @returns The entry, carrying its new artwork.
+   * @returns The upload to ask about, and how far along it is.
    */
   @Post(':spotlightId/override-image')
+  @HttpCode(HttpStatus.ACCEPTED)
   @RequiresPermission(PERMISSION_CODES.STORYTIME_SPOTLIGHT_MANAGE)
   @ApiOperation({ summary: 'Set the artwork on a Spotlight entry' })
   @ApiConsumes('multipart/form-data')
   @ApiBody(STORYTIME_IMAGE_UPLOAD_SCHEMA)
-  @ApiOkResponse({ type: ManagedSpotlightDto })
+  @ApiAcceptedResponse({ type: AssetScanStatusDto })
   @ApiBadRequestResponse({
     description:
       'No image was supplied, the file is not a JPEG, or the crop is smaller than 2400 by 480.',
@@ -230,16 +233,14 @@ export class AdminStorytimeSpotlightController {
     @UserId() actingUserId: string,
     @UploadedFile() file: Express.Multer.File | undefined,
     @Body() dto: StorytimeImageUploadDto,
-  ): Promise<ManagedSpotlightDto> {
+  ): Promise<AssetScanStatusDto> {
     assertImageSupplied(file);
 
-    return this._mapper.toManaged(
-      await this._spotlightService.setOverrideImage(
-        spotlightId,
-        actingUserId,
-        file,
-        dto.altText,
-      ),
+    return this._spotlightService.setOverrideImage(
+      spotlightId,
+      actingUserId,
+      file,
+      dto.altText,
     );
   }
 

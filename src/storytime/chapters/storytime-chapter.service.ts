@@ -10,6 +10,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { DataSource, IsNull, Not, Repository } from 'typeorm';
 
+import { AcceptedAsset } from 'src/file-assets/services/asset-ingress.service';
+
 import { LimitService } from '../../access-control/limit.service';
 import { StoryCapability } from '../collaboration/storytime-story-capability.enum';
 import { STORYTIME_LANGUAGE_CODES } from '../constants/storytime-language.constants';
@@ -563,7 +565,7 @@ export class StorytimeChapterService {
    * @param actingUserId - The caller.
    * @param file - The cropped upload.
    * @param altText - What the image shows.
-   * @returns The Chapter, carrying its new cover.
+   * @returns The asset to ask about, and how far along it is.
    * @throws ForbiddenException when the caller may not manage these Chapters.
    * @throws BadRequestException when the upload is not usable as a cover.
    */
@@ -572,27 +574,19 @@ export class StorytimeChapterService {
     actingUserId: string,
     file: Express.Multer.File,
     altText: string,
-  ): Promise<StorytimeChapterEntity> {
-    const chapter = await this.findEditableOrFail(chapterId, actingUserId);
-    const replacedImageId = chapter.coverImageId;
+  ): Promise<AcceptedAsset> {
+    await this.findEditableOrFail(chapterId, actingUserId);
 
-    chapter.coverImageId = await this._imageService.store({
+    // The Chapter keeps the cover it has until a scanner clears the new one
+    // and StorytimeChapterImagePublisher sets the cover and its description
+    // together — FC-012.
+    return this._imageService.accept({
       slot: StorytimeImageSlot.CHAPTER_COVER,
       userId: actingUserId,
       entityId: chapterId,
       file,
+      altText,
     });
-    chapter.coverImageAlt = altText;
-    chapter.updatedByUserId = actingUserId;
-    chapter.version += 1;
-
-    const saved = await this._chapterRepository.save(chapter);
-
-    // Released only once the Chapter points at the new cover, so a failed save
-    // leaves an unreferenced image rather than a Chapter referencing nothing.
-    await this._imageService.release(replacedImageId);
-
-    return saved;
   }
 
   /**
@@ -617,7 +611,11 @@ export class StorytimeChapterService {
 
     const saved = await this._chapterRepository.save(chapter);
 
-    await this._imageService.release(removedImageId);
+    await this._imageService.withdraw(
+      StorytimeImageSlot.CHAPTER_COVER,
+      chapterId,
+      removedImageId,
+    );
 
     return saved;
   }
