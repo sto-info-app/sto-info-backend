@@ -146,6 +146,15 @@ remaining="$(psql_value "SELECT count(*) FROM information_schema.tables WHERE ta
 types="$(psql_value "SELECT count(*) FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='sto_info_app' AND t.typtype='e'")"
 expected_stubs="$(grep -c '^CREATE TABLE' "${HERE}/sql/stubs.sql")"
 
+# A suite rehearsing a data migration may bring a table of its own, because
+# the rows have to exist before the migration runs and the real table is
+# built by migrations this suite is not rehearsing. Those count as stubs
+# too: what this check is for is a rollback that drops or leaves a table it
+# should not have, and a fixture table the suite created itself is neither.
+if [ -f "${PRE_UP}" ]; then
+  expected_stubs=$((expected_stubs + $(grep -c '^CREATE TABLE' "${PRE_UP}" || true)))
+fi
+
 if [ "${types}" -ne 0 ]; then
   echo "FAIL: ${types} enum type(s) survived the rollback" >&2
   exit 1

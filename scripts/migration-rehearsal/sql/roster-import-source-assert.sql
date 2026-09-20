@@ -214,6 +214,33 @@ SELECT pg_temp.expect_rejected(
     WHERE "id" = '00000000-0000-0000-0000-0000000ba001'$$,
   '23514');
 
+-- Added by FC-011, and the reason it is asserted rather than assumed is that
+-- the guard names its columns one by one: a column added to the table and
+-- forgotten in the trigger is silently editable, and this is the one column
+-- here that records what somebody else claimed rather than what this
+-- application measured.
+SELECT pg_temp.expect_true(
+  'what the browser called it survives beside what the bytes were',
+  $$SELECT "declaredContentType" = 'application/vnd.ms-excel'
+     FROM "fleet_roster_import_source"
+     WHERE "id" = '00000000-0000-0000-0000-0000000ba001'$$);
+
+SELECT pg_temp.expect_rejected(
+  'the claimed content type cannot be rewritten',
+  $$UPDATE "fleet_roster_import_source" SET "declaredContentType" = 'text/csv'
+    WHERE "id" = '00000000-0000-0000-0000-0000000ba001'$$,
+  '23514');
+
+-- Aimed at the row that has one. The guard compares with IS DISTINCT FROM,
+-- so writing null over a row that was already null changes nothing and is
+-- rightly allowed — an assertion against one of those would pass whatever
+-- the trigger said.
+SELECT pg_temp.expect_rejected(
+  'the claimed content type cannot be quietly removed',
+  $$UPDATE "fleet_roster_import_source" SET "declaredContentType" = NULL
+    WHERE "id" = '00000000-0000-0000-0000-0000000ba001'$$,
+  '23514');
+
 SELECT pg_temp.expect_rejected(
   'the parser version cannot be rewritten',
   $$UPDATE "fleet_roster_import_source" SET "parserVersion" = 2

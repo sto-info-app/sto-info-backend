@@ -47,10 +47,16 @@ VALUES
 -- The provenance of the first: 93 rows, seven of which carried an officer note
 -- that no longer exists anywhere.
 INSERT INTO "fleet_roster_import_source"
-  ("id", "assetId", "fleetId", "uploadedByUserId", "originalFilename", "sourceSha256", "sanitisedSha256",
+  ("id", "assetId", "fleetId", "uploadedByUserId", "originalFilename", "declaredContentType",
+   "sourceSha256", "sanitisedSha256",
    "sourceByteSize", "sanitisedByteSize", "sourceHeaderShape", "rowCount", "officerTailRowCount", "parserVersion")
 VALUES
+  -- The claimed type is what a Windows machine with Excel installed sends
+  -- for a .csv, kept exactly as it arrived. FC-011 added the column; the
+  -- value is deliberately not `text/csv`, because the point of the column
+  -- is that it records a claim rather than a fact.
   ('00000000-0000-0000-0000-0000000ba001', '00000000-0000-0000-0000-0000000aa001',
    '00000000-0000-0000-0000-0000000ea001', '00000000-0000-0000-0000-0000000fa001',
-   'Import Fleet_20240101-120000.Csv', repeat('1', 64), repeat('2', 64),
+   'Import Fleet_20240101-120000.Csv', 'application/vnd.ms-excel',
+   repeat('1', 64), repeat('2', 64),
    8192, 2048, 'OFFICER', 93, 7, 1);
