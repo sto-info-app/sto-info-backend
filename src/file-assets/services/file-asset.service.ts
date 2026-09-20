@@ -270,11 +270,17 @@ export class FileAssetService {
    *
    * @param assetId - The asset.
    * @param storage - Where the bytes are delivered from.
+   * @param deliveryReference - How the delivery route addresses them, for a
+   *   storage that addresses objects by something other than the key they
+   *   were quarantined under. Null leaves the asset addressed by its
+   *   {@link FileAssetEntity.objectKey}, which is what a privately delivered
+   *   asset wants.
    * @returns The asset, in `AVAILABLE`.
    */
   async publish(
     assetId: string,
     storage: FileAssetStorage = FileAssetStorage.QUARANTINE,
+    deliveryReference: string | null = null,
   ): Promise<FileAssetEntity> {
     const asset = await this.requireAsset(assetId);
 
@@ -283,6 +289,44 @@ export class FileAssetService {
     asset.state = FileAssetState.AVAILABLE;
     asset.storage = storage;
     asset.availableAt = new Date();
+
+    if (deliveryReference !== null) {
+      asset.deliveryReference = deliveryReference;
+    }
+
+    return this._repository.save(asset);
+  }
+
+  /**
+   * Abandons an asset that will never be published.
+   *
+   * The end of a superseded upload and of one the nightly sweep gave up on.
+   * Both are ordinary: somebody uploaded twice in quick succession, or a
+   * verdict never came back. Neither is a refusal, and neither should be
+   * recorded as one — a `REJECTED` row means a scanner or a policy said no to
+   * those bytes, and reusing it here would put outage-era uploads in the same
+   * count as infections.
+   *
+   * The caller drops the quarantined object; this records that nothing is
+   * left to serve.
+   *
+   * @param assetId - The asset.
+   * @param reason - Why it was abandoned, for the log and the row.
+   * @returns The asset, in `DELETED`.
+   */
+  async discard(assetId: string, reason: string): Promise<FileAssetEntity> {
+    const asset = await this.requireAsset(assetId);
+
+    this.assertTransition(asset, FileAssetState.DELETED);
+
+    asset.state = FileAssetState.DELETED;
+    asset.storage = FileAssetStorage.NONE;
+    asset.revocationReason = reason;
+    asset.withdrawnAt = new Date();
+
+    this._logger.log(
+      `[discard] Asset abandoned - AssetId: ${assetId}, Reason: ${reason}`,
+    );
 
     return this._repository.save(asset);
   }
@@ -350,6 +394,29 @@ export class FileAssetService {
    */
   async findById(assetId: string): Promise<FileAssetEntity | null> {
     return this._repository.findOne({ where: { id: assetId } });
+  }
+
+  /**
+   * Finds the asset a delivered object belongs to.
+   *
+   * The lookup a delete needs. A page holds a Cloudflare Images identifier
+   * and nothing else, and withdrawing the picture behind it means finding the
+   * row that says whether a purge is owed. Legacy rows answer this too: the
+   * backfill wrote their identifier as their object key and the migration
+   * that added {@link FileAssetEntity.deliveryReference} copied it across, so
+   * one query covers the estate as well as everything uploaded since.
+   *
+   * Withdrawn and deleted rows are included. A caller asking about an
+   * identifier it still holds is entitled to learn that the asset behind it
+   * has already gone, rather than being told there was never one.
+   *
+   * @param deliveryReference - The identifier the delivery route uses.
+   * @returns The asset, or null when nothing was ever registered for it.
+   */
+  async findByDeliveryReference(
+    deliveryReference: string,
+  ): Promise<FileAssetEntity | null> {
+    return this._repository.findOne({ where: { deliveryReference } });
   }
 
   /**

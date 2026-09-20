@@ -58,6 +58,7 @@ describe('FileAssetService', () => {
       scopeAudience: null,
       objectKey: null,
       objectVersion: null,
+      deliveryReference: null,
       sha256: null,
       byteSize: null,
       declaredContentType: null,
@@ -373,6 +374,41 @@ describe('FileAssetService', () => {
       expect(asset.storage).toBe(FileAssetStorage.PUBLIC_IMAGES);
     });
 
+    // The quarantine key the bytes were hashed under is write-once and
+    // stays; where they are served from now is a separate column — FC-012.
+    it('records how the delivery route addresses a published image', async () => {
+      repository.findOne.mockResolvedValue(
+        assetIn({
+          state: FileAssetState.CLEAN,
+          objectKey: 'test/assets/asset-1',
+        }),
+      );
+
+      const asset = await service.publish(
+        'asset-1',
+        FileAssetStorage.PUBLIC_IMAGES,
+        'cf-image-1',
+      );
+
+      expect(asset.deliveryReference).toBe('cf-image-1');
+      expect(asset.objectKey).toBe('test/assets/asset-1');
+    });
+
+    // A privately delivered asset is addressed by its quarantine key, so
+    // there is nothing to record.
+    it('leaves a privately delivered asset addressed by its key', async () => {
+      repository.findOne.mockResolvedValue(
+        assetIn({
+          state: FileAssetState.CLEAN,
+          objectKey: 'test/assets/asset-1',
+        }),
+      );
+
+      const asset = await service.publish('asset-1');
+
+      expect(asset.deliveryReference).toBeNull();
+    });
+
     it('lets a legacy asset be published without a verdict it never had', async () => {
       repository.findOne.mockResolvedValue(
         assetIn({
@@ -494,6 +530,72 @@ describe('FileAssetService', () => {
       await expect(service.confirmPurged('asset-1')).rejects.toThrow(
         'No purge is outstanding for this asset',
       );
+    });
+  });
+
+  describe('discard', () => {
+    // Neither a refusal nor a withdrawal: somebody uploaded twice, or a
+    // verdict never came back. Recording it as REJECTED would put
+    // outage-era uploads in the same count as infections.
+    it('abandons an upload that will never be published', async () => {
+      repository.findOne.mockResolvedValue(
+        assetIn({
+          state: FileAssetState.CLEAN,
+          storage: FileAssetStorage.QUARANTINE,
+        }),
+      );
+
+      const asset = await service.discard('asset-1', 'Superseded');
+
+      expect(asset.state).toBe(FileAssetState.DELETED);
+      expect(asset.storage).toBe(FileAssetStorage.NONE);
+      expect(asset.revocationReason).toBe('Superseded');
+      expect(asset.withdrawnAt).not.toBeNull();
+    });
+
+    it('abandons one that never got as far as a scanner', async () => {
+      repository.findOne.mockResolvedValue(
+        assetIn({ state: FileAssetState.QUARANTINED }),
+      );
+
+      await expect(
+        service.discard('asset-1', 'Abandoned'),
+      ).resolves.toMatchObject({ state: FileAssetState.DELETED });
+    });
+
+    it('refuses to abandon one that has already gone', async () => {
+      repository.findOne.mockResolvedValue(
+        assetIn({ state: FileAssetState.DELETED }),
+      );
+
+      await expect(service.discard('asset-1', 'Abandoned')).rejects.toThrow(
+        'An asset cannot move from DELETED to DELETED',
+      );
+    });
+  });
+
+  describe('findByDeliveryReference', () => {
+    it('finds the asset behind a delivered image', async () => {
+      repository.findOne.mockResolvedValue(
+        assetIn({ deliveryReference: 'cf-image-1' }),
+      );
+
+      await expect(
+        service.findByDeliveryReference('cf-image-1'),
+      ).resolves.toMatchObject({ deliveryReference: 'cf-image-1' });
+      expect(repository.findOne).toHaveBeenCalledWith({
+        where: { deliveryReference: 'cf-image-1' },
+      });
+    });
+
+    // A caller holding an identifier is entitled to learn that nothing was
+    // ever registered for it, rather than being told an asset exists.
+    it('reports nothing for an image the registry never saw', async () => {
+      repository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.findByDeliveryReference('cf-image-9'),
+      ).resolves.toBeNull();
     });
   });
 

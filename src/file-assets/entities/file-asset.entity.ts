@@ -45,6 +45,14 @@ import { FileAssetStorage } from '../enums/file-asset-storage.enum';
   unique: true,
   where: `"deletedAt" IS NULL AND "objectKey" IS NOT NULL`,
 })
+// One delivered object belongs to one asset. The lookup a delete performs
+// assumes it, and an estate that turned out to contain a Cloudflare
+// identifier registered twice would be a pair of rows disagreeing about
+// whether a purge is owed for the same bytes.
+@Index('UX_file_asset_delivery_reference', ['deliveryReference'], {
+  unique: true,
+  where: `"deliveryReference" IS NOT NULL`,
+})
 @Index('IDX_file_asset_state_kind', ['state', 'kind'])
 @Index('IDX_file_asset_owner', ['ownerUserId'])
 @Index('IDX_file_asset_community', ['communityId'])
@@ -151,6 +159,14 @@ export class FileAssetEntity {
    *
    * A key in the quarantine bucket, a Cloudflare Images identifier, or a
    * legacy R2 key. Write-once.
+   *
+   * For anything this application quarantined, this is the quarantine key
+   * and stays the quarantine key even after the asset is published and the
+   * quarantined object deleted. It is the key the bytes behind {@link sha256}
+   * were read from, which is a historical fact rather than a current address,
+   * and it cannot be rewritten to the published one because it is write-once
+   * by design. Where the bytes are served from now is
+   * {@link deliveryReference} — FC-012.
    */
   @ApiProperty({ description: 'The object key or image identifier.' })
   @Column({ type: 'varchar', length: 1024, nullable: true, default: null })
@@ -173,6 +189,28 @@ export class FileAssetEntity {
   @ApiProperty({ description: 'Immutable object version.', nullable: true })
   @Column({ type: 'varchar', length: 255, nullable: true, default: null })
   objectVersion: string | null;
+
+  /**
+   * How the delivery route addresses the object today.
+   *
+   * The Cloudflare Images identifier for anything on a public route, and null
+   * for anything still in quarantine, which the delivery endpoint addresses
+   * by {@link objectKey} instead.
+   *
+   * Not write-once, and not the same question as {@link objectKey}. An asset
+   * that this application quarantined keeps the quarantine key it was hashed
+   * under for ever, and gains one of these when it is published; a legacy row
+   * that was already on Cloudflare when the registry was built has the same
+   * value in both, because for those two there never was a quarantine key.
+   * One column answers "what has to be deleted to withdraw this" for both,
+   * which is what W10's purge needs and what a replacement needs today.
+   */
+  @ApiProperty({
+    description: 'How the delivery route addresses the object.',
+    nullable: true,
+  })
+  @Column({ type: 'varchar', length: 255, nullable: true, default: null })
+  deliveryReference: string | null;
 
   /** The SHA-256 of the stored bytes, lowercase hexadecimal. Write-once. */
   @ApiProperty({ description: 'SHA-256 of the stored bytes.', nullable: true })
