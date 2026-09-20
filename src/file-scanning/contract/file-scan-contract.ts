@@ -20,7 +20,7 @@
  */
 
 /** The version of the message shapes declared in this file. */
-export const FILE_SCAN_CONTRACT_VERSION = 1;
+export const FILE_SCAN_CONTRACT_VERSION = 2;
 
 /**
  * Every contract version this build understands.
@@ -29,8 +29,14 @@ export const FILE_SCAN_CONTRACT_VERSION = 1;
  * list, rather than running against a shape it half-understands — ADR-0006
  * decision 3. A list rather than a single number so that a rollout can
  * support two versions at once while the other side catches up.
+ *
+ * **Version 1 is not on it.** Version 2 added `declaredContentType` to the
+ * request, and a version 1 message carries no declaration at all — so
+ * accepting one would mean scanning bytes with nothing to check them against,
+ * which is the whole of what ADR-0020 added. Nothing has ever been deployed,
+ * so no version 1 message exists anywhere to be refused.
  */
-export const SUPPORTED_FILE_SCAN_CONTRACT_VERSIONS: readonly number[] = [1];
+export const SUPPORTED_FILE_SCAN_CONTRACT_VERSIONS: readonly number[] = [2];
 
 /** The queue the backend asks for a scan on. */
 export const FILE_SCAN_REQUEST_QUEUE = 'file-scan';
@@ -45,14 +51,14 @@ export const FILE_SCAN_REQUEST_JOB = 'scan-asset';
 export const FILE_SCAN_VERDICT_JOB = 'record-verdict';
 
 /**
- * The SHA-256 of `__fixtures__/file-scan-contract-v1.json`, as lowercase hex.
+ * The SHA-256 of `__fixtures__/file-scan-contract-v2.json`, as lowercase hex.
  *
  * The one value that keeps the two copies of this file honest. It is checked
  * by a test in each repository against the bytes of that repository's own
  * fixture.
  */
 export const FILE_SCAN_CONTRACT_FIXTURE_DIGEST =
-  '7ebcbeefa64dffd534f27e55bc09c9d02c0a491769a1f9f970528e75bcc033d6';
+  'ad169f92641c4b8ea5e4f4f81fcf01244d7078f17cc182dd94de73a80232c019';
 
 /**
  * What a scan attempt concluded.
@@ -85,6 +91,8 @@ export const SCAN_REJECTION_CODES = [
   'UNSUPPORTED_PAYLOAD',
   /** The object named by the message is not in quarantine. */
   'OBJECT_MISSING',
+  /** The bytes are not the kind of thing the upload said they were. */
+  'CONTENT_TYPE_MISMATCH',
   /** Attempts were retried until the budget ran out and none answered. */
   'RETRY_BUDGET_EXHAUSTED',
 ] as const;
@@ -110,6 +118,20 @@ export interface ScanRequestMessage {
   readonly objectVersion: string | null;
   /** The SHA-256 the registry recorded when the bytes were stored. */
   readonly expectedSha256: string;
+  /**
+   * The media type the upload claimed these bytes were.
+   *
+   * Required, lowercase and without parameters. The registry stores whatever
+   * the uploader's browser said, which is neither of those things and is not
+   * to be trusted either; the backend normalises it through one table before
+   * it is sent, so that a claim reaching the worker is in one spelling and
+   * can be compared with what the bytes look like — ADR-0020.
+   *
+   * There is no null. An asset whose type nobody declared cannot have its
+   * claim checked, and rather than let the check quietly not apply, the
+   * backend refuses to queue it.
+   */
+  readonly declaredContentType: string;
   /** Which scanning policy applies. */
   readonly policyVersion: number;
   /** The rescan campaign this belongs to, when it belongs to one. */
@@ -183,6 +205,16 @@ const UUID_PATTERN =
 
 /** A SHA-256 as sixty-four lowercase hexadecimal characters. */
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
+
+/**
+ * A media type, lowercase and bare.
+ *
+ * No parameters, no uppercase and no wildcards: `text/csv` and not
+ * `TEXT/CSV; charset=utf-8`. The backend does that reduction, and refusing
+ * anything else here is what makes it a contract rather than a convention.
+ */
+const MEDIA_TYPE_PATTERN =
+  /^[a-z0-9][a-z0-9!#$&^_.+-]{0,62}\/[a-z0-9][a-z0-9!#$&^_.+-]{0,62}$/;
 
 /** An ISO 8601 instant in UTC, to millisecond precision. */
 const INSTANT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
@@ -372,6 +404,11 @@ export function parseScanRequestMessage(value: unknown): ScanRequestMessage {
     objectKey: readText(source, 'objectKey', MAX_OBJECT_KEY_LENGTH),
     objectVersion: readNullableText(source, 'objectVersion', MAX_LABEL_LENGTH),
     expectedSha256: readPattern(source, 'expectedSha256', SHA256_PATTERN),
+    declaredContentType: readPattern(
+      source,
+      'declaredContentType',
+      MEDIA_TYPE_PATTERN,
+    ),
     policyVersion: readCount(source, 'policyVersion'),
     campaignId:
       source.campaignId === null

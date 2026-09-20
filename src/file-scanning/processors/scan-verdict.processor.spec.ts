@@ -14,7 +14,7 @@ const FIXTURE = JSON.parse(
       '..',
       'contract',
       '__fixtures__',
-      'file-scan-contract-v1.json',
+      'file-scan-contract-v2.json',
     ),
     'utf8',
   ),

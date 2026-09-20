@@ -16,7 +16,7 @@ import {
 const FIXTURE_PATH = join(
   __dirname,
   '__fixtures__',
-  'file-scan-contract-v1.json',
+  'file-scan-contract-v2.json',
 );
 
 const FIXTURE_BYTES = readFileSync(FIXTURE_PATH);
@@ -122,6 +122,36 @@ describe('the file scan contract', () => {
         'expectedSha256',
       ],
       ['a short hash', { expectedSha256: 'a'.repeat(63) }, 'expectedSha256'],
+      [
+        'a declared type that is absent',
+        { declaredContentType: undefined },
+        'declaredContentType',
+      ],
+      [
+        'a declared type that is null',
+        { declaredContentType: null },
+        'declaredContentType',
+      ],
+      [
+        'a declared type in capitals',
+        { declaredContentType: 'Text/CSV' },
+        'declaredContentType',
+      ],
+      [
+        'a declared type carrying a parameter',
+        { declaredContentType: 'text/csv; charset=utf-8' },
+        'declaredContentType',
+      ],
+      [
+        'a declared type with no subtype',
+        { declaredContentType: 'text' },
+        'declaredContentType',
+      ],
+      [
+        'a declared type that is a wildcard',
+        { declaredContentType: 'image/*' },
+        'declaredContentType',
+      ],
       ['a negative policy version', { policyVersion: -1 }, 'policyVersion'],
       ['a fractional policy version', { policyVersion: 1.5 }, 'policyVersion'],
       ['a campaign that is not a UUID', { campaignId: 'nope' }, 'campaignId'],
@@ -159,6 +189,7 @@ describe('the file scan contract', () => {
       expect(Object.keys(FIXTURE.request).sort()).toEqual([
         'assetId',
         'campaignId',
+        'declaredContentType',
         'expectedSha256',
         'objectKey',
         'objectVersion',
@@ -166,6 +197,16 @@ describe('the file scan contract', () => {
         'schemaVersion',
         'traceId',
       ]);
+    });
+
+    it('refuses a version 1 message outright', () => {
+      // Version 1 carried no declared type, so a worker accepting one would
+      // be scanning bytes with nothing to check them against. Nothing has
+      // ever been deployed, so this refuses a message that does not exist —
+      // which is the point at which it costs nothing to refuse it.
+      expect(() =>
+        parseScanRequestMessage(request({ schemaVersion: 1 })),
+      ).toThrow('File scan contract violated at: schemaVersion');
     });
   });
 
@@ -178,6 +219,16 @@ describe('the file scan contract', () => {
         );
       },
     );
+
+    it('accepts a refusal for bytes that were not what was declared', () => {
+      const parsed = parseScanVerdictMessage(
+        verdict('rejected', { rejectionCode: 'CONTENT_TYPE_MISMATCH' }),
+      );
+
+      expect(parsed).toEqual(
+        expect.objectContaining({ rejectionCode: 'CONTENT_TYPE_MISMATCH' }),
+      );
+    });
 
     it('accepts a verdict from a scanner that named no versions', () => {
       const parsed = parseScanVerdictMessage(
@@ -195,7 +246,12 @@ describe('the file scan contract', () => {
     it.each([
       [
         'an unsupported version',
-        verdict('clean', { schemaVersion: 2 }),
+        verdict('clean', { schemaVersion: 99 }),
+        'schemaVersion',
+      ],
+      [
+        'the version before this one',
+        verdict('clean', { schemaVersion: 1 }),
         'schemaVersion',
       ],
       ['an unknown outcome', verdict('clean', { outcome: 'MAYBE' }), 'outcome'],
