@@ -7,23 +7,45 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import axios from 'axios';
-import * as Cloudmersive from 'cloudmersive-virus-api-client';
 import FormData from 'form-data';
 
-import { FILE_REJECTED_BY_SCANNER_MESSAGE } from '../constants/file-rejection.constants';
 import {
   SAFE_FILENAME_PATTERN,
   UNSAFE_FILENAME_PATTERN,
 } from '../constants/regex-patterns.constants';
 import { SecretsService } from '../secrets/secrets.service';
-import { ensureError, stringifyError } from './error.utility';
+import { stringifyError } from './error.utility';
+
+/** One cleared picture, on its way to Cloudflare Images. */
+export interface PublishImageInput {
+  /** The person the image is recorded under, when one is known. */
+  readonly userId: string | null;
+  /** The bytes, read back out of quarantine. */
+  readonly buffer: Buffer;
+  /** The filename as uploaded, sanitised again here. */
+  readonly filename: string | null;
+  /** What reading the bytes found the image to be. */
+  readonly contentType: string | null;
+  /** What kind of thing it is, as Cloudflare records it. */
+  readonly entityType: string | null;
+  /** What it belongs to, as Cloudflare records it. */
+  readonly entityId: string | null;
+}
+
+/**
+ * What a file with no usable name is called in Cloudflare.
+ *
+ * A filename is user-supplied text and a missing one is ordinary: nothing
+ * about an image needs it, and the registry keeps the original separately
+ * for the features that show it back.
+ */
+const FALLBACK_IMAGE_FILENAME = 'upload';
 
 @Injectable()
 export class ImageUploadsService {
   private readonly _logger = new Logger(ImageUploadsService.name);
   private readonly _bucketName: string;
   private readonly _environment: string;
-  private cloudmersiveApiKey: string;
   private cloudflareImagesAccountId: string;
   private cloudflareImagesApiKey: string;
 
@@ -57,7 +79,7 @@ export class ImageUploadsService {
   /**
    * Internal initialisation method that fetches secrets from AWS.
    *
-   * @throws BadRequestException if the Cloudflare R2 or Cloudmersive secrets are missing.
+   * @throws BadRequestException if the Cloudflare R2 secrets are missing.
    * @returns A promise that resolves when initialisation is complete.
    */
   private async init() {
@@ -67,7 +89,6 @@ export class ImageUploadsService {
 
     const errorMsgMissingCloudflareR2 =
       'Missing Cloudflare R2 access key or secret';
-    const errorMsgMissingCloudmersiveApiKey = 'Missing Cloudmersive API key';
 
     if (!secretObject) {
       throw new BadRequestException(errorMsgMissingCloudflareR2);
@@ -81,89 +102,16 @@ export class ImageUploadsService {
       throw new BadRequestException(errorMsgMissingCloudflareR2);
     }
 
-    if (!secretObject.cloudmersiveApiKey) {
-      throw new BadRequestException(errorMsgMissingCloudmersiveApiKey);
-    }
-
     // Set the variables from the AWS Secrets object
-    this.cloudmersiveApiKey = secretObject.cloudmersiveApiKey;
     this.cloudflareImagesAccountId = secretObject.cloudflareImagesAccountId;
     this.cloudflareImagesApiKey = secretObject.cloudflareImagesApiKey;
-  }
-
-  /**
-   * Scan a file buffer for viruses using the Cloudmersive Scan API.
-   *
-   * @param fileBuffer - The buffer containing the raw file data to scan.
-   * @throws BadRequestException if a virus is detected or the scan fails.
-   * @returns A promise that resolves if the file is clean.
-   */
-  private async scanFileForViruses(fileBuffer: Buffer): Promise<void> {
-    this._logger.debug(
-      `[scanFileForViruses] Starting virus scan - BufferSize: ${fileBuffer.length} bytes`,
-    );
-
-    const apiClient = Cloudmersive.ApiClient.instance;
-
-    const apiKey = apiClient.authentications['Apikey'];
-    apiKey.apiKey = this.cloudmersiveApiKey;
-
-    const virusApi = new Cloudmersive.ScanApi();
-
-    try {
-      const scanResult = await new Promise<Cloudmersive.VirusScanResult>(
-        (resolve, reject) => {
-          try {
-            virusApi.scanFile(
-              fileBuffer,
-              (error: unknown, data: Cloudmersive.VirusScanResult) => {
-                if (error) {
-                  reject(ensureError(error));
-                } else {
-                  resolve(data);
-                }
-              },
-            );
-          } catch (error: unknown) {
-            reject(ensureError(error));
-          }
-        },
-      );
-
-      if (scanResult.FoundViruses && scanResult.FoundViruses.length > 0) {
-        const virusNames = scanResult.FoundViruses.map(
-          (v: Cloudmersive.VirusFound) => v.VirusName,
-        ).join(', ');
-
-        // The names go to the log and no further. Telling an uploader which
-        // signature matched tells somebody probing the scanner exactly what
-        // gets through and what does not, which is the one piece of
-        // information a person uploading a file has no use for and a person
-        // testing the scanner has every use for. R24: generic rejection to the
-        // user, scanner detail to administrators.
-        this._logger.error(
-          `[scanFileForViruses] Viruses detected: ${virusNames}`,
-        );
-        throw new BadRequestException(FILE_REJECTED_BY_SCANNER_MESSAGE);
-      }
-
-      this._logger.debug(
-        '[scanFileForViruses] Virus scan passed - No threats found',
-      );
-    } catch (error: unknown) {
-      this._logger.error(
-        `[scanFileForViruses] Virus scan failed - Error: ${(error as Error).message}`,
-        (error as Error).stack,
-      );
-      throw error;
-    }
   }
 
   /**
    * Upload an image to Cloudflare R2 bucket.
    *
    * **Currently unused.** Every upload the site accepts goes to Cloudflare
-   * Images through {@link uploadImageToCloudflareImages}; the R2 bucket now
+   * Images through {@link publishImageToCloudflareImages}; the R2 bucket now
    * only serves Character portraits stored before that move. Kept because
    * document uploads are a likely future feature and Cloudflare Images cannot
    * serve a PDF.
@@ -190,7 +138,7 @@ export class ImageUploadsService {
     );
 
     try {
-      const { fileBuffer, safeFileName } = await this.validateAndSanitiseFile(
+      const { fileBuffer, safeFileName } = this.validateAndSanitiseFile(
         userId,
         file,
       );
@@ -276,41 +224,50 @@ export class ImageUploadsService {
   }
 
   /**
-   * Upload an image to the Cloudflare Images service.
+   * Publishes cleared bytes to the Cloudflare Images service.
    *
-   * @param userId - The ID of the uploading user.
-   * @param file - The image file to upload.
-   * @param entityType - Optional category for the image (e.g., 'user', 'character').
-   * @param entityId - Optional ID of the related entity.
+   * **This is publication, not upload.** Since FC-012 nothing reaches
+   * Cloudflare until a scanner has cleared it and the registry has been
+   * moved to `AVAILABLE`, so what arrives here is a buffer read back out of
+   * quarantine rather than a file off a request. That is the whole of the
+   * difference and it is why the parameter is no longer a Multer file: by
+   * this point the request that carried it finished minutes ago, in another
+   * process.
+   *
+   * Nothing is validated here. The bytes were checked against the slot's
+   * rules at ingress, hashed, quarantined and scanned; re-deciding any of
+   * that now would be a second opinion formed with less evidence.
+   *
+   * @param input - The bytes, and what Cloudflare records them against.
    * @returns A promise that resolves to the unique Cloudflare Image ID.
    */
-  async uploadImageToCloudflareImages(
-    userId: string,
-    file: Express.Multer.File,
-    entityType?: string,
-    entityId?: string,
-  ) {
+  async publishImageToCloudflareImages(
+    input: PublishImageInput,
+  ): Promise<string> {
+    const userId = input.userId ?? 'unknown';
+    const safeFileName = this.sanitiseFilename(input.filename);
+
     this._logger.debug(
-      `[uploadImageToCloudflareImages] Starting upload - UserId: ${userId}, EntityType: ${entityType || 'none'}, EntityId: ${entityId || 'none'}, FileName: ${file?.originalname}`,
+      `[publishImageToCloudflareImages] Starting publication - UserId: ${userId}, EntityType: ${input.entityType || 'none'}, EntityId: ${input.entityId || 'none'}, FileName: ${safeFileName}`,
     );
 
     const errorMsgFailedUpload = 'Failed to upload image to Cloudflare Images';
-    const { fileBuffer, safeFileName } = await this.validateAndSanitiseFile(
-      userId,
-      file,
-    );
 
     // Create a FormData instance and append the file
     const formData = new FormData();
-    formData.append('file', fileBuffer, {
+    formData.append('file', input.buffer, {
       filename: safeFileName,
-      contentType: file.mimetype,
+      contentType: input.contentType ?? 'application/octet-stream',
     });
 
-    const customId = this.buildCloudflareCustomId(userId, entityType, entityId);
+    const customId = this.buildCloudflareCustomId(
+      userId,
+      input.entityType ?? undefined,
+      input.entityId ?? undefined,
+    );
 
     this._logger.debug(
-      `[uploadImageToCloudflareImages] Generated custom ID: ${customId}`,
+      `[publishImageToCloudflareImages] Generated custom ID: ${customId}`,
     );
 
     // Append the custom ID
@@ -322,14 +279,14 @@ export class ImageUploadsService {
       originalFileName: safeFileName,
       env: this._environment,
       uploadedAt: new Date().toISOString(),
-      ...(entityType && { entityType }),
-      ...(entityId && { entityId }),
+      ...(input.entityType && { entityType: input.entityType }),
+      ...(input.entityId && { entityId: input.entityId }),
     };
 
     formData.append('metadata', JSON.stringify(metadata));
 
     this._logger.debug(
-      `[uploadImageToCloudflareImages] Metadata: ${JSON.stringify(metadata)}`,
+      `[publishImageToCloudflareImages] Metadata: ${JSON.stringify(metadata)}`,
     );
 
     try {
@@ -351,7 +308,7 @@ export class ImageUploadsService {
       );
 
       this._logger.log(
-        `[uploadImageToCloudflareImages] Successfully uploaded - ImageId: ${imageId}`,
+        `[publishImageToCloudflareImages] Successfully published - ImageId: ${imageId}`,
       );
 
       return imageId;
@@ -361,7 +318,7 @@ export class ImageUploadsService {
       const errorDetails = this.getCloudflareUploadErrorDetails(error);
 
       this._logger.error(
-        `[uploadImageToCloudflareImages] Upload failed - Error: ${errorMessage}`,
+        `[publishImageToCloudflareImages] Publication failed - Error: ${errorMessage}`,
         errorDetails,
       );
       throw new BadRequestException(errorMsgFailedUpload);
@@ -407,7 +364,7 @@ export class ImageUploadsService {
   ): string {
     if (!response || typeof response !== 'object') {
       this._logger.error(
-        '[uploadImageToCloudflareImages] Response is missing or invalid',
+        '[publishImageToCloudflareImages] Response is missing or invalid',
       );
       throw new BadRequestException(errorMsgFailedUpload);
     }
@@ -415,7 +372,7 @@ export class ImageUploadsService {
     const status = (response as { status?: unknown }).status;
     if (status !== 200) {
       this._logger.error(
-        `[uploadImageToCloudflareImages] Upload failed with status ${stringifyError(status)}`,
+        `[publishImageToCloudflareImages] Upload failed with status ${stringifyError(status)}`,
       );
 
       throw new BadRequestException(errorMsgFailedUpload);
@@ -424,14 +381,14 @@ export class ImageUploadsService {
     const data = (response as { data?: any }).data;
     if (!data) {
       this._logger.error(
-        '[uploadImageToCloudflareImages] Response data is missing',
+        '[publishImageToCloudflareImages] Response data is missing',
       );
       throw new BadRequestException(errorMsgFailedUpload);
     }
 
     if (!data.result) {
       this._logger.error(
-        '[uploadImageToCloudflareImages] Response result is missing',
+        '[publishImageToCloudflareImages] Response result is missing',
       );
       throw new BadRequestException(errorMsgFailedUpload);
     }
@@ -439,7 +396,7 @@ export class ImageUploadsService {
     const id = data.result.id as unknown;
     if (typeof id !== 'string' || id.length === 0) {
       this._logger.error(
-        '[uploadImageToCloudflareImages] Response result ID is missing',
+        '[publishImageToCloudflareImages] Response result ID is missing',
       );
       throw new BadRequestException(errorMsgFailedUpload);
     }
@@ -494,19 +451,30 @@ export class ImageUploadsService {
   }
 
   /**
-   * Validates and sanitises a file before upload.
+   * Checks an uploaded file over and gives its name a safe spelling.
    *
-   * Checks for valid mimetype, file size, virus presence, and sanitises the filename.
+   * Everything a request can establish about a file without looking at what
+   * the bytes are: that there is a user, that there is a file, that its
+   * claimed type is one of the three the site accepts, that it is within the
+   * configured ceiling and that its name can be written down. What the bytes
+   * actually are is decided by the image reader at ingress and by the
+   * scanner afterwards.
+   *
+   * **It no longer scans.** The synchronous Cloudmersive call that used to
+   * sit at the end of this was removed with FC-012: ADR-0005 replaced that
+   * engine with ClamAV in the worker, and a scan performed here looked at a
+   * buffer in memory, left no durable record, and cleared bytes that were
+   * then stored separately — which is the gap the registry exists to close.
    *
    * @param userId - The ID of the user owning the file.
    * @param file - The Multer file object to validate.
-   * @returns A promise that resolves to an object containing the cleaned buffer and safe filename.
-   * @throws BadRequestException if the file is invalid, too large, or infected.
+   * @returns The bytes and a filename safe to record.
+   * @throws BadRequestException if the file is invalid or too large.
    */
-  private async validateAndSanitiseFile(
+  validateAndSanitiseFile(
     userId: string,
     file: Express.Multer.File,
-  ): Promise<{ fileBuffer: Buffer; safeFileName: string }> {
+  ): { fileBuffer: Buffer; safeFileName: string } {
     this._logger.debug(
       `[validateAndSanitiseFile] Starting validation - UserId: ${userId}, FileName: ${file?.originalname}, FileSize: ${file?.size} bytes, MimeType: ${file?.mimetype}`,
     );
@@ -565,9 +533,6 @@ export class ImageUploadsService {
       `[validateAndSanitiseFile] File structure validated - BufferSize: ${fileBuffer.length} bytes`,
     );
 
-    // Scan the file for viruses
-    await this.scanFileForViruses(fileBuffer);
-
     // Sanitize the filename using the SAFE_FILENAME_PATTERN
     const originalFileName = file.filename ? file.filename : file.originalname;
     const safeFileName = originalFileName.replaceAll(
@@ -587,5 +552,31 @@ export class ImageUploadsService {
     );
 
     return { fileBuffer, safeFileName };
+  }
+
+  /**
+   * Gives a filename a spelling that is safe to send anywhere.
+   *
+   * The same substitution {@link validateAndSanitiseFile} applies, done
+   * again at publication rather than carried across from ingress. What the
+   * registry stored is the name as uploaded, deliberately — it is evidence
+   * of what somebody sent — so the sanitised form is derived when it is
+   * needed rather than stored beside it and trusted later.
+   *
+   * @param filename - The filename as uploaded, when there was one.
+   * @returns A filename made of characters the pattern allows.
+   */
+  private sanitiseFilename(filename: string | null): string {
+    if (filename === null || filename.length === 0) {
+      return FALLBACK_IMAGE_FILENAME;
+    }
+
+    // No second check afterwards. UNSAFE_FILENAME_PATTERN is the exact
+    // complement of SAFE_FILENAME_PATTERN, so a substitution that replaces
+    // every character matching the first cannot leave one that fails the
+    // second; a check here would be an unreachable branch pretending to be
+    // a safeguard. The two patterns are defined next to each other for
+    // precisely this reason.
+    return filename.replaceAll(UNSAFE_FILENAME_PATTERN, '_');
   }
 }

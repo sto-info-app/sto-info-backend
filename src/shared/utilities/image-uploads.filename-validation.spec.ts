@@ -5,7 +5,6 @@ describe('ImageUploadsService SAFE_FILENAME_PATTERN branch', () => {
     jest.resetModules();
 
     const mockS3Send = jest.fn<(...args: any[]) => Promise<any>>();
-    const mockScanFile = jest.fn<(...args: any[]) => any>();
 
     jest.doMock('../constants/regex-patterns.constants', () => {
       const actual: typeof import('../constants/regex-patterns.constants') =
@@ -31,23 +30,6 @@ describe('ImageUploadsService SAFE_FILENAME_PATTERN branch', () => {
 
     jest.doMock('axios', () => ({}));
 
-    jest.doMock('cloudmersive-virus-api-client', () => {
-      const ApiClient = {
-        instance: {
-          authentications: {
-            Apikey: { apiKey: '' },
-          },
-        },
-      };
-
-      return {
-        ScanApi: jest.fn().mockImplementation(() => ({
-          scanFile: mockScanFile,
-        })),
-        ApiClient,
-      };
-    });
-
     const { Test } = await import('@nestjs/testing');
     const { ConfigService } = await import('@nestjs/config');
     const { SecretsService } = await import('../secrets/secrets.service');
@@ -63,13 +45,6 @@ describe('ImageUploadsService SAFE_FILENAME_PATTERN branch', () => {
     process.env.MAX_IMAGE_SIZE_IN_BYTES = '1048576';
     process.env.CLOUDFLARE_CDN_ROOT_URL = 'https://cdn.local';
 
-    mockScanFile.mockImplementation(
-      (
-        _buf: unknown,
-        cb: (err: unknown, data: { FoundViruses: string[] }) => void,
-      ) => cb(null, { FoundViruses: [] }),
-    );
-
     const moduleRef = await Test.createTestingModule({
       providers: [
         ImageUploadsService,
@@ -81,7 +56,6 @@ describe('ImageUploadsService SAFE_FILENAME_PATTERN branch', () => {
               .mockResolvedValue({
                 cloudflareR2AccessKey: 'key',
                 cloudflareR2Secret: 'secret',
-                cloudmersiveApiKey: 'cv-key',
                 cloudflareImagesAccountId: 'acc-id',
                 cloudflareImagesApiKey: 'cf-key',
               }),
