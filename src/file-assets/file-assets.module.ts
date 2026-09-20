@@ -1,3 +1,4 @@
+import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -5,17 +6,29 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { S3Client } from '@aws-sdk/client-s3';
 
 import { FleetModule } from 'src/fleet/fleet.module';
+import { QueueModule } from 'src/shared/queue/queue.module';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
 import { SharedModule } from 'src/shared/shared.module';
 
+import { AssetStatusController } from './asset-status.controller';
+import { FILE_ASSET_PUBLICATION_QUEUE } from './constants/file-asset-publication.constants';
+import { FileAssetPlacementEntity } from './entities/file-asset-placement.entity';
 import { FileAssetEntity } from './entities/file-asset.entity';
 import { FileAssetDeliveryController } from './file-asset-delivery.controller';
+import { AssetPublicationProcessor } from './processors/asset-publication.processor';
+import { AssetPublicationQueueService } from './services/asset-publication-queue.service';
+import { AssetPublicationService } from './services/asset-publication.service';
+import { AssetPublisherRegistry } from './services/asset-publisher.registry';
+import { AssetStatusService } from './services/asset-status.service';
+import { AssetWithdrawalService } from './services/asset-withdrawal.service';
 import { FileAssetDeliveryService } from './services/file-asset-delivery.service';
+import { FileAssetPlacementService } from './services/file-asset-placement.service';
 import { FileAssetService } from './services/file-asset.service';
 import {
   QUARANTINE_S3_CLIENT,
   QuarantineStorageService,
 } from './services/quarantine-storage.service';
+import { StaleUploadSweepService } from './services/stale-upload-sweep.service';
 
 /**
  * The asset registry: what is stored, whether it may be served, and to whom.
@@ -44,13 +57,23 @@ import {
     ConfigModule,
     SharedModule,
     FleetModule,
-    TypeOrmModule.forFeature([FileAssetEntity]),
+    TypeOrmModule.forFeature([FileAssetEntity, FileAssetPlacementEntity]),
+    QueueModule,
+    BullModule.registerQueue({ name: FILE_ASSET_PUBLICATION_QUEUE }),
   ],
-  controllers: [FileAssetDeliveryController],
+  controllers: [FileAssetDeliveryController, AssetStatusController],
   providers: [
     FileAssetService,
     FileAssetDeliveryService,
+    FileAssetPlacementService,
     QuarantineStorageService,
+    AssetPublisherRegistry,
+    AssetPublicationQueueService,
+    AssetPublicationService,
+    AssetPublicationProcessor,
+    AssetWithdrawalService,
+    AssetStatusService,
+    StaleUploadSweepService,
     {
       provide: QUARANTINE_S3_CLIENT,
       useFactory: async (
@@ -78,7 +101,12 @@ import {
   exports: [
     FileAssetService,
     FileAssetDeliveryService,
+    FileAssetPlacementService,
     QuarantineStorageService,
+    AssetPublisherRegistry,
+    AssetPublicationQueueService,
+    AssetWithdrawalService,
+    StaleUploadSweepService,
   ],
 })
 export class FileAssetsModule {}

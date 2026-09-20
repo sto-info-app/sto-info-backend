@@ -9,6 +9,7 @@ import { AuditCleanupService } from './jobs/audit-cleanup/audit-cleanup.service'
 import { AuditLoginAttemptCleanupService } from './jobs/audit-login-attempt-cleanup/audit-login-attempt-cleanup.service';
 import { ContactRequestCleanupService } from './jobs/contact-request-cleanup/contact-request-cleanup.service';
 import { CustomTrackingCleanupService } from './jobs/custom-tracking-cleanup/custom-tracking-cleanup.service';
+import { FileAssetUploadCleanupService } from './jobs/file-asset-upload-cleanup/file-asset-upload-cleanup.service';
 import { SesAuditCleanupService } from './jobs/ses-audit-cleanup/ses-audit-cleanup.service';
 import { UserAccountCleanupService } from './jobs/user-account-cleanup/user-account-cleanup.service';
 
@@ -21,6 +22,7 @@ describe('CronService', () => {
   let sesAuditCleanupService: SesAuditCleanupService;
   let userAccountCleanupService: UserAccountCleanupService;
   let customTrackingCleanupService: CustomTrackingCleanupService;
+  let fileAssetUploadCleanupService: FileAssetUploadCleanupService;
   let loggerLogSpy: jest.SpiedFunction<(...args: any[]) => any>;
   let loggerErrorSpy: jest.SpiedFunction<(...args: any[]) => any>;
 
@@ -42,6 +44,9 @@ describe('CronService', () => {
     > = jest.fn();
     const cleanupCustomTrackingMock: jest.MockedFunction<
       CustomTrackingCleanupService['cleanup']
+    > = jest.fn();
+    const cleanupFileAssetUploadsMock: jest.MockedFunction<
+      FileAssetUploadCleanupService['cleanup']
     > = jest.fn();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -87,6 +92,12 @@ describe('CronService', () => {
             cleanup: cleanupCustomTrackingMock,
           } satisfies Pick<CustomTrackingCleanupService, 'cleanup'>,
         },
+        {
+          provide: FileAssetUploadCleanupService,
+          useValue: {
+            cleanup: cleanupFileAssetUploadsMock,
+          } satisfies Pick<FileAssetUploadCleanupService, 'cleanup'>,
+        },
       ],
     }).compile();
 
@@ -109,6 +120,9 @@ describe('CronService', () => {
     customTrackingCleanupService = module.get<CustomTrackingCleanupService>(
       CustomTrackingCleanupService,
     );
+    fileAssetUploadCleanupService = module.get<FileAssetUploadCleanupService>(
+      FileAssetUploadCleanupService,
+    );
 
     loggerLogSpy = jest
       .spyOn(Logger.prototype, 'log')
@@ -130,7 +144,7 @@ describe('CronService', () => {
 
   describe('dailyMidnightJobs', () => {
     it.each([false, true])(
-      'samples all six jobs and counts attempts even when cleanup fails: %s',
+      'samples all seven jobs and counts attempts even when cleanup fails: %s',
       async fail => {
         const jobs = [
           auditCleanupService,
@@ -139,6 +153,7 @@ describe('CronService', () => {
           sesAuditCleanupService,
           userAccountCleanupService,
           customTrackingCleanupService,
+          fileAssetUploadCleanupService,
         ];
         const labels = [
           'audit-cleanup',
@@ -147,6 +162,7 @@ describe('CronService', () => {
           'ses-audit-cleanup',
           'user-account-cleanup',
           'custom-tracking-cleanup',
+          'file-asset-upload-cleanup',
         ];
         const events: string[] = [];
         jest.spyOn(diagnostics, 'logMemory').mockImplementation(reason => {
@@ -162,7 +178,7 @@ describe('CronService', () => {
         expect(events).toEqual(
           labels.flatMap(label => [label + ':before', label, label + ':after']),
         );
-        expect(diagnostics.recordCronExecution).toHaveBeenCalledTimes(6);
+        expect(diagnostics.recordCronExecution).toHaveBeenCalledTimes(7);
       },
     );
     it('should run all cleanup jobs successfully', async () => {

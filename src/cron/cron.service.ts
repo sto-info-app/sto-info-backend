@@ -7,6 +7,7 @@ import { AuditCleanupService } from './jobs/audit-cleanup/audit-cleanup.service'
 import { AuditLoginAttemptCleanupService } from './jobs/audit-login-attempt-cleanup/audit-login-attempt-cleanup.service';
 import { ContactRequestCleanupService } from './jobs/contact-request-cleanup/contact-request-cleanup.service';
 import { CustomTrackingCleanupService } from './jobs/custom-tracking-cleanup/custom-tracking-cleanup.service';
+import { FileAssetUploadCleanupService } from './jobs/file-asset-upload-cleanup/file-asset-upload-cleanup.service';
 import { SesAuditCleanupService } from './jobs/ses-audit-cleanup/ses-audit-cleanup.service';
 import { UserAccountCleanupService } from './jobs/user-account-cleanup/user-account-cleanup.service';
 
@@ -33,6 +34,7 @@ export class CronService {
     private readonly _sesAuditCleanupService: SesAuditCleanupService,
     private readonly _userAccountCleanupService: UserAccountCleanupService,
     private readonly _customTrackingCleanupService: CustomTrackingCleanupService,
+    private readonly _fileAssetUploadCleanupService: FileAssetUploadCleanupService,
   ) {}
 
   /**
@@ -57,6 +59,7 @@ export class CronService {
       await this.handleSesAuditCleanup();
       await this.handleUserAccountCleanup();
       await this.handleCustomTrackingCleanup();
+      await this.handleFileAssetUploadCleanup();
     } catch (error) {
       this._logger.error('Error running daily midnight jobs:', error);
     }
@@ -179,6 +182,24 @@ export class CronService {
       this._logger.error('Error running custom tracking cleanup job:', error);
     } finally {
       this._memoryDiagnostics.logMemory('custom-tracking-cleanup:after');
+    }
+  }
+
+  /**
+   * Invokes the stale upload sweep and wraps it with start/end log messages.
+   * Errors are logged and swallowed to allow subsequent jobs to proceed.
+   */
+  private async handleFileAssetUploadCleanup() {
+    this._logger.log('Starting file asset upload cleanup job...');
+    this._memoryDiagnostics.recordCronExecution();
+    this._memoryDiagnostics.logMemory('file-asset-upload-cleanup:before');
+    try {
+      await this._fileAssetUploadCleanupService.cleanup();
+      this._logger.log('File asset upload cleanup job completed successfully.');
+    } catch (error) {
+      this._logger.error('Error running file asset upload cleanup job:', error);
+    } finally {
+      this._memoryDiagnostics.logMemory('file-asset-upload-cleanup:after');
     }
   }
 }
