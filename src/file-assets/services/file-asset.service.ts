@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { FleetAudience } from 'src/fleet/enums/fleet-audience.enum';
+import { normaliseMediaType } from 'src/shared/utilities/media-type.utility';
 
 import {
   canTransitionFileAsset,
@@ -120,7 +121,11 @@ export class FileAssetService {
       fleetId: input.fleetId ?? null,
       armadaId: input.armadaId ?? null,
       scopeAudience: input.scopeAudience ?? null,
-      declaredContentType: input.declaredContentType,
+      // One spelling, written once, at the only place an asset is created.
+      // The worker compares this with what the bytes look like, and it can
+      // only do that if `image/jpg` and `image/jpeg` are the same string by
+      // the time it sees them — ADR-0020.
+      declaredContentType: normaliseMediaType(input.declaredContentType),
       originalFilename: input.originalFilename,
       retainUntil: input.retainUntil ?? null,
     });

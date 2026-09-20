@@ -39,11 +39,17 @@ const DELIVERY_ATTEMPTS = 5;
  * The producing half of ADR-0006's contract, and the first thing in this
  * codebase that puts anything on a queue. What it sends is fixed by that
  * record and is worth reading as a list of absences: an asset identifier, an
- * object key the registry built, an object version, a hash, a policy version
- * and two identifiers. **No URL, no bucket, no endpoint, no credentials, no
- * filename and no row of anybody's data.** The worker resolves where to read
- * from out of its own configuration, which is why there is no SSRF surface
- * to argue about rather than a defence against one.
+ * object key the registry built, an object version, a hash, a declared type,
+ * a policy version and two identifiers. **No URL, no bucket, no endpoint, no
+ * credentials, no filename and no row of anybody's data.** The worker
+ * resolves where to read from out of its own configuration, which is why
+ * there is no SSRF surface to argue about rather than a defence against one.
+ *
+ * The declared type is new in contract version 2 and is the registry's
+ * normalised copy, never a header read at the moment of sending. It is a
+ * claim to be checked and not an instruction: the worker compares it with
+ * what the bytes look like and refuses the asset when they disagree —
+ * ADR-0020.
  *
  * The asset is moved to `SCANNING` before the message is sent, and that
  * order is deliberate. It makes a second request for the same asset fail the
@@ -88,6 +94,7 @@ export class ScanRequestProducerService {
       objectKey: asset.objectKey as string,
       objectVersion: asset.objectVersion,
       expectedSha256: asset.sha256 as string,
+      declaredContentType: asset.declaredContentType as string,
       policyVersion: asset.policyVersion,
       campaignId,
       traceId: randomUUID(),
@@ -140,6 +147,21 @@ export class ScanRequestProducerService {
       // cheap and the alternative is a message the worker cannot act on.
       throw new ConflictException(
         `Asset ${asset.id} has no stored object to scan`,
+      );
+    }
+
+    if (asset.declaredContentType === null) {
+      // The worker checks the claim against the bytes, and an asset that
+      // claims nothing cannot have that done for it. Refusing here rather
+      // than sending a message with a null in it keeps the check from
+      // quietly not applying to whichever assets happen to lack one —
+      // ADR-0020.
+      //
+      // The legacy estate FC-008 counted has no declared type, and also no
+      // hash, so it is already refused a line above. Whatever gives those
+      // rows a hash for R26's re-scans has to give them a type as well.
+      throw new ConflictException(
+        `Asset ${asset.id} has no declared content type to check against`,
       );
     }
   }

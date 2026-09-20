@@ -27,6 +27,7 @@ function asset(changes: Partial<FileAssetEntity> = {}): FileAssetEntity {
     objectKey: `local/assets/${ASSET_ID}`,
     objectVersion: null,
     sha256: 'a'.repeat(64),
+    declaredContentType: 'text/csv',
     policyVersion: 1,
     ...changes,
   } as FileAssetEntity;
@@ -74,6 +75,7 @@ describe('ScanRequestProducerService', () => {
           objectKey: `local/assets/${ASSET_ID}`,
           objectVersion: null,
           expectedSha256: 'a'.repeat(64),
+          declaredContentType: 'text/csv',
           policyVersion: 1,
           campaignId: null,
         }),
@@ -90,6 +92,7 @@ describe('ScanRequestProducerService', () => {
       expect(Object.keys(sent() as object).sort()).toEqual([
         'assetId',
         'campaignId',
+        'declaredContentType',
         'expectedSha256',
         'objectKey',
         'objectVersion',
@@ -205,6 +208,18 @@ describe('ScanRequestProducerService', () => {
       await expect(service.requestScan(asset(changes))).rejects.toThrow(
         'has no stored object to scan',
       );
+    });
+
+    it('refuses one that declares no content type', async () => {
+      // The worker checks the claim against the bytes, so an asset with no
+      // claim cannot be checked. Refusing here means the check never
+      // quietly stops applying to a subset of the estate — ADR-0020.
+      await expect(
+        service.requestScan(asset({ declaredContentType: null })),
+      ).rejects.toThrow('has no declared content type to check against');
+
+      expect(add).not.toHaveBeenCalled();
+      expect(markScanning).not.toHaveBeenCalled();
     });
   });
 });
