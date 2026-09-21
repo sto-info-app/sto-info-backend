@@ -10,12 +10,63 @@ import { FleetAuthorisationRevisionService } from '../authorisation/fleet-author
 import { FleetCommunityEntity } from '../entities/fleet-community.entity';
 import { StoArmadaEntity } from '../entities/sto-armada.entity';
 import { FleetAudience } from '../enums/fleet-audience.enum';
+import { FleetDirectorySort } from '../enums/fleet-directory-sort.enum';
+import { FleetDirectoryStatusFilter } from '../enums/fleet-directory-status-filter.enum';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
 import { FleetPlatformService } from './fleet-platform.service';
 import { FleetSlugService } from './fleet-slug.service';
 import { StoArmadaService } from './sto-armada.service';
 import { MAX_REPORTED_DUPLICATES } from './sto-fleet.service';
+
+/** The query-builder methods the directory listing chains. */
+interface MockQueryBuilder {
+  select: jest.Mock;
+  addSelect: jest.Mock;
+  innerJoin: jest.Mock;
+  innerJoinAndSelect: jest.Mock;
+  where: jest.Mock;
+  andWhere: jest.Mock;
+  orderBy: jest.Mock;
+  addOrderBy: jest.Mock;
+  groupBy: jest.Mock;
+  addGroupBy: jest.Mock;
+  skip: jest.Mock;
+  take: jest.Mock;
+  getManyAndCount: jest.Mock;
+  getRawMany: jest.Mock;
+}
+
+/**
+ * Finds the parameters a condition was added with.
+ *
+ * @param builder - The query builder mock.
+ * @param fragment - Part of the SQL the condition contains.
+ * @returns The bound parameters, or undefined when it was never added.
+ */
+function conditionParameters(
+  builder: MockQueryBuilder,
+  fragment: string,
+): Record<string, unknown> | undefined {
+  const call = builder.andWhere.mock.calls.find(([sql]: [unknown]) =>
+    String(sql).includes(fragment),
+  ) as [string, Record<string, unknown>?] | undefined;
+
+  return call?.[1];
+}
+
+/**
+ * Reports whether a condition was added at all.
+ *
+ * @param builder - The query builder mock.
+ * @param fragment - Part of the SQL the condition contains.
+ * @returns True when something matching was added.
+ */
+function askedFor(builder: MockQueryBuilder, fragment: string): boolean {
+  return builder.andWhere.mock.calls.some(([sql]: [unknown]) =>
+    String(sql).includes(fragment),
+  );
+}
 
 describe('StoArmadaService', () => {
   let service: StoArmadaService;
@@ -25,6 +76,7 @@ describe('StoArmadaService', () => {
     count: jest.Mock;
     create: jest.Mock;
     save: jest.Mock;
+    createQueryBuilder: jest.Mock;
   };
   let platformService: { findByIdOrFail: jest.Mock };
   let slugService: {
@@ -56,6 +108,53 @@ describe('StoArmadaService', () => {
 
   /** How many live Armadas already hold the candidate slug. */
   let slugHolders: number;
+
+  /** Every query builder the service asked the repository for, in order. */
+  let builders: MockQueryBuilder[];
+
+  /** What the listing query will answer with. */
+  let listed: StoArmadaEntity[];
+
+  /** How many records the listing query will report in total. */
+  let listedTotal: number;
+
+  /** What the grouped duplicate-count query will answer with. */
+  let countRows: { platformId: string; name: string; total: string }[];
+
+  /**
+   * Builds a self-returning query-builder mock and records it.
+   *
+   * @returns The chainable test double.
+   */
+  const createQueryBuilderMock = (): MockQueryBuilder => {
+    const builder = {} as MockQueryBuilder;
+
+    for (const method of [
+      'select',
+      'addSelect',
+      'innerJoin',
+      'innerJoinAndSelect',
+      'where',
+      'andWhere',
+      'orderBy',
+      'addOrderBy',
+      'groupBy',
+      'addGroupBy',
+      'skip',
+      'take',
+    ] as const) {
+      builder[method] = jest.fn(() => builder);
+    }
+
+    builder.getManyAndCount = jest.fn(() =>
+      Promise.resolve([listed, listedTotal]),
+    );
+    builder.getRawMany = jest.fn(() => Promise.resolve(countRows));
+
+    builders.push(builder);
+
+    return builder;
+  };
 
   const platform = { id: platformId, name: 'Windows' } as PlatformEntity;
 
@@ -96,6 +195,10 @@ describe('StoArmadaService', () => {
   beforeEach(async () => {
     stored = buildArmada();
     found = [];
+    builders = [];
+    listed = [];
+    listedTotal = 0;
+    countRows = [];
     saveFailure = null;
     mintedSlug = 'sol-armada';
     candidateWasTaken = null;
@@ -111,6 +214,7 @@ describe('StoArmadaService', () => {
       save: jest.fn((values: StoArmadaEntity) =>
         saveFailure ? Promise.reject(saveFailure) : Promise.resolve(values),
       ),
+      createQueryBuilder: jest.fn(() => createQueryBuilderMock()),
     };
 
     platformService = {
@@ -636,6 +740,196 @@ describe('StoArmadaService', () => {
       expect(armada.closedAt).toBe(closedAt);
       expect(armadaRepository.save).not.toHaveBeenCalled();
       expect(revisionService.bump).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('findDirectoryPage', () => {
+    /** The listing query, which is always the first one built. */
+    const listing = (): MockQueryBuilder => builders[0];
+
+    /** The grouped count query, built after the page has been read. */
+    const counting = (): MockQueryBuilder => builders[1];
+
+    beforeEach(() => {
+      listed = [buildArmada()];
+      listedTotal = 1;
+      countRows = [{ platformId, name: 'sol armada', total: '1' }];
+    });
+
+    /**
+     * `sto_armada` has no audience column and none was added. An Armada is
+     * seen exactly as far as the Community holding it is, so the audience is
+     * checked where it was declared — which is why the Community is joined
+     * even when nothing on the card needed it.
+     */
+    it('lists an Armada when its Community is public', async () => {
+      await service.findDirectoryPage({});
+
+      expect(
+        conditionParameters(listing(), 'community.visibility'),
+      ).toStrictEqual({ listedAudience: FleetAudience.PUBLIC });
+    });
+
+    it('leaves out the Armadas of a Community that has been erased', async () => {
+      await service.findDirectoryPage({});
+
+      expect(askedFor(listing(), 'community.deletedAt IS NULL')).toBe(true);
+    });
+
+    it('loads the platform and the Community the card names', async () => {
+      await service.findDirectoryPage({});
+
+      expect(listing().innerJoinAndSelect).toHaveBeenCalledWith(
+        'armada.platform',
+        'platform',
+      );
+      expect(listing().innerJoinAndSelect).toHaveBeenCalledWith(
+        'armada.community',
+        'community',
+      );
+    });
+
+    it('hides closed Armadas until they are asked for', async () => {
+      await service.findDirectoryPage({});
+
+      expect(conditionParameters(listing(), 'armada.status')).toStrictEqual({
+        directoryStatus: FleetScopeStatus.ACTIVE,
+      });
+    });
+
+    it('lists the closed ones when a reader is checking a name', async () => {
+      await service.findDirectoryPage({
+        status: FleetDirectoryStatusFilter.CLOSED,
+      });
+
+      expect(conditionParameters(listing(), 'armada.status')).toStrictEqual({
+        directoryStatus: FleetScopeStatus.CLOSED,
+      });
+    });
+
+    it('searches the folded name, keeping the caller’s spaces', async () => {
+      await service.findDirectoryPage({ search: ' SOL' });
+
+      expect(
+        conditionParameters(listing(), 'exactGameNameNormalized LIKE'),
+      ).toStrictEqual({ nameSearch: '% sol%' });
+    });
+
+    it('narrows to one platform', async () => {
+      await service.findDirectoryPage({ platformId });
+
+      expect(
+        conditionParameters(listing(), 'armada.platformId ='),
+      ).toStrictEqual({ platformId });
+    });
+
+    it('orders by the folded name, with a stable tie-break', async () => {
+      await service.findDirectoryPage({});
+
+      expect(listing().orderBy).toHaveBeenCalledWith(
+        'armada.exactGameNameNormalized',
+        'ASC',
+      );
+      expect(listing().addOrderBy).toHaveBeenCalledWith('armada.id', 'ASC');
+    });
+
+    it('orders by registration when asked for the newest', async () => {
+      await service.findDirectoryPage({ sort: FleetDirectorySort.NEWEST });
+
+      expect(listing().orderBy).toHaveBeenCalledWith(
+        'armada.createdAt',
+        'DESC',
+      );
+    });
+
+    it('reads the first page by default', async () => {
+      const page = await service.findDirectoryPage({});
+
+      expect(listing().skip).toHaveBeenCalledWith(0);
+      expect(listing().take).toHaveBeenCalledWith(20);
+      expect(page.page).toBe(1);
+      expect(page.pageSize).toBe(20);
+    });
+
+    it('skips the pages before the one asked for', async () => {
+      await service.findDirectoryPage({ page: 2, pageSize: 5 });
+
+      expect(listing().skip).toHaveBeenCalledWith(5);
+      expect(listing().take).toHaveBeenCalledWith(5);
+    });
+
+    it('reports how many match, not how many were returned', async () => {
+      listedTotal = 12;
+
+      const page = await service.findDirectoryPage({});
+
+      expect(page.total).toBe(12);
+    });
+
+    it('tells each record how many others answer to its name', async () => {
+      listed = [
+        buildArmada(),
+        buildArmada({ id: 'f0000000-0000-4000-8000-00000000000a' }),
+      ];
+      countRows = [{ platformId, name: 'sol armada', total: '2' }];
+
+      const page = await service.findDirectoryPage({});
+
+      expect(page.items.map(entry => entry.duplicateCount)).toStrictEqual([
+        1, 1,
+      ]);
+    });
+
+    it('counts a record with no group as answering for itself', async () => {
+      countRows = [];
+
+      const page = await service.findDirectoryPage({});
+
+      expect(page.items[0].duplicateCount).toBe(0);
+    });
+
+    /**
+     * The count query joins the Community for the audience rule and nothing
+     * else, so it joins without selecting. A count that selected the rows it
+     * was counting would be reading a page in order to throw it away.
+     */
+    it('counts under the same audience rule, without loading anything', async () => {
+      await service.findDirectoryPage({});
+
+      expect(
+        conditionParameters(counting(), 'community.visibility'),
+      ).toStrictEqual({ listedAudience: FleetAudience.PUBLIC });
+      expect(counting().innerJoin).toHaveBeenCalledWith(
+        'armada.community',
+        'community',
+      );
+      expect(counting().innerJoinAndSelect).not.toHaveBeenCalled();
+    });
+
+    it('counts under the lifecycle filter the listing used', async () => {
+      await service.findDirectoryPage({
+        status: FleetDirectoryStatusFilter.ANY,
+      });
+
+      expect(askedFor(counting(), 'armada.status')).toBe(false);
+    });
+
+    it('groups by platform as well as name, the two being one key', async () => {
+      await service.findDirectoryPage({});
+
+      expect(counting().groupBy).toHaveBeenCalledWith('armada.platformId');
+      expect(counting().addGroupBy).toHaveBeenCalledWith(
+        'armada.exactGameNameNormalized',
+      );
+    });
+
+    it('takes no count at all for an empty page', async () => {
+      listed = [];
+
+      const page = await service.findDirectoryPage({});
+
+      expect(page.items).toStrictEqual([]);
+      expect(builders).toHaveLength(1);
     });
   });
 });

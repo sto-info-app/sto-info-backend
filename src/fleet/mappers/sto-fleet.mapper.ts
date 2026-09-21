@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 
+import { StoFleetCardDto } from '../dto/fleet-directory.dto';
 import { FleetDuplicateDto, StoFleetDto } from '../dto/sto-fleet.dto';
 import { StoFleetEntity } from '../entities/sto-fleet.entity';
+import { DirectoryEntry } from '../services/fleet-directory-page.interface';
 import { toPlatformSegment } from '../utilities/platform-segment.utility';
 
 /**
@@ -69,6 +71,42 @@ export class StoFleetMapper {
       platformName: fleet.platform.name,
       lastEffectiveImportAt: fleet.lastEffectiveImportAt,
       status: fleet.status,
+    };
+  }
+
+  /**
+   * Maps a Fleet to the card the directory lists it as.
+   *
+   * Narrower than {@link toDto} and wider than {@link toDuplicateDto}. A
+   * directory card is read by somebody choosing between records rather than
+   * by somebody about to be warned off one, so it keeps the recruitment
+   * posture and the allegiance — which is what makes a Fleet worth clicking
+   * — while still saying nothing about an audience the reader is inside of,
+   * because everything listed here is public by definition.
+   *
+   * @param entry - The Fleet, with its platform and Community loaded, and
+   *   how many other listed records answer to its name.
+   * @returns The directory card.
+   */
+  toCardDto(entry: DirectoryEntry<StoFleetEntity>): StoFleetCardDto {
+    const fleet = entry.record;
+
+    return {
+      id: fleet.id,
+      slug: fleet.slug,
+      status: fleet.status,
+      createdAt: fleet.createdAt,
+      exactGameName: fleet.exactGameName,
+      communityId: fleet.communityId,
+      communityName: fleet.community?.name ?? null,
+      communitySlug: fleet.community?.slug ?? null,
+      platformId: fleet.platformId,
+      platformName: fleet.platform.name,
+      platformSegment: toPlatformSegment(fleet.platform.name),
+      duplicateCount: entry.duplicateCount,
+      recruitmentState: fleet.recruitmentState,
+      allegianceFactionId: fleet.allegianceFactionId,
+      lastEffectiveImportAt: fleet.lastEffectiveImportAt,
     };
   }
 }

@@ -12,16 +12,32 @@ import {
   Not,
   QueryFailedError,
   Repository,
+  SelectQueryBuilder,
 } from 'typeorm';
 
 import { FleetAuthorisationRevisionService } from '../authorisation/fleet-authorisation-revision.service';
 import { CreateStoArmadaDto } from '../dto/create-sto-armada.dto';
+import { StoArmadaDirectoryQueryDto } from '../dto/fleet-directory-query.dto';
 import { UpdateStoArmadaDto } from '../dto/update-sto-armada.dto';
 import { StoArmadaEntity } from '../entities/sto-armada.entity';
 import { FleetAudience } from '../enums/fleet-audience.enum';
+import { FleetDirectorySort } from '../enums/fleet-directory-sort.enum';
+import { FleetDirectoryStatusFilter } from '../enums/fleet-directory-status-filter.enum';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
+import {
+  applyDirectoryStatus,
+  applyExactGameNameSearch,
+  resolveDirectoryPage,
+  resolveDirectoryPageSize,
+  toDuplicateKey,
+} from '../utilities/directory-query.utility';
 import { toNormalisedExactGameName } from '../utilities/exact-game-name.utility';
+import {
+  DirectoryEntry,
+  DirectoryPage,
+  DuplicateCountRow,
+} from './fleet-directory-page.interface';
 import { FleetPlatformService } from './fleet-platform.service';
 import { FleetSlugScope, FleetSlugService } from './fleet-slug.service';
 import { MAX_REPORTED_DUPLICATES } from './sto-fleet.service';
@@ -250,6 +266,52 @@ export class StoArmadaService {
   }
 
   /**
+   * Lists the Armadas anybody may see, with how many share each name.
+   *
+   * ## Who is listed
+   *
+   * Armadas whose **Community** is public. `sto_armada` has no audience
+   * column of its own and none was added: an Armada is seen exactly as far as
+   * the Community holding it is, and the audience is checked where it was
+   * declared. The join is an inner one for the same reason the schema makes
+   * `communityId` `NOT NULL` — an Armada with nobody holding it is not a
+   * record this application knows how to show.
+   *
+   * ## What makes it duplicate-aware
+   *
+   * The same folded-name ordering and the same per-page count as the Fleet
+   * directory. What differs is what the card can say: nothing observes an
+   * Armada, so there is no roster import to be fresh and no freshness sort.
+   * Which Community holds it is the whole of what tells two records apart.
+   *
+   * @param query - Search, filters, ordering and paging.
+   * @returns The page, each record with its duplicate count.
+   */
+  async findDirectoryPage(
+    query: StoArmadaDirectoryQueryDto,
+  ): Promise<DirectoryPage<DirectoryEntry<StoArmadaEntity>>> {
+    const page = resolveDirectoryPage(query.page);
+    const pageSize = resolveDirectoryPageSize(query.pageSize);
+
+    const builder = this.listedArmadasQuery(true);
+
+    this.applyDirectoryFilters(builder, query);
+    this.applyDirectorySort(builder, query.sort);
+
+    const [armadas, total] = await builder
+      .skip((page - 1) * pageSize)
+      .take(pageSize)
+      .getManyAndCount();
+
+    return {
+      items: await this.withDuplicateCounts(armadas, query.status),
+      total,
+      page,
+      pageSize,
+    };
+  }
+
+  /**
    * Changes an Armada's own settings.
    *
    * @param communityId - The Community named in the path.
@@ -349,6 +411,137 @@ export class StoArmadaService {
     this._logger.log(`Armada '${saved.slug}' closed by ${actingUserId}`);
 
     return saved;
+  }
+
+  /**
+   * The Armadas a directory listing may report at all.
+   *
+   * The Community join carries the audience rule rather than merely loading
+   * a name, which is why it is here and not at the call site: a listing that
+   * forgot it would publish every private Community's Armadas.
+   *
+   * @param selecting - True to load the joined rows for mapping, false when
+   *   only the condition is wanted, as the count query needs.
+   * @returns A query restricted to live Armadas in public Communities.
+   */
+  private listedArmadasQuery(
+    selecting: boolean,
+  ): SelectQueryBuilder<StoArmadaEntity> {
+    const builder = this._armadaRepository
+      .createQueryBuilder('armada')
+      .where('armada.deletedAt IS NULL');
+
+    if (selecting) {
+      builder
+        .innerJoinAndSelect('armada.platform', 'platform')
+        .innerJoinAndSelect('armada.community', 'community');
+    } else {
+      builder.innerJoin('armada.community', 'community');
+    }
+
+    return builder
+      .andWhere('community.deletedAt IS NULL')
+      .andWhere('community.visibility = :listedAudience', {
+        listedAudience: FleetAudience.PUBLIC,
+      });
+  }
+
+  /**
+   * Narrows a listing to what the caller asked for.
+   *
+   * @param builder - The query being built.
+   * @param query - What the caller asked for.
+   */
+  private applyDirectoryFilters(
+    builder: SelectQueryBuilder<StoArmadaEntity>,
+    query: StoArmadaDirectoryQueryDto,
+  ): void {
+    applyDirectoryStatus(builder, 'armada', query.status);
+    applyExactGameNameSearch(builder, 'armada', query.search);
+
+    if (query.platformId) {
+      builder.andWhere('armada.platformId = :platformId', {
+        platformId: query.platformId,
+      });
+    }
+  }
+
+  /**
+   * Orders a listing.
+   *
+   * By the folded name rather than the stored one, so two spellings of one
+   * Armada are read together instead of being separated by every capital
+   * letter between them.
+   *
+   * @param builder - The query being built.
+   * @param sort - The ordering asked for, if any.
+   */
+  private applyDirectorySort(
+    builder: SelectQueryBuilder<StoArmadaEntity>,
+    sort?: FleetDirectorySort,
+  ): void {
+    if (sort === FleetDirectorySort.NEWEST) {
+      builder.orderBy('armada.createdAt', 'DESC');
+    } else {
+      builder.orderBy('armada.exactGameNameNormalized', 'ASC');
+    }
+
+    // Stable tie-break, so a page boundary cannot repeat or skip a record.
+    builder.addOrderBy('armada.id', 'ASC');
+  }
+
+  /**
+   * Counts, for each record on a page, how many others answer to its name.
+   *
+   * One grouped query for the whole page, over the same audience and the
+   * same lifecycle filter as the listing, so the number never points at a
+   * record the reader cannot open.
+   *
+   * @param armadas - The records on the page.
+   * @param status - The lifecycle filter the listing used.
+   * @returns Each record, with how many others share its name and platform.
+   */
+  private async withDuplicateCounts(
+    armadas: StoArmadaEntity[],
+    status?: FleetDirectoryStatusFilter,
+  ): Promise<DirectoryEntry<StoArmadaEntity>[]> {
+    if (armadas.length === 0) {
+      return [];
+    }
+
+    const builder = this.listedArmadasQuery(false)
+      .select('armada.platformId', 'platformId')
+      .addSelect('armada.exactGameNameNormalized', 'name')
+      .addSelect('COUNT(*)', 'total')
+      .andWhere('armada.platformId IN (:...platformIds)', {
+        platformIds: [...new Set(armadas.map(armada => armada.platformId))],
+      })
+      .andWhere('armada.exactGameNameNormalized IN (:...names)', {
+        names: [
+          ...new Set(armadas.map(armada => armada.exactGameNameNormalized)),
+        ],
+      })
+      .groupBy('armada.platformId')
+      .addGroupBy('armada.exactGameNameNormalized');
+
+    applyDirectoryStatus(builder, 'armada', status);
+
+    const rows = await builder.getRawMany<DuplicateCountRow>();
+
+    const counts = new Map(
+      rows.map(row => [
+        toDuplicateKey(row.platformId, row.name),
+        Number(row.total),
+      ]),
+    );
+
+    return armadas.map(armada => ({
+      record: armada,
+      duplicateCount:
+        (counts.get(
+          toDuplicateKey(armada.platformId, armada.exactGameNameNormalized),
+        ) ?? 1) - 1,
+    }));
   }
 
   /**

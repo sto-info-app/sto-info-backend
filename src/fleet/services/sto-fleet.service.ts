@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   Logger,
@@ -12,6 +13,7 @@ import {
   Not,
   QueryFailedError,
   Repository,
+  SelectQueryBuilder,
 } from 'typeorm';
 
 import { normaliseToSlug } from 'src/shared/utilities/slug.utility';
@@ -19,12 +21,27 @@ import { normaliseToSlug } from 'src/shared/utilities/slug.utility';
 import { FleetAuthorisationRevisionService } from '../authorisation/fleet-authorisation-revision.service';
 import { CreateStoFleetDto } from '../dto/create-sto-fleet.dto';
 import { CreateUnregisteredFleetDto } from '../dto/create-unregistered-fleet.dto';
+import { StoFleetDirectoryQueryDto } from '../dto/fleet-directory-query.dto';
 import { UpdateStoFleetDto } from '../dto/update-sto-fleet.dto';
 import { StoFleetEntity } from '../entities/sto-fleet.entity';
 import { FleetAudience } from '../enums/fleet-audience.enum';
+import { FleetDirectorySort } from '../enums/fleet-directory-sort.enum';
+import { FleetDirectoryStatusFilter } from '../enums/fleet-directory-status-filter.enum';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
+import {
+  applyDirectoryStatus,
+  applyExactGameNameSearch,
+  resolveDirectoryPage,
+  resolveDirectoryPageSize,
+  toDuplicateKey,
+} from '../utilities/directory-query.utility';
 import { toNormalisedExactGameName } from '../utilities/exact-game-name.utility';
+import {
+  DirectoryEntry,
+  DirectoryPage,
+  DuplicateCountRow,
+} from './fleet-directory-page.interface';
 import { FleetPlatformService } from './fleet-platform.service';
 import {
   FLEET_SLUG_MAX_LENGTH,
@@ -41,6 +58,9 @@ import {
  * than by a longer warning.
  */
 export const MAX_REPORTED_DUPLICATES = 10;
+
+/** One day, for turning the freshness filter's window into an instant. */
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /** Everything the caller is told about a registration that succeeded. */
 export interface RegisteredFleet {
@@ -345,6 +365,69 @@ export class StoFleetService {
   }
 
   /**
+   * Lists the Fleets anybody may see, with how many share each name.
+   *
+   * ## Who is listed
+   *
+   * `PUBLIC` records, whoever is asking, and nothing else. A signed-in
+   * member of a Community does **not** see its private Fleets here, which is
+   * deliberate rather than a simplification: the alternative is a visibility
+   * check per row, and a page of fifty would be fifty authorisation queries
+   * for a list a signed-out visitor can also ask for. A Community's own
+   * Fleets are read through the Community's own routes, where the check is
+   * made once against a scope named in the path.
+   *
+   * Unregistered Fleets are listed, because they are `PUBLIC` and because a
+   * directory stub exists in order to be found. One shows an empty Community
+   * on its card, which is the honest answer: nobody holds it.
+   *
+   * ## What makes it duplicate-aware
+   *
+   * Ordering by the folded name puts records answering to one name together,
+   * and each card says how many others do. The count runs over the same
+   * audience and the same lifecycle filter as the listing itself, so it never
+   * promises a record the reader cannot then open — FC-013's third acceptance
+   * criterion asks for records to be *distinguishable*, and a count pointing
+   * at something invisible would be the opposite.
+   *
+   * @param query - Search, filters, ordering and paging.
+   * @returns The page, each record with its duplicate count.
+   * @throws BadRequestException when the roster filters contradict.
+   */
+  async findDirectoryPage(
+    query: StoFleetDirectoryQueryDto,
+  ): Promise<DirectoryPage<DirectoryEntry<StoFleetEntity>>> {
+    if (query.withRoster === false && query.freshWithinDays !== undefined) {
+      throw new BadRequestException(
+        'Asking for Fleets with no roster and a recent one at the same ' +
+          'time matches nothing. Drop one of the two.',
+      );
+    }
+
+    const page = resolveDirectoryPage(query.page);
+    const pageSize = resolveDirectoryPageSize(query.pageSize);
+
+    const builder = this.listedFleetsQuery()
+      .innerJoinAndSelect('fleet.platform', 'platform')
+      .leftJoinAndSelect('fleet.community', 'community');
+
+    this.applyDirectoryFilters(builder, query);
+    this.applyDirectorySort(builder, query.sort);
+
+    const [fleets, total] = await builder
+      .skip((page - 1) * pageSize)
+      .take(pageSize)
+      .getManyAndCount();
+
+    return {
+      items: await this.withDuplicateCounts(fleets, query.status),
+      total,
+      page,
+      pageSize,
+    };
+  }
+
+  /**
    * Changes a Fleet's own settings.
    *
    * @param communityId - The Community named in the path.
@@ -450,6 +533,162 @@ export class StoFleetService {
     this._logger.log(`Fleet '${saved.slug}' closed by ${actingUserId}`);
 
     return saved;
+  }
+
+  /**
+   * The Fleets a directory listing may report at all.
+   *
+   * The audience rule and nothing else, shared by the listing and the count
+   * behind it so the two cannot drift: a count taken over a wider set than
+   * the list would tell a reader about records the list is hiding from them.
+   *
+   * @returns A query restricted to live, public Fleets.
+   */
+  private listedFleetsQuery(): SelectQueryBuilder<StoFleetEntity> {
+    return this._fleetRepository
+      .createQueryBuilder('fleet')
+      .where('fleet.deletedAt IS NULL')
+      .andWhere('fleet.visibility = :listedAudience', {
+        listedAudience: FleetAudience.PUBLIC,
+      });
+  }
+
+  /**
+   * Narrows a listing to what the caller asked for.
+   *
+   * An allegiance filter excludes a Fleet whose faction was never given
+   * rather than matching it. The column is nullable precisely because an
+   * allegiance is never guessed, and a filter that treated "unknown" as
+   * "matches" would be guessing on the reader's behalf.
+   *
+   * @param builder - The query being built.
+   * @param query - What the caller asked for.
+   */
+  private applyDirectoryFilters(
+    builder: SelectQueryBuilder<StoFleetEntity>,
+    query: StoFleetDirectoryQueryDto,
+  ): void {
+    applyDirectoryStatus(builder, 'fleet', query.status);
+    applyExactGameNameSearch(builder, 'fleet', query.search);
+
+    if (query.platformId) {
+      builder.andWhere('fleet.platformId = :platformId', {
+        platformId: query.platformId,
+      });
+    }
+
+    if (query.recruitmentState) {
+      builder.andWhere('fleet.recruitmentState = :recruitmentState', {
+        recruitmentState: query.recruitmentState,
+      });
+    }
+
+    if (query.allegianceFactionId) {
+      builder.andWhere('fleet.allegianceFactionId = :allegianceFactionId', {
+        allegianceFactionId: query.allegianceFactionId,
+      });
+    }
+
+    if (query.withRoster === true) {
+      builder.andWhere('fleet.lastEffectiveImportAt IS NOT NULL');
+    }
+
+    if (query.withRoster === false) {
+      builder.andWhere('fleet.lastEffectiveImportAt IS NULL');
+    }
+
+    if (query.freshWithinDays !== undefined) {
+      builder.andWhere('fleet.lastEffectiveImportAt >= :freshSince', {
+        freshSince: new Date(
+          Date.now() - query.freshWithinDays * MILLISECONDS_PER_DAY,
+        ),
+      });
+    }
+  }
+
+  /**
+   * Orders a listing.
+   *
+   * By the folded name rather than the stored one, so `omega command` sorts
+   * beside `Omega Command` instead of after every capital letter. The whole
+   * point of the default ordering is that two records for one Fleet are read
+   * together, and a case-sensitive sort would separate the commonest pair of
+   * duplicates there is.
+   *
+   * @param builder - The query being built.
+   * @param sort - The ordering asked for, if any.
+   */
+  private applyDirectorySort(
+    builder: SelectQueryBuilder<StoFleetEntity>,
+    sort?: FleetDirectorySort,
+  ): void {
+    if (sort === FleetDirectorySort.NEWEST) {
+      builder.orderBy('fleet.createdAt', 'DESC');
+    } else if (sort === FleetDirectorySort.FRESHNESS) {
+      builder.orderBy('fleet.lastEffectiveImportAt', 'DESC', 'NULLS LAST');
+    } else {
+      builder.orderBy('fleet.exactGameNameNormalized', 'ASC');
+    }
+
+    // Stable tie-break, so a page boundary cannot repeat or skip a record.
+    builder.addOrderBy('fleet.id', 'ASC');
+  }
+
+  /**
+   * Counts, for each record on a page, how many others answer to its name.
+   *
+   * One grouped query for the whole page rather than one per card. It is
+   * restricted to the platforms and names actually on the page, which reads
+   * like a cross join and is not: the group is `(platform, name)` and the
+   * lookup asks for that exact pair, so a few extra groups cost a row each
+   * and change no answer.
+   *
+   * A name with no row at all counts as one — itself — which is what happens
+   * when a record is listed under a filter the count query does not share.
+   *
+   * @param fleets - The records on the page.
+   * @param status - The lifecycle filter the listing used.
+   * @returns Each record, with how many others share its name and platform.
+   */
+  private async withDuplicateCounts(
+    fleets: StoFleetEntity[],
+    status?: FleetDirectoryStatusFilter,
+  ): Promise<DirectoryEntry<StoFleetEntity>[]> {
+    if (fleets.length === 0) {
+      return [];
+    }
+
+    const builder = this.listedFleetsQuery()
+      .select('fleet.platformId', 'platformId')
+      .addSelect('fleet.exactGameNameNormalized', 'name')
+      .addSelect('COUNT(*)', 'total')
+      .andWhere('fleet.platformId IN (:...platformIds)', {
+        platformIds: [...new Set(fleets.map(fleet => fleet.platformId))],
+      })
+      .andWhere('fleet.exactGameNameNormalized IN (:...names)', {
+        names: [...new Set(fleets.map(fleet => fleet.exactGameNameNormalized))],
+      })
+      .groupBy('fleet.platformId')
+      .addGroupBy('fleet.exactGameNameNormalized');
+
+    applyDirectoryStatus(builder, 'fleet', status);
+
+    const rows = await builder.getRawMany<DuplicateCountRow>();
+
+    const counts = new Map(
+      rows.map(row => [
+        toDuplicateKey(row.platformId, row.name),
+        Number(row.total),
+      ]),
+    );
+
+    return fleets.map(fleet => ({
+      record: fleet,
+      duplicateCount:
+        (counts.get(
+          toDuplicateKey(fleet.platformId, fleet.exactGameNameNormalized),
+        ) ?? 1) - 1,
+    }));
   }
 
   /**

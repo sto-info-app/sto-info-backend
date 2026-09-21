@@ -50,4 +50,27 @@ describe('FleetCommunityMapper', () => {
   it('leaves the soft-delete marker behind', () => {
     expect(mapper.toDto(community)).not.toHaveProperty('deletedAt');
   });
+
+  describe('toCardDto', () => {
+    it('maps every field the directory card shows', () => {
+      expect(mapper.toCardDto(community)).toEqual({
+        id: community.id,
+        slug: 'jupiter-force',
+        status: FleetScopeStatus.ACTIVE,
+        createdAt: community.createdAt,
+        name: 'Jupiter Force',
+        description: 'A PC Community.',
+        recruitmentState: FleetRecruitmentState.APPLICATION,
+      });
+    });
+
+    /**
+     * A directory page is a list long enough that one identifier per row
+     * turns a browse into a harvest. Somebody who opens the Community itself
+     * is told who owns it; somebody scrolling past it is not.
+     */
+    it('names no owner, a list being a list', () => {
+      expect(mapper.toCardDto(community)).not.toHaveProperty('ownerUserId');
+    });
+  });
 });

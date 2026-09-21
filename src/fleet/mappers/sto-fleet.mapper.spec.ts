@@ -160,4 +160,76 @@ describe('StoFleetMapper', () => {
       expect(duplicate).not.toHaveProperty('allegianceFactionId');
     });
   });
+
+  describe('toCardDto', () => {
+    it('maps every field the directory card shows', () => {
+      const fleet = buildFleet();
+      fleet.community = {
+        id: 'd0000000-0000-4000-8000-000000000002',
+        name: 'Jupiter Force',
+        slug: 'jupiter-force',
+      } as FleetCommunityEntity;
+
+      expect(mapper.toCardDto({ record: fleet, duplicateCount: 2 })).toEqual({
+        id: 'd0000000-0000-4000-8000-000000000001',
+        slug: 'omega-command',
+        status: FleetScopeStatus.ACTIVE,
+        createdAt,
+        exactGameName: ' Omega Command',
+        communityId: 'd0000000-0000-4000-8000-000000000002',
+        communityName: 'Jupiter Force',
+        communitySlug: 'jupiter-force',
+        platformId: 'd0000000-0000-4000-8000-000000000003',
+        platformName: 'Windows',
+        platformSegment: 'windows',
+        duplicateCount: 2,
+        recruitmentState: FleetRecruitmentState.OPEN,
+        allegianceFactionId: 'd0000000-0000-4000-8000-000000000004',
+        lastEffectiveImportAt: importedAt,
+      });
+    });
+
+    /**
+     * ADR-0003's display obligation reaches the directory too. Where an edge
+     * space is the only difference between two names, it is the only thing
+     * telling two Fleets apart, so a card that trimmed it would be showing
+     * two records that look identical and are not.
+     */
+    it('keeps the leading space the game gave the name', () => {
+      const card = mapper.toCardDto({
+        record: buildFleet(),
+        duplicateCount: 0,
+      });
+
+      expect(card.exactGameName).toBe(' Omega Command');
+    });
+
+    it('says nobody holds an unregistered Fleet, rather than nothing', () => {
+      const card = mapper.toCardDto({
+        record: buildFleet({ communityId: null, community: null }),
+        duplicateCount: 0,
+      });
+
+      expect(card.communityId).toBeNull();
+      expect(card.communityName).toBeNull();
+      expect(card.communitySlug).toBeNull();
+    });
+
+    /**
+     * A card is a row in a list, and a list is long. The audience and the
+     * revision are machinery the browse surface has no use for, and leaving
+     * them off is what keeps the shape a card rather than a record.
+     */
+    it('carries nothing the browse surface has no use for', () => {
+      const card = mapper.toCardDto({
+        record: buildFleet(),
+        duplicateCount: 0,
+      });
+
+      expect(card).not.toHaveProperty('visibility');
+      expect(card).not.toHaveProperty('revision');
+      expect(card).not.toHaveProperty('updatedAt');
+      expect(card).not.toHaveProperty('deletedAt');
+    });
+  });
 });

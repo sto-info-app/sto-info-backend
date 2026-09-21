@@ -1,4 +1,8 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
@@ -9,12 +13,63 @@ import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
 import { FleetAuthorisationRevisionService } from '../authorisation/fleet-authorisation-revision.service';
 import { StoFleetEntity } from '../entities/sto-fleet.entity';
 import { FleetAudience } from '../enums/fleet-audience.enum';
+import { FleetDirectorySort } from '../enums/fleet-directory-sort.enum';
+import { FleetDirectoryStatusFilter } from '../enums/fleet-directory-status-filter.enum';
 import { FleetRecruitmentState } from '../enums/fleet-recruitment-state.enum';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
 import { FleetPlatformService } from './fleet-platform.service';
 import { FleetSlugService } from './fleet-slug.service';
 import { MAX_REPORTED_DUPLICATES, StoFleetService } from './sto-fleet.service';
+
+/** The query-builder methods the directory listing chains. */
+interface MockQueryBuilder {
+  select: jest.Mock;
+  addSelect: jest.Mock;
+  innerJoinAndSelect: jest.Mock;
+  leftJoinAndSelect: jest.Mock;
+  where: jest.Mock;
+  andWhere: jest.Mock;
+  orderBy: jest.Mock;
+  addOrderBy: jest.Mock;
+  groupBy: jest.Mock;
+  addGroupBy: jest.Mock;
+  skip: jest.Mock;
+  take: jest.Mock;
+  getManyAndCount: jest.Mock;
+  getRawMany: jest.Mock;
+}
+
+/**
+ * Finds the parameters a condition was added with.
+ *
+ * @param builder - The query builder mock.
+ * @param fragment - Part of the SQL the condition contains.
+ * @returns The bound parameters, or undefined when it was never added.
+ */
+function conditionParameters(
+  builder: MockQueryBuilder,
+  fragment: string,
+): Record<string, unknown> | undefined {
+  const call = builder.andWhere.mock.calls.find(([sql]: [unknown]) =>
+    String(sql).includes(fragment),
+  ) as [string, Record<string, unknown>?] | undefined;
+
+  return call?.[1];
+}
+
+/**
+ * Reports whether a condition was added at all.
+ *
+ * @param builder - The query builder mock.
+ * @param fragment - Part of the SQL the condition contains.
+ * @returns True when something matching was added.
+ */
+function askedFor(builder: MockQueryBuilder, fragment: string): boolean {
+  return builder.andWhere.mock.calls.some(([sql]: [unknown]) =>
+    String(sql).includes(fragment),
+  );
+}
 
 describe('StoFleetService', () => {
   let service: StoFleetService;
@@ -24,6 +79,7 @@ describe('StoFleetService', () => {
     count: jest.Mock;
     create: jest.Mock;
     save: jest.Mock;
+    createQueryBuilder: jest.Mock;
   };
   let platformService: {
     findByIdOrFail: jest.Mock;
@@ -58,6 +114,53 @@ describe('StoFleetService', () => {
 
   /** How many live Fleets already hold the candidate slug. */
   let slugHolders: number;
+
+  /** Every query builder the service asked the repository for, in order. */
+  let builders: MockQueryBuilder[];
+
+  /** What the listing query will answer with. */
+  let listed: StoFleetEntity[];
+
+  /** How many records the listing query will report in total. */
+  let listedTotal: number;
+
+  /** What the grouped duplicate-count query will answer with. */
+  let countRows: { platformId: string; name: string; total: string }[];
+
+  /**
+   * Builds a self-returning query-builder mock and records it.
+   *
+   * @returns The chainable test double.
+   */
+  const createQueryBuilderMock = (): MockQueryBuilder => {
+    const builder = {} as MockQueryBuilder;
+
+    for (const method of [
+      'select',
+      'addSelect',
+      'innerJoinAndSelect',
+      'leftJoinAndSelect',
+      'where',
+      'andWhere',
+      'orderBy',
+      'addOrderBy',
+      'groupBy',
+      'addGroupBy',
+      'skip',
+      'take',
+    ] as const) {
+      builder[method] = jest.fn(() => builder);
+    }
+
+    builder.getManyAndCount = jest.fn(() =>
+      Promise.resolve([listed, listedTotal]),
+    );
+    builder.getRawMany = jest.fn(() => Promise.resolve(countRows));
+
+    builders.push(builder);
+
+    return builder;
+  };
 
   const platform = { id: platformId, name: 'Windows' } as PlatformEntity;
 
@@ -97,6 +200,10 @@ describe('StoFleetService', () => {
     mintedSlug = 'omega-command';
     candidateWasTaken = null;
     slugHolders = 0;
+    builders = [];
+    listed = [];
+    listedTotal = 0;
+    countRows = [];
 
     fleetRepository = {
       findOne: jest.fn(() => Promise.resolve(stored)),
@@ -106,6 +213,7 @@ describe('StoFleetService', () => {
       save: jest.fn((values: StoFleetEntity) =>
         saveFailure ? Promise.reject(saveFailure) : Promise.resolve(values),
       ),
+      createQueryBuilder: jest.fn(() => createQueryBuilderMock()),
     };
 
     platformService = {
@@ -821,6 +929,341 @@ describe('StoFleetService', () => {
       expect(fleet.closedAt).toBe(closedAt);
       expect(fleetRepository.save).not.toHaveBeenCalled();
       expect(revisionService.bump).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('findDirectoryPage', () => {
+    /** The listing query, which is always the first one built. */
+    const listing = (): MockQueryBuilder => builders[0];
+
+    /** The grouped count query, built after the page has been read. */
+    const counting = (): MockQueryBuilder => builders[1];
+
+    beforeEach(() => {
+      listed = [buildFleet({ visibility: FleetAudience.PUBLIC })];
+      listedTotal = 1;
+      countRows = [{ platformId, name: 'omega command', total: '1' }];
+    });
+
+    /**
+     * The whole of the audience rule, and the reason it is a condition
+     * rather than a check per row: a page of fifty would otherwise be fifty
+     * authorisation queries for a list a signed-out visitor can ask for.
+     */
+    it('lists what anybody may see and nothing else', async () => {
+      await service.findDirectoryPage({});
+
+      expect(conditionParameters(listing(), 'fleet.visibility')).toStrictEqual({
+        listedAudience: FleetAudience.PUBLIC,
+      });
+    });
+
+    it('hides closed Fleets until they are asked for', async () => {
+      await service.findDirectoryPage({});
+
+      expect(conditionParameters(listing(), 'fleet.status')).toStrictEqual({
+        directoryStatus: FleetScopeStatus.ACTIVE,
+      });
+    });
+
+    it('lists the closed ones when a reader is checking a name', async () => {
+      await service.findDirectoryPage({
+        status: FleetDirectoryStatusFilter.CLOSED,
+      });
+
+      expect(conditionParameters(listing(), 'fleet.status')).toStrictEqual({
+        directoryStatus: FleetScopeStatus.CLOSED,
+      });
+    });
+
+    /**
+     * A suspended Fleet is listed here and nowhere else. The filter has no
+     * value of its own for it, so nothing advertises which scopes are held.
+     */
+    it('asks for no state at all when the reader wants every record', async () => {
+      await service.findDirectoryPage({
+        status: FleetDirectoryStatusFilter.ANY,
+      });
+
+      expect(askedFor(listing(), 'fleet.status')).toBe(false);
+    });
+
+    /**
+     * Folded the same way the column was — case only. Trimming the term
+     * would find `'Omega'` for somebody who typed `' Omega'`, and the
+     * leading space is exactly what tells those two Fleets apart.
+     */
+    it('searches the folded name, keeping the caller’s spaces', async () => {
+      await service.findDirectoryPage({ search: ' OMEGA' });
+
+      expect(
+        conditionParameters(listing(), 'exactGameNameNormalized LIKE'),
+      ).toStrictEqual({ nameSearch: '% omega%' });
+    });
+
+    it('escapes a wildcard, so searching for 100% finds a Fleet', async () => {
+      await service.findDirectoryPage({ search: '100%' });
+
+      const parameters = conditionParameters(
+        listing(),
+        'exactGameNameNormalized LIKE',
+      );
+
+      expect(parameters?.nameSearch).toBe(`%100${String.fromCodePoint(92)}%%`);
+    });
+
+    it('adds no search condition when the box was left empty', async () => {
+      await service.findDirectoryPage({ search: '' });
+
+      expect(askedFor(listing(), 'exactGameNameNormalized LIKE')).toBe(false);
+    });
+
+    it('narrows to one platform, two names on two platforms being two Fleets', async () => {
+      await service.findDirectoryPage({ platformId });
+
+      expect(
+        conditionParameters(listing(), 'fleet.platformId ='),
+      ).toStrictEqual({ platformId });
+    });
+
+    it('narrows to a recruitment posture', async () => {
+      await service.findDirectoryPage({
+        recruitmentState: FleetRecruitmentState.OPEN,
+      });
+
+      expect(
+        conditionParameters(listing(), 'fleet.recruitmentState'),
+      ).toStrictEqual({ recruitmentState: FleetRecruitmentState.OPEN });
+    });
+
+    /**
+     * The column is nullable because an allegiance is never guessed, so a
+     * Fleet without one is excluded by this filter rather than assumed to
+     * match whatever was asked for.
+     */
+    it('narrows to an allegiance, excluding the Fleets with none', async () => {
+      const factionId = 'c0000000-0000-4000-8000-00000000000f';
+
+      await service.findDirectoryPage({ allegianceFactionId: factionId });
+
+      expect(
+        conditionParameters(listing(), 'fleet.allegianceFactionId'),
+      ).toStrictEqual({ allegianceFactionId: factionId });
+    });
+
+    it('finds the Fleets somebody has imported a roster for', async () => {
+      await service.findDirectoryPage({ withRoster: true });
+
+      expect(askedFor(listing(), 'lastEffectiveImportAt IS NOT NULL')).toBe(
+        true,
+      );
+    });
+
+    it('finds the Fleets nobody has', async () => {
+      await service.findDirectoryPage({ withRoster: false });
+
+      expect(askedFor(listing(), 'lastEffectiveImportAt IS NULL')).toBe(true);
+    });
+
+    it('turns a window in days into the instant to compare against', async () => {
+      const before = Date.now();
+
+      await service.findDirectoryPage({ freshWithinDays: 7 });
+
+      const parameters = conditionParameters(listing(), 'freshSince');
+      const since = (parameters?.freshSince as Date).getTime();
+
+      expect(since).toBeGreaterThanOrEqual(before - 7 * 86400000);
+      expect(since).toBeLessThanOrEqual(Date.now() - 7 * 86400000 + 1000);
+    });
+
+    /**
+     * Refused rather than answered with an empty page. The two filters ask
+     * for opposite things, and a list that came back empty would read as
+     * "no such Fleet" when what happened is that nothing could match.
+     */
+    it('refuses a roster filter that contradicts itself', async () => {
+      await expect(
+        service.findDirectoryPage({ withRoster: false, freshWithinDays: 7 }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(builders).toHaveLength(0);
+    });
+
+    /**
+     * By the folded name, so `omega command` sorts beside `Omega Command`
+     * rather than after every capital letter — which is the whole point of
+     * the default, duplicates being read together.
+     */
+    it('orders by the folded name, with a stable tie-break', async () => {
+      await service.findDirectoryPage({});
+
+      expect(listing().orderBy).toHaveBeenCalledWith(
+        'fleet.exactGameNameNormalized',
+        'ASC',
+      );
+      expect(listing().addOrderBy).toHaveBeenCalledWith('fleet.id', 'ASC');
+    });
+
+    it('orders by registration when asked for the newest', async () => {
+      await service.findDirectoryPage({ sort: FleetDirectorySort.NEWEST });
+
+      expect(listing().orderBy).toHaveBeenCalledWith('fleet.createdAt', 'DESC');
+    });
+
+    it('puts the Fleets nobody has imported last, not first', async () => {
+      await service.findDirectoryPage({ sort: FleetDirectorySort.FRESHNESS });
+
+      expect(listing().orderBy).toHaveBeenCalledWith(
+        'fleet.lastEffectiveImportAt',
+        'DESC',
+        'NULLS LAST',
+      );
+    });
+
+    it('reads the first page by default', async () => {
+      const page = await service.findDirectoryPage({});
+
+      expect(listing().skip).toHaveBeenCalledWith(0);
+      expect(listing().take).toHaveBeenCalledWith(20);
+      expect(page.page).toBe(1);
+      expect(page.pageSize).toBe(20);
+    });
+
+    it('skips the pages before the one asked for', async () => {
+      await service.findDirectoryPage({ page: 3, pageSize: 10 });
+
+      expect(listing().skip).toHaveBeenCalledWith(20);
+      expect(listing().take).toHaveBeenCalledWith(10);
+    });
+
+    it('caps a page at fifty however many were asked for', async () => {
+      await service.findDirectoryPage({ pageSize: 500 });
+
+      expect(listing().take).toHaveBeenCalledWith(50);
+    });
+
+    it('falls back to the default size when nought was asked for', async () => {
+      await service.findDirectoryPage({ pageSize: 0 });
+
+      expect(listing().take).toHaveBeenCalledWith(20);
+    });
+
+    it('reports how many match, not how many were returned', async () => {
+      listedTotal = 214;
+
+      const page = await service.findDirectoryPage({});
+
+      expect(page.total).toBe(214);
+    });
+
+    /**
+     * FC-013's third acceptance criterion: two records for one in-game Fleet
+     * have to be distinguishable. The count is what tells the reader to
+     * look, and it is taken per page rather than per card.
+     */
+    it('tells each record how many others answer to its name', async () => {
+      const rival = buildFleet({
+        id: 'c0000000-0000-4000-8000-00000000000a',
+        visibility: FleetAudience.PUBLIC,
+      });
+      listed = [buildFleet({ visibility: FleetAudience.PUBLIC }), rival];
+      countRows = [{ platformId, name: 'omega command', total: '2' }];
+
+      const page = await service.findDirectoryPage({});
+
+      expect(page.items.map(entry => entry.duplicateCount)).toStrictEqual([
+        1, 1,
+      ]);
+    });
+
+    it('says nought when a name answers for one record alone', async () => {
+      const page = await service.findDirectoryPage({});
+
+      expect(page.items[0].duplicateCount).toBe(0);
+    });
+
+    /**
+     * A record listed under a filter the count query does not share leaves
+     * no group behind. Counting it as one — itself — is the only answer that
+     * cannot overstate what the reader will find.
+     */
+    it('counts a record with no group as answering for itself', async () => {
+      countRows = [];
+
+      const page = await service.findDirectoryPage({});
+
+      expect(page.items[0].duplicateCount).toBe(0);
+    });
+
+    it('counts under the lifecycle filter the listing used', async () => {
+      await service.findDirectoryPage({
+        status: FleetDirectoryStatusFilter.CLOSED,
+      });
+
+      expect(conditionParameters(counting(), 'fleet.status')).toStrictEqual({
+        directoryStatus: FleetScopeStatus.CLOSED,
+      });
+    });
+
+    it('counts under the same audience rule as the listing', async () => {
+      await service.findDirectoryPage({});
+
+      expect(conditionParameters(counting(), 'fleet.visibility')).toStrictEqual(
+        { listedAudience: FleetAudience.PUBLIC },
+      );
+    });
+
+    it('groups by platform as well as name, the two being one key', async () => {
+      await service.findDirectoryPage({});
+
+      expect(counting().groupBy).toHaveBeenCalledWith('fleet.platformId');
+      expect(counting().addGroupBy).toHaveBeenCalledWith(
+        'fleet.exactGameNameNormalized',
+      );
+    });
+
+    it('asks each platform and each name once, however many rows repeat', async () => {
+      listed = [
+        buildFleet({ visibility: FleetAudience.PUBLIC }),
+        buildFleet({
+          id: 'c0000000-0000-4000-8000-00000000000b',
+          visibility: FleetAudience.PUBLIC,
+        }),
+      ];
+
+      await service.findDirectoryPage({});
+
+      expect(conditionParameters(counting(), 'platformIds')).toStrictEqual({
+        platformIds: [platformId],
+      });
+      expect(conditionParameters(counting(), 'names')).toStrictEqual({
+        names: ['omega command'],
+      });
+    });
+
+    it('takes no count at all for an empty page', async () => {
+      listed = [];
+
+      const page = await service.findDirectoryPage({});
+
+      expect(page.items).toStrictEqual([]);
+      expect(builders).toHaveLength(1);
+    });
+
+    /**
+     * An unregistered Fleet is `PUBLIC` and belongs in the directory: the
+     * record exists in order to be found. Its card shows no Community, which
+     * is the honest answer rather than a gap.
+     */
+    it('lists a Fleet nobody holds, that being what it is for', async () => {
+      listed = [
+        buildFleet({ communityId: null, visibility: FleetAudience.PUBLIC }),
+      ];
+
+      const page = await service.findDirectoryPage({});
+
+      expect(page.items[0].record.communityId).toBeNull();
     });
   });
 });

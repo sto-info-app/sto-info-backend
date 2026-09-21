@@ -113,4 +113,51 @@ describe('StoArmadaMapper', () => {
       );
     });
   });
+
+  describe('toCardDto', () => {
+    it('maps every field the directory card shows', () => {
+      expect(
+        mapper.toCardDto({ record: buildArmada(), duplicateCount: 1 }),
+      ).toEqual({
+        id: 'a0000000-0000-4000-8000-000000000001',
+        slug: 'sol-armada',
+        status: FleetScopeStatus.ACTIVE,
+        createdAt,
+        exactGameName: 'Sol Armada ',
+        communityId: 'a0000000-0000-4000-8000-000000000002',
+        communityName: 'Jupiter Force',
+        communitySlug: 'jupiter-force',
+        platformId: 'a0000000-0000-4000-8000-000000000003',
+        platformName: 'PlayStation',
+        platformSegment: 'playstation',
+        duplicateCount: 1,
+        displayName: 'The Sol Lot',
+      });
+    });
+
+    it('keeps the trailing space the game gave the name', () => {
+      const card = mapper.toCardDto({
+        record: buildArmada(),
+        duplicateCount: 0,
+      });
+
+      expect(card.exactGameName).toBe('Sol Armada ');
+    });
+
+    /**
+     * Nothing observes an Armada, so there is no roster import to report and
+     * no freshness on the card. A field that was always null would read as
+     * "never imported" rather than "not a thing that is imported".
+     */
+    it('claims no freshness, nothing ever observing an Armada', () => {
+      const card = mapper.toCardDto({
+        record: buildArmada(),
+        duplicateCount: 0,
+      });
+
+      expect(card).not.toHaveProperty('lastEffectiveImportAt');
+      expect(card).not.toHaveProperty('recruitmentState');
+      expect(card).not.toHaveProperty('revision');
+    });
+  });
 });

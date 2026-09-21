@@ -25,6 +25,7 @@ import { StoArmadaEntity } from './entities/sto-armada.entity';
 import { StoFleetEntity } from './entities/sto-fleet.entity';
 import { FleetCommunitiesController } from './fleet-communities.controller';
 import { FleetConfigurationController } from './fleet-configuration.controller';
+import { FleetDirectoryController } from './fleet-directory.controller';
 import { FleetFeatureService } from './fleet-feature.service';
 import { FleetPolicyService } from './fleet-policy.service';
 import { FleetScopeResolutionController } from './fleet-scope-resolution.controller';
@@ -161,6 +162,21 @@ describe('FleetModule', () => {
     ) as unknown[];
 
     expect(controllers).toContain(controller);
+  });
+
+  /**
+   * The browse surface. Listed separately from the nested controllers
+   * because it is the one place that decides what an anonymous caller may
+   * see, and a module that stopped registering it would answer 404 for
+   * every directory page while every other Fleet route kept working.
+   */
+  it('exposes the three public directories', () => {
+    const controllers = Reflect.getMetadata(
+      'controllers',
+      FleetModule,
+    ) as unknown[];
+
+    expect(controllers).toContain(FleetDirectoryController);
   });
 
   it('exposes the canonical URL resolver', () => {

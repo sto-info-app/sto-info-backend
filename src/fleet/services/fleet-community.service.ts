@@ -8,13 +8,24 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { IsNull, Not, QueryFailedError, Repository } from 'typeorm';
 
+import { escapeSqlLikeTerm } from 'src/shared/utilities/sql-like.utility';
+
 import { FleetAuthorisationRevisionService } from '../authorisation/fleet-authorisation-revision.service';
 import { MAX_FLEET_COMMUNITIES_PER_OWNER } from '../constants/fleet-policy.constants';
 import { CreateFleetCommunityDto } from '../dto/create-fleet-community.dto';
+import { FleetCommunityDirectoryQueryDto } from '../dto/fleet-directory-query.dto';
 import { UpdateFleetCommunityDto } from '../dto/update-fleet-community.dto';
 import { FleetCommunityEntity } from '../entities/fleet-community.entity';
+import { FleetAudience } from '../enums/fleet-audience.enum';
+import { FleetDirectorySort } from '../enums/fleet-directory-sort.enum';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
+import {
+  applyDirectoryStatus,
+  resolveDirectoryPage,
+  resolveDirectoryPageSize,
+} from '../utilities/directory-query.utility';
+import { DirectoryPage } from './fleet-directory-page.interface';
 import { FleetSlugScope, FleetSlugService } from './fleet-slug.service';
 
 /**
@@ -201,6 +212,71 @@ export class FleetCommunityService {
     }
 
     return { community, redirectedFrom: slug };
+  }
+
+  /**
+   * Lists the Communities anybody may see.
+   *
+   * ## Who is listed
+   *
+   * `PUBLIC` Communities, whoever is asking. A Community is the outermost
+   * scope and its card carries nothing private — a name, what it says about
+   * itself, and whether it is taking subscribers — so the audience column is
+   * the whole of the rule.
+   *
+   * ## No duplicate count
+   *
+   * Unlike a Fleet or an Armada, a Community does not claim to describe
+   * something the game holds exactly once: it names a group of people, and
+   * two groups may reasonably pick one name. There is no folded name column
+   * to group by and nothing would be served by adding one — the site-unique
+   * slug already stops two Communities sharing an address.
+   *
+   * @param query - Search, filters, ordering and paging.
+   * @returns The page of Communities.
+   */
+  async findDirectoryPage(
+    query: FleetCommunityDirectoryQueryDto,
+  ): Promise<DirectoryPage<FleetCommunityEntity>> {
+    const page = resolveDirectoryPage(query.page);
+    const pageSize = resolveDirectoryPageSize(query.pageSize);
+
+    const builder = this._communityRepository
+      .createQueryBuilder('community')
+      .where('community.deletedAt IS NULL')
+      .andWhere('community.visibility = :listedAudience', {
+        listedAudience: FleetAudience.PUBLIC,
+      });
+
+    applyDirectoryStatus(builder, 'community', query.status);
+
+    if (query.search) {
+      builder.andWhere('LOWER(community.name) LIKE :nameSearch', {
+        nameSearch: `%${escapeSqlLikeTerm(query.search)}%`,
+      });
+    }
+
+    if (query.recruitmentState) {
+      builder.andWhere('community.recruitmentState = :recruitmentState', {
+        recruitmentState: query.recruitmentState,
+      });
+    }
+
+    if (query.sort === FleetDirectorySort.NEWEST) {
+      builder.orderBy('community.createdAt', 'DESC');
+    } else {
+      builder.orderBy('LOWER(community.name)', 'ASC');
+    }
+
+    // Stable tie-break, so a page boundary cannot repeat or skip a record.
+    builder.addOrderBy('community.id', 'ASC');
+
+    const [communities, total] = await builder
+      .skip((page - 1) * pageSize)
+      .take(pageSize)
+      .getManyAndCount();
+
+    return { items: communities, total, page, pageSize };
   }
 
   /**

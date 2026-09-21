@@ -8,10 +8,55 @@ import { FleetAuthorisationRevisionService } from '../authorisation/fleet-author
 import { MAX_FLEET_COMMUNITIES_PER_OWNER } from '../constants/fleet-policy.constants';
 import { FleetCommunityEntity } from '../entities/fleet-community.entity';
 import { FleetAudience } from '../enums/fleet-audience.enum';
+import { FleetDirectorySort } from '../enums/fleet-directory-sort.enum';
+import { FleetDirectoryStatusFilter } from '../enums/fleet-directory-status-filter.enum';
+import { FleetRecruitmentState } from '../enums/fleet-recruitment-state.enum';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
 import { FleetCommunityService } from './fleet-community.service';
 import { FleetSlugService } from './fleet-slug.service';
+
+/** The query-builder methods the directory listing chains. */
+interface MockQueryBuilder {
+  where: jest.Mock;
+  andWhere: jest.Mock;
+  orderBy: jest.Mock;
+  addOrderBy: jest.Mock;
+  skip: jest.Mock;
+  take: jest.Mock;
+  getManyAndCount: jest.Mock;
+}
+
+/**
+ * Finds the parameters a condition was added with.
+ *
+ * @param builder - The query builder mock.
+ * @param fragment - Part of the SQL the condition contains.
+ * @returns The bound parameters, or undefined when it was never added.
+ */
+function conditionParameters(
+  builder: MockQueryBuilder,
+  fragment: string,
+): Record<string, unknown> | undefined {
+  const call = builder.andWhere.mock.calls.find(([sql]: [unknown]) =>
+    String(sql).includes(fragment),
+  ) as [string, Record<string, unknown>?] | undefined;
+
+  return call?.[1];
+}
+
+/**
+ * Reports whether a condition was added at all.
+ *
+ * @param builder - The query builder mock.
+ * @param fragment - Part of the SQL the condition contains.
+ * @returns True when something matching was added.
+ */
+function askedFor(builder: MockQueryBuilder, fragment: string): boolean {
+  return builder.andWhere.mock.calls.some(([sql]: [unknown]) =>
+    String(sql).includes(fragment),
+  );
+}
 
 describe('FleetCommunityService', () => {
   let service: FleetCommunityService;
@@ -20,6 +65,7 @@ describe('FleetCommunityService', () => {
     count: jest.Mock;
     create: jest.Mock;
     save: jest.Mock;
+    createQueryBuilder: jest.Mock;
   };
   let slugService: {
     generateUniqueSlug: jest.Mock;
@@ -48,6 +94,43 @@ describe('FleetCommunityService', () => {
 
   /** How many live Communities already hold the candidate slug. */
   let slugHolders: number;
+
+  /** The query builder the directory listing was given. */
+  let builder: MockQueryBuilder;
+
+  /** What the listing query will answer with. */
+  let listed: FleetCommunityEntity[];
+
+  /** How many records the listing query will report in total. */
+  let listedTotal: number;
+
+  /**
+   * Builds a self-returning query-builder mock.
+   *
+   * @returns The chainable test double.
+   */
+  const createQueryBuilderMock = (): MockQueryBuilder => {
+    const made = {} as MockQueryBuilder;
+
+    for (const method of [
+      'where',
+      'andWhere',
+      'orderBy',
+      'addOrderBy',
+      'skip',
+      'take',
+    ] as const) {
+      made[method] = jest.fn(() => made);
+    }
+
+    made.getManyAndCount = jest.fn(() =>
+      Promise.resolve([listed, listedTotal]),
+    );
+
+    builder = made;
+
+    return made;
+  };
 
   const buildCommunity = (
     overrides: Partial<FleetCommunityEntity> = {},
@@ -97,6 +180,7 @@ describe('FleetCommunityService', () => {
       save: jest.fn((values: FleetCommunityEntity) =>
         saveFailure ? Promise.reject(saveFailure) : Promise.resolve(values),
       ),
+      createQueryBuilder: jest.fn(() => createQueryBuilderMock()),
     };
 
     slugService = {
@@ -485,6 +569,137 @@ describe('FleetCommunityService', () => {
       expect(saved.closedAt).toBe(closedAt);
       expect(communityRepository.save).not.toHaveBeenCalled();
       expect(revisionService.bump).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('findDirectoryPage', () => {
+    beforeEach(() => {
+      listed = [buildCommunity()];
+      listedTotal = 1;
+    });
+
+    it('lists what anybody may see and nothing else', async () => {
+      await service.findDirectoryPage({});
+
+      expect(
+        conditionParameters(builder, 'community.visibility'),
+      ).toStrictEqual({ listedAudience: FleetAudience.PUBLIC });
+    });
+
+    it('hides closed Communities until they are asked for', async () => {
+      await service.findDirectoryPage({});
+
+      expect(conditionParameters(builder, 'community.status')).toStrictEqual({
+        directoryStatus: FleetScopeStatus.ACTIVE,
+      });
+    });
+
+    it('lists the closed ones when a reader is checking a name', async () => {
+      await service.findDirectoryPage({
+        status: FleetDirectoryStatusFilter.CLOSED,
+      });
+
+      expect(conditionParameters(builder, 'community.status')).toStrictEqual({
+        directoryStatus: FleetScopeStatus.CLOSED,
+      });
+    });
+
+    it('asks for no state at all when the reader wants every record', async () => {
+      await service.findDirectoryPage({
+        status: FleetDirectoryStatusFilter.ANY,
+      });
+
+      expect(askedFor(builder, 'community.status')).toBe(false);
+    });
+
+    /**
+     * A Community's name is not the folded in-game name a Fleet carries, so
+     * there is no normalised column to match against and the comparison is
+     * made in the query instead.
+     */
+    it('searches the name whatever case it was typed in', async () => {
+      await service.findDirectoryPage({ search: 'JUPITER' });
+
+      expect(
+        conditionParameters(builder, 'LOWER(community.name) LIKE'),
+      ).toStrictEqual({ nameSearch: '%jupiter%' });
+    });
+
+    it('escapes a wildcard rather than matching everything', async () => {
+      await service.findDirectoryPage({ search: '%' });
+
+      const parameters = conditionParameters(
+        builder,
+        'LOWER(community.name) LIKE',
+      );
+
+      expect(parameters?.nameSearch).toBe(`%${String.fromCodePoint(92)}%%`);
+    });
+
+    it('adds no search condition when the box was left empty', async () => {
+      await service.findDirectoryPage({});
+
+      expect(askedFor(builder, 'LOWER(community.name) LIKE')).toBe(false);
+    });
+
+    it('narrows to a recruitment posture', async () => {
+      await service.findDirectoryPage({
+        recruitmentState: FleetRecruitmentState.OPEN,
+      });
+
+      expect(
+        conditionParameters(builder, 'community.recruitmentState'),
+      ).toStrictEqual({ recruitmentState: FleetRecruitmentState.OPEN });
+    });
+
+    it('orders by name whatever case it was written in', async () => {
+      await service.findDirectoryPage({});
+
+      expect(builder.orderBy).toHaveBeenCalledWith(
+        'LOWER(community.name)',
+        'ASC',
+      );
+      expect(builder.addOrderBy).toHaveBeenCalledWith('community.id', 'ASC');
+    });
+
+    it('orders by registration when asked for the newest', async () => {
+      await service.findDirectoryPage({ sort: FleetDirectorySort.NEWEST });
+
+      expect(builder.orderBy).toHaveBeenCalledWith(
+        'community.createdAt',
+        'DESC',
+      );
+    });
+
+    it('reads the first page by default', async () => {
+      const page = await service.findDirectoryPage({});
+
+      expect(builder.skip).toHaveBeenCalledWith(0);
+      expect(builder.take).toHaveBeenCalledWith(20);
+      expect(page.page).toBe(1);
+      expect(page.pageSize).toBe(20);
+    });
+
+    it('skips the pages before the one asked for', async () => {
+      await service.findDirectoryPage({ page: 4, pageSize: 25 });
+
+      expect(builder.skip).toHaveBeenCalledWith(75);
+      expect(builder.take).toHaveBeenCalledWith(25);
+    });
+
+    it('caps a page at fifty however many were asked for', async () => {
+      await service.findDirectoryPage({ pageSize: 5000 });
+
+      expect(builder.take).toHaveBeenCalledWith(50);
+    });
+
+    it('reports how many match, not how many were returned', async () => {
+      listedTotal = 97;
+
+      const page = await service.findDirectoryPage({});
+
+      expect(page.items).toStrictEqual(listed);
+      expect(page.total).toBe(97);
     });
   });
 });

@@ -22,6 +22,7 @@ import { StoArmadaEntity } from './entities/sto-armada.entity';
 import { StoFleetEntity } from './entities/sto-fleet.entity';
 import { FleetCommunitiesController } from './fleet-communities.controller';
 import { FleetConfigurationController } from './fleet-configuration.controller';
+import { FleetDirectoryController } from './fleet-directory.controller';
 import { FleetFeatureService } from './fleet-feature.service';
 import { FleetPolicyService } from './fleet-policy.service';
 import { FleetScopeResolutionController } from './fleet-scope-resolution.controller';
@@ -80,6 +81,7 @@ import { UnregisteredFleetsController } from './unregistered-fleets.controller';
   ],
   controllers: [
     FleetConfigurationController,
+    FleetDirectoryController,
     FleetCommunitiesController,
     FleetScopeResolutionController,
     CommunityFleetsController,

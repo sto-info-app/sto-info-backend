@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { FleetCommunityDto } from '../dto/fleet-community.dto';
+import { FleetCommunityCardDto } from '../dto/fleet-directory.dto';
 import { FleetCommunityEntity } from '../entities/fleet-community.entity';
 
 /**
@@ -34,6 +35,30 @@ export class FleetCommunityMapper {
       revision: community.revision,
       createdAt: community.createdAt,
       updatedAt: community.updatedAt,
+    };
+  }
+
+  /**
+   * Maps a Community to the card the directory lists it as.
+   *
+   * Leaves out the owner. Everything else on {@link toDto} is either shown
+   * on the card or is machinery — a revision counter, a timezone, a closure
+   * instant — but the owner's identifier is a person, and a directory page
+   * is a list long enough that publishing one identifier per row turns a
+   * browse into a harvest. Somebody opening the Community itself is told.
+   *
+   * @param community - The Community entity.
+   * @returns The directory card.
+   */
+  toCardDto(community: FleetCommunityEntity): FleetCommunityCardDto {
+    return {
+      id: community.id,
+      slug: community.slug,
+      status: community.status,
+      createdAt: community.createdAt,
+      name: community.name,
+      description: community.description,
+      recruitmentState: community.recruitmentState,
     };
   }
 }

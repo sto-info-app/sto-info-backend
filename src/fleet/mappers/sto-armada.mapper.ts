@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 
+import { StoArmadaCardDto } from '../dto/fleet-directory.dto';
 import { ArmadaDuplicateDto, StoArmadaDto } from '../dto/sto-armada.dto';
 import { StoArmadaEntity } from '../entities/sto-armada.entity';
+import { DirectoryEntry } from '../services/fleet-directory-page.interface';
 import { toPlatformSegment } from '../utilities/platform-segment.utility';
 
 /**
@@ -61,6 +63,38 @@ export class StoArmadaMapper {
       platformId: armada.platformId,
       platformName: armada.platform.name,
       status: armada.status,
+    };
+  }
+
+  /**
+   * Maps an Armada to the card the directory lists it as.
+   *
+   * The Community fields are never null here — the schema requires one — but
+   * they are typed as nullable because the card shape is shared with the
+   * Fleet, which may have none. Answering the shared shape honestly costs
+   * nothing and saves the client writing two components.
+   *
+   * @param entry - The Armada, with its platform and Community loaded, and
+   *   how many other listed records answer to its name.
+   * @returns The directory card.
+   */
+  toCardDto(entry: DirectoryEntry<StoArmadaEntity>): StoArmadaCardDto {
+    const armada = entry.record;
+
+    return {
+      id: armada.id,
+      slug: armada.slug,
+      status: armada.status,
+      createdAt: armada.createdAt,
+      exactGameName: armada.exactGameName,
+      communityId: armada.communityId,
+      communityName: armada.community.name,
+      communitySlug: armada.community.slug,
+      platformId: armada.platformId,
+      platformName: armada.platform.name,
+      platformSegment: toPlatformSegment(armada.platform.name),
+      duplicateCount: entry.duplicateCount,
+      displayName: armada.displayName,
     };
   }
 }
