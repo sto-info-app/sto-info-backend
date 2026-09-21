@@ -12,6 +12,7 @@ import { CommunityArmadasController } from './community-armadas.controller';
 import { CommunityFleetsController } from './community-fleets.controller';
 import { ArmadaFleetMembershipEntity } from './entities/armada-fleet-membership.entity';
 import { CharacterFleetMembershipEntity } from './entities/character-fleet-membership.entity';
+import { CharacterFleetProposalEntity } from './entities/character-fleet-proposal.entity';
 import { CommunitySubscriptionEntity } from './entities/community-subscription.entity';
 import { FleetCommunityEntity } from './entities/fleet-community.entity';
 import { FleetNameAliasEntity } from './entities/fleet-name-alias.entity';
@@ -77,6 +78,7 @@ import { UnregisteredFleetsController } from './unregistered-fleets.controller';
       ScopeRoleAssignmentEntity,
       ScopeCapabilityGrantEntity,
       CharacterFleetMembershipEntity,
+      CharacterFleetProposalEntity,
       PlatformEntity,
       UserEntity,
       // Read for one column, never written here. A scope page has to say

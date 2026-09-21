@@ -18,6 +18,7 @@ import {
 } from '../file-scanning/contract/file-scan-contract';
 import { ArmadaFleetMembershipEntity } from '../fleet/entities/armada-fleet-membership.entity';
 import { CharacterFleetMembershipEntity } from '../fleet/entities/character-fleet-membership.entity';
+import { CharacterFleetProposalEntity } from '../fleet/entities/character-fleet-proposal.entity';
 import { CommunitySubscriptionEntity } from '../fleet/entities/community-subscription.entity';
 import { FleetCommunityEntity } from '../fleet/entities/fleet-community.entity';
 import { FleetNameAliasEntity } from '../fleet/entities/fleet-name-alias.entity';
@@ -145,6 +146,7 @@ describe('CustomTrackingModule', () => {
     ScopeRoleAssignmentEntity,
     ScopeCapabilityGrantEntity,
     CharacterFleetMembershipEntity,
+    CharacterFleetProposalEntity,
     PlatformEntity,
   ];
 

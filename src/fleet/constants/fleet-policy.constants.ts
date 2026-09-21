@@ -1,17 +1,17 @@
 /**
  * The published access and retention policy, as code.
  *
- * These six figures are stated in the product requirements and repeated in the
- * privacy policy a user reads. They fall into two kinds, and the difference is
- * deliberate rather than an oversight.
+ * These seven figures are stated in the product requirements and repeated in
+ * the privacy policy a user reads. They fall into two kinds, and the
+ * difference is deliberate rather than an oversight.
  *
- * **Fixed.** The four-hour history window, the seven-day transcript window and
- * the three custom channels per level are constants with no environment
- * variable behind them. Nothing in R20 or R22 describes them as configurable,
- * and a value an operator can quietly raise is a policy statement that can stop
- * being true without anybody publishing a correction. Changing one is a code
- * change, which is exactly the thing that forces the policy page to be updated
- * in the same release.
+ * **Fixed.** The four-hour history window, the seven-day transcript window,
+ * the three custom channels per level and the ninety-day proposal window are
+ * constants with no environment variable behind them. Nothing in R20, R22 or
+ * FC-014 describes them as configurable, and a value an operator can quietly
+ * raise is a policy statement that can stop being true without anybody
+ * publishing a correction. Changing one is a code change, which is exactly the
+ * thing that forces the policy page to be updated in the same release.
  *
  * **Configurable, with a floor.** R22 calls the 45-day chat retention
  * "environment configurable" and R27 says import-source retention "starts at"
@@ -87,3 +87,21 @@ export const PUBLISHED_IMPORT_SOURCE_RETENTION_DAYS = 180;
  * hold the two together.
  */
 export const MAX_FLEET_COMMUNITIES_PER_OWNER = 10;
+
+/**
+ * How long a Character Fleet proposal stays answerable, in days (FC-014).
+ *
+ * Long enough that somebody who plays at weekends and reads their inbox
+ * monthly still gets to answer, short enough that a question about a roster
+ * taken half a year ago is not still sitting there implying it is current.
+ *
+ * Fixed rather than configurable, and the reason is the same as the other
+ * fixed figures here: the window is stated to the person being asked, on the
+ * proposal itself, so shortening it is a statement that stops being true
+ * unless somebody publishes the correction.
+ *
+ * The date is written onto each proposal when it is raised and read back
+ * thereafter, so changing this figure does not move the deadline on a
+ * proposal somebody has already been told about.
+ */
+export const CHARACTER_FLEET_PROPOSAL_EXPIRY_DAYS = 90;

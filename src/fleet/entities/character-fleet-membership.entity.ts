@@ -17,6 +17,7 @@ import { UserEntity } from 'src/user/entities/user.entity';
 
 import { CharacterFleetMembershipSource } from '../enums/character-fleet-membership-source.enum';
 import { FleetAudience } from '../enums/fleet-audience.enum';
+import { CharacterFleetProposalEntity } from './character-fleet-proposal.entity';
 import { StoFleetEntity } from './sto-fleet.entity';
 
 /**
@@ -36,9 +37,10 @@ import { StoFleetEntity } from './sto-fleet.entity';
  * the conflict to surface, which is what plan section 4.2 asks for.
  *
  * Historical intervals may not overlap either. That is a service rule under a
- * Character lock rather than an index, because it is a range property, and it
- * belongs to FC-014 along with `character_fleet_proposal` and the `proposalId`
- * column that will reference it.
+ * Character lock rather than an index, because it is a range property: no
+ * constraint can compare a row against the rows it is not. FC-014 enforces it
+ * in `CharacterFleetMembershipService`, which takes the lock on the Character
+ * before it reads, so two concurrent writes queue rather than interleave.
  *
  * `fleetId` is `RESTRICT`: a Fleet record cannot be hard-deleted out from under
  * someone's personal history.
@@ -90,6 +92,26 @@ export class CharacterFleetMembershipEntity {
   source: CharacterFleetMembershipSource;
 
   /**
+   * The proposal the owner accepted to open this, when one did.
+   *
+   * This is the join that makes {@link CharacterFleetMembershipSource.CONFIRMED_IMPORT}
+   * checkable rather than merely claimed: a membership recorded from evidence
+   * cites the question that was asked, and a constraint refuses that source
+   * without one. A membership the owner recorded directly has none, which is
+   * why the column is nullable rather than the site inventing a proposal it
+   * then answers on their behalf.
+   *
+   * `RESTRICT`, like `fleetId`: the answer outlives nothing it was an answer
+   * to.
+   */
+  @ApiProperty({
+    description: 'The proposal this was accepted from, if any.',
+    nullable: true,
+  })
+  @Column({ type: 'uuid', nullable: true, default: null })
+  proposalId: string | null;
+
+  /**
    * Who may see that this Character is in this Fleet.
    *
    * Defaults to `PRIVATE`. Recording your own Character's Fleet must not
@@ -132,6 +154,10 @@ export class CharacterFleetMembershipEntity {
   @ManyToOne(() => StoFleetEntity, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'fleetId' })
   fleet: StoFleetEntity;
+
+  @ManyToOne(() => CharacterFleetProposalEntity, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'proposalId' })
+  proposal: CharacterFleetProposalEntity | null;
 
   @ManyToOne(() => UserEntity, { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'actorUserId' })

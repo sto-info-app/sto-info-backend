@@ -7,8 +7,10 @@ import { ScopeSlugsByPlatform1792700000000 } from '../../database/migrations/179
 import { CreateFleetSlugHistory1792900000000 } from '../../database/migrations/1792900000000-CreateFleetSlugHistory';
 import { AddFleetScopeArtwork1793000000000 } from '../../database/migrations/1793000000000-AddFleetScopeArtwork';
 import { AddressStandaloneFleets1793100000000 } from '../../database/migrations/1793100000000-AddressStandaloneFleets';
+import { CreateCharacterFleetProposals1793300000000 } from '../../database/migrations/1793300000000-CreateCharacterFleetProposals';
 import { ArmadaFleetMembershipEntity } from './armada-fleet-membership.entity';
 import { CharacterFleetMembershipEntity } from './character-fleet-membership.entity';
+import { CharacterFleetProposalEntity } from './character-fleet-proposal.entity';
 import { CommunitySubscriptionEntity } from './community-subscription.entity';
 import { FleetCommunityEntity } from './fleet-community.entity';
 import { FleetNameAliasEntity } from './fleet-name-alias.entity';
@@ -45,6 +47,7 @@ describe('Fleet schema alignment', () => {
     ScopeRoleAssignmentEntity,
     ScopeCapabilityGrantEntity,
     CharacterFleetMembershipEntity,
+    CharacterFleetProposalEntity,
   ];
 
   type EntityClass = (typeof ENTITIES)[number];
@@ -71,6 +74,7 @@ describe('Fleet schema alignment', () => {
     await new CreateFleetSlugHistory1792900000000().up(queryRunner);
     await new AddFleetScopeArtwork1793000000000().up(queryRunner);
     await new AddressStandaloneFleets1793100000000().up(queryRunner);
+    await new CreateCharacterFleetProposals1793300000000().up(queryRunner);
     statements = captured;
   });
 
