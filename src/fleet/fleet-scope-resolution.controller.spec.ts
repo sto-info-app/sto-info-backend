@@ -4,14 +4,17 @@ import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
 
 import { FleetAudienceService } from './authorisation/fleet-audience.service';
 import { FleetCommunityEntity } from './entities/fleet-community.entity';
+import { StoArmadaEntity } from './entities/sto-armada.entity';
 import { StoFleetEntity } from './entities/sto-fleet.entity';
 import { FleetAudience } from './enums/fleet-audience.enum';
 import { FleetScopeKind } from './enums/fleet-scope-kind.enum';
 import { FleetFeatureService } from './fleet-feature.service';
 import { FleetScopeResolutionController } from './fleet-scope-resolution.controller';
+import { StoArmadaMapper } from './mappers/sto-armada.mapper';
 import { StoFleetMapper } from './mappers/sto-fleet.mapper';
 import { FleetCommunityService } from './services/fleet-community.service';
 import { FleetPlatformService } from './services/fleet-platform.service';
+import { StoArmadaService } from './services/sto-armada.service';
 import { StoFleetService } from './services/sto-fleet.service';
 
 const COMMUNITY_ID = '20000000-0000-4000-8000-000000000001';
@@ -35,14 +38,25 @@ const FLEET = {
   visibility: FleetAudience.PUBLIC,
 } as StoFleetEntity;
 
+const ARMADA_ID = '20000000-0000-4000-8000-000000000005';
+
+const ARMADA = {
+  id: ARMADA_ID,
+  communityId: COMMUNITY_ID,
+  platformId: PLATFORM_ID,
+  slug: 'sol-armada',
+} as StoArmadaEntity;
+
 describe('FleetScopeResolutionController', () => {
   let controller: FleetScopeResolutionController;
   let communityService: { resolveBySlugOrFail: jest.Mock };
   let platformService: { findBySegmentOrFail: jest.Mock };
   let fleetService: { resolveBySlugOrFail: jest.Mock };
+  let armadaService: { resolveBySlugOrFail: jest.Mock };
   let audienceService: { assertCanView: jest.Mock };
   let featureService: { assertEnabled: jest.Mock };
   let fleetMapper: { toDto: jest.Mock };
+  let armadaMapper: { toDto: jest.Mock };
 
   beforeEach(() => {
     communityService = {
@@ -61,17 +75,26 @@ describe('FleetScopeResolutionController', () => {
       ),
     };
 
+    armadaService = {
+      resolveBySlugOrFail: jest.fn(() =>
+        Promise.resolve({ armada: ARMADA, redirected: false }),
+      ),
+    };
+
     audienceService = { assertCanView: jest.fn(() => Promise.resolve()) };
     featureService = { assertEnabled: jest.fn(() => Promise.resolve()) };
     fleetMapper = { toDto: jest.fn((fleet: StoFleetEntity) => fleet) };
+    armadaMapper = { toDto: jest.fn((armada: StoArmadaEntity) => armada) };
 
     controller = new FleetScopeResolutionController(
       communityService as unknown as FleetCommunityService,
       platformService as unknown as FleetPlatformService,
       fleetService as unknown as StoFleetService,
+      armadaService as unknown as StoArmadaService,
       audienceService as unknown as FleetAudienceService,
       featureService as unknown as FleetFeatureService,
       fleetMapper as unknown as StoFleetMapper,
+      armadaMapper as unknown as StoArmadaMapper,
     );
   });
 
@@ -183,5 +206,99 @@ describe('FleetScopeResolutionController', () => {
 
     await expect(resolve()).rejects.toBeInstanceOf(NotFoundException);
     expect(communityService.resolveBySlugOrFail).not.toHaveBeenCalled();
+  });
+
+  describe('resolveArmada', () => {
+    const resolveArmada = (
+      communitySlug = 'jupiter-force',
+      platformSegment = 'windows',
+      armadaSlug = 'sol-armada',
+      userId: string | null = USER_ID,
+    ) =>
+      controller.resolveArmada(
+        communitySlug,
+        platformSegment,
+        armadaSlug,
+        userId,
+      );
+
+    it('resolves the whole address in one call', async () => {
+      await expect(resolveArmada()).resolves.toEqual({
+        armada: ARMADA,
+        communitySlug: 'jupiter-force',
+        platformSegment: 'windows',
+        redirected: false,
+      });
+    });
+
+    it('looks the Armada up inside the Community the address names', async () => {
+      await resolveArmada();
+
+      expect(armadaService.resolveBySlugOrFail).toHaveBeenCalledWith(
+        COMMUNITY_ID,
+        PLATFORM_ID,
+        'sol-armada',
+      );
+    });
+
+    /**
+     * One audience check, not two. An Armada carries no audience of its own,
+     * so being allowed to see the Community is the whole of the question,
+     * and a second check against a value that does not exist would either
+     * read undefined or invent one.
+     */
+    it('asks only whether the caller may see the Community', async () => {
+      await resolveArmada();
+
+      expect(audienceService.assertCanView).toHaveBeenCalledTimes(1);
+      expect(audienceService.assertCanView).toHaveBeenCalledWith(
+        FleetAudience.PUBLIC,
+        { kind: FleetScopeKind.COMMUNITY, id: COMMUNITY_ID },
+        USER_ID,
+      );
+    });
+
+    it('stops at the Community when the caller may not see it', async () => {
+      audienceService.assertCanView.mockRejectedValueOnce(
+        new NotFoundException('Not found'),
+      );
+
+      await expect(resolveArmada()).rejects.toBeInstanceOf(NotFoundException);
+      expect(armadaService.resolveBySlugOrFail).not.toHaveBeenCalled();
+    });
+
+    it('reports a renamed Armada without redirecting', async () => {
+      armadaService.resolveBySlugOrFail.mockResolvedValue({
+        armada: ARMADA,
+        redirected: true,
+      });
+
+      expect((await resolveArmada()).redirected).toBe(true);
+    });
+
+    it('reports a renamed Community', async () => {
+      communityService.resolveBySlugOrFail.mockResolvedValue({
+        community: COMMUNITY,
+        redirectedFrom: 'jupiter',
+      });
+
+      expect((await resolveArmada('jupiter')).redirected).toBe(true);
+    });
+
+    it('reports a capitalised platform segment as no longer canonical', async () => {
+      const resolved = await resolveArmada('jupiter-force', 'Windows');
+
+      expect(resolved.redirected).toBe(true);
+      expect(resolved.platformSegment).toBe('windows');
+    });
+
+    it('refuses to resolve anything while the feature is switched off', async () => {
+      featureService.assertEnabled.mockRejectedValue(
+        new NotFoundException('Not found'),
+      );
+
+      await expect(resolveArmada()).rejects.toBeInstanceOf(NotFoundException);
+      expect(communityService.resolveBySlugOrFail).not.toHaveBeenCalled();
+    });
   });
 });

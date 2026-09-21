@@ -10,17 +10,20 @@ import { OptionalJwtAuthGuard } from 'src/auth/optional-jwt-auth.guard';
 import { OptionalUserId } from 'src/auth/user-id.decorator';
 
 import { FleetAudienceService } from './authorisation/fleet-audience.service';
+import { ResolvedStoArmadaDto } from './dto/sto-armada.dto';
 import { ResolvedStoFleetDto } from './dto/sto-fleet.dto';
 import { FleetScopeKind } from './enums/fleet-scope-kind.enum';
 import { FleetFeatureService } from './fleet-feature.service';
+import { StoArmadaMapper } from './mappers/sto-armada.mapper';
 import { StoFleetMapper } from './mappers/sto-fleet.mapper';
 import { FleetCommunityService } from './services/fleet-community.service';
 import { FleetPlatformService } from './services/fleet-platform.service';
+import { StoArmadaService } from './services/sto-armada.service';
 import { StoFleetService } from './services/sto-fleet.service';
 import { toPlatformSegment } from './utilities/platform-segment.utility';
 
 /**
- * Turns a canonical Fleet address into the record it names.
+ * Turns a canonical Fleet or Armada address into the record it names.
  *
  * `/fleet-communities/by-slug/steves-fleets/fleets/windows/omega-command` is
  * the address a person reads, types and pastes into Discord, and this is the
@@ -54,17 +57,21 @@ export class FleetScopeResolutionController {
    * @param _communityService - Resolves the Community segment.
    * @param _platformService - Resolves the platform segment.
    * @param _fleetService - Resolves the Fleet segment.
+   * @param _armadaService - Resolves the Armada segment.
    * @param _audienceService - Answers whether a caller may see what it found.
    * @param _featureService - Reports whether the feature is switched on.
    * @param _fleetMapper - Turns a Fleet into its API shape.
+   * @param _armadaMapper - Turns an Armada into its API shape.
    */
   constructor(
     private readonly _communityService: FleetCommunityService,
     private readonly _platformService: FleetPlatformService,
     private readonly _fleetService: StoFleetService,
+    private readonly _armadaService: StoArmadaService,
     private readonly _audienceService: FleetAudienceService,
     private readonly _featureService: FleetFeatureService,
     private readonly _fleetMapper: StoFleetMapper,
+    private readonly _armadaMapper: StoArmadaMapper,
   ) {}
 
   /**
@@ -126,6 +133,72 @@ export class FleetScopeResolutionController {
 
     return {
       fleet: this._fleetMapper.toDto(resolved.fleet),
+      communitySlug: community.community.slug,
+      platformSegment: canonicalPlatformSegment,
+      redirected:
+        resolved.redirected ||
+        community.redirectedFrom !== null ||
+        platformSegment !== canonicalPlatformSegment,
+    };
+  }
+
+  /**
+   * Resolves an Armada from its canonical address.
+   *
+   * There is no second audience check after the Community's. An Armada
+   * carries no audience of its own — `sto_armada` has no such column — so
+   * being allowed to see the Community is the whole of the question.
+   *
+   * @param communitySlug - The Community segment.
+   * @param platformSegment - The platform segment.
+   * @param armadaSlug - The Armada segment.
+   * @param userId - The viewer, or null when signed out.
+   * @returns The Armada and the current form of every segment.
+   */
+  @Get('armadas/:platformSegment/:armadaSlug')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({
+    summary: 'Resolve an Armada from its canonical URL',
+    description:
+      'Answers 200 with the current segments even when the address used is ' +
+      'an old one, so the caller can replace its own history entry.',
+  })
+  @ApiOkResponse({ type: ResolvedStoArmadaDto })
+  @ApiNotFoundResponse({
+    description:
+      'No Armada answers to that address, now or in the past — or the ' +
+      'caller may not see the Community holding it.',
+  })
+  async resolveArmada(
+    @Param('communitySlug') communitySlug: string,
+    @Param('platformSegment') platformSegment: string,
+    @Param('armadaSlug') armadaSlug: string,
+    @OptionalUserId() userId: string | null,
+  ): Promise<ResolvedStoArmadaDto> {
+    await this._featureService.assertEnabled();
+
+    const community =
+      await this._communityService.resolveBySlugOrFail(communitySlug);
+
+    await this._audienceService.assertCanView(
+      community.community.visibility,
+      { kind: FleetScopeKind.COMMUNITY, id: community.community.id },
+      userId,
+    );
+
+    const platform =
+      await this._platformService.findBySegmentOrFail(platformSegment);
+
+    const resolved = await this._armadaService.resolveBySlugOrFail(
+      community.community.id,
+      platform.id,
+      armadaSlug,
+    );
+
+    const canonicalPlatformSegment = toPlatformSegment(platform.name);
+
+    return {
+      armada: this._armadaMapper.toDto(resolved.armada),
       communitySlug: community.community.slug,
       platformSegment: canonicalPlatformSegment,
       redirected:

@@ -10,6 +10,7 @@ import { FleetAudienceService } from './authorisation/fleet-audience.service';
 import { FleetAuthorisationRevisionService } from './authorisation/fleet-authorisation-revision.service';
 import { FleetAuthorisationService } from './authorisation/fleet-authorisation.service';
 import { ScopeCapabilityGuard } from './authorisation/scope-capability.guard';
+import { CommunityArmadasController } from './community-armadas.controller';
 import { CommunityFleetsController } from './community-fleets.controller';
 import { ArmadaFleetMembershipEntity } from './entities/armada-fleet-membership.entity';
 import { CharacterFleetMembershipEntity } from './entities/character-fleet-membership.entity';
@@ -29,10 +30,12 @@ import { FleetPolicyService } from './fleet-policy.service';
 import { FleetScopeResolutionController } from './fleet-scope-resolution.controller';
 import { FleetModule } from './fleet.module';
 import { FleetCommunityMapper } from './mappers/fleet-community.mapper';
+import { StoArmadaMapper } from './mappers/sto-armada.mapper';
 import { StoFleetMapper } from './mappers/sto-fleet.mapper';
 import { FleetCommunityService } from './services/fleet-community.service';
 import { FleetPlatformService } from './services/fleet-platform.service';
 import { FleetSlugService } from './services/fleet-slug.service';
+import { StoArmadaService } from './services/sto-armada.service';
 import { StoFleetService } from './services/sto-fleet.service';
 
 interface FeatureModule {
@@ -69,6 +72,7 @@ describe('FleetModule', () => {
     FleetPlatformService,
     FleetCommunityService,
     StoFleetService,
+    StoArmadaService,
     FleetAuthorisationService,
     FleetAudienceService,
     FleetAuthorisationRevisionService,
@@ -145,14 +149,17 @@ describe('FleetModule', () => {
     expect(controllers).toContain(FleetCommunitiesController);
   });
 
-  it('exposes the Fleet registration endpoints', () => {
-    const controllers = Reflect.getMetadata(
-      'controllers',
-      FleetModule,
-    ) as unknown[];
+  it.each([CommunityFleetsController, CommunityArmadasController])(
+    'exposes %p',
+    controller => {
+      const controllers = Reflect.getMetadata(
+        'controllers',
+        FleetModule,
+      ) as unknown[];
 
-    expect(controllers).toContain(CommunityFleetsController);
-  });
+      expect(controllers).toContain(controller);
+    },
+  );
 
   it('exposes the canonical URL resolver', () => {
     const controllers = Reflect.getMetadata(
@@ -168,7 +175,7 @@ describe('FleetModule', () => {
    * wanting a Community or a Fleet in its own shape should say so in its own
    * DTO rather than borrow this feature's presentation.
    */
-  it.each([FleetCommunityMapper, StoFleetMapper])(
+  it.each([FleetCommunityMapper, StoFleetMapper, StoArmadaMapper])(
     'provides %p without exporting it',
     mapper => {
       const providers = Reflect.getMetadata(

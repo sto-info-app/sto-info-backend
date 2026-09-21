@@ -7,6 +7,7 @@ import { FleetAudienceService } from './authorisation/fleet-audience.service';
 import { FleetAuthorisationRevisionService } from './authorisation/fleet-authorisation-revision.service';
 import { FleetAuthorisationService } from './authorisation/fleet-authorisation.service';
 import { ScopeCapabilityGuard } from './authorisation/scope-capability.guard';
+import { CommunityArmadasController } from './community-armadas.controller';
 import { CommunityFleetsController } from './community-fleets.controller';
 import { ArmadaFleetMembershipEntity } from './entities/armada-fleet-membership.entity';
 import { CharacterFleetMembershipEntity } from './entities/character-fleet-membership.entity';
@@ -25,10 +26,12 @@ import { FleetFeatureService } from './fleet-feature.service';
 import { FleetPolicyService } from './fleet-policy.service';
 import { FleetScopeResolutionController } from './fleet-scope-resolution.controller';
 import { FleetCommunityMapper } from './mappers/fleet-community.mapper';
+import { StoArmadaMapper } from './mappers/sto-armada.mapper';
 import { StoFleetMapper } from './mappers/sto-fleet.mapper';
 import { FleetCommunityService } from './services/fleet-community.service';
 import { FleetPlatformService } from './services/fleet-platform.service';
 import { FleetSlugService } from './services/fleet-slug.service';
+import { StoArmadaService } from './services/sto-armada.service';
 import { StoFleetService } from './services/sto-fleet.service';
 
 /**
@@ -79,6 +82,7 @@ import { StoFleetService } from './services/sto-fleet.service';
     FleetCommunitiesController,
     FleetScopeResolutionController,
     CommunityFleetsController,
+    CommunityArmadasController,
   ],
   providers: [
     FleetFeatureService,
@@ -87,8 +91,10 @@ import { StoFleetService } from './services/sto-fleet.service';
     FleetPlatformService,
     FleetCommunityService,
     StoFleetService,
+    StoArmadaService,
     FleetCommunityMapper,
     StoFleetMapper,
+    StoArmadaMapper,
     FleetAuthorisationService,
     FleetAudienceService,
     FleetAuthorisationRevisionService,
@@ -101,6 +107,7 @@ import { StoFleetService } from './services/sto-fleet.service';
     FleetPlatformService,
     FleetCommunityService,
     StoFleetService,
+    StoArmadaService,
     FleetAuthorisationService,
     FleetAudienceService,
     FleetAuthorisationRevisionService,
