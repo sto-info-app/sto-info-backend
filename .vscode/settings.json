@@ -71,7 +71,7 @@
     "vars"
   ],
   "sonarlint.connectedMode.project": {
-    "connectionId": "steverobertsuk",
+    "connectionId": "sto-info-app",
     "projectKey": "sto-info-app_sto-info-backend"
   },
   "editor.codeActionsOnSave": {
