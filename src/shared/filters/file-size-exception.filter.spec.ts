@@ -88,7 +88,7 @@ describe('FileSizeExceptionFilter', () => {
       },
       {
         code: 'LIMIT_UNEXPECTED_FILE' as const,
-        expectedMessage: 'Upload failed: Unexpected field',
+        expectedMessage: 'Unexpected file field in upload.',
         expectedStatus: HttpStatus.BAD_REQUEST,
         expectedError: 'Bad Request',
       },
@@ -111,6 +111,21 @@ describe('FileSizeExceptionFilter', () => {
         });
       },
     );
+
+    it('should not track Multer wording for LIMIT_UNEXPECTED_FILE', () => {
+      const exception = new MulterError('LIMIT_UNEXPECTED_FILE');
+      // Multer renamed this message between 2.3.0 and 2.4.0; the response must
+      // stay the same whichever wording the installed version supplies.
+      exception.message = 'Unexpected field';
+
+      filter.catch(exception, mockArgumentsHost);
+
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        statusCode: HttpStatus.BAD_REQUEST,
+        message: 'Unexpected file field in upload.',
+        error: 'Bad Request',
+      });
+    });
 
     it('should use exception.code if message is missing in default case', () => {
       const exception = new MulterError('LIMIT_PART_COUNT');

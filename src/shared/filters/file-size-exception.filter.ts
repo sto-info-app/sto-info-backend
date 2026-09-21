@@ -30,10 +30,15 @@ export class FileSizeExceptionFilter implements ExceptionFilter {
       message = 'Too many fields uploaded.';
     } else if (exception.code === 'LIMIT_FIELD_VALUE') {
       message = `Field content is too large. Maximum allowed size is ${process.env.MAX_IMAGE_SIZE_IN_BYTES} bytes.`;
+    } else if (exception.code === 'LIMIT_UNEXPECTED_FILE') {
+      // Multer's own wording for this code changed between 2.3.0 and 2.4.0, and
+      // it documents the message as not being a contract, so supply our own.
+      status = HttpStatus.BAD_REQUEST;
+      message = 'Unexpected file field in upload.';
     } else {
       // The remaining Multer codes describe a malformed request rather than an
-      // oversized one (an unexpected or invalid field name, a destroyed
-      // stream), so they are reported as a client error, not a size limit.
+      // oversized one (an invalid or missing field name, a destroyed stream),
+      // so they are reported as a client error, not a size limit.
       status = HttpStatus.BAD_REQUEST;
       message = `Upload failed: ${exception.message || exception.code}`;
     }
