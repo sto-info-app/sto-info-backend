@@ -34,6 +34,7 @@ export class StoFleetMapper {
       platformId: fleet.platformId,
       platformName: fleet.platform.name,
       platformSegment: toPlatformSegment(fleet.platform.name),
+      platformProvidesRosterExport: fleet.platform.providesRosterExport,
       exactGameName: fleet.exactGameName,
       allegianceFactionId: fleet.allegianceFactionId,
       slug: fleet.slug,

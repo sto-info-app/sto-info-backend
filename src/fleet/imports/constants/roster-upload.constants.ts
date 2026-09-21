@@ -109,6 +109,25 @@ export const ROSTER_UPLOAD_SCHEMA = {
 };
 
 /**
+ * What somebody is told when their platform has no export facility.
+ *
+ * Names the platform, because the reader may well be a Fleet leader who has
+ * spent the last ten minutes looking for a menu that is not there, and
+ * “your platform” would leave them wondering which of theirs was meant. Says
+ * that it may change, because it may: the column this is read from exists so
+ * that a console gaining the facility is a row somebody updates.
+ *
+ * @param platformName - The platform, as the catalogue names it.
+ * @returns The refusal, in words.
+ */
+export function rosterExportUnavailableMessage(platformName: string): string {
+  return (
+    `The game provides no fleet roster export on ${platformName}, so there ` +
+    'is nothing to import. If that changes, this site will accept one.'
+  );
+}
+
+/**
  * Requires that a file actually arrived with the request.
  *
  * @param file - Whatever Multer parsed, if anything.

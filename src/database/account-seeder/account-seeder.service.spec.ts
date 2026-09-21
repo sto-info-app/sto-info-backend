@@ -99,11 +99,44 @@ describe('AccountSeederService', () => {
       expect(platformService.findOneByName).toHaveBeenCalledTimes(3);
       expect(platformService.create).toHaveBeenCalledWith({
         name: 'Windows',
+        providesRosterExport: true,
       });
       expect(platformService.create).toHaveBeenCalledWith({
         name: 'PlayStation',
+        providesRosterExport: false,
       });
-      expect(platformService.create).toHaveBeenCalledWith({ name: 'Xbox' });
+      expect(platformService.create).toHaveBeenCalledWith({
+        name: 'Xbox',
+        providesRosterExport: false,
+      });
+    });
+
+    /*
+     * The game provides the fleet roster export on Windows and on neither
+     * console, so a seeded catalogue says so from the start rather than
+     * waiting for somebody to notice that every console import fails.
+     */
+    it('should record the roster export as available on Windows alone', async () => {
+      (
+        platformService.findOneByName as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockRejectedValue(new NotFoundException('Platform not found'));
+      (
+        platformService.create as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({});
+
+      await (service as any).seedPlatforms();
+
+      const exporting = (platformService.create as jest.Mock).mock.calls
+        .map(
+          ([platform]) =>
+            platform as { name: string; providesRosterExport: boolean },
+        )
+        .filter(platform => platform.providesRosterExport)
+        .map(platform => platform.name);
+
+      expect(exporting).toEqual(['Windows']);
     });
 
     it('should not create platforms that already exist', async () => {

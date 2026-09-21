@@ -20,8 +20,10 @@ import { FileAssetService } from 'src/file-assets/services/file-asset.service';
 import { QuarantineStorageService } from 'src/file-assets/services/quarantine-storage.service';
 import { ScanRequestProducerService } from 'src/file-scanning/services/scan-request-producer.service';
 
+import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { FleetFeatureService } from '../../fleet-feature.service';
 import { FleetPolicyService } from '../../fleet-policy.service';
+import { StoFleetService } from '../../services/sto-fleet.service';
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
 import { RosterImportsController } from '../roster-imports.controller';
 import { RosterCsvPrivacyParserService } from '../services/roster-csv-privacy-parser.service';
@@ -182,9 +184,26 @@ describe('Officer canary sinks', () => {
       { importSourceRetentionDays: 180 } as FleetPolicyService,
     );
 
-    controller = new RosterImportsController(ingressService, {
-      assertFlagEnabled: jest.fn(() => Promise.resolve()),
-    } as unknown as FleetFeatureService);
+    // On a platform the game exports rosters from, because this sweep is
+    // about what happens to a file that is actually read. A console Fleet is
+    // refused before the parser sees a byte, which proves nothing about the
+    // parser.
+    const fleetService = {
+      findByIdOrFail: jest.fn(() =>
+        Promise.resolve({
+          id: FLEET_ID,
+          platform: { name: 'Windows', providesRosterExport: true },
+        } as StoFleetEntity),
+      ),
+    } as unknown as StoFleetService;
+
+    controller = new RosterImportsController(
+      ingressService,
+      {
+        assertFlagEnabled: jest.fn(() => Promise.resolve()),
+      } as unknown as FleetFeatureService,
+      fleetService,
+    );
   });
 
   afterEach(() => {

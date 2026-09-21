@@ -6,7 +6,9 @@ import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
 
 import { FLEET_FEATURE_FLAGS } from '../constants/fleet-feature.constants';
+import { StoFleetEntity } from '../entities/sto-fleet.entity';
 import { FleetFeatureService } from '../fleet-feature.service';
+import { StoFleetService } from '../services/sto-fleet.service';
 import { RosterImportSourceEntity } from './entities/roster-import-source.entity';
 import { RosterSourceHeaderShape } from './enums/roster-source-header-shape.enum';
 import { RosterImportsController } from './roster-imports.controller';
@@ -55,10 +57,34 @@ function multerFile(bytes: Buffer): Express.Multer.File {
   } as Express.Multer.File;
 }
 
+/**
+ * Builds the Fleet the route resolves, on a platform of the given kind.
+ *
+ * @param providesRosterExport - Whether the game exports rosters there.
+ * @param platformName - What the platform is called.
+ * @returns The Fleet, with its platform loaded.
+ */
+function fleetOn(
+  providesRosterExport: boolean,
+  platformName = 'Windows',
+): StoFleetEntity {
+  return {
+    id: FLEET_ID,
+    platform: { name: platformName, providesRosterExport },
+  } as StoFleetEntity;
+}
+
 describe('RosterImportsController', () => {
   let controller: RosterImportsController;
   let ingressService: { accept: jest.Mock };
   let featureService: { assertFlagEnabled: jest.Mock };
+  // Typed rather than a bare jest.Mock: an untyped one infers `never` for
+  // mockResolvedValueOnce and refuses every Fleet handed to it.
+  let fleetService: {
+    findByIdOrFail: jest.Mock<
+      (communityId: string, fleetId: string) => Promise<StoFleetEntity>
+    >;
+  };
 
   beforeEach(() => {
     ingressService = {
@@ -69,9 +95,14 @@ describe('RosterImportsController', () => {
       assertFlagEnabled: jest.fn(() => Promise.resolve()),
     };
 
+    fleetService = {
+      findByIdOrFail: jest.fn(() => Promise.resolve(fleetOn(true))),
+    };
+
     controller = new RosterImportsController(
       ingressService as unknown as RosterImportIngressService,
       featureService as unknown as FleetFeatureService,
+      fleetService as unknown as StoFleetService,
     );
   });
 
@@ -93,6 +124,76 @@ describe('RosterImportsController', () => {
       FLEET_FEATURE_FLAGS.IMPORTS_ENABLED,
     );
     expect(ingressService.accept).not.toHaveBeenCalled();
+    expect(fleetService.findByIdOrFail).not.toHaveBeenCalled();
+  });
+
+  describe('a platform the game exports no roster on', () => {
+    /*
+     * Not a 404. A staged rollout is hidden because saying “not yet”
+     * advertises what is coming; this is a published fact about the game,
+     * and somebody who has spent ten minutes looking for the export menu
+     * deserves to be told there is not one.
+     */
+    it('refuses with a 400 naming the platform', async () => {
+      fleetService.findByIdOrFail.mockResolvedValueOnce(fleetOn(false, 'Xbox'));
+
+      await expect(
+        controller.upload(
+          COMMUNITY_ID,
+          FLEET_ID,
+          USER_ID,
+          multerFile(Buffer.from('roster bytes', 'utf8')),
+        ),
+      ).rejects.toThrow(/no fleet roster export on Xbox/);
+
+      expect(ingressService.accept).not.toHaveBeenCalled();
+    });
+
+    /*
+     * Nothing the game wrote on a console can be in the buffer, but
+     * somebody's roster still might be — and a refusal is exactly the upload
+     * one would otherwise be tempted to keep a copy of. ADR-0001.
+     */
+    it('disposes of the bytes it refuses', async () => {
+      fleetService.findByIdOrFail.mockResolvedValueOnce(fleetOn(false));
+
+      const file = multerFile(Buffer.from('roster bytes', 'utf8'));
+
+      await expect(
+        controller.upload(COMMUNITY_ID, FLEET_ID, USER_ID, file),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(file.buffer.equals(Buffer.alloc(file.buffer.length))).toBe(true);
+    });
+
+    /*
+     * The platform is true of the Fleet whether or not anything was
+     * attached, so asking for a file first and refusing the platform second
+     * would be two answers to one question.
+     */
+    it('answers the platform before asking for a file', async () => {
+      fleetService.findByIdOrFail.mockResolvedValueOnce(
+        fleetOn(false, 'PlayStation'),
+      );
+
+      await expect(
+        controller.upload(COMMUNITY_ID, FLEET_ID, USER_ID, undefined),
+      ).rejects.toThrow(/no fleet roster export on PlayStation/);
+    });
+
+    it('reads the Fleet through the Community the route claims', async () => {
+      await controller.upload(
+        COMMUNITY_ID,
+        FLEET_ID,
+        USER_ID,
+        multerFile(Buffer.from('roster bytes', 'utf8')),
+      );
+
+      expect(fleetService.findByIdOrFail).toHaveBeenCalledWith(
+        COMMUNITY_ID,
+        FLEET_ID,
+      );
+    });
   });
 
   it('refuses a request that carries no file', async () => {

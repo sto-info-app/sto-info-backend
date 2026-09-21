@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Logger,
   Param,
@@ -30,11 +31,13 @@ import { ScopeCapabilityGuard } from '../authorisation/scope-capability.guard';
 import { FLEET_FEATURE_FLAGS } from '../constants/fleet-feature.constants';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 import { FleetFeatureService } from '../fleet-feature.service';
+import { StoFleetService } from '../services/sto-fleet.service';
 import {
   assertRosterSupplied,
   ROSTER_UPLOAD_FIELD,
   ROSTER_UPLOAD_OPTIONS,
   ROSTER_UPLOAD_SCHEMA,
+  rosterExportUnavailableMessage,
 } from './constants/roster-upload.constants';
 import { RosterImportSourceDto } from './dto/roster-import-source.dto';
 import { RosterImportIngressService } from './services/roster-import-ingress.service';
@@ -53,13 +56,22 @@ import { RosterImportIngressService } from './services/roster-import-ingress.ser
  * delegates. Holding it at the Fleet is the whole of the authorisation
  * decision; nothing here re-reads a role, and a CSV never assigns one.
  *
- * Three refusals, in this order, and the order matters:
+ * Four refusals, in this order, and the order matters:
  *
  * 1. **The feature switch**, which answers `404` rather than "disabled", so a
  *    staged rollout does not advertise what is coming.
  * 2. **The capability**, before a byte of the body has been parsed by
  *    anything of ours.
- * 3. **The file itself**, by the privacy parser.
+ * 3. **The platform**, which answers `400` and says why. The game provides a
+ *    fleet roster export on some platforms and not others, so on a console
+ *    there is no file to send and never was. That is not a staged rollout to
+ *    be hidden behind a `404`; it is a fact about the game, and somebody who
+ *    has just spent ten minutes looking for the menu deserves to be told it
+ *    rather than left with a missing page. It is answered before the file is
+ *    read, and deliberately is not one of the {@link RosterCsvRejectionCode}
+ *    values: every one of those describes the structure of a file, and this
+ *    refusal has not looked at one.
+ * 4. **The file itself**, by the privacy parser.
  *
  * There is no `GET` here yet. Listing a Fleet's imports and downloading a
  * sanitised source are FC-017's and FC-037's, and both need decisions this
@@ -78,10 +90,13 @@ export class RosterImportsController {
    *
    * @param _ingressService - Takes an upload as far as quarantine.
    * @param _featureService - Reports whether imports are switched on.
+   * @param _fleetService - Reads the Fleet, and with it the platform it is
+   *   recorded on.
    */
   constructor(
     private readonly _ingressService: RosterImportIngressService,
     private readonly _featureService: FleetFeatureService,
+    private readonly _fleetService: StoFleetService,
   ) {}
 
   /**
@@ -109,9 +124,10 @@ export class RosterImportsController {
   @ApiCreatedResponse({ type: RosterImportSourceDto })
   @ApiBadRequestResponse({
     description:
-      'The export could not be read. The body carries a structural code and, ' +
-      'where one applies, the line at fault. It never carries any part of the ' +
-      'file.',
+      'The export could not be read, or the Fleet is on a platform the game ' +
+      'provides no export for. Where a file was read, the body carries a ' +
+      'structural code and, where one applies, the line at fault. It never ' +
+      'carries any part of the file.',
   })
   async upload(
     @Param('communityId', ParseUUIDPipe) communityId: string,
@@ -123,6 +139,28 @@ export class RosterImportsController {
       FLEET_FEATURE_FLAGS.IMPORTS_ENABLED,
     );
 
+    const { platform } = await this._fleetService.findByIdOrFail(
+      communityId,
+      fleetId,
+    );
+
+    if (!platform.providesRosterExport) {
+      // Multer has already buffered whatever arrived, so this disposes of it
+      // the way the ingress service disposes of a file it rejects. Nothing
+      // the game wrote on this platform can be in there, but somebody's
+      // roster still might be, and a refusal is exactly the upload one would
+      // otherwise be tempted to keep a copy of — ADR-0001.
+      file?.buffer.fill(0);
+
+      throw new BadRequestException(
+        rosterExportUnavailableMessage(platform.name),
+      );
+    }
+
+    // After the platform, because the platform is true of the Fleet whether
+    // or not anything was attached. Telling somebody to attach a file and
+    // then, once they have, that their platform cannot produce one would be
+    // two answers to one question.
     assertRosterSupplied(file);
 
     this._logger.debug(

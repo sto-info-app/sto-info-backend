@@ -3,6 +3,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { LauncherEntity } from 'src/sto/launcher/entities/launcher.entity';
 import { LauncherService } from 'src/sto/launcher/launcher.service';
 import { PlatformLauncherService } from 'src/sto/platform-launcher/platform-launcher.service';
+import { CreatePlatformDto } from 'src/sto/platform/dto/create-platform.dto';
 import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
 import { PlatformService } from 'src/sto/platform/platform.service';
 
@@ -14,7 +15,8 @@ import { PlatformService } from 'src/sto/platform/platform.service';
  * an idempotent seeding approach, only creating records that do not already exist,
  * allowing the application to be restarted safely without duplicate data.
  *
- * Platforms: Windows, PlayStation, Xbox
+ * Platforms: Windows, PlayStation, Xbox — each with whether the game
+ * provides a fleet roster export on it
  * Launchers: Arc, Epic, Steam, N/A
  *
  * @injectable
@@ -61,16 +63,26 @@ export class AccountSeederService {
    * Creates Windows, PlayStation, and Xbox platforms if they do not already exist.
    * This is an idempotent operation and can be safely re-run.
    *
+   * Each carries whether the game provides a fleet roster export on it, which
+   * today is Windows and neither console. Only new rows are written: an
+   * existing catalogue was corrected by the migration that added the column,
+   * and a seeder that overwrote it on every boot would undo whoever changed
+   * it when the game changed.
+   *
    * @private
    * @throws {Error} If platform creation fails unexpectedly.
    * @returns {Promise<void>}
    */
   private async seedPlatforms() {
-    const platforms = ['Windows', 'PlayStation', 'Xbox'];
+    const platforms: CreatePlatformDto[] = [
+      { name: 'Windows', providesRosterExport: true },
+      { name: 'PlayStation', providesRosterExport: false },
+      { name: 'Xbox', providesRosterExport: false },
+    ];
     for (const platform of platforms) {
-      const existingPlatform = await this.findPlatformByName(platform);
+      const existingPlatform = await this.findPlatformByName(platform.name);
       if (!existingPlatform) {
-        await this._platformService.create({ name: platform });
+        await this._platformService.create(platform);
       }
     }
   }

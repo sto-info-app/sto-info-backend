@@ -39,6 +39,14 @@ export class StoFleetDto {
 
   @ApiProperty({
     description:
+      'Whether the game provides a fleet roster export on this Fleet’s ' +
+      'platform. False means no roster can ever be imported for it, which ' +
+      'is why it has none — rather than because nobody has got round to it.',
+  })
+  platformProvidesRosterExport: boolean;
+
+  @ApiProperty({
+    description:
       'The Fleet name exactly as it appears in game. Any leading or ' +
       'trailing space is part of the name and must stay visible wherever ' +
       'the name is shown: it may be the only thing telling two Fleets apart.',

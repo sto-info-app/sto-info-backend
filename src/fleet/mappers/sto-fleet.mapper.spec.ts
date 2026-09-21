@@ -21,7 +21,11 @@ describe('StoFleetMapper', () => {
       id: 'd0000000-0000-4000-8000-000000000001',
       communityId: 'd0000000-0000-4000-8000-000000000002',
       platformId: 'd0000000-0000-4000-8000-000000000003',
-      platform: { id: 'd0000000-0000-4000-8000-000000000003', name: 'Windows' },
+      platform: {
+        id: 'd0000000-0000-4000-8000-000000000003',
+        name: 'Windows',
+        providesRosterExport: true,
+      },
       allegianceFactionId: 'd0000000-0000-4000-8000-000000000004',
       exactGameName: ' Omega Command',
       exactGameNameNormalized: ' omega command',
@@ -62,6 +66,7 @@ describe('StoFleetMapper', () => {
         platformId: 'd0000000-0000-4000-8000-000000000003',
         platformName: 'Windows',
         platformSegment: 'windows',
+        platformProvidesRosterExport: true,
         exactGameName: ' Omega Command',
         allegianceFactionId: 'd0000000-0000-4000-8000-000000000004',
         slug: 'omega-command',
@@ -78,6 +83,23 @@ describe('StoFleetMapper', () => {
         createdAt,
         updatedAt,
       });
+    });
+
+    /*
+     * A Fleet on a console can never have a roster, because the game gives
+     * nobody there a file to import. Carried on the Fleet so the page saying
+     * so does not have to fetch the catalogue and match a platform by name.
+     */
+    it('says when the Fleet is on a platform with no export facility', () => {
+      const fleet = buildFleet();
+
+      fleet.platform = {
+        ...fleet.platform,
+        name: 'Xbox',
+        providesRosterExport: false,
+      };
+
+      expect(mapper.toDto(fleet).platformProvidesRosterExport).toBe(false);
     });
 
     /**
