@@ -442,6 +442,48 @@ describe('FleetCommunityService', () => {
       expect(slugService.generateUniqueSlug).not.toHaveBeenCalled();
     });
 
+    /**
+     * FC-013's second acceptance criterion. A Community's name is a value
+     * somebody typed, not a thing derived from whoever owns it: the form
+     * offers the registrant's username as a starting point and the server
+     * stores whatever came back. Nothing here reads a username, and the
+     * name and its web address survive any change that does not name them.
+     */
+    it('leaves the name and the web address alone when neither was asked about', async () => {
+      const saved = await service.update(
+        communityId,
+        { description: 'A PC Community.' },
+        ownerUserId,
+      );
+
+      expect(saved.name).toBe('Jupiter Force');
+      expect(saved.slug).toBe('jupiter-force');
+      expect(slugService.generateUniqueSlug).not.toHaveBeenCalled();
+      expect(slugService.recordRetiredSlug).toHaveBeenCalledWith(
+        expect.anything(),
+        communityId,
+        'jupiter-force',
+        'jupiter-force',
+      );
+    });
+
+    /**
+     * The owner is not a field this route accepts. Transferring ownership
+     * is its own capability and its own ticket; what matters here is that
+     * a request cannot rename a Community by claiming to change its owner.
+     */
+    it('ignores an attempt to change the owner, and keeps the name', async () => {
+      const saved = await service.update(
+        communityId,
+        { ownerUserId: 'somebody-else' } as never,
+        ownerUserId,
+      );
+
+      expect(saved.ownerUserId).toBe(ownerUserId);
+      expect(saved.name).toBe('Jupiter Force');
+      expect(saved.slug).toBe('jupiter-force');
+    });
+
     it('refuses an edit made against a revision that has moved on', async () => {
       await expect(
         service.update(communityId, { revision: 1 }, ownerUserId),

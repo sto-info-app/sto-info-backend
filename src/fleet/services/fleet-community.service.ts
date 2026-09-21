@@ -315,9 +315,24 @@ export class FleetCommunityService {
       });
     }
 
-    const { slug, revision, ...changes } = dto;
+    // Three fields are taken out before the rest is assigned. The slug is
+    // minted above rather than accepted, and the revision is the check that
+    // has already been made.
+    //
+    // The owner is taken out because this is a settings route and ownership
+    // is not a setting: transferring it is its own capability, and the
+    // `ownerUserId` column is what confers Owner without a role row. The
+    // DTO does not declare it and the global pipe refuses what the DTO does
+    // not declare, so nothing can reach here carrying one today — but what
+    // follows is a blanket assignment, and a rule that holds only because
+    // of a pipe configured in another file is a rule waiting for the day
+    // somebody adds a field.
+    const { slug, revision, ...changes } = dto as typeof dto & {
+      ownerUserId?: string;
+    };
     void slug;
     void revision;
+    delete changes.ownerUserId;
 
     Object.assign(community, changes);
 
