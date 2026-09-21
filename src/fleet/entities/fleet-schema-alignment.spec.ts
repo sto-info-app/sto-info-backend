@@ -4,11 +4,13 @@ import { getMetadataArgsStorage, QueryRunner } from 'typeorm';
 import { CreateFleetCommunityDomainTables1791600000000 } from '../../database/migrations/1791600000000-CreateFleetCommunityDomainTables';
 import { CreateScopeCapabilityGrants1791700000000 } from '../../database/migrations/1791700000000-CreateScopeCapabilityGrants';
 import { ScopeSlugsByPlatform1792700000000 } from '../../database/migrations/1792700000000-ScopeSlugsByPlatform';
+import { CreateFleetSlugHistory1792900000000 } from '../../database/migrations/1792900000000-CreateFleetSlugHistory';
 import { ArmadaFleetMembershipEntity } from './armada-fleet-membership.entity';
 import { CharacterFleetMembershipEntity } from './character-fleet-membership.entity';
 import { CommunitySubscriptionEntity } from './community-subscription.entity';
 import { FleetCommunityEntity } from './fleet-community.entity';
 import { FleetNameAliasEntity } from './fleet-name-alias.entity';
+import { FleetSlugHistoryEntity } from './fleet-slug-history.entity';
 import { ScopeCapabilityGrantEntity } from './scope-capability-grant.entity';
 import { ScopeMembershipEntity } from './scope-membership.entity';
 import { ScopeRoleAssignmentEntity } from './scope-role-assignment.entity';
@@ -34,6 +36,7 @@ describe('Fleet schema alignment', () => {
     StoFleetEntity,
     StoArmadaEntity,
     FleetNameAliasEntity,
+    FleetSlugHistoryEntity,
     ArmadaFleetMembershipEntity,
     CommunitySubscriptionEntity,
     ScopeMembershipEntity,
@@ -63,6 +66,7 @@ describe('Fleet schema alignment', () => {
     await new CreateFleetCommunityDomainTables1791600000000().up(queryRunner);
     await new CreateScopeCapabilityGrants1791700000000().up(queryRunner);
     await new ScopeSlugsByPlatform1792700000000().up(queryRunner);
+    await new CreateFleetSlugHistory1792900000000().up(queryRunner);
     statements = captured;
   });
 
