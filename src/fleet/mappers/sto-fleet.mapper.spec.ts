@@ -1,0 +1,163 @@
+import { Test, TestingModule } from '@nestjs/testing';
+
+import { FleetCommunityEntity } from '../entities/fleet-community.entity';
+import { StoFleetEntity } from '../entities/sto-fleet.entity';
+import { FleetAudience } from '../enums/fleet-audience.enum';
+import { FleetRecruitmentState } from '../enums/fleet-recruitment-state.enum';
+import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
+import { StoFleetMapper } from './sto-fleet.mapper';
+
+describe('StoFleetMapper', () => {
+  let mapper: StoFleetMapper;
+
+  const createdAt = new Date('2026-02-01T10:00:00.000Z');
+  const updatedAt = new Date('2026-02-02T10:00:00.000Z');
+  const importedAt = new Date('2026-02-03T10:00:00.000Z');
+
+  const buildFleet = (
+    overrides: Partial<StoFleetEntity> = {},
+  ): StoFleetEntity =>
+    ({
+      id: 'd0000000-0000-4000-8000-000000000001',
+      communityId: 'd0000000-0000-4000-8000-000000000002',
+      platformId: 'd0000000-0000-4000-8000-000000000003',
+      platform: { id: 'd0000000-0000-4000-8000-000000000003', name: 'Windows' },
+      allegianceFactionId: 'd0000000-0000-4000-8000-000000000004',
+      exactGameName: ' Omega Command',
+      exactGameNameNormalized: ' omega command',
+      slug: 'omega-command',
+      recruitmentState: FleetRecruitmentState.OPEN,
+      visibility: FleetAudience.PUBLIC,
+      lastEffectiveImportAt: importedAt,
+      status: FleetScopeStatus.ACTIVE,
+      closedAt: null,
+      revision: 3,
+      createdAt,
+      updatedAt,
+      deletedAt: null,
+      ...overrides,
+    }) as StoFleetEntity;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [StoFleetMapper],
+    }).compile();
+
+    mapper = module.get<StoFleetMapper>(StoFleetMapper);
+  });
+
+  it('is defined', () => {
+    expect(mapper).toBeDefined();
+  });
+
+  describe('toDto', () => {
+    it('maps every field a caller is given', () => {
+      expect(mapper.toDto(buildFleet())).toEqual({
+        id: 'd0000000-0000-4000-8000-000000000001',
+        communityId: 'd0000000-0000-4000-8000-000000000002',
+        platformId: 'd0000000-0000-4000-8000-000000000003',
+        platformName: 'Windows',
+        platformSegment: 'windows',
+        exactGameName: ' Omega Command',
+        allegianceFactionId: 'd0000000-0000-4000-8000-000000000004',
+        slug: 'omega-command',
+        recruitmentState: FleetRecruitmentState.OPEN,
+        visibility: FleetAudience.PUBLIC,
+        lastEffectiveImportAt: importedAt,
+        status: FleetScopeStatus.ACTIVE,
+        closedAt: null,
+        revision: 3,
+        createdAt,
+        updatedAt,
+      });
+    });
+
+    /**
+     * The URL segment is derived rather than stored — ADR-0022 decision 3 —
+     * so a renamed platform cannot leave a stale segment behind in a column
+     * that disagrees with the catalogue.
+     */
+    it('derives the platform segment from the catalogue name', () => {
+      const fleet = buildFleet();
+      fleet.platform = {
+        ...fleet.platform,
+        name: 'Nintendo Switch',
+      } as StoFleetEntity['platform'];
+
+      expect(mapper.toDto(fleet).platformSegment).toBe('nintendo-switch');
+    });
+
+    /**
+     * ADR-0003's display obligation. Where two Fleets differ only by an edge
+     * space, that space is the only thing telling them apart, so it has to
+     * survive every hop out to a client.
+     */
+    it('carries an edge space out to the caller untouched', () => {
+      expect(mapper.toDto(buildFleet()).exactGameName).toBe(' Omega Command');
+    });
+
+    it('keeps the duplicate-detection column and the deletion stamp private', () => {
+      const dto = mapper.toDto(buildFleet());
+
+      expect(dto).not.toHaveProperty('exactGameNameNormalized');
+      expect(dto).not.toHaveProperty('deletedAt');
+    });
+  });
+
+  describe('toDuplicateDto', () => {
+    it('says whose the record is and how current it is', () => {
+      const fleet = buildFleet();
+      fleet.community = {
+        id: 'd0000000-0000-4000-8000-000000000002',
+        name: 'Jupiter Force',
+        slug: 'jupiter-force',
+      } as FleetCommunityEntity;
+
+      expect(mapper.toDuplicateDto(fleet)).toEqual({
+        id: 'd0000000-0000-4000-8000-000000000001',
+        exactGameName: ' Omega Command',
+        communityId: 'd0000000-0000-4000-8000-000000000002',
+        communityName: 'Jupiter Force',
+        communitySlug: 'jupiter-force',
+        platformId: 'd0000000-0000-4000-8000-000000000003',
+        platformName: 'Windows',
+        lastEffectiveImportAt: importedAt,
+        status: FleetScopeStatus.ACTIVE,
+      });
+    });
+
+    /**
+     * An unregistered record has no Community, which is a fact about it
+     * rather than a gap: it is an observation target somebody confirmed, and
+     * saying so is exactly what tells it apart from a Community's own record.
+     */
+    it('reports an unregistered record as belonging to nobody', () => {
+      const fleet = buildFleet({ communityId: null, community: null });
+
+      const duplicate = mapper.toDuplicateDto(fleet);
+
+      expect(duplicate.communityId).toBeNull();
+      expect(duplicate.communityName).toBeNull();
+      expect(duplicate.communitySlug).toBeNull();
+    });
+
+    /**
+     * A duplicate summary describes somebody else's record. Its recruitment
+     * posture, its audience and its allegiance are none of the registrant's
+     * business, and none of them helps tell two records apart.
+     */
+    it('tells the registrant nothing else about somebody else’s record', () => {
+      const fleet = buildFleet();
+      fleet.community = {
+        name: 'Jupiter Force',
+        slug: 'jupiter-force',
+      } as FleetCommunityEntity;
+
+      const duplicate = mapper.toDuplicateDto(fleet);
+
+      expect(duplicate).not.toHaveProperty('visibility');
+      expect(duplicate).not.toHaveProperty('recruitmentState');
+      expect(duplicate).not.toHaveProperty('allegianceFactionId');
+    });
+  });
+});

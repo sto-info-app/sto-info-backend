@@ -33,6 +33,7 @@ import { SecretsService } from '../shared/secrets/secrets.service';
 import { ImageUploadsService } from '../shared/utilities/image-uploads.service';
 import { AccountEntity } from '../sto/account/entities/account.entity';
 import { CharacterEntity } from '../sto/character/entities/character.entity';
+import { PlatformEntity } from '../sto/platform/entities/platform.entity';
 import { UserProfileEntity } from '../user/entities/user-profile.entity';
 import { UserEntity } from '../user/entities/user.entity';
 import { CustomTrackingConfigurationController } from './custom-tracking-configuration.controller';
@@ -144,6 +145,7 @@ describe('CustomTrackingModule', () => {
     ScopeRoleAssignmentEntity,
     ScopeCapabilityGrantEntity,
     CharacterFleetMembershipEntity,
+    PlatformEntity,
   ];
 
   const compile = async () => {

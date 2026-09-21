@@ -165,7 +165,8 @@ export const FLEET_CAPABILITY_DEFINITIONS: readonly FleetCapabilityDefinition[] 
       code: FLEET_CAPABILITIES.SCOPE_CHILDREN_REGISTER,
       name: 'Register Fleets and Armadas',
       description:
-        'Register a Fleet or an Armada under the Community, and change or close one.',
+        'Register a Fleet or an Armada under the Community. Changing or ' +
+        'closing one afterwards is that scope’s own settings capability.',
       mutating: true,
       delegable: true,
       scopeKinds: [FleetScopeKind.COMMUNITY],

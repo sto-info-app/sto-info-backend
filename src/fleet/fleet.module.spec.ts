@@ -4,11 +4,13 @@ import { join } from 'node:path';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { CommunityModule } from '../community/community.module';
+import { PlatformEntity } from '../sto/platform/entities/platform.entity';
 import { UserEntity } from '../user/entities/user.entity';
 import { FleetAudienceService } from './authorisation/fleet-audience.service';
 import { FleetAuthorisationRevisionService } from './authorisation/fleet-authorisation-revision.service';
 import { FleetAuthorisationService } from './authorisation/fleet-authorisation.service';
 import { ScopeCapabilityGuard } from './authorisation/scope-capability.guard';
+import { CommunityFleetsController } from './community-fleets.controller';
 import { ArmadaFleetMembershipEntity } from './entities/armada-fleet-membership.entity';
 import { CharacterFleetMembershipEntity } from './entities/character-fleet-membership.entity';
 import { CommunitySubscriptionEntity } from './entities/community-subscription.entity';
@@ -24,10 +26,14 @@ import { FleetCommunitiesController } from './fleet-communities.controller';
 import { FleetConfigurationController } from './fleet-configuration.controller';
 import { FleetFeatureService } from './fleet-feature.service';
 import { FleetPolicyService } from './fleet-policy.service';
+import { FleetScopeResolutionController } from './fleet-scope-resolution.controller';
 import { FleetModule } from './fleet.module';
 import { FleetCommunityMapper } from './mappers/fleet-community.mapper';
+import { StoFleetMapper } from './mappers/sto-fleet.mapper';
 import { FleetCommunityService } from './services/fleet-community.service';
+import { FleetPlatformService } from './services/fleet-platform.service';
 import { FleetSlugService } from './services/fleet-slug.service';
+import { StoFleetService } from './services/sto-fleet.service';
 
 interface FeatureModule {
   providers?: Array<{ provide?: unknown }>;
@@ -48,14 +54,21 @@ describe('FleetModule', () => {
     CharacterFleetMembershipEntity,
   ];
 
-  /** Registered for its repository, but owned by the user module. */
-  const BORROWED_ENTITIES = [UserEntity];
+  /**
+   * Registered for their repositories, but owned by other modules.
+   *
+   * `forFeature` registrations are per-module even when the module declaring
+   * them is global, so borrowing one means registering it again here.
+   */
+  const BORROWED_ENTITIES = [UserEntity, PlatformEntity];
 
   const SERVICES = [
     FleetFeatureService,
     FleetPolicyService,
     FleetSlugService,
+    FleetPlatformService,
     FleetCommunityService,
+    StoFleetService,
     FleetAuthorisationService,
     FleetAudienceService,
     FleetAuthorisationRevisionService,
@@ -132,21 +145,42 @@ describe('FleetModule', () => {
     expect(controllers).toContain(FleetCommunitiesController);
   });
 
-  /**
-   * The mapper is provided and deliberately not exported. Another module
-   * wanting a Community in its own shape should say so in its own DTO rather
-   * than borrow this feature's presentation.
-   */
-  it('provides the Community mapper without exporting it', () => {
-    const providers = Reflect.getMetadata(
-      'providers',
+  it('exposes the Fleet registration endpoints', () => {
+    const controllers = Reflect.getMetadata(
+      'controllers',
       FleetModule,
     ) as unknown[];
-    const exported = Reflect.getMetadata('exports', FleetModule) as unknown[];
 
-    expect(providers).toContain(FleetCommunityMapper);
-    expect(exported).not.toContain(FleetCommunityMapper);
+    expect(controllers).toContain(CommunityFleetsController);
   });
+
+  it('exposes the canonical URL resolver', () => {
+    const controllers = Reflect.getMetadata(
+      'controllers',
+      FleetModule,
+    ) as unknown[];
+
+    expect(controllers).toContain(FleetScopeResolutionController);
+  });
+
+  /**
+   * The mappers are provided and deliberately not exported. Another module
+   * wanting a Community or a Fleet in its own shape should say so in its own
+   * DTO rather than borrow this feature's presentation.
+   */
+  it.each([FleetCommunityMapper, StoFleetMapper])(
+    'provides %p without exporting it',
+    mapper => {
+      const providers = Reflect.getMetadata(
+        'providers',
+        FleetModule,
+      ) as unknown[];
+      const exported = Reflect.getMetadata('exports', FleetModule) as unknown[];
+
+      expect(providers).toContain(mapper);
+      expect(exported).not.toContain(mapper);
+    },
+  );
 
   it('is not registered globally', () => {
     expect(Reflect.getMetadata('__module:global__', FleetModule)).toBeFalsy();

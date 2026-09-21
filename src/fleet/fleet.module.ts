@@ -1,11 +1,13 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { PlatformEntity } from '../sto/platform/entities/platform.entity';
 import { UserEntity } from '../user/entities/user.entity';
 import { FleetAudienceService } from './authorisation/fleet-audience.service';
 import { FleetAuthorisationRevisionService } from './authorisation/fleet-authorisation-revision.service';
 import { FleetAuthorisationService } from './authorisation/fleet-authorisation.service';
 import { ScopeCapabilityGuard } from './authorisation/scope-capability.guard';
+import { CommunityFleetsController } from './community-fleets.controller';
 import { ArmadaFleetMembershipEntity } from './entities/armada-fleet-membership.entity';
 import { CharacterFleetMembershipEntity } from './entities/character-fleet-membership.entity';
 import { CommunitySubscriptionEntity } from './entities/community-subscription.entity';
@@ -21,9 +23,13 @@ import { FleetCommunitiesController } from './fleet-communities.controller';
 import { FleetConfigurationController } from './fleet-configuration.controller';
 import { FleetFeatureService } from './fleet-feature.service';
 import { FleetPolicyService } from './fleet-policy.service';
+import { FleetScopeResolutionController } from './fleet-scope-resolution.controller';
 import { FleetCommunityMapper } from './mappers/fleet-community.mapper';
+import { StoFleetMapper } from './mappers/sto-fleet.mapper';
 import { FleetCommunityService } from './services/fleet-community.service';
+import { FleetPlatformService } from './services/fleet-platform.service';
 import { FleetSlugService } from './services/fleet-slug.service';
+import { StoFleetService } from './services/sto-fleet.service';
 
 /**
  * Fleet Community — Communities, Fleets, Armadas, the records that relate users
@@ -64,16 +70,25 @@ import { FleetSlugService } from './services/fleet-slug.service';
       ScopeRoleAssignmentEntity,
       ScopeCapabilityGrantEntity,
       CharacterFleetMembershipEntity,
+      PlatformEntity,
       UserEntity,
     ]),
   ],
-  controllers: [FleetConfigurationController, FleetCommunitiesController],
+  controllers: [
+    FleetConfigurationController,
+    FleetCommunitiesController,
+    FleetScopeResolutionController,
+    CommunityFleetsController,
+  ],
   providers: [
     FleetFeatureService,
     FleetPolicyService,
     FleetSlugService,
+    FleetPlatformService,
     FleetCommunityService,
+    StoFleetService,
     FleetCommunityMapper,
+    StoFleetMapper,
     FleetAuthorisationService,
     FleetAudienceService,
     FleetAuthorisationRevisionService,
@@ -83,7 +98,9 @@ import { FleetSlugService } from './services/fleet-slug.service';
     FleetFeatureService,
     FleetPolicyService,
     FleetSlugService,
+    FleetPlatformService,
     FleetCommunityService,
+    StoFleetService,
     FleetAuthorisationService,
     FleetAudienceService,
     FleetAuthorisationRevisionService,
