@@ -25,6 +25,7 @@ const USER_ID = '20000000-0000-4000-8000-000000000004';
 const COMMUNITY = {
   id: COMMUNITY_ID,
   slug: 'jupiter-force',
+  name: 'Jupiter Force',
   visibility: FleetAudience.PUBLIC,
 } as FleetCommunityEntity;
 
@@ -110,6 +111,10 @@ describe('FleetScopeResolutionController', () => {
     await expect(resolve()).resolves.toEqual({
       fleet: FLEET,
       communitySlug: 'jupiter-force',
+      // The name as well as the segment. A page showing a Fleet names the
+      // Community holding it, and "Held by jupiter-force" is a URL read
+      // aloud rather than a name.
+      communityName: 'Jupiter Force',
       platformSegment: 'windows',
       redirected: false,
     });
@@ -226,6 +231,7 @@ describe('FleetScopeResolutionController', () => {
       await expect(resolveArmada()).resolves.toEqual({
         armada: ARMADA,
         communitySlug: 'jupiter-force',
+        communityName: 'Jupiter Force',
         platformSegment: 'windows',
         redirected: false,
       });

@@ -150,6 +150,12 @@ export class ResolvedStoArmadaDto {
   @ApiProperty({ description: 'The owning Community’s current URL segment.' })
   communitySlug: string;
 
+  /* The Community's name as well as its segment, for the same reason the
+   * Fleet answer carries one: a page names the Community holding a record,
+   * and a slug is a URL rather than a name. */
+  @ApiProperty({ description: 'The owning Community’s display name.' })
+  communityName: string;
+
   @ApiProperty({ description: 'The platform’s current URL segment.' })
   platformSegment: string;
 

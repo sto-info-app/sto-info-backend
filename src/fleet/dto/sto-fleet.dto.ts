@@ -200,6 +200,16 @@ export class ResolvedStoFleetDto {
   @ApiProperty({ description: 'The owning Community’s current URL segment.' })
   communitySlug: string;
 
+  /*
+   * The Community's name as well as its segment. A page showing a Fleet
+   * names the Community holding it, and a slug is not a name: "Held by
+   * united-federation-alliance" is a URL read aloud. Carried here rather
+   * than fetched beside it, because resolving the whole address in one
+   * request is the entire point of this route.
+   */
+  @ApiProperty({ description: 'The owning Community’s display name.' })
+  communityName: string;
+
   @ApiProperty({ description: 'The platform’s current URL segment.' })
   platformSegment: string;
 

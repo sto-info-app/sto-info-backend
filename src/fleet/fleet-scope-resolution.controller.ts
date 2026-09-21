@@ -134,6 +134,7 @@ export class FleetScopeResolutionController {
     return {
       fleet: this._fleetMapper.toDto(resolved.fleet),
       communitySlug: community.community.slug,
+      communityName: community.community.name,
       platformSegment: canonicalPlatformSegment,
       redirected:
         resolved.redirected ||
@@ -200,6 +201,7 @@ export class FleetScopeResolutionController {
     return {
       armada: this._armadaMapper.toDto(resolved.armada),
       communitySlug: community.community.slug,
+      communityName: community.community.name,
       platformSegment: canonicalPlatformSegment,
       redirected:
         resolved.redirected ||
