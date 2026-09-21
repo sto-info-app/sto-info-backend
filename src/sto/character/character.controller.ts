@@ -24,6 +24,7 @@ import {
   ApiBody,
   ApiConsumes,
   ApiOkResponse,
+  ApiPayloadTooLargeResponse,
   ApiTags,
 } from '@nestjs/swagger';
 
@@ -132,6 +133,7 @@ export class CharacterController {
     type: AssetScanStatusDto,
   })
   @ApiBadRequestResponse({ description: 'Failed to upload the profile image.' })
+  @ApiPayloadTooLargeResponse({ description: 'The image is too large.' })
   async uploadProfileImage(
     @UserId() userId: string,
     @Param('id') id: string,
