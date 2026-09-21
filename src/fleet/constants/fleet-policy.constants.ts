@@ -1,7 +1,7 @@
 /**
  * The published access and retention policy, as code.
  *
- * These five figures are stated in the product requirements and repeated in the
+ * These six figures are stated in the product requirements and repeated in the
  * privacy policy a user reads. They fall into two kinds, and the difference is
  * deliberate rather than an oversight.
  *
@@ -67,3 +67,23 @@ export const PUBLISHED_CHAT_RETENTION_DAYS = 45;
  * the same thing.
  */
 export const PUBLISHED_IMPORT_SOURCE_RETENTION_DAYS = 180;
+
+/**
+ * How many live Fleet Communities one account may own (R03, ADR-0022).
+ *
+ * R03 describes "one persistent umbrella" and the schema permits any number.
+ * Ten was chosen over both: a player may keep a PC Community and a console one
+ * apart, or an Armada's umbrella away from a personal one, while one account
+ * still cannot mint unlimited public directory entries.
+ *
+ * Fixed in code rather than configurable, for the reason the file's other
+ * fixed figures are: it is a published limit a user is told about when they
+ * reach it, so raising it should be a release rather than an environment
+ * variable.
+ *
+ * The number also appears in `1792800000000-LimitFleetCommunitiesPerOwner`,
+ * because a count cannot be enforced without a race anywhere but in the
+ * database. That is a duplication, and this file's spec reads the migration to
+ * hold the two together.
+ */
+export const MAX_FLEET_COMMUNITIES_PER_OWNER = 10;

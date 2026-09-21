@@ -5,6 +5,7 @@ import {
   CHAT_MEMBER_HISTORY_HOURS,
   CHAT_TRANSCRIPT_HISTORY_DAYS,
   FLEET_CUSTOM_CHANNEL_LIMIT,
+  MAX_FLEET_COMMUNITIES_PER_OWNER,
   PUBLISHED_CHAT_RETENTION_DAYS,
   PUBLISHED_IMPORT_SOURCE_RETENTION_DAYS,
 } from './fleet-policy.constants';
@@ -29,6 +30,41 @@ describe('fleet policy constants', () => {
 
   it('keeps three custom channels at each level', () => {
     expect(FLEET_CUSTOM_CHANNEL_LIMIT).toBe(3);
+  });
+
+  it('caps ownership at ten Fleet Communities', () => {
+    expect(MAX_FLEET_COMMUNITIES_PER_OWNER).toBe(10);
+  });
+
+  /**
+   * The limit exists twice: here, and in the trigger that enforces it. It has
+   * to, because a count checked in a service is a read-then-write that two
+   * concurrent creates both pass, and only the database can settle that.
+   *
+   * A duplicated figure is a figure that drifts, so the migration is read and
+   * the number looked for in it. Raising the limit in one place and not the
+   * other would otherwise produce a form that promises ten and a database that
+   * refuses the eighth.
+   */
+  it('enforces the same limit in the migration that owns the trigger', () => {
+    const migration = readFileSync(
+      join(
+        __dirname,
+        '..',
+        '..',
+        'database',
+        'migrations',
+        '1792800000000-LimitFleetCommunitiesPerOwner.ts',
+      ),
+      'utf8',
+    );
+
+    expect(migration).toContain(
+      `IF live_count >= ${MAX_FLEET_COMMUNITIES_PER_OWNER} THEN`,
+    );
+    expect(migration).toContain(
+      `a user may own at most ${MAX_FLEET_COMMUNITIES_PER_OWNER} live Fleet Communities`,
+    );
   });
 
   /**
