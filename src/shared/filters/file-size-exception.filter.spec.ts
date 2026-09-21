@@ -64,43 +64,51 @@ describe('FileSizeExceptionFilter', () => {
         code: 'LIMIT_FILE_SIZE' as const,
         expectedMessage:
           'File size is too large. Maximum allowed size is 5242880 bytes.',
+        expectedStatus: HttpStatus.PAYLOAD_TOO_LARGE,
+        expectedError: 'Payload Too Large',
       },
       {
         code: 'LIMIT_FILE_COUNT' as const,
         expectedMessage: 'Too many files uploaded. Only 1 file is allowed.',
+        expectedStatus: HttpStatus.PAYLOAD_TOO_LARGE,
+        expectedError: 'Payload Too Large',
       },
       {
         code: 'LIMIT_FIELD_COUNT' as const,
         expectedMessage: 'Too many fields uploaded.',
+        expectedStatus: HttpStatus.PAYLOAD_TOO_LARGE,
+        expectedError: 'Payload Too Large',
       },
       {
         code: 'LIMIT_FIELD_VALUE' as const,
         expectedMessage:
           'Field content is too large. Maximum allowed size is 5242880 bytes.',
+        expectedStatus: HttpStatus.PAYLOAD_TOO_LARGE,
+        expectedError: 'Payload Too Large',
       },
       {
         code: 'LIMIT_UNEXPECTED_FILE' as const,
         expectedMessage: 'Upload failed: Unexpected field',
+        expectedStatus: HttpStatus.BAD_REQUEST,
+        expectedError: 'Bad Request',
       },
     ];
 
     it.each(testCases)(
       'should return correct message for $code',
-      ({ code, expectedMessage }) => {
+      ({ code, expectedMessage, expectedStatus, expectedError }) => {
         const exception = new MulterError(code);
         // MulterError message is set based on the code in the constructor
         // but we can override it if needed for the test.
 
         filter.catch(exception, mockArgumentsHost);
 
-        expect(mockResponse.status).toHaveBeenCalledWith(
-          HttpStatus.PAYLOAD_TOO_LARGE,
-        );
-        expect(mockResponse.json).toHaveBeenCalledWith(
-          expect.objectContaining({
-            message: expectedMessage,
-          }),
-        );
+        expect(mockResponse.status).toHaveBeenCalledWith(expectedStatus);
+        expect(mockResponse.json).toHaveBeenCalledWith({
+          statusCode: expectedStatus,
+          message: expectedMessage,
+          error: expectedError,
+        });
       },
     );
 
@@ -108,11 +116,12 @@ describe('FileSizeExceptionFilter', () => {
       const exception = new MulterError('LIMIT_PART_COUNT');
       exception.message = undefined as any;
       filter.catch(exception, mockArgumentsHost);
-      expect(mockResponse.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: 'Upload failed: LIMIT_PART_COUNT',
-        }),
-      );
+      expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        statusCode: HttpStatus.BAD_REQUEST,
+        message: 'Upload failed: LIMIT_PART_COUNT',
+        error: 'Bad Request',
+      });
     });
   });
 });
