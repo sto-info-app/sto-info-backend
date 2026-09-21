@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { FleetAudience } from 'src/fleet/enums/fleet-audience.enum';
 import {
   ImageSlotService,
   ImageSlotSpec,
@@ -27,6 +28,24 @@ export interface ImageUploadRequest {
   readonly subjectId: string;
   /** Which picture of that record. */
   readonly slot: FileAssetSlot;
+  /**
+   * The Fleet scope the picture belongs to, when it belongs to one.
+   *
+   * Passed through to the registry's own scope columns, which have been
+   * there since FC-012 and had nothing to fill them until a Fleet scope
+   * gained artwork. They are what lets a retention sweep or a closure find
+   * every asset belonging to a scope without asking each feature in turn.
+   */
+  readonly scope?: {
+    /** The owning Community, where there is one. */
+    readonly communityId?: string | null;
+    /** The owning Fleet, where there is one. */
+    readonly fleetId?: string | null;
+    /** The owning Armada, where there is one. */
+    readonly armadaId?: string | null;
+    /** Which of the scope's audiences applies. */
+    readonly audience?: FleetAudience | null;
+  } | null;
   /** What kind of thing it is, as Cloudflare records it. */
   readonly entityTag: string;
   /** What it belongs to, as Cloudflare records it. */
@@ -97,6 +116,10 @@ export class ImageIngressService {
       subjectId: request.subjectId,
       slot: request.slot,
       ownerUserId: request.userId,
+      communityId: request.scope?.communityId ?? null,
+      fleetId: request.scope?.fleetId ?? null,
+      armadaId: request.scope?.armadaId ?? null,
+      scopeAudience: request.scope?.audience ?? null,
       bytes: inspected.bytes,
       // What the browser said, kept as a claim. The registry normalises it
       // and the worker checks it against the bytes — ADR-0020.

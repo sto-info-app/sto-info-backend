@@ -67,3 +67,13 @@ export const FLEET_IMAGE_SLOTS = {
   /** The square badge. */
   EMBLEM: FileAssetSlot.EMBLEM,
 } as const;
+
+/**
+ * The longest description a banner or an emblem may carry.
+ *
+ * The same 300 characters Storytime allows, and the same length the columns
+ * hold. Long enough to say what a picture shows, short enough that a
+ * description is a description rather than a second body of text nobody
+ * reads out.
+ */
+export const FLEET_IMAGE_ALT_MAX_LENGTH = 300;

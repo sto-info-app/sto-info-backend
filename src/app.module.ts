@@ -29,6 +29,7 @@ import { DiagnosticsModule } from './diagnostics/diagnostics.module';
 import { FileAssetsModule } from './file-assets/file-assets.module';
 import { FileScanningModule } from './file-scanning/file-scanning.module';
 import { FleetModule } from './fleet/fleet.module';
+import { FleetImagesModule } from './fleet/images/fleet-images.module';
 import { FleetRosterImportsModule } from './fleet/imports/fleet-roster-imports.module';
 import { HealthModule } from './health/health.module';
 import { MailModule } from './mail/mail.module';
@@ -132,6 +133,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     FileAssetsModule,
     FileScanningModule,
     FleetRosterImportsModule,
+    FleetImagesModule,
     RegistryModule,
     ModerationModule,
   ],

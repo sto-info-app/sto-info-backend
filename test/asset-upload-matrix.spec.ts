@@ -25,6 +25,15 @@ import { FileAssetService } from 'src/file-assets/services/file-asset.service';
 import { ImageIngressService } from 'src/file-assets/services/image-ingress.service';
 import { QuarantineStorageService } from 'src/file-assets/services/quarantine-storage.service';
 import { ScanRequestProducerService } from 'src/file-scanning/services/scan-request-producer.service';
+import { FLEET_IMAGE_SPECS } from 'src/fleet/constants/fleet-image.constants';
+import { FleetCommunityEntity } from 'src/fleet/entities/fleet-community.entity';
+import { StoArmadaEntity } from 'src/fleet/entities/sto-armada.entity';
+import { StoFleetEntity } from 'src/fleet/entities/sto-fleet.entity';
+import {
+  FleetCommunityImagePublisher,
+  StoArmadaImagePublisher,
+  StoFleetImagePublisher,
+} from 'src/fleet/images/fleet-scope-image.publishers';
 import {
   ImageSlotService,
   ImageSlotSpec,
@@ -47,8 +56,8 @@ import { UserProfileImagePublisher } from 'src/user/images/user-profile-image.pu
  * Every upload the site accepts, taken from a request to a published
  * picture.
  *
- * The integration matrix FC-012's validation line asks for. Each of the ten
- * callers is driven through the one path they now share — check, register,
+ * The integration matrix FC-012's validation line asks for. Each of the
+ * sixteen callers is driven through the one path they now share — check, register,
  * quarantine, scan, publish, withdraw what was there — against in-memory
  * repositories and a scanner faked at the queue boundary, which is the only
  * boundary a fake belongs at: everything on this side of it is the real
@@ -301,6 +310,9 @@ describe('every upload caller, end to end', () => {
       chapter: new InMemoryRepository<Row>(),
       cast: new InMemoryRepository<Row>(),
       spotlight: new InMemoryRepository<Row>(),
+      fleetCommunity: new InMemoryRepository<Row>(),
+      stoFleet: new InMemoryRepository<Row>(),
+      stoArmada: new InMemoryRepository<Row>(),
     };
 
     fileAssets = new FileAssetService(
@@ -404,6 +416,18 @@ describe('every upload caller, end to end', () => {
       ),
       new StorytimeSpotlightImagePublisher(
         owners.spotlight as unknown as Repository<never>,
+        registry,
+      ),
+      new FleetCommunityImagePublisher(
+        owners.fleetCommunity as unknown as Repository<FleetCommunityEntity>,
+        registry,
+      ),
+      new StoFleetImagePublisher(
+        owners.stoFleet as unknown as Repository<StoFleetEntity>,
+        registry,
+      ),
+      new StoArmadaImagePublisher(
+        owners.stoArmada as unknown as Repository<StoArmadaEntity>,
         registry,
       ),
     ]) {
@@ -633,6 +657,114 @@ describe('every upload caller, end to end', () => {
         }),
       reference: () => readOwner('spotlight', 'overrideImageId'),
       description: () => readOwner('spotlight', 'overrideImageAlt'),
+    },
+    {
+      name: 'a Community banner',
+      kind: FileAssetKind.FLEET_IMAGE,
+      subject: FileAssetSubject.FLEET_COMMUNITY,
+      slot: FileAssetSlot.BANNER,
+      spec: FLEET_IMAGE_SPECS.BANNER,
+      entityTag: FLEET_IMAGE_SPECS.BANNER.entityTag,
+      feature: { altText: 'A fleet yard at dusk' },
+      seed: () =>
+        seedOwner('fleetCommunity', {
+          id: recordId,
+          bannerImageId: 'old-picture',
+          bannerImageAlt: 'The old one',
+          revision: 1,
+        }),
+      reference: () => readOwner('fleetCommunity', 'bannerImageId'),
+      description: () => readOwner('fleetCommunity', 'bannerImageAlt'),
+    },
+    {
+      name: 'a Community emblem',
+      kind: FileAssetKind.FLEET_IMAGE,
+      subject: FileAssetSubject.FLEET_COMMUNITY,
+      slot: FileAssetSlot.EMBLEM,
+      spec: FLEET_IMAGE_SPECS.EMBLEM,
+      entityTag: FLEET_IMAGE_SPECS.EMBLEM.entityTag,
+      feature: { altText: 'A fleet yard at dusk' },
+      seed: () =>
+        seedOwner('fleetCommunity', {
+          id: recordId,
+          emblemImageId: 'old-picture',
+          emblemImageAlt: 'The old one',
+          revision: 1,
+        }),
+      reference: () => readOwner('fleetCommunity', 'emblemImageId'),
+      description: () => readOwner('fleetCommunity', 'emblemImageAlt'),
+    },
+    {
+      name: 'a Fleet banner',
+      kind: FileAssetKind.FLEET_IMAGE,
+      subject: FileAssetSubject.FLEET,
+      slot: FileAssetSlot.BANNER,
+      spec: FLEET_IMAGE_SPECS.BANNER,
+      entityTag: FLEET_IMAGE_SPECS.BANNER.entityTag,
+      feature: { altText: 'A fleet yard at dusk' },
+      seed: () =>
+        seedOwner('stoFleet', {
+          id: recordId,
+          bannerImageId: 'old-picture',
+          bannerImageAlt: 'The old one',
+          revision: 1,
+        }),
+      reference: () => readOwner('stoFleet', 'bannerImageId'),
+      description: () => readOwner('stoFleet', 'bannerImageAlt'),
+    },
+    {
+      name: 'a Fleet emblem',
+      kind: FileAssetKind.FLEET_IMAGE,
+      subject: FileAssetSubject.FLEET,
+      slot: FileAssetSlot.EMBLEM,
+      spec: FLEET_IMAGE_SPECS.EMBLEM,
+      entityTag: FLEET_IMAGE_SPECS.EMBLEM.entityTag,
+      feature: { altText: 'A fleet yard at dusk' },
+      seed: () =>
+        seedOwner('stoFleet', {
+          id: recordId,
+          emblemImageId: 'old-picture',
+          emblemImageAlt: 'The old one',
+          revision: 1,
+        }),
+      reference: () => readOwner('stoFleet', 'emblemImageId'),
+      description: () => readOwner('stoFleet', 'emblemImageAlt'),
+    },
+    {
+      name: 'an Armada banner',
+      kind: FileAssetKind.FLEET_IMAGE,
+      subject: FileAssetSubject.ARMADA,
+      slot: FileAssetSlot.BANNER,
+      spec: FLEET_IMAGE_SPECS.BANNER,
+      entityTag: FLEET_IMAGE_SPECS.BANNER.entityTag,
+      feature: { altText: 'A fleet yard at dusk' },
+      seed: () =>
+        seedOwner('stoArmada', {
+          id: recordId,
+          bannerImageId: 'old-picture',
+          bannerImageAlt: 'The old one',
+          revision: 1,
+        }),
+      reference: () => readOwner('stoArmada', 'bannerImageId'),
+      description: () => readOwner('stoArmada', 'bannerImageAlt'),
+    },
+    {
+      name: 'an Armada emblem',
+      kind: FileAssetKind.FLEET_IMAGE,
+      subject: FileAssetSubject.ARMADA,
+      slot: FileAssetSlot.EMBLEM,
+      spec: FLEET_IMAGE_SPECS.EMBLEM,
+      entityTag: FLEET_IMAGE_SPECS.EMBLEM.entityTag,
+      feature: { altText: 'A fleet yard at dusk' },
+      seed: () =>
+        seedOwner('stoArmada', {
+          id: recordId,
+          emblemImageId: 'old-picture',
+          emblemImageAlt: 'The old one',
+          revision: 1,
+        }),
+      reference: () => readOwner('stoArmada', 'emblemImageId'),
+      description: () => readOwner('stoArmada', 'emblemImageAlt'),
     },
     {
       name: 'a Custom Tracking picture',
