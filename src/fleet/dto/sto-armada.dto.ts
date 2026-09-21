@@ -55,6 +55,30 @@ export class StoArmadaDto {
   @ApiProperty({ description: 'When the Armada was closed.', nullable: true })
   closedAt: Date | null;
 
+  @ApiProperty({
+    description: 'Delivery reference of the wide banner.',
+    nullable: true,
+  })
+  bannerImageId: string | null;
+
+  @ApiProperty({
+    description: 'What the banner shows, for readers who cannot see it.',
+    nullable: true,
+  })
+  bannerImageAlt: string | null;
+
+  @ApiProperty({
+    description: 'Delivery reference of the square emblem.',
+    nullable: true,
+  })
+  emblemImageId: string | null;
+
+  @ApiProperty({
+    description: 'What the emblem shows, for readers who cannot see it.',
+    nullable: true,
+  })
+  emblemImageAlt: string | null;
+
   @ApiProperty({ description: 'Authorisation revision counter.' })
   revision: number;
 

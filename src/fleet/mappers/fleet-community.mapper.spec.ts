@@ -18,6 +18,10 @@ describe('FleetCommunityMapper', () => {
     preferredTimezone: 'Europe/London',
     status: FleetScopeStatus.ACTIVE,
     closedAt: null,
+    bannerImageId: 'banner-ref',
+    bannerImageAlt: 'A fleet yard at dusk',
+    emblemImageId: 'emblem-ref',
+    emblemImageAlt: 'A crossed-sabres badge',
     revision: 3,
     createdAt: new Date('2026-09-01T10:00:00.000Z'),
     updatedAt: new Date('2026-09-02T10:00:00.000Z'),
@@ -36,6 +40,10 @@ describe('FleetCommunityMapper', () => {
       preferredTimezone: 'Europe/London',
       status: FleetScopeStatus.ACTIVE,
       closedAt: null,
+      bannerImageId: 'banner-ref',
+      bannerImageAlt: 'A fleet yard at dusk',
+      emblemImageId: 'emblem-ref',
+      emblemImageAlt: 'A crossed-sabres badge',
       revision: 3,
       createdAt: community.createdAt,
       updatedAt: community.updatedAt,
@@ -58,6 +66,8 @@ describe('FleetCommunityMapper', () => {
         slug: 'jupiter-force',
         status: FleetScopeStatus.ACTIVE,
         createdAt: community.createdAt,
+        emblemImageId: 'emblem-ref',
+        emblemImageAlt: 'A crossed-sabres badge',
         name: 'Jupiter Force',
         description: 'A PC Community.',
         recruitmentState: FleetRecruitmentState.APPLICATION,
@@ -71,6 +81,21 @@ describe('FleetCommunityMapper', () => {
      */
     it('names no owner, a list being a list', () => {
       expect(mapper.toCardDto(community)).not.toHaveProperty('ownerUserId');
+    });
+
+    /**
+     * The emblem and no banner. A card is a row in a list and the emblem is
+     * what a list draws; a banner is five times as wide as it is tall and
+     * belongs across the top of the scope's own page. Somebody who opens
+     * the scope is served both.
+     */
+    it('carries the emblem and leaves the banner off', () => {
+      const card = mapper.toCardDto(community);
+
+      expect(card.emblemImageId).toBe('emblem-ref');
+      expect(card.emblemImageAlt).toBe('A crossed-sabres badge');
+      expect(card).not.toHaveProperty('bannerImageId');
+      expect(card).not.toHaveProperty('bannerImageAlt');
     });
   });
 });

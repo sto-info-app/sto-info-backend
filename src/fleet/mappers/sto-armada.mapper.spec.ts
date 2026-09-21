@@ -33,6 +33,10 @@ describe('StoArmadaMapper', () => {
       slug: 'sol-armada',
       status: FleetScopeStatus.ACTIVE,
       closedAt: null,
+      bannerImageId: 'banner-ref',
+      bannerImageAlt: 'A fleet yard at dusk',
+      emblemImageId: 'emblem-ref',
+      emblemImageAlt: 'A crossed-sabres badge',
       revision: 2,
       createdAt,
       updatedAt,
@@ -65,6 +69,10 @@ describe('StoArmadaMapper', () => {
         slug: 'sol-armada',
         status: FleetScopeStatus.ACTIVE,
         closedAt: null,
+        bannerImageId: 'banner-ref',
+        bannerImageAlt: 'A fleet yard at dusk',
+        emblemImageId: 'emblem-ref',
+        emblemImageAlt: 'A crossed-sabres badge',
         revision: 2,
         createdAt,
         updatedAt,
@@ -123,6 +131,8 @@ describe('StoArmadaMapper', () => {
         slug: 'sol-armada',
         status: FleetScopeStatus.ACTIVE,
         createdAt,
+        emblemImageId: 'emblem-ref',
+        emblemImageAlt: 'A crossed-sabres badge',
         exactGameName: 'Sol Armada ',
         communityId: 'a0000000-0000-4000-8000-000000000002',
         communityName: 'Jupiter Force',
@@ -158,6 +168,24 @@ describe('StoArmadaMapper', () => {
       expect(card).not.toHaveProperty('lastEffectiveImportAt');
       expect(card).not.toHaveProperty('recruitmentState');
       expect(card).not.toHaveProperty('revision');
+    });
+
+    /**
+     * The emblem and no banner. A card is a row in a list and the emblem is
+     * what a list draws; a banner is five times as wide as it is tall and
+     * belongs across the top of the scope's own page. Somebody who opens
+     * the scope is served both.
+     */
+    it('carries the emblem and leaves the banner off', () => {
+      const card = mapper.toCardDto({
+        record: buildArmada(),
+        duplicateCount: 0,
+      });
+
+      expect(card.emblemImageId).toBe('emblem-ref');
+      expect(card.emblemImageAlt).toBe('A crossed-sabres badge');
+      expect(card).not.toHaveProperty('bannerImageId');
+      expect(card).not.toHaveProperty('bannerImageAlt');
     });
   });
 });

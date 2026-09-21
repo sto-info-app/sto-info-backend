@@ -58,6 +58,30 @@ export class FleetCommunityDto {
    * Never an access decision. Plan section 4.2: the service check stays
    * authoritative even when invalidation is late.
    */
+  @ApiProperty({
+    description: 'Delivery reference of the wide banner.',
+    nullable: true,
+  })
+  bannerImageId: string | null;
+
+  @ApiProperty({
+    description: 'What the banner shows, for readers who cannot see it.',
+    nullable: true,
+  })
+  bannerImageAlt: string | null;
+
+  @ApiProperty({
+    description: 'Delivery reference of the square emblem.',
+    nullable: true,
+  })
+  emblemImageId: string | null;
+
+  @ApiProperty({
+    description: 'What the emblem shows, for readers who cannot see it.',
+    nullable: true,
+  })
+  emblemImageAlt: string | null;
+
   @ApiProperty({ description: 'Authorisation revision counter.' })
   revision: number;
 

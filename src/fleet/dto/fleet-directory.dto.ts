@@ -24,6 +24,25 @@ export class FleetDirectoryCardDto {
 
   @ApiProperty({ description: 'When the record was registered.' })
   createdAt: Date;
+
+  /*
+   * The emblem and no banner. A card is a row in a list and the emblem is
+   * what a list draws; a banner is five times as wide as it is tall and
+   * belongs across the top of the scope's own page, so carrying one per row
+   * would be bytes for a picture no card layout has room for. Somebody who
+   * opens the scope is served both.
+   */
+  @ApiProperty({
+    description: 'Delivery reference of the square emblem.',
+    nullable: true,
+  })
+  emblemImageId: string | null;
+
+  @ApiProperty({
+    description: 'What the emblem shows, for readers who cannot see it.',
+    nullable: true,
+  })
+  emblemImageAlt: string | null;
 }
 
 /**
