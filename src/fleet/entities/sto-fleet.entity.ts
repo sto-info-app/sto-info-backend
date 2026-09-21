@@ -41,7 +41,7 @@ import { FleetCommunityEntity } from './fleet-community.entity';
  * application, so ruling either way needs no migration.
  */
 @Entity({ name: 'sto_fleet' })
-@Index('UX_sto_fleet_community_slug', ['communityId', 'slug'], {
+@Index('UX_sto_fleet_community_slug', ['communityId', 'platformId', 'slug'], {
   unique: true,
   where: '"deletedAt" IS NULL AND "communityId" IS NOT NULL',
 })
@@ -88,8 +88,16 @@ export class StoFleetEntity {
   @Column({ type: 'varchar', length: 255, nullable: false })
   exactGameNameNormalized: string;
 
+  /**
+   * Lowercase URL segment, unique within the Community *and* platform.
+   *
+   * The platform is part of the key because it is part of the canonical URL —
+   * ADR-0022. One Community may hold a Fleet called the same thing on PC and
+   * on Xbox, and both keep the readable slug rather than the second one being
+   * suffixed to avoid a collision that only existed in the index.
+   */
   @ApiProperty({
-    description: 'Lowercase URL segment, unique in the Community.',
+    description: 'Lowercase URL segment, unique per Community and platform.',
   })
   @Column({ type: 'varchar', length: 80, nullable: false })
   slug: string;

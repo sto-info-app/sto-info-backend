@@ -30,7 +30,7 @@ import { FleetCommunityEntity } from './fleet-community.entity';
  * without either record being rewritten.
  */
 @Entity({ name: 'sto_armada' })
-@Index('UX_sto_armada_community_slug', ['communityId', 'slug'], {
+@Index('UX_sto_armada_community_slug', ['communityId', 'platformId', 'slug'], {
   unique: true,
   where: '"deletedAt" IS NULL',
 })
@@ -71,8 +71,14 @@ export class StoArmadaEntity {
   @Column({ type: 'varchar', length: 255, nullable: true, default: null })
   displayName: string | null;
 
+  /**
+   * Lowercase URL segment, unique within the Community *and* platform.
+   *
+   * Scoped the same way a Fleet's is, and for the same reason — ADR-0022. An
+   * Armada's canonical URL carries its platform too.
+   */
   @ApiProperty({
-    description: 'Lowercase URL segment, unique in the Community.',
+    description: 'Lowercase URL segment, unique per Community and platform.',
   })
   @Column({ type: 'varchar', length: 80, nullable: false })
   slug: string;

@@ -3,6 +3,7 @@ import { getMetadataArgsStorage, QueryRunner } from 'typeorm';
 
 import { CreateFleetCommunityDomainTables1791600000000 } from '../../database/migrations/1791600000000-CreateFleetCommunityDomainTables';
 import { CreateScopeCapabilityGrants1791700000000 } from '../../database/migrations/1791700000000-CreateScopeCapabilityGrants';
+import { ScopeSlugsByPlatform1792700000000 } from '../../database/migrations/1792700000000-ScopeSlugsByPlatform';
 import { ArmadaFleetMembershipEntity } from './armada-fleet-membership.entity';
 import { CharacterFleetMembershipEntity } from './character-fleet-membership.entity';
 import { CommunitySubscriptionEntity } from './community-subscription.entity';
@@ -61,6 +62,7 @@ describe('Fleet schema alignment', () => {
 
     await new CreateFleetCommunityDomainTables1791600000000().up(queryRunner);
     await new CreateScopeCapabilityGrants1791700000000().up(queryRunner);
+    await new ScopeSlugsByPlatform1792700000000().up(queryRunner);
     statements = captured;
   });
 
@@ -149,54 +151,104 @@ describe('Fleet schema alignment', () => {
     },
   );
 
-  it('declares exactly the indexes the migration creates', () => {
-    const declared = getMetadataArgsStorage()
-      .indices.filter(index => ENTITIES.includes(index.target as EntityClass))
-      .map(index => index.name!);
+  /**
+   * The statement that describes each index at the end of the transcript.
+   *
+   * A later migration may drop an index and recreate it under the same name
+   * with a wider key: ADR-0022 does exactly that to both scoped slug indexes,
+   * because the platform became part of the canonical URL. Two statements then
+   * carry one name and only the last describes the database, so every
+   * comparison below is against that one rather than the first one found.
+   */
+  const effectiveIndexStatements = (): Map<string, string> => {
     const tables = ENTITIES.map(tableNameOf);
-    const created = statements
-      .filter(statement => statement.startsWith('CREATE'))
-      .filter(statement => statement.includes(' INDEX "'))
-      .filter(statement =>
-        tables.some(table => statement.includes(`"sto_info_app"."${table}" (`)),
-      )
-      .map(statement => statement.split('"')[1]);
+    const effective = new Map<string, string>();
+
+    for (const statement of statements) {
+      const isIndex =
+        statement.startsWith('CREATE') && statement.includes(' INDEX "');
+      const onOurTable = tables.some(table =>
+        statement.includes(`"sto_info_app"."${table}" (`),
+      );
+
+      if (isIndex && onOurTable) {
+        effective.set(statement.split('"')[1], statement);
+      }
+    }
+
+    return effective;
+  };
+
+  /**
+   * The key columns of an index statement, in the order they are indexed in.
+   *
+   * Reads only the parenthesised key, because a partial index's `WHERE` clause
+   * quotes column names too and they are not part of the key.
+   *
+   * @param statement - The `CREATE INDEX` statement.
+   * @returns The column names.
+   */
+  const indexedColumns = (statement: string): string[] => {
+    const open = statement.indexOf('" (') + 2;
+    const key = statement.slice(open + 1, statement.indexOf(')', open));
+
+    return [...key.matchAll(/"([^"]+)"/g)].map(match => match[1]);
+  };
+
+  const declaredIndexes = (): ReturnType<
+    typeof getMetadataArgsStorage
+  >['indices'] =>
+    getMetadataArgsStorage().indices.filter(index =>
+      ENTITIES.includes(index.target as EntityClass),
+    );
+
+  it('declares exactly the indexes the migration creates', () => {
+    const declared = declaredIndexes().map(index => index.name!);
+    const created = [...effectiveIndexStatements().keys()];
 
     expect(created.length).toBeGreaterThan(0);
     expect([...declared].sort()).toEqual([...created].sort());
   });
 
+  it('indexes the same columns, in the same order, in both places', () => {
+    const effective = effectiveIndexStatements();
+    const declared = declaredIndexes();
+
+    expect(declared.length).toBeGreaterThan(0);
+
+    for (const index of declared) {
+      const statement = effective.get(index.name!);
+
+      expect(statement).toBeDefined();
+      expect(indexedColumns(statement!)).toEqual(index.columns as string[]);
+    }
+  });
+
   it('matches the migration on which indexes are unique', () => {
-    const declared = getMetadataArgsStorage().indices.filter(index =>
-      ENTITIES.includes(index.target as EntityClass),
-    );
+    const effective = effectiveIndexStatements();
+    const declared = declaredIndexes();
 
     expect(declared.length).toBeGreaterThan(0);
 
     for (const index of declared) {
       const keyword = index.unique ? 'CREATE UNIQUE INDEX' : 'CREATE INDEX';
+      const statement = effective.get(index.name!);
 
+      expect(statement).toBeDefined();
+      expect(statement!.startsWith(`${keyword} "${index.name!}"`)).toBe(true);
       expect(
-        statements.some(
-          statement =>
-            statement.startsWith(`${keyword} "${index.name!}"`) &&
-            statement.includes(
-              `"sto_info_app"."${tableNameOf(index.target as EntityClass)}"`,
-            ),
+        statement!.includes(
+          `"sto_info_app"."${tableNameOf(index.target as EntityClass)}"`,
         ),
       ).toBe(true);
     }
   });
 
   it('declares a partial index wherever the migration uses one', () => {
-    const declared = getMetadataArgsStorage().indices.filter(index =>
-      ENTITIES.includes(index.target as EntityClass),
-    );
+    const effective = effectiveIndexStatements();
 
-    for (const index of declared) {
-      const statement = statements.find(candidate =>
-        candidate.includes(`INDEX "${index.name!}"`),
-      );
+    for (const index of declaredIndexes()) {
+      const statement = effective.get(index.name!);
 
       expect(statement).toBeDefined();
       expect(statement!.includes(' WHERE ')).toBe(index.where !== undefined);
