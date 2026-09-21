@@ -10,6 +10,7 @@ import { OptionalJwtAuthGuard } from 'src/auth/optional-jwt-auth.guard';
 import { OptionalUserId } from 'src/auth/user-id.decorator';
 
 import { FleetAudienceService } from './authorisation/fleet-audience.service';
+import { FLEET_STANDALONE_SEGMENT } from './constants/fleet-address.constants';
 import { ResolvedStoArmadaDto } from './dto/sto-armada.dto';
 import { ResolvedStoFleetDto } from './dto/sto-fleet.dto';
 import { FleetScopeKind } from './enums/fleet-scope-kind.enum';
@@ -47,6 +48,18 @@ import { toPlatformSegment } from './utilities/platform-segment.utility';
  * where this one has a Community slug. Each segment is still resolved against
  * the one above it, so a Fleet addressed under a Community that does not hold
  * it is absent rather than redirected somewhere plausible.
+ *
+ * ## The standalone segment
+ *
+ * A Fleet with no Community is addressed under the reserved word
+ * `standalone` where a Community's slug would sit. It is unambiguous because
+ * the slug service refuses that word to Communities, so the segment can only
+ * ever mean one thing, and it keeps a single route — and therefore a single
+ * request — resolving every Fleet address the site writes.
+ *
+ * It applies to Fleets alone. An Armada always has a Community, and
+ * `by-slug/standalone/armadas/...` resolves no Community and so answers
+ * `404`, which is the truth about an address that cannot exist.
  */
 @ApiTags('Fleet')
 @Controller('fleet-communities/by-slug/:communitySlug')
@@ -105,6 +118,10 @@ export class FleetScopeResolutionController {
   ): Promise<ResolvedStoFleetDto> {
     await this._featureService.assertEnabled();
 
+    if (communitySlug === FLEET_STANDALONE_SEGMENT) {
+      return this.resolveStandaloneFleet(platformSegment, fleetSlug, userId);
+    }
+
     const community =
       await this._communityService.resolveBySlugOrFail(communitySlug);
 
@@ -140,6 +157,54 @@ export class FleetScopeResolutionController {
         resolved.redirected ||
         community.redirectedFrom !== null ||
         platformSegment !== canonicalPlatformSegment,
+    };
+  }
+
+  /**
+   * Resolves a Fleet that belongs to no Community.
+   *
+   * The visibility check is still made. A standalone Fleet is registered
+   * `PUBLIC` and nothing can change it, but reading the column is cheaper
+   * than relying on that staying true, and a rule enforced in one place is a
+   * rule.
+   *
+   * @param platformSegment - The platform segment.
+   * @param fleetSlug - The Fleet segment.
+   * @param userId - The viewer, or null when signed out.
+   * @returns The Fleet, and the current form of every segment.
+   */
+  private async resolveStandaloneFleet(
+    platformSegment: string,
+    fleetSlug: string,
+    userId: string | null,
+  ): Promise<ResolvedStoFleetDto> {
+    const platform =
+      await this._platformService.findBySegmentOrFail(platformSegment);
+
+    const fleet = await this._fleetService.resolveStandaloneBySlugOrFail(
+      platform.id,
+      fleetSlug,
+    );
+
+    await this._audienceService.assertCanView(
+      fleet.visibility,
+      { kind: FleetScopeKind.FLEET, id: fleet.id },
+      userId,
+    );
+
+    const canonicalPlatformSegment = toPlatformSegment(platform.name);
+
+    return {
+      fleet: this._fleetMapper.toDto(fleet),
+      communitySlug: FLEET_STANDALONE_SEGMENT,
+      // No Community, so nothing to name. The segment above still has a
+      // value: the address has that position filled by the word standing
+      // for its absence.
+      communityName: null,
+      platformSegment: canonicalPlatformSegment,
+      // Nothing can rename a standalone Fleet, so the only segment that can
+      // be out of date is the platform's.
+      redirected: platformSegment !== canonicalPlatformSegment,
     };
   }
 

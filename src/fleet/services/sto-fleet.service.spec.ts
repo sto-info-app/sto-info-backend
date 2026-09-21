@@ -549,28 +549,47 @@ describe('StoFleetService', () => {
     });
 
     /**
-     * The slug column is NOT NULL and the unique index covering it is
-     * restricted to rows with a Community, so this is a label rather than an
-     * address: never minted for uniqueness, never retired, never resolved.
+     * A standalone Fleet is addressed under the reserved `standalone`
+     * segment, so its slug is an address rather than a label and has to be
+     * unique in the scope that segment names: every Fleet with no Community,
+     * on this platform.
      */
-    it('fills the address column without minting an address', async () => {
+    it('mints an address in the standalone scope for its platform', async () => {
       const { fleet } = await service.registerUnregistered(body, actingUserId);
 
       expect(fleet.slug).toBe('omega-command');
-      expect(slugService.generateUniqueSlug).not.toHaveBeenCalled();
+      expect(slugService.generateUniqueSlug).toHaveBeenCalledWith(
+        expect.objectContaining({
+          targetType: FleetScopeKind.FLEET,
+          communityId: null,
+          platformId,
+          name: 'Omega Command',
+        }),
+      );
     });
 
-    /**
-     * ADR-0003 accepts any script, so a name can reduce to nothing a URL
-     * could carry. The column still has to hold something.
-     */
-    it('falls back to a label when the name reduces to nothing', async () => {
-      const { fleet } = await service.registerUnregistered(
-        { ...body, exactGameName: '???' },
-        actingUserId,
-      );
+    it('counts only live standalone Fleets on the same platform', async () => {
+      slugHolders = 0;
 
-      expect(fleet.slug).toBe('fleet');
+      await service.registerUnregistered(body, actingUserId);
+
+      expect(candidateWasTaken).toBe(false);
+      expect(fleetRepository.count).toHaveBeenCalledWith({
+        where: {
+          communityId: IsNull(),
+          platformId,
+          slug: 'omega-command',
+          deletedAt: IsNull(),
+        },
+      });
+    });
+
+    it('reports a slug another standalone record holds as taken', async () => {
+      slugHolders = 1;
+
+      await service.registerUnregistered(body, actingUserId);
+
+      expect(candidateWasTaken).toBe(true);
     });
 
     /**
@@ -628,6 +647,40 @@ describe('StoFleetService', () => {
       await expect(
         service.findByIdOrFail(communityId, fleetId),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('resolveStandaloneBySlugOrFail', () => {
+    it('serves the standalone Fleet holding the segment on that platform', async () => {
+      const fleet = await service.resolveStandaloneBySlugOrFail(
+        platformId,
+        'omega-command',
+      );
+
+      expect(fleet.id).toBe(fleetId);
+      expect(fleetRepository.findOne).toHaveBeenCalledWith({
+        where: {
+          communityId: IsNull(),
+          platformId,
+          slug: 'omega-command',
+          deletedAt: IsNull(),
+        },
+        relations: { platform: true },
+      });
+    });
+
+    /**
+     * Nothing can rename a standalone Fleet — no owner, no capability held
+     * at one — so a slug that answers to nothing now has never answered to
+     * anything, and there is no history to fall back on.
+     */
+    it('answers absent without asking the slug history', async () => {
+      stored = null;
+
+      await expect(
+        service.resolveStandaloneBySlugOrFail(platformId, 'omega'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(slugService.findByRetiredSlug).not.toHaveBeenCalled();
     });
   });
 

@@ -346,4 +346,45 @@ describe('FleetSlugService', () => {
       });
     });
   });
+  describe('the reserved standalone segment', () => {
+    /**
+     * `standalone` stands where a Community's slug would sit, for a Fleet
+     * that has none. A Community holding that slug would make one address
+     * name two things.
+     */
+    it('refuses it to a Community, suffixing as for any taken name', async () => {
+      await expect(
+        service.generateUniqueSlug({
+          ...communityScope,
+          name: 'Standalone',
+          isTakenByLiveScope,
+        }),
+      ).resolves.toBe('standalone-2');
+    });
+
+    it('refuses it however the registrant asks for it', async () => {
+      await expect(
+        service.generateUniqueSlug({
+          ...communityScope,
+          desiredSlug: 'standalone',
+          name: 'Something Else',
+          isTakenByLiveScope,
+        }),
+      ).resolves.toBe('standalone-2');
+    });
+
+    /**
+     * The segment sits in the Community's position, so a Fleet or an Armada
+     * called "Standalone" keeps the slug it would have had.
+     */
+    it('leaves a Fleet called Standalone alone', async () => {
+      await expect(
+        service.generateUniqueSlug({
+          ...fleetScope,
+          name: 'Standalone',
+          isTakenByLiveScope,
+        }),
+      ).resolves.toBe('standalone');
+    });
+  });
 });

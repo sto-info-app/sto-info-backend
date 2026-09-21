@@ -31,9 +31,10 @@ import { FleetCommunityEntity } from './fleet-community.entity';
  * automatically.
  *
  * `communityId` is nullable so a roster can be held against an explicitly
- * confirmed unregistered observation target. Such a Fleet has no scoped URL and
- * no Armada placement: its slug index and the Armada composite foreign key both
- * require a Community.
+ * confirmed unregistered observation target. Such a Fleet has no Armada
+ * placement — the composite foreign key requires a Community — but it does
+ * have a URL: it is addressed under the reserved `standalone` segment, and
+ * its slug is unique among the standalone records on its platform.
  *
  * `exactGameName` is stored at 255 characters to match the existing
  * `character.handle` ceiling. That is storage headroom, **not** the naming rule
@@ -44,6 +45,15 @@ import { FleetCommunityEntity } from './fleet-community.entity';
 @Index('UX_sto_fleet_community_slug', ['communityId', 'platformId', 'slug'], {
   unique: true,
   where: '"deletedAt" IS NULL AND "communityId" IS NOT NULL',
+})
+// A Fleet with no Community is addressed under the reserved `standalone`
+// segment, so its slug is an address too, unique among the standalone
+// records on the same platform. Two partial indexes rather than one over a
+// nullable column: Postgres treats NULLs as distinct, so a single index
+// including `communityId` would enforce nothing at all for these rows.
+@Index('UX_sto_fleet_standalone_slug', ['platformId', 'slug'], {
+  unique: true,
+  where: '"deletedAt" IS NULL AND "communityId" IS NULL',
 })
 @Index('IDX_sto_fleet_platform_name', ['platformId', 'exactGameNameNormalized'])
 @Index('IDX_sto_fleet_community', ['communityId'])

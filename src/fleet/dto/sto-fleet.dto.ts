@@ -197,7 +197,11 @@ export class ResolvedStoFleetDto {
   @ApiProperty({ type: StoFleetDto })
   fleet: StoFleetDto;
 
-  @ApiProperty({ description: 'The owning Community’s current URL segment.' })
+  @ApiProperty({
+    description:
+      'The owning Community’s current URL segment, or the reserved segment ' +
+      '`standalone` for a Fleet that has no Community.',
+  })
   communitySlug: string;
 
   /*
@@ -206,9 +210,17 @@ export class ResolvedStoFleetDto {
    * united-federation-alliance" is a URL read aloud. Carried here rather
    * than fetched beside it, because resolving the whole address in one
    * request is the entire point of this route.
+   *
+   * Null for a standalone Fleet, which has no Community to name. The segment
+   * above still has a value, because the address still has that position
+   * filled — by the word standing for its absence.
    */
-  @ApiProperty({ description: 'The owning Community’s display name.' })
-  communityName: string;
+  @ApiProperty({
+    description:
+      'The owning Community’s display name, or null when it has none.',
+    nullable: true,
+  })
+  communityName: string | null;
 
   @ApiProperty({ description: 'The platform’s current URL segment.' })
   platformSegment: string;

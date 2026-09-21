@@ -39,6 +39,16 @@ const FLEET = {
   visibility: FleetAudience.PUBLIC,
 } as StoFleetEntity;
 
+const STANDALONE_FLEET_ID = '20000000-0000-4000-8000-000000000006';
+
+const STANDALONE_FLEET = {
+  id: STANDALONE_FLEET_ID,
+  communityId: null,
+  platformId: PLATFORM_ID,
+  slug: 'omega-command',
+  visibility: FleetAudience.PUBLIC,
+} as StoFleetEntity;
+
 const ARMADA_ID = '20000000-0000-4000-8000-000000000005';
 
 const ARMADA = {
@@ -52,7 +62,10 @@ describe('FleetScopeResolutionController', () => {
   let controller: FleetScopeResolutionController;
   let communityService: { resolveBySlugOrFail: jest.Mock };
   let platformService: { findBySegmentOrFail: jest.Mock };
-  let fleetService: { resolveBySlugOrFail: jest.Mock };
+  let fleetService: {
+    resolveBySlugOrFail: jest.Mock;
+    resolveStandaloneBySlugOrFail: jest.Mock;
+  };
   let armadaService: { resolveBySlugOrFail: jest.Mock };
   let audienceService: { assertCanView: jest.Mock };
   let featureService: { assertEnabled: jest.Mock };
@@ -73,6 +86,9 @@ describe('FleetScopeResolutionController', () => {
     fleetService = {
       resolveBySlugOrFail: jest.fn(() =>
         Promise.resolve({ fleet: FLEET, redirected: false }),
+      ),
+      resolveStandaloneBySlugOrFail: jest.fn(() =>
+        Promise.resolve(STANDALONE_FLEET),
       ),
     };
 
@@ -211,6 +227,106 @@ describe('FleetScopeResolutionController', () => {
 
     await expect(resolve()).rejects.toBeInstanceOf(NotFoundException);
     expect(communityService.resolveBySlugOrFail).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A Fleet with no Community is addressed under the reserved word
+   * `standalone` where a Community's slug would sit. The slug service
+   * refuses that word to Communities, so the segment can only mean one
+   * thing, and one route keeps resolving every Fleet address the site
+   * writes.
+   */
+  describe('a standalone address', () => {
+    const resolveStandalone = (
+      platformSegment = 'windows',
+      fleetSlug = 'omega-command',
+      userId: string | null = USER_ID,
+    ) =>
+      controller.resolveFleet('standalone', platformSegment, fleetSlug, userId);
+
+    it('resolves the Fleet without looking for a Community', async () => {
+      await expect(resolveStandalone()).resolves.toEqual({
+        fleet: STANDALONE_FLEET,
+        communitySlug: 'standalone',
+        // Nothing to name. The segment above still has a value, because the
+        // address has that position filled by the word standing for its
+        // absence.
+        communityName: null,
+        platformSegment: 'windows',
+        redirected: false,
+      });
+      expect(communityService.resolveBySlugOrFail).not.toHaveBeenCalled();
+    });
+
+    it('looks the Fleet up among the standalone records on that platform', async () => {
+      await resolveStandalone();
+
+      expect(fleetService.resolveStandaloneBySlugOrFail).toHaveBeenCalledWith(
+        PLATFORM_ID,
+        'omega-command',
+      );
+    });
+
+    it('still asks whether the caller may see it', async () => {
+      await resolveStandalone();
+
+      expect(audienceService.assertCanView).toHaveBeenCalledWith(
+        FleetAudience.PUBLIC,
+        { kind: FleetScopeKind.FLEET, id: STANDALONE_FLEET_ID },
+        USER_ID,
+      );
+    });
+
+    /**
+     * Nothing can rename a standalone Fleet, so the platform is the only
+     * segment of its address that can fall out of date.
+     */
+    it('reports a capitalised platform segment as no longer canonical', async () => {
+      const resolved = await resolveStandalone('Windows');
+
+      expect(resolved.redirected).toBe(true);
+      expect(resolved.platformSegment).toBe('windows');
+    });
+
+    it('answers absent when nothing standalone holds the segment', async () => {
+      fleetService.resolveStandaloneBySlugOrFail.mockRejectedValue(
+        new NotFoundException('Not found'),
+      );
+
+      await expect(resolveStandalone()).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('refuses to resolve while the feature is switched off', async () => {
+      featureService.assertEnabled.mockRejectedValue(
+        new NotFoundException('Not found'),
+      );
+
+      await expect(resolveStandalone()).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(fleetService.resolveStandaloneBySlugOrFail).not.toHaveBeenCalled();
+    });
+
+    /**
+     * An Armada always has a Community, so `standalone` names no Community
+     * and the address cannot exist.
+     */
+    it('means nothing on an Armada address', async () => {
+      communityService.resolveBySlugOrFail.mockRejectedValue(
+        new NotFoundException('Not found'),
+      );
+
+      await expect(
+        controller.resolveArmada(
+          'standalone',
+          'windows',
+          'sol-armada',
+          USER_ID,
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
   });
 
   describe('resolveArmada', () => {

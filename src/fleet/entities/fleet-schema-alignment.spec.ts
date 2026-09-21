@@ -6,6 +6,7 @@ import { CreateScopeCapabilityGrants1791700000000 } from '../../database/migrati
 import { ScopeSlugsByPlatform1792700000000 } from '../../database/migrations/1792700000000-ScopeSlugsByPlatform';
 import { CreateFleetSlugHistory1792900000000 } from '../../database/migrations/1792900000000-CreateFleetSlugHistory';
 import { AddFleetScopeArtwork1793000000000 } from '../../database/migrations/1793000000000-AddFleetScopeArtwork';
+import { AddressStandaloneFleets1793100000000 } from '../../database/migrations/1793100000000-AddressStandaloneFleets';
 import { ArmadaFleetMembershipEntity } from './armada-fleet-membership.entity';
 import { CharacterFleetMembershipEntity } from './character-fleet-membership.entity';
 import { CommunitySubscriptionEntity } from './community-subscription.entity';
@@ -69,6 +70,7 @@ describe('Fleet schema alignment', () => {
     await new ScopeSlugsByPlatform1792700000000().up(queryRunner);
     await new CreateFleetSlugHistory1792900000000().up(queryRunner);
     await new AddFleetScopeArtwork1793000000000().up(queryRunner);
+    await new AddressStandaloneFleets1793100000000().up(queryRunner);
     statements = captured;
   });
 

@@ -16,8 +16,6 @@ import {
   SelectQueryBuilder,
 } from 'typeorm';
 
-import { normaliseToSlug } from 'src/shared/utilities/slug.utility';
-
 import { FleetAuthorisationRevisionService } from '../authorisation/fleet-authorisation-revision.service';
 import { CreateStoFleetDto } from '../dto/create-sto-fleet.dto';
 import { CreateUnregisteredFleetDto } from '../dto/create-unregistered-fleet.dto';
@@ -43,11 +41,7 @@ import {
   DuplicateCountRow,
 } from './fleet-directory-page.interface';
 import { FleetPlatformService } from './fleet-platform.service';
-import {
-  FLEET_SLUG_MAX_LENGTH,
-  FleetSlugScope,
-  FleetSlugService,
-} from './fleet-slug.service';
+import { FleetSlugScope, FleetSlugService } from './fleet-slug.service';
 
 /**
  * How many possible duplicates are reported.
@@ -223,7 +217,7 @@ export class StoFleetService {
       platformId: platform.id,
       exactGameName: dto.exactGameName,
       exactGameNameNormalized: toNormalisedExactGameName(dto.exactGameName),
-      slug: this.buildUnaddressableSlug(dto.exactGameName),
+      slug: await this.mintStandaloneSlug(platform.id, dto.exactGameName),
       visibility: FleetAudience.PUBLIC,
     });
 
@@ -314,6 +308,35 @@ export class StoFleetService {
       fleet: await this.findByIdOrFail(communityId, retiredBy),
       redirected: true,
     };
+  }
+
+  /**
+   * Reads a Fleet that belongs to no Community, by its address.
+   *
+   * No slug history to fall back on. Nothing can rename a standalone Fleet —
+   * there is no owner and no capability held at one — so a slug that answers
+   * to nothing now has never answered to anything, and a `404` is the whole
+   * truth rather than a guess.
+   *
+   * @param platformId - The platform named in the address.
+   * @param slug - The Fleet segment.
+   * @returns The Fleet, with its platform loaded.
+   * @throws NotFoundException when no standalone Fleet answers to that.
+   */
+  async resolveStandaloneBySlugOrFail(
+    platformId: string,
+    slug: string,
+  ): Promise<StoFleetEntity> {
+    const fleet = await this._fleetRepository.findOne({
+      where: { communityId: IsNull(), platformId, slug, deletedAt: IsNull() },
+      relations: { platform: true },
+    });
+
+    if (!fleet) {
+      throw new NotFoundException('Not found');
+    }
+
+    return fleet;
   }
 
   /**
@@ -692,19 +715,57 @@ export class StoFleetService {
   }
 
   /**
-   * Fills the slug column for a record that has no address.
+   * Produces a slug free among the standalone Fleets on one platform.
    *
-   * The column is `NOT NULL` and the unique index covering it is restricted
-   * to rows with a Community, so an unregistered record needs a value and
-   * nothing collides with it. This is therefore a label rather than an
-   * address: it is never minted for uniqueness, never retired, and never
-   * resolved. A Community adopting the record later mints a real one then.
+   * A standalone Fleet is addressed under the reserved `standalone` segment
+   * where a Community's slug would sit, so this is an address rather than a
+   * label and has to be unique in the scope that segment names: every Fleet
+   * with no Community, on this platform.
    *
+   * No slug history. A standalone Fleet has no owner and no capability held
+   * at it, so nothing can rename one — there is never an old address to
+   * retire, and a scope with no Community is one the history table's check
+   * constraint refuses anyway.
+   *
+   * @param platformId - The platform the record is on.
    * @param name - The exact game name.
-   * @returns A slug-shaped label, never empty.
+   * @returns A slug nothing else standalone on that platform is using.
    */
-  private buildUnaddressableSlug(name: string): string {
-    return normaliseToSlug(name, FLEET_SLUG_MAX_LENGTH) || 'fleet';
+  private mintStandaloneSlug(
+    platformId: string,
+    name: string,
+  ): Promise<string> {
+    return this._slugService.generateUniqueSlug({
+      targetType: FleetScopeKind.FLEET,
+      communityId: null,
+      platformId,
+      name,
+      isTakenByLiveScope: candidate =>
+        this.isStandaloneSlugTaken(platformId, candidate),
+    });
+  }
+
+  /**
+   * Determines whether a live standalone Fleet already holds a slug.
+   *
+   * @param platformId - The platform.
+   * @param candidate - The slug to test.
+   * @returns True when something else holds it.
+   */
+  private async isStandaloneSlugTaken(
+    platformId: string,
+    candidate: string,
+  ): Promise<boolean> {
+    const held = await this._fleetRepository.count({
+      where: {
+        communityId: IsNull(),
+        platformId,
+        slug: candidate,
+        deletedAt: IsNull(),
+      },
+    });
+
+    return held > 0;
   }
 
   /**

@@ -5,6 +5,7 @@ import { IsNull, Repository } from 'typeorm';
 
 import { normaliseToSlug } from 'src/shared/utilities/slug.utility';
 
+import { FLEET_STANDALONE_SEGMENT } from '../constants/fleet-address.constants';
 import { FleetSlugHistoryEntity } from '../entities/fleet-slug-history.entity';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 
@@ -249,6 +250,10 @@ export class FleetSlugService {
     candidate: string,
     request: FleetSlugRequest,
   ): Promise<boolean> {
+    if (this.isReserved(candidate, request)) {
+      return true;
+    }
+
     if (await request.isTakenByLiveScope(candidate)) {
       return true;
     }
@@ -256,5 +261,30 @@ export class FleetSlugService {
     const retiredOwner = await this.findByRetiredSlug(request, candidate);
 
     return retiredOwner !== null && retiredOwner !== request.targetId;
+  }
+
+  /**
+   * Determines whether a candidate is a segment the addresses already use.
+   *
+   * `standalone` stands where a Community's slug would, for a Fleet that has
+   * none. A Community holding that slug would make one address name two
+   * things, so it is refused here rather than at the point of collision —
+   * which means a Community called "Standalone" is suffixed exactly as one
+   * whose name somebody else took already is, and the registrant is told
+   * nothing they would have to understand the URL scheme to act on.
+   *
+   * Only a Community's slug is affected. The segment sits in the Community's
+   * position, so a Fleet or an Armada called "Standalone" keeps the slug it
+   * would have had.
+   *
+   * @param candidate - The slug to test.
+   * @param request - The request being served.
+   * @returns True when the candidate is a reserved segment.
+   */
+  private isReserved(candidate: string, request: FleetSlugRequest): boolean {
+    return (
+      request.targetType === FleetScopeKind.COMMUNITY &&
+      candidate === FLEET_STANDALONE_SEGMENT
+    );
   }
 }
