@@ -169,11 +169,27 @@ describe('exact game name', () => {
       );
     });
 
-    it('folds case and the ends when looking for a duplicate', () => {
-      expect(toNormalisedExactGameName(' Omega Armada ')).toBe('omega armada');
+    it('folds case when looking for a duplicate', () => {
       expect(toNormalisedExactGameName('OMEGA ARMADA')).toBe('omega armada');
       expect(toNormalisedExactGameName(DECOMPOSED)).toBe(
         toNormalisedExactGameName(PRECOMPOSED.toUpperCase()),
+      );
+    });
+
+    /**
+     * Steve has seen a leading space used in game precisely so that two
+     * different Fleets can carry almost the same name. Folding it away would
+     * make the directory tell a registrant a Fleet already exists when what
+     * exists is a deliberately distinct one, and a confident wrong warning is
+     * what stops people trusting the warning at all.
+     */
+    it('keeps an edge space, which may be the whole difference', () => {
+      expect(toNormalisedExactGameName(' Omega Armada')).toBe(' omega armada');
+      expect(toNormalisedExactGameName(' Omega Armada')).not.toBe(
+        toNormalisedExactGameName('Omega Armada'),
+      );
+      expect(toNormalisedExactGameName('Omega Armada ')).not.toBe(
+        toNormalisedExactGameName('Omega Armada'),
       );
     });
 

@@ -101,14 +101,23 @@ export function toComparableExactGameName(value: string): string {
  * them, and never as a unique constraint, because two Communities may each
  * hold a record for the same in-game Fleet and neither is authoritative.
  *
- * Case is folded and the ends are trimmed, because a name differing only in
- * capitalisation or by a leading space is almost certainly the same Fleet and
- * that is exactly what the registrant should be shown. The stored
- * `exactGameName` keeps both, so nothing is lost by folding them here.
+ * **Case is folded. Whitespace is not.** Two names differing only in
+ * capitalisation are the same Fleet, because the game does not let two Fleets
+ * differ by case alone in any way a player could act on. A leading or
+ * trailing space is the opposite: Steve has seen it used in game precisely so
+ * that two different Fleets can carry almost the same name. Trimming here
+ * would make the directory tell a registrant that a Fleet already exists when
+ * what exists is a deliberately distinct one, which is a worse failure than
+ * missing a duplicate — the warning exists to inform, and a confident wrong
+ * warning is what stops people trusting it.
+ *
+ * That makes the display obligation in ADR-0003 sharper rather than softer:
+ * where an edge space is the only difference between two names, it is the
+ * only thing telling two Fleets apart, so it has to be visible.
  *
  * @param value - The name as stored.
- * @returns The case-folded, trimmed, NFC form.
+ * @returns The case-folded NFC form, with every space kept.
  */
 export function toNormalisedExactGameName(value: string): string {
-  return value.normalize('NFC').trim().toLowerCase();
+  return value.normalize('NFC').toLowerCase();
 }
