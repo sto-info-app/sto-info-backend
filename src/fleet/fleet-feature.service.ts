@@ -55,6 +55,23 @@ export class FleetFeatureService {
   }
 
   /**
+   * Requires that Fleet Community is switched on at all.
+   *
+   * For routes that belong to the feature without belonging to any one
+   * capability flag — reading a Community, resolving a slug. Answers
+   * {@link NotFoundException} for the same reason {@link assertFlagEnabled}
+   * does: a feature that is switched off should be indistinguishable from one
+   * that does not exist.
+   *
+   * @throws NotFoundException when the feature is switched off.
+   */
+  async assertEnabled(): Promise<void> {
+    if (!(await this.isEnabled())) {
+      throw new NotFoundException('Not found');
+    }
+  }
+
+  /**
    * Determines whether a specific capability is available.
    *
    * @param flag - The capability to check.

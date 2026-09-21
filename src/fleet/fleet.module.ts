@@ -11,14 +11,19 @@ import { CharacterFleetMembershipEntity } from './entities/character-fleet-membe
 import { CommunitySubscriptionEntity } from './entities/community-subscription.entity';
 import { FleetCommunityEntity } from './entities/fleet-community.entity';
 import { FleetNameAliasEntity } from './entities/fleet-name-alias.entity';
+import { FleetSlugHistoryEntity } from './entities/fleet-slug-history.entity';
 import { ScopeCapabilityGrantEntity } from './entities/scope-capability-grant.entity';
 import { ScopeMembershipEntity } from './entities/scope-membership.entity';
 import { ScopeRoleAssignmentEntity } from './entities/scope-role-assignment.entity';
 import { StoArmadaEntity } from './entities/sto-armada.entity';
 import { StoFleetEntity } from './entities/sto-fleet.entity';
+import { FleetCommunitiesController } from './fleet-communities.controller';
 import { FleetConfigurationController } from './fleet-configuration.controller';
 import { FleetFeatureService } from './fleet-feature.service';
 import { FleetPolicyService } from './fleet-policy.service';
+import { FleetCommunityMapper } from './mappers/fleet-community.mapper';
+import { FleetCommunityService } from './services/fleet-community.service';
+import { FleetSlugService } from './services/fleet-slug.service';
 
 /**
  * Fleet Community — Communities, Fleets, Armadas, the records that relate users
@@ -52,6 +57,7 @@ import { FleetPolicyService } from './fleet-policy.service';
       StoFleetEntity,
       StoArmadaEntity,
       FleetNameAliasEntity,
+      FleetSlugHistoryEntity,
       ArmadaFleetMembershipEntity,
       CommunitySubscriptionEntity,
       ScopeMembershipEntity,
@@ -61,10 +67,13 @@ import { FleetPolicyService } from './fleet-policy.service';
       UserEntity,
     ]),
   ],
-  controllers: [FleetConfigurationController],
+  controllers: [FleetConfigurationController, FleetCommunitiesController],
   providers: [
     FleetFeatureService,
     FleetPolicyService,
+    FleetSlugService,
+    FleetCommunityService,
+    FleetCommunityMapper,
     FleetAuthorisationService,
     FleetAudienceService,
     FleetAuthorisationRevisionService,
@@ -73,6 +82,8 @@ import { FleetPolicyService } from './fleet-policy.service';
   exports: [
     FleetFeatureService,
     FleetPolicyService,
+    FleetSlugService,
+    FleetCommunityService,
     FleetAuthorisationService,
     FleetAudienceService,
     FleetAuthorisationRevisionService,

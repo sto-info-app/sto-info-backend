@@ -102,6 +102,24 @@ describe('FleetFeatureService', () => {
     });
   });
 
+  describe('assertEnabled', () => {
+    /**
+     * For the routes that belong to the feature without belonging to any one
+     * capability flag — reading a Community, resolving a URL segment. Same
+     * answer as {@link assertFlagEnabled} and for the same reason: switched
+     * off should look like never built.
+     */
+    it('throws NotFoundException when the feature is switched off', async () => {
+      settingsService.getBoolean.mockResolvedValue(false);
+
+      await expect(service.assertEnabled()).rejects.toThrow(NotFoundException);
+    });
+
+    it('resolves when the feature is switched on', async () => {
+      await expect(service.assertEnabled()).resolves.toBeUndefined();
+    });
+  });
+
   describe('assertFlagEnabled', () => {
     /**
      * Not found rather than forbidden, matching Storytime and the Fleet

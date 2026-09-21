@@ -14,15 +14,20 @@ import { CharacterFleetMembershipEntity } from './entities/character-fleet-membe
 import { CommunitySubscriptionEntity } from './entities/community-subscription.entity';
 import { FleetCommunityEntity } from './entities/fleet-community.entity';
 import { FleetNameAliasEntity } from './entities/fleet-name-alias.entity';
+import { FleetSlugHistoryEntity } from './entities/fleet-slug-history.entity';
 import { ScopeCapabilityGrantEntity } from './entities/scope-capability-grant.entity';
 import { ScopeMembershipEntity } from './entities/scope-membership.entity';
 import { ScopeRoleAssignmentEntity } from './entities/scope-role-assignment.entity';
 import { StoArmadaEntity } from './entities/sto-armada.entity';
 import { StoFleetEntity } from './entities/sto-fleet.entity';
+import { FleetCommunitiesController } from './fleet-communities.controller';
 import { FleetConfigurationController } from './fleet-configuration.controller';
 import { FleetFeatureService } from './fleet-feature.service';
 import { FleetPolicyService } from './fleet-policy.service';
 import { FleetModule } from './fleet.module';
+import { FleetCommunityMapper } from './mappers/fleet-community.mapper';
+import { FleetCommunityService } from './services/fleet-community.service';
+import { FleetSlugService } from './services/fleet-slug.service';
 
 interface FeatureModule {
   providers?: Array<{ provide?: unknown }>;
@@ -34,6 +39,7 @@ describe('FleetModule', () => {
     StoFleetEntity,
     StoArmadaEntity,
     FleetNameAliasEntity,
+    FleetSlugHistoryEntity,
     ArmadaFleetMembershipEntity,
     CommunitySubscriptionEntity,
     ScopeMembershipEntity,
@@ -48,6 +54,8 @@ describe('FleetModule', () => {
   const SERVICES = [
     FleetFeatureService,
     FleetPolicyService,
+    FleetSlugService,
+    FleetCommunityService,
     FleetAuthorisationService,
     FleetAudienceService,
     FleetAuthorisationRevisionService,
@@ -113,6 +121,31 @@ describe('FleetModule', () => {
     ) as unknown[];
 
     expect(controllers).toContain(FleetConfigurationController);
+  });
+
+  it('exposes the Community registration endpoints', () => {
+    const controllers = Reflect.getMetadata(
+      'controllers',
+      FleetModule,
+    ) as unknown[];
+
+    expect(controllers).toContain(FleetCommunitiesController);
+  });
+
+  /**
+   * The mapper is provided and deliberately not exported. Another module
+   * wanting a Community in its own shape should say so in its own DTO rather
+   * than borrow this feature's presentation.
+   */
+  it('provides the Community mapper without exporting it', () => {
+    const providers = Reflect.getMetadata(
+      'providers',
+      FleetModule,
+    ) as unknown[];
+    const exported = Reflect.getMetadata('exports', FleetModule) as unknown[];
+
+    expect(providers).toContain(FleetCommunityMapper);
+    expect(exported).not.toContain(FleetCommunityMapper);
   });
 
   it('is not registered globally', () => {

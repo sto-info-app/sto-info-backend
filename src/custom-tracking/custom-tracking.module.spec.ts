@@ -21,6 +21,7 @@ import { CharacterFleetMembershipEntity } from '../fleet/entities/character-flee
 import { CommunitySubscriptionEntity } from '../fleet/entities/community-subscription.entity';
 import { FleetCommunityEntity } from '../fleet/entities/fleet-community.entity';
 import { FleetNameAliasEntity } from '../fleet/entities/fleet-name-alias.entity';
+import { FleetSlugHistoryEntity } from '../fleet/entities/fleet-slug-history.entity';
 import { ScopeCapabilityGrantEntity } from '../fleet/entities/scope-capability-grant.entity';
 import { ScopeMembershipEntity } from '../fleet/entities/scope-membership.entity';
 import { ScopeRoleAssignmentEntity } from '../fleet/entities/scope-role-assignment.entity';
@@ -136,6 +137,7 @@ describe('CustomTrackingModule', () => {
     StoFleetEntity,
     StoArmadaEntity,
     FleetNameAliasEntity,
+    FleetSlugHistoryEntity,
     ArmadaFleetMembershipEntity,
     CommunitySubscriptionEntity,
     ScopeMembershipEntity,
