@@ -22,6 +22,8 @@ import {
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from 'src/auth/optional-jwt-auth.guard';
 import { OptionalUserId, UserId } from 'src/auth/user-id.decorator';
+import { CallerRole } from 'src/auth/user-role.decorator';
+import { UserRole } from 'src/user/enums/user-role.enum';
 
 import { FleetAudienceService } from './authorisation/fleet-audience.service';
 import { FLEET_CAPABILITIES } from './authorisation/fleet-capability.constants';
@@ -38,6 +40,7 @@ import { FleetScopeKind } from './enums/fleet-scope-kind.enum';
 import { FleetFeatureService } from './fleet-feature.service';
 import { FleetCommunityMapper } from './mappers/fleet-community.mapper';
 import { FleetCommunityService } from './services/fleet-community.service';
+import { FleetScopeViewerService } from './services/fleet-scope-viewer.service';
 
 /**
  * Registering and running a Fleet Community.
@@ -88,12 +91,14 @@ export class FleetCommunitiesController {
    * @param _communityService - Registers, reads and changes Communities.
    * @param _audienceService - Answers whether a caller may see a Community.
    * @param _featureService - Reports whether the feature is switched on.
+   * @param _viewerService - Answers what the caller may do to what it found.
    * @param _mapper - Turns a Community into its API shape.
    */
   constructor(
     private readonly _communityService: FleetCommunityService,
     private readonly _audienceService: FleetAudienceService,
     private readonly _featureService: FleetFeatureService,
+    private readonly _viewerService: FleetScopeViewerService,
     private readonly _mapper: FleetCommunityMapper,
   ) {}
 
@@ -136,6 +141,7 @@ export class FleetCommunitiesController {
    *
    * @param slug - The segment from the URL.
    * @param userId - The viewer, or null when signed out.
+   * @param role - The viewer's site-wide role, where they have one.
    * @returns The Community, and the retired segment when one was used.
    */
   @Get('by-slug/:slug')
@@ -150,6 +156,7 @@ export class FleetCommunitiesController {
   async resolveBySlug(
     @Param('slug') slug: string,
     @OptionalUserId() userId: string | null,
+    @CallerRole() role: UserRole | null,
   ): Promise<ResolvedFleetCommunityDto> {
     await this._featureService.assertEnabled();
 
@@ -160,6 +167,10 @@ export class FleetCommunitiesController {
     return {
       community: this._mapper.toDto(resolved.community),
       redirectedFrom: resolved.redirectedFrom,
+      viewer: await this._viewerService.forScope(
+        { userId, role },
+        { kind: FleetScopeKind.COMMUNITY, id: resolved.community.id },
+      ),
     };
   }
 

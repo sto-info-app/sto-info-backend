@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { FileAssetEntity } from '../file-assets/entities/file-asset.entity';
 import { PlatformEntity } from '../sto/platform/entities/platform.entity';
 import { UserEntity } from '../user/entities/user.entity';
 import { FleetAudienceService } from './authorisation/fleet-audience.service';
@@ -31,6 +32,7 @@ import { StoArmadaMapper } from './mappers/sto-armada.mapper';
 import { StoFleetMapper } from './mappers/sto-fleet.mapper';
 import { FleetCommunityService } from './services/fleet-community.service';
 import { FleetPlatformService } from './services/fleet-platform.service';
+import { FleetScopeViewerService } from './services/fleet-scope-viewer.service';
 import { FleetSlugService } from './services/fleet-slug.service';
 import { StoArmadaService } from './services/sto-armada.service';
 import { StoFleetService } from './services/sto-fleet.service';
@@ -77,6 +79,13 @@ import { UnregisteredFleetsController } from './unregistered-fleets.controller';
       CharacterFleetMembershipEntity,
       PlatformEntity,
       UserEntity,
+      // Read for one column, never written here. A scope page has to say
+      // whether the viewer may paint over the picture an unregistered Fleet
+      // is showing, and that is a question about who owns the asset.
+      // Registered as a repository rather than by importing
+      // `FileAssetsModule`, which imports this module for the audience
+      // service (ADR-0015) and would close the loop.
+      FileAssetEntity,
     ]),
   ],
   controllers: [
@@ -94,6 +103,7 @@ import { UnregisteredFleetsController } from './unregistered-fleets.controller';
     FleetSlugService,
     FleetPlatformService,
     FleetCommunityService,
+    FleetScopeViewerService,
     StoFleetService,
     StoArmadaService,
     FleetCommunityMapper,
@@ -110,6 +120,7 @@ import { UnregisteredFleetsController } from './unregistered-fleets.controller';
     FleetSlugService,
     FleetPlatformService,
     FleetCommunityService,
+    FleetScopeViewerService,
     StoFleetService,
     StoArmadaService,
     FleetAuthorisationService,

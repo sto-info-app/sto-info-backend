@@ -1,5 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 
+import { UserRole } from 'src/user/enums/user-role.enum';
+
 import { FleetAudienceService } from './authorisation/fleet-audience.service';
 import { FLEET_CAPABILITIES } from './authorisation/fleet-capability.constants';
 import {
@@ -14,6 +16,7 @@ import { FleetCommunitiesController } from './fleet-communities.controller';
 import { FleetFeatureService } from './fleet-feature.service';
 import { FleetCommunityMapper } from './mappers/fleet-community.mapper';
 import { FleetCommunityService } from './services/fleet-community.service';
+import { FleetScopeViewerService } from './services/fleet-scope-viewer.service';
 
 const COMMUNITY_ID = '00000000-0000-4000-8000-000000000000';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -25,6 +28,13 @@ const COMMUNITY = {
   slug: 'jupiter-force',
   visibility: FleetAudience.PUBLIC,
 } as FleetCommunityEntity;
+
+/** What the viewer service answers for a caller who may do nothing. */
+const NO_VIEWER = {
+  capabilities: [],
+  mayManageBanner: false,
+  mayManageEmblem: false,
+};
 
 describe('FleetCommunitiesController', () => {
   let controller: FleetCommunitiesController;
@@ -40,6 +50,7 @@ describe('FleetCommunitiesController', () => {
     assertEnabled: jest.Mock;
     assertFlagEnabled: jest.Mock;
   };
+  let viewerService: { forScope: jest.Mock };
   let mapper: { toDto: jest.Mock };
 
   beforeEach(() => {
@@ -60,12 +71,14 @@ describe('FleetCommunitiesController', () => {
       assertFlagEnabled: jest.fn(() => Promise.resolve()),
     };
 
+    viewerService = { forScope: jest.fn(() => Promise.resolve(NO_VIEWER)) };
     mapper = { toDto: jest.fn((community: FleetCommunityEntity) => community) };
 
     controller = new FleetCommunitiesController(
       communityService as unknown as FleetCommunityService,
       audienceService as unknown as FleetAudienceService,
       featureService as unknown as FleetFeatureService,
+      viewerService as unknown as FleetScopeViewerService,
       mapper as unknown as FleetCommunityMapper,
     );
   });
@@ -154,8 +167,26 @@ describe('FleetCommunitiesController', () => {
   describe('resolveBySlug', () => {
     it('resolves a current segment with nothing to redirect', async () => {
       await expect(
-        controller.resolveBySlug('jupiter-force', null),
-      ).resolves.toEqual({ community: COMMUNITY, redirectedFrom: null });
+        controller.resolveBySlug('jupiter-force', null, null),
+      ).resolves.toEqual({
+        community: COMMUNITY,
+        redirectedFrom: null,
+        viewer: NO_VIEWER,
+      });
+    });
+
+    /*
+     * Answered with the record rather than asked for separately. A page that
+     * had to make a second request to find out whether to draw a control
+     * would draw it after the reader had decided there was not one.
+     */
+    it('says what the caller may do to the Community it found', async () => {
+      await controller.resolveBySlug('jupiter-force', USER_ID, UserRole.USER);
+
+      expect(viewerService.forScope).toHaveBeenCalledWith(
+        { userId: USER_ID, role: UserRole.USER },
+        { kind: FleetScopeKind.COMMUNITY, id: COMMUNITY_ID },
+      );
     });
 
     /**
@@ -171,10 +202,11 @@ describe('FleetCommunitiesController', () => {
       });
 
       await expect(
-        controller.resolveBySlug('jupiter-fleet', USER_ID),
+        controller.resolveBySlug('jupiter-fleet', USER_ID, null),
       ).resolves.toEqual({
         community: COMMUNITY,
         redirectedFrom: 'jupiter-fleet',
+        viewer: NO_VIEWER,
       });
     });
 
@@ -184,7 +216,7 @@ describe('FleetCommunitiesController', () => {
       });
 
       await expect(
-        controller.resolveBySlug('jupiter-force', null),
+        controller.resolveBySlug('jupiter-force', null, null),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -194,7 +226,7 @@ describe('FleetCommunitiesController', () => {
       });
 
       await expect(
-        controller.resolveBySlug('jupiter-force', null),
+        controller.resolveBySlug('jupiter-force', null, null),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(communityService.resolveBySlugOrFail).not.toHaveBeenCalled();
     });

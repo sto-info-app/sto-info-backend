@@ -8,6 +8,8 @@ import {
 
 import { OptionalJwtAuthGuard } from 'src/auth/optional-jwt-auth.guard';
 import { OptionalUserId } from 'src/auth/user-id.decorator';
+import { CallerRole } from 'src/auth/user-role.decorator';
+import { UserRole } from 'src/user/enums/user-role.enum';
 
 import { FleetAudienceService } from './authorisation/fleet-audience.service';
 import { FLEET_STANDALONE_SEGMENT } from './constants/fleet-address.constants';
@@ -19,6 +21,10 @@ import { StoArmadaMapper } from './mappers/sto-armada.mapper';
 import { StoFleetMapper } from './mappers/sto-fleet.mapper';
 import { FleetCommunityService } from './services/fleet-community.service';
 import { FleetPlatformService } from './services/fleet-platform.service';
+import {
+  FleetScopeViewer,
+  FleetScopeViewerService,
+} from './services/fleet-scope-viewer.service';
 import { StoArmadaService } from './services/sto-armada.service';
 import { StoFleetService } from './services/sto-fleet.service';
 import { toPlatformSegment } from './utilities/platform-segment.utility';
@@ -73,6 +79,7 @@ export class FleetScopeResolutionController {
    * @param _armadaService - Resolves the Armada segment.
    * @param _audienceService - Answers whether a caller may see what it found.
    * @param _featureService - Reports whether the feature is switched on.
+   * @param _viewerService - Answers what the caller may do to what it found.
    * @param _fleetMapper - Turns a Fleet into its API shape.
    * @param _armadaMapper - Turns an Armada into its API shape.
    */
@@ -83,6 +90,7 @@ export class FleetScopeResolutionController {
     private readonly _armadaService: StoArmadaService,
     private readonly _audienceService: FleetAudienceService,
     private readonly _featureService: FleetFeatureService,
+    private readonly _viewerService: FleetScopeViewerService,
     private readonly _fleetMapper: StoFleetMapper,
     private readonly _armadaMapper: StoArmadaMapper,
   ) {}
@@ -94,6 +102,7 @@ export class FleetScopeResolutionController {
    * @param platformSegment - The platform segment.
    * @param fleetSlug - The Fleet segment.
    * @param userId - The viewer, or null when signed out.
+   * @param role - The viewer's site-wide role, where they have one.
    * @returns The Fleet and the current form of every segment.
    */
   @Get('fleets/:platformSegment/:fleetSlug')
@@ -115,11 +124,15 @@ export class FleetScopeResolutionController {
     @Param('platformSegment') platformSegment: string,
     @Param('fleetSlug') fleetSlug: string,
     @OptionalUserId() userId: string | null,
+    @CallerRole() role: UserRole | null,
   ): Promise<ResolvedStoFleetDto> {
     await this._featureService.assertEnabled();
 
     if (communitySlug === FLEET_STANDALONE_SEGMENT) {
-      return this.resolveStandaloneFleet(platformSegment, fleetSlug, userId);
+      return this.resolveStandaloneFleet(platformSegment, fleetSlug, {
+        userId,
+        role,
+      });
     }
 
     const community =
@@ -157,6 +170,10 @@ export class FleetScopeResolutionController {
         resolved.redirected ||
         community.redirectedFrom !== null ||
         platformSegment !== canonicalPlatformSegment,
+      viewer: await this._viewerService.forScope(
+        { userId, role },
+        { kind: FleetScopeKind.FLEET, id: resolved.fleet.id },
+      ),
     };
   }
 
@@ -170,13 +187,13 @@ export class FleetScopeResolutionController {
    *
    * @param platformSegment - The platform segment.
    * @param fleetSlug - The Fleet segment.
-   * @param userId - The viewer, or null when signed out.
+   * @param viewer - Who is looking, and what they are on the site.
    * @returns The Fleet, and the current form of every segment.
    */
   private async resolveStandaloneFleet(
     platformSegment: string,
     fleetSlug: string,
-    userId: string | null,
+    viewer: FleetScopeViewer,
   ): Promise<ResolvedStoFleetDto> {
     const platform =
       await this._platformService.findBySegmentOrFail(platformSegment);
@@ -189,7 +206,7 @@ export class FleetScopeResolutionController {
     await this._audienceService.assertCanView(
       fleet.visibility,
       { kind: FleetScopeKind.FLEET, id: fleet.id },
-      userId,
+      viewer.userId,
     );
 
     const canonicalPlatformSegment = toPlatformSegment(platform.name);
@@ -205,6 +222,10 @@ export class FleetScopeResolutionController {
       // Nothing can rename a standalone Fleet, so the only segment that can
       // be out of date is the platform's.
       redirected: platformSegment !== canonicalPlatformSegment,
+      // Answered slot by slot rather than from a capability. There is no
+      // scope here to hold one at, so what decides is whether the picture
+      // already there is anybody's.
+      viewer: await this._viewerService.forStandaloneFleet(viewer, fleet),
     };
   }
 
@@ -219,6 +240,7 @@ export class FleetScopeResolutionController {
    * @param platformSegment - The platform segment.
    * @param armadaSlug - The Armada segment.
    * @param userId - The viewer, or null when signed out.
+   * @param role - The viewer's site-wide role, where they have one.
    * @returns The Armada and the current form of every segment.
    */
   @Get('armadas/:platformSegment/:armadaSlug')
@@ -240,6 +262,7 @@ export class FleetScopeResolutionController {
     @Param('platformSegment') platformSegment: string,
     @Param('armadaSlug') armadaSlug: string,
     @OptionalUserId() userId: string | null,
+    @CallerRole() role: UserRole | null,
   ): Promise<ResolvedStoArmadaDto> {
     await this._featureService.assertEnabled();
 
@@ -272,6 +295,10 @@ export class FleetScopeResolutionController {
         resolved.redirected ||
         community.redirectedFrom !== null ||
         platformSegment !== canonicalPlatformSegment,
+      viewer: await this._viewerService.forScope(
+        { userId, role },
+        { kind: FleetScopeKind.ARMADA, id: resolved.armada.id },
+      ),
     };
   }
 }

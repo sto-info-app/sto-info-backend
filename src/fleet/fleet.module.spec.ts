@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { CommunityModule } from '../community/community.module';
+import { FileAssetEntity } from '../file-assets/entities/file-asset.entity';
 import { PlatformEntity } from '../sto/platform/entities/platform.entity';
 import { UserEntity } from '../user/entities/user.entity';
 import { FleetAudienceService } from './authorisation/fleet-audience.service';
@@ -65,7 +66,7 @@ describe('FleetModule', () => {
    * `forFeature` registrations are per-module even when the module declaring
    * them is global, so borrowing one means registering it again here.
    */
-  const BORROWED_ENTITIES = [UserEntity, PlatformEntity];
+  const BORROWED_ENTITIES = [UserEntity, PlatformEntity, FileAssetEntity];
 
   const SERVICES = [
     FleetFeatureService,

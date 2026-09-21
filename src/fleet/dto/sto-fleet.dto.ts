@@ -3,6 +3,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { FleetAudience } from '../enums/fleet-audience.enum';
 import { FleetRecruitmentState } from '../enums/fleet-recruitment-state.enum';
 import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
+import { FleetScopeViewerDto } from './fleet-scope-viewer.dto';
 
 /**
  * A Fleet as a caller sees it.
@@ -231,4 +232,13 @@ export class ResolvedStoFleetDto {
       'the caller should replace it with the segments above.',
   })
   redirected: boolean;
+
+  @ApiProperty({
+    type: FleetScopeViewerDto,
+    description:
+      'What the caller looking at it may do to it. Never an access ' +
+      'decision: it says what the page should offer, and each route still ' +
+      'says what may happen.',
+  })
+  viewer: FleetScopeViewerDto;
 }

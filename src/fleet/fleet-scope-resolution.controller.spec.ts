@@ -1,6 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 
 import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
+import { UserRole } from 'src/user/enums/user-role.enum';
 
 import { FleetAudienceService } from './authorisation/fleet-audience.service';
 import { FleetCommunityEntity } from './entities/fleet-community.entity';
@@ -14,6 +15,7 @@ import { StoArmadaMapper } from './mappers/sto-armada.mapper';
 import { StoFleetMapper } from './mappers/sto-fleet.mapper';
 import { FleetCommunityService } from './services/fleet-community.service';
 import { FleetPlatformService } from './services/fleet-platform.service';
+import { FleetScopeViewerService } from './services/fleet-scope-viewer.service';
 import { StoArmadaService } from './services/sto-armada.service';
 import { StoFleetService } from './services/sto-fleet.service';
 
@@ -49,6 +51,13 @@ const STANDALONE_FLEET = {
   visibility: FleetAudience.PUBLIC,
 } as StoFleetEntity;
 
+/** What the viewer service answers for a caller who may do nothing. */
+const NO_VIEWER = {
+  capabilities: [],
+  mayManageBanner: false,
+  mayManageEmblem: false,
+};
+
 const ARMADA_ID = '20000000-0000-4000-8000-000000000005';
 
 const ARMADA = {
@@ -69,6 +78,7 @@ describe('FleetScopeResolutionController', () => {
   let armadaService: { resolveBySlugOrFail: jest.Mock };
   let audienceService: { assertCanView: jest.Mock };
   let featureService: { assertEnabled: jest.Mock };
+  let viewerService: { forScope: jest.Mock; forStandaloneFleet: jest.Mock };
   let fleetMapper: { toDto: jest.Mock };
   let armadaMapper: { toDto: jest.Mock };
 
@@ -100,6 +110,10 @@ describe('FleetScopeResolutionController', () => {
 
     audienceService = { assertCanView: jest.fn(() => Promise.resolve()) };
     featureService = { assertEnabled: jest.fn(() => Promise.resolve()) };
+    viewerService = {
+      forScope: jest.fn(() => Promise.resolve(NO_VIEWER)),
+      forStandaloneFleet: jest.fn(() => Promise.resolve(NO_VIEWER)),
+    };
     fleetMapper = { toDto: jest.fn((fleet: StoFleetEntity) => fleet) };
     armadaMapper = { toDto: jest.fn((armada: StoArmadaEntity) => armada) };
 
@@ -110,6 +124,7 @@ describe('FleetScopeResolutionController', () => {
       armadaService as unknown as StoArmadaService,
       audienceService as unknown as FleetAudienceService,
       featureService as unknown as FleetFeatureService,
+      viewerService as unknown as FleetScopeViewerService,
       fleetMapper as unknown as StoFleetMapper,
       armadaMapper as unknown as StoArmadaMapper,
     );
@@ -120,8 +135,15 @@ describe('FleetScopeResolutionController', () => {
     platformSegment = 'windows',
     fleetSlug = 'omega-command',
     userId: string | null = USER_ID,
+    role: UserRole | null = null,
   ) =>
-    controller.resolveFleet(communitySlug, platformSegment, fleetSlug, userId);
+    controller.resolveFleet(
+      communitySlug,
+      platformSegment,
+      fleetSlug,
+      userId,
+      role,
+    );
 
   it('resolves the whole address in one call', async () => {
     await expect(resolve()).resolves.toEqual({
@@ -133,7 +155,41 @@ describe('FleetScopeResolutionController', () => {
       communityName: 'Jupiter Force',
       platformSegment: 'windows',
       redirected: false,
+      // Answered with the record rather than asked for separately, so a
+      // scope page stays one request and a control never appears after the
+      // reader has decided there was not one.
+      viewer: NO_VIEWER,
     });
+  });
+
+  /*
+   * The capability is asked about the Fleet rather than the Community
+   * holding it. A Community role reaches down to its Fleets, so the answer
+   * is usually the same one — but only usually, and it is the Fleet's
+   * artwork the page is about to offer.
+   */
+  it('asks what the caller may do to the Fleet itself', async () => {
+    await resolve('jupiter-force', 'windows', 'omega-command', USER_ID);
+
+    expect(viewerService.forScope).toHaveBeenCalledWith(
+      { userId: USER_ID, role: null },
+      { kind: FleetScopeKind.FLEET, id: FLEET_ID },
+    );
+  });
+
+  it('passes a site administrator’s role through', async () => {
+    await resolve(
+      'jupiter-force',
+      'windows',
+      'omega-command',
+      USER_ID,
+      UserRole.ADMIN,
+    );
+
+    expect(viewerService.forScope).toHaveBeenCalledWith(
+      { userId: USER_ID, role: UserRole.ADMIN },
+      { kind: FleetScopeKind.FLEET, id: FLEET_ID },
+    );
   });
 
   /**
@@ -241,8 +297,15 @@ describe('FleetScopeResolutionController', () => {
       platformSegment = 'windows',
       fleetSlug = 'omega-command',
       userId: string | null = USER_ID,
+      role: UserRole | null = null,
     ) =>
-      controller.resolveFleet('standalone', platformSegment, fleetSlug, userId);
+      controller.resolveFleet(
+        'standalone',
+        platformSegment,
+        fleetSlug,
+        userId,
+        role,
+      );
 
     it('resolves the Fleet without looking for a Community', async () => {
       await expect(resolveStandalone()).resolves.toEqual({
@@ -254,6 +317,7 @@ describe('FleetScopeResolutionController', () => {
         communityName: null,
         platformSegment: 'windows',
         redirected: false,
+        viewer: NO_VIEWER,
       });
       expect(communityService.resolveBySlugOrFail).not.toHaveBeenCalled();
     });
@@ -265,6 +329,21 @@ describe('FleetScopeResolutionController', () => {
         PLATFORM_ID,
         'omega-command',
       );
+    });
+
+    /*
+     * Answered slot by slot rather than from a capability. There is no scope
+     * to hold one at, so what decides is whether the picture already there
+     * is anybody's.
+     */
+    it('asks about the artwork rather than about a capability', async () => {
+      await resolveStandalone('windows', 'omega-command', USER_ID);
+
+      expect(viewerService.forStandaloneFleet).toHaveBeenCalledWith(
+        { userId: USER_ID, role: null },
+        STANDALONE_FLEET,
+      );
+      expect(viewerService.forScope).not.toHaveBeenCalled();
     });
 
     it('still asks whether the caller may see it', async () => {
@@ -324,6 +403,7 @@ describe('FleetScopeResolutionController', () => {
           'windows',
           'sol-armada',
           USER_ID,
+          null,
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -335,12 +415,14 @@ describe('FleetScopeResolutionController', () => {
       platformSegment = 'windows',
       armadaSlug = 'sol-armada',
       userId: string | null = USER_ID,
+      role: UserRole | null = null,
     ) =>
       controller.resolveArmada(
         communitySlug,
         platformSegment,
         armadaSlug,
         userId,
+        role,
       );
 
     it('resolves the whole address in one call', async () => {
@@ -350,7 +432,17 @@ describe('FleetScopeResolutionController', () => {
         communityName: 'Jupiter Force',
         platformSegment: 'windows',
         redirected: false,
+        viewer: NO_VIEWER,
       });
+    });
+
+    it('asks what the caller may do to the Armada itself', async () => {
+      await resolveArmada();
+
+      expect(viewerService.forScope).toHaveBeenCalledWith(
+        { userId: USER_ID, role: null },
+        { kind: FleetScopeKind.ARMADA, id: ARMADA_ID },
+      );
     });
 
     it('looks the Armada up inside the Community the address names', async () => {
