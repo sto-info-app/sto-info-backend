@@ -12,9 +12,11 @@ import { FLEET_FEATURE_FLAGS } from './constants/fleet-feature.constants';
 import { FleetCommunityEntity } from './entities/fleet-community.entity';
 import { FleetAudience } from './enums/fleet-audience.enum';
 import { FleetScopeKind } from './enums/fleet-scope-kind.enum';
+import { FleetScopeRelationship } from './enums/fleet-scope-relationship.enum';
 import { FleetCommunitiesController } from './fleet-communities.controller';
 import { FleetFeatureService } from './fleet-feature.service';
 import { FleetCommunityMapper } from './mappers/fleet-community.mapper';
+import { CommunitySubscriptionService } from './services/community-subscription.service';
 import { FleetCommunityService } from './services/fleet-community.service';
 import { FleetScopeViewerService } from './services/fleet-scope-viewer.service';
 
@@ -34,6 +36,9 @@ const NO_VIEWER = {
   capabilities: [],
   mayManageBanner: false,
   mayManageEmblem: false,
+  relationship: FleetScopeRelationship.NONE,
+  isFollowingCommunity: false,
+  followerCount: 0,
 };
 
 describe('FleetCommunitiesController', () => {
@@ -45,12 +50,19 @@ describe('FleetCommunitiesController', () => {
     update: jest.Mock;
     close: jest.Mock;
   };
-  let audienceService: { assertCanView: jest.Mock };
+  let audienceService: { assertCanView: jest.Mock; canView: jest.Mock };
   let featureService: {
     assertEnabled: jest.Mock;
     assertFlagEnabled: jest.Mock;
   };
   let viewerService: { forScope: jest.Mock };
+  let subscriptionService: {
+    follow: jest.Mock;
+    unfollow: jest.Mock;
+    isFollowing: jest.Mock;
+    countFollowers: jest.Mock;
+    listFollowed: jest.Mock;
+  };
   let mapper: { toDto: jest.Mock };
 
   beforeEach(() => {
@@ -64,7 +76,10 @@ describe('FleetCommunitiesController', () => {
       close: jest.fn(() => Promise.resolve(COMMUNITY)),
     };
 
-    audienceService = { assertCanView: jest.fn(() => Promise.resolve()) };
+    audienceService = {
+      assertCanView: jest.fn(() => Promise.resolve()),
+      canView: jest.fn(() => Promise.resolve(true)),
+    };
 
     featureService = {
       assertEnabled: jest.fn(() => Promise.resolve()),
@@ -72,6 +87,15 @@ describe('FleetCommunitiesController', () => {
     };
 
     viewerService = { forScope: jest.fn(() => Promise.resolve(NO_VIEWER)) };
+
+    subscriptionService = {
+      follow: jest.fn(() => Promise.resolve({})),
+      unfollow: jest.fn(() => Promise.resolve()),
+      isFollowing: jest.fn(() => Promise.resolve(false)),
+      countFollowers: jest.fn(() => Promise.resolve(3)),
+      listFollowed: jest.fn(() => Promise.resolve([])),
+    };
+
     mapper = { toDto: jest.fn((community: FleetCommunityEntity) => community) };
 
     controller = new FleetCommunitiesController(
@@ -79,6 +103,7 @@ describe('FleetCommunitiesController', () => {
       audienceService as unknown as FleetAudienceService,
       featureService as unknown as FleetFeatureService,
       viewerService as unknown as FleetScopeViewerService,
+      subscriptionService as unknown as CommunitySubscriptionService,
       mapper as unknown as FleetCommunityMapper,
     );
   });
@@ -320,6 +345,152 @@ describe('FleetCommunitiesController', () => {
     it('requires none to read, which is a question for the audience', () => {
       expect(requirementOf('findOne')).toBeUndefined();
       expect(requirementOf('resolveBySlug')).toBeUndefined();
+    });
+  });
+
+  describe('follow', () => {
+    it('follows the Community for the caller', async () => {
+      await expect(controller.follow(COMMUNITY_ID, USER_ID)).resolves.toEqual({
+        isFollowing: true,
+        followerCount: 3,
+      });
+      expect(subscriptionService.follow).toHaveBeenCalledWith(
+        COMMUNITY_ID,
+        USER_ID,
+      );
+    });
+
+    /*
+     * The same audience check the Community's own read uses. Following is
+     * never a way in: a Community that hides itself from a caller is not
+     * collecting them as a follower either.
+     */
+    it('refuses to follow a Community the caller may not see', async () => {
+      audienceService.assertCanView.mockRejectedValue(new NotFoundException());
+
+      await expect(controller.follow(COMMUNITY_ID, USER_ID)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(subscriptionService.follow).not.toHaveBeenCalled();
+    });
+
+    it('refuses before following anything when the feature is off', async () => {
+      featureService.assertEnabled.mockRejectedValue(new NotFoundException());
+
+      await expect(controller.follow(COMMUNITY_ID, USER_ID)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(communityService.findByIdOrFail).not.toHaveBeenCalled();
+      expect(subscriptionService.follow).not.toHaveBeenCalled();
+    });
+
+    /*
+     * The count is re-read rather than adjusted: it is a fact about
+     * everybody, and the caller changed only their own part of it.
+     */
+    it('answers with the count as it now stands', async () => {
+      subscriptionService.countFollowers.mockResolvedValue(11);
+
+      await expect(controller.follow(COMMUNITY_ID, USER_ID)).resolves.toEqual({
+        isFollowing: true,
+        followerCount: 11,
+      });
+    });
+  });
+
+  describe('unfollow', () => {
+    /*
+     * Somebody already following may always stop, even one that has since
+     * closed itself to them — being unable to leave because you can no
+     * longer see what you joined would be a trap.
+     */
+    it('lets a follower leave without asking whether they may see it', async () => {
+      subscriptionService.isFollowing.mockResolvedValue(true);
+
+      await expect(controller.unfollow(COMMUNITY_ID, USER_ID)).resolves.toEqual(
+        { isFollowing: false, followerCount: 3 },
+      );
+      expect(audienceService.assertCanView).not.toHaveBeenCalled();
+      expect(subscriptionService.unfollow).toHaveBeenCalledWith(
+        COMMUNITY_ID,
+        USER_ID,
+      );
+    });
+
+    /*
+     * Anybody else goes through the ordinary check, so the route cannot be
+     * used to confirm that a private Community exists.
+     */
+    it('checks visibility for somebody who does not follow it', async () => {
+      audienceService.assertCanView.mockRejectedValue(new NotFoundException());
+
+      await expect(controller.unfollow(COMMUNITY_ID, USER_ID)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(subscriptionService.unfollow).not.toHaveBeenCalled();
+    });
+
+    it('is silent when the caller was not following anyway', async () => {
+      await expect(controller.unfollow(COMMUNITY_ID, USER_ID)).resolves.toEqual(
+        { isFollowing: false, followerCount: 3 },
+      );
+      expect(subscriptionService.unfollow).toHaveBeenCalledWith(
+        COMMUNITY_ID,
+        USER_ID,
+      );
+    });
+
+    it('refuses before unfollowing anything when the feature is off', async () => {
+      featureService.assertEnabled.mockRejectedValue(new NotFoundException());
+
+      await expect(controller.unfollow(COMMUNITY_ID, USER_ID)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(subscriptionService.unfollow).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('listFollowed', () => {
+    it('lists what the caller follows, as the service ordered it', async () => {
+      const followedAt = new Date('2026-04-01T00:00:00.000Z');
+
+      subscriptionService.listFollowed.mockResolvedValue([
+        { community: COMMUNITY, followedAt },
+      ]);
+
+      await expect(controller.listFollowed(USER_ID)).resolves.toEqual([
+        { community: COMMUNITY, followedAt },
+      ]);
+      expect(subscriptionService.listFollowed).toHaveBeenCalledWith(USER_ID);
+    });
+
+    /*
+     * A Community that has closed itself to the public since it was followed
+     * drops out rather than appearing as something the reader cannot open.
+     * The subscription stays, so it returns of its own accord if the
+     * Community opens again.
+     */
+    it('leaves out one the caller may no longer see', async () => {
+      subscriptionService.listFollowed.mockResolvedValue([
+        { community: COMMUNITY, followedAt: new Date() },
+      ]);
+      audienceService.canView.mockResolvedValue(false);
+
+      await expect(controller.listFollowed(USER_ID)).resolves.toEqual([]);
+      expect(audienceService.canView).toHaveBeenCalledWith(
+        FleetAudience.PUBLIC,
+        { kind: FleetScopeKind.COMMUNITY, id: COMMUNITY_ID },
+        USER_ID,
+      );
+    });
+
+    it('refuses before reading anything when the feature is off', async () => {
+      featureService.assertEnabled.mockRejectedValue(new NotFoundException());
+
+      await expect(controller.listFollowed(USER_ID)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(subscriptionService.listFollowed).not.toHaveBeenCalled();
     });
   });
 });

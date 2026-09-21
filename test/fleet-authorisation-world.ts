@@ -1,6 +1,7 @@
 import { ClsService } from 'nestjs-cls';
 import { FindOperator, Repository } from 'typeorm';
 
+import { FileAssetEntity } from '../src/file-assets/entities/file-asset.entity';
 import { FleetAudienceService } from '../src/fleet/authorisation/fleet-audience.service';
 import { FleetAuthorisationRevisionService } from '../src/fleet/authorisation/fleet-authorisation-revision.service';
 import { FleetAuthorisationService } from '../src/fleet/authorisation/fleet-authorisation.service';
@@ -11,6 +12,8 @@ import { ScopeMembershipEntity } from '../src/fleet/entities/scope-membership.en
 import { ScopeRoleAssignmentEntity } from '../src/fleet/entities/scope-role-assignment.entity';
 import { StoArmadaEntity } from '../src/fleet/entities/sto-armada.entity';
 import { StoFleetEntity } from '../src/fleet/entities/sto-fleet.entity';
+import { CommunitySubscriptionService } from '../src/fleet/services/community-subscription.service';
+import { FleetScopeViewerService } from '../src/fleet/services/fleet-scope-viewer.service';
 import { UserEntity } from '../src/user/entities/user.entity';
 
 /**
@@ -115,6 +118,18 @@ export class InMemoryRepository<T extends Row> {
   }
 
   /**
+   * Counts the matching rows.
+   *
+   * @param options - The find options.
+   * @returns How many rows match.
+   */
+  count(options?: { where?: Where }): Promise<number> {
+    return Promise.resolve(
+      this.rows.filter(row => matchesWhere(row, options?.where)).length,
+    );
+  }
+
+  /**
    * Adds to a numeric column on every matching row.
    *
    * @param criteria - Which rows to change.
@@ -148,6 +163,8 @@ export interface WorldRows {
 export interface AuthorisationWorld {
   authorisation: FleetAuthorisationService;
   audience: FleetAudienceService;
+  subscription: CommunitySubscriptionService;
+  viewer: FleetScopeViewerService;
   revision: FleetAuthorisationRevisionService;
   rows: Required<WorldRows>;
 }
@@ -231,11 +248,23 @@ export function createAuthorisationWorld(
     cls,
   );
 
+  const subscription = new CommunitySubscriptionService(
+    repository(filled.subscriptions),
+  );
+
   return {
     authorisation,
     audience: new FleetAudienceService(
       authorisation,
       repository(filled.subscriptions),
+    ),
+    subscription,
+    // No assets: the viewer service reads them only for a Fleet nobody has
+    // registered, which is not a scope and so never reaches this world.
+    viewer: new FleetScopeViewerService(
+      authorisation,
+      subscription,
+      repository<Partial<FileAssetEntity>>([]),
     ),
     revision: new FleetAuthorisationRevisionService(
       repository(filled.communities),

@@ -10,6 +10,9 @@ import { FleetAuthorisationService } from '../authorisation/fleet-authorisation.
 import { FLEET_CAPABILITIES } from '../authorisation/fleet-capability.constants';
 import { ScopeRef } from '../authorisation/scope-authorisation.interface';
 import { FleetScopeViewerDto } from '../dto/fleet-scope-viewer.dto';
+import { FleetScopeRelationship } from '../enums/fleet-scope-relationship.enum';
+import { toScopeRelationship } from '../utilities/fleet-scope-relationship.utility';
+import { CommunitySubscriptionService } from './community-subscription.service';
 
 /** Who is looking, as far as artwork ownership is concerned. */
 export interface FleetScopeViewer {
@@ -27,11 +30,21 @@ export interface FleetScopeArtworkState {
   readonly emblemImageId: string | null;
 }
 
-/** Nothing offered, which is the answer for everybody signed out. */
+/**
+ * Nothing offered and nothing to follow.
+ *
+ * The answer for a scope that does not resolve, and the base every other
+ * answer is built from. `followerCount` is null rather than zero because
+ * nobody has been counted — saying "no followers" about something that may
+ * not exist would be inventing a fact.
+ */
 const NOTHING: FleetScopeViewerDto = {
   capabilities: [],
   mayManageBanner: false,
   mayManageEmblem: false,
+  relationship: FleetScopeRelationship.NONE,
+  isFollowingCommunity: false,
+  followerCount: null,
 };
 
 /**
@@ -55,32 +68,52 @@ export class FleetScopeViewerService {
    * Creates an instance of FleetScopeViewerService.
    *
    * @param _authorisation - The single answer to what a user may do here.
+   * @param _subscriptions - Reads who follows the owning Community.
    * @param _assets - Repository used to find who owns a published picture.
    */
   constructor(
     private readonly _authorisation: FleetAuthorisationService,
+    private readonly _subscriptions: CommunitySubscriptionService,
     @InjectRepository(FileAssetEntity)
     private readonly _assets: Repository<FileAssetEntity>,
   ) {}
 
   /**
-   * Works out what a caller may do at a registered scope.
+   * Works out what a caller may do at a registered scope, and how they stand
+   * to it.
    *
-   * A signed-out caller is answered without resolving anything. Every
-   * capability requires a user, so the query would only ever confirm what
-   * the absent token already said — and a scope page is served far more
-   * often to readers than to owners.
+   * A signed-out caller is not put through the authorisation policy: every
+   * capability requires a user, so the query would only ever confirm what the
+   * absent token already said. The follower count is still taken for them,
+   * because it is part of the page rather than part of the permission — a
+   * visitor deciding whether a Community is worth following is exactly who it
+   * is for.
+   *
+   * The relationship and the count are asked for together, and they are two
+   * different questions: how many follow, and whether this caller is one of
+   * them. Neither is ever an access decision. Following opens `COMMUNITY`
+   * content and nothing else (R07), and the route still resolves the records
+   * itself before it allows anything.
    *
    * @param viewer - Who is looking.
    * @param ref - The scope they are looking at.
-   * @returns What to offer them.
+   * @returns What to offer them, and what to call them.
    */
   async forScope(
     viewer: FleetScopeViewer,
     ref: ScopeRef,
   ): Promise<FleetScopeViewerDto> {
     if (viewer.userId === null) {
-      return NOTHING;
+      const scope = await this._authorisation.resolveScope(ref);
+
+      return scope === null
+        ? NOTHING
+        : {
+            ...NOTHING,
+            followerCount: await this._subscriptions.countFollowers(
+              scope.communityId,
+            ),
+          };
     }
 
     const authorisation = await this._authorisation.authorise(
@@ -92,6 +125,12 @@ export class FleetScopeViewerService {
       return NOTHING;
     }
 
+    const { communityId } = authorisation.scope;
+    const [followerCount, isFollowingCommunity] = await Promise.all([
+      this._subscriptions.countFollowers(communityId),
+      this._subscriptions.isFollowing(communityId, viewer.userId),
+    ]);
+
     const capabilities = [...authorisation.capabilities];
     const mayManageArtwork = authorisation.capabilities.has(
       FLEET_CAPABILITIES.SCOPE_IMAGES_MANAGE,
@@ -101,6 +140,9 @@ export class FleetScopeViewerService {
       capabilities,
       mayManageBanner: mayManageArtwork,
       mayManageEmblem: mayManageArtwork,
+      relationship: toScopeRelationship(authorisation, isFollowingCommunity),
+      isFollowingCommunity,
+      followerCount,
     };
   }
 
@@ -135,9 +177,10 @@ export class FleetScopeViewerService {
     ]);
 
     return {
-      // Nothing to hold. An unregistered Fleet is not a scope: no Community
-      // owns it, so no role reaches it and no grant can name it.
-      capabilities: [],
+      // Nothing to hold, and nothing to follow. An unregistered Fleet is not a
+      // scope: no Community owns it, so no role reaches it, no grant can name
+      // it, and there is no subscription for anybody to have.
+      ...NOTHING,
       mayManageBanner,
       mayManageEmblem,
     };

@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -30,6 +32,10 @@ import { FLEET_CAPABILITIES } from './authorisation/fleet-capability.constants';
 import { RequiresScopeCapability } from './authorisation/requires-scope-capability.decorator';
 import { ScopeCapabilityGuard } from './authorisation/scope-capability.guard';
 import { FLEET_FEATURE_FLAGS } from './constants/fleet-feature.constants';
+import {
+  CommunityFollowStateDto,
+  FollowedCommunityDto,
+} from './dto/community-subscription.dto';
 import { CreateFleetCommunityDto } from './dto/create-fleet-community.dto';
 import {
   FleetCommunityDto,
@@ -39,6 +45,7 @@ import { UpdateFleetCommunityDto } from './dto/update-fleet-community.dto';
 import { FleetScopeKind } from './enums/fleet-scope-kind.enum';
 import { FleetFeatureService } from './fleet-feature.service';
 import { FleetCommunityMapper } from './mappers/fleet-community.mapper';
+import { CommunitySubscriptionService } from './services/community-subscription.service';
 import { FleetCommunityService } from './services/fleet-community.service';
 import { FleetScopeViewerService } from './services/fleet-scope-viewer.service';
 
@@ -92,6 +99,7 @@ export class FleetCommunitiesController {
    * @param _audienceService - Answers whether a caller may see a Community.
    * @param _featureService - Reports whether the feature is switched on.
    * @param _viewerService - Answers what the caller may do to what it found.
+   * @param _subscriptionService - Starts and stops following a Community.
    * @param _mapper - Turns a Community into its API shape.
    */
   constructor(
@@ -99,6 +107,7 @@ export class FleetCommunitiesController {
     private readonly _audienceService: FleetAudienceService,
     private readonly _featureService: FleetFeatureService,
     private readonly _viewerService: FleetScopeViewerService,
+    private readonly _subscriptionService: CommunitySubscriptionService,
     private readonly _mapper: FleetCommunityMapper,
   ) {}
 
@@ -172,6 +181,141 @@ export class FleetCommunitiesController {
         { kind: FleetScopeKind.COMMUNITY, id: resolved.community.id },
       ),
     };
+  }
+
+  /**
+   * Lists the Communities the caller follows, most recent first.
+   *
+   * Declared before the identifier route for the reason `by-slug` is: a
+   * literal segment must win, or `:communityId` swallows it and answers
+   * `400` for a perfectly good address.
+   *
+   * Each one is checked against the audience rule before it is listed. A
+   * Community that has closed itself to the public since it was followed
+   * drops out of the list rather than appearing as something the reader
+   * cannot open — the subscription stays, so it returns of its own accord
+   * if the Community opens again.
+   *
+   * @param userId - The caller.
+   * @returns What they follow and may still see, newest first.
+   */
+  @Get('followed')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List the Fleet Communities the caller follows' })
+  @ApiOkResponse({ type: FollowedCommunityDto, isArray: true })
+  async listFollowed(
+    @UserId() userId: string,
+  ): Promise<FollowedCommunityDto[]> {
+    await this._featureService.assertEnabled();
+
+    const followed = await this._subscriptionService.listFollowed(userId);
+
+    const listed = await Promise.all(
+      followed.map(async entry =>
+        (await this._audienceService.canView(
+          entry.community.visibility,
+          { kind: FleetScopeKind.COMMUNITY, id: entry.community.id },
+          userId,
+        ))
+          ? {
+              community: this._mapper.toDto(entry.community),
+              followedAt: entry.followedAt,
+            }
+          : null,
+      ),
+    );
+
+    return listed.filter(
+      (entry): entry is FollowedCommunityDto => entry !== null,
+    );
+  }
+
+  /**
+   * Follows a Community.
+   *
+   * Gated by the same audience check the Community's own read uses, so
+   * following is never a way in: a Community that hides itself from a caller
+   * is not collecting them as a follower either. Following grants nothing in
+   * return — it opens `COMMUNITY` content and no roster, no handles and no
+   * membership anywhere (R07, ADR-0002).
+   *
+   * Answers `200` rather than `201`, and pressing it twice is not an error.
+   * What comes back is a state, not a newly created thing with an address of
+   * its own, and somebody agreeing with themselves should not be told off
+   * for it.
+   *
+   * @param communityId - The Community to follow.
+   * @param userId - The caller.
+   * @returns Whether they now follow it, and how many do.
+   */
+  @Post(':communityId/follow')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Follow a Fleet Community',
+    description:
+      'Following grants no access to anything. It opens Community-audience ' +
+      'content only, and never a Fleet roster, handles or membership.',
+  })
+  @ApiOkResponse({ type: CommunityFollowStateDto })
+  @ApiNotFoundResponse({
+    description:
+      'No such Community, or the caller may not see it. A Community that ' +
+      'cannot be read cannot be followed.',
+  })
+  async follow(
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @UserId() userId: string,
+  ): Promise<CommunityFollowStateDto> {
+    await this._featureService.assertEnabled();
+
+    const community = await this._communityService.findByIdOrFail(communityId);
+
+    await this.assertVisible(community, userId);
+    await this._subscriptionService.follow(communityId, userId);
+
+    return this.followState(communityId, true);
+  }
+
+  /**
+   * Stops following a Community.
+   *
+   * Somebody already following may always stop, even one that has since
+   * closed itself to them — being unable to leave because you can no
+   * longer see what you joined would be a trap. Anybody else is put through
+   * the ordinary visibility check, so the route cannot be used to confirm
+   * that a private Community exists.
+   *
+   * @param communityId - The Community to stop following.
+   * @param userId - The caller.
+   * @returns Whether they now follow it, and how many do.
+   */
+  @Delete(':communityId/follow')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Stop following a Fleet Community' })
+  @ApiOkResponse({ type: CommunityFollowStateDto })
+  @ApiNotFoundResponse({
+    description:
+      'No such Community, or a caller who does not follow it may not see it.',
+  })
+  async unfollow(
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @UserId() userId: string,
+  ): Promise<CommunityFollowStateDto> {
+    await this._featureService.assertEnabled();
+
+    const community = await this._communityService.findByIdOrFail(communityId);
+
+    if (!(await this._subscriptionService.isFollowing(communityId, userId))) {
+      await this.assertVisible(community, userId);
+    }
+
+    await this._subscriptionService.unfollow(communityId, userId);
+
+    return this.followState(communityId, false);
   }
 
   /**
@@ -272,6 +416,27 @@ export class FleetCommunitiesController {
     const community = await this._communityService.close(communityId, userId);
 
     return this._mapper.toDto(community);
+  }
+
+  /**
+   * Reports the follow state a route has just brought about.
+   *
+   * The count is re-read rather than adjusted, because it is a fact about
+   * everybody and the caller only changed their own part of it.
+   *
+   * @param communityId - The Community.
+   * @param isFollowing - What the caller's own state now is.
+   * @returns The state to answer with.
+   */
+  private async followState(
+    communityId: string,
+    isFollowing: boolean,
+  ): Promise<CommunityFollowStateDto> {
+    return {
+      isFollowing,
+      followerCount:
+        await this._subscriptionService.countFollowers(communityId),
+    };
   }
 
   /**

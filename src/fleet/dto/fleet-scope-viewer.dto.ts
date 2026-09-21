@@ -4,6 +4,7 @@ import {
   ALL_FLEET_CAPABILITIES,
   FleetCapability,
 } from '../authorisation/fleet-capability.constants';
+import { FleetScopeRelationship } from '../enums/fleet-scope-relationship.enum';
 
 /**
  * What the caller looking at a scope may do to it.
@@ -55,4 +56,50 @@ export class FleetScopeViewerDto {
     description: 'Whether this caller may set or replace the emblem.',
   })
   mayManageEmblem: boolean;
+  /**
+   * How this caller stands to the scope, for the page to say so plainly.
+   *
+   * The strongest of the three records that answer it, because a badge has
+   * room for one: an approved member who also follows the Community is shown
+   * as a member. **Nothing is authorised from this.** It is what the page
+   * should say, not what the caller may do — the capabilities above are for
+   * that, and the route decides in any case.
+   */
+  @ApiProperty({
+    enum: FleetScopeRelationship,
+    description:
+      'How this caller stands to the scope: following, an unanswered ' +
+      'request, an approved membership, a suspended one, or nothing. ' +
+      'Display only — following grants no access anywhere.',
+  })
+  relationship: FleetScopeRelationship;
+
+  /**
+   * Whether this caller follows the owning Community.
+   *
+   * Separate from {@link relationship} because it is a different question and
+   * both can be true at once. A Fleet's approved member may follow the
+   * Community that owns it or not, and the follow control has to know which
+   * — a badge saying "member" cannot tell it.
+   */
+  @ApiProperty({
+    description: 'Whether this caller follows the owning Community.',
+  })
+  isFollowingCommunity: boolean;
+
+  /**
+   * How many follow the owning Community, or null when there is none.
+   *
+   * Everything anybody is told about a Community's followers. Null is not
+   * zero: an unregistered Fleet has no Community, so there is nobody to
+   * follow rather than nobody following, and the page says so instead of
+   * offering a control that could not work.
+   */
+  @ApiProperty({
+    nullable: true,
+    description:
+      'Live followers of the owning Community, or null when the scope has ' +
+      'no Community to follow.',
+  })
+  followerCount: number | null;
 }

@@ -38,6 +38,7 @@ import { StoArmadaMapper } from './mappers/sto-armada.mapper';
 import { StoFleetMapper } from './mappers/sto-fleet.mapper';
 import { CharacterFleetMembershipService } from './services/character-fleet-membership.service';
 import { CharacterFleetProposalService } from './services/character-fleet-proposal.service';
+import { CommunitySubscriptionService } from './services/community-subscription.service';
 import { FleetCommunityService } from './services/fleet-community.service';
 import { FleetPlatformService } from './services/fleet-platform.service';
 import { FleetSlugService } from './services/fleet-slug.service';
@@ -79,6 +80,7 @@ describe('FleetModule', () => {
     FleetSlugService,
     FleetPlatformService,
     FleetCommunityService,
+    CommunitySubscriptionService,
     StoFleetService,
     StoArmadaService,
     CharacterFleetMembershipService,

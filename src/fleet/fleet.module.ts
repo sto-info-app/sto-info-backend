@@ -35,6 +35,7 @@ import { StoArmadaMapper } from './mappers/sto-armada.mapper';
 import { StoFleetMapper } from './mappers/sto-fleet.mapper';
 import { CharacterFleetMembershipService } from './services/character-fleet-membership.service';
 import { CharacterFleetProposalService } from './services/character-fleet-proposal.service';
+import { CommunitySubscriptionService } from './services/community-subscription.service';
 import { FleetCommunityService } from './services/fleet-community.service';
 import { FleetPlatformService } from './services/fleet-platform.service';
 import { FleetScopeViewerService } from './services/fleet-scope-viewer.service';
@@ -111,6 +112,7 @@ import { UnregisteredFleetsController } from './unregistered-fleets.controller';
     FleetPlatformService,
     FleetCommunityService,
     FleetScopeViewerService,
+    CommunitySubscriptionService,
     StoFleetService,
     StoArmadaService,
     CharacterFleetMembershipService,
@@ -131,6 +133,7 @@ import { UnregisteredFleetsController } from './unregistered-fleets.controller';
     FleetPlatformService,
     FleetCommunityService,
     FleetScopeViewerService,
+    CommunitySubscriptionService,
     StoFleetService,
     StoArmadaService,
     CharacterFleetMembershipService,
