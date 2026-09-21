@@ -16,9 +16,11 @@ import { IsExactGameNameConstraint } from '../utilities/is-exact-game-name.const
  *   in this feature checks a capability at a scope, and an unregistered
  *   Fleet resolves to no scope at all. Correcting one is an administrator's
  *   job, and adopting one into a Community is FC-039's.
- * - **It has no web address.** The slug index and the Armada composite key
- *   both require a Community, so it appears in searches and in duplicate
- *   warnings and is reachable nowhere else.
+ * - **Its address names no Community.** It is reachable under the reserved
+ *   `standalone` segment, where a Community's slug would sit, and its own
+ *   slug is unique among the standalone records on its platform. It has no
+ *   Armada placement either way: that composite key does require a
+ *   Community.
  *
  * Which is why {@link confirmUnregistered} has to be sent, and has to be
  * true. It is not a checkbox for its own sake: creating one of these is

@@ -38,11 +38,12 @@ import { StoFleetService } from './services/sto-fleet.service';
  *
  * ## Why there is no read route here
  *
- * There is nothing to read it by. The slug index and the Armada composite
- * key both require a Community, so an unregistered record has no address.
- * It surfaces in duplicate warnings and in the directory, which is exactly
- * the reach it should have: enough to stop a second person confirming the
- * same Fleet blind, and no more.
+ * There is one, and it is somewhere else. A record with no Community is
+ * resolved under the reserved `standalone` segment by the route that
+ * resolves every other Fleet address, because one route resolving them all
+ * is what keeps a page to a single request. This controller is for the one
+ * thing that has no equivalent elsewhere: confirming the record into
+ * existence.
  */
 @ApiTags('Fleet')
 @Controller('fleets')
