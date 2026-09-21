@@ -82,6 +82,33 @@ describe('Fleet capability vocabulary', () => {
     ).not.toContain(FleetScopeKind.FLEET);
   });
 
+  /**
+   * Registering a child belongs to the Community and nowhere else: a Fleet has
+   * nothing under it, and an Armada groups Fleets rather than containing them.
+   * Scoping it anywhere wider would let the code be claimed against a Fleet,
+   * where it would mean nothing and still read as authority.
+   */
+  it('scopes registering children to the Community alone', () => {
+    expect(
+      FLEET_CAPABILITY_BY_CODE.get(FLEET_CAPABILITIES.SCOPE_CHILDREN_REGISTER)
+        ?.scopeKinds,
+    ).toEqual([FleetScopeKind.COMMUNITY]);
+  });
+
+  /**
+   * Unlike the four capabilities ownership *is*, this one is delegable. A
+   * Community large enough to need a second Fleet is large enough to have
+   * somebody other than the Owner register it, and nothing about registering a
+   * Fleet can be turned into ownership of the Community.
+   */
+  it('allows registering children to be delegated', () => {
+    expect(
+      DELEGABLE_FLEET_CAPABILITIES.has(
+        FLEET_CAPABILITIES.SCOPE_CHILDREN_REGISTER,
+      ),
+    ).toBe(true);
+  });
+
   it('scopes roster capabilities away from Armadas', () => {
     for (const capability of [
       FLEET_CAPABILITIES.ROSTER_VIEW,
@@ -124,6 +151,7 @@ describe('Fleet role baselines', () => {
   });
 
   it.each([
+    FLEET_CAPABILITIES.SCOPE_CHILDREN_REGISTER,
     FLEET_CAPABILITIES.APPLICATIONS_DECIDE,
     FLEET_CAPABILITIES.RECRUITMENT_MANAGE,
     FLEET_CAPABILITIES.ROSTER_IMPORT,
@@ -146,6 +174,7 @@ describe('Fleet role baselines', () => {
   it.each([
     FLEET_CAPABILITIES.ROSTER_SOURCE_DOWNLOAD,
     FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+    FLEET_CAPABILITIES.SCOPE_CHILDREN_REGISTER,
     FLEET_CAPABILITIES.SCOPE_ROLES_MANAGE,
     FLEET_CAPABILITIES.MEMBERS_MANAGE,
     FLEET_CAPABILITIES.CHAT_TRANSCRIPT_EXPORT,

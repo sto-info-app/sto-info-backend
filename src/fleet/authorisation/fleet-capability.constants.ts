@@ -27,6 +27,8 @@ export const FLEET_CAPABILITIES = {
   SCOPE_OWNERSHIP_TRANSFER: 'scope.ownership.transfer',
   /** Close the scope. */
   SCOPE_CLOSE: 'scope.close',
+  /** Register a Fleet or an Armada inside the Community. */
+  SCOPE_CHILDREN_REGISTER: 'scope.children.register',
 
   /** See who the approved members of the scope are. */
   MEMBERS_VIEW: 'members.view',
@@ -158,6 +160,15 @@ export const FLEET_CAPABILITY_DEFINITIONS: readonly FleetCapabilityDefinition[] 
       mutating: true,
       delegable: false,
       scopeKinds: EVERY_SCOPE,
+    },
+    {
+      code: FLEET_CAPABILITIES.SCOPE_CHILDREN_REGISTER,
+      name: 'Register Fleets and Armadas',
+      description:
+        'Register a Fleet or an Armada under the Community, and change or close one.',
+      mutating: true,
+      delegable: true,
+      scopeKinds: [FleetScopeKind.COMMUNITY],
     },
     {
       code: FLEET_CAPABILITIES.MEMBERS_VIEW,
