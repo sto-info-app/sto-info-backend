@@ -11,6 +11,7 @@ import { FleetAudienceService } from './authorisation/fleet-audience.service';
 import { FleetAuthorisationRevisionService } from './authorisation/fleet-authorisation-revision.service';
 import { FleetAuthorisationService } from './authorisation/fleet-authorisation.service';
 import { ScopeCapabilityGuard } from './authorisation/scope-capability.guard';
+import { CharacterFleetsController } from './character-fleets.controller';
 import { CommunityArmadasController } from './community-armadas.controller';
 import { CommunityFleetsController } from './community-fleets.controller';
 import { ArmadaFleetMembershipEntity } from './entities/armada-fleet-membership.entity';
@@ -35,6 +36,8 @@ import { FleetModule } from './fleet.module';
 import { FleetCommunityMapper } from './mappers/fleet-community.mapper';
 import { StoArmadaMapper } from './mappers/sto-armada.mapper';
 import { StoFleetMapper } from './mappers/sto-fleet.mapper';
+import { CharacterFleetMembershipService } from './services/character-fleet-membership.service';
+import { CharacterFleetProposalService } from './services/character-fleet-proposal.service';
 import { FleetCommunityService } from './services/fleet-community.service';
 import { FleetPlatformService } from './services/fleet-platform.service';
 import { FleetSlugService } from './services/fleet-slug.service';
@@ -78,6 +81,8 @@ describe('FleetModule', () => {
     FleetCommunityService,
     StoFleetService,
     StoArmadaService,
+    CharacterFleetMembershipService,
+    CharacterFleetProposalService,
     FleetAuthorisationService,
     FleetAudienceService,
     FleetAuthorisationRevisionService,
@@ -158,6 +163,7 @@ describe('FleetModule', () => {
     CommunityFleetsController,
     CommunityArmadasController,
     UnregisteredFleetsController,
+    CharacterFleetsController,
   ])('exposes %p', controller => {
     const controllers = Reflect.getMetadata(
       'controllers',

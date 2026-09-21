@@ -8,6 +8,7 @@ import { FleetAudienceService } from './authorisation/fleet-audience.service';
 import { FleetAuthorisationRevisionService } from './authorisation/fleet-authorisation-revision.service';
 import { FleetAuthorisationService } from './authorisation/fleet-authorisation.service';
 import { ScopeCapabilityGuard } from './authorisation/scope-capability.guard';
+import { CharacterFleetsController } from './character-fleets.controller';
 import { CommunityArmadasController } from './community-armadas.controller';
 import { CommunityFleetsController } from './community-fleets.controller';
 import { ArmadaFleetMembershipEntity } from './entities/armada-fleet-membership.entity';
@@ -28,9 +29,12 @@ import { FleetDirectoryController } from './fleet-directory.controller';
 import { FleetFeatureService } from './fleet-feature.service';
 import { FleetPolicyService } from './fleet-policy.service';
 import { FleetScopeResolutionController } from './fleet-scope-resolution.controller';
+import { CharacterFleetMapper } from './mappers/character-fleet.mapper';
 import { FleetCommunityMapper } from './mappers/fleet-community.mapper';
 import { StoArmadaMapper } from './mappers/sto-armada.mapper';
 import { StoFleetMapper } from './mappers/sto-fleet.mapper';
+import { CharacterFleetMembershipService } from './services/character-fleet-membership.service';
+import { CharacterFleetProposalService } from './services/character-fleet-proposal.service';
 import { FleetCommunityService } from './services/fleet-community.service';
 import { FleetPlatformService } from './services/fleet-platform.service';
 import { FleetScopeViewerService } from './services/fleet-scope-viewer.service';
@@ -98,6 +102,7 @@ import { UnregisteredFleetsController } from './unregistered-fleets.controller';
     CommunityFleetsController,
     CommunityArmadasController,
     UnregisteredFleetsController,
+    CharacterFleetsController,
   ],
   providers: [
     FleetFeatureService,
@@ -108,7 +113,10 @@ import { UnregisteredFleetsController } from './unregistered-fleets.controller';
     FleetScopeViewerService,
     StoFleetService,
     StoArmadaService,
+    CharacterFleetMembershipService,
+    CharacterFleetProposalService,
     FleetCommunityMapper,
+    CharacterFleetMapper,
     StoFleetMapper,
     StoArmadaMapper,
     FleetAuthorisationService,
@@ -125,6 +133,8 @@ import { UnregisteredFleetsController } from './unregistered-fleets.controller';
     FleetScopeViewerService,
     StoFleetService,
     StoArmadaService,
+    CharacterFleetMembershipService,
+    CharacterFleetProposalService,
     FleetAuthorisationService,
     FleetAudienceService,
     FleetAuthorisationRevisionService,
