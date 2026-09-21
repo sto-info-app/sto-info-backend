@@ -109,6 +109,27 @@ describe('Fleet capability vocabulary', () => {
     ).toBe(true);
   });
 
+  /**
+   * Artwork is delegable where the name, the description and the visibility
+   * are not. A banner is the scope's public face rather than a claim about
+   * who owns it, and somebody handed it can change nothing else — which is
+   * the whole reason it is a capability of its own instead of a fifth thing
+   * SCOPE_SETTINGS_MANAGE lets through.
+   */
+  it('allows artwork to be delegated at every kind of scope', () => {
+    expect(
+      DELEGABLE_FLEET_CAPABILITIES.has(FLEET_CAPABILITIES.SCOPE_IMAGES_MANAGE),
+    ).toBe(true);
+    expect(
+      FLEET_CAPABILITY_BY_CODE.get(FLEET_CAPABILITIES.SCOPE_IMAGES_MANAGE)
+        ?.scopeKinds,
+    ).toEqual([
+      FleetScopeKind.COMMUNITY,
+      FleetScopeKind.FLEET,
+      FleetScopeKind.ARMADA,
+    ]);
+  });
+
   it('scopes roster capabilities away from Armadas', () => {
     for (const capability of [
       FLEET_CAPABILITIES.ROSTER_VIEW,
@@ -152,6 +173,7 @@ describe('Fleet role baselines', () => {
 
   it.each([
     FLEET_CAPABILITIES.SCOPE_CHILDREN_REGISTER,
+    FLEET_CAPABILITIES.SCOPE_IMAGES_MANAGE,
     FLEET_CAPABILITIES.APPLICATIONS_DECIDE,
     FLEET_CAPABILITIES.RECRUITMENT_MANAGE,
     FLEET_CAPABILITIES.ROSTER_IMPORT,

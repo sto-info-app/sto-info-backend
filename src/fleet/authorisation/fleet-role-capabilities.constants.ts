@@ -41,6 +41,10 @@ const MEMBER_CAPABILITIES: readonly FleetCapability[] = [
 const ADMIN_CAPABILITIES: readonly FleetCapability[] = [
   ...MEMBER_CAPABILITIES,
   FLEET_CAPABILITIES.SCOPE_CHILDREN_REGISTER,
+  // Artwork sits with news and events rather than with settings. All three
+  // are the scope's public face, which an Admin is trusted with; the name,
+  // the visibility and the description are what ownership is.
+  FLEET_CAPABILITIES.SCOPE_IMAGES_MANAGE,
   FLEET_CAPABILITIES.MEMBERS_MANAGE,
   FLEET_CAPABILITIES.APPLICATIONS_VIEW,
   FLEET_CAPABILITIES.APPLICATIONS_DECIDE,

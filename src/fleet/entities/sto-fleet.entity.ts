@@ -152,6 +152,34 @@ export class StoFleetEntity {
   @Column({ type: 'timestamptz', nullable: true, default: null })
   closedAt: Date | null;
 
+  @ApiProperty({
+    description: 'Delivery reference of the wide banner.',
+    nullable: true,
+  })
+  @Column({ type: 'varchar', length: 160, nullable: true, default: null })
+  bannerImageId: string | null;
+
+  @ApiProperty({
+    description: 'What the banner shows, for readers who cannot see it.',
+    nullable: true,
+  })
+  @Column({ type: 'varchar', length: 300, nullable: true, default: null })
+  bannerImageAlt: string | null;
+
+  @ApiProperty({
+    description: 'Delivery reference of the square emblem.',
+    nullable: true,
+  })
+  @Column({ type: 'varchar', length: 160, nullable: true, default: null })
+  emblemImageId: string | null;
+
+  @ApiProperty({
+    description: 'What the emblem shows, for readers who cannot see it.',
+    nullable: true,
+  })
+  @Column({ type: 'varchar', length: 300, nullable: true, default: null })
+  emblemImageAlt: string | null;
+
   @ApiProperty({ description: 'Authorisation revision counter.' })
   @Column({ type: 'integer', nullable: false, default: 1 })
   revision: number;

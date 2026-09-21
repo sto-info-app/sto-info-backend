@@ -5,6 +5,7 @@ import { CreateFleetCommunityDomainTables1791600000000 } from '../../database/mi
 import { CreateScopeCapabilityGrants1791700000000 } from '../../database/migrations/1791700000000-CreateScopeCapabilityGrants';
 import { ScopeSlugsByPlatform1792700000000 } from '../../database/migrations/1792700000000-ScopeSlugsByPlatform';
 import { CreateFleetSlugHistory1792900000000 } from '../../database/migrations/1792900000000-CreateFleetSlugHistory';
+import { AddFleetScopeArtwork1793000000000 } from '../../database/migrations/1793000000000-AddFleetScopeArtwork';
 import { ArmadaFleetMembershipEntity } from './armada-fleet-membership.entity';
 import { CharacterFleetMembershipEntity } from './character-fleet-membership.entity';
 import { CommunitySubscriptionEntity } from './community-subscription.entity';
@@ -67,6 +68,7 @@ describe('Fleet schema alignment', () => {
     await new CreateScopeCapabilityGrants1791700000000().up(queryRunner);
     await new ScopeSlugsByPlatform1792700000000().up(queryRunner);
     await new CreateFleetSlugHistory1792900000000().up(queryRunner);
+    await new AddFleetScopeArtwork1793000000000().up(queryRunner);
     statements = captured;
   });
 
@@ -99,13 +101,50 @@ describe('Fleet schema alignment', () => {
       .columns.filter(column => column.target === entity)
       .map(column => column.options.name ?? column.propertyName);
 
-  /** Column names in the migration, ignoring the CONSTRAINT lines. */
-  const migrationColumns = (entity: EntityClass): string[] =>
+  /** Column names in the `CREATE TABLE`, ignoring the CONSTRAINT lines. */
+  const createdColumns = (entity: EntityClass): string[] =>
     createTableFor(entity)
       .split('\n')
       .map(line => line.trim())
       .filter(line => line.startsWith('"'))
       .map(line => line.slice(1, line.indexOf('"', 1)));
+
+  /**
+   * Column names as the transcript leaves them, `ALTER TABLE` included.
+   *
+   * A table is created once and altered afterwards: FC-013 adds four
+   * artwork columns to each of the three scope tables rather than
+   * rewriting the original statement, because the original has already
+   * run in production. Reading only the `CREATE TABLE` would quietly stop
+   * checking every column added after it, which is exactly the drift this
+   * file exists to catch — and would report the four as missing.
+   *
+   * `ADD CONSTRAINT` and `DROP CONSTRAINT` are not columns and are passed
+   * over; a dropped column is removed, so the transcript is replayed
+   * rather than accumulated.
+   *
+   * @param entity - The entity whose table to read.
+   * @returns The column names the migrations leave behind.
+   */
+  const migrationColumns = (entity: EntityClass): string[] => {
+    const table = tableNameOf(entity);
+    const columns = new Set(createdColumns(entity));
+    const alters = statements.filter(statement =>
+      statement.includes(`ALTER TABLE "sto_info_app"."${table}"`),
+    );
+
+    for (const statement of alters) {
+      for (const [, column] of statement.matchAll(/ADD COLUMN "([^"]+)"/g)) {
+        columns.add(column);
+      }
+
+      for (const [, column] of statement.matchAll(/DROP COLUMN "([^"]+)"/g)) {
+        columns.delete(column);
+      }
+    }
+
+    return [...columns];
+  };
 
   it.each(ENTITIES.map(entity => [entity.name, entity] as const))(
     '%s declares exactly the columns the migration creates',

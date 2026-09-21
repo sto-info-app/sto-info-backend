@@ -29,6 +29,8 @@ export const FLEET_CAPABILITIES = {
   SCOPE_CLOSE: 'scope.close',
   /** Register a Fleet or an Armada inside the Community. */
   SCOPE_CHILDREN_REGISTER: 'scope.children.register',
+  /** Set and remove the scope's banner and emblem. */
+  SCOPE_IMAGES_MANAGE: 'scope.images.manage',
 
   /** See who the approved members of the scope are. */
   MEMBERS_VIEW: 'members.view',
@@ -170,6 +172,16 @@ export const FLEET_CAPABILITY_DEFINITIONS: readonly FleetCapabilityDefinition[] 
       mutating: true,
       delegable: true,
       scopeKinds: [FleetScopeKind.COMMUNITY],
+    },
+    {
+      code: FLEET_CAPABILITIES.SCOPE_IMAGES_MANAGE,
+      name: 'Manage artwork',
+      description:
+        'Set and remove the banner across the top of the scope’s page and ' +
+        'the emblem identifying it in a listing.',
+      mutating: true,
+      delegable: true,
+      scopeKinds: EVERY_SCOPE,
     },
     {
       code: FLEET_CAPABILITIES.MEMBERS_VIEW,
