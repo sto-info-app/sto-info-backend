@@ -14,8 +14,11 @@ import {
   Repository,
 } from 'typeorm';
 
+import { normaliseToSlug } from 'src/shared/utilities/slug.utility';
+
 import { FleetAuthorisationRevisionService } from '../authorisation/fleet-authorisation-revision.service';
 import { CreateStoFleetDto } from '../dto/create-sto-fleet.dto';
+import { CreateUnregisteredFleetDto } from '../dto/create-unregistered-fleet.dto';
 import { UpdateStoFleetDto } from '../dto/update-sto-fleet.dto';
 import { StoFleetEntity } from '../entities/sto-fleet.entity';
 import { FleetAudience } from '../enums/fleet-audience.enum';
@@ -23,7 +26,11 @@ import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
 import { toNormalisedExactGameName } from '../utilities/exact-game-name.utility';
 import { FleetPlatformService } from './fleet-platform.service';
-import { FleetSlugScope, FleetSlugService } from './fleet-slug.service';
+import {
+  FLEET_SLUG_MAX_LENGTH,
+  FleetSlugScope,
+  FleetSlugService,
+} from './fleet-slug.service';
 
 /**
  * How many possible duplicates are reported.
@@ -153,6 +160,65 @@ export class StoFleetService {
 
     this._logger.log(
       `Fleet '${saved.slug}' registered in Community ${communityId} by ${actingUserId}`,
+    );
+
+    return { fleet: saved, duplicates };
+  }
+
+  /**
+   * Confirms an unregistered Fleet: a record of a Fleet nobody here runs.
+   *
+   * Needs an account and nothing else. There is no scope to hold a
+   * capability at, and no owner to hold one either, which is the whole
+   * nature of the record: it exists so an imported roster has something to
+   * attach to when the Fleet it describes belongs to nobody on this site.
+   *
+   * **Two confirmations of the same name make two records, and neither can
+   * ever be closed.** Every mutating route checks a capability at a scope,
+   * and an unregistered Fleet resolves to no scope, so nothing in this
+   * feature can withdraw one. That is the accepted cost of keeping one rule
+   * for duplicates rather than two: a registration is never refused for
+   * looking like something that already exists, here as everywhere else.
+   * Merging or adopting such a record is FC-039's.
+   *
+   * The audience is set to `PUBLIC` explicitly rather than left to the
+   * column default. The default is `COMMUNITY`, and a Community audience on
+   * a record with no Community resolves to nobody at all — which would make
+   * a stub created to be *found* invisible to everybody, including the next
+   * person about to create a second one.
+   *
+   * @param dto - The name, the platform and the caller's confirmation.
+   * @param actingUserId - The caller, for the log.
+   * @returns The record, and anything that already answered to its name.
+   * @throws BadRequestException when the platform is not one this site knows.
+   */
+  async registerUnregistered(
+    dto: CreateUnregisteredFleetDto,
+    actingUserId: string,
+  ): Promise<RegisteredFleet> {
+    const platform = await this._platformService.findByIdOrFail(dto.platformId);
+
+    const fleet = this._fleetRepository.create({
+      communityId: null,
+      platformId: platform.id,
+      exactGameName: dto.exactGameName,
+      exactGameNameNormalized: toNormalisedExactGameName(dto.exactGameName),
+      slug: this.buildUnaddressableSlug(dto.exactGameName),
+      visibility: FleetAudience.PUBLIC,
+    });
+
+    const saved = await this.saveTranslatingConstraints(fleet);
+
+    saved.platform = platform;
+
+    const duplicates = await this.findDuplicates(
+      platform.id,
+      dto.exactGameName,
+      { excludingId: saved.id },
+    );
+
+    this._logger.log(
+      `Unregistered Fleet '${saved.exactGameName}' confirmed by ${actingUserId}`,
     );
 
     return { fleet: saved, duplicates };
@@ -384,6 +450,22 @@ export class StoFleetService {
     this._logger.log(`Fleet '${saved.slug}' closed by ${actingUserId}`);
 
     return saved;
+  }
+
+  /**
+   * Fills the slug column for a record that has no address.
+   *
+   * The column is `NOT NULL` and the unique index covering it is restricted
+   * to rows with a Community, so an unregistered record needs a value and
+   * nothing collides with it. This is therefore a label rather than an
+   * address: it is never minted for uniqueness, never retired, and never
+   * resolved. A Community adopting the record later mints a real one then.
+   *
+   * @param name - The exact game name.
+   * @returns A slug-shaped label, never empty.
+   */
+  private buildUnaddressableSlug(name: string): string {
+    return normaliseToSlug(name, FLEET_SLUG_MAX_LENGTH) || 'fleet';
   }
 
   /**

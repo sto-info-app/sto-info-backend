@@ -37,6 +37,7 @@ import { FleetPlatformService } from './services/fleet-platform.service';
 import { FleetSlugService } from './services/fleet-slug.service';
 import { StoArmadaService } from './services/sto-armada.service';
 import { StoFleetService } from './services/sto-fleet.service';
+import { UnregisteredFleetsController } from './unregistered-fleets.controller';
 
 interface FeatureModule {
   providers?: Array<{ provide?: unknown }>;
@@ -149,17 +150,18 @@ describe('FleetModule', () => {
     expect(controllers).toContain(FleetCommunitiesController);
   });
 
-  it.each([CommunityFleetsController, CommunityArmadasController])(
-    'exposes %p',
-    controller => {
-      const controllers = Reflect.getMetadata(
-        'controllers',
-        FleetModule,
-      ) as unknown[];
+  it.each([
+    CommunityFleetsController,
+    CommunityArmadasController,
+    UnregisteredFleetsController,
+  ])('exposes %p', controller => {
+    const controllers = Reflect.getMetadata(
+      'controllers',
+      FleetModule,
+    ) as unknown[];
 
-      expect(controllers).toContain(controller);
-    },
-  );
+    expect(controllers).toContain(controller);
+  });
 
   it('exposes the canonical URL resolver', () => {
     const controllers = Reflect.getMetadata(

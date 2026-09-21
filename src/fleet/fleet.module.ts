@@ -33,6 +33,7 @@ import { FleetPlatformService } from './services/fleet-platform.service';
 import { FleetSlugService } from './services/fleet-slug.service';
 import { StoArmadaService } from './services/sto-armada.service';
 import { StoFleetService } from './services/sto-fleet.service';
+import { UnregisteredFleetsController } from './unregistered-fleets.controller';
 
 /**
  * Fleet Community — Communities, Fleets, Armadas, the records that relate users
@@ -83,6 +84,7 @@ import { StoFleetService } from './services/sto-fleet.service';
     FleetScopeResolutionController,
     CommunityFleetsController,
     CommunityArmadasController,
+    UnregisteredFleetsController,
   ],
   providers: [
     FleetFeatureService,

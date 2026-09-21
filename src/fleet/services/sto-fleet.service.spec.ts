@@ -414,6 +414,90 @@ describe('StoFleetService', () => {
     });
   });
 
+  describe('registerUnregistered', () => {
+    const body = {
+      exactGameName: 'Omega Command',
+      platformId,
+      confirmUnregistered: true as const,
+    };
+
+    it('records the Fleet as belonging to no Community', async () => {
+      const { fleet } = await service.registerUnregistered(body, actingUserId);
+
+      expect(fleet.communityId).toBeNull();
+      expect(fleet.exactGameName).toBe('Omega Command');
+    });
+
+    /**
+     * The column default is COMMUNITY, and a Community audience on a record
+     * with no Community resolves to nobody at all — which would make a stub
+     * created to be *found* invisible to everybody, including the next
+     * person about to confirm the same Fleet.
+     */
+    it('publishes it, because a stub nobody can see helps nobody', async () => {
+      const { fleet } = await service.registerUnregistered(body, actingUserId);
+
+      expect(fleet.visibility).toBe(FleetAudience.PUBLIC);
+    });
+
+    /**
+     * The slug column is NOT NULL and the unique index covering it is
+     * restricted to rows with a Community, so this is a label rather than an
+     * address: never minted for uniqueness, never retired, never resolved.
+     */
+    it('fills the address column without minting an address', async () => {
+      const { fleet } = await service.registerUnregistered(body, actingUserId);
+
+      expect(fleet.slug).toBe('omega-command');
+      expect(slugService.generateUniqueSlug).not.toHaveBeenCalled();
+    });
+
+    /**
+     * ADR-0003 accepts any script, so a name can reduce to nothing a URL
+     * could carry. The column still has to hold something.
+     */
+    it('falls back to a label when the name reduces to nothing', async () => {
+      const { fleet } = await service.registerUnregistered(
+        { ...body, exactGameName: '???' },
+        actingUserId,
+      );
+
+      expect(fleet.slug).toBe('fleet');
+    });
+
+    /**
+     * The same rule as everywhere else — a registration is never refused for
+     * looking like something that already exists. The accepted cost is
+     * stated in the service: two ownerless records, neither of which any
+     * capability in this feature can close.
+     */
+    it('confirms a second record and warns rather than refusing', async () => {
+      const rival = buildFleet({
+        id: 'c0000000-0000-4000-8000-00000000000d',
+        communityId: null,
+      });
+      found = [rival];
+
+      const { fleet, duplicates } = await service.registerUnregistered(
+        body,
+        actingUserId,
+      );
+
+      expect(fleet).toBeDefined();
+      expect(duplicates).toEqual([rival]);
+    });
+
+    it('searches no Community’s private records, having none to act in', async () => {
+      await service.registerUnregistered(body, actingUserId);
+
+      const query = fleetRepository.find.mock.calls[0][0] as {
+        where: unknown[];
+      };
+
+      expect(query.where).toHaveLength(2);
+    });
+  });
+
   describe('findByIdOrFail', () => {
     it('reads the Fleet with its platform', async () => {
       const fleet = await service.findByIdOrFail(communityId, fleetId);
