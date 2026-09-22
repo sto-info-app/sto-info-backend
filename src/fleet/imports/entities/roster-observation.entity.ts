@@ -33,8 +33,8 @@ import { RosterImportSourceEntity } from './roster-import-source.entity';
  *
  * Whether an import counts is not recorded here. That is its asset
  * placement's job: `file_asset_placement` already models
- * accepted-not-yet-in-force and in-force, with the partial unique index that
- * makes one effective import at a time a database rule.
+ * accepted-not-yet-in-force and in-force, and every import is placed under
+ * its own identifier.
  */
 @Entity({ name: 'fleet_roster_observation' })
 @Index('IDX_roster_observation_import_line', ['importSourceId', 'line'])

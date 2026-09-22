@@ -40,10 +40,10 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  *
  * Whether an import counts is decided by its asset placement, not by a flag
  * on ninety-three rows. `file_asset_placement` already models
- * accepted-not-yet-in-force as `PENDING` and in-force as `ACTIVE`, with the
- * partial unique index that makes "one effective import at a time" a
- * database rule rather than a service convention. Adding a second answer
- * here would be a second thing to keep in step.
+ * accepted-not-yet-in-force as `PENDING` and in-force as `ACTIVE`, and each
+ * import is placed under its own identifier, so its placement answers for it
+ * alone. Adding a second answer here would be a second thing to keep in
+ * step.
  *
  * ## Write-once, with the same exception
  *
