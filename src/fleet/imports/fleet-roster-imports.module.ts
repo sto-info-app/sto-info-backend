@@ -4,10 +4,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { FileAssetsModule } from 'src/file-assets/file-assets.module';
 import { FileScanningModule } from 'src/file-scanning/file-scanning.module';
 
+import { FleetNameAliasEntity } from '../entities/fleet-name-alias.entity';
 import { FleetModule } from '../fleet.module';
 import { RosterImportSourceEntity } from './entities/roster-import-source.entity';
 import { RosterImportsController } from './roster-imports.controller';
 import { RosterCsvPrivacyParserService } from './services/roster-csv-privacy-parser.service';
+import { RosterExportIdentityService } from './services/roster-export-identity.service';
 import { RosterImportIngressService } from './services/roster-import-ingress.service';
 import { RosterTypedParserService } from './services/roster-typed-parser.service';
 
@@ -28,17 +30,19 @@ import { RosterTypedParserService } from './services/roster-typed-parser.service
     FleetModule,
     FileAssetsModule,
     FileScanningModule,
-    TypeOrmModule.forFeature([RosterImportSourceEntity]),
+    TypeOrmModule.forFeature([RosterImportSourceEntity, FleetNameAliasEntity]),
   ],
   controllers: [RosterImportsController],
   providers: [
     RosterCsvPrivacyParserService,
     RosterTypedParserService,
+    RosterExportIdentityService,
     RosterImportIngressService,
   ],
   exports: [
     RosterCsvPrivacyParserService,
     RosterTypedParserService,
+    RosterExportIdentityService,
     RosterImportIngressService,
   ],
 })
