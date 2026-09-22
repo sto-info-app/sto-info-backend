@@ -12,6 +12,7 @@ import { FileAssetService } from 'src/file-assets/services/file-asset.service';
 import { QuarantineStorageService } from 'src/file-assets/services/quarantine-storage.service';
 import { ScanRequestProducerService } from 'src/file-scanning/services/scan-request-producer.service';
 
+import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { FleetPolicyService } from '../../fleet-policy.service';
 import {
   boundDeclaredContentType,
@@ -19,15 +20,27 @@ import {
   SANITISED_ROSTER_CONTENT_TYPE,
 } from '../constants/roster-upload.constants';
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
+import { RosterFilenameRejectionCode } from '../enums/roster-filename-rejection-code.enum';
 import { RosterSourceHeaderShape } from '../enums/roster-source-header-shape.enum';
 import { RosterCsvRejectedError } from '../errors/roster-csv-rejected.error';
 import { assertRosterFilenameUsable } from '../utilities/roster-filename.utility';
 import { RosterCsvPrivacyParserService } from './roster-csv-privacy-parser.service';
+import { RosterExportIdentityService } from './roster-export-identity.service';
 
 /** What the controller knows about an arriving upload. */
 export interface RosterUploadInput {
   /** The Fleet the export was uploaded against. */
-  readonly fleetId: string;
+  readonly fleet: StoFleetEntity;
+  /** The IANA zone the uploader says the export was taken in. */
+  readonly timezone: string;
+  /**
+   * Which moment the filename stamp names, where it names two.
+   *
+   * Null for the ordinary case. Supplied only for a stamp the clock went
+   * back over, and checked against the two the stamp could mean rather than
+   * believed: an export instant decides the order of a Fleet’s history.
+   */
+  readonly chosenExportedAt: Date | null;
   /** Who is uploading. */
   readonly uploadedByUserId: string;
   /** The filename as the browser sent it. */
@@ -51,6 +64,24 @@ export interface AcceptedRosterUpload {
   readonly asset: FileAssetEntity;
   /** The identifier the scan request carries, for following it in the logs. */
   readonly traceId: string;
+}
+
+/** When an export was taken, once nothing about it is still open. */
+interface SettledExport {
+  /** The Fleet label the filename carried. */
+  readonly filenameFleetLabel: string;
+
+  /** The local wall-clock stamp it carried. */
+  readonly exportLocalStamp: string;
+
+  /** When it was taken. */
+  readonly exportedAt: Date;
+
+  /** Whether that instant was chosen between two. */
+  readonly exportedAtAmbiguous: boolean;
+
+  /** The recorded former name it matched, or null for the current one. */
+  readonly matchedAliasId: string | null;
 }
 
 /** What the parser reports about an upload, beyond the bytes it produced. */
@@ -96,12 +127,14 @@ const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
  * ## What it does not do
  *
  * It does not enqueue a scan, because there is no scanner yet: the asset is
- * left `QUARANTINED` and FC-010 claims it from there. It does not check the
- * filename's grammar or compare the Fleet label in it to the Fleet being
- * uploaded to — that is FC-016, which owns exact-name validation, and putting
- * a second implementation here would give the two a chance to disagree. And
- * it makes no roster observations at all; FC-016 does that from the sanitised
- * file, once something has said the file is safe to read.
+ * left `QUARANTINED` and FC-010 claims it from there. It makes no roster
+ * observations at all; FC-018 does that from the sanitised file, once
+ * something has said the file is safe to read.
+ *
+ * It does read the filename, but it decides nothing about it on its own:
+ * the grammar, the Fleet label and the export instant all come back from
+ * {@link RosterExportIdentityService}, the same service the preview asks,
+ * so the two cannot tell an uploader different things about one file.
  */
 @Injectable()
 export class RosterImportIngressService {
@@ -112,6 +145,7 @@ export class RosterImportIngressService {
    *
    * @param _repository - Repository of roster import provenance records.
    * @param _parser - The privacy boundary.
+   * @param _identityService - Reads the filename against the Fleet.
    * @param _fileAssetService - The asset registry.
    * @param _quarantineStorage - The private bucket.
    * @param _policyService - Supplies the published retention window.
@@ -120,6 +154,7 @@ export class RosterImportIngressService {
     @InjectRepository(RosterImportSourceEntity)
     private readonly _repository: Repository<RosterImportSourceEntity>,
     private readonly _parser: RosterCsvPrivacyParserService,
+    private readonly _identityService: RosterExportIdentityService,
     private readonly _fileAssetService: FileAssetService,
     private readonly _quarantineStorage: QuarantineStorageService,
     private readonly _scanRequestProducer: ScanRequestProducerService,
@@ -142,9 +177,15 @@ export class RosterImportIngressService {
     let sourceSha256: string;
     let sanitisedCsv: Buffer;
     let summary: SanitisedSummary;
+    let settled: SettledExport;
 
     try {
       assertRosterFilenameUsable(input.originalFilename);
+
+      // Before a byte is read. The name says which Fleet this is and when it
+      // was taken, and a file whose name proves neither is not worth parsing
+      // — nor worth holding while somebody decides.
+      settled = await this.settleExport(input);
 
       sourceSha256 = this.hash(input.source);
 
@@ -182,7 +223,7 @@ export class RosterImportIngressService {
       // is the correct state for a file no scanner has looked at.
       audience: FileAssetAudience.RESTRICTED,
       ownerUserId: input.uploadedByUserId,
-      fleetId: input.fleetId,
+      fleetId: input.fleet.id,
       // What this application wrote, not what arrived. The registered asset
       // is the sanitised CSV the serialiser below produced; the uploaded
       // file no longer exists by the time this row does. The worker checks
@@ -208,7 +249,7 @@ export class RosterImportIngressService {
     const record = await this._repository.save(
       this._repository.create({
         assetId: asset.id,
-        fleetId: input.fleetId,
+        fleetId: input.fleet.id,
         uploadedByUserId: input.uploadedByUserId,
         originalFilename: input.originalFilename,
         declaredContentType: boundDeclaredContentType(
@@ -218,6 +259,8 @@ export class RosterImportIngressService {
         sanitisedSha256,
         sourceByteSize: String(sourceByteSize),
         sanitisedByteSize: String(sanitisedCsv.length),
+        exportTimezone: input.timezone,
+        ...settled,
         ...summary,
       }),
     );
@@ -233,7 +276,8 @@ export class RosterImportIngressService {
     // is a sink like any other.
     this._logger.log(
       `[accept] Roster export quarantined - AssetId: ${asset.id}, ` +
-        `FleetId: ${input.fleetId}, Rows: ${summary.rowCount}, ` +
+        `FleetId: ${input.fleet.id}, Rows: ${summary.rowCount}, ` +
+        `ExportedAt: ${settled.exportedAt.toISOString()}, ` +
         `OfficerTailsDiscarded: ${summary.officerTailRowCount}, ` +
         `Header: ${summary.sourceHeaderShape}, ` +
         `ParserVersion: ${summary.parserVersion}, ` +
@@ -241,6 +285,66 @@ export class RosterImportIngressService {
     );
 
     return { record, asset: scanning.asset, traceId: scanning.traceId };
+  }
+
+  /**
+   * Settles which Fleet an export is of and when it was taken, or refuses it.
+   *
+   * The filename is the only place either fact appears, so both are checked
+   * against what is already registered rather than believed. What comes back
+   * is the answer with nothing still open: an instant, and whether anybody
+   * had to choose it.
+   *
+   * @param input - What arrived.
+   * @returns The settled provenance.
+   * @throws RosterCsvRejectedError when the name proves nothing, or when the
+   *   stamp names two instants and the upload did not settle which.
+   */
+  private async settleExport(input: RosterUploadInput): Promise<SettledExport> {
+    const identity = await this._identityService.identify({
+      fleet: input.fleet,
+      filename: input.originalFilename,
+      timezone: input.timezone,
+    });
+
+    if (identity.rejection !== null) {
+      throw new RosterCsvRejectedError(identity.rejection);
+    }
+
+    // Any instant the caller supplies has to be one the stamp could have
+    // meant, whether or not there was a question. An arbitrary one would let
+    // somebody reorder a Fleet's history by asserting a time the file does
+    // not support.
+    const chosen = input.chosenExportedAt;
+
+    if (
+      chosen !== null &&
+      !identity.candidates.some(
+        candidate => candidate.getTime() === chosen.getTime(),
+      )
+    ) {
+      throw new RosterCsvRejectedError(
+        RosterFilenameRejectionCode.STAMP_CHOICE_NOT_A_CANDIDATE,
+      );
+    }
+
+    const exportedAt = identity.exportedAt ?? chosen;
+
+    if (exportedAt === null) {
+      throw new RosterCsvRejectedError(
+        RosterFilenameRejectionCode.STAMP_CHOICE_REQUIRED,
+      );
+    }
+
+    return {
+      // Both are read off a name the grammar has already accepted, so
+      // neither can be null by the time the rejection check above has passed.
+      filenameFleetLabel: identity.fleetLabel as string,
+      exportLocalStamp: identity.localStamp as string,
+      exportedAt,
+      exportedAtAmbiguous: identity.candidates.length > 1,
+      matchedAliasId: identity.matchedAliasId,
+    };
   }
 
   /**

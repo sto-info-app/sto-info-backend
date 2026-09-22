@@ -68,10 +68,13 @@ export function boundDeclaredContentType(
  * be overwritten the moment the parser is finished with them, which is what
  * {@link RosterImportIngressService} does.
  *
- * One file, no other fields, and a size ceiling that matches the parser's own.
- * The parser checks the size again because it must not trust its caller, but
- * refusing an over-large upload here means the process never holds the bytes
- * at all.
+ * One file, room for the two text fields the import needs, and a size ceiling
+ * that matches the parser's own. The parser checks the size again because it
+ * must not trust its caller, but refusing an over-large upload here means the
+ * process never holds the bytes at all.
+ *
+ * Two fields and no more. A multipart body with room for arbitrary extra
+ * parts is a multipart body somebody will eventually put a second file in.
  *
  * There is **no MIME filter**. A CSV has no magic number and the browser's
  * `Content-Type` for one is whatever the operating system's file association
@@ -87,8 +90,8 @@ export const ROSTER_UPLOAD_OPTIONS: MulterOptions = {
     fileSize: ROSTER_CSV_LIMITS.maxSourceBytes,
     fieldSize: ROSTER_CSV_LIMITS.maxSourceBytes,
     files: 1,
-    fields: 0,
-    parts: 2,
+    fields: 2,
+    parts: 4,
     headerPairs: DEFAULT_MULTER_LIMITS.headerPairs,
   },
 };
@@ -96,13 +99,14 @@ export const ROSTER_UPLOAD_OPTIONS: MulterOptions = {
 /**
  * How a preview upload is parsed off the wire.
  *
- * The upload's options with room for one text field. That field is the
- * timezone, and it is the reason the preview exists: an STO export writes
- * wall-clock times and does not say whose clock they were, so nothing about
- * the file can be read until somebody says.
+ * The upload's options with room for one text field rather than two. That
+ * field is the timezone, and it is the reason the preview exists: an STO
+ * export writes wall-clock times and does not say whose clock they were, so
+ * nothing about the file can be read until somebody says.
  *
- * One field and no more. A multipart body with room for arbitrary extra parts
- * is a multipart body somebody will eventually put a second file in.
+ * The second field the upload takes is the chosen export instant, and the
+ * preview has no use for it — the preview is where the choice is offered,
+ * not where it is answered.
  */
 export const ROSTER_PREVIEW_OPTIONS: MulterOptions = {
   ...ROSTER_UPLOAD_OPTIONS,
@@ -134,12 +138,26 @@ export const ROSTER_PREVIEW_SCHEMA = {
 export const ROSTER_UPLOAD_SCHEMA = {
   schema: {
     type: 'object',
-    required: [ROSTER_UPLOAD_FIELD],
+    required: [ROSTER_UPLOAD_FIELD, 'timezone'],
     properties: {
       [ROSTER_UPLOAD_FIELD]: {
         type: 'string',
         format: 'binary',
         description: 'The STO roster export, as the game wrote it.',
+      },
+      timezone: {
+        type: 'string',
+        example: 'Europe/London',
+        description:
+          'The IANA timezone the exporting player’s own clock was set to.',
+      },
+      exportedAt: {
+        type: 'string',
+        format: 'date-time',
+        example: '2026-10-25T00:30:00.000Z',
+        description:
+          'Which of two instants the filename stamp names. Required only ' +
+          'when the preview said the clock went back over that hour.',
       },
     },
   },

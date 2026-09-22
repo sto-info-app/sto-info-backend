@@ -13,6 +13,8 @@ import { FileAssetService } from 'src/file-assets/services/file-asset.service';
 import { QuarantineStorageService } from 'src/file-assets/services/quarantine-storage.service';
 import { ScanRequestProducerService } from 'src/file-scanning/services/scan-request-producer.service';
 
+import { FleetNameAliasEntity } from '../../entities/fleet-name-alias.entity';
+import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { FleetPolicyService } from '../../fleet-policy.service';
 import { ROSTER_OFFICER_HEADER_LINE } from '../constants/roster-csv.constants';
 import {
@@ -21,15 +23,33 @@ import {
 } from '../constants/roster-upload.constants';
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
 import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum';
+import { RosterFilenameRejectionCode } from '../enums/roster-filename-rejection-code.enum';
 import { RosterSourceHeaderShape } from '../enums/roster-source-header-shape.enum';
 import { RosterCsvPrivacyParserService } from './roster-csv-privacy-parser.service';
+import { RosterExportIdentityService } from './roster-export-identity.service';
 import { RosterImportIngressService } from './roster-import-ingress.service';
 
 const CANARY = ['OFFICER', 'CANARY'].join('-');
 const FLEET_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 const ASSET_ID = '33333333-3333-4333-8333-333333333333';
+const ALIAS_ID = '44444444-4444-4444-8444-444444444444';
 const RETENTION_DAYS = 180;
+
+/** The Fleet every upload in this spec is made against. */
+const FLEET = {
+  id: FLEET_ID,
+  exactGameName: 'Fixture Basic Fleet',
+} as StoFleetEntity;
+
+/**
+ * A stamp Europe/London reads twice, on the morning the clocks go back.
+ *
+ * 01:30 on 27 October 2024 happened at 00:30 UTC and again an hour later.
+ */
+const AMBIGUOUS_FILENAME = 'Fixture Basic Fleet_20241027-013000.Csv';
+const FIRST_CANDIDATE = new Date('2024-10-27T00:30:00.000Z');
+const SECOND_CANDIDATE = new Date('2024-10-27T01:30:00.000Z');
 
 /**
  * Builds a fifteen-column export with one officer row.
@@ -55,10 +75,16 @@ describe('RosterImportIngressService', () => {
   let fileAssetService: { register: jest.Mock; recordStored: jest.Mock };
   let quarantineStorage: { buildObjectKey: jest.Mock; put: jest.Mock };
   let scanRequestProducer: { requestScan: jest.Mock };
+  let aliases: { find: jest.Mock };
   let saved: Partial<RosterImportSourceEntity> | undefined;
 
   beforeEach(() => {
     saved = undefined;
+
+    // The real identity service, against a Fleet with no recorded former
+    // names. Stubbing it would let this service and the preview disagree
+    // about the same filename without either spec noticing.
+    aliases = { find: jest.fn(() => Promise.resolve([])) };
 
     parser = {
       sanitise: jest.fn((source: unknown) =>
@@ -113,6 +139,9 @@ describe('RosterImportIngressService', () => {
     service = new RosterImportIngressService(
       repository as unknown as Repository<RosterImportSourceEntity>,
       parser as unknown as RosterCsvPrivacyParserService,
+      new RosterExportIdentityService(
+        aliases as unknown as Repository<FleetNameAliasEntity>,
+      ),
       fileAssetService as unknown as FileAssetService,
       quarantineStorage as unknown as QuarantineStorageService,
       scanRequestProducer as unknown as ScanRequestProducerService,
@@ -125,19 +154,46 @@ describe('RosterImportIngressService', () => {
    *
    * @param source - The bytes to upload.
    * @param filename - The filename to claim.
+   * @param chosenExportedAt - Which instant the stamp names, where it names
+   *   two.
    * @returns Whatever the service returns.
    */
   async function accept(
     source: Buffer,
     filename = 'Fixture Basic Fleet_20240101-120000.Csv',
+    chosenExportedAt: Date | null = null,
   ) {
     return service.accept({
-      fleetId: FLEET_ID,
+      fleet: FLEET,
+      timezone: 'Europe/London',
+      chosenExportedAt,
       uploadedByUserId: USER_ID,
       originalFilename: filename,
       declaredContentType: 'application/vnd.ms-excel',
       source,
     });
+  }
+
+  /**
+   * Catches the refusal an upload is answered with.
+   *
+   * @param source - The bytes to upload.
+   * @param filename - The filename to claim.
+   * @param chosenExportedAt - Which instant the stamp names.
+   * @returns The exception body, or undefined when nothing was thrown.
+   */
+  async function refusalOf(
+    source: Buffer,
+    filename?: string,
+    chosenExportedAt: Date | null = null,
+  ) {
+    try {
+      await accept(source, filename, chosenExportedAt);
+    } catch (error) {
+      return (error as BadRequestException).getResponse();
+    }
+
+    return undefined;
   }
 
   describe('accepting an export', () => {
@@ -290,6 +346,130 @@ describe('RosterImportIngressService', () => {
     });
   });
 
+  describe('recording when the export was taken', () => {
+    it('records the zone, the stamp and the instant it read them as', async () => {
+      await accept(officerExport());
+
+      expect(saved).toEqual(
+        expect.objectContaining({
+          exportTimezone: 'Europe/London',
+          filenameFleetLabel: 'Fixture Basic Fleet',
+          exportLocalStamp: '2024-01-01T12:00:00',
+          exportedAt: new Date('2024-01-01T12:00:00.000Z'),
+          exportedAtAmbiguous: false,
+          matchedAliasId: null,
+        }),
+      );
+    });
+
+    it('records the former name an export was filed under', async () => {
+      // An import named for a name the Fleet no longer uses is worth being
+      // able to find later, and the alias is the only thing that says the
+      // label and the Fleet are the same Fleet.
+      aliases.find.mockImplementationOnce(() =>
+        Promise.resolve([
+          {
+            id: ALIAS_ID,
+            fleetId: FLEET_ID,
+            exactName: 'Fixture Former Fleet',
+            validFrom: new Date('2020-01-01T00:00:00.000Z'),
+            validTo: null,
+          } as FleetNameAliasEntity,
+        ]),
+      );
+
+      await accept(officerExport(), 'Fixture Former Fleet_20240101-120000.Csv');
+
+      expect(saved?.matchedAliasId).toBe(ALIAS_ID);
+      expect(saved?.filenameFleetLabel).toBe('Fixture Former Fleet');
+    });
+
+    it('records that an instant was chosen between two', async () => {
+      await accept(officerExport(), AMBIGUOUS_FILENAME, SECOND_CANDIDATE);
+
+      expect(saved?.exportedAt).toEqual(SECOND_CANDIDATE);
+      expect(saved?.exportedAtAmbiguous).toBe(true);
+    });
+
+    it('reads the filename before it reads a byte of the file', async () => {
+      // A file whose name proves neither which Fleet it is nor when it was
+      // taken is not worth parsing, and a rejected upload is exactly the
+      // upload somebody would otherwise be tempted to keep a sample of.
+      await refusalOf(officerExport(), 'Someone Else_20240101-120000.Csv');
+
+      expect(parser.sanitise).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('refusing a name that settles nothing', () => {
+    it('refuses a Fleet label that is not this Fleet', async () => {
+      expect(
+        await refusalOf(officerExport(), 'Someone Else_20240101-120000.Csv'),
+      ).toEqual(
+        expect.objectContaining({
+          code: RosterFilenameRejectionCode.FLEET_NAME_MISMATCH,
+          line: null,
+        }),
+      );
+    });
+
+    it('refuses a name that is not the export grammar', async () => {
+      expect(
+        await refusalOf(officerExport(), 'Fixture Basic Fleet.Csv'),
+      ).toEqual(
+        expect.objectContaining({
+          code: RosterFilenameRejectionCode.SHAPE_UNRECOGNISED,
+        }),
+      );
+    });
+
+    it('refuses an ambiguous stamp the upload did not settle', async () => {
+      expect(await refusalOf(officerExport(), AMBIGUOUS_FILENAME)).toEqual(
+        expect.objectContaining({
+          code: RosterFilenameRejectionCode.STAMP_CHOICE_REQUIRED,
+        }),
+      );
+    });
+
+    it.each([
+      [
+        'a stamp that named only one',
+        'Fixture Basic Fleet_20240101-120000.Csv',
+      ],
+      ['a stamp that named two', AMBIGUOUS_FILENAME],
+    ])(
+      'refuses an instant %s could not have meant',
+      async (_description, filename) => {
+        expect(
+          await refusalOf(
+            officerExport(),
+            filename,
+            new Date('1999-12-31T23:59:59.000Z'),
+          ),
+        ).toEqual(
+          expect.objectContaining({
+            code: RosterFilenameRejectionCode.STAMP_CHOICE_NOT_A_CANDIDATE,
+          }),
+        );
+      },
+    );
+
+    it('accepts the other instant the stamp could have meant', async () => {
+      await accept(officerExport(), AMBIGUOUS_FILENAME, FIRST_CANDIDATE);
+
+      expect(saved?.exportedAt).toEqual(FIRST_CANDIDATE);
+    });
+
+    it('stores nothing when the name settles nothing', async () => {
+      await refusalOf(officerExport(), 'Someone Else_20240101-120000.Csv');
+
+      expect(fileAssetService.register).not.toHaveBeenCalled();
+      expect(quarantineStorage.put).not.toHaveBeenCalled();
+      expect(repository.save).not.toHaveBeenCalled();
+      expect(scanRequestProducer.requestScan).not.toHaveBeenCalled();
+    });
+  });
+
   describe('disposing of the received bytes', () => {
     it('overwrites the buffer once the parse has succeeded', async () => {
       const source = officerExport();
@@ -312,6 +492,19 @@ describe('RosterImportIngressService', () => {
       await expect(accept(source, '')).rejects.toBeInstanceOf(
         BadRequestException,
       );
+      expect(source.every(byte => byte === 0)).toBe(true);
+    });
+
+    it('overwrites the buffer when the name settles nothing', async () => {
+      // The one refusal that happens before the file is read at all, which
+      // makes it the one most easily written so that the bytes outlive it
+      // — ADR-0001 says no raw failure sample, and a name this service
+      // refused is not an exception to that.
+      const source = officerExport();
+
+      await expect(
+        accept(source, 'Someone Else_20240101-120000.Csv'),
+      ).rejects.toBeInstanceOf(BadRequestException);
       expect(source.every(byte => byte === 0)).toBe(true);
     });
 

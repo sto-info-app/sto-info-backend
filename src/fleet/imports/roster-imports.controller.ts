@@ -49,6 +49,7 @@ import {
 import { PreviewRosterImportDto } from './dto/preview-roster-import.dto';
 import { RosterImportPreviewDto } from './dto/roster-import-preview.dto';
 import { RosterImportSourceDto } from './dto/roster-import-source.dto';
+import { UploadRosterImportDto } from './dto/upload-roster-import.dto';
 import { RosterImportIngressService } from './services/roster-import-ingress.service';
 import { RosterImportPreviewService } from './services/roster-import-preview.service';
 
@@ -88,9 +89,9 @@ import { RosterImportPreviewService } from './services/roster-import-preview.ser
  * to supply a timezone the file does not contain and can supply it wrongly
  * without noticing.
  *
- * There is no `GET` here yet. Listing a Fleet's imports and downloading a
- * sanitised source are FC-017's and FC-037's, and both need decisions this
- * ticket does not make — what an investigator may see, and under what audit.
+ * There is no `GET` here yet. Downloading a sanitised source is FC-037's,
+ * and it needs a decision this ticket does not make — what an investigator
+ * may see, and under what audit.
  */
 @ApiTags('Fleet')
 @ApiBearerAuth()
@@ -121,6 +122,8 @@ export class RosterImportsController {
    * @param communityId - The owning Community, checked by the guard.
    * @param fleetId - The Fleet the export belongs to.
    * @param userId - The uploading user.
+   * @param body - The timezone the export was taken in, and the instant its
+   *   filename stamp names where the stamp names two.
    * @param file - The multipart file.
    * @returns What was accepted, and what was discarded.
    */
@@ -139,29 +142,37 @@ export class RosterImportsController {
   @ApiCreatedResponse({ type: RosterImportSourceDto })
   @ApiBadRequestResponse({
     description:
-      'The export could not be read, or the Fleet is on a platform the game ' +
-      'provides no export for. Where a file was read, the body carries a ' +
-      'structural code and, where one applies, the line at fault. It never ' +
-      'carries any part of the file.',
+      'The export could not be read, its filename is not evidence about ' +
+      'this Fleet, or the Fleet is on a platform the game provides no ' +
+      'export for. Where a file was read, the body carries a structural ' +
+      'code and, where one applies, the line at fault. It never carries ' +
+      'any part of the file.',
   })
   async upload(
     @Param('communityId', ParseUUIDPipe) communityId: string,
     @Param('fleetId', ParseUUIDPipe) fleetId: string,
     @UserId() userId: string,
+    @Body() body: UploadRosterImportDto,
     @UploadedFile() file: Express.Multer.File | undefined,
   ): Promise<RosterImportSourceDto> {
-    await this.requireImportableFleet(communityId, fleetId, file);
+    const fleet = await this.requireImportableFleet(communityId, fleetId, file);
 
     assertRosterSupplied(file);
 
     this._logger.debug(
       `[upload] Roster export received - UserId: ${userId}, ` +
         `CommunityId: ${communityId}, FleetId: ${fleetId}, ` +
-        `Bytes: ${file.buffer.length}`,
+        `Timezone: ${body.timezone}, Bytes: ${file.buffer.length}`,
     );
 
     const accepted = await this._ingressService.accept({
-      fleetId,
+      fleet,
+      timezone: body.timezone,
+      // Validated as an ISO-8601 instant by the DTO, and checked against the
+      // two the stamp could have meant by the service. Neither this method
+      // nor the DTO is entitled to decide it is the right one.
+      chosenExportedAt:
+        body.exportedAt === undefined ? null : new Date(body.exportedAt),
       uploadedByUserId: userId,
       originalFilename: file.originalname,
       declaredContentType: file.mimetype ?? null,
@@ -186,6 +197,10 @@ export class RosterImportsController {
       sourceByteSize: Number(record.sourceByteSize),
       sanitisedByteSize: Number(record.sanitisedByteSize),
       sourceHeaderShape: record.sourceHeaderShape,
+      exportTimezone: record.exportTimezone,
+      exportLocalStamp: record.exportLocalStamp,
+      exportedAt: record.exportedAt,
+      exportedAtAmbiguous: record.exportedAtAmbiguous,
       rowCount: record.rowCount,
       officerTailRowCount: record.officerTailRowCount,
       parserVersion: record.parserVersion,

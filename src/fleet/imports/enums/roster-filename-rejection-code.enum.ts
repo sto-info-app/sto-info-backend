@@ -44,4 +44,24 @@ export enum RosterFilenameRejectionCode {
    * deliberately recorded, and only one whose interval covers the export.
    */
   FLEET_NAME_MISMATCH = 'FLEET_NAME_MISMATCH',
+
+  /**
+   * The stamp names two instants and the upload did not say which.
+   *
+   * Not a fault in the file. On the morning the clocks go back a stamp of
+   * `01:30` is two moments an hour apart, and which one an export was taken
+   * at decides which of two snapshots is the later — so it is a question
+   * for whoever took it rather than something to guess at. The preview hands
+   * back both candidates; the upload has to carry one of them.
+   */
+  STAMP_CHOICE_REQUIRED = 'STAMP_CHOICE_REQUIRED',
+
+  /**
+   * The upload named an instant the stamp could not have meant.
+   *
+   * Checked rather than trusted. An export instant decides the order of a
+   * Fleet’s history, and an arbitrary one supplied by the caller would let
+   * somebody reorder it by asserting a time the file does not support.
+   */
+  STAMP_CHOICE_NOT_A_CANDIDATE = 'STAMP_CHOICE_NOT_A_CANDIDATE',
 }

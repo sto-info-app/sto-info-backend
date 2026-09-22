@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 
 import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum';
+import { RosterFilenameRejectionCode } from '../enums/roster-filename-rejection-code.enum';
 
 /**
  * The privacy parser's refusal to continue.
@@ -14,6 +15,12 @@ import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum'
  *
  * The line number counts physical lines from one, with the header as line one,
  * so it matches what a person sees in a text editor.
+ *
+ * It carries a filename code as readily as a CSV one. Both describe the
+ * shape of what somebody sent rather than anything inside it, both are
+ * answered the same way, and a second error class would mean two ways of
+ * saying the same thing to the same caller — which is how an uploader ends
+ * up being told one thing by the preview and another by the upload.
  */
 export class RosterCsvRejectedError extends Error {
   /**
@@ -24,7 +31,7 @@ export class RosterCsvRejectedError extends Error {
    *   failure.
    */
   constructor(
-    readonly code: RosterCsvRejectionCode,
+    readonly code: RosterCsvRejectionCode | RosterFilenameRejectionCode,
     readonly line: number | null = null,
   ) {
     // The message is built from the code and the line number and from nothing

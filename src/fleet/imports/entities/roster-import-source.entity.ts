@@ -14,6 +14,7 @@ import {
 import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
 
+import { FleetNameAliasEntity } from '../../entities/fleet-name-alias.entity';
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { RosterSourceHeaderShape } from '../enums/roster-source-header-shape.enum';
 
@@ -51,6 +52,7 @@ import { RosterSourceHeaderShape } from '../enums/roster-source-header-shape.enu
 @Entity({ name: 'fleet_roster_import_source' })
 @Index('IDX_roster_import_source_fleet_uploaded', ['fleetId', 'uploadedAt'])
 @Index('IDX_roster_import_source_fleet_hash', ['fleetId', 'sourceSha256'])
+@Index('IDX_roster_import_source_fleet_exported', ['fleetId', 'exportedAt'])
 export class RosterImportSourceEntity {
   @ApiProperty({ description: 'Unique identifier.' })
   @PrimaryGeneratedColumn('uuid')
@@ -145,6 +147,68 @@ export class RosterImportSourceEntity {
   @Column({ type: 'integer', nullable: false })
   parserVersion: number;
 
+  @ApiProperty({
+    description:
+      'The IANA zone the export\u2019s wall-clock times were written in, as ' +
+      'the uploader stated it. Kept apart from every display and event ' +
+      'timezone in the estate: a Community\u2019s preferred timezone says ' +
+      'when its events happen and nothing about where somebody was sitting ' +
+      'when they exported a CSV.',
+    nullable: true,
+  })
+  @Column({ type: 'varchar', length: 64, nullable: true, default: null })
+  exportTimezone: string | null;
+
+  @ApiProperty({
+    description:
+      'The Fleet label the filename carried, exactly as written. Evidence ' +
+      'of what was uploaded rather than of which Fleet it is: that is ' +
+      'fleetId, decided by comparing this against the registered name.',
+    nullable: true,
+  })
+  @Column({ type: 'varchar', length: 255, nullable: true, default: null })
+  filenameFleetLabel: string | null;
+
+  @ApiProperty({
+    description:
+      'When the filename says the export was taken, as a local wall-clock ' +
+      'time. The observation, kept beside the instant it was read as, ' +
+      'because a zone supplied wrongly is correctable only while the text ' +
+      'it was applied to still exists.',
+    nullable: true,
+  })
+  @Column({ type: 'varchar', length: 19, nullable: true, default: null })
+  exportLocalStamp: string | null;
+
+  @ApiProperty({
+    description:
+      'When the export was taken, resolved through the stated timezone ' +
+      'against the rules in force on that date.',
+    nullable: true,
+  })
+  @Column({ type: 'timestamptz', nullable: true, default: null })
+  exportedAt: Date | null;
+
+  @ApiProperty({
+    description:
+      'Whether the instant above was chosen between two. True only for a ' +
+      'stamp the clock went back over, where the uploader had to say which ' +
+      'of two moments an hour apart they meant \u2014 a fact somebody ' +
+      'settled is a different kind of fact from one the file determined.',
+  })
+  @Column({ type: 'boolean', nullable: false, default: false })
+  exportedAtAmbiguous: boolean;
+
+  @ApiProperty({
+    description:
+      'The recorded former name the filename matched, or null when it ' +
+      'matched the Fleet\u2019s current one. An import named for a name the ' +
+      'Fleet no longer uses is worth being able to find later.',
+    nullable: true,
+  })
+  @Column({ type: 'uuid', nullable: true, default: null })
+  matchedAliasId: string | null;
+
   @ApiProperty({ description: 'When the upload was accepted.' })
   @Column({ type: 'timestamptz', nullable: false, default: () => 'now()' })
   uploadedAt: Date;
@@ -166,4 +230,8 @@ export class RosterImportSourceEntity {
   @ManyToOne(() => UserEntity, { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'uploadedByUserId' })
   uploadedBy: UserEntity | null;
+
+  @ManyToOne(() => FleetNameAliasEntity, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'matchedAliasId' })
+  matchedAlias: FleetNameAliasEntity | null;
 }

@@ -92,6 +92,20 @@ function fixture(filename: string): Buffer {
 }
 
 /**
+ * Reads the Fleet a fixture's filename is an export of.
+ *
+ * The upload now refuses a file whose name is not this Fleet's, before it
+ * reads a byte {DASH} so a sweep that did not line the two up would prove only
+ * that a refusal leaks nothing, which is the easy half.
+ *
+ * @param filename - The fixture's filename.
+ * @returns The Fleet label in it.
+ */
+function fleetNameIn(filename: string): string {
+  return filename.slice(0, filename.lastIndexOf('_'));
+}
+
+/**
  * Builds a Multer file carrying the given bytes.
  *
  * @param bytes - What the browser sent.
@@ -111,8 +125,12 @@ describe('Officer canary sinks', () => {
   let watched: string[];
   let logSpies: jest.SpiedFunction<(message: unknown) => void>[];
 
+  /** The Fleet the route resolves, set by each sweep from its fixture. */
+  let fleetName: string;
+
   beforeEach(() => {
     watched = [];
+    fleetName = 'Fixture Officer Fleet';
 
     // Every level, because the one that leaks is always the one nobody
     // expected to be called.
@@ -186,9 +204,14 @@ describe('Officer canary sinks', () => {
       }),
     } as unknown as Queue;
 
+    const identityService = new RosterExportIdentityService({
+      find: jest.fn(() => Promise.resolve([])),
+    } as unknown as Repository<FleetNameAliasEntity>);
+
     const ingressService = new RosterImportIngressService(
       repository,
       new RosterCsvPrivacyParserService(),
+      identityService,
       fileAssetService,
       quarantineStorage,
       new ScanRequestProducerService(scanQueue, fileAssetService),
@@ -203,7 +226,7 @@ describe('Officer canary sinks', () => {
       findByIdOrFail: jest.fn(() =>
         Promise.resolve({
           id: FLEET_ID,
-          exactGameName: 'Fixture Officer Fleet',
+          exactGameName: fleetName,
           platform: { name: 'Windows', providesRosterExport: true },
         } as StoFleetEntity),
       ),
@@ -212,9 +235,7 @@ describe('Officer canary sinks', () => {
     const previewService = new RosterImportPreviewService(
       new RosterCsvPrivacyParserService(),
       new RosterTypedParserService(),
-      new RosterExportIdentityService({
-        find: jest.fn(() => Promise.resolve([])),
-      } as unknown as Repository<FleetNameAliasEntity>),
+      identityService,
     );
 
     controller = new RosterImportsController(
@@ -249,11 +270,14 @@ describe('Officer canary sinks', () => {
       'utf8',
     );
 
+    fleetName = fleetNameIn(filename);
+
     try {
       const response = await controller.upload(
         COMMUNITY_ID,
         FLEET_ID,
         USER_ID,
+        { timezone: 'Europe/London' },
         multerFile(bytes, filename),
       );
 
@@ -293,6 +317,8 @@ describe('Officer canary sinks', () => {
    * @returns Every string the run wrote to a watched sink.
    */
   async function sweepPreview(filename: string): Promise<string[]> {
+    fleetName = fleetNameIn(filename);
+
     try {
       const response = await controller.preview(
         COMMUNITY_ID,

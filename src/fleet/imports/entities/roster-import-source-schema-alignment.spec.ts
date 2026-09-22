@@ -3,6 +3,7 @@ import { getMetadataArgsStorage, QueryRunner } from 'typeorm';
 
 import { CreateRosterImportSource1792300000000 } from '../../../database/migrations/1792300000000-CreateRosterImportSource';
 import { AddDeclaredContentTypeToRosterImportSource1792500000000 } from '../../../database/migrations/1792500000000-AddDeclaredContentTypeToRosterImportSource';
+import { RecordRosterExportTime1793400000000 } from '../../../database/migrations/1793400000000-RecordRosterExportTime';
 import { RosterImportSourceEntity } from './roster-import-source.entity';
 
 /**
@@ -37,6 +38,7 @@ describe('Roster import source schema alignment', () => {
     await new AddDeclaredContentTypeToRosterImportSource1792500000000().up(
       queryRunner,
     );
+    await new RecordRosterExportTime1793400000000().up(queryRunner);
     statements = captured;
   });
 
@@ -59,15 +61,21 @@ describe('Roster import source schema alignment', () => {
       .columns.filter(column => column.target === RosterImportSourceEntity)
       .map(column => column.options.name ?? column.propertyName);
 
-  const addedColumns = (): string[] =>
+  /** Every `ALTER TABLE … ADD "column" type` this table's migrations run. */
+  const addedDefinitions = (): string[] =>
     statements
       .map(statement =>
-        /ALTER TABLE "sto_info_app"\."fleet_roster_import_source" ADD "([^"]+)"/.exec(
+        /ALTER TABLE "sto_info_app"\."fleet_roster_import_source" ADD ("[^"]+" .+)$/.exec(
           statement,
         ),
       )
       .filter(match => match !== null)
       .map(match => match[1]);
+
+  const addedColumns = (): string[] =>
+    addedDefinitions().map(definition =>
+      definition.slice(1, definition.indexOf('"', 1)),
+    );
 
   const migrationColumns = (): string[] => [
     ...createTable()
@@ -90,9 +98,16 @@ describe('Roster import source schema alignment', () => {
       .filter(column => column.options.type === 'timestamptz')
       .map(column => column.options.name ?? column.propertyName);
 
-    const sqlLines = createTable()
-      .split('\n')
-      .map(line => line.trim());
+    // Both places a column can be defined. A column added by a later
+    // migration is as much part of the table as one in the original create,
+    // and a check that read only the first would stop noticing the moment
+    // the table grew — which is exactly when it matters.
+    const sqlLines = [
+      ...createTable()
+        .split('\n')
+        .map(line => line.trim()),
+      ...addedDefinitions(),
+    ];
 
     expect(declared).toEqual(
       expect.arrayContaining(['uploadedAt', 'createdAt', 'updatedAt']),
@@ -129,12 +144,34 @@ describe('Roster import source schema alignment', () => {
       'sanitisedByteSize',
       'sourceHeaderShape',
       'parserVersion',
+      'filenameFleetLabel',
+      'exportLocalStamp',
       'uploadedAt',
     ]) {
       expect(guard).toContain(
         `NEW."${column}" IS DISTINCT FROM OLD."${column}"`,
       );
     }
+  });
+
+  /*
+   * Plan section 3.6 allows a timezone correction through a separate audited
+   * revision, and a column the trigger refuses to change cannot be corrected
+   * by anything. The local stamp beside it *is* frozen, so a correction can
+   * only ever reinterpret what was observed rather than restate it.
+   */
+  it('leaves the interpreted export instant correctable', () => {
+    const definitions = statements.filter(statement =>
+      statement.includes('roster_import_source_guard'),
+    );
+    const guard = definitions[definitions.length - 1];
+
+    expect(guard).not.toContain(
+      'NEW."exportedAt" IS DISTINCT FROM OLD."exportedAt"',
+    );
+    expect(guard).not.toContain(
+      'NEW."exportTimezone" IS DISTINCT FROM OLD."exportTimezone"',
+    );
   });
 
   it('drops everything it created when reverted', async () => {

@@ -79,6 +79,7 @@ describe('RosterExportIdentityService', () => {
         exportedAt: new Date('2026-08-24T05:13:42.000Z'),
         candidates: [new Date('2026-08-24T05:13:42.000Z')],
         matchedAlias: null,
+        matchedAliasId: null,
       });
     });
 

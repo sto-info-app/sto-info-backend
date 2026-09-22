@@ -22,6 +22,10 @@ const USER_ID = '22222222-2222-4222-8222-222222222222';
 const ASSET_ID = '33333333-3333-4333-8333-333333333333';
 const RETAIN_UNTIL = new Date('2027-03-18T00:00:00.000Z');
 const UPLOADED_AT = new Date('2026-09-19T00:00:00.000Z');
+const EXPORTED_AT = new Date('2024-01-01T12:00:00.000Z');
+
+/** What an upload has to say beyond the file itself. */
+const BODY = { timezone: 'Europe/London' };
 
 const RECORD = {
   id: 'record-1',
@@ -33,6 +37,10 @@ const RECORD = {
   sourceByteSize: '4096',
   sanitisedByteSize: '2048',
   sourceHeaderShape: RosterSourceHeaderShape.OFFICER,
+  exportTimezone: 'Europe/London',
+  exportLocalStamp: '2024-01-01T12:00:00',
+  exportedAt: EXPORTED_AT,
+  exportedAtAmbiguous: false,
   rowCount: 93,
   officerTailRowCount: 7,
   parserVersion: 1,
@@ -131,6 +139,7 @@ describe('RosterImportsController', () => {
         COMMUNITY_ID,
         FLEET_ID,
         USER_ID,
+        BODY,
         multerFile(Buffer.from('anything', 'utf8')),
       ),
     ).rejects.toBeInstanceOf(NotFoundException);
@@ -157,6 +166,7 @@ describe('RosterImportsController', () => {
           COMMUNITY_ID,
           FLEET_ID,
           USER_ID,
+          BODY,
           multerFile(Buffer.from('roster bytes', 'utf8')),
         ),
       ).rejects.toThrow(/no fleet roster export on Xbox/);
@@ -175,7 +185,7 @@ describe('RosterImportsController', () => {
       const file = multerFile(Buffer.from('roster bytes', 'utf8'));
 
       await expect(
-        controller.upload(COMMUNITY_ID, FLEET_ID, USER_ID, file),
+        controller.upload(COMMUNITY_ID, FLEET_ID, USER_ID, BODY, file),
       ).rejects.toBeInstanceOf(BadRequestException);
 
       expect(file.buffer.equals(Buffer.alloc(file.buffer.length))).toBe(true);
@@ -192,7 +202,7 @@ describe('RosterImportsController', () => {
       );
 
       await expect(
-        controller.upload(COMMUNITY_ID, FLEET_ID, USER_ID, undefined),
+        controller.upload(COMMUNITY_ID, FLEET_ID, USER_ID, BODY, undefined),
       ).rejects.toThrow(/no fleet roster export on PlayStation/);
     });
 
@@ -201,6 +211,7 @@ describe('RosterImportsController', () => {
         COMMUNITY_ID,
         FLEET_ID,
         USER_ID,
+        BODY,
         multerFile(Buffer.from('roster bytes', 'utf8')),
       );
 
@@ -213,7 +224,7 @@ describe('RosterImportsController', () => {
 
   it('refuses a request that carries no file', async () => {
     await expect(
-      controller.upload(COMMUNITY_ID, FLEET_ID, USER_ID, undefined),
+      controller.upload(COMMUNITY_ID, FLEET_ID, USER_ID, BODY, undefined),
     ).rejects.toBeInstanceOf(BadRequestException);
 
     expect(ingressService.accept).not.toHaveBeenCalled();
@@ -222,10 +233,18 @@ describe('RosterImportsController', () => {
   it('hands the ingress service the file and who is uploading it', async () => {
     const bytes = Buffer.from('roster bytes', 'utf8');
 
-    await controller.upload(COMMUNITY_ID, FLEET_ID, USER_ID, multerFile(bytes));
+    await controller.upload(
+      COMMUNITY_ID,
+      FLEET_ID,
+      USER_ID,
+      BODY,
+      multerFile(bytes),
+    );
 
     expect(ingressService.accept).toHaveBeenCalledWith({
-      fleetId: FLEET_ID,
+      fleet: fleetOn(true),
+      timezone: 'Europe/London',
+      chosenExportedAt: null,
       uploadedByUserId: USER_ID,
       originalFilename: 'Fixture Basic Fleet_20240101-120000.Csv',
       declaredContentType: 'text/csv',
@@ -233,12 +252,53 @@ describe('RosterImportsController', () => {
     });
   });
 
+  it('hands over the Fleet it resolved, not the identifier in the path', async () => {
+    // The service compares the filename's Fleet label against the registered
+    // exact name, which is on the entity and not on a UUID. Passing the
+    // identifier would make it read the Fleet a second time, from a route
+    // segment the guard has already checked once.
+    await controller.upload(
+      COMMUNITY_ID,
+      FLEET_ID,
+      USER_ID,
+      BODY,
+      multerFile(Buffer.from('roster bytes', 'utf8')),
+    );
+
+    const [[handed]] = ingressService.accept.mock.calls as [
+      [{ fleet: StoFleetEntity }],
+    ];
+
+    const resolved = await fleetService.findByIdOrFail.mock.results[0].value;
+
+    expect(handed.fleet).toBe(resolved);
+  });
+
+  it('passes on the instant the uploader chose, as an instant', async () => {
+    // Validated as ISO-8601 by the DTO and checked against the two the stamp
+    // could have meant by the service. Neither the controller nor the DTO is
+    // entitled to decide it is the right one.
+    await controller.upload(
+      COMMUNITY_ID,
+      FLEET_ID,
+      USER_ID,
+      { ...BODY, exportedAt: '2024-10-27T01:30:00.000Z' },
+      multerFile(Buffer.from('roster bytes', 'utf8')),
+    );
+
+    expect(ingressService.accept).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chosenExportedAt: new Date('2024-10-27T01:30:00.000Z'),
+      }),
+    );
+  });
+
   it('records a missing content type as unknown rather than inventing one', async () => {
     const file = multerFile(Buffer.from('roster bytes', 'utf8'));
 
     Reflect.deleteProperty(file, 'mimetype');
 
-    await controller.upload(COMMUNITY_ID, FLEET_ID, USER_ID, file);
+    await controller.upload(COMMUNITY_ID, FLEET_ID, USER_ID, BODY, file);
 
     expect(ingressService.accept).toHaveBeenCalledWith(
       expect.objectContaining({ declaredContentType: null }),
@@ -248,7 +308,7 @@ describe('RosterImportsController', () => {
   it('drops the reference to the received bytes once they are dealt with', async () => {
     const file = multerFile(Buffer.from('roster bytes', 'utf8'));
 
-    await controller.upload(COMMUNITY_ID, FLEET_ID, USER_ID, file);
+    await controller.upload(COMMUNITY_ID, FLEET_ID, USER_ID, BODY, file);
 
     expect(file.buffer.length).toBe(0);
   });
@@ -258,6 +318,7 @@ describe('RosterImportsController', () => {
       COMMUNITY_ID,
       FLEET_ID,
       USER_ID,
+      BODY,
       multerFile(Buffer.from('roster bytes', 'utf8')),
     );
 
@@ -271,6 +332,10 @@ describe('RosterImportsController', () => {
       sourceByteSize: 4096,
       sanitisedByteSize: 2048,
       sourceHeaderShape: RosterSourceHeaderShape.OFFICER,
+      exportTimezone: 'Europe/London',
+      exportLocalStamp: '2024-01-01T12:00:00',
+      exportedAt: EXPORTED_AT,
+      exportedAtAmbiguous: false,
       rowCount: 93,
       officerTailRowCount: 7,
       parserVersion: 1,

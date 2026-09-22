@@ -61,6 +61,16 @@ export interface RosterExportIdentity {
    * six months later.
    */
   readonly matchedAlias: string | null;
+
+  /**
+   * That former name's own record, or null when the current name matched.
+   *
+   * Kept beside the name rather than instead of it. The name is what a
+   * reader is shown; the identifier is what an import records, so that an
+   * alias corrected later does not quietly restate which name an old export
+   * was filed under.
+   */
+  readonly matchedAliasId: string | null;
 }
 
 /** Whether a Fleet label named this Fleet, and by which of its names. */
@@ -70,6 +80,9 @@ interface NameMatch {
 
   /** The former name it matched, or null for the current one. */
   readonly aliasName: string | null;
+
+  /** That former name's own record, or null for the current one. */
+  readonly aliasId: string | null;
 }
 
 /**
@@ -177,6 +190,7 @@ export class RosterExportIdentityService {
       exportedAt,
       candidates,
       matchedAlias: match.aliasName,
+      matchedAliasId: match.aliasId,
     };
   }
 
@@ -203,7 +217,7 @@ export class RosterExportIdentityService {
     const comparable = toComparableExactGameName(label);
 
     if (toComparableExactGameName(fleet.exactGameName) === comparable) {
-      return { matched: true, aliasName: null };
+      return { matched: true, aliasName: null, aliasId: null };
     }
 
     const aliases = await this._aliases.find({
@@ -217,8 +231,8 @@ export class RosterExportIdentityService {
     );
 
     return alias === undefined
-      ? { matched: false, aliasName: null }
-      : { matched: true, aliasName: alias.exactName };
+      ? { matched: false, aliasName: null, aliasId: null }
+      : { matched: true, aliasName: alias.exactName, aliasId: alias.id };
   }
 
   /**
@@ -258,6 +272,7 @@ export class RosterExportIdentityService {
       exportedAt: null,
       candidates: [],
       matchedAlias: null,
+      matchedAliasId: null,
     };
   }
 }

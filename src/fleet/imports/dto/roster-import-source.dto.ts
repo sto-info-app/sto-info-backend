@@ -16,6 +16,17 @@ import { RosterSourceHeaderShape } from '../enums/roster-source-header-shape.enu
  * uploaded the file should be told plainly what was thrown away. ADR-0001
  * requires the product to say that officer columns are discarded at upload;
  * a number in the response is the least deniable way of saying it.
+ *
+ * The export provenance is here for the same reason. What this application
+ * decided the filename meant — which zone, which stamp, which instant, and
+ * whether anybody had to choose between two — is read straight back to the
+ * person who uploaded it, while they are still looking at the file and can
+ * still tell that it is wrong.
+ *
+ * Those three are nullable because the column is, not because the fact can
+ * be missing: nothing writes a row without them. The nullability belongs to
+ * rows that predate the columns, and this shape is also what a listing of a
+ * Fleet's imports returns.
  */
 export class RosterImportSourceDto {
   @ApiProperty({ description: 'The provenance record.' })
@@ -51,6 +62,35 @@ export class RosterImportSourceDto {
     enum: RosterSourceHeaderShape,
   })
   sourceHeaderShape: RosterSourceHeaderShape;
+
+  @ApiProperty({
+    description:
+      'The IANA zone the uploader said the export was taken in. Recorded ' +
+      'beside the stamp rather than folded into it, so an instant read ' +
+      'from the wrong zone can be told apart from one read correctly.',
+    nullable: true,
+  })
+  exportTimezone: string | null;
+
+  @ApiProperty({
+    description:
+      'The wall-clock stamp the filename carried, exactly as written.',
+    nullable: true,
+  })
+  exportLocalStamp: string | null;
+
+  @ApiProperty({
+    description: 'When the export was taken, as that stamp reads in that zone.',
+    nullable: true,
+  })
+  exportedAt: Date | null;
+
+  @ApiProperty({
+    description:
+      'Whether that instant was chosen between two. True only for a stamp ' +
+      'the clock went back over, where the upload had to say which.',
+  })
+  exportedAtAmbiguous: boolean;
 
   @ApiProperty({ description: 'How many roster rows it held.' })
   rowCount: number;
