@@ -709,7 +709,7 @@ export class RosterTypedParserService {
       const identity = [
         normalizeHandle(row.accountHandle),
         row.characterName.normalize('NFC').toLowerCase(),
-      ].join(' ');
+      ].join('\0');
 
       if (seen.has(identity)) {
         problems.push({
