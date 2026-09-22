@@ -80,3 +80,13 @@ export const ROSTER_PROFESSION_PATTERNS: readonly {
   { profession: RosterProfession.ENGINEERING, pattern: /\bengineering\b/i },
   { profession: RosterProfession.SCIENCE, pattern: /\bscience\b/i },
 ];
+
+/**
+ * How many rows the preview draws back to whoever uploaded the file.
+ *
+ * Enough to see that a timezone is right, few enough that nobody reads the
+ * screen as a roster. It exists to answer one question — does this look like
+ * what you exported — and FC-020 builds the surface that answers the others,
+ * behind the audience checks that surface needs.
+ */
+export const ROSTER_PREVIEW_SAMPLE_ROWS = 10;

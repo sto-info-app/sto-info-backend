@@ -1,3 +1,7 @@
+import { ROSTER_FILENAME_MAX_LENGTH } from '../constants/roster-upload.constants';
+import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum';
+import { RosterCsvRejectedError } from '../errors/roster-csv-rejected.error';
+
 /**
  * The name STO gives a roster export, anchored at both ends.
  *
@@ -82,4 +86,54 @@ export function readRosterFilename(
     `${time.slice(...STAMP.minute)}:${time.slice(...STAMP.second)}`;
 
   return { fleetLabel: fleet, localStamp };
+}
+
+/** The lowest code point a filename may hold: everything below is a control. */
+const FIRST_PRINTABLE_CHARACTER = 0x20;
+
+/** The code point of the delete character. */
+const DELETE_CHARACTER = 0x7f;
+
+/**
+ * Refuses a filename that cannot be recorded as it stands.
+ *
+ * Asked before the grammar, and of every path that takes a file: the name is
+ * written to a log line and shown back to people, and neither survives a
+ * newline in the middle of one. Path separators go the same way, because a
+ * filename that looks like a path invites some later caller to treat it as
+ * one. This application never does, since a storage key comes from the
+ * asset's own identifier, but the invitation is worth declining at the door.
+ *
+ * Refused rather than cleaned up. Cleaning it up would mean the recorded
+ * filename was not the filename, which defeats recording it.
+ *
+ * @param filename - The filename as the browser sent it.
+ * @throws RosterCsvRejectedError when it cannot be recorded as it stands.
+ */
+export function assertRosterFilenameUsable(filename: string): void {
+  if (
+    filename.trim().length === 0 ||
+    filename.length > ROSTER_FILENAME_MAX_LENGTH ||
+    hasUnusableCharacter(filename)
+  ) {
+    throw new RosterCsvRejectedError(RosterCsvRejectionCode.FILENAME_UNUSABLE);
+  }
+}
+
+/**
+ * Reports whether a filename holds a character it may not.
+ *
+ * @param filename - The filename as the browser sent it.
+ * @returns True when it cannot be recorded as it stands.
+ */
+function hasUnusableCharacter(filename: string): boolean {
+  for (let index = 0; index < filename.length; index += 1) {
+    const code = filename.charCodeAt(index);
+
+    if (code < FIRST_PRINTABLE_CHARACTER || code === DELETE_CHARACTER) {
+      return true;
+    }
+  }
+
+  return filename.includes('/') || filename.includes('\\');
 }

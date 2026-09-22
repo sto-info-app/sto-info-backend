@@ -16,13 +16,12 @@ import { FleetPolicyService } from '../../fleet-policy.service';
 import {
   boundDeclaredContentType,
   DECLARED_ROSTER_CONTENT_TYPE,
-  ROSTER_FILENAME_MAX_LENGTH,
   SANITISED_ROSTER_CONTENT_TYPE,
 } from '../constants/roster-upload.constants';
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
-import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum';
 import { RosterSourceHeaderShape } from '../enums/roster-source-header-shape.enum';
 import { RosterCsvRejectedError } from '../errors/roster-csv-rejected.error';
+import { assertRosterFilenameUsable } from '../utilities/roster-filename.utility';
 import { RosterCsvPrivacyParserService } from './roster-csv-privacy-parser.service';
 
 /** What the controller knows about an arriving upload. */
@@ -65,12 +64,6 @@ interface SanitisedSummary {
   /** The grammar and redaction version that produced the bytes. */
   readonly parserVersion: number;
 }
-
-/** The lowest code point a filename may hold: everything below is a control. */
-const FIRST_PRINTABLE_CHARACTER = 0x20;
-
-/** The code point of the delete character. */
-const DELETE_CHARACTER = 0x7f;
 
 /** How many milliseconds there are in a day. */
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -151,7 +144,7 @@ export class RosterImportIngressService {
     let summary: SanitisedSummary;
 
     try {
-      this.assertFilenameUsable(input.originalFilename);
+      assertRosterFilenameUsable(input.originalFilename);
 
       sourceSha256 = this.hash(input.source);
 
@@ -251,54 +244,7 @@ export class RosterImportIngressService {
   }
 
   /**
-   * Refuses a filename that cannot be recorded as it stands.
-   *
-   * @param filename - The filename as the browser sent it.
-   * @throws RosterCsvRejectedError when it is unusable.
-   */
-  private assertFilenameUsable(filename: string): void {
-    if (
-      filename.trim().length === 0 ||
-      filename.length > ROSTER_FILENAME_MAX_LENGTH ||
-      this.hasUnusableCharacter(filename)
-    ) {
-      throw new RosterCsvRejectedError(
-        RosterCsvRejectionCode.FILENAME_UNUSABLE,
-      );
-    }
-  }
-
-  /**
-   * Reports whether a filename holds a character it may not.
-   *
-   * Control characters, because the filename is written to a log line and
-   * shown back to people and neither survives a newline in the middle of one.
-   * Path separators, because a filename that looks like a path invites some
-   * later caller to treat it as one — this application never does, since the
-   * storage key comes from the asset's own identifier, but the invitation is
-   * worth declining at the door.
-   *
-   * @param filename - The filename as the browser sent it.
-   * @returns True when it cannot be recorded as it stands.
-   */
-  private hasUnusableCharacter(filename: string): boolean {
-    for (let index = 0; index < filename.length; index += 1) {
-      const code = filename.charCodeAt(index);
-
-      if (code < FIRST_PRINTABLE_CHARACTER || code === DELETE_CHARACTER) {
-        return true;
-      }
-    }
-
-    return filename.includes('/') || filename.includes('\\');
-  }
-
-  /**
-   * Turns a refusal into an HTTP response the uploader can act on.
-   *
-   * The body is the code and the line number and nothing else — no excerpt,
-   * no field, no sample. Both values were produced by this application rather
-   * than read out of the file.
+   * Logs a refusal and turns it into the answer the uploader is given.
    *
    * @param error - The refusal.
    * @returns The exception to throw in its place.
@@ -308,12 +254,7 @@ export class RosterImportIngressService {
       `[accept] Roster export refused - Code: ${error.code}, Line: ${error.line ?? 'n/a'}`,
     );
 
-    return new BadRequestException({
-      message:
-        'This roster export could not be read. Nothing has been imported.',
-      code: error.code,
-      line: error.line,
-    });
+    return error.toBadRequest();
   }
 
   /**

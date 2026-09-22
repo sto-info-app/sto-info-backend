@@ -20,6 +20,7 @@ import { FileAssetService } from 'src/file-assets/services/file-asset.service';
 import { QuarantineStorageService } from 'src/file-assets/services/quarantine-storage.service';
 import { ScanRequestProducerService } from 'src/file-scanning/services/scan-request-producer.service';
 
+import { FleetNameAliasEntity } from '../../entities/fleet-name-alias.entity';
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { FleetFeatureService } from '../../fleet-feature.service';
 import { FleetPolicyService } from '../../fleet-policy.service';
@@ -27,7 +28,10 @@ import { StoFleetService } from '../../services/sto-fleet.service';
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
 import { RosterImportsController } from '../roster-imports.controller';
 import { RosterCsvPrivacyParserService } from '../services/roster-csv-privacy-parser.service';
+import { RosterExportIdentityService } from '../services/roster-export-identity.service';
 import { RosterImportIngressService } from '../services/roster-import-ingress.service';
+import { RosterImportPreviewService } from '../services/roster-import-preview.service';
+import { RosterTypedParserService } from '../services/roster-typed-parser.service';
 
 /**
  * The officer canary sweep (FC-009, acceptance criterion 1).
@@ -42,6 +46,13 @@ import { RosterImportIngressService } from '../services/roster-import-ingress.se
  * message put on the scan queue. Plus the seventh, which is the one people
  * forget — the error thrown when the upload is *refused*, including its
  * stack.
+ *
+ * FC-016 added an eighth, and the most exposed one yet: the preview, whose
+ * whole purpose is to read roster values back to the uploader. It keeps
+ * nothing and writes nothing, so its only sink is its own response — but
+ * that response carries names, handles and comments by design, which makes it
+ * exactly the place a fifteen-column file would show what it should not. It is
+ * swept alongside the upload.
  *
  * The queue arrived with FC-010 and is the reason this list is worth
  * keeping. A sink sweep is only as good as its list of sinks, and a new one
@@ -192,13 +203,23 @@ describe('Officer canary sinks', () => {
       findByIdOrFail: jest.fn(() =>
         Promise.resolve({
           id: FLEET_ID,
+          exactGameName: 'Fixture Officer Fleet',
           platform: { name: 'Windows', providesRosterExport: true },
         } as StoFleetEntity),
       ),
     } as unknown as StoFleetService;
 
+    const previewService = new RosterImportPreviewService(
+      new RosterCsvPrivacyParserService(),
+      new RosterTypedParserService(),
+      new RosterExportIdentityService({
+        find: jest.fn(() => Promise.resolve([])),
+      } as unknown as Repository<FleetNameAliasEntity>),
+    );
+
     controller = new RosterImportsController(
       ingressService,
+      previewService,
       {
         assertFlagEnabled: jest.fn(() => Promise.resolve()),
       } as unknown as FleetFeatureService,
@@ -257,6 +278,54 @@ describe('Officer canary sinks', () => {
 
     // The fixture really does carry the canary, so a pass means the sweep
     // worked rather than that there was nothing to find.
+    expect(fixture(filename).toString('utf8')).toContain(CANARY);
+    expect(sinks.length).toBeGreaterThan(0);
+
+    for (const sink of sinks) {
+      expect(sink).not.toContain(CANARY);
+    }
+  });
+
+  /**
+   * Previews a fixture and returns everything the run produced.
+   *
+   * @param filename - The fixture to preview.
+   * @returns Every string the run wrote to a watched sink.
+   */
+  async function sweepPreview(filename: string): Promise<string[]> {
+    try {
+      const response = await controller.preview(
+        COMMUNITY_ID,
+        FLEET_ID,
+        USER_ID,
+        { timezone: 'Europe/London' },
+        multerFile(fixture(filename), filename),
+      );
+
+      watched.push(JSON.stringify(response));
+    } catch (error) {
+      const failure = error as Error & { getResponse?: () => unknown };
+
+      watched.push(failure.message);
+      watched.push(failure.stack ?? '');
+      watched.push(JSON.stringify(failure.getResponse?.() ?? null));
+    }
+
+    return watched;
+  }
+
+  // The preview reads roster values back to whoever uploaded the file, which
+  // is the point of it and also the reason it is worth sweeping hardest. A
+  // fifteen-column export goes through the same privacy boundary first, so
+  // there is nothing left for the preview to show — and this is how that
+  // stays true.
+  it.each([
+    'Fixture Officer Fleet_20240102-120000.Csv',
+    'Fixture Officer Fleet_20240103-120000.Csv',
+    'Fixture Quoting Fleet_20240104-120000.Csv',
+  ])('leaks nothing from %s into a preview', async filename => {
+    const sinks = await sweepPreview(filename);
+
     expect(fixture(filename).toString('utf8')).toContain(CANARY);
     expect(sinks.length).toBeGreaterThan(0);
 

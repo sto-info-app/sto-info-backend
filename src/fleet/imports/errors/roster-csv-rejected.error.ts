@@ -1,3 +1,5 @@
+import { BadRequestException } from '@nestjs/common';
+
 import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum';
 
 /**
@@ -34,5 +36,28 @@ export class RosterCsvRejectedError extends Error {
     );
 
     this.name = 'RosterCsvRejectedError';
+  }
+
+  /**
+   * Turns the refusal into the answer the uploader is given.
+   *
+   * The body is the code and the line number and nothing else — no excerpt,
+   * no field, no sample. Both values were produced by this application rather
+   * than read out of the file.
+   *
+   * It lives on the error so that every path answering a refusal answers it
+   * the same way. There are two of them now — the upload and the preview that
+   * precedes it — and an uploader who is told one thing when checking a file
+   * and another when sending it has been told nothing.
+   *
+   * @returns The exception to throw in its place.
+   */
+  toBadRequest(): BadRequestException {
+    return new BadRequestException({
+      message:
+        'This roster export could not be read. Nothing has been imported.',
+      code: this.code,
+      line: this.line,
+    });
   }
 }

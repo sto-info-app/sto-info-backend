@@ -9,10 +9,12 @@ import { FLEET_FEATURE_FLAGS } from '../constants/fleet-feature.constants';
 import { StoFleetEntity } from '../entities/sto-fleet.entity';
 import { FleetFeatureService } from '../fleet-feature.service';
 import { StoFleetService } from '../services/sto-fleet.service';
+import { RosterImportPreviewDto } from './dto/roster-import-preview.dto';
 import { RosterImportSourceEntity } from './entities/roster-import-source.entity';
 import { RosterSourceHeaderShape } from './enums/roster-source-header-shape.enum';
 import { RosterImportsController } from './roster-imports.controller';
 import { RosterImportIngressService } from './services/roster-import-ingress.service';
+import { RosterImportPreviewService } from './services/roster-import-preview.service';
 
 const COMMUNITY_ID = '00000000-0000-4000-8000-000000000000';
 const FLEET_ID = '11111111-1111-4111-8111-111111111111';
@@ -74,9 +76,17 @@ function fleetOn(
   } as StoFleetEntity;
 }
 
+/** What the preview service answers with, when nothing is wrong. */
+const PREVIEW = {
+  canImport: true,
+  timezone: 'Europe/London',
+  readableRowCount: 93,
+} as RosterImportPreviewDto;
+
 describe('RosterImportsController', () => {
   let controller: RosterImportsController;
   let ingressService: { accept: jest.Mock };
+  let previewService: { preview: jest.Mock };
   let featureService: { assertFlagEnabled: jest.Mock };
   // Typed rather than a bare jest.Mock: an untyped one infers `never` for
   // mockResolvedValueOnce and refuses every Fleet handed to it.
@@ -91,6 +101,10 @@ describe('RosterImportsController', () => {
       accept: jest.fn(() => Promise.resolve({ record: RECORD, asset: ASSET })),
     };
 
+    previewService = {
+      preview: jest.fn(() => Promise.resolve(PREVIEW)),
+    };
+
     featureService = {
       assertFlagEnabled: jest.fn(() => Promise.resolve()),
     };
@@ -101,6 +115,7 @@ describe('RosterImportsController', () => {
 
     controller = new RosterImportsController(
       ingressService as unknown as RosterImportIngressService,
+      previewService as unknown as RosterImportPreviewService,
       featureService as unknown as FleetFeatureService,
       fleetService as unknown as StoFleetService,
     );
@@ -262,6 +277,88 @@ describe('RosterImportsController', () => {
       state: FileAssetState.QUARANTINED,
       retainUntil: RETAIN_UNTIL,
       uploadedAt: UPLOADED_AT,
+    });
+  });
+
+  describe('the preview', () => {
+    const TIMEZONE = { timezone: 'Europe/London' };
+
+    it('hands the file, the Fleet and the timezone to the preview', async () => {
+      const file = multerFile(Buffer.from('roster bytes'));
+
+      const answer = await controller.preview(
+        COMMUNITY_ID,
+        FLEET_ID,
+        USER_ID,
+        TIMEZONE,
+        file,
+      );
+
+      expect(previewService.preview).toHaveBeenCalledWith({
+        fleet: fleetOn(true),
+        originalFilename: 'Fixture Basic Fleet_20240101-120000.Csv',
+        timezone: 'Europe/London',
+        source: expect.any(Buffer),
+      });
+      expect(answer).toBe(PREVIEW);
+    });
+
+    // Multer's own reference to the bytes is dropped as well, so nothing
+    // downstream can hold a page where a roster used to be.
+    it('lets go of the bytes once the preview has read them', async () => {
+      const file = multerFile(Buffer.from('roster bytes'));
+
+      await controller.preview(COMMUNITY_ID, FLEET_ID, USER_ID, TIMEZONE, file);
+
+      expect(file.buffer).toHaveLength(0);
+    });
+
+    it('refuses before reading the file when imports are switched off', async () => {
+      featureService.assertFlagEnabled.mockImplementationOnce(() => {
+        throw new NotFoundException('Not found');
+      });
+
+      await expect(
+        controller.preview(
+          COMMUNITY_ID,
+          FLEET_ID,
+          USER_ID,
+          TIMEZONE,
+          multerFile(Buffer.from('roster bytes')),
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(previewService.preview).not.toHaveBeenCalled();
+    });
+
+    // The same four refusals in the same order as the upload. Somebody told a
+    // file is fine here and told their platform has no export a moment later
+    // has been told nothing.
+    it('refuses a platform the game writes no export on', async () => {
+      fleetService.findByIdOrFail.mockResolvedValueOnce(
+        fleetOn(false, 'PlayStation'),
+      );
+
+      const file = multerFile(Buffer.from('roster bytes'));
+
+      await expect(
+        controller.preview(COMMUNITY_ID, FLEET_ID, USER_ID, TIMEZONE, file),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(file.buffer.every(byte => byte === 0)).toBe(true);
+      expect(previewService.preview).not.toHaveBeenCalled();
+    });
+
+    it('refuses a request with no file attached', async () => {
+      await expect(
+        controller.preview(
+          COMMUNITY_ID,
+          FLEET_ID,
+          USER_ID,
+          TIMEZONE,
+          undefined,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
 });

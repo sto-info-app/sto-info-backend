@@ -93,6 +93,43 @@ export const ROSTER_UPLOAD_OPTIONS: MulterOptions = {
   },
 };
 
+/**
+ * How a preview upload is parsed off the wire.
+ *
+ * The upload's options with room for one text field. That field is the
+ * timezone, and it is the reason the preview exists: an STO export writes
+ * wall-clock times and does not say whose clock they were, so nothing about
+ * the file can be read until somebody says.
+ *
+ * One field and no more. A multipart body with room for arbitrary extra parts
+ * is a multipart body somebody will eventually put a second file in.
+ */
+export const ROSTER_PREVIEW_OPTIONS: MulterOptions = {
+  ...ROSTER_UPLOAD_OPTIONS,
+  limits: { ...ROSTER_UPLOAD_OPTIONS.limits, fields: 1, parts: 3 },
+};
+
+/** The Swagger body description for a preview. */
+export const ROSTER_PREVIEW_SCHEMA = {
+  schema: {
+    type: 'object',
+    required: [ROSTER_UPLOAD_FIELD, 'timezone'],
+    properties: {
+      [ROSTER_UPLOAD_FIELD]: {
+        type: 'string',
+        format: 'binary',
+        description: 'The STO roster export, as the game wrote it.',
+      },
+      timezone: {
+        type: 'string',
+        example: 'Europe/London',
+        description:
+          'The IANA timezone the exporting player’s own clock was set to.',
+      },
+    },
+  },
+};
+
 /** The Swagger body description for a roster upload. */
 export const ROSTER_UPLOAD_SCHEMA = {
   schema: {

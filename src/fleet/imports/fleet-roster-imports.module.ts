@@ -11,6 +11,7 @@ import { RosterImportsController } from './roster-imports.controller';
 import { RosterCsvPrivacyParserService } from './services/roster-csv-privacy-parser.service';
 import { RosterExportIdentityService } from './services/roster-export-identity.service';
 import { RosterImportIngressService } from './services/roster-import-ingress.service';
+import { RosterImportPreviewService } from './services/roster-import-preview.service';
 import { RosterTypedParserService } from './services/roster-typed-parser.service';
 
 /**
@@ -38,12 +39,14 @@ import { RosterTypedParserService } from './services/roster-typed-parser.service
     RosterTypedParserService,
     RosterExportIdentityService,
     RosterImportIngressService,
+    RosterImportPreviewService,
   ],
   exports: [
     RosterCsvPrivacyParserService,
     RosterTypedParserService,
     RosterExportIdentityService,
     RosterImportIngressService,
+    RosterImportPreviewService,
   ],
 })
 export class FleetRosterImportsModule {}

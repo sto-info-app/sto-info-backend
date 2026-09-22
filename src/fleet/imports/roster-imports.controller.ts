@@ -1,6 +1,9 @@
 import {
   BadRequestException,
+  Body,
   Controller,
+  HttpCode,
+  HttpStatus,
   Logger,
   Param,
   ParseUUIDPipe,
@@ -17,6 +20,7 @@ import {
   ApiBody,
   ApiConsumes,
   ApiCreatedResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
@@ -29,18 +33,24 @@ import { FLEET_CAPABILITIES } from '../authorisation/fleet-capability.constants'
 import { RequiresScopeCapability } from '../authorisation/requires-scope-capability.decorator';
 import { ScopeCapabilityGuard } from '../authorisation/scope-capability.guard';
 import { FLEET_FEATURE_FLAGS } from '../constants/fleet-feature.constants';
+import { StoFleetEntity } from '../entities/sto-fleet.entity';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 import { FleetFeatureService } from '../fleet-feature.service';
 import { StoFleetService } from '../services/sto-fleet.service';
 import {
   assertRosterSupplied,
+  ROSTER_PREVIEW_OPTIONS,
+  ROSTER_PREVIEW_SCHEMA,
   ROSTER_UPLOAD_FIELD,
   ROSTER_UPLOAD_OPTIONS,
   ROSTER_UPLOAD_SCHEMA,
   rosterExportUnavailableMessage,
 } from './constants/roster-upload.constants';
+import { PreviewRosterImportDto } from './dto/preview-roster-import.dto';
+import { RosterImportPreviewDto } from './dto/roster-import-preview.dto';
 import { RosterImportSourceDto } from './dto/roster-import-source.dto';
 import { RosterImportIngressService } from './services/roster-import-ingress.service';
+import { RosterImportPreviewService } from './services/roster-import-preview.service';
 
 /**
  * Where a roster export enters the site.
@@ -73,11 +83,14 @@ import { RosterImportIngressService } from './services/roster-import-ingress.ser
  *    refusal has not looked at one.
  * 4. **The file itself**, by the privacy parser.
  *
+ * `preview` answers the same four and then keeps nothing: it is the dry run
+ * the wizard's first step is built on, and it exists because the uploader has
+ * to supply a timezone the file does not contain and can supply it wrongly
+ * without noticing.
+ *
  * There is no `GET` here yet. Listing a Fleet's imports and downloading a
  * sanitised source are FC-017's and FC-037's, and both need decisions this
  * ticket does not make — what an investigator may see, and under what audit.
- * An upload that cannot yet be read back is the honest state of the feature
- * while there is no scanner to clear it.
  */
 @ApiTags('Fleet')
 @ApiBearerAuth()
@@ -89,12 +102,14 @@ export class RosterImportsController {
    * Creates an instance of RosterImportsController.
    *
    * @param _ingressService - Takes an upload as far as quarantine.
+   * @param _previewService - Reads an upload and keeps none of it.
    * @param _featureService - Reports whether imports are switched on.
    * @param _fleetService - Reads the Fleet, and with it the platform it is
    *   recorded on.
    */
   constructor(
     private readonly _ingressService: RosterImportIngressService,
+    private readonly _previewService: RosterImportPreviewService,
     private readonly _featureService: FleetFeatureService,
     private readonly _fleetService: StoFleetService,
   ) {}
@@ -135,32 +150,8 @@ export class RosterImportsController {
     @UserId() userId: string,
     @UploadedFile() file: Express.Multer.File | undefined,
   ): Promise<RosterImportSourceDto> {
-    await this._featureService.assertFlagEnabled(
-      FLEET_FEATURE_FLAGS.IMPORTS_ENABLED,
-    );
+    await this.requireImportableFleet(communityId, fleetId, file);
 
-    const { platform } = await this._fleetService.findByIdOrFail(
-      communityId,
-      fleetId,
-    );
-
-    if (!platform.providesRosterExport) {
-      // Multer has already buffered whatever arrived, so this disposes of it
-      // the way the ingress service disposes of a file it rejects. Nothing
-      // the game wrote on this platform can be in there, but somebody's
-      // roster still might be, and a refusal is exactly the upload one would
-      // otherwise be tempted to keep a copy of — ADR-0001.
-      file?.buffer.fill(0);
-
-      throw new BadRequestException(
-        rosterExportUnavailableMessage(platform.name),
-      );
-    }
-
-    // After the platform, because the platform is true of the Fleet whether
-    // or not anything was attached. Telling somebody to attach a file and
-    // then, once they have, that their platform cannot produce one would be
-    // two answers to one question.
     assertRosterSupplied(file);
 
     this._logger.debug(
@@ -202,5 +193,122 @@ export class RosterImportsController {
       retainUntil: asset.retainUntil,
       uploadedAt: record.uploadedAt,
     };
+  }
+
+  /**
+   * Reports how an export would be read, and keeps none of it.
+   *
+   * The wizard's first step, and a dry run in the strict sense: no asset is
+   * registered, no bytes are written, no provenance row exists and no scan is
+   * requested. Behind the same four refusals as the upload, in the same order,
+   * because a file that could not be uploaded is not a file worth reading.
+   *
+   * It exists because the uploader has to supply something the file does not
+   * contain. An STO export writes wall-clock times with no zone, in the
+   * filename and in every date column, and the wrong zone moves every date by
+   * hours without looking wrong anywhere. The answer is to show them their own
+   * rows read back, before anything is committed to.
+   *
+   * @param communityId - The owning Community, checked by the guard.
+   * @param fleetId - The Fleet the export would belong to.
+   * @param userId - The asking user.
+   * @param body - The timezone the export was taken in.
+   * @param file - The multipart file.
+   * @returns How the export would be read.
+   */
+  @Post('preview')
+  @UseGuards(JwtAuthGuard, ScopeCapabilityGuard)
+  @RequiresScopeCapability(FLEET_CAPABILITIES.ROSTER_IMPORT, {
+    kind: FleetScopeKind.FLEET,
+    param: 'fleetId',
+    communityParam: 'communityId',
+  })
+  @UseFilters(FileSizeExceptionFilter)
+  @UseInterceptors(FileInterceptor(ROSTER_UPLOAD_FIELD, ROSTER_PREVIEW_OPTIONS))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody(ROSTER_PREVIEW_SCHEMA)
+  @ApiOperation({
+    summary: 'Check how a roster export would be read, without importing it',
+  })
+  @ApiOkResponse({ type: RosterImportPreviewDto })
+  @ApiBadRequestResponse({
+    description:
+      'The export could not be read at all, or the Fleet is on a platform ' +
+      'the game provides no export for. A file that reads but cannot be ' +
+      'trusted is answered with 200 and the reasons, which is the whole ' +
+      'point of the screen.',
+  })
+  @HttpCode(HttpStatus.OK)
+  async preview(
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('fleetId', ParseUUIDPipe) fleetId: string,
+    @UserId() userId: string,
+    @Body() body: PreviewRosterImportDto,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ): Promise<RosterImportPreviewDto> {
+    const fleet = await this.requireImportableFleet(communityId, fleetId, file);
+
+    assertRosterSupplied(file);
+
+    this._logger.debug(
+      `[preview] Roster export received - UserId: ${userId}, ` +
+        `CommunityId: ${communityId}, FleetId: ${fleetId}, ` +
+        `Timezone: ${body.timezone}, Bytes: ${file.buffer.length}`,
+    );
+
+    const preview = await this._previewService.preview({
+      fleet,
+      originalFilename: file.originalname,
+      timezone: body.timezone,
+      source: file.buffer,
+    });
+
+    // The service overwrote the buffer in place. Dropping Multer's reference
+    // as well means nothing downstream can hold a page of zeroes where a
+    // roster used to be, let alone anything else.
+    file.buffer = Buffer.alloc(0);
+
+    return preview;
+  }
+
+  /**
+   * Runs the three refusals that precede reading a file, and returns the
+   * Fleet.
+   *
+   * Shared so that the preview and the upload answer the same questions in
+   * the same order. An uploader told a file is fine and then told their
+   * platform has no export has been told nothing.
+   *
+   * @param communityId - The owning Community, checked by the guard.
+   * @param fleetId - The Fleet.
+   * @param file - Whatever Multer parsed, if anything.
+   * @returns The Fleet, with its platform.
+   * @throws BadRequestException when the platform provides no roster export.
+   */
+  private async requireImportableFleet(
+    communityId: string,
+    fleetId: string,
+    file: Express.Multer.File | undefined,
+  ): Promise<StoFleetEntity> {
+    await this._featureService.assertFlagEnabled(
+      FLEET_FEATURE_FLAGS.IMPORTS_ENABLED,
+    );
+
+    const fleet = await this._fleetService.findByIdOrFail(communityId, fleetId);
+
+    if (!fleet.platform.providesRosterExport) {
+      // Multer has already buffered whatever arrived, so this disposes of it
+      // the way the ingress service disposes of a file it rejects. Nothing
+      // the game wrote on this platform can be in there, but somebody's
+      // roster still might be, and a refusal is exactly the upload one would
+      // otherwise be tempted to keep a copy of — ADR-0001.
+      file?.buffer.fill(0);
+
+      throw new BadRequestException(
+        rosterExportUnavailableMessage(fleet.platform.name),
+      );
+    }
+
+    return fleet;
   }
 }
