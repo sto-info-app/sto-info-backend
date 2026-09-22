@@ -90,3 +90,15 @@ export const ROSTER_PROFESSION_PATTERNS: readonly {
  * behind the audience checks that surface needs.
  */
 export const ROSTER_PREVIEW_SAMPLE_ROWS = 10;
+
+/**
+ * The longest a stored roster value may be, in characters.
+ *
+ * The width of the observation columns, stated where the reader can see it:
+ * a value the table will not hold is refused while there is still a line
+ * number to report it against. Generous by two orders of magnitude for every
+ * column it applies to — in-game names and handles run to about twenty
+ * characters — because the point is to have a bound rather than to police
+ * one.
+ */
+export const ROSTER_STORED_TEXT_MAX_LENGTH = 255;

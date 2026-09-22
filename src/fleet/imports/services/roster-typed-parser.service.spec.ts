@@ -1,4 +1,5 @@
 import { ROSTER_ALLOWED_COLUMNS } from '../constants/roster-csv.constants';
+import { ROSTER_STORED_TEXT_MAX_LENGTH } from '../constants/roster-typed.constants';
 import { RosterDateResolution } from '../enums/roster-date-resolution.enum';
 import { RosterProfession } from '../enums/roster-profession.enum';
 import { RosterRowRejectionCode } from '../enums/roster-row-rejection-code.enum';
@@ -418,6 +419,62 @@ describe('RosterTypedParserService', () => {
       const roster = service.read(file(line({ Class: 'Sciences' })), LONDON);
 
       expect(roster.rows[0].profession).toBeNull();
+    });
+  });
+
+  describe('a value too long to store', () => {
+    /*
+     * The observation columns are varchar(255). A value that would not fit
+     * is refused where it is read, so that whoever uploaded it is told the
+     * line and the column rather than handed a database error from an insert
+     * three services later.
+     */
+    const TOO_LONG = 'x'.repeat(ROSTER_STORED_TEXT_MAX_LENGTH + 1);
+
+    it.each([
+      ['Character Name', 'Character Name'],
+      ['Account Handle', 'Account Handle'],
+      ['Class', 'Class'],
+      ['Guild Rank', 'Guild Rank'],
+      ['Status', 'Status'],
+    ])('refuses a %s that would not fit', (column, reported) => {
+      const roster = service.read(file(line({ [column]: TOO_LONG })), LONDON);
+
+      expect(roster.rows).toEqual([]);
+      expect(roster.problems).toEqual([
+        {
+          code: RosterRowRejectionCode.VALUE_TOO_LONG,
+          line: 2,
+          column: reported,
+        },
+      ]);
+    });
+
+    it('accepts a value exactly as long as the column is wide', () => {
+      const roster = service.read(
+        file(
+          line({
+            'Guild Rank': 'x'.repeat(ROSTER_STORED_TEXT_MAX_LENGTH),
+          }),
+        ),
+        LONDON,
+      );
+
+      expect(roster.problems).toEqual([]);
+      expect(roster.rows).toHaveLength(1);
+    });
+
+    // The one column with no width to exceed. A member's comment is where a
+    // long value is something somebody wrote rather than a sign of tampering,
+    // and the privacy parser has already bounded it at four kilobytes.
+    it('accepts a public comment longer than the other columns allow', () => {
+      const roster = service.read(
+        file(line({ 'Public Comment': TOO_LONG })),
+        LONDON,
+      );
+
+      expect(roster.problems).toEqual([]);
+      expect(roster.rows[0].publicComment).toBe(TOO_LONG);
     });
   });
 

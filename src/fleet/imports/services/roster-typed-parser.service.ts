@@ -13,6 +13,7 @@ import {
   ROSTER_CONTRIBUTION_PATTERN,
   ROSTER_LEVEL_PATTERN,
   ROSTER_PROFESSION_PATTERNS,
+  ROSTER_STORED_TEXT_MAX_LENGTH,
   STO_DATE_PATTERN,
 } from '../constants/roster-typed.constants';
 import { RosterDateResolution } from '../enums/roster-date-resolution.enum';
@@ -331,6 +332,25 @@ export class RosterTypedParserService {
       problems,
     );
 
+    const className = this.readStorableText(
+      values[COLUMN.className],
+      COLUMN.className,
+      lineNumber,
+      problems,
+    );
+    const guildRank = this.readStorableText(
+      values[COLUMN.guildRank],
+      COLUMN.guildRank,
+      lineNumber,
+      problems,
+    );
+    const status = this.readStorableText(
+      values[COLUMN.status],
+      COLUMN.status,
+      lineNumber,
+      problems,
+    );
+
     const dates = {
       joinedAt: this.readDate(
         values,
@@ -368,6 +388,9 @@ export class RosterTypedParserService {
     if (
       characterName === null ||
       accountHandle === null ||
+      className === null ||
+      guildRank === null ||
+      status === null ||
       level === null ||
       contributionTotal === null ||
       dates.joinedAt === null ||
@@ -383,15 +406,15 @@ export class RosterTypedParserService {
       characterName,
       accountHandle,
       level,
-      className: values[COLUMN.className],
-      profession: this.readProfession(values[COLUMN.className]),
-      guildRank: values[COLUMN.guildRank],
+      className,
+      profession: this.readProfession(className),
+      guildRank,
       contributionTotal,
       joinedAt: dates.joinedAt,
       rankChangedAt: dates.rankChangedAt,
       lastActiveAt: dates.lastActiveAt,
       publicCommentEditedAt: dates.publicCommentEditedAt,
-      status: values[COLUMN.status],
+      status,
       publicComment: values[COLUMN.publicComment],
     };
   }
@@ -473,6 +496,38 @@ export class RosterTypedParserService {
   ): string | null {
     if (value.trim() === '') {
       problems.push({ code, line: lineNumber, column: this.name(column) });
+
+      return null;
+    }
+
+    return this.readStorableText(value, column, lineNumber, problems);
+  }
+
+  /**
+   * Reads a column that may say anything, so long as it will fit.
+   *
+   * The public comment is not read through this: it is stored as text and
+   * has no width to exceed, and a member's comment is the one column where a
+   * long value is a thing somebody wrote rather than a sign of tampering.
+   *
+   * @param value - The column's value.
+   * @param column - Which column, as an index into the fixed header.
+   * @param lineNumber - The line number, counting from one.
+   * @param problems - Collected in place.
+   * @returns The value, or null when it is too long to store.
+   */
+  private readStorableText(
+    value: string,
+    column: number,
+    lineNumber: number,
+    problems: RosterRowProblem[],
+  ): string | null {
+    if (value.length > ROSTER_STORED_TEXT_MAX_LENGTH) {
+      problems.push({
+        code: RosterRowRejectionCode.VALUE_TOO_LONG,
+        line: lineNumber,
+        column: this.name(column),
+      });
 
       return null;
     }

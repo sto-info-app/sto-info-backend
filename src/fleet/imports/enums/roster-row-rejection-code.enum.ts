@@ -68,4 +68,20 @@ export enum RosterRowRejectionCode {
    * snapshot stops rather than the row.
    */
   DUPLICATE_IDENTITY = 'DUPLICATE_IDENTITY',
+
+  /**
+   * A column is longer than the observation table will hold.
+   *
+   * The privacy parser already bounds every field at four kilobytes, which
+   * is a limit on what this application will read rather than on what a
+   * roster can say. This is the narrower one: the observation columns are
+   * `varchar(255)`, and a value that would not fit is refused where it is
+   * read rather than at the insert, so that whoever uploaded it is told the
+   * line and the column instead of being handed a database error.
+   *
+   * Nothing in the game writes a Character name, handle, class, rank or
+   * status anywhere near that long, so a value that hits this is a file
+   * somebody has edited.
+   */
+  VALUE_TOO_LONG = 'VALUE_TOO_LONG',
 }
