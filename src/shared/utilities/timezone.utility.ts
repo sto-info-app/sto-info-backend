@@ -103,29 +103,90 @@ function resolveTimezone(candidate: string): string | null {
 }
 
 /**
- * Converts a local wall-clock date and time in a named timezone to a UTC
- * instant.
+ * What a local wall-clock time turned out to be in a named timezone.
+ *
+ * Three answers rather than two, because a clock that moves twice a year makes
+ * two of them unavoidable and neither is a malformed input. Most callers do
+ * not care and use {@link toUtcInstant}, which collapses this to one instant
+ * or nothing. A caller that must not choose on somebody else's behalf — a
+ * roster import reading an export's own timestamp — reads this instead.
+ */
+export enum LocalTimeResolution {
+  /** Exactly one instant carries this local time. The ordinary case. */
+  EXACT = 'EXACT',
+
+  /**
+   * No instant carries it, because the clock jumped over it going forward.
+   *
+   * Half past one on the morning the clocks spring forward is not a time
+   * anybody in that zone can name, so there is nothing to return and nothing
+   * to choose between. Answering with half past two instead would record a
+   * moment nobody stated.
+   */
+  NONEXISTENT = 'NONEXISTENT',
+
+  /**
+   * Two instants carry it, because the clock went back over it.
+   *
+   * Both are real and an hour apart. Which one was meant is a fact about the
+   * event rather than about the timezone, so this is a question to put to
+   * whoever knows, not a failure.
+   */
+  AMBIGUOUS = 'AMBIGUOUS',
+}
+
+/** A local wall-clock time, and the instants it could name. */
+export interface ResolvedLocalTime {
+  /** Which of the three cases this is. */
+  readonly resolution: LocalTimeResolution;
+
+  /**
+   * The instants carrying that local time, earliest first.
+   *
+   * None for {@link LocalTimeResolution.NONEXISTENT}, one for
+   * {@link LocalTimeResolution.EXACT} and two for
+   * {@link LocalTimeResolution.AMBIGUOUS}, which is the whole of the
+   * difference between them.
+   */
+  readonly candidates: readonly Date[];
+}
+
+/**
+ * The resolution each possible number of surviving candidates implies.
+ *
+ * Indexed rather than branched on. There are exactly three outcomes and the
+ * count is exactly the name of one, so a chain of comparisons would be three
+ * ways of writing the same lookup and one more place for them to disagree.
+ */
+const RESOLUTIONS = [
+  LocalTimeResolution.NONEXISTENT,
+  LocalTimeResolution.EXACT,
+  LocalTimeResolution.AMBIGUOUS,
+] as const;
+
+/**
+ * Works out which instants a local wall-clock time could name in a timezone.
  *
  * The offset that applies depends on the instant being calculated, so it
  * cannot simply be looked up and added. Instead both offsets the zone could be
- * using around that date are tried, and the candidate whose own local
- * representation is the time asked for is the answer.
+ * using around that date are tried, and every candidate whose own local
+ * representation is the time asked for is an answer.
  *
- * Both candidate offsets are tried and each is checked by converting back,
- * which is what tells a real time from one that does not exist and what makes
- * the repeated hour resolve the same way every time.
+ * Duplicates are removed before counting, because a zone sitting nowhere near
+ * a transition offers the same instant twice and that is one answer rather
+ * than an ambiguity.
  *
  * @param localDateTime - The local date and time, as `YYYY-MM-DDTHH:mm` or
  *   `YYYY-MM-DDTHH:mm:ss`.
  * @param timezone - The IANA timezone the local time is expressed in.
- * @returns The UTC instant, or null when the input is malformed, the timezone
- *   is unknown, or the local time does not exist in that timezone. Where the
- *   local time occurs twice, the earlier instant is returned.
+ * @returns What the local time resolves to, or null when the input is
+ *   malformed or the timezone is unknown — which are faults in the request
+ *   rather than facts about a clock, and are why this is nullable at all.
  */
-export function toUtcInstant(
+export function resolveLocalDateTime(
   localDateTime: string,
   timezone: string,
-): Date | null {
+): ResolvedLocalTime | null {
   const canonical = canonicaliseTimezone(timezone);
   const fields = parseLocalDateTime(localDateTime);
 
@@ -138,20 +199,53 @@ export function toUtcInstant(
   // The offsets a day either side of the local time bracket any transition it
   // might sit on, so one of these two candidates is the answer for an ordinary
   // time, both are for an ambiguous one, and neither is inside a gap.
-  const candidates = [
+  const bracketed = [
     asIfUtc - offsetMillisAt(asIfUtc - MILLISECONDS_PER_DAY, canonical),
     asIfUtc - offsetMillisAt(asIfUtc + MILLISECONDS_PER_DAY, canonical),
   ];
 
   const expected = formatFields(fields);
-  const valid = candidates.filter(
-    candidate => formatInZone(new Date(candidate), canonical) === expected,
-  );
+  const valid = [
+    ...new Set(
+      bracketed.filter(
+        candidate => formatInZone(new Date(candidate), canonical) === expected,
+      ),
+    ),
+  ].sort((first, second) => first - second);
 
-  // Nothing round-trips on the morning a clock goes forward: `01:30` is not a
-  // time anybody in that zone can name, and returning `02:30` instead would
-  // record a moment the user did not choose.
-  if (valid.length === 0) {
+  return {
+    resolution: RESOLUTIONS[valid.length],
+    candidates: valid.map(millis => new Date(millis)),
+  };
+}
+
+/**
+ * Converts a local wall-clock date and time in a named timezone to a UTC
+ * instant.
+ *
+ * The convenient reading of {@link resolveLocalDateTime}, for the callers
+ * that have one instant to store and nobody to ask about it.
+ *
+ * @param localDateTime - The local date and time, as `YYYY-MM-DDTHH:mm` or
+ *   `YYYY-MM-DDTHH:mm:ss`.
+ * @param timezone - The IANA timezone the local time is expressed in.
+ * @returns The UTC instant, or null when the input is malformed, the timezone
+ *   is unknown, or the local time does not exist in that timezone. Where the
+ *   local time occurs twice, the earlier instant is returned.
+ */
+export function toUtcInstant(
+  localDateTime: string,
+  timezone: string,
+): Date | null {
+  const resolved = resolveLocalDateTime(localDateTime, timezone);
+
+  // Nothing at all on the morning a clock goes forward: the time asked for is
+  // not one anybody in that zone can name, and returning the hour after it
+  // would record a moment the user did not choose.
+  if (
+    resolved === null ||
+    resolved.resolution === LocalTimeResolution.NONEXISTENT
+  ) {
     return null;
   }
 
@@ -159,7 +253,7 @@ export function toUtcInstant(
   // both are real instants. The earlier one is taken, which is the convention
   // elsewhere and, more usefully, is the one a person means when they say a
   // thing happened at half past one and are not thinking about it at all.
-  return new Date(Math.min(...valid));
+  return resolved.candidates[0];
 }
 
 /**

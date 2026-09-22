@@ -1,6 +1,8 @@
 import {
   canonicaliseTimezone,
   isKnownTimezone,
+  LocalTimeResolution,
+  resolveLocalDateTime,
   toLocalDateTime,
   toUtcInstant,
 } from './timezone.utility';
@@ -87,6 +89,95 @@ describe('isKnownTimezone', () => {
 
   it('reports an unusable identifier as unknown', () => {
     expect(isKnownTimezone('GMT')).toBe(false);
+  });
+});
+
+describe('resolveLocalDateTime', () => {
+  it('reports one instant for an ordinary local time', () => {
+    const resolved = resolveLocalDateTime('2026-05-01T09:15', 'Europe/London');
+
+    expect(resolved).toEqual({
+      resolution: LocalTimeResolution.EXACT,
+      candidates: [new Date('2026-05-01T08:15:00.000Z')],
+    });
+  });
+
+  // A zone that never moves its clock offers the same instant from both
+  // brackets, and one answer arriving twice is not an ambiguity.
+  it('reports one instant in a zone with no daylight saving', () => {
+    const resolved = resolveLocalDateTime('2026-07-01T12:00', 'UTC');
+
+    expect(resolved).toEqual({
+      resolution: LocalTimeResolution.EXACT,
+      candidates: [new Date('2026-07-01T12:00:00.000Z')],
+    });
+  });
+
+  // The whole reason this function exists. Half past one happens twice on the
+  // morning the clocks go back, both instants are real, and which one was
+  // meant is a fact about the event rather than about the timezone.
+  it('reports both instants of a repeated autumn hour', () => {
+    const resolved = resolveLocalDateTime('2026-10-25T01:30', 'Europe/London');
+
+    expect(resolved).toEqual({
+      resolution: LocalTimeResolution.AMBIGUOUS,
+      candidates: [
+        new Date('2026-10-25T00:30:00.000Z'),
+        new Date('2026-10-25T01:30:00.000Z'),
+      ],
+    });
+  });
+
+  it('reports the same for an autumn hour in the Americas', () => {
+    const resolved = resolveLocalDateTime(
+      '2024-11-03T01:30',
+      'America/New_York',
+    );
+
+    expect(resolved).toEqual({
+      resolution: LocalTimeResolution.AMBIGUOUS,
+      candidates: [
+        new Date('2024-11-03T05:30:00.000Z'),
+        new Date('2024-11-03T06:30:00.000Z'),
+      ],
+    });
+  });
+
+  it('reports no instant at all inside a spring-forward gap', () => {
+    const resolved = resolveLocalDateTime('2026-03-29T01:30', 'Europe/London');
+
+    expect(resolved).toEqual({
+      resolution: LocalTimeResolution.NONEXISTENT,
+      candidates: [],
+    });
+  });
+
+  // The date an STO roster export was taken on in the fixture corpus. The
+  // clock in New York goes 2am straight to 3am on 10 March 2024.
+  it('reports no instant for the gap the roster fixtures use', () => {
+    const resolved = resolveLocalDateTime(
+      '2024-03-10T02:30:00',
+      'America/New_York',
+    );
+
+    expect(resolved?.resolution).toBe(LocalTimeResolution.NONEXISTENT);
+  });
+
+  it('refuses a malformed local time', () => {
+    expect(resolveLocalDateTime('the third of May', 'UTC')).toBeNull();
+  });
+
+  it('refuses an unknown timezone', () => {
+    expect(resolveLocalDateTime('2026-05-01T09:15', 'Middle/Earth')).toBeNull();
+  });
+
+  // Both readings of an ambiguous time are an hour apart, in that order. A
+  // caller offering somebody the choice draws them in the order they happened.
+  it('orders ambiguous candidates earliest first, an hour apart', () => {
+    const resolved = resolveLocalDateTime('2026-10-25T01:30', 'Europe/London');
+    const [earlier, later] = resolved?.candidates ?? [];
+
+    expect(later.getTime() - earlier.getTime()).toBe(60 * 60 * 1000);
   });
 });
 
