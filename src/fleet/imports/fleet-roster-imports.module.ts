@@ -9,6 +9,7 @@ import { RosterImportSourceEntity } from './entities/roster-import-source.entity
 import { RosterImportsController } from './roster-imports.controller';
 import { RosterCsvPrivacyParserService } from './services/roster-csv-privacy-parser.service';
 import { RosterImportIngressService } from './services/roster-import-ingress.service';
+import { RosterTypedParserService } from './services/roster-typed-parser.service';
 
 /**
  * Roster CSV ingress: the privacy boundary and the route that runs it.
@@ -30,7 +31,15 @@ import { RosterImportIngressService } from './services/roster-import-ingress.ser
     TypeOrmModule.forFeature([RosterImportSourceEntity]),
   ],
   controllers: [RosterImportsController],
-  providers: [RosterCsvPrivacyParserService, RosterImportIngressService],
-  exports: [RosterCsvPrivacyParserService, RosterImportIngressService],
+  providers: [
+    RosterCsvPrivacyParserService,
+    RosterTypedParserService,
+    RosterImportIngressService,
+  ],
+  exports: [
+    RosterCsvPrivacyParserService,
+    RosterTypedParserService,
+    RosterImportIngressService,
+  ],
 })
 export class FleetRosterImportsModule {}
