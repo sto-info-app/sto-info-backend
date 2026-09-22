@@ -64,6 +64,71 @@ export interface AssetPublisher {
 }
 
 /**
+ * What a restricted asset's publisher is handed once its bytes are clean.
+ *
+ * The bytes themselves rather than a reference to them. A restricted asset is
+ * never delivered, so there is no reference to hand over; what the feature
+ * needs is to read the file, and it gets exactly the bytes the scanner
+ * cleared — read out of quarantine and checked against the hash the
+ * verdict was about by the publication service, so no feature ever touches
+ * the private bucket or decides for itself which object is the right one.
+ */
+export interface RestrictedAssetAttachment {
+  /** Which record of the publisher's kind. */
+  readonly subjectId: string;
+  /** Which slot of that record. */
+  readonly slot: FileAssetSlot;
+  /** The asset, for a publisher that checks it is the one it expected. */
+  readonly assetId: string;
+  /** The cleared bytes. Overwritten once the publisher has returned. */
+  readonly bytes: Buffer;
+  /** Who uploaded it. */
+  readonly uploadedByUserId: string | null;
+  /** What the feature asked to be kept for it at ingress. */
+  readonly detail: Record<string, unknown> | null;
+}
+
+/** What a restricted asset's publisher made of the bytes. */
+export type RestrictedAssetReceipt =
+  /** The record now reflects the file, and the placement may go into force. */
+  | { readonly accepted: true }
+  /**
+   * The feature will not use these bytes. The asset is refused with this
+   * code and its bytes dropped; the code is structural, never content.
+   */
+  | { readonly accepted: false; readonly rejectionCode: string };
+
+/**
+ * The half of publication that only the owning feature can do, for an asset
+ * nobody is ever served.
+ *
+ * A roster export is the case this exists for. It is scanned and placed like
+ * a picture, and then everything diverges: there is no Cloudflare, no
+ * delivery reference and no previous picture to withdraw, and the bytes stay
+ * in quarantine because they are the evidence the record was built from. What
+ * publication means for it is that the feature reads the file into its own
+ * rows, and says whether it could.
+ */
+export interface RestrictedAssetPublisher {
+  /** The kind of record this publishes for. */
+  readonly subject: FileAssetSubject;
+
+  /**
+   * Reads the cleared bytes into the feature's own rows.
+   *
+   * May be called more than once for the same asset: a job that fails after
+   * this returns is retried from the start. An implementation replaces what
+   * an earlier call wrote rather than adding to it.
+   *
+   * @param attachment - The record, the slot and the bytes.
+   * @returns Whether the feature accepted the file.
+   */
+  receive(
+    attachment: RestrictedAssetAttachment,
+  ): Promise<RestrictedAssetReceipt>;
+}
+
+/**
  * Which publisher writes which table.
  *
  * Features register themselves here rather than the registry importing them,
@@ -75,10 +140,21 @@ export interface AssetPublisher {
  * publisher is a wiring mistake, and the only difference between finding it
  * in a failing upload and finding it in a stuck asset an hour later is which
  * one somebody can debug.
+ *
+ * **A subject has one publisher of one kind.** Pictures and restricted files
+ * are registered separately because they are handed different things, but a
+ * subject cannot have both: which of the two applies is the asset's audience,
+ * and a subject answering to either would let the audience decide which table
+ * got written.
  */
 @Injectable()
 export class AssetPublisherRegistry {
   private readonly _publishers = new Map<FileAssetSubject, AssetPublisher>();
+
+  private readonly _restricted = new Map<
+    FileAssetSubject,
+    RestrictedAssetPublisher
+  >();
 
   /**
    * Registers the publisher for one kind of record.
@@ -87,13 +163,22 @@ export class AssetPublisherRegistry {
    * @throws InternalServerErrorException when the subject already has one.
    */
   register(publisher: AssetPublisher): void {
-    if (this._publishers.has(publisher.subject)) {
-      throw new InternalServerErrorException(
-        `Two publishers registered for ${publisher.subject}`,
-      );
-    }
+    this.assertUnclaimed(publisher.subject);
 
     this._publishers.set(publisher.subject, publisher);
+  }
+
+  /**
+   * Registers the publisher for one kind of restricted record.
+   *
+   * @param publisher - The publisher.
+   * @throws InternalServerErrorException when the subject already has one of
+   *   either kind.
+   */
+  registerRestricted(publisher: RestrictedAssetPublisher): void {
+    this.assertUnclaimed(publisher.subject);
+
+    this._restricted.set(publisher.subject, publisher);
   }
 
   /**
@@ -103,7 +188,7 @@ export class AssetPublisherRegistry {
    * @returns True when a publisher is registered.
    */
   has(subject: FileAssetSubject): boolean {
-    return this._publishers.has(subject);
+    return this._publishers.has(subject) || this._restricted.has(subject);
   }
 
   /**
@@ -123,5 +208,38 @@ export class AssetPublisherRegistry {
     }
 
     return publisher;
+  }
+
+  /**
+   * Returns the publisher for one kind of restricted record.
+   *
+   * @param subject - The kind of record.
+   * @returns The publisher.
+   * @throws InternalServerErrorException when none is registered.
+   */
+  requireRestricted(subject: FileAssetSubject): RestrictedAssetPublisher {
+    const publisher = this._restricted.get(subject);
+
+    if (publisher === undefined) {
+      throw new InternalServerErrorException(
+        `No restricted publisher is registered for ${subject}`,
+      );
+    }
+
+    return publisher;
+  }
+
+  /**
+   * Refuses a second publisher for a subject, of either kind.
+   *
+   * @param subject - The kind of record.
+   * @throws InternalServerErrorException when the subject already has one.
+   */
+  private assertUnclaimed(subject: FileAssetSubject): void {
+    if (this.has(subject)) {
+      throw new InternalServerErrorException(
+        `Two publishers registered for ${subject}`,
+      );
+    }
   }
 }

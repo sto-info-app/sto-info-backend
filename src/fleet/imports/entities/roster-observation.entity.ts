@@ -75,7 +75,8 @@ export class RosterObservationEntity {
 
   @ApiProperty({
     description:
-      'The same name, case-folded and trimmed, for matching. Never shown ' +
+      'The same name, composed and case-folded, for matching. Never ' +
+      'trimmed, because a leading space is a real difference in this game, ' +
       'and never the thing displayed: a name is evidence in the form it was ' +
       'written in.',
   })

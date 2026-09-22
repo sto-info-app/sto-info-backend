@@ -8,7 +8,10 @@ import { Repository } from 'typeorm';
 import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetAudience } from 'src/file-assets/enums/file-asset-audience.enum';
 import { FileAssetKind } from 'src/file-assets/enums/file-asset-kind.enum';
+import { FileAssetSlot } from 'src/file-assets/enums/file-asset-slot.enum';
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
+import { FileAssetSubject } from 'src/file-assets/enums/file-asset-subject.enum';
+import { FileAssetPlacementService } from 'src/file-assets/services/file-asset-placement.service';
 import { FileAssetService } from 'src/file-assets/services/file-asset.service';
 import { QuarantineStorageService } from 'src/file-assets/services/quarantine-storage.service';
 import { ScanRequestProducerService } from 'src/file-scanning/services/scan-request-producer.service';
@@ -75,6 +78,7 @@ describe('RosterImportIngressService', () => {
   let parser: { sanitise: jest.Mock };
   let repository: { create: jest.Mock; save: jest.Mock };
   let fileAssetService: { register: jest.Mock; recordStored: jest.Mock };
+  let placementService: { placePending: jest.Mock };
   let quarantineStorage: { buildObjectKey: jest.Mock; put: jest.Mock };
   let scanRequestProducer: { requestScan: jest.Mock };
   let aliases: { find: jest.Mock };
@@ -119,6 +123,12 @@ describe('RosterImportIngressService', () => {
       ),
     };
 
+    placementService = {
+      placePending: jest.fn(() =>
+        Promise.resolve({ placement: {}, superseded: null }),
+      ),
+    };
+
     quarantineStorage = {
       buildObjectKey: jest.fn((assetId: unknown) => `local/assets/${assetId}`),
       put: jest.fn((objectKey: unknown) =>
@@ -146,6 +156,7 @@ describe('RosterImportIngressService', () => {
         aliases as unknown as Repository<FleetNameAliasEntity>,
       ),
       fileAssetService as unknown as FileAssetService,
+      placementService as unknown as FileAssetPlacementService,
       quarantineStorage as unknown as QuarantineStorageService,
       scanRequestProducer as unknown as ScanRequestProducerService,
       { importSourceRetentionDays: RETENTION_DAYS } as FleetPolicyService,
@@ -212,6 +223,51 @@ describe('RosterImportIngressService', () => {
           originalFilename: 'Fixture Basic Fleet_20240101-120000.Csv',
         }),
       );
+    });
+
+    // Keyed by the import, not the Fleet. A Fleet has a history of imports,
+    // and a placement keyed by the Fleet would let each upload supersede the
+    // one before it.
+    it('claims a placement for the import, not for the Fleet', async () => {
+      await accept(officerExport());
+
+      expect(placementService.placePending).toHaveBeenCalledWith({
+        assetId: ASSET_ID,
+        subject: FileAssetSubject.ROSTER_IMPORT,
+        subjectId: 'record-1',
+        slot: FileAssetSlot.SOURCE,
+      });
+    });
+
+    // A clean verdict with nothing waiting for it publishes nothing, so the
+    // placement has to exist before the scanner can answer.
+    it('claims the placement after the record and before the scan', async () => {
+      const order: string[] = [];
+
+      repository.save.mockImplementationOnce((values: unknown) => {
+        order.push('record');
+
+        return Promise.resolve({ id: 'record-1', ...(values as object) });
+      });
+      placementService.placePending.mockImplementationOnce(() => {
+        order.push('placement');
+
+        return Promise.resolve({ placement: {}, superseded: null });
+      });
+      scanRequestProducer.requestScan.mockImplementationOnce(
+        (asset: unknown) => {
+          order.push('scan');
+
+          return Promise.resolve({
+            asset: asset as FileAssetEntity,
+            traceId: '0b5d4f6a-1c2e-4d3b-8a7f-9e8d7c6b5a40',
+          });
+        },
+      );
+
+      await accept(officerExport());
+
+      expect(order).toEqual(['record', 'placement', 'scan']);
     });
 
     it('declares the asset as the CSV it wrote, not as what arrived', async () => {
@@ -599,6 +655,7 @@ describe('RosterImportIngressService', () => {
       await refusalOf(source);
 
       expect(fileAssetService.register).not.toHaveBeenCalled();
+      expect(placementService.placePending).not.toHaveBeenCalled();
       expect(quarantineStorage.put).not.toHaveBeenCalled();
       expect(scanRequestProducer.requestScan).not.toHaveBeenCalled();
       expect(repository.save).not.toHaveBeenCalled();

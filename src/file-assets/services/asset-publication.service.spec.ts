@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 
 import { Logger } from '@nestjs/common';
@@ -8,6 +9,7 @@ import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service'
 
 import { FileAssetPlacementEntity } from '../entities/file-asset-placement.entity';
 import { FileAssetEntity } from '../entities/file-asset.entity';
+import { FileAssetAudience } from '../enums/file-asset-audience.enum';
 import { FileAssetPlacementState } from '../enums/file-asset-placement-state.enum';
 import { FileAssetSlot } from '../enums/file-asset-slot.enum';
 import { FileAssetState } from '../enums/file-asset-state.enum';
@@ -73,7 +75,11 @@ describe('AssetPublicationService', () => {
   let discard: jest.Mock<(...args: any[]) => Promise<any>>;
   let findByAssetId: jest.Mock<(...args: any[]) => Promise<any>>;
   let activate: jest.Mock<(...args: any[]) => Promise<any>>;
+  let settle: jest.Mock<(...args: any[]) => Promise<any>>;
+  let reject: jest.Mock<(...args: any[]) => Promise<any>>;
   let require_: jest.Mock;
+  let requireRestricted: jest.Mock;
+  let receive: jest.Mock<(...args: any[]) => Promise<any>>;
   let attach: jest.Mock<(...args: any[]) => Promise<any>>;
   let getStream: jest.Mock<(...args: any[]) => Promise<any>>;
   let remove: jest.Mock<(...args: any[]) => Promise<any>>;
@@ -100,6 +106,15 @@ describe('AssetPublicationService', () => {
     attach = jest
       .fn<(...args: any[]) => Promise<any>>()
       .mockResolvedValue(null);
+    settle = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({});
+    reject = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({});
+    receive = jest
+      .fn<(...args: any[]) => Promise<any>>()
+      .mockResolvedValue({ accepted: true });
+    requireRestricted = jest.fn(() => ({
+      subject: FileAssetSubject.ROSTER_IMPORT,
+      receive,
+    }));
     require_ = jest.fn(() => ({
       subject: FileAssetSubject.STORYTIME_STORY,
       attach,
@@ -122,9 +137,17 @@ describe('AssetPublicationService', () => {
         findById,
         publish: publishAsset,
         discard,
+        reject,
       } as unknown as FileAssetService,
-      { findByAssetId, activate } as unknown as FileAssetPlacementService,
-      { require: require_ } as unknown as AssetPublisherRegistry,
+      {
+        findByAssetId,
+        activate,
+        settle,
+      } as unknown as FileAssetPlacementService,
+      {
+        require: require_,
+        requireRestricted,
+      } as unknown as AssetPublisherRegistry,
       { getStream, remove } as unknown as QuarantineStorageService,
       { publishImageToCloudflareImages } as unknown as ImageUploadsService,
       { withdrawByReference } as unknown as AssetWithdrawalService,
@@ -294,7 +317,8 @@ describe('AssetPublicationService', () => {
       );
     });
 
-    // A roster import source is evidence with nothing to display it.
+    // Placed by the feature at ingress, so a missing placement is an upload
+    // interrupted before it claimed one.
     it('refuses an asset no slot is waiting for', async () => {
       findByAssetId.mockResolvedValue(null);
 
@@ -360,6 +384,252 @@ describe('AssetPublicationService', () => {
         expect.objectContaining({ refusal: 'NO_BYTES' }),
       );
     });
+  });
+
+  describe('a restricted asset', () => {
+    const ROSTER = Buffer.from('Character Name,Account Handle\r\n', 'utf8');
+    const ROSTER_SHA256 = createHash('sha256').update(ROSTER).digest('hex');
+
+    /**
+     * Builds a cleared roster export.
+     *
+     * @param overrides - Whatever the case is actually about.
+     * @returns The asset.
+     */
+    const rosterAsset = (
+      overrides: Partial<FileAssetEntity> = {},
+    ): FileAssetEntity =>
+      asset({
+        audience: FileAssetAudience.RESTRICTED,
+        originalFilename: 'Fixture Fleet_20240101-120000.Csv',
+        declaredContentType: 'text/csv',
+        detectedContentType: 'text/csv',
+        sha256: ROSTER_SHA256,
+        ...overrides,
+      });
+
+    const rosterPlacement = (
+      overrides: Partial<FileAssetPlacementEntity> = {},
+    ): FileAssetPlacementEntity =>
+      placement({
+        subject: FileAssetSubject.ROSTER_IMPORT,
+        subjectId: 'import-1',
+        slot: FileAssetSlot.SOURCE,
+        detail: null,
+        ...overrides,
+      });
+
+    beforeEach(() => {
+      findById.mockResolvedValue(rosterAsset());
+      findByAssetId.mockResolvedValue(rosterPlacement());
+      getStream.mockImplementation(() =>
+        Promise.resolve(Readable.from([Buffer.from(ROSTER)])),
+      );
+    });
+
+    it('puts the placement in force without a delivery reference', async () => {
+      await expect(service.publish('asset-1')).resolves.toEqual({
+        published: true,
+        refusal: null,
+        deliveryReference: null,
+      });
+
+      expect(publishAsset).toHaveBeenCalledWith('asset-1');
+      expect(activate).toHaveBeenCalledWith(rosterPlacement());
+    });
+
+    it('never goes near Cloudflare, and never asks for a picture publisher', async () => {
+      await service.publish('asset-1');
+
+      expect(publishImageToCloudflareImages).not.toHaveBeenCalled();
+      expect(require_).not.toHaveBeenCalled();
+      expect(attach).not.toHaveBeenCalled();
+      expect(withdrawByReference).not.toHaveBeenCalled();
+    });
+
+    // They are the evidence the feature's rows were read from.
+    it('keeps the quarantined bytes', async () => {
+      await service.publish('asset-1');
+
+      expect(remove).not.toHaveBeenCalled();
+    });
+
+    it('hands the feature the cleared bytes and the record they are for', async () => {
+      let handed: Buffer | undefined;
+
+      receive.mockImplementation((attachment: { bytes: Buffer }) => {
+        handed = Buffer.from(attachment.bytes);
+
+        return Promise.resolve({ accepted: true });
+      });
+
+      await service.publish('asset-1');
+
+      expect(requireRestricted).toHaveBeenCalledWith(
+        FileAssetSubject.ROSTER_IMPORT,
+      );
+      expect(receive).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subjectId: 'import-1',
+          slot: FileAssetSlot.SOURCE,
+          assetId: 'asset-1',
+          uploadedByUserId: 'user-1',
+          detail: null,
+        }),
+      );
+      expect(handed).toEqual(ROSTER);
+    });
+
+    it('overwrites the bytes once the feature has them', async () => {
+      await service.publish('asset-1');
+
+      const [[attachment]] = receive.mock.calls as [[{ bytes: Buffer }]];
+
+      expect(attachment.bytes.every(byte => byte === 0)).toBe(true);
+    });
+
+    it('overwrites the bytes when the feature fails', async () => {
+      receive.mockRejectedValue(new Error('the database said no'));
+
+      await expect(service.publish('asset-1')).rejects.toThrow(
+        'the database said no',
+      );
+
+      const [[attachment]] = receive.mock.calls as [[{ bytes: Buffer }]];
+
+      expect(attachment.bytes.every(byte => byte === 0)).toBe(true);
+      expect(activate).not.toHaveBeenCalled();
+    });
+
+    // Rows written against a pending placement are not in force, so the
+    // order is what keeps an interruption invisible.
+    it('lets the feature write its rows before anything is put in force', async () => {
+      const order: string[] = [];
+
+      receive.mockImplementation(() => {
+        order.push('receive');
+
+        return Promise.resolve({ accepted: true });
+      });
+      publishAsset.mockImplementation(() => {
+        order.push('publish');
+
+        return Promise.resolve({});
+      });
+      activate.mockImplementation(() => {
+        order.push('activate');
+
+        return Promise.resolve({ active: rosterPlacement(), replaced: null });
+      });
+
+      await service.publish('asset-1');
+
+      expect(order).toEqual(['receive', 'publish', 'activate']);
+    });
+
+    it('resumes an asset the feature already accepted', async () => {
+      findById.mockResolvedValue(
+        rosterAsset({ state: FileAssetState.AVAILABLE }),
+      );
+
+      await expect(service.publish('asset-1')).resolves.toEqual(
+        expect.objectContaining({ published: true }),
+      );
+
+      expect(getStream).not.toHaveBeenCalled();
+      expect(receive).not.toHaveBeenCalled();
+      expect(publishAsset).not.toHaveBeenCalled();
+      expect(activate).toHaveBeenCalled();
+    });
+
+    it('refuses bytes that are not the ones the scanner cleared', async () => {
+      findById.mockResolvedValue(rosterAsset({ sha256: 'f'.repeat(64) }));
+
+      await expect(service.publish('asset-1')).resolves.toEqual({
+        published: false,
+        refusal: 'NOT_THESE_BYTES',
+        deliveryReference: null,
+      });
+
+      expect(receive).not.toHaveBeenCalled();
+      expect(publishAsset).not.toHaveBeenCalled();
+      expect(activate).not.toHaveBeenCalled();
+    });
+
+    it('refuses an asset whose bytes have gone', async () => {
+      getStream.mockRejectedValue(new Error('no such key'));
+
+      await expect(service.publish('asset-1')).resolves.toEqual(
+        expect.objectContaining({ refusal: 'NO_BYTES' }),
+      );
+
+      expect(receive).not.toHaveBeenCalled();
+    });
+
+    it('refuses an asset that never stored anything', async () => {
+      findById.mockResolvedValue(rosterAsset({ objectKey: null }));
+
+      await expect(service.publish('asset-1')).resolves.toEqual(
+        expect.objectContaining({ refusal: 'NO_BYTES' }),
+      );
+    });
+
+    describe('that the feature will not use', () => {
+      beforeEach(() => {
+        receive.mockResolvedValue({
+          accepted: false,
+          rejectionCode: 'ROWS_UNREADABLE',
+        });
+      });
+
+      it("refuses the asset with the feature's code", async () => {
+        await expect(service.publish('asset-1')).resolves.toEqual({
+          published: false,
+          refusal: 'REFUSED_BY_FEATURE',
+          deliveryReference: null,
+        });
+
+        expect(reject).toHaveBeenCalledWith('asset-1', 'ROWS_UNREADABLE');
+      });
+
+      it('settles the placement as rejected rather than putting it in force', async () => {
+        await service.publish('asset-1');
+
+        expect(settle).toHaveBeenCalledWith(
+          rosterPlacement(),
+          FileAssetPlacementState.REJECTED,
+        );
+        expect(publishAsset).not.toHaveBeenCalled();
+        expect(activate).not.toHaveBeenCalled();
+      });
+
+      it('drops the bytes, which are evidence of nothing', async () => {
+        await service.publish('asset-1');
+
+        expect(remove).toHaveBeenCalledWith('test/assets/asset-1');
+      });
+    });
+
+    it.each([
+      FileAssetPlacementState.ACTIVE,
+      FileAssetPlacementState.REJECTED,
+      FileAssetPlacementState.ABANDONED,
+    ])(
+      'leaves the bytes alone when the placement is already %s',
+      async state => {
+        findById.mockResolvedValue(
+          rosterAsset({ state: FileAssetState.AVAILABLE }),
+        );
+        findByAssetId.mockResolvedValue(rosterPlacement({ state }));
+
+        await expect(service.publish('asset-1')).resolves.toEqual(
+          expect.objectContaining({ refusal: 'NOT_PENDING' }),
+        );
+
+        expect(remove).not.toHaveBeenCalled();
+        expect(discard).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('when a placement lost its detail', () => {

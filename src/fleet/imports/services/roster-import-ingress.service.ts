@@ -8,6 +8,9 @@ import { Repository } from 'typeorm';
 import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetAudience } from 'src/file-assets/enums/file-asset-audience.enum';
 import { FileAssetKind } from 'src/file-assets/enums/file-asset-kind.enum';
+import { FileAssetSlot } from 'src/file-assets/enums/file-asset-slot.enum';
+import { FileAssetSubject } from 'src/file-assets/enums/file-asset-subject.enum';
+import { FileAssetPlacementService } from 'src/file-assets/services/file-asset-placement.service';
 import { FileAssetService } from 'src/file-assets/services/file-asset.service';
 import { QuarantineStorageService } from 'src/file-assets/services/quarantine-storage.service';
 import { ScanRequestProducerService } from 'src/file-scanning/services/scan-request-producer.service';
@@ -150,6 +153,7 @@ export class RosterImportIngressService {
    * @param _parser - The privacy boundary.
    * @param _identityService - Reads the filename against the Fleet.
    * @param _fileAssetService - The asset registry.
+   * @param _placementService - Which asset is waiting to go into force.
    * @param _quarantineStorage - The private bucket.
    * @param _policyService - Supplies the published retention window.
    */
@@ -160,6 +164,7 @@ export class RosterImportIngressService {
     private readonly _typedParser: RosterTypedParserService,
     private readonly _identityService: RosterExportIdentityService,
     private readonly _fileAssetService: FileAssetService,
+    private readonly _placementService: FileAssetPlacementService,
     private readonly _quarantineStorage: QuarantineStorageService,
     private readonly _scanRequestProducer: ScanRequestProducerService,
     private readonly _policyService: FleetPolicyService,
@@ -271,10 +276,23 @@ export class RosterImportIngressService {
       }),
     );
 
-    // The provenance row is written before the scan is requested. A crash
-    // between the two leaves an asset in QUARANTINED with nothing scanning
-    // it, which is safe and recoverable; the other order would leave a
-    // scanned asset with no record of where it came from, which is not.
+    // Claimed against the import rather than the Fleet: a Fleet has a
+    // history of imports, and a placement keyed by the Fleet would let each
+    // upload supersede the last. The placement is what a clean verdict is
+    // published into, and until it is active nothing read from this file is
+    // in force.
+    await this._placementService.placePending({
+      assetId: asset.id,
+      subject: FileAssetSubject.ROSTER_IMPORT,
+      subjectId: record.id,
+      slot: FileAssetSlot.SOURCE,
+    });
+
+    // The provenance row and the placement are written before the scan is
+    // requested. A crash between them leaves an asset in QUARANTINED with
+    // nothing scanning it, which is safe and recoverable; the other order
+    // would leave a scanned asset with no record of where it came from, or
+    // nothing waiting to publish it, which is not.
     const scanning = await this._scanRequestProducer.requestScan(quarantined);
 
     // Identifiers and counts. Not the filename: it is text somebody supplied,

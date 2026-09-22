@@ -163,8 +163,8 @@ export class FileAssetPlacementService {
    * Finds the placement a verdict is about.
    *
    * An asset is placed at most once, so this is a single row or none. None
-   * means the asset was not placed in a slot at all, which is what a roster
-   * import source is: evidence with nothing to display it.
+   * means the upload was interrupted before it claimed a slot, which leaves
+   * nothing for a verdict to publish into.
    *
    * @param assetId - The asset.
    * @returns The placement, or null.

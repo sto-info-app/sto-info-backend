@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 
-import { normalizeHandle } from 'src/shared/utilities/handle.utility';
 import {
   canonicaliseTimezone,
   LocalTimeResolution,
@@ -19,6 +18,10 @@ import {
 import { RosterDateResolution } from '../enums/roster-date-resolution.enum';
 import { RosterProfession } from '../enums/roster-profession.enum';
 import { RosterRowRejectionCode } from '../enums/roster-row-rejection-code.enum';
+import {
+  normaliseRosterAccountHandle,
+  normaliseRosterCharacterName,
+} from '../utilities/roster-identity.utility';
 
 /** One date column of one row, read as far as the file allows. */
 export interface RosterDate {
@@ -707,8 +710,8 @@ export class RosterTypedParserService {
 
     for (const row of rows) {
       const identity = [
-        normalizeHandle(row.accountHandle),
-        row.characterName.normalize('NFC').toLowerCase(),
+        normaliseRosterAccountHandle(row.accountHandle),
+        normaliseRosterCharacterName(row.characterName),
       ].join('\0');
 
       if (seen.has(identity)) {

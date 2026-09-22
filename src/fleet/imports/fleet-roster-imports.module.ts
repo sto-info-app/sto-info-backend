@@ -13,6 +13,7 @@ import { RosterCsvPrivacyParserService } from './services/roster-csv-privacy-par
 import { RosterExportIdentityService } from './services/roster-export-identity.service';
 import { RosterImportIngressService } from './services/roster-import-ingress.service';
 import { RosterImportPreviewService } from './services/roster-import-preview.service';
+import { RosterImportPublisher } from './services/roster-import.publisher';
 import { RosterTypedParserService } from './services/roster-typed-parser.service';
 
 /**
@@ -45,6 +46,7 @@ import { RosterTypedParserService } from './services/roster-typed-parser.service
     RosterExportIdentityService,
     RosterImportIngressService,
     RosterImportPreviewService,
+    RosterImportPublisher,
   ],
   exports: [
     RosterCsvPrivacyParserService,

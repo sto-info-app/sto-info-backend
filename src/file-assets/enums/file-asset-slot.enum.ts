@@ -38,4 +38,13 @@ export enum FileAssetSlot {
    * has been exercised ten times over by the callers that do exist.
    */
   EMBLEM = 'EMBLEM',
+
+  /**
+   * The file a record was read from, rather than a picture of it.
+   *
+   * A roster import's only slot. Named for what the bytes are to the record,
+   * which is evidence it was built from, so that nothing reading a placement
+   * mistakes it for something to show.
+   */
+  SOURCE = 'SOURCE',
 }

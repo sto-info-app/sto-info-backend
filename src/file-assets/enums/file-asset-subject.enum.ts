@@ -53,4 +53,15 @@ export enum FileAssetSubject {
 
   /** A registered Armada. */
   ARMADA = 'ARMADA',
+
+  /**
+   * One roster export uploaded against a Fleet.
+   *
+   * Identified by the import rather than by the Fleet. A Fleet has a history
+   * of imports rather than one current file, and a placement keyed by the
+   * Fleet would let each upload supersede the last. Placed like a picture and
+   * never delivered like one: its asset is restricted, so publishing it keeps
+   * the bytes where they are and writes observations instead of a reference.
+   */
+  ROSTER_IMPORT = 'ROSTER_IMPORT',
 }

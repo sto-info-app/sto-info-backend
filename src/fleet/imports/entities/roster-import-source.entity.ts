@@ -17,6 +17,7 @@ import { UserEntity } from 'src/user/entities/user.entity';
 import { FleetNameAliasEntity } from '../../entities/fleet-name-alias.entity';
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { RosterSourceHeaderShape } from '../enums/roster-source-header-shape.enum';
+import { RosterRowProblem } from '../services/roster-typed-parser.service';
 
 /**
  * What is known about one accepted roster upload, other than its bytes.
@@ -208,6 +209,19 @@ export class RosterImportSourceEntity {
   })
   @Column({ type: 'uuid', nullable: true, default: null })
   matchedAliasId: string | null;
+
+  @ApiProperty({
+    description:
+      'Why a clean import was not put into force, when it was not: each ' +
+      'problem a line, a column name and a code, exactly as the typed ' +
+      'reader reported it. Null for every import that was published and ' +
+      'every one still waiting. The upload refuses a file whose rows do not ' +
+      'read, so this is set only when the reader changed between the upload ' +
+      'and publication.',
+    nullable: true,
+  })
+  @Column({ type: 'jsonb', nullable: true, default: null })
+  publicationProblems: RosterRowProblem[] | null;
 
   @ApiProperty({ description: 'When the upload was accepted.' })
   @Column({ type: 'timestamptz', nullable: false, default: () => 'now()' })

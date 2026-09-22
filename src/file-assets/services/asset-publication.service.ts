@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { Injectable, Logger } from '@nestjs/common';
 
 import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
@@ -5,6 +7,7 @@ import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service'
 import { readAssetPlacementDetail } from '../constants/asset-placement-detail.constants';
 import { FileAssetPlacementEntity } from '../entities/file-asset-placement.entity';
 import { FileAssetEntity } from '../entities/file-asset.entity';
+import { FileAssetAudience } from '../enums/file-asset-audience.enum';
 import { FileAssetPlacementState } from '../enums/file-asset-placement-state.enum';
 import { FileAssetState } from '../enums/file-asset-state.enum';
 import { FileAssetStorage } from '../enums/file-asset-storage.enum';
@@ -25,15 +28,28 @@ export type PublicationRefusal =
   /** The slot moved on while the scanner was working. */
   | 'NOT_PENDING'
   /** The bytes are not where the registry says they are. */
-  | 'NO_BYTES';
+  | 'NO_BYTES'
+  /**
+   * The bytes in quarantine are not the ones the scanner cleared.
+   *
+   * Checked only where the bytes are read into records rather than handed to
+   * an image library, because that is where a substituted object would
+   * become data nobody could tell apart from the real thing.
+   */
+  | 'NOT_THESE_BYTES'
+  /** The owning feature read the file and would not use it. */
+  | 'REFUSED_BY_FEATURE';
 
 /** What publishing one asset did. */
 export interface PublicationOutcome {
-  /** Whether the picture is now in its slot. */
+  /** Whether the asset is now in its slot. */
   readonly published: boolean;
   /** Why it is not, when it is not. */
   readonly refusal: PublicationRefusal | null;
-  /** How the delivery route addresses it, once it is published. */
+  /**
+   * How the delivery route addresses it, once it is published. Always null
+   * for a restricted asset, which nothing delivers.
+   */
   readonly deliveryReference: string | null;
 }
 
@@ -72,6 +88,28 @@ export interface PublicationOutcome {
  * placement is no longer pending. That is the safe way round — the reader
  * keeps the picture they had — and the alternative order would have a retry
  * withdraw the picture it had just published.
+ *
+ * ## A restricted asset takes a different road from the same start
+ *
+ * A roster export is scanned and placed like a picture, and nobody is ever
+ * served it. For an asset whose audience is `RESTRICTED` the sequence is:
+ *
+ * 1. **The bytes are read out of quarantine and checked against the hash the
+ *    scanner cleared.** A picture goes to an image library that re-encodes
+ *    it; a restricted file is read into records, where a substituted object
+ *    would become data indistinguishable from the real thing.
+ * 2. **The owning feature reads them into its own rows**, while the
+ *    placement is still pending. Rows written against a pending placement are
+ *    not in force, so an interruption here leaves nothing anybody can see;
+ *    the retry calls the feature again, and the feature replaces what it
+ *    wrote.
+ * 3. **The asset is published and the placement activated.** The asset
+ *    stays in quarantine storage with no delivery reference, and its bytes
+ *    are kept: they are the evidence the rows were read from.
+ *
+ * A feature that will not use the file refuses it. The placement is settled
+ * as rejected, the asset refused with the feature's code, and the bytes
+ * dropped — there is nothing left for them to be evidence of.
  */
 @Injectable()
 export class AssetPublicationService {
@@ -122,13 +160,92 @@ export class AssetPublicationService {
       return this.refuse(assetId, 'NOT_PLACED');
     }
 
+    const restricted = asset.audience === FileAssetAudience.RESTRICTED;
+
     if (placement.state !== FileAssetPlacementState.PENDING) {
-      await this.dropSupersededBytes(asset);
+      // A restricted placement is never superseded, because each one is its
+      // own record. One that is no longer pending is in force, refused or
+      // swept, and in the first case its bytes are evidence and must stay.
+      if (!restricted) {
+        await this.dropSupersededBytes(asset);
+      }
 
       return this.refuse(assetId, 'NOT_PENDING');
     }
 
-    return this.place(asset, placement);
+    return restricted
+      ? this.placeRestricted(asset, placement)
+      : this.place(asset, placement);
+  }
+
+  /**
+   * Hands a restricted asset's bytes to the owning feature and puts the
+   * placement into force when it accepts them.
+   *
+   * @param asset - The asset, clean or already published.
+   * @param placement - The slot waiting for it.
+   * @returns What publishing did.
+   */
+  private async placeRestricted(
+    asset: FileAssetEntity,
+    placement: FileAssetPlacementEntity,
+  ): Promise<PublicationOutcome> {
+    const publisher = this._publishers.requireRestricted(placement.subject);
+
+    // An asset that is already published had its bytes accepted by the
+    // feature on an earlier attempt, which was interrupted before the
+    // placement was activated. Reading them again would only repeat work the
+    // feature has already done.
+    if (asset.state === FileAssetState.CLEAN) {
+      const bytes = asset.objectKey === null ? null : await this.read(asset);
+
+      if (bytes === null) {
+        return this.refuse(asset.id, 'NO_BYTES');
+      }
+
+      if (createHash('sha256').update(bytes).digest('hex') !== asset.sha256) {
+        bytes.fill(0);
+
+        return this.refuse(asset.id, 'NOT_THESE_BYTES');
+      }
+
+      let receipt;
+
+      try {
+        receipt = await publisher.receive({
+          subjectId: placement.subjectId,
+          slot: placement.slot,
+          assetId: asset.id,
+          bytes,
+          uploadedByUserId: asset.ownerUserId,
+          detail: placement.detail,
+        });
+      } finally {
+        bytes.fill(0);
+      }
+
+      if (!receipt.accepted) {
+        await this._placements.settle(
+          placement,
+          FileAssetPlacementState.REJECTED,
+        );
+        await this._fileAssets.reject(asset.id, receipt.rejectionCode);
+        await this.dropQuarantinedBytes(asset);
+
+        return this.refuse(asset.id, 'REFUSED_BY_FEATURE');
+      }
+
+      await this._fileAssets.publish(asset.id);
+    }
+
+    await this._placements.activate(placement);
+
+    this._logger.log(
+      `[placeRestricted] Restricted asset in force - AssetId: ${asset.id}, ` +
+        `Subject: ${placement.subject}, Slot: ${placement.slot}`,
+    );
+
+    return { published: true, refusal: null, deliveryReference: null };
   }
 
   /**

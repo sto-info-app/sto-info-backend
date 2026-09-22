@@ -16,6 +16,7 @@ import { Repository } from 'typeorm';
 
 import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
+import { FileAssetPlacementService } from 'src/file-assets/services/file-asset-placement.service';
 import { FileAssetService } from 'src/file-assets/services/file-asset.service';
 import { QuarantineStorageService } from 'src/file-assets/services/quarantine-storage.service';
 import { ScanRequestProducerService } from 'src/file-scanning/services/scan-request-producer.service';
@@ -183,6 +184,14 @@ describe('Officer canary sinks', () => {
       markRetryPending: jest.fn(() => Promise.resolve({} as FileAssetEntity)),
     } as unknown as FileAssetService;
 
+    const placementService = {
+      placePending: jest.fn((input: unknown) => {
+        watched.push(JSON.stringify(input));
+
+        return Promise.resolve({ placement: {}, superseded: null });
+      }),
+    } as unknown as FileAssetPlacementService;
+
     const quarantineStorage = {
       buildObjectKey: jest.fn((assetId: unknown) => `local/assets/${assetId}`),
       put: jest.fn((objectKey: unknown, body: unknown) => {
@@ -214,6 +223,7 @@ describe('Officer canary sinks', () => {
       new RosterTypedParserService(),
       identityService,
       fileAssetService,
+      placementService,
       quarantineStorage,
       new ScanRequestProducerService(scanQueue, fileAssetService),
       { importSourceRetentionDays: 180 } as FleetPolicyService,
