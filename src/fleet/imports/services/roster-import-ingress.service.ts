@@ -128,8 +128,9 @@ const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
  *
  * It does not enqueue a scan, because there is no scanner yet: the asset is
  * left `QUARANTINED` and FC-010 claims it from there. It makes no roster
- * observations at all; FC-018 does that from the sanitised file, once
- * something has said the file is safe to read.
+ * observations at all: those are read from the sanitised file once something
+ * has said it is safe to read, which is a different moment and a different
+ * service.
  *
  * It does read the filename, but it decides nothing about it on its own:
  * the grammar, the Fleet label and the export instant all come back from

@@ -7,6 +7,7 @@ import { FileScanningModule } from 'src/file-scanning/file-scanning.module';
 import { FleetNameAliasEntity } from '../entities/fleet-name-alias.entity';
 import { FleetModule } from '../fleet.module';
 import { RosterImportSourceEntity } from './entities/roster-import-source.entity';
+import { RosterObservationEntity } from './entities/roster-observation.entity';
 import { RosterImportsController } from './roster-imports.controller';
 import { RosterCsvPrivacyParserService } from './services/roster-csv-privacy-parser.service';
 import { RosterExportIdentityService } from './services/roster-export-identity.service';
@@ -31,7 +32,11 @@ import { RosterTypedParserService } from './services/roster-typed-parser.service
     FleetModule,
     FileAssetsModule,
     FileScanningModule,
-    TypeOrmModule.forFeature([RosterImportSourceEntity, FleetNameAliasEntity]),
+    TypeOrmModule.forFeature([
+      RosterImportSourceEntity,
+      RosterObservationEntity,
+      FleetNameAliasEntity,
+    ]),
   ],
   controllers: [RosterImportsController],
   providers: [
