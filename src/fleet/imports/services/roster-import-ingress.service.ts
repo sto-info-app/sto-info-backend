@@ -20,12 +20,14 @@ import {
   SANITISED_ROSTER_CONTENT_TYPE,
 } from '../constants/roster-upload.constants';
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
+import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum';
 import { RosterFilenameRejectionCode } from '../enums/roster-filename-rejection-code.enum';
 import { RosterSourceHeaderShape } from '../enums/roster-source-header-shape.enum';
 import { RosterCsvRejectedError } from '../errors/roster-csv-rejected.error';
 import { assertRosterFilenameUsable } from '../utilities/roster-filename.utility';
 import { RosterCsvPrivacyParserService } from './roster-csv-privacy-parser.service';
 import { RosterExportIdentityService } from './roster-export-identity.service';
+import { RosterTypedParserService } from './roster-typed-parser.service';
 
 /** What the controller knows about an arriving upload. */
 export interface RosterUploadInput {
@@ -155,6 +157,7 @@ export class RosterImportIngressService {
     @InjectRepository(RosterImportSourceEntity)
     private readonly _repository: Repository<RosterImportSourceEntity>,
     private readonly _parser: RosterCsvPrivacyParserService,
+    private readonly _typedParser: RosterTypedParserService,
     private readonly _identityService: RosterExportIdentityService,
     private readonly _fileAssetService: FileAssetService,
     private readonly _quarantineStorage: QuarantineStorageService,
@@ -191,6 +194,8 @@ export class RosterImportIngressService {
       sourceSha256 = this.hash(input.source);
 
       const sanitised = this._parser.sanitise(input.source);
+
+      this.assertRowsReadable(sanitised.csv, input.timezone);
 
       sanitisedCsv = sanitised.csv;
       summary = {
@@ -356,10 +361,41 @@ export class RosterImportIngressService {
    */
   private refuse(error: RosterCsvRejectedError): BadRequestException {
     this._logger.warn(
-      `[accept] Roster export refused - Code: ${error.code}, Line: ${error.line ?? 'n/a'}`,
+      `[accept] Roster export refused - Code: ${error.code}, ` +
+        `Line: ${error.line ?? 'n/a'}, Problems: ${error.problems.length}`,
     );
 
     return error.toBadRequest();
+  }
+
+  /**
+   * Refuses a file whose rows do not all hold values that can be read.
+   *
+   * The same reading the preview gives and the publisher will give again,
+   * through the same zone. Done here as well as there because a file that
+   * fails it can never become observations, and scanning one would spend a
+   * scanner's time on bytes that are going to be thrown away. The sanitised
+   * copy is overwritten before the refusal leaves, as the upload's own bytes
+   * are.
+   *
+   * @param sanitised - The sanitised CSV.
+   * @param timezone - The zone the export was taken in.
+   * @throws RosterCsvRejectedError carrying every problem, when there are any.
+   */
+  private assertRowsReadable(sanitised: Buffer, timezone: string): void {
+    const { problems } = this._typedParser.read(sanitised, timezone);
+
+    if (problems.length === 0) {
+      return;
+    }
+
+    sanitised.fill(0);
+
+    throw new RosterCsvRejectedError(
+      RosterCsvRejectionCode.ROWS_UNREADABLE,
+      null,
+      problems,
+    );
   }
 
   /**

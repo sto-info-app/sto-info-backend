@@ -145,8 +145,10 @@ export class RosterImportsController {
       'The export could not be read, its filename is not evidence about ' +
       'this Fleet, or the Fleet is on a platform the game provides no ' +
       'export for. Where a file was read, the body carries a structural ' +
-      'code and, where one applies, the line at fault. It never carries ' +
-      'any part of the file.',
+      'code and, where one applies, the line at fault; a file whose rows ' +
+      'hold values that cannot be read is refused with every row at fault ' +
+      'as a line, a column and a code. It never carries any part of the ' +
+      'file.',
   })
   async upload(
     @Param('communityId', ParseUUIDPipe) communityId: string,

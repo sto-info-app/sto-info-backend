@@ -211,6 +211,7 @@ describe('Officer canary sinks', () => {
     const ingressService = new RosterImportIngressService(
       repository,
       new RosterCsvPrivacyParserService(),
+      new RosterTypedParserService(),
       identityService,
       fileAssetService,
       quarantineStorage,
@@ -397,6 +398,20 @@ describe('Officer canary sinks', () => {
     );
 
     expect(sinks.join('\n')).toContain('ROW_AMBIGUOUS');
+
+    for (const sink of sinks) {
+      expect(sink).not.toContain(CANARY);
+    }
+  });
+
+  it('leaks nothing when a row holds values that cannot be read', async () => {
+    const sinks = await sweep(
+      'Fixture Officer Fleet_20240102-120000.Csv',
+      text =>
+        text.replace('Kell Marr,@fixture003,65,', 'Kell Marr,@fixture003,x,'),
+    );
+
+    expect(sinks.join('\n')).toContain('ROWS_UNREADABLE');
 
     for (const sink of sinks) {
       expect(sink).not.toContain(CANARY);

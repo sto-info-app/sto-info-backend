@@ -24,10 +24,12 @@ import {
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
 import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum';
 import { RosterFilenameRejectionCode } from '../enums/roster-filename-rejection-code.enum';
+import { RosterRowRejectionCode } from '../enums/roster-row-rejection-code.enum';
 import { RosterSourceHeaderShape } from '../enums/roster-source-header-shape.enum';
 import { RosterCsvPrivacyParserService } from './roster-csv-privacy-parser.service';
 import { RosterExportIdentityService } from './roster-export-identity.service';
 import { RosterImportIngressService } from './roster-import-ingress.service';
+import { RosterTypedParserService } from './roster-typed-parser.service';
 
 const CANARY = ['OFFICER', 'CANARY'].join('-');
 const FLEET_ID = '11111111-1111-4111-8111-111111111111';
@@ -139,6 +141,7 @@ describe('RosterImportIngressService', () => {
     service = new RosterImportIngressService(
       repository as unknown as Repository<RosterImportSourceEntity>,
       parser as unknown as RosterCsvPrivacyParserService,
+      new RosterTypedParserService(),
       new RosterExportIdentityService(
         aliases as unknown as Repository<FleetNameAliasEntity>,
       ),
@@ -558,7 +561,95 @@ describe('RosterImportIngressService', () => {
           'This roster export could not be read. Nothing has been imported.',
         code: RosterCsvRejectionCode.ROW_PREFIX_MALFORMED,
         line: 3,
+        problems: [],
       });
+    });
+
+    it('refuses a file whose values cannot be read, naming every row at fault', async () => {
+      const source = Buffer.from(
+        officerExport()
+          .toString('utf8')
+          .replace('@fixture001,65,', '@fixture001,sixty-five,'),
+        'utf8',
+      );
+
+      expect(await refusalOf(source)).toEqual({
+        message:
+          'This roster export could not be read. Nothing has been imported.',
+        code: RosterCsvRejectionCode.ROWS_UNREADABLE,
+        line: null,
+        problems: [
+          {
+            code: RosterRowRejectionCode.LEVEL_MALFORMED,
+            line: 2,
+            column: 'Level',
+          },
+        ],
+      });
+    });
+
+    it('registers nothing and scans nothing when the values cannot be read', async () => {
+      const source = Buffer.from(
+        officerExport()
+          .toString('utf8')
+          .replace('@fixture001,65,', '@fixture001,sixty-five,'),
+        'utf8',
+      );
+
+      await refusalOf(source);
+
+      expect(fileAssetService.register).not.toHaveBeenCalled();
+      expect(quarantineStorage.put).not.toHaveBeenCalled();
+      expect(scanRequestProducer.requestScan).not.toHaveBeenCalled();
+      expect(repository.save).not.toHaveBeenCalled();
+    });
+
+    it('overwrites both the upload and its sanitised copy when the values cannot be read', async () => {
+      const source = Buffer.from(
+        officerExport()
+          .toString('utf8')
+          .replace('@fixture001,65,', '@fixture001,sixty-five,'),
+        'utf8',
+      );
+      let sanitised: Buffer | undefined;
+
+      parser.sanitise.mockImplementationOnce((bytes: unknown) => {
+        const result = realParser.sanitise(bytes as Buffer);
+
+        sanitised = result.csv;
+
+        return result;
+      });
+
+      await refusalOf(source);
+
+      expect(source.every(byte => byte === 0)).toBe(true);
+      expect(sanitised?.every(byte => byte === 0)).toBe(true);
+    });
+
+    it('reads the values through the zone the uploader named', async () => {
+      // 01:30 on 31 March 2024 never happened in London: the clocks went
+      // from 01:00 straight to 02:00. The same text is an ordinary time in
+      // UTC, so only the zone decides whether this row is readable.
+      const source = Buffer.from(
+        officerExport()
+          .toString('utf8')
+          .replace('1/1/2022 1:00:00am', '3/31/2024 1:30:00am'),
+        'utf8',
+      );
+
+      expect(await refusalOf(source)).toEqual(
+        expect.objectContaining({
+          code: RosterCsvRejectionCode.ROWS_UNREADABLE,
+          problems: [
+            {
+              code: RosterRowRejectionCode.DATE_NONEXISTENT,
+              line: 2,
+              column: 'Join Date',
+            },
+          ],
+        }),
+      );
     });
 
     it.each([

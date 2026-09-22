@@ -88,4 +88,18 @@ export enum RosterCsvRejectionCode {
    * attempt to make the parser work.
    */
   ROW_PARSE_BUDGET = 'ROW_PARSE_BUDGET',
+
+  /**
+   * The file is a well-formed export, and at least one row of it does not
+   * hold values that can be read.
+   *
+   * The typed reader's refusal rather than the privacy parser's: the bytes
+   * are safe to hold, and what they say is not usable — a level that is
+   * not a number, a date the clock skipped, one member listed twice. Which
+   * rows and which columns travel with it as problems, each a line, a column
+   * name and a code, so the uploader is told the same thing the preview
+   * would have told them. Refused at upload so that no scan is spent on a
+   * file that could never become observations.
+   */
+  ROWS_UNREADABLE = 'ROWS_UNREADABLE',
 }
