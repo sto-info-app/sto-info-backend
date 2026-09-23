@@ -787,6 +787,34 @@ describe('Fleet authorisation: role and audience matrix', () => {
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('anonymous'));
     });
 
+    // An Officer here was delegated imports and not investigation.
+    it('accepts any one of several alternatives', async () => {
+      const authorisation = await world.authorisation.assertCapability(
+        OFFICER,
+        fleetScope,
+        [
+          FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+          FLEET_CAPABILITIES.ROSTER_IMPORT,
+        ],
+      );
+
+      expect(authorisation.scope.id).toBe(FLEET);
+    });
+
+    it('refuses somebody holding none of the alternatives, naming them all', async () => {
+      await expect(
+        world.authorisation.assertCapability(MEMBER, fleetScope, [
+          FLEET_CAPABILITIES.ROSTER_IMPORT,
+          FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+        ]),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "lacks 'roster.import' or 'roster.investigate'",
+        ),
+      );
+    });
+
     it('returns the authorisation when the capability is held', async () => {
       const authorisation = await world.authorisation.assertCapability(
         OWNER,

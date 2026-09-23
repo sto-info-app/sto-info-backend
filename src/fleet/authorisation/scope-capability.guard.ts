@@ -78,7 +78,7 @@ export class ScopeCapabilityGuard implements CanActivate {
       // Letting the request through because the guard could not work out what
       // to check would turn a typo into an unprotected endpoint.
       this._logger.error(
-        `Route declares '${requirement.capability}' on parameter '${requirement.source.param}', which the request does not carry`,
+        `Route declares '${String(requirement.capability)}' on parameter '${requirement.source.param}', which the request does not carry`,
       );
       throw new ForbiddenException('Insufficient permissions');
     }

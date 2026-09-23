@@ -202,9 +202,15 @@ export class FleetAuthorisationService {
   /**
    * Requires that a user holds a capability at a scope.
    *
+   * Given several, any one of them will do. That is for a route two roles
+   * reach for different reasons (a Fleet's import history is read both by
+   * whoever uploads its rosters and by whoever investigates them), where
+   * requiring both would lock out anybody who holds only their own.
+   *
    * @param userId - The user acting, or null for an anonymous caller.
    * @param ref - The scope they are acting on.
-   * @param capability - What they are trying to do.
+   * @param capability - What they are trying to do, or the alternatives, any
+   *   one of which is enough.
    * @returns The authorisation, so a caller that needs more than the one answer
    *   does not have to resolve twice.
    * @throws NotFoundException when the scope does not resolve. A scope that
@@ -217,7 +223,7 @@ export class FleetAuthorisationService {
   async assertCapability(
     userId: string | null,
     ref: ScopeRef,
-    capability: FleetCapability,
+    capability: FleetCapability | readonly FleetCapability[],
   ): Promise<ScopeAuthorisation> {
     const authorisation = await this.authorise(userId, ref);
 
@@ -225,14 +231,17 @@ export class FleetAuthorisationService {
       throw new NotFoundException('Not found');
     }
 
-    if (authorisation.capabilities.has(capability)) {
+    const accepted: readonly FleetCapability[] =
+      typeof capability === 'string' ? [capability] : capability;
+
+    if (accepted.some(candidate => authorisation.capabilities.has(candidate))) {
       return authorisation;
     }
 
     // Logged where the denial happens so an authorisation failure is
     // diagnosable without reconstructing which of several checks rejected it.
     this._logger.warn(
-      `Scope capability denied: user ${userId ?? 'anonymous'} lacks '${capability}' on ${ref.kind} ${ref.id}`,
+      `Scope capability denied: user ${userId ?? 'anonymous'} lacks '${accepted.join("' or '")}' on ${ref.kind} ${ref.id}`,
     );
     throw new ForbiddenException('Insufficient permissions');
   }

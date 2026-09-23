@@ -96,6 +96,26 @@ describe('ScopeCapabilityGuard', () => {
     );
   });
 
+  it('passes alternatives on for the policy to weigh', async () => {
+    reflector.getAllAndOverride.mockReturnValue({
+      ...requirement,
+      capability: [
+        FLEET_CAPABILITIES.ROSTER_IMPORT,
+        FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+      ],
+    });
+
+    await guard.canActivate(
+      contextFor({ user: { id: 'user-1' }, params: { fleetId: 'fleet-1' } }),
+    );
+
+    expect(authorisation.assertCapability).toHaveBeenCalledWith(
+      'user-1',
+      expect.anything(),
+      [FLEET_CAPABILITIES.ROSTER_IMPORT, FLEET_CAPABILITIES.ROSTER_INVESTIGATE],
+    );
+  });
+
   it('passes the claimed Community on a nested route', async () => {
     reflector.getAllAndOverride.mockReturnValue({
       capability: FLEET_CAPABILITIES.ROSTER_IMPORT,

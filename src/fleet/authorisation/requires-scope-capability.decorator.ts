@@ -25,8 +25,11 @@ export interface ScopeSource {
 
 /** What {@link RequiresScopeCapability} stores for the guard to read. */
 export interface ScopeCapabilityRequirement {
-  /** The capability the caller must hold at the scope. */
-  readonly capability: FleetCapability;
+  /**
+   * The capability the caller must hold at the scope, or the alternatives,
+   * any one of which is enough.
+   */
+  readonly capability: FleetCapability | readonly FleetCapability[];
   /** Where to find the scope. */
   readonly source: ScopeSource;
 }
@@ -49,12 +52,13 @@ export interface ScopeCapabilityRequirement {
  * is also what a socket handler calls. There is one policy with two entry
  * points, rather than two policies that are meant to agree.
  *
- * @param capability - The capability required at the scope.
+ * @param capability - The capability required at the scope, or the
+ *   alternatives, any one of which is enough.
  * @param source - Where in the route the scope's identifiers are.
  * @returns The metadata decorator.
  */
 export const RequiresScopeCapability = (
-  capability: FleetCapability,
+  capability: FleetCapability | readonly FleetCapability[],
   source: ScopeSource,
 ) =>
   SetMetadata<string, ScopeCapabilityRequirement>(

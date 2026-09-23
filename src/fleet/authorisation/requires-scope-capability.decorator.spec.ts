@@ -49,6 +49,33 @@ describe('RequiresScopeCapability', () => {
     expect(requirement.source.communityParam).toBe('communityId');
   });
 
+  it('records alternatives, any one of which will do', () => {
+    class Controller {
+      @RequiresScopeCapability(
+        [
+          FLEET_CAPABILITIES.ROSTER_IMPORT,
+          FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+        ],
+        { kind: FleetScopeKind.FLEET, param: 'fleetId' },
+      )
+      handler(): void {
+        return undefined;
+      }
+    }
+
+    expect(
+      Reflect.getMetadata(
+        REQUIRES_SCOPE_CAPABILITY_KEY,
+        Controller.prototype.handler,
+      ),
+    ).toMatchObject({
+      capability: [
+        FLEET_CAPABILITIES.ROSTER_IMPORT,
+        FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+      ],
+    });
+  });
+
   it('can be applied to a whole controller', () => {
     @RequiresScopeCapability(FLEET_CAPABILITIES.ARMADA_MANAGE, {
       kind: FleetScopeKind.ARMADA,
