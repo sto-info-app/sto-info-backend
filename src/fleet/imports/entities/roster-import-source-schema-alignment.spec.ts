@@ -5,6 +5,7 @@ import { CreateRosterImportSource1792300000000 } from '../../../database/migrati
 import { AddDeclaredContentTypeToRosterImportSource1792500000000 } from '../../../database/migrations/1792500000000-AddDeclaredContentTypeToRosterImportSource';
 import { RecordRosterExportTime1793400000000 } from '../../../database/migrations/1793400000000-RecordRosterExportTime';
 import { PublishRosterImports1793600000000 } from '../../../database/migrations/1793600000000-PublishRosterImports';
+import { GroupConflictingRosterImports1793900000000 } from '../../../database/migrations/1793900000000-GroupConflictingRosterImports';
 import { RosterImportSourceEntity } from './roster-import-source.entity';
 
 /**
@@ -41,6 +42,7 @@ describe('Roster import source schema alignment', () => {
     );
     await new RecordRosterExportTime1793400000000().up(queryRunner);
     await new PublishRosterImports1793600000000().up(queryRunner);
+    await new GroupConflictingRosterImports1793900000000().up(queryRunner);
     statements = captured;
   });
 

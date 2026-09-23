@@ -45,6 +45,7 @@ const RECORD = {
   rowCount: 93,
   officerTailRowCount: 7,
   parserVersion: 1,
+  conflictGroupId: null,
   uploadedAt: UPLOADED_AT,
 } as RosterImportSourceEntity;
 
@@ -420,6 +421,7 @@ describe('RosterImportsController', () => {
       parserVersion: 1,
       state: FileAssetState.QUARANTINED,
       retainUntil: RETAIN_UNTIL,
+      conflictGroupId: null,
       uploadedAt: UPLOADED_AT,
     });
   });

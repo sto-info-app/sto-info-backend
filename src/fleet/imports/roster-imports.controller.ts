@@ -233,6 +233,7 @@ export class RosterImportsController {
       parserVersion: record.parserVersion,
       state: asset.state,
       retainUntil: asset.retainUntil,
+      conflictGroupId: record.conflictGroupId,
       uploadedAt: record.uploadedAt,
     };
   }

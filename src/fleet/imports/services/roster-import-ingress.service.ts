@@ -36,6 +36,7 @@ import { RosterCsvRejectedError } from '../errors/roster-csv-rejected.error';
 import { assertRosterFilenameUsable } from '../utilities/roster-filename.utility';
 import { RosterCsvPrivacyParserService } from './roster-csv-privacy-parser.service';
 import { RosterExportIdentityService } from './roster-export-identity.service';
+import { RosterImportConflictService } from './roster-import-conflict.service';
 import { RosterTypedParserService } from './roster-typed-parser.service';
 
 /** What the controller knows about an arriving upload. */
@@ -165,6 +166,12 @@ const SOURCE_HASH_INDEX = 'UQ_roster_import_source_fleet_hash';
  * reading is the one that stands. Two copies arriving together are settled by
  * the unique index, and the one that loses gives back what it stored.
  *
+ * ## The same moment, said differently
+ *
+ * An import is recorded in one transaction with its conflict group, so none
+ * is ever recorded without having been compared with every other export of
+ * the Fleet claiming the same instant. See {@link RosterImportConflictService}.
+ *
  * It does read the filename, but it decides nothing about it on its own:
  * the grammar, the Fleet label and the export instant all come back from
  * {@link RosterExportIdentityService}, the same service the preview asks,
@@ -184,6 +191,7 @@ export class RosterImportIngressService {
    * @param _placementService - Which asset is waiting to go into force.
    * @param _quarantineStorage - The private bucket.
    * @param _policyService - Supplies the published retention window.
+   * @param _conflicts - Groups exports that claim the same moment.
    */
   constructor(
     @InjectRepository(RosterImportSourceEntity)
@@ -196,6 +204,7 @@ export class RosterImportIngressService {
     private readonly _quarantineStorage: QuarantineStorageService,
     private readonly _scanRequestProducer: ScanRequestProducerService,
     private readonly _policyService: FleetPolicyService,
+    private readonly _conflicts: RosterImportConflictService,
   ) {}
 
   /**
@@ -296,24 +305,37 @@ export class RosterImportIngressService {
     let record: RosterImportSourceEntity;
 
     try {
-      record = await this._repository.save(
-        this._repository.create({
-          assetId: asset.id,
-          fleetId: input.fleet.id,
-          uploadedByUserId: input.uploadedByUserId,
-          originalFilename: input.originalFilename,
-          declaredContentType: boundDeclaredContentType(
-            input.declaredContentType,
-          ),
-          sourceSha256,
-          sanitisedSha256,
-          sourceByteSize: String(sourceByteSize),
-          sanitisedByteSize: String(sanitisedCsv.length),
-          exportTimezone: input.timezone,
-          ...settled,
-          ...summary,
-        }),
-      );
+      record = await this._repository.manager.transaction(async manager => {
+        const imports = manager.getRepository(RosterImportSourceEntity);
+        const created = await imports.save(
+          imports.create({
+            assetId: asset.id,
+            fleetId: input.fleet.id,
+            uploadedByUserId: input.uploadedByUserId,
+            originalFilename: input.originalFilename,
+            declaredContentType: boundDeclaredContentType(
+              input.declaredContentType,
+            ),
+            sourceSha256,
+            sanitisedSha256,
+            sourceByteSize: String(sourceByteSize),
+            sanitisedByteSize: String(sanitisedCsv.length),
+            exportTimezone: input.timezone,
+            ...settled,
+            ...summary,
+          }),
+        );
+
+        const group = await this._conflicts.group(
+          manager,
+          created,
+          settled.exportedAt,
+        );
+
+        created.conflictGroupId = group === null ? null : group.id;
+
+        return created;
+      });
     } catch (error) {
       return this.settleRace(error, {
         assetId: asset.id,
@@ -354,6 +376,7 @@ export class RosterImportIngressService {
         `OfficerTailsDiscarded: ${summary.officerTailRowCount}, ` +
         `Header: ${summary.sourceHeaderShape}, ` +
         `ParserVersion: ${summary.parserVersion}, ` +
+        `ConflictGroupId: ${record.conflictGroupId ?? 'none'}, ` +
         `TraceId: ${scanning.traceId}`,
     );
 

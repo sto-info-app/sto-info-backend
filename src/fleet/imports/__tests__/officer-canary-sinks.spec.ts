@@ -31,6 +31,7 @@ import { RosterImportSourceEntity } from '../entities/roster-import-source.entit
 import { RosterImportsController } from '../roster-imports.controller';
 import { RosterCsvPrivacyParserService } from '../services/roster-csv-privacy-parser.service';
 import { RosterExportIdentityService } from '../services/roster-export-identity.service';
+import { RosterImportConflictService } from '../services/roster-import-conflict.service';
 import { RosterImportIngressService } from '../services/roster-import-ingress.service';
 import { RosterImportPreviewService } from '../services/roster-import-preview.service';
 import { RosterTypedParserService } from '../services/roster-typed-parser.service';
@@ -154,6 +155,13 @@ describe('Officer canary sinks', () => {
       }),
       // Never imported before, so every upload runs the whole path.
       findOne: jest.fn(() => Promise.resolve(null)),
+      manager: {
+        transaction: jest.fn((work: unknown) =>
+          (work as (manager: unknown) => Promise<unknown>)({
+            getRepository: () => repository,
+          }),
+        ),
+      },
     } as unknown as Repository<RosterImportSourceEntity>;
 
     const fileAssetService = {
@@ -230,6 +238,9 @@ describe('Officer canary sinks', () => {
       quarantineStorage,
       new ScanRequestProducerService(scanQueue, fileAssetService),
       { importSourceRetentionDays: 180 } as FleetPolicyService,
+      {
+        group: jest.fn(() => Promise.resolve(null)),
+      } as unknown as RosterImportConflictService,
     );
 
     // On a platform the game exports rosters from, because this sweep is

@@ -27,6 +27,7 @@ import { RosterProfession } from '../enums/roster-profession.enum';
 import { RosterPublicationRejectionCode } from '../enums/roster-publication-rejection-code.enum';
 import { RosterRowRejectionCode } from '../enums/roster-row-rejection-code.enum';
 import { RosterCsvPrivacyParserService } from './roster-csv-privacy-parser.service';
+import { RosterImportConflictService } from './roster-import-conflict.service';
 import { RosterImportPublisher } from './roster-import.publisher';
 import { RosterTypedParserService } from './roster-typed-parser.service';
 
@@ -66,6 +67,7 @@ describe('RosterImportPublisher', () => {
   let manager: { delete: jest.Mock; insert: jest.Mock };
   let transaction: jest.Mock;
   let registry: { registerRestricted: jest.Mock };
+  let conflicts: { isHeld: jest.Mock };
 
   beforeEach(() => {
     record = {
@@ -93,6 +95,7 @@ describe('RosterImportPublisher', () => {
     );
 
     registry = { registerRestricted: jest.fn() };
+    conflicts = { isHeld: jest.fn(() => Promise.resolve(false)) };
 
     publisher = new RosterImportPublisher(
       imports as unknown as Repository<RosterImportSourceEntity>,
@@ -101,6 +104,7 @@ describe('RosterImportPublisher', () => {
       } as unknown as Repository<RosterObservationEntity>,
       new RosterTypedParserService(),
       registry as unknown as AssetPublisherRegistry,
+      conflicts as unknown as RosterImportConflictService,
     );
 
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
@@ -308,6 +312,50 @@ describe('RosterImportPublisher', () => {
       await receive(sanitised(basicExport()));
 
       expect(imports.save).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('a file that has to wait for a conflicting export', () => {
+    beforeEach(() => {
+      record.conflictGroupId = 'group-1';
+      conflicts.isHeld.mockImplementation(() => Promise.resolve(true));
+    });
+
+    it('asks about the import it looked up', async () => {
+      await receive(sanitised(basicExport()));
+
+      expect(conflicts.isHeld).toHaveBeenCalledWith(record);
+    });
+
+    it('is held, and says why', async () => {
+      await expect(receive(sanitised(basicExport()))).resolves.toEqual({
+        outcome: 'HELD',
+        reason: 'EXPORT_INSTANT_IN_CONFLICT',
+      });
+    });
+
+    it('writes no observations', async () => {
+      await receive(sanitised(basicExport()));
+
+      expect(transaction).not.toHaveBeenCalled();
+    });
+
+    it('logs the group it is waiting on', async () => {
+      await receive(sanitised(basicExport()));
+
+      expect(Logger.prototype.log).toHaveBeenCalledWith(
+        expect.stringContaining('ConflictGroupId: group-1'),
+      );
+    });
+
+    // A file that does not read is refused whatever else is true of it.
+    it('is refused rather than held when it no longer reads', async () => {
+      await expect(
+        receive(
+          sanitised(basicExport().replace('@fixture001,65,', '@fixture001,x,')),
+        ),
+      ).resolves.toEqual(expect.objectContaining({ outcome: 'REFUSED' }));
+      expect(conflicts.isHeld).not.toHaveBeenCalled();
     });
   });
 

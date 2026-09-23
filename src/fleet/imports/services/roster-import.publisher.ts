@@ -19,6 +19,7 @@ import {
   normaliseRosterAccountHandle,
   normaliseRosterCharacterName,
 } from '../utilities/roster-identity.utility';
+import { RosterImportConflictService } from './roster-import-conflict.service';
 import {
   RosterDate,
   RosterObservationRow,
@@ -34,6 +35,9 @@ import {
  * it without the whole import leaving its transaction.
  */
 const OBSERVATION_INSERT_BATCH = 500;
+
+/** Why an import is waiting, for the log. Structural, never content. */
+const CONFLICT_HOLD_REASON = 'EXPORT_INSTANT_IN_CONFLICT';
 
 /**
  * Reads a cleared roster export into observations.
@@ -60,6 +64,14 @@ const OBSERVATION_INSERT_BATCH = 500;
  * beginning. The observations for the import are therefore replaced rather
  * than added to, inside one transaction, so a second call leaves exactly what
  * the first would have and an interrupted one leaves nothing.
+ *
+ * ## It can be told to wait
+ *
+ * An import that claims the same moment as a different export of the Fleet,
+ * and is not the first version of that moment the site saw, is held rather
+ * than read into observations: which of the two is the roster at that moment
+ * is somebody's decision. It is checked only once the file has read, because
+ * a file that does not read is refused whatever else is true of it.
  */
 @Injectable()
 export class RosterImportPublisher
@@ -78,6 +90,7 @@ export class RosterImportPublisher
    * @param _typedParser - The reader that turns the sanitised file into
    *   values.
    * @param _registry - Which publisher writes which table.
+   * @param _conflicts - Says whether an import has to wait.
    */
   constructor(
     @InjectRepository(RosterImportSourceEntity)
@@ -86,6 +99,7 @@ export class RosterImportPublisher
     private readonly _observations: Repository<RosterObservationEntity>,
     private readonly _typedParser: RosterTypedParserService,
     private readonly _registry: AssetPublisherRegistry,
+    private readonly _conflicts: RosterImportConflictService,
   ) {}
 
   /**
@@ -135,6 +149,16 @@ export class RosterImportPublisher
       await this._imports.save(record);
 
       return this.refuse(attachment, RosterCsvRejectionCode.ROWS_UNREADABLE);
+    }
+
+    if (await this._conflicts.isHeld(record)) {
+      this._logger.log(
+        `[receive] Roster held for a conflicting export - ` +
+          `ImportId: ${record.id}, AssetId: ${attachment.assetId}, ` +
+          `ConflictGroupId: ${record.conflictGroupId}`,
+      );
+
+      return { outcome: 'HELD', reason: CONFLICT_HOLD_REASON };
     }
 
     const observations = typed.rows.map(row => this.observe(record, row));

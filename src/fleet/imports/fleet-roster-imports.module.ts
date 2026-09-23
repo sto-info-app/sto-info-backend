@@ -6,11 +6,13 @@ import { FileScanningModule } from 'src/file-scanning/file-scanning.module';
 
 import { FleetNameAliasEntity } from '../entities/fleet-name-alias.entity';
 import { FleetModule } from '../fleet.module';
+import { RosterImportConflictEntity } from './entities/roster-import-conflict.entity';
 import { RosterImportSourceEntity } from './entities/roster-import-source.entity';
 import { RosterObservationEntity } from './entities/roster-observation.entity';
 import { RosterImportsController } from './roster-imports.controller';
 import { RosterCsvPrivacyParserService } from './services/roster-csv-privacy-parser.service';
 import { RosterExportIdentityService } from './services/roster-export-identity.service';
+import { RosterImportConflictService } from './services/roster-import-conflict.service';
 import { RosterImportIngressService } from './services/roster-import-ingress.service';
 import { RosterImportPreviewService } from './services/roster-import-preview.service';
 import { RosterImportPublisher } from './services/roster-import.publisher';
@@ -35,6 +37,7 @@ import { RosterTypedParserService } from './services/roster-typed-parser.service
     FileScanningModule,
     TypeOrmModule.forFeature([
       RosterImportSourceEntity,
+      RosterImportConflictEntity,
       RosterObservationEntity,
       FleetNameAliasEntity,
     ]),
@@ -44,6 +47,7 @@ import { RosterTypedParserService } from './services/roster-typed-parser.service
     RosterCsvPrivacyParserService,
     RosterTypedParserService,
     RosterExportIdentityService,
+    RosterImportConflictService,
     RosterImportIngressService,
     RosterImportPreviewService,
     RosterImportPublisher,

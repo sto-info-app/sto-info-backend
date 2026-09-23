@@ -32,6 +32,7 @@ import { RosterRowRejectionCode } from '../enums/roster-row-rejection-code.enum'
 import { RosterSourceHeaderShape } from '../enums/roster-source-header-shape.enum';
 import { RosterCsvPrivacyParserService } from './roster-csv-privacy-parser.service';
 import { RosterExportIdentityService } from './roster-export-identity.service';
+import { RosterImportConflictService } from './roster-import-conflict.service';
 import { RosterImportIngressService } from './roster-import-ingress.service';
 import { RosterTypedParserService } from './roster-typed-parser.service';
 
@@ -124,7 +125,14 @@ describe('RosterImportIngressService', () => {
 
   let service: RosterImportIngressService;
   let parser: { sanitise: jest.Mock };
-  let repository: { create: jest.Mock; save: jest.Mock; findOne: jest.Mock };
+  let repository: {
+    create: jest.Mock;
+    save: jest.Mock;
+    findOne: jest.Mock;
+    manager: { transaction: jest.Mock };
+  };
+  let transactionManager: { getRepository: jest.Mock };
+  let conflicts: { group: jest.Mock };
   let fileAssetService: {
     register: jest.Mock;
     recordStored: jest.Mock;
@@ -162,7 +170,18 @@ describe('RosterImportIngressService', () => {
         return Promise.resolve({ id: 'record-1', ...saved });
       }),
       findOne: jest.fn(() => Promise.resolve(null)),
+      manager: {
+        transaction: jest.fn((work: unknown) =>
+          (work as (manager: unknown) => Promise<unknown>)(transactionManager),
+        ),
+      },
     };
+
+    // Inside the transaction the import is written through the same
+    // repository, so every case that reads what was saved still can.
+    transactionManager = { getRepository: jest.fn(() => repository) };
+
+    conflicts = { group: jest.fn(() => Promise.resolve(null)) };
 
     fileAssetService = {
       register: jest.fn(() =>
@@ -219,6 +238,7 @@ describe('RosterImportIngressService', () => {
       quarantineStorage as unknown as QuarantineStorageService,
       scanRequestProducer as unknown as ScanRequestProducerService,
       { importSourceRetentionDays: RETENTION_DAYS } as FleetPolicyService,
+      conflicts as unknown as RosterImportConflictService,
     );
   });
 
@@ -461,6 +481,70 @@ describe('RosterImportIngressService', () => {
       expect(repository.save.mock.invocationCallOrder[0]).toBeLessThan(
         scanRequestProducer.requestScan.mock.invocationCallOrder[0],
       );
+    });
+  });
+
+  describe('an export claiming the same moment as another', () => {
+    // So no import is ever recorded without having been compared.
+    it('records the import and groups it in one transaction', async () => {
+      await accept(officerExport());
+
+      expect(repository.manager.transaction).toHaveBeenCalledTimes(1);
+      expect(transactionManager.getRepository).toHaveBeenCalledWith(
+        RosterImportSourceEntity,
+      );
+      expect(conflicts.group).toHaveBeenCalledWith(
+        transactionManager,
+        expect.objectContaining({ id: 'record-1', fleetId: FLEET_ID }),
+        DEFAULT_EXPORTED_AT,
+      );
+      expect(repository.save.mock.invocationCallOrder[0]).toBeLessThan(
+        conflicts.group.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('reports the group it was put in', async () => {
+      conflicts.group.mockImplementation(() =>
+        Promise.resolve({ id: 'group-1' }),
+      );
+
+      const accepted = await accept(officerExport());
+
+      expect(accepted.record.conflictGroupId).toBe('group-1');
+    });
+
+    it('reports no group when nothing disagrees', async () => {
+      const accepted = await accept(officerExport());
+
+      expect(accepted.record.conflictGroupId).toBeNull();
+    });
+
+    it('says which group in the log line', async () => {
+      const logged = jest
+        .spyOn(Logger.prototype, 'log')
+        .mockImplementation(() => undefined);
+
+      conflicts.group.mockImplementation(() =>
+        Promise.resolve({ id: 'group-1' }),
+      );
+
+      await accept(officerExport());
+
+      expect(logged).toHaveBeenCalledWith(
+        expect.stringContaining('ConflictGroupId: group-1'),
+      );
+
+      logged.mockRestore();
+    });
+
+    it('still scans an import it grouped', async () => {
+      conflicts.group.mockImplementation(() =>
+        Promise.resolve({ id: 'group-1' }),
+      );
+
+      await accept(officerExport());
+
+      expect(scanRequestProducer.requestScan).toHaveBeenCalled();
     });
   });
 

@@ -18,6 +18,7 @@ import { FleetNameAliasEntity } from '../../entities/fleet-name-alias.entity';
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { RosterSourceHeaderShape } from '../enums/roster-source-header-shape.enum';
 import { RosterRowProblem } from '../services/roster-typed-parser.service';
+import { RosterImportConflictEntity } from './roster-import-conflict.entity';
 
 /**
  * What is known about one accepted roster upload, other than its bytes.
@@ -62,6 +63,7 @@ import { RosterRowProblem } from '../services/roster-typed-parser.service';
   unique: true,
 })
 @Index('IDX_roster_import_source_fleet_exported', ['fleetId', 'exportedAt'])
+@Index('IDX_roster_import_source_conflict', ['conflictGroupId'])
 export class RosterImportSourceEntity {
   @ApiProperty({ description: 'Unique identifier.' })
   @PrimaryGeneratedColumn('uuid')
@@ -231,6 +233,17 @@ export class RosterImportSourceEntity {
   @Column({ type: 'jsonb', nullable: true, default: null })
   publicationProblems: RosterRowProblem[] | null;
 
+  @ApiProperty({
+    description:
+      'The group this import is in because another export of the Fleet ' +
+      'claims the same moment and says something different, or null when ' +
+      'nothing disagrees with it. Not provenance: an import joins a group ' +
+      'when a later upload disagrees with it.',
+    nullable: true,
+  })
+  @Column({ type: 'uuid', nullable: true, default: null })
+  conflictGroupId: string | null;
+
   @ApiProperty({ description: 'When the upload was accepted.' })
   @Column({ type: 'timestamptz', nullable: false, default: () => 'now()' })
   uploadedAt: Date;
@@ -256,4 +269,8 @@ export class RosterImportSourceEntity {
   @ManyToOne(() => FleetNameAliasEntity, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'matchedAliasId' })
   matchedAlias: FleetNameAliasEntity | null;
+
+  @ManyToOne(() => RosterImportConflictEntity, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'conflictGroupId' })
+  conflictGroup: RosterImportConflictEntity | null;
 }

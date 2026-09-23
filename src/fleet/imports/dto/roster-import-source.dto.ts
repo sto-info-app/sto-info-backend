@@ -117,6 +117,17 @@ export class RosterImportSourceDto {
   })
   retainUntil: Date | null;
 
+  @ApiProperty({
+    description:
+      'The conflict group this import is in, when another export of the ' +
+      'Fleet claims the same moment and says something different. The first ' +
+      'version of the moment stays in force and any import differing from ' +
+      'it waits until somebody decides which stands. Null when nothing ' +
+      'disagrees.',
+    nullable: true,
+  })
+  conflictGroupId: string | null;
+
   @ApiProperty({ description: 'When the upload was accepted.' })
   uploadedAt: Date;
 }
