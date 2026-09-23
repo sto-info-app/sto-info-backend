@@ -2,12 +2,14 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Logger,
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   Res,
   UploadedFile,
   UseFilters,
@@ -22,6 +24,7 @@ import {
   ApiConflictResponse,
   ApiConsumes,
   ApiCreatedResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -31,8 +34,10 @@ import type { Response } from 'express';
 
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
+import { PaginatedQueryDto } from 'src/shared/dto/paginated-query.dto';
 import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
 
+import { FleetAuthorisationService } from '../authorisation/fleet-authorisation.service';
 import { FLEET_CAPABILITIES } from '../authorisation/fleet-capability.constants';
 import { RequiresScopeCapability } from '../authorisation/requires-scope-capability.decorator';
 import { ScopeCapabilityGuard } from '../authorisation/scope-capability.guard';
@@ -51,11 +56,20 @@ import {
   rosterExportUnavailableMessage,
 } from './constants/roster-upload.constants';
 import { PreviewRosterImportDto } from './dto/preview-roster-import.dto';
+import { RosterImportDetailDto } from './dto/roster-import-detail.dto';
+import { RosterImportPageDto } from './dto/roster-import-page.dto';
 import { RosterImportPreviewDto } from './dto/roster-import-preview.dto';
 import { RosterImportSourceDto } from './dto/roster-import-source.dto';
 import { UploadRosterImportDto } from './dto/upload-roster-import.dto';
 import { RosterImportIngressService } from './services/roster-import-ingress.service';
 import { RosterImportPreviewService } from './services/roster-import-preview.service';
+import { RosterImportStatusService } from './services/roster-import-status.service';
+
+/** Who may read a Fleet's imports: whoever sends them, and whoever looks into them. */
+const IMPORT_READERS = [
+  FLEET_CAPABILITIES.ROSTER_IMPORT,
+  FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+] as const;
 
 /**
  * Where a roster export enters the site.
@@ -93,9 +107,13 @@ import { RosterImportPreviewService } from './services/roster-import-preview.ser
  * to supply a timezone the file does not contain and can supply it wrongly
  * without noticing.
  *
- * There is no `GET` here yet. Downloading a sanitised source is FC-037's,
- * and it needs a decision this ticket does not make — what an investigator
- * may see, and under what audit.
+ * The two `GET`s report what became of each upload, to whoever may send one
+ * and to whoever investigates them; neither capability implies the other.
+ * Only an investigator is shown which rows failed and which other exports an
+ * import disagrees with, and even then as lines, columns and codes. There is
+ * still no way to read the file: downloading a sanitised source is FC-037's,
+ * and it needs a decision this ticket does not make, namely what an
+ * investigator may see and under what audit.
  */
 @ApiTags('Fleet')
 @ApiBearerAuth()
@@ -111,13 +129,93 @@ export class RosterImportsController {
    * @param _featureService - Reports whether imports are switched on.
    * @param _fleetService - Reads the Fleet, and with it the platform it is
    *   recorded on.
+   * @param _statusService - Reports what became of each import.
+   * @param _authorisationService - Says whether a reader investigates imports.
    */
   constructor(
     private readonly _ingressService: RosterImportIngressService,
     private readonly _previewService: RosterImportPreviewService,
     private readonly _featureService: FleetFeatureService,
     private readonly _fleetService: StoFleetService,
+    private readonly _statusService: RosterImportStatusService,
+    private readonly _authorisationService: FleetAuthorisationService,
   ) {}
+
+  /**
+   * Lists a Fleet's imports, newest first.
+   *
+   * @param fleetId - The Fleet.
+   * @param query - Which page.
+   * @returns The page.
+   */
+  @Get()
+  @UseGuards(JwtAuthGuard, ScopeCapabilityGuard)
+  @RequiresScopeCapability(IMPORT_READERS, {
+    kind: FleetScopeKind.FLEET,
+    param: 'fleetId',
+    communityParam: 'communityId',
+  })
+  @ApiOperation({ summary: "List this Fleet's roster imports" })
+  @ApiOkResponse({ type: RosterImportPageDto })
+  async list(
+    @Param('fleetId', ParseUUIDPipe) fleetId: string,
+    @Query() query: PaginatedQueryDto,
+  ): Promise<RosterImportPageDto> {
+    await this._featureService.assertFlagEnabled(
+      FLEET_FEATURE_FLAGS.IMPORTS_ENABLED,
+    );
+
+    return this._statusService.list(fleetId, query.page, query.pageSize);
+  }
+
+  /**
+   * Reports one import.
+   *
+   * @param communityId - The owning Community, checked by the guard.
+   * @param fleetId - The Fleet.
+   * @param importId - The import.
+   * @param userId - The reader.
+   * @returns The import, with its row problems and conflicting exports for
+   *   an investigator.
+   */
+  @Get(':importId')
+  @UseGuards(JwtAuthGuard, ScopeCapabilityGuard)
+  @RequiresScopeCapability(IMPORT_READERS, {
+    kind: FleetScopeKind.FLEET,
+    param: 'fleetId',
+    communityParam: 'communityId',
+  })
+  @ApiOperation({ summary: 'Report what became of one roster import' })
+  @ApiOkResponse({ type: RosterImportDetailDto })
+  @ApiNotFoundResponse({
+    description:
+      'The Fleet has no such import. An import of another Fleet is ' +
+      'reported the same way as one that never existed.',
+  })
+  async detail(
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('fleetId', ParseUUIDPipe) fleetId: string,
+    @Param('importId', ParseUUIDPipe) importId: string,
+    @UserId() userId: string,
+  ): Promise<RosterImportDetailDto> {
+    await this._featureService.assertFlagEnabled(
+      FLEET_FEATURE_FLAGS.IMPORTS_ENABLED,
+    );
+
+    // Resolved once per request already, by the guard, so this is a lookup
+    // in what it found rather than a second authorisation.
+    const investigator = await this._authorisationService.hasCapability(
+      userId,
+      {
+        kind: FleetScopeKind.FLEET,
+        id: fleetId,
+        withinCommunityId: communityId,
+      },
+      FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+    );
+
+    return this._statusService.detail(fleetId, importId, investigator);
+  }
 
   /**
    * Accepts a roster export, discards its officer columns and quarantines
@@ -206,36 +304,15 @@ export class RosterImportsController {
     // used to be, let alone anything else.
     file.buffer = Buffer.alloc(0);
 
-    const { record, asset } = accepted;
-
     // Nothing was created, so 201 would be a false answer. The body is the
     // import the first upload made, exactly as it would be listed.
     if (accepted.repeated) {
       response.status(HttpStatus.OK);
     }
 
-    return {
-      id: record.id,
-      assetId: record.assetId,
-      fleetId: record.fleetId,
-      originalFilename: record.originalFilename,
-      sourceSha256: record.sourceSha256,
-      sanitisedSha256: record.sanitisedSha256,
-      sourceByteSize: Number(record.sourceByteSize),
-      sanitisedByteSize: Number(record.sanitisedByteSize),
-      sourceHeaderShape: record.sourceHeaderShape,
-      exportTimezone: record.exportTimezone,
-      exportLocalStamp: record.exportLocalStamp,
-      exportedAt: record.exportedAt,
-      exportedAtAmbiguous: record.exportedAtAmbiguous,
-      rowCount: record.rowCount,
-      officerTailRowCount: record.officerTailRowCount,
-      parserVersion: record.parserVersion,
-      state: asset.state,
-      retainUntil: asset.retainUntil,
-      conflictGroupId: record.conflictGroupId,
-      uploadedAt: record.uploadedAt,
-    };
+    // Read back as the listing reads it, so the upload and the listing cannot
+    // describe one import two ways.
+    return this._statusService.summary(fleetId, accepted.record.id);
   }
 
   /**

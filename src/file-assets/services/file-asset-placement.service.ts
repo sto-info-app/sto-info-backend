@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { LessThan, Repository } from 'typeorm';
+import { In, LessThan, Repository } from 'typeorm';
 
 import { FileAssetPlacementEntity } from '../entities/file-asset-placement.entity';
 import { FileAssetPlacementState } from '../enums/file-asset-placement-state.enum';
@@ -192,6 +192,26 @@ export class FileAssetPlacementService {
     assetId: string,
   ): Promise<FileAssetPlacementEntity | null> {
     return this._repository.findOne({ where: { assetId } });
+  }
+
+  /**
+   * Finds the placements of several assets at once.
+   *
+   * For a listing, which would otherwise ask once per row. An asset is placed
+   * at most once, so there is at most one row per asset; one never placed is
+   * simply absent.
+   *
+   * @param assetIds - The assets.
+   * @returns Their placements, in no particular order.
+   */
+  async findByAssetIds(
+    assetIds: readonly string[],
+  ): Promise<FileAssetPlacementEntity[]> {
+    if (assetIds.length === 0) {
+      return [];
+    }
+
+    return this._repository.find({ where: { assetId: In([...assetIds]) } });
   }
 
   /**

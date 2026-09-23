@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
 
+import { RosterImportStatus } from '../enums/roster-import-status.enum';
 import { RosterSourceHeaderShape } from '../enums/roster-source-header-shape.enum';
 
 /**
@@ -27,6 +28,13 @@ import { RosterSourceHeaderShape } from '../enums/roster-source-header-shape.enu
  * be missing: nothing writes a row without them. The nullability belongs to
  * rows that predate the columns, and this shape is also what a listing of a
  * Fleet's imports returns.
+ *
+ * `status` is what to show; `state` is kept beside it because it is the
+ * asset's own word and an investigator comparing an import with the asset
+ * registry needs the registry's vocabulary. `statusReason` is a code and
+ * never a scanner's: a refusal the scanner made is reported as
+ * `SCAN_REFUSED` whoever is asking, because naming what matched tells
+ * somebody probing the scanner what gets through (R24).
  */
 export class RosterImportSourceDto {
   @ApiProperty({ description: 'The provenance record.' })
@@ -127,6 +135,38 @@ export class RosterImportSourceDto {
     nullable: true,
   })
   conflictGroupId: string | null;
+
+  @ApiProperty({
+    description: 'Where the import has got to.',
+    enum: RosterImportStatus,
+  })
+  status: RosterImportStatus;
+
+  @ApiProperty({
+    description:
+      'Why it is HELD or REFUSED, as a code. For a refusal, the structural ' +
+      'code when the file was refused for what its rows hold, and ' +
+      'SCAN_REFUSED for anything the scanner refused, whoever is asking. ' +
+      'Null for every other status.',
+    nullable: true,
+    example: 'ROWS_UNREADABLE',
+  })
+  statusReason: string | null;
+
+  @ApiProperty({
+    description:
+      'How many row problems stopped it being read. Which rows, which ' +
+      'columns and which codes are for whoever investigates imports.',
+  })
+  problemCount: number;
+
+  @ApiProperty({
+    description:
+      'The username of whoever uploaded it, or null once that account is ' +
+      'gone.',
+    nullable: true,
+  })
+  uploadedByName: string | null;
 
   @ApiProperty({ description: 'When the upload was accepted.' })
   uploadedAt: Date;

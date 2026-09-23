@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import { LessThan, Repository } from 'typeorm';
+import { In, LessThan, Repository } from 'typeorm';
 
 import { FileAssetPlacementEntity } from '../entities/file-asset-placement.entity';
 import { FileAssetPlacementState } from '../enums/file-asset-placement-state.enum';
@@ -142,6 +142,25 @@ describe('FileAssetPlacementService', () => {
 
       expect(settled.state).toBe(FileAssetPlacementState.REJECTED);
       expect(settled.settledAt).toBeInstanceOf(Date);
+    });
+  });
+
+  describe('findByAssetIds', () => {
+    it('asks once for every asset', async () => {
+      repository.find.mockResolvedValue([placement()]);
+
+      await expect(
+        service.findByAssetIds(['asset-1', 'asset-2']),
+      ).resolves.toEqual([placement()]);
+      expect(repository.find).toHaveBeenCalledWith({
+        where: { assetId: In(['asset-1', 'asset-2']) },
+      });
+    });
+
+    // An empty IN list is not something every driver will take.
+    it('asks nothing about no assets', async () => {
+      await expect(service.findByAssetIds([])).resolves.toEqual([]);
+      expect(repository.find).not.toHaveBeenCalled();
     });
   });
 

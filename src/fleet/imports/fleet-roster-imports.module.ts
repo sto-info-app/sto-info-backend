@@ -15,6 +15,7 @@ import { RosterExportIdentityService } from './services/roster-export-identity.s
 import { RosterImportConflictService } from './services/roster-import-conflict.service';
 import { RosterImportIngressService } from './services/roster-import-ingress.service';
 import { RosterImportPreviewService } from './services/roster-import-preview.service';
+import { RosterImportStatusService } from './services/roster-import-status.service';
 import { RosterImportPublisher } from './services/roster-import.publisher';
 import { RosterTypedParserService } from './services/roster-typed-parser.service';
 
@@ -50,6 +51,7 @@ import { RosterTypedParserService } from './services/roster-typed-parser.service
     RosterImportConflictService,
     RosterImportIngressService,
     RosterImportPreviewService,
+    RosterImportStatusService,
     RosterImportPublisher,
   ],
   exports: [

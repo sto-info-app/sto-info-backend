@@ -6,20 +6,33 @@ import type { Response } from 'express';
 import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
 
+import { FleetAuthorisationService } from '../authorisation/fleet-authorisation.service';
+import { FLEET_CAPABILITIES } from '../authorisation/fleet-capability.constants';
+import {
+  REQUIRES_SCOPE_CAPABILITY_KEY,
+  ScopeCapabilityRequirement,
+} from '../authorisation/requires-scope-capability.decorator';
 import { FLEET_FEATURE_FLAGS } from '../constants/fleet-feature.constants';
 import { StoFleetEntity } from '../entities/sto-fleet.entity';
+import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 import { FleetFeatureService } from '../fleet-feature.service';
 import { StoFleetService } from '../services/sto-fleet.service';
+import { RosterImportDetailDto } from './dto/roster-import-detail.dto';
+import { RosterImportPageDto } from './dto/roster-import-page.dto';
 import { RosterImportPreviewDto } from './dto/roster-import-preview.dto';
+import { RosterImportSourceDto } from './dto/roster-import-source.dto';
 import { RosterImportSourceEntity } from './entities/roster-import-source.entity';
+import { RosterImportStatus } from './enums/roster-import-status.enum';
 import { RosterSourceHeaderShape } from './enums/roster-source-header-shape.enum';
 import { RosterImportsController } from './roster-imports.controller';
 import { RosterImportIngressService } from './services/roster-import-ingress.service';
 import { RosterImportPreviewService } from './services/roster-import-preview.service';
+import { RosterImportStatusService } from './services/roster-import-status.service';
 
 const COMMUNITY_ID = '00000000-0000-4000-8000-000000000000';
 const FLEET_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
+const IMPORT_ID = '44444444-4444-4444-8444-444444444444';
 const ASSET_ID = '33333333-3333-4333-8333-333333333333';
 const RETAIN_UNTIL = new Date('2027-03-18T00:00:00.000Z');
 const UPLOADED_AT = new Date('2026-09-19T00:00:00.000Z');
@@ -54,6 +67,12 @@ const ASSET = {
   state: FileAssetState.QUARANTINED,
   retainUntil: RETAIN_UNTIL,
 } as FileAssetEntity;
+
+/** How the status service reports an import. */
+const SUMMARY = {
+  id: 'record-1',
+  status: RosterImportStatus.SCANNING,
+} as RosterImportSourceDto;
 
 /**
  * Builds a Multer file with the given bytes.
@@ -106,6 +125,14 @@ describe('RosterImportsController', () => {
     >;
   };
   let response: { status: jest.Mock };
+  let statusService: {
+    list: jest.Mock<(...args: unknown[]) => Promise<RosterImportPageDto>>;
+    summary: jest.Mock<(...args: unknown[]) => Promise<RosterImportSourceDto>>;
+    detail: jest.Mock<(...args: unknown[]) => Promise<RosterImportDetailDto>>;
+  };
+  let authorisation: {
+    hasCapability: jest.Mock<(...args: unknown[]) => Promise<boolean>>;
+  };
 
   /**
    * The response an upload may set its status on.
@@ -135,11 +162,31 @@ describe('RosterImportsController', () => {
       findByIdOrFail: jest.fn(() => Promise.resolve(fleetOn(true))),
     };
 
+    statusService = {
+      list: jest.fn(() =>
+        Promise.resolve({ items: [SUMMARY], total: 1, page: 1, pageSize: 20 }),
+      ),
+      summary: jest.fn(() => Promise.resolve(SUMMARY)),
+      detail: jest.fn(() =>
+        Promise.resolve({
+          ...SUMMARY,
+          problems: null,
+          conflictMembers: null,
+        }),
+      ),
+    };
+
+    authorisation = {
+      hasCapability: jest.fn(() => Promise.resolve(false)),
+    };
+
     controller = new RosterImportsController(
       ingressService as unknown as RosterImportIngressService,
       previewService as unknown as RosterImportPreviewService,
       featureService as unknown as FleetFeatureService,
       fleetService as unknown as StoFleetService,
+      statusService as unknown as RosterImportStatusService,
+      authorisation as unknown as FleetAuthorisationService,
     );
   });
 
@@ -392,7 +439,8 @@ describe('RosterImportsController', () => {
     expect(file.buffer.length).toBe(0);
   });
 
-  it('reports the file, the counts and where the bytes have got to', async () => {
+  // So the upload and the listing cannot describe one import two ways.
+  it('answers with the import exactly as the listing reports it', async () => {
     const result = await controller.upload(
       COMMUNITY_ID,
       FLEET_ID,
@@ -402,28 +450,89 @@ describe('RosterImportsController', () => {
       reply(),
     );
 
-    expect(result).toEqual({
-      id: 'record-1',
-      assetId: ASSET_ID,
-      fleetId: FLEET_ID,
-      originalFilename: 'Fixture Basic Fleet_20240101-120000.Csv',
-      sourceSha256: 'a'.repeat(64),
-      sanitisedSha256: 'b'.repeat(64),
-      sourceByteSize: 4096,
-      sanitisedByteSize: 2048,
-      sourceHeaderShape: RosterSourceHeaderShape.OFFICER,
-      exportTimezone: 'Europe/London',
-      exportLocalStamp: '2024-01-01T12:00:00',
-      exportedAt: EXPORTED_AT,
-      exportedAtAmbiguous: false,
-      rowCount: 93,
-      officerTailRowCount: 7,
-      parserVersion: 1,
-      state: FileAssetState.QUARANTINED,
-      retainUntil: RETAIN_UNTIL,
-      conflictGroupId: null,
-      uploadedAt: UPLOADED_AT,
+    expect(statusService.summary).toHaveBeenCalledWith(FLEET_ID, 'record-1');
+    expect(result).toBe(SUMMARY);
+  });
+
+  describe.each([
+    ['the listing', 'list'],
+    ['one import', 'detail'],
+  ] as const)('reading %s', (_name, handler) => {
+    // Whoever sends rosters and whoever investigates them; neither implies
+    // the other, so requiring both would lock one of them out.
+    it('is open to importers and investigators alike', () => {
+      const requirement = Reflect.getMetadata(
+        REQUIRES_SCOPE_CAPABILITY_KEY,
+        RosterImportsController.prototype[handler],
+      ) as ScopeCapabilityRequirement;
+
+      expect(requirement).toEqual({
+        capability: [
+          FLEET_CAPABILITIES.ROSTER_IMPORT,
+          FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+        ],
+        source: {
+          kind: FleetScopeKind.FLEET,
+          param: 'fleetId',
+          communityParam: 'communityId',
+        },
+      });
     });
+
+    it('is hidden while imports are switched off', async () => {
+      featureService.assertFlagEnabled.mockImplementationOnce(() => {
+        throw new NotFoundException('Not found');
+      });
+
+      await expect(
+        handler === 'list'
+          ? controller.list(FLEET_ID, {})
+          : controller.detail(COMMUNITY_ID, FLEET_ID, IMPORT_ID, USER_ID),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(statusService[handler]).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('the listing', () => {
+    it('asks for the page it was given', async () => {
+      await expect(
+        controller.list(FLEET_ID, { page: 2, pageSize: 10 }),
+      ).resolves.toEqual({ items: [SUMMARY], total: 1, page: 1, pageSize: 20 });
+
+      expect(statusService.list).toHaveBeenCalledWith(FLEET_ID, 2, 10);
+    });
+  });
+
+  describe('one import', () => {
+    it('asks whether the reader investigates imports at this Fleet', async () => {
+      await controller.detail(COMMUNITY_ID, FLEET_ID, IMPORT_ID, USER_ID);
+
+      expect(authorisation.hasCapability).toHaveBeenCalledWith(
+        USER_ID,
+        {
+          kind: FleetScopeKind.FLEET,
+          id: FLEET_ID,
+          withinCommunityId: COMMUNITY_ID,
+        },
+        FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+      );
+    });
+
+    it.each([true, false])(
+      'hands on the answer (investigator: %s)',
+      async investigator => {
+        authorisation.hasCapability.mockResolvedValueOnce(investigator);
+
+        await controller.detail(COMMUNITY_ID, FLEET_ID, IMPORT_ID, USER_ID);
+
+        expect(statusService.detail).toHaveBeenCalledWith(
+          FLEET_ID,
+          IMPORT_ID,
+          investigator,
+        );
+      },
+    );
   });
 
   describe('the preview', () => {

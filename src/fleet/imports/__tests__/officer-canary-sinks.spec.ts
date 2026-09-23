@@ -22,6 +22,7 @@ import { FileAssetService } from 'src/file-assets/services/file-asset.service';
 import { QuarantineStorageService } from 'src/file-assets/services/quarantine-storage.service';
 import { ScanRequestProducerService } from 'src/file-scanning/services/scan-request-producer.service';
 
+import { FleetAuthorisationService } from '../../authorisation/fleet-authorisation.service';
 import { FleetNameAliasEntity } from '../../entities/fleet-name-alias.entity';
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { FleetFeatureService } from '../../fleet-feature.service';
@@ -34,6 +35,7 @@ import { RosterExportIdentityService } from '../services/roster-export-identity.
 import { RosterImportConflictService } from '../services/roster-import-conflict.service';
 import { RosterImportIngressService } from '../services/roster-import-ingress.service';
 import { RosterImportPreviewService } from '../services/roster-import-preview.service';
+import { RosterImportStatusService } from '../services/roster-import-status.service';
 import { RosterTypedParserService } from '../services/roster-typed-parser.service';
 
 /**
@@ -130,9 +132,12 @@ describe('Officer canary sinks', () => {
 
   /** The Fleet the route resolves, set by each sweep from its fixture. */
   let fleetName: string;
+  // The import the upload recorded, for the status service to read back.
+  let saved: RosterImportSourceEntity | null;
 
   beforeEach(() => {
     watched = [];
+    saved = null;
     fleetName = 'Fixture Officer Fleet';
 
     // Every level, because the one that leaks is always the one nobody
@@ -151,10 +156,32 @@ describe('Officer canary sinks', () => {
       save: jest.fn((values: unknown) => {
         watched.push(JSON.stringify(values));
 
-        return Promise.resolve({ id: 'record-1', ...(values as object) });
+        saved = {
+          id: 'record-1',
+          ...(values as object),
+        } as RosterImportSourceEntity;
+
+        return Promise.resolve(saved);
       }),
-      // Never imported before, so every upload runs the whole path.
-      findOne: jest.fn(() => Promise.resolve(null)),
+      // Never imported before, so every upload runs the whole path. Asked by
+      // identifier, it is the status service reading the import back for
+      // the response, and it gets what was saved: a response built from a
+      // stand-in would prove nothing about the response.
+      findOne: jest.fn((options: { where: { id?: string } }) =>
+        Promise.resolve(
+          options.where.id === undefined || saved === null
+            ? null
+            : {
+                ...saved,
+                asset: {
+                  id: ASSET_ID,
+                  state: FileAssetState.QUARANTINED,
+                  retainUntil: null,
+                },
+                uploadedBy: null,
+              },
+        ),
+      ),
       manager: {
         transaction: jest.fn((work: unknown) =>
           (work as (manager: unknown) => Promise<unknown>)({
@@ -201,6 +228,7 @@ describe('Officer canary sinks', () => {
 
         return Promise.resolve({ placement: {}, superseded: null });
       }),
+      findByAssetIds: jest.fn(() => Promise.resolve([])),
     } as unknown as FileAssetPlacementService;
 
     const quarantineStorage = {
@@ -270,6 +298,8 @@ describe('Officer canary sinks', () => {
         assertFlagEnabled: jest.fn(() => Promise.resolve()),
       } as unknown as FleetFeatureService,
       fleetService,
+      new RosterImportStatusService(repository, placementService),
+      {} as FleetAuthorisationService,
     );
   });
 
@@ -325,6 +355,11 @@ describe('Officer canary sinks', () => {
     'Fixture Quoting Fleet_20240104-120000.Csv',
   ])('leaks nothing from %s into any sink', async filename => {
     const sinks = await sweep(filename);
+
+    // The upload got as far as answering, so the response was swept too.
+    // The sweep swallows every error, and without this a mock that stopped
+    // matching the path would pass having checked nothing.
+    expect(sinks.join('\n')).toContain('"status":"SCANNING"');
 
     // The fixture really does carry the canary, so a pass means the sweep
     // worked rather than that there was nothing to find.

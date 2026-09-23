@@ -14,6 +14,7 @@ import {
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
 import { RosterObservationEntity } from '../entities/roster-observation.entity';
 import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum';
+import { RosterHoldReason } from '../enums/roster-hold-reason.enum';
 import { RosterPublicationRejectionCode } from '../enums/roster-publication-rejection-code.enum';
 import {
   normaliseRosterAccountHandle,
@@ -35,9 +36,6 @@ import {
  * it without the whole import leaving its transaction.
  */
 const OBSERVATION_INSERT_BATCH = 500;
-
-/** Why an import is waiting, for the log. Structural, never content. */
-const CONFLICT_HOLD_REASON = 'EXPORT_INSTANT_IN_CONFLICT';
 
 /**
  * Reads a cleared roster export into observations.
@@ -158,7 +156,10 @@ export class RosterImportPublisher
           `ConflictGroupId: ${record.conflictGroupId}`,
       );
 
-      return { outcome: 'HELD', reason: CONFLICT_HOLD_REASON };
+      return {
+        outcome: 'HELD',
+        reason: RosterHoldReason.EXPORT_INSTANT_IN_CONFLICT,
+      };
     }
 
     const observations = typed.rows.map(row => this.observe(record, row));
