@@ -8,6 +8,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Res,
   UploadedFile,
   UseFilters,
   UseGuards,
@@ -18,12 +19,15 @@ import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
+  ApiConflictResponse,
   ApiConsumes,
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+
+import type { Response } from 'express';
 
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
@@ -125,6 +129,7 @@ export class RosterImportsController {
    * @param body - The timezone the export was taken in, and the instant its
    *   filename stamp names where the stamp names two.
    * @param file - The multipart file.
+   * @param response - Used only to answer a repeat with 200 rather than 201.
    * @returns What was accepted, and what was discarded.
    */
   @Post()
@@ -140,6 +145,19 @@ export class RosterImportsController {
   @ApiBody(ROSTER_UPLOAD_SCHEMA)
   @ApiOperation({ summary: 'Upload an STO roster export for this Fleet' })
   @ApiCreatedResponse({ type: RosterImportSourceDto })
+  @ApiOkResponse({
+    description:
+      'This Fleet has already imported this file, and the import it made is ' +
+      'returned unchanged. Nothing new is stored or scanned.',
+    type: RosterImportSourceDto,
+  })
+  @ApiConflictResponse({
+    description:
+      'This Fleet has already imported this file, read in a different ' +
+      'timezone or at a different time. The body carries the code ' +
+      'ALREADY_IMPORTED_DIFFERENTLY and the earlier import\u2019s id and ' +
+      'reading; the earlier import stands.',
+  })
   @ApiBadRequestResponse({
     description:
       'The export could not be read, its filename is not evidence about ' +
@@ -156,6 +174,7 @@ export class RosterImportsController {
     @UserId() userId: string,
     @Body() body: UploadRosterImportDto,
     @UploadedFile() file: Express.Multer.File | undefined,
+    @Res({ passthrough: true }) response: Response,
   ): Promise<RosterImportSourceDto> {
     const fleet = await this.requireImportableFleet(communityId, fleetId, file);
 
@@ -188,6 +207,12 @@ export class RosterImportsController {
     file.buffer = Buffer.alloc(0);
 
     const { record, asset } = accepted;
+
+    // Nothing was created, so 201 would be a false answer. The body is the
+    // import the first upload made, exactly as it would be listed.
+    if (accepted.repeated) {
+      response.status(HttpStatus.OK);
+    }
 
     return {
       id: record.id,

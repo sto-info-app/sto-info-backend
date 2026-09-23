@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
 
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Logger } from '@nestjs/common';
 
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 
 import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetAudience } from 'src/file-assets/enums/file-asset-audience.enum';
@@ -27,6 +27,7 @@ import {
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
 import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum';
 import { RosterFilenameRejectionCode } from '../enums/roster-filename-rejection-code.enum';
+import { RosterRepeatRejectionCode } from '../enums/roster-repeat-rejection-code.enum';
 import { RosterRowRejectionCode } from '../enums/roster-row-rejection-code.enum';
 import { RosterSourceHeaderShape } from '../enums/roster-source-header-shape.enum';
 import { RosterCsvPrivacyParserService } from './roster-csv-privacy-parser.service';
@@ -56,6 +57,53 @@ const AMBIGUOUS_FILENAME = 'Fixture Basic Fleet_20241027-013000.Csv';
 const FIRST_CANDIDATE = new Date('2024-10-27T00:30:00.000Z');
 const SECOND_CANDIDATE = new Date('2024-10-27T01:30:00.000Z');
 
+/** What the default filename reads as in Europe/London. */
+const DEFAULT_EXPORTED_AT = new Date('2024-01-01T12:00:00.000Z');
+
+/** The asset an earlier upload of the same file registered. */
+const EARLIER_ASSET = {
+  id: '55555555-5555-4555-8555-555555555555',
+  state: FileAssetState.AVAILABLE,
+} as FileAssetEntity;
+
+/**
+ * Builds the import an earlier upload of the same file made.
+ *
+ * @param overrides - Whatever the case is actually about.
+ * @returns The earlier import, with its asset.
+ */
+function earlierImport(
+  overrides: Partial<RosterImportSourceEntity> = {},
+): RosterImportSourceEntity {
+  return {
+    id: 'earlier-1',
+    assetId: EARLIER_ASSET.id,
+    fleetId: FLEET_ID,
+    exportTimezone: 'Europe/London',
+    exportLocalStamp: '2024-01-01T12:00:00',
+    exportedAt: DEFAULT_EXPORTED_AT,
+    asset: EARLIER_ASSET,
+    ...overrides,
+  } as RosterImportSourceEntity;
+}
+
+/**
+ * Builds the error the insert throws when a concurrent upload of the same
+ * file was recorded first.
+ *
+ * @param index - The index Postgres names.
+ * @returns The error, as TypeORM wraps it.
+ */
+function duplicateKey(
+  index = 'UQ_roster_import_source_fleet_hash',
+): QueryFailedError {
+  return new QueryFailedError(
+    'INSERT INTO fleet_roster_import_source',
+    [],
+    new Error(`duplicate key value violates unique constraint "${index}"`),
+  );
+}
+
 /**
  * Builds a fifteen-column export with one officer row.
  *
@@ -76,10 +124,18 @@ describe('RosterImportIngressService', () => {
 
   let service: RosterImportIngressService;
   let parser: { sanitise: jest.Mock };
-  let repository: { create: jest.Mock; save: jest.Mock };
-  let fileAssetService: { register: jest.Mock; recordStored: jest.Mock };
+  let repository: { create: jest.Mock; save: jest.Mock; findOne: jest.Mock };
+  let fileAssetService: {
+    register: jest.Mock;
+    recordStored: jest.Mock;
+    discard: jest.Mock;
+  };
   let placementService: { placePending: jest.Mock };
-  let quarantineStorage: { buildObjectKey: jest.Mock; put: jest.Mock };
+  let quarantineStorage: {
+    buildObjectKey: jest.Mock;
+    put: jest.Mock;
+    remove: jest.Mock;
+  };
   let scanRequestProducer: { requestScan: jest.Mock };
   let aliases: { find: jest.Mock };
   let saved: Partial<RosterImportSourceEntity> | undefined;
@@ -105,6 +161,7 @@ describe('RosterImportIngressService', () => {
 
         return Promise.resolve({ id: 'record-1', ...saved });
       }),
+      findOne: jest.fn(() => Promise.resolve(null)),
     };
 
     fileAssetService = {
@@ -121,6 +178,7 @@ describe('RosterImportIngressService', () => {
           retainUntil: null,
         } as FileAssetEntity),
       ),
+      discard: jest.fn(() => Promise.resolve({})),
     };
 
     placementService = {
@@ -134,6 +192,7 @@ describe('RosterImportIngressService', () => {
       put: jest.fn((objectKey: unknown) =>
         Promise.resolve({ objectKey, objectVersion: null }),
       ),
+      remove: jest.fn(() => Promise.resolve()),
     };
 
     scanRequestProducer = {
@@ -402,6 +461,246 @@ describe('RosterImportIngressService', () => {
       expect(repository.save.mock.invocationCallOrder[0]).toBeLessThan(
         scanRequestProducer.requestScan.mock.invocationCallOrder[0],
       );
+    });
+  });
+
+  describe('a file this Fleet has imported before', () => {
+    beforeEach(() => {
+      repository.findOne.mockImplementation(() =>
+        Promise.resolve(earlierImport()),
+      );
+    });
+
+    // By Fleet and hash together. By hash alone, the answer would say
+    // whether any Fleet anywhere had imported the file.
+    it('looks for it by this Fleet and the hash of what arrived', async () => {
+      const source = officerExport();
+      const expected = createHash('sha256').update(source).digest('hex');
+
+      await accept(source);
+
+      expect(repository.findOne).toHaveBeenCalledWith({
+        where: { fleetId: FLEET_ID, sourceSha256: expected },
+        relations: { asset: true },
+      });
+    });
+
+    it('answers with the import the earlier upload made', async () => {
+      const accepted = await accept(officerExport());
+
+      expect(accepted).toEqual({
+        record: earlierImport(),
+        asset: EARLIER_ASSET,
+        traceId: null,
+        repeated: true,
+      });
+    });
+
+    it('reads, stores, places and scans nothing', async () => {
+      await accept(officerExport());
+
+      expect(parser.sanitise).not.toHaveBeenCalled();
+      expect(fileAssetService.register).not.toHaveBeenCalled();
+      expect(quarantineStorage.put).not.toHaveBeenCalled();
+      expect(repository.save).not.toHaveBeenCalled();
+      expect(placementService.placePending).not.toHaveBeenCalled();
+      expect(scanRequestProducer.requestScan).not.toHaveBeenCalled();
+    });
+
+    it('overwrites the buffer', async () => {
+      const source = officerExport();
+
+      await accept(source);
+
+      expect(source.every(byte => byte === 0)).toBe(true);
+    });
+
+    describe('read differently', () => {
+      it('refuses a zone other than the one the earlier import was read in', async () => {
+        repository.findOne.mockImplementation(() =>
+          Promise.resolve(
+            earlierImport({
+              exportTimezone: 'America/New_York',
+              exportedAt: new Date('2024-01-01T17:00:00.000Z'),
+            }),
+          ),
+        );
+
+        await expect(refusalOf(officerExport())).resolves.toEqual({
+          message: expect.any(String),
+          code: RosterRepeatRejectionCode.ALREADY_IMPORTED_DIFFERENTLY,
+          importId: 'earlier-1',
+          exportTimezone: 'America/New_York',
+          exportLocalStamp: '2024-01-01T12:00:00',
+          exportedAt: new Date('2024-01-01T17:00:00.000Z'),
+        });
+      });
+
+      // The same zone, but the other of the two instants the stamp names,
+      // or a renamed file whose stamp says another time.
+      it('refuses an instant other than the one the earlier import settled on', async () => {
+        repository.findOne.mockImplementation(() =>
+          Promise.resolve(
+            earlierImport({ exportedAt: new Date('2024-01-01T13:00:00.000Z') }),
+          ),
+        );
+
+        await expect(accept(officerExport())).rejects.toBeInstanceOf(
+          ConflictException,
+        );
+      });
+
+      it('refuses when the earlier import recorded no instant at all', async () => {
+        repository.findOne.mockImplementation(() =>
+          Promise.resolve(earlierImport({ exportedAt: null })),
+        );
+
+        await expect(accept(officerExport())).rejects.toBeInstanceOf(
+          ConflictException,
+        );
+      });
+
+      it('overwrites the buffer and stores nothing', async () => {
+        repository.findOne.mockImplementation(() =>
+          Promise.resolve(earlierImport({ exportTimezone: 'Asia/Tokyo' })),
+        );
+        const source = officerExport();
+
+        await expect(accept(source)).rejects.toBeInstanceOf(ConflictException);
+
+        expect(source.every(byte => byte === 0)).toBe(true);
+        expect(fileAssetService.register).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('two uploads of one file arriving together', () => {
+    beforeEach(() => {
+      repository.findOne
+        .mockImplementationOnce(() => Promise.resolve(null))
+        .mockImplementationOnce(() => Promise.resolve(earlierImport()));
+      repository.save.mockImplementation(() => Promise.reject(duplicateKey()));
+    });
+
+    it('answers the one recorded second with the one recorded first', async () => {
+      const accepted = await accept(officerExport());
+
+      expect(accepted).toEqual({
+        record: earlierImport(),
+        asset: EARLIER_ASSET,
+        traceId: null,
+        repeated: true,
+      });
+    });
+
+    it('gives back what the second one stored', async () => {
+      await accept(officerExport());
+
+      expect(fileAssetService.discard).toHaveBeenCalledWith(
+        ASSET_ID,
+        expect.any(String),
+      );
+      expect(quarantineStorage.remove).toHaveBeenCalledWith(
+        `local/assets/${ASSET_ID}`,
+      );
+    });
+
+    // The row is what decides whether anything could serve the bytes.
+    it('discards the row before it removes the object', async () => {
+      await accept(officerExport());
+
+      expect(fileAssetService.discard.mock.invocationCallOrder[0]).toBeLessThan(
+        quarantineStorage.remove.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('places nothing and scans nothing for the second one', async () => {
+      await accept(officerExport());
+
+      expect(placementService.placePending).not.toHaveBeenCalled();
+      expect(scanRequestProducer.requestScan).not.toHaveBeenCalled();
+    });
+
+    it('still answers when the copy cannot be removed, and says so', async () => {
+      const logged = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+
+      quarantineStorage.remove.mockImplementation(() =>
+        Promise.reject(new Error('bucket unavailable')),
+      );
+
+      await expect(accept(officerExport())).resolves.toEqual(
+        expect.objectContaining({ repeated: true }),
+      );
+      expect(logged).toHaveBeenCalledWith(
+        expect.stringContaining('Reason: bucket unavailable'),
+      );
+
+      logged.mockRestore();
+    });
+
+    it('logs a removal failure that is not an Error without its detail', async () => {
+      const logged = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+
+      quarantineStorage.remove.mockImplementation(() =>
+        Promise.reject('bucket unavailable'),
+      );
+
+      await accept(officerExport());
+
+      expect(logged).toHaveBeenCalledWith(
+        expect.stringContaining('Reason: unknown'),
+      );
+
+      logged.mockRestore();
+    });
+
+    it('refuses the second one when it read the file differently', async () => {
+      repository.findOne
+        .mockReset()
+        .mockImplementationOnce(() => Promise.resolve(null))
+        .mockImplementationOnce(() =>
+          Promise.resolve(earlierImport({ exportTimezone: 'Asia/Tokyo' })),
+        );
+
+      await expect(accept(officerExport())).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(fileAssetService.discard).toHaveBeenCalled();
+    });
+
+    it('lets through a failed insert that was not this race', async () => {
+      const failure = duplicateKey('PK_roster_import_source');
+
+      repository.save.mockImplementation(() => Promise.reject(failure));
+
+      await expect(accept(officerExport())).rejects.toBe(failure);
+      expect(repository.findOne).toHaveBeenCalledTimes(1);
+      expect(fileAssetService.discard).not.toHaveBeenCalled();
+    });
+
+    it('lets through a failure that is not a database error', async () => {
+      const failure = new Error('connection reset');
+
+      repository.save.mockImplementation(() => Promise.reject(failure));
+
+      await expect(accept(officerExport())).rejects.toBe(failure);
+    });
+
+    // The index says a winner exists; if it cannot be read back, answering
+    // with anything would be a guess.
+    it('lets the race through when the first one cannot be found', async () => {
+      repository.findOne
+        .mockReset()
+        .mockImplementation(() => Promise.resolve(null));
+
+      await expect(accept(officerExport())).rejects.toBeInstanceOf(
+        QueryFailedError,
+      );
+      expect(fileAssetService.discard).not.toHaveBeenCalled();
     });
   });
 

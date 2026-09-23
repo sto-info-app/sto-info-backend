@@ -1,6 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import type { Response } from 'express';
 
 import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
@@ -103,11 +104,23 @@ describe('RosterImportsController', () => {
       (communityId: string, fleetId: string) => Promise<StoFleetEntity>
     >;
   };
+  let response: { status: jest.Mock };
+
+  /**
+   * The response an upload may set its status on.
+   *
+   * @returns The stub, typed as Express's.
+   */
+  const reply = (): Response => response as unknown as Response;
 
   beforeEach(() => {
     ingressService = {
-      accept: jest.fn(() => Promise.resolve({ record: RECORD, asset: ASSET })),
+      accept: jest.fn(() =>
+        Promise.resolve({ record: RECORD, asset: ASSET, repeated: false }),
+      ),
     };
+
+    response = { status: jest.fn() };
 
     previewService = {
       preview: jest.fn(() => Promise.resolve(PREVIEW)),
@@ -141,6 +154,7 @@ describe('RosterImportsController', () => {
         USER_ID,
         BODY,
         multerFile(Buffer.from('anything', 'utf8')),
+        reply(),
       ),
     ).rejects.toBeInstanceOf(NotFoundException);
 
@@ -168,6 +182,7 @@ describe('RosterImportsController', () => {
           USER_ID,
           BODY,
           multerFile(Buffer.from('roster bytes', 'utf8')),
+          reply(),
         ),
       ).rejects.toThrow(/no fleet roster export on Xbox/);
 
@@ -185,7 +200,7 @@ describe('RosterImportsController', () => {
       const file = multerFile(Buffer.from('roster bytes', 'utf8'));
 
       await expect(
-        controller.upload(COMMUNITY_ID, FLEET_ID, USER_ID, BODY, file),
+        controller.upload(COMMUNITY_ID, FLEET_ID, USER_ID, BODY, file, reply()),
       ).rejects.toBeInstanceOf(BadRequestException);
 
       expect(file.buffer.equals(Buffer.alloc(file.buffer.length))).toBe(true);
@@ -202,7 +217,14 @@ describe('RosterImportsController', () => {
       );
 
       await expect(
-        controller.upload(COMMUNITY_ID, FLEET_ID, USER_ID, BODY, undefined),
+        controller.upload(
+          COMMUNITY_ID,
+          FLEET_ID,
+          USER_ID,
+          BODY,
+          undefined,
+          reply(),
+        ),
       ).rejects.toThrow(/no fleet roster export on PlayStation/);
     });
 
@@ -213,6 +235,7 @@ describe('RosterImportsController', () => {
         USER_ID,
         BODY,
         multerFile(Buffer.from('roster bytes', 'utf8')),
+        reply(),
       );
 
       expect(fleetService.findByIdOrFail).toHaveBeenCalledWith(
@@ -224,7 +247,14 @@ describe('RosterImportsController', () => {
 
   it('refuses a request that carries no file', async () => {
     await expect(
-      controller.upload(COMMUNITY_ID, FLEET_ID, USER_ID, BODY, undefined),
+      controller.upload(
+        COMMUNITY_ID,
+        FLEET_ID,
+        USER_ID,
+        BODY,
+        undefined,
+        reply(),
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
 
     expect(ingressService.accept).not.toHaveBeenCalled();
@@ -239,6 +269,7 @@ describe('RosterImportsController', () => {
       USER_ID,
       BODY,
       multerFile(bytes),
+      reply(),
     );
 
     expect(ingressService.accept).toHaveBeenCalledWith({
@@ -263,6 +294,7 @@ describe('RosterImportsController', () => {
       USER_ID,
       BODY,
       multerFile(Buffer.from('roster bytes', 'utf8')),
+      reply(),
     );
 
     const [[handed]] = ingressService.accept.mock.calls as [
@@ -284,6 +316,7 @@ describe('RosterImportsController', () => {
       USER_ID,
       { ...BODY, exportedAt: '2024-10-27T01:30:00.000Z' },
       multerFile(Buffer.from('roster bytes', 'utf8')),
+      reply(),
     );
 
     expect(ingressService.accept).toHaveBeenCalledWith(
@@ -298,17 +331,62 @@ describe('RosterImportsController', () => {
 
     Reflect.deleteProperty(file, 'mimetype');
 
-    await controller.upload(COMMUNITY_ID, FLEET_ID, USER_ID, BODY, file);
+    await controller.upload(
+      COMMUNITY_ID,
+      FLEET_ID,
+      USER_ID,
+      BODY,
+      file,
+      reply(),
+    );
 
     expect(ingressService.accept).toHaveBeenCalledWith(
       expect.objectContaining({ declaredContentType: null }),
     );
   });
 
+  it('answers a new import with the status the route declares', async () => {
+    await controller.upload(
+      COMMUNITY_ID,
+      FLEET_ID,
+      USER_ID,
+      BODY,
+      multerFile(Buffer.from('roster bytes', 'utf8')),
+      reply(),
+    );
+
+    expect(response.status).not.toHaveBeenCalled();
+  });
+
+  // Nothing was created, so 201 would be a false answer.
+  it('answers a repeat of an earlier import with 200', async () => {
+    ingressService.accept.mockImplementationOnce(() =>
+      Promise.resolve({ record: RECORD, asset: ASSET, repeated: true }),
+    );
+
+    await controller.upload(
+      COMMUNITY_ID,
+      FLEET_ID,
+      USER_ID,
+      BODY,
+      multerFile(Buffer.from('roster bytes', 'utf8')),
+      reply(),
+    );
+
+    expect(response.status).toHaveBeenCalledWith(200);
+  });
+
   it('drops the reference to the received bytes once they are dealt with', async () => {
     const file = multerFile(Buffer.from('roster bytes', 'utf8'));
 
-    await controller.upload(COMMUNITY_ID, FLEET_ID, USER_ID, BODY, file);
+    await controller.upload(
+      COMMUNITY_ID,
+      FLEET_ID,
+      USER_ID,
+      BODY,
+      file,
+      reply(),
+    );
 
     expect(file.buffer.length).toBe(0);
   });
@@ -320,6 +398,7 @@ describe('RosterImportsController', () => {
       USER_ID,
       BODY,
       multerFile(Buffer.from('roster bytes', 'utf8')),
+      reply(),
     );
 
     expect(result).toEqual({

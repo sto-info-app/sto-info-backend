@@ -44,6 +44,12 @@ import { RosterRowProblem } from '../services/roster-typed-parser.service';
  * already hold the file. It is computed in memory and the buffer it was
  * computed from is discarded in the same call.
  *
+ * It is unique per Fleet, and that is what makes an upload idempotent: the
+ * same file sent to the same Fleet again is answered with the import it
+ * already made, and two copies racing each other end as one. Only per Fleet —
+ * a lookup across Fleets would tell somebody whether a file they hold has
+ * been imported anywhere else.
+ *
  * ## Write-once
  *
  * The provenance columns are immutable once written, enforced by a trigger
@@ -52,7 +58,9 @@ import { RosterRowProblem } from '../services/roster-typed-parser.service';
  */
 @Entity({ name: 'fleet_roster_import_source' })
 @Index('IDX_roster_import_source_fleet_uploaded', ['fleetId', 'uploadedAt'])
-@Index('IDX_roster_import_source_fleet_hash', ['fleetId', 'sourceSha256'])
+@Index('UQ_roster_import_source_fleet_hash', ['fleetId', 'sourceSha256'], {
+  unique: true,
+})
 @Index('IDX_roster_import_source_fleet_exported', ['fleetId', 'exportedAt'])
 export class RosterImportSourceEntity {
   @ApiProperty({ description: 'Unique identifier.' })

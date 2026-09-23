@@ -12,6 +12,7 @@ import {
   jest,
 } from '@jest/globals';
 import { Queue } from 'bullmq';
+import type { Response } from 'express';
 import { Repository } from 'typeorm';
 
 import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
@@ -151,6 +152,8 @@ describe('Officer canary sinks', () => {
 
         return Promise.resolve({ id: 'record-1', ...(values as object) });
       }),
+      // Never imported before, so every upload runs the whole path.
+      findOne: jest.fn(() => Promise.resolve(null)),
     } as unknown as Repository<RosterImportSourceEntity>;
 
     const fileAssetService = {
@@ -290,6 +293,7 @@ describe('Officer canary sinks', () => {
         USER_ID,
         { timezone: 'Europe/London' },
         multerFile(bytes, filename),
+        { status: jest.fn() } as unknown as Response,
       );
 
       watched.push(JSON.stringify(response));

@@ -1,9 +1,14 @@
 import { createHash } from 'node:crypto';
 
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 
 import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetAudience } from 'src/file-assets/enums/file-asset-audience.enum';
@@ -25,6 +30,7 @@ import {
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
 import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum';
 import { RosterFilenameRejectionCode } from '../enums/roster-filename-rejection-code.enum';
+import { RosterRepeatRejectionCode } from '../enums/roster-repeat-rejection-code.enum';
 import { RosterSourceHeaderShape } from '../enums/roster-source-header-shape.enum';
 import { RosterCsvRejectedError } from '../errors/roster-csv-rejected.error';
 import { assertRosterFilenameUsable } from '../utilities/roster-filename.utility';
@@ -67,8 +73,16 @@ export interface AcceptedRosterUpload {
   readonly record: RosterImportSourceEntity;
   /** The registry entry for the stored sanitised CSV. */
   readonly asset: FileAssetEntity;
-  /** The identifier the scan request carries, for following it in the logs. */
-  readonly traceId: string;
+  /**
+   * The identifier the scan request carries, for following it in the logs.
+   * Null for a repeat, which requested no scan.
+   */
+  readonly traceId: string | null;
+  /**
+   * Whether this Fleet had already imported the file, so that what is
+   * returned is the import the earlier upload made rather than a new one.
+   */
+  readonly repeated: boolean;
 }
 
 /** When an export was taken, once nothing about it is still open. */
@@ -104,6 +118,9 @@ interface SanitisedSummary {
 /** How many milliseconds there are in a day. */
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
+/** The index that makes one file one import, per Fleet. */
+const SOURCE_HASH_INDEX = 'UQ_roster_import_source_fleet_hash';
+
 /**
  * Takes an uploaded roster export as far as private quarantine, and no
  * further.
@@ -136,6 +153,17 @@ const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
  * observations at all: those are read from the sanitised file once something
  * has said it is safe to read, which is a different moment and a different
  * service.
+ *
+ * ## The same file twice
+ *
+ * A file this Fleet has already imported is answered with the import it
+ * made, found by the hash of the bytes received and before anything else is
+ * read, stored or scanned. The lookup is by Fleet and hash together, never by
+ * hash alone, so whether another Fleet holds the same file is not something
+ * this can say. The same bytes with a different reading — another zone,
+ * another instant — are refused rather than answered, because the earlier
+ * reading is the one that stands. Two copies arriving together are settled by
+ * the unique index, and the one that loses gives back what it stored.
  *
  * It does read the filename, but it decides nothing about it on its own:
  * the grammar, the Fleet label and the export instant all come back from
@@ -198,6 +226,14 @@ export class RosterImportIngressService {
 
       sourceSha256 = this.hash(input.source);
 
+      // Before the file is read any further. What a repeat would produce has
+      // already been kept, scanned and read once.
+      const earlier = await this.findEarlier(input.fleet.id, sourceSha256);
+
+      if (earlier !== null) {
+        return this.repeat(earlier, input.timezone, settled);
+      }
+
       const sanitised = this._parser.sanitise(input.source);
 
       this.assertRowsReadable(sanitised.csv, input.timezone);
@@ -257,24 +293,37 @@ export class RosterImportIngressService {
       detectedContentType: SANITISED_ROSTER_CONTENT_TYPE,
     });
 
-    const record = await this._repository.save(
-      this._repository.create({
+    let record: RosterImportSourceEntity;
+
+    try {
+      record = await this._repository.save(
+        this._repository.create({
+          assetId: asset.id,
+          fleetId: input.fleet.id,
+          uploadedByUserId: input.uploadedByUserId,
+          originalFilename: input.originalFilename,
+          declaredContentType: boundDeclaredContentType(
+            input.declaredContentType,
+          ),
+          sourceSha256,
+          sanitisedSha256,
+          sourceByteSize: String(sourceByteSize),
+          sanitisedByteSize: String(sanitisedCsv.length),
+          exportTimezone: input.timezone,
+          ...settled,
+          ...summary,
+        }),
+      );
+    } catch (error) {
+      return this.settleRace(error, {
         assetId: asset.id,
+        objectKey: stored.objectKey,
         fleetId: input.fleet.id,
-        uploadedByUserId: input.uploadedByUserId,
-        originalFilename: input.originalFilename,
-        declaredContentType: boundDeclaredContentType(
-          input.declaredContentType,
-        ),
         sourceSha256,
-        sanitisedSha256,
-        sourceByteSize: String(sourceByteSize),
-        sanitisedByteSize: String(sanitisedCsv.length),
-        exportTimezone: input.timezone,
-        ...settled,
-        ...summary,
-      }),
-    );
+        timezone: input.timezone,
+        settled,
+      });
+    }
 
     // Claimed against the import rather than the Fleet: a Fleet has a
     // history of imports, and a placement keyed by the Fleet would let each
@@ -308,7 +357,141 @@ export class RosterImportIngressService {
         `TraceId: ${scanning.traceId}`,
     );
 
-    return { record, asset: scanning.asset, traceId: scanning.traceId };
+    return {
+      record,
+      asset: scanning.asset,
+      traceId: scanning.traceId,
+      repeated: false,
+    };
+  }
+
+  /**
+   * Finds the import this Fleet already made from a file.
+   *
+   * @param fleetId - The Fleet. Never omitted: a lookup by hash alone would
+   *   say whether any Fleet had imported the file.
+   * @param sourceSha256 - The hash of the bytes received.
+   * @returns The earlier import with its asset, or null.
+   */
+  private async findEarlier(
+    fleetId: string,
+    sourceSha256: string,
+  ): Promise<RosterImportSourceEntity | null> {
+    return this._repository.findOne({
+      where: { fleetId, sourceSha256 },
+      relations: { asset: true },
+    });
+  }
+
+  /**
+   * Answers an upload of a file this Fleet has already imported.
+   *
+   * @param earlier - The import the first upload made.
+   * @param timezone - The zone this upload stated.
+   * @param settled - The export instant this upload's name settled on.
+   * @returns The earlier import, marked as a repeat.
+   * @throws ConflictException when this upload read the file differently.
+   */
+  private repeat(
+    earlier: RosterImportSourceEntity,
+    timezone: string,
+    settled: SettledExport,
+  ): AcceptedRosterUpload {
+    const readsTheSame =
+      earlier.exportTimezone === timezone &&
+      earlier.exportedAt?.getTime() === settled.exportedAt.getTime();
+
+    if (!readsTheSame) {
+      this._logger.warn(
+        `[accept] Roster export repeated with a different reading - ` +
+          `ImportId: ${earlier.id}, FleetId: ${earlier.fleetId}`,
+      );
+
+      // The earlier reading is named so the uploader can see which of the
+      // two is wrong. Every value in it is one this application wrote.
+      throw new ConflictException({
+        message:
+          'This roster export has already been imported for this Fleet, ' +
+          'read in a different timezone or at a different time. The ' +
+          'earlier import stands; nothing new has been imported.',
+        code: RosterRepeatRejectionCode.ALREADY_IMPORTED_DIFFERENTLY,
+        importId: earlier.id,
+        exportTimezone: earlier.exportTimezone,
+        exportLocalStamp: earlier.exportLocalStamp,
+        exportedAt: earlier.exportedAt,
+      });
+    }
+
+    this._logger.log(
+      `[accept] Roster export repeated - ImportId: ${earlier.id}, ` +
+        `AssetId: ${earlier.assetId}, FleetId: ${earlier.fleetId}`,
+    );
+
+    return {
+      record: earlier,
+      asset: earlier.asset,
+      traceId: null,
+      repeated: true,
+    };
+  }
+
+  /**
+   * Answers the loser of two uploads of one file that arrived together.
+   *
+   * Both found no earlier import and both stored a copy; the unique index let
+   * one of them record it. This one gives its copy back — the asset is
+   * discarded before its object is removed, because the row is what decides
+   * whether anything could serve it — and is answered as a repeat of the
+   * winner.
+   *
+   * @param error - Whatever the insert threw.
+   * @param loser - What this upload stored, and how it read the file.
+   * @returns The winner's import, marked as a repeat.
+   * @throws The original error, when it was anything other than this race.
+   */
+  private async settleRace(
+    error: unknown,
+    loser: {
+      readonly assetId: string;
+      readonly objectKey: string;
+      readonly fleetId: string;
+      readonly sourceSha256: string;
+      readonly timezone: string;
+      readonly settled: SettledExport;
+    },
+  ): Promise<AcceptedRosterUpload> {
+    const raced =
+      error instanceof QueryFailedError &&
+      error.message.includes(SOURCE_HASH_INDEX);
+
+    const earlier = raced
+      ? await this.findEarlier(loser.fleetId, loser.sourceSha256)
+      : null;
+
+    if (earlier === null) {
+      throw error;
+    }
+
+    await this._fileAssetService.discard(
+      loser.assetId,
+      'Repeated upload: a concurrent upload of the same file was recorded first',
+    );
+
+    try {
+      await this._quarantineStorage.remove(loser.objectKey);
+    } catch (removal: unknown) {
+      // The row already says nothing may serve these bytes. An object left
+      // behind is an orphan in a private bucket, which W10's inventory finds;
+      // failing the upload over it would tell somebody their file was
+      // refused when it was imported.
+      this._logger.error(
+        `[accept] Could not remove a repeated upload's copy - ` +
+          `AssetId: ${loser.assetId}, ` +
+          `Reason: ${removal instanceof Error ? removal.message : 'unknown'}`,
+      );
+    }
+
+    return this.repeat(earlier, loser.timezone, loser.settled);
   }
 
   /**
