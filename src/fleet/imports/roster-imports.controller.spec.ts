@@ -1,4 +1,9 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpStatus,
+  NotFoundException,
+} from '@nestjs/common';
+import { HTTP_CODE_METADATA } from '@nestjs/common/constants';
 
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import type { Response } from 'express';
@@ -124,7 +129,7 @@ describe('RosterImportsController', () => {
       (communityId: string, fleetId: string) => Promise<StoFleetEntity>
     >;
   };
-  let response: { status: jest.Mock };
+  let response: { status: jest.Mock; setHeader: jest.Mock };
   let statusService: {
     list: jest.Mock<(...args: unknown[]) => Promise<RosterImportPageDto>>;
     summary: jest.Mock<(...args: unknown[]) => Promise<RosterImportSourceDto>>;
@@ -148,7 +153,7 @@ describe('RosterImportsController', () => {
       ),
     };
 
-    response = { status: jest.fn() };
+    response = { status: jest.fn(), setHeader: jest.fn() };
 
     previewService = {
       preview: jest.fn(() => Promise.resolve(PREVIEW)),
@@ -392,6 +397,39 @@ describe('RosterImportsController', () => {
       expect.objectContaining({ declaredContentType: null }),
     );
   });
+
+  // Accepted, not done: the scan and the read happen after the answer.
+  it('declares 202 for a new import', () => {
+    expect(
+      Reflect.getMetadata(
+        HTTP_CODE_METADATA,
+        RosterImportsController.prototype.upload,
+      ),
+    ).toBe(HttpStatus.ACCEPTED);
+  });
+
+  it.each([false, true])(
+    'says where to watch the import (repeated: %s)',
+    async repeated => {
+      ingressService.accept.mockImplementationOnce(() =>
+        Promise.resolve({ record: RECORD, asset: ASSET, repeated }),
+      );
+
+      await controller.upload(
+        COMMUNITY_ID,
+        FLEET_ID,
+        USER_ID,
+        BODY,
+        multerFile(Buffer.from('roster bytes', 'utf8')),
+        reply(),
+      );
+
+      expect(response.setHeader).toHaveBeenCalledWith(
+        'Location',
+        `/fleet-communities/${COMMUNITY_ID}/fleets/${FLEET_ID}/roster-imports/record-1`,
+      );
+    },
+  );
 
   it('answers a new import with the status the route declares', async () => {
     await controller.upload(

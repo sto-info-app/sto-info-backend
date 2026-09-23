@@ -334,7 +334,7 @@ describe('Officer canary sinks', () => {
         USER_ID,
         { timezone: 'Europe/London' },
         multerFile(bytes, filename),
-        { status: jest.fn() } as unknown as Response,
+        { status: jest.fn(), setHeader: jest.fn() } as unknown as Response,
       );
 
       watched.push(JSON.stringify(response));

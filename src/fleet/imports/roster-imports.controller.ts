@@ -18,12 +18,12 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
+  ApiAcceptedResponse,
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
   ApiConflictResponse,
   ApiConsumes,
-  ApiCreatedResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -227,10 +227,12 @@ export class RosterImportsController {
    * @param body - The timezone the export was taken in, and the instant its
    *   filename stamp names where the stamp names two.
    * @param file - The multipart file.
-   * @param response - Used only to answer a repeat with 200 rather than 201.
+   * @param response - Used to say where to watch the import, and to answer
+   *   a repeat with 200.
    * @returns What was accepted, and what was discarded.
    */
   @Post()
+  @HttpCode(HttpStatus.ACCEPTED)
   @UseGuards(JwtAuthGuard, ScopeCapabilityGuard)
   @RequiresScopeCapability(FLEET_CAPABILITIES.ROSTER_IMPORT, {
     kind: FleetScopeKind.FLEET,
@@ -242,7 +244,19 @@ export class RosterImportsController {
   @ApiConsumes('multipart/form-data')
   @ApiBody(ROSTER_UPLOAD_SCHEMA)
   @ApiOperation({ summary: 'Upload an STO roster export for this Fleet' })
-  @ApiCreatedResponse({ type: RosterImportSourceDto })
+  @ApiAcceptedResponse({
+    description:
+      'The file was sanitised and quarantined, and is on its way to a ' +
+      'scanner and then to being read. Nothing about it is in force yet. ' +
+      'Location names the import, which reports where it has got to.',
+    type: RosterImportSourceDto,
+    headers: {
+      Location: {
+        description: 'The import, for its status.',
+        schema: { type: 'string' },
+      },
+    },
+  })
   @ApiOkResponse({
     description:
       'This Fleet has already imported this file, and the import it made is ' +
@@ -304,8 +318,16 @@ export class RosterImportsController {
     // used to be, let alone anything else.
     file.buffer = Buffer.alloc(0);
 
-    // Nothing was created, so 201 would be a false answer. The body is the
-    // import the first upload made, exactly as it would be listed.
+    // The upload is accepted, not done: the scan and the read happen after
+    // this answer, so 202 and a place to watch rather than 201 and a thing
+    // that exists in full. A repeat has nothing left to happen, and its body
+    // is the import the first upload made, exactly as it would be listed.
+    response.setHeader(
+      'Location',
+      `/fleet-communities/${communityId}/fleets/${fleetId}/roster-imports/` +
+        accepted.record.id,
+    );
+
     if (accepted.repeated) {
       response.status(HttpStatus.OK);
     }
