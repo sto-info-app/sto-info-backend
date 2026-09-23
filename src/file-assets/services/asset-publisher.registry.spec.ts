@@ -28,7 +28,7 @@ const restrictedPublisherFor = (
   subject: FileAssetSubject,
 ): RestrictedAssetPublisher => ({
   subject,
-  receive: jest.fn(() => Promise.resolve({ accepted: true as const })),
+  receive: jest.fn(() => Promise.resolve({ outcome: 'ACCEPTED' as const })),
 });
 
 describe('AssetPublisherRegistry', () => {

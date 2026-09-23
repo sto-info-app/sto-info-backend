@@ -160,6 +160,25 @@ export class FileAssetPlacementService {
   }
 
   /**
+   * Holds a pending placement until somebody decides about it.
+   *
+   * Not {@link settle}: a held placement may yet go into force. It carries
+   * `settledAt` all the same, because the scanner has answered and the sweep
+   * must not mistake it for an upload nothing came back for.
+   *
+   * @param placement - The pending placement.
+   * @returns The held placement.
+   */
+  async hold(
+    placement: FileAssetPlacementEntity,
+  ): Promise<FileAssetPlacementEntity> {
+    placement.state = FileAssetPlacementState.HELD;
+    placement.settledAt = new Date();
+
+    return this._repository.save(placement);
+  }
+
+  /**
    * Finds the placement a verdict is about.
    *
    * An asset is placed at most once, so this is a single row or none. None

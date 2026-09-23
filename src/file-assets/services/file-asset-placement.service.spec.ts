@@ -145,6 +145,17 @@ describe('FileAssetPlacementService', () => {
     });
   });
 
+  describe('hold', () => {
+    // Settled as far as the sweep is concerned: the scanner has answered,
+    // and a held file must not be mistaken for one nothing came back for.
+    it('holds a placement and records when', async () => {
+      const held = await service.hold(placement());
+
+      expect(held.state).toBe(FileAssetPlacementState.HELD);
+      expect(held.settledAt).toBeInstanceOf(Date);
+    });
+  });
+
   describe('finding placements', () => {
     it('finds the placement a verdict is about', async () => {
       repository.findOne.mockResolvedValueOnce(placement());

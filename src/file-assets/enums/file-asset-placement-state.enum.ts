@@ -6,7 +6,7 @@
  * row cannot answer together: a Story's `bannerImageId` says what is on the
  * page and says nothing at all about the upload being scanned right now.
  *
- * Only two of these five are live. At most one `PENDING` and at most one
+ * Only two of these are live. At most one `PENDING` and at most one
  * `ACTIVE` placement may exist for a slot, enforced by two partial unique
  * indexes rather than by service code, for the same reason the asset's own
  * transitions are enforced by a trigger.
@@ -64,6 +64,18 @@ export enum FileAssetPlacementState {
    * quarantine.
    */
   ABANDONED = 'ABANDONED',
+
+  /**
+   * Cleared and read, and waiting on a decision before it may be in force.
+   *
+   * Only a restricted asset's publisher asks for this, when the file is sound
+   * but something about it needs a person — a roster export that claims
+   * the same moment as a different export of the same Fleet. Settled as far
+   * as the nightly sweep is concerned, because nothing is waiting for a
+   * scanner, so a decision that takes longer than a day does not cost the
+   * file. Only a pending placement can be held, which the database enforces.
+   */
+  HELD = 'HELD',
 }
 
 /** The placement states that still expect something to happen. */

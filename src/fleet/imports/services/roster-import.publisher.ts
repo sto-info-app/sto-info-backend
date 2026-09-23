@@ -161,7 +161,7 @@ export class RosterImportPublisher
         `AssetId: ${attachment.assetId}, Rows: ${observations.length}`,
     );
 
-    return { accepted: true };
+    return { outcome: 'ACCEPTED' };
   }
 
   /**
@@ -253,6 +253,6 @@ export class RosterImportPublisher
         `Code: ${rejectionCode}`,
     );
 
-    return { accepted: false, rejectionCode };
+    return { outcome: 'REFUSED', rejectionCode };
   }
 }

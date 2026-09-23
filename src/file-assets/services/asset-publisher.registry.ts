@@ -91,12 +91,19 @@ export interface RestrictedAssetAttachment {
 /** What a restricted asset's publisher made of the bytes. */
 export type RestrictedAssetReceipt =
   /** The record now reflects the file, and the placement may go into force. */
-  | { readonly accepted: true }
+  | { readonly outcome: 'ACCEPTED' }
+  /**
+   * The file reads, and nothing from it may be in force until somebody
+   * decides something the feature cannot. The placement is held, the asset
+   * stays cleared and its bytes stay in quarantine; nothing is written. The
+   * reason is structural, never content, and is for the log.
+   */
+  | { readonly outcome: 'HELD'; readonly reason: string }
   /**
    * The feature will not use these bytes. The asset is refused with this
    * code and its bytes dropped; the code is structural, never content.
    */
-  | { readonly accepted: false; readonly rejectionCode: string };
+  | { readonly outcome: 'REFUSED'; readonly rejectionCode: string };
 
 /**
  * The half of publication that only the owning feature can do, for an asset

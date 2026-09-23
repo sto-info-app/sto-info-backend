@@ -76,6 +76,7 @@ describe('AssetPublicationService', () => {
   let findByAssetId: jest.Mock<(...args: any[]) => Promise<any>>;
   let activate: jest.Mock<(...args: any[]) => Promise<any>>;
   let settle: jest.Mock<(...args: any[]) => Promise<any>>;
+  let hold: jest.Mock<(...args: any[]) => Promise<any>>;
   let reject: jest.Mock<(...args: any[]) => Promise<any>>;
   let require_: jest.Mock;
   let requireRestricted: jest.Mock;
@@ -107,10 +108,11 @@ describe('AssetPublicationService', () => {
       .fn<(...args: any[]) => Promise<any>>()
       .mockResolvedValue(null);
     settle = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({});
+    hold = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({});
     reject = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({});
     receive = jest
       .fn<(...args: any[]) => Promise<any>>()
-      .mockResolvedValue({ accepted: true });
+      .mockResolvedValue({ outcome: 'ACCEPTED' });
     requireRestricted = jest.fn(() => ({
       subject: FileAssetSubject.ROSTER_IMPORT,
       receive,
@@ -143,6 +145,7 @@ describe('AssetPublicationService', () => {
         findByAssetId,
         activate,
         settle,
+        hold,
       } as unknown as FileAssetPlacementService,
       {
         require: require_,
@@ -460,7 +463,7 @@ describe('AssetPublicationService', () => {
       receive.mockImplementation((attachment: { bytes: Buffer }) => {
         handed = Buffer.from(attachment.bytes);
 
-        return Promise.resolve({ accepted: true });
+        return Promise.resolve({ outcome: 'ACCEPTED' });
       });
 
       await service.publish('asset-1');
@@ -509,7 +512,7 @@ describe('AssetPublicationService', () => {
       receive.mockImplementation(() => {
         order.push('receive');
 
-        return Promise.resolve({ accepted: true });
+        return Promise.resolve({ outcome: 'ACCEPTED' });
       });
       publishAsset.mockImplementation(() => {
         order.push('publish');
@@ -577,7 +580,7 @@ describe('AssetPublicationService', () => {
     describe('that the feature will not use', () => {
       beforeEach(() => {
         receive.mockResolvedValue({
-          accepted: false,
+          outcome: 'REFUSED',
           rejectionCode: 'ROWS_UNREADABLE',
         });
       });
@@ -610,8 +613,58 @@ describe('AssetPublicationService', () => {
       });
     });
 
+    describe('that the feature needs somebody to decide about first', () => {
+      beforeEach(() => {
+        receive.mockResolvedValue({
+          outcome: 'HELD',
+          reason: 'EXPORT_INSTANT_IN_CONFLICT',
+        });
+      });
+
+      it('says it was held rather than published', async () => {
+        await expect(service.publish('asset-1')).resolves.toEqual({
+          published: false,
+          refusal: 'HELD_BY_FEATURE',
+          deliveryReference: null,
+        });
+      });
+
+      it('holds the placement rather than putting it in force', async () => {
+        await service.publish('asset-1');
+
+        expect(hold).toHaveBeenCalledWith(rosterPlacement());
+        expect(activate).not.toHaveBeenCalled();
+        expect(settle).not.toHaveBeenCalled();
+      });
+
+      // Left CLEAN, so a retried job asks the feature again rather than
+      // resuming a publication that never started.
+      it('neither publishes nor refuses the asset', async () => {
+        await service.publish('asset-1');
+
+        expect(publishAsset).not.toHaveBeenCalled();
+        expect(reject).not.toHaveBeenCalled();
+      });
+
+      it('keeps the bytes, which may yet be read into force', async () => {
+        await service.publish('asset-1');
+
+        expect(remove).not.toHaveBeenCalled();
+        expect(discard).not.toHaveBeenCalled();
+      });
+
+      it('says why, in the log', async () => {
+        await service.publish('asset-1');
+
+        expect(Logger.prototype.log).toHaveBeenCalledWith(
+          expect.stringContaining('Reason: EXPORT_INSTANT_IN_CONFLICT'),
+        );
+      });
+    });
+
     it.each([
       FileAssetPlacementState.ACTIVE,
+      FileAssetPlacementState.HELD,
       FileAssetPlacementState.REJECTED,
       FileAssetPlacementState.ABANDONED,
     ])(

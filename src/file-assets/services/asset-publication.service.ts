@@ -38,7 +38,9 @@ export type PublicationRefusal =
    */
   | 'NOT_THESE_BYTES'
   /** The owning feature read the file and would not use it. */
-  | 'REFUSED_BY_FEATURE';
+  | 'REFUSED_BY_FEATURE'
+  /** The owning feature read the file and is waiting on a decision. */
+  | 'HELD_BY_FEATURE';
 
 /** What publishing one asset did. */
 export interface PublicationOutcome {
@@ -110,6 +112,11 @@ export interface PublicationOutcome {
  * A feature that will not use the file refuses it. The placement is settled
  * as rejected, the asset refused with the feature's code, and the bytes
  * dropped — there is nothing left for them to be evidence of.
+ *
+ * A feature that needs somebody to decide first holds it. The placement is
+ * held, the asset stays `CLEAN` and the bytes stay where they are, so a
+ * retried job asks the feature again rather than resuming a publication
+ * that never started, and nothing from the file is in force.
  */
 @Injectable()
 export class AssetPublicationService {
@@ -164,8 +171,9 @@ export class AssetPublicationService {
 
     if (placement.state !== FileAssetPlacementState.PENDING) {
       // A restricted placement is never superseded, because each one is its
-      // own record. One that is no longer pending is in force, refused or
-      // swept, and in the first case its bytes are evidence and must stay.
+      // own record. One that is no longer pending is in force, held, refused
+      // or swept, and in the first two cases its bytes are evidence and must
+      // stay.
       if (!restricted) {
         await this.dropSupersededBytes(asset);
       }
@@ -224,7 +232,18 @@ export class AssetPublicationService {
         bytes.fill(0);
       }
 
-      if (!receipt.accepted) {
+      if (receipt.outcome === 'HELD') {
+        await this._placements.hold(placement);
+
+        this._logger.log(
+          `[placeRestricted] Restricted asset held - AssetId: ${asset.id}, ` +
+            `Subject: ${placement.subject}, Reason: ${receipt.reason}`,
+        );
+
+        return this.refuse(asset.id, 'HELD_BY_FEATURE');
+      }
+
+      if (receipt.outcome === 'REFUSED') {
         await this._placements.settle(
           placement,
           FileAssetPlacementState.REJECTED,

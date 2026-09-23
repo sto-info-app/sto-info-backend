@@ -157,7 +157,7 @@ describe('RosterImportPublisher', () => {
   describe('a file that reads', () => {
     it('accepts it', async () => {
       await expect(receive(sanitised(basicExport()))).resolves.toEqual({
-        accepted: true,
+        outcome: 'ACCEPTED',
       });
     });
 
@@ -317,7 +317,7 @@ describe('RosterImportPublisher', () => {
 
     it('refuses it as unreadable', async () => {
       await expect(receive(unreadable())).resolves.toEqual({
-        accepted: false,
+        outcome: 'REFUSED',
         rejectionCode: RosterCsvRejectionCode.ROWS_UNREADABLE,
       });
     });
@@ -351,7 +351,7 @@ describe('RosterImportPublisher', () => {
       imports.findOne.mockImplementation(() => Promise.resolve(null));
 
       await expect(receive(sanitised(basicExport()))).resolves.toEqual({
-        accepted: false,
+        outcome: 'REFUSED',
         rejectionCode: RosterPublicationRejectionCode.NOT_THIS_IMPORT,
       });
       expect(transaction).not.toHaveBeenCalled();
@@ -363,7 +363,7 @@ describe('RosterImportPublisher', () => {
           assetId: '88888888-8888-4888-8888-888888888888',
         }),
       ).resolves.toEqual({
-        accepted: false,
+        outcome: 'REFUSED',
         rejectionCode: RosterPublicationRejectionCode.NOT_THIS_IMPORT,
       });
       expect(transaction).not.toHaveBeenCalled();
@@ -374,7 +374,7 @@ describe('RosterImportPublisher', () => {
       record.exportTimezone = null;
 
       await expect(receive(sanitised(basicExport()))).resolves.toEqual({
-        accepted: false,
+        outcome: 'REFUSED',
         rejectionCode: RosterPublicationRejectionCode.EXPORT_TIMEZONE_MISSING,
       });
       expect(transaction).not.toHaveBeenCalled();
