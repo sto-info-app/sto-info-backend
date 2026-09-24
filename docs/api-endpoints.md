@@ -471,6 +471,45 @@ count, **how many officer notes were discarded**, the parser version, the asset'
 codes describe shape rather than content, and no part of the file appears in the response, the
 log or anywhere else. Refused uploads leave nothing behind.
 
+### GET /fleet-communities/:communityId/fleets/:fleetId/roster-identities/candidates
+
+List a Fleet's rename candidates, open ones first. See [Roster identities](roster-identities.md).
+
+**Authentication Required.** The caller must hold `roster.investigate` at that Fleet. A caller who
+cannot see the Fleet is told it does not exist.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Query:** `page`, `pageSize` (at most 50) and, optionally, `state` — `OPEN`, `CONFIRMED` or
+`REJECTED`.
+
+**Response (200):** `{ items, total, page, pageSize }`. Each candidate carries its kind, state,
+whether it may be decided now, its confidence and each corroborating signal, any collision reasons,
+whether its evidence has moved since it was decided, its revision, the two exports it rests on
+with their export instants, the alias pairs it would join with their names and handles as
+exported, and every decision taken on it, newest first, naming the reviewer by STO Info username.
+
+### POST /fleet-communities/:communityId/fleets/:fleetId/roster-identities/candidates/:candidateId/decisions
+
+Confirm, reject or undo a rename candidate.
+
+**Authentication Required.** `roster.investigate` at that Fleet.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Request:** `{ "action": "CONFIRM" | "REJECT" | "UNDO", "revision": <the candidate's revision as
+loaded>, "reason": "..." }`. A reason is optional to confirm or reject and required to undo; at
+most 500 characters.
+
+**Response (200):** the candidate as it now stands. The Fleet's identities are recomputed
+afterwards, on a queue. No alias, account or account handle is changed by the request itself.
+
+**Response (404):** the Fleet has no such candidate. One of another Fleet is reported the same way.
+
+**Response (409):** it changed since it was loaded, it is a collision and cannot be decided, or it
+is not in a state the action applies to — only an open candidate is confirmed or rejected, and only
+a decided one undone.
+
 ## Account Endpoints
 
 All account endpoints are under `/account/*` and require authentication.

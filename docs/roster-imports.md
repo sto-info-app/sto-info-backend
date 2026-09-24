@@ -3,8 +3,9 @@
 How an STO roster export enters the site, what is thrown away on the way in, and why the thing
 that is kept is not the file that was uploaded.
 
-FC-009. See also [File assets](file-assets.md) for the registry the sanitised file lands in, and
-ADR-0001 and ADR-0018 in the Fleet Community plans for the decisions behind it.
+FC-009. See also [File assets](file-assets.md) for the registry the sanitised file lands in,
+[Roster identities](roster-identities.md) for what is concluded from the observations an import
+produces, and ADR-0001 and ADR-0018 in the Fleet Community plans for the decisions behind it.
 
 ## The one-sentence version
 

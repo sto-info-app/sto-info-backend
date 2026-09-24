@@ -22,6 +22,11 @@ The database uses PostgreSQL with TypeORM for object-relational mapping.
 | `FileAssetEntity`         | `file_asset`           | Every stored file: its identity, hash, state and audience — see [File assets](file-assets.md) |
 | `FileAssetPlacementEntity` | `file_asset_placement` | Which record and slot a picture is for, and what is on its way to one — see [File assets](file-assets.md) |
 | `RosterImportSourceEntity` | `fleet_roster_import_source` | What is known about an uploaded roster export once the export itself has been discarded — see [Roster imports](roster-imports.md) |
+| `RosterIdentityEntity` | `fleet_roster_identity` | A UUID for somebody a Fleet's roster listed, needing no STO Info account — see [Roster identities](roster-identities.md) |
+| `RosterIdentityAliasEntity` | `fleet_roster_identity_alias` | One exact Character name and handle in a Fleet, and which identity it belongs to |
+| `RosterIdentityCandidateEntity` | `fleet_roster_identity_candidate` | A Character or account rename the evidence suggests, and where a reviewer has left it |
+| `RosterIdentityCandidateLinkEntity` | `fleet_roster_identity_candidate_link` | Each pair of aliases a rename candidate would join |
+| `RosterIdentityDecisionEntity` | `fleet_roster_identity_decision` | Each confirm, reject or undo on a candidate, write-once |
 
 ### Platform Launcher Image Mapping
 
@@ -222,6 +227,19 @@ check violation in two cases:
    write-once, so a refused upload cannot be turned into an accepted one by an `UPDATE`;
 2. the state returned to `PENDING` — without which a placement the nightly sweep had abandoned
    could be revived after its bytes had been dropped.
+
+### Roster identities
+
+| Constraint | Table | What it guarantees |
+| --- | --- | --- |
+| `UX_roster_identity_alias_key` | `fleet_roster_identity_alias` | One alias per Fleet and exact normalised name and handle, so a recompute finds the alias it made last time and identity UUIDs survive it |
+| `UQ_roster_identity_alias_origin` | `fleet_roster_identity_alias` | Every alias is born with an identity of its own, which is where it returns when a merge is undone |
+| `FK_roster_identity_alias_identity`, `FK_roster_identity_candidate_from`, `FK_roster_identity_candidate_link_from` and their pairs | alias, candidate, link | Through `(id, fleetId)`, so no row can join one Fleet's evidence to another's |
+| `CHK_roster_identity_candidate_kind` | `fleet_roster_identity_candidate` | A Character rename has an alias pair and no handles; an account rename has a handle pair and no aliases |
+| `CHK_roster_identity_candidate_collision_open` | `fleet_roster_identity_candidate` | A candidate with collision reasons stays `OPEN`: it can be seen and not decided |
+| `UX_roster_identity_candidate_character`, `UX_roster_identity_candidate_account` | `fleet_roster_identity_candidate` | One candidate per alias pair, or handle pair, per Fleet, so a rejected one is found again rather than suggested again |
+| `UX_roster_identity_decision_revision` | `fleet_roster_identity_decision` | Decisions are numbered per candidate, so two reviewers cannot both record the next one |
+| `TR_roster_identity_decision_guard` | `fleet_roster_identity_decision` | Refuses any change to a decision except its actor being cleared when their account is deleted |
 
 ### Roster import provenance
 
