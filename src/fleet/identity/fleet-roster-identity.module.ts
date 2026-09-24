@@ -6,8 +6,10 @@ import { QueueModule } from 'src/shared/queue/queue.module';
 import { FleetModule } from '../fleet.module';
 import { ROSTER_IDENTITY_QUEUE } from './constants/roster-identity.constants';
 import { RosterIdentityProcessor } from './processors/roster-identity.processor';
+import { RosterIdentitiesController } from './roster-identities.controller';
 import { RosterIdentityQueueService } from './services/roster-identity-queue.service';
 import { RosterIdentityRecomputeService } from './services/roster-identity-recompute.service';
+import { RosterIdentityReviewService } from './services/roster-identity-review.service';
 
 /**
  * Roster identities, rename candidates and the proposals they raise (FC-018).
@@ -26,9 +28,11 @@ import { RosterIdentityRecomputeService } from './services/roster-identity-recom
     QueueModule,
     BullModule.registerQueue({ name: ROSTER_IDENTITY_QUEUE }),
   ],
+  controllers: [RosterIdentitiesController],
   providers: [
     RosterIdentityQueueService,
     RosterIdentityRecomputeService,
+    RosterIdentityReviewService,
     RosterIdentityProcessor,
   ],
   exports: [RosterIdentityQueueService],

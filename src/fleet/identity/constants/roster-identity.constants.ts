@@ -25,3 +25,17 @@ export const ROSTER_IDENTITY_RECOMPUTE_BACKOFF_MS = 5_000;
  * inside PostgreSQL's limit on bound parameters.
  */
 export const ROSTER_IDENTITY_WRITE_BATCH = 500;
+
+/**
+ * The advisory lock a Fleet's identities are changed under.
+ *
+ * Taken by the recompute and by a reviewer's decision, so neither can
+ * interleave with the other. Hashed to a lock number by PostgreSQL's
+ * `hashtext`; two Fleets sharing a hash only ever wait for each other.
+ *
+ * @param fleetId - The Fleet.
+ * @returns The text the lock number is hashed from.
+ */
+export function rosterIdentityLockKey(fleetId: string): string {
+  return `fleet-roster-identity:${fleetId}`;
+}

@@ -14,7 +14,10 @@ import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 import { RosterImportSourceEntity } from '../../imports/entities/roster-import-source.entity';
 import { RosterObservationEntity } from '../../imports/entities/roster-observation.entity';
 import { CharacterFleetProposalService } from '../../services/character-fleet-proposal.service';
-import { ROSTER_IDENTITY_WRITE_BATCH } from '../constants/roster-identity.constants';
+import {
+  ROSTER_IDENTITY_WRITE_BATCH,
+  rosterIdentityLockKey,
+} from '../constants/roster-identity.constants';
 import { RosterIdentityAliasEntity } from '../entities/roster-identity-alias.entity';
 import { RosterIdentityCandidateLinkEntity } from '../entities/roster-identity-candidate-link.entity';
 import { RosterIdentityCandidateEntity } from '../entities/roster-identity-candidate.entity';
@@ -121,7 +124,7 @@ export class RosterIdentityRecomputeService {
   async recompute(fleetId: string): Promise<RosterIdentityRecomputeSummary> {
     const worked = await this._dataSource.transaction(async manager => {
       await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
-        `fleet-roster-identity:${fleetId}`,
+        rosterIdentityLockKey(fleetId),
       ]);
 
       const evidence = await this.readEvidence(manager, fleetId);
