@@ -3,12 +3,17 @@ import { Test, TestingModule } from '@nestjs/testing';
 
 import { DataSource, EntityTarget } from 'typeorm';
 
+import { AccountEntity } from 'src/sto/account/entities/account.entity';
+import { CharacterEntity } from 'src/sto/character/entities/character.entity';
+
+import { FleetAudienceService } from '../authorisation/fleet-audience.service';
 import { CHARACTER_FLEET_PROPOSAL_EXPIRY_DAYS } from '../constants/fleet-policy.constants';
 import { CharacterFleetMembershipEntity } from '../entities/character-fleet-membership.entity';
 import { CharacterFleetProposalEntity } from '../entities/character-fleet-proposal.entity';
 import { CharacterFleetMembershipSource } from '../enums/character-fleet-membership-source.enum';
 import { CharacterFleetProposalStatus } from '../enums/character-fleet-proposal-status.enum';
 import { FleetAudience } from '../enums/fleet-audience.enum';
+import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 import { CharacterFleetMembershipService } from './character-fleet-membership.service';
 import { CharacterFleetProposalService } from './character-fleet-proposal.service';
 
@@ -19,7 +24,9 @@ describe('CharacterFleetProposalService', () => {
     findOne: jest.Mock;
     save: jest.Mock;
     create: jest.Mock;
+    exists: jest.Mock;
   };
+  let audienceService: { canViewScope: jest.Mock };
   let membershipService: {
     requireOwnedCharacter: jest.Mock;
     openWithin: jest.Mock;
@@ -32,6 +39,10 @@ describe('CharacterFleetProposalService', () => {
 
   /** What findOne answers with for the proposal table. */
   let stored: CharacterFleetProposalEntity | null;
+  /** What findOne answers with for the Character table. */
+  let character: Partial<CharacterEntity> | null;
+  /** What findOne answers with for the account table. */
+  let account: Partial<AccountEntity> | null;
 
   /**
    * Builds a proposal row.
@@ -58,10 +69,21 @@ describe('CharacterFleetProposalService', () => {
 
   beforeEach(async () => {
     stored = proposal();
+    character = { id: characterId, accountId: 'account-1' };
+    account = { id: 'account-1', userId: ownerId };
 
     manager = {
       find: jest.fn(() => Promise.resolve([])),
-      findOne: jest.fn(() => Promise.resolve(stored)),
+      findOne: jest.fn((entity: EntityTarget<unknown>) =>
+        Promise.resolve(
+          entity === CharacterEntity
+            ? character
+            : entity === AccountEntity
+              ? account
+              : stored,
+        ),
+      ),
+      exists: jest.fn(() => Promise.resolve(false)),
       save: jest.fn((_entity, row) => Promise.resolve(row)),
       create: jest.fn((entity: EntityTarget<unknown>, input) =>
         entity === CharacterFleetProposalEntity
@@ -83,9 +105,14 @@ describe('CharacterFleetProposalService', () => {
       ),
     };
 
+    audienceService = {
+      canViewScope: jest.fn(() => Promise.resolve(true)),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CharacterFleetProposalService,
+        { provide: FleetAudienceService, useValue: audienceService },
         {
           provide: CharacterFleetMembershipService,
           useValue: membershipService,
@@ -134,12 +161,57 @@ describe('CharacterFleetProposalService', () => {
 
       manager.find.mockResolvedValueOnce(rows);
 
-      await expect(service.listForOwner(characterId, ownerId)).resolves.toBe(
+      await expect(service.listForOwner(characterId, ownerId)).resolves.toEqual(
         rows,
       );
       expect(manager.find).toHaveBeenCalledWith(
         CharacterFleetProposalEntity,
         expect.objectContaining({ order: { raisedAt: 'DESC' } }),
+      );
+    });
+
+    /**
+     * Anybody can register a Character under any name, so a question from a
+     * Fleet its owner cannot see would tell them which hidden Fleet lists it.
+     * An answered one stays, because they answered it knowing.
+     */
+    it('leaves out an unanswered one from a Fleet the owner cannot see', async () => {
+      const hidden = proposal({ id: 'hidden', fleetId: 'fleet-hidden' });
+      const lapsed = proposal({
+        id: 'lapsed',
+        fleetId: 'fleet-hidden',
+        status: CharacterFleetProposalStatus.LAPSED,
+      });
+      const answered = proposal({
+        id: 'answered',
+        fleetId: 'fleet-hidden',
+        status: CharacterFleetProposalStatus.DECLINED,
+        answeredAt: new Date('2026-02-01Z'),
+      });
+      const shown = proposal({ id: 'shown' });
+
+      manager.find.mockResolvedValueOnce([hidden, lapsed, answered, shown]);
+      audienceService.canViewScope.mockImplementation((ref: { id: string }) =>
+        Promise.resolve(ref.id !== 'fleet-hidden'),
+      );
+
+      await expect(service.listForOwner(characterId, ownerId)).resolves.toEqual(
+        [answered, shown],
+      );
+    });
+
+    it('asks once per Fleet, as the owner', async () => {
+      manager.find.mockResolvedValueOnce([
+        proposal({ id: 'one' }),
+        proposal({ id: 'two' }),
+      ]);
+
+      await service.listForOwner(characterId, ownerId);
+
+      expect(audienceService.canViewScope).toHaveBeenCalledTimes(1);
+      expect(audienceService.canViewScope).toHaveBeenCalledWith(
+        { kind: FleetScopeKind.FLEET, id: fleetId },
+        ownerId,
       );
     });
   });
@@ -201,12 +273,190 @@ describe('CharacterFleetProposalService', () => {
       expect(manager.save).not.toHaveBeenCalled();
     });
 
+    it('cites the import it rests on', async () => {
+      stored = null;
+
+      const raised = await service.raise(
+        characterId,
+        { fleetId, evidenceImportId: 'import-1' },
+        now,
+      );
+
+      expect(raised).toMatchObject({
+        evidenceImportId: 'import-1',
+        replacesProposalId: null,
+      });
+    });
+
+    /**
+     * An expired proposal was never answered, so the next import may ask
+     * again. The old one has to stop being PENDING first, or the unique index
+     * would refuse the new one, and it is kept so the owner can see it was
+     * asked before.
+     */
+    it('lapses an expired open one and asks again in its place', async () => {
+      const expired = proposal({
+        id: 'expired',
+        expiresAt: new Date('2026-02-01T00:00:00.000Z'),
+      });
+
+      stored = expired;
+
+      const raised = await service.raise(characterId, { fleetId }, now);
+
+      expect(manager.save).toHaveBeenNthCalledWith(
+        1,
+        CharacterFleetProposalEntity,
+        expect.objectContaining({
+          id: 'expired',
+          status: CharacterFleetProposalStatus.LAPSED,
+          answeredAt: null,
+        }),
+      );
+      expect(raised).toMatchObject({
+        status: CharacterFleetProposalStatus.PENDING,
+        replacesProposalId: 'expired',
+        raisedAt: now,
+      });
+    });
+
     it('takes its own instant when none is given', async () => {
       stored = null;
 
       const raised = await service.raise(characterId, { fleetId });
 
       expect(raised.raisedAt.getTime()).toBeLessThanOrEqual(Date.now());
+    });
+  });
+
+  describe('raising one from roster evidence', () => {
+    const observedAt = new Date('2026-02-20T12:00:00.000Z');
+    const evidence = { fleetId, evidenceImportId: 'import-1', observedAt };
+
+    beforeEach(() => {
+      stored = null;
+    });
+
+    it('raises one citing the import and when its export was taken', async () => {
+      const raised = await service.raiseFromEvidence(
+        characterId,
+        evidence,
+        now,
+      );
+
+      expect(raised).toMatchObject({
+        characterId,
+        fleetId,
+        evidenceImportId: 'import-1',
+        observedAt,
+        proposedByUserId: null,
+        status: CharacterFleetProposalStatus.PENDING,
+      });
+    });
+
+    it('locks the Character, as an answer does', async () => {
+      await service.raiseFromEvidence(characterId, evidence, now);
+
+      expect(manager.findOne).toHaveBeenCalledWith(CharacterEntity, {
+        where: { id: characterId },
+        lock: { mode: 'pessimistic_write' },
+      });
+    });
+
+    it('asks whether the owner could see the Fleet anyway', async () => {
+      await service.raiseFromEvidence(characterId, evidence, now);
+
+      expect(audienceService.canViewScope).toHaveBeenCalledWith(
+        { kind: FleetScopeKind.FLEET, id: fleetId },
+        ownerId,
+      );
+    });
+
+    it.each([
+      [
+        'the Character is gone',
+        (): void => {
+          character = null;
+        },
+      ],
+      [
+        'its account is gone',
+        (): void => {
+          account = null;
+        },
+      ],
+      [
+        'the owner could not see the Fleet',
+        (): void => {
+          audienceService.canViewScope.mockResolvedValue(false);
+        },
+      ],
+      [
+        'the owner declined this Fleet before',
+        (): void => {
+          manager.exists.mockImplementation((entity: EntityTarget<unknown>) =>
+            Promise.resolve(entity === CharacterFleetProposalEntity),
+          );
+        },
+      ],
+      [
+        'the owner has recorded a membership of this Fleet',
+        (): void => {
+          manager.exists.mockImplementation((entity: EntityTarget<unknown>) =>
+            Promise.resolve(entity === CharacterFleetMembershipEntity),
+          );
+        },
+      ],
+    ])('asks nothing when %s', async (_case, arrange) => {
+      arrange();
+
+      await expect(
+        service.raiseFromEvidence(characterId, evidence, now),
+      ).resolves.toBeNull();
+      expect(manager.save).not.toHaveBeenCalled();
+    });
+
+    it('looks for a decline from this Fleet only', async () => {
+      await service.raiseFromEvidence(characterId, evidence, now);
+
+      expect(manager.exists).toHaveBeenCalledWith(
+        CharacterFleetProposalEntity,
+        {
+          where: {
+            characterId,
+            fleetId,
+            status: CharacterFleetProposalStatus.DECLINED,
+          },
+        },
+      );
+    });
+
+    // An ended membership counts, and so does one the owner removed: either
+    // way it is their own statement about this Fleet.
+    it('counts every membership of this Fleet, ended or removed', async () => {
+      await service.raiseFromEvidence(characterId, evidence, now);
+
+      expect(manager.exists).toHaveBeenCalledWith(
+        CharacterFleetMembershipEntity,
+        { where: { characterId, fleetId }, withDeleted: true },
+      );
+    });
+
+    it('returns the open one rather than asking twice', async () => {
+      const open = proposal();
+
+      stored = open;
+
+      await expect(
+        service.raiseFromEvidence(characterId, evidence, now),
+      ).resolves.toBe(open);
+      expect(manager.save).not.toHaveBeenCalled();
+    });
+
+    it('takes its own instant when none is given', async () => {
+      const raised = await service.raiseFromEvidence(characterId, evidence);
+
+      expect(raised!.raisedAt.getTime()).toBeLessThanOrEqual(Date.now());
     });
   });
 
@@ -339,6 +589,43 @@ describe('CharacterFleetProposalService', () => {
   });
 
   describe('refusing an answer it will not take', () => {
+    /**
+     * Reported the same as one that does not exist, so that answering it
+     * cannot be used to learn which hidden Fleet it came from.
+     */
+    it('reports one from a Fleet the owner cannot now see as missing', async () => {
+      audienceService.canViewScope.mockResolvedValue(false);
+
+      await expect(
+        service.accept(characterId, 'proposal-1', ownerId, {}, now),
+      ).rejects.toThrow(NotFoundException);
+      expect(audienceService.canViewScope).toHaveBeenCalledWith(
+        { kind: FleetScopeKind.FLEET, id: fleetId },
+        ownerId,
+      );
+      expect(membershipService.openWithin).not.toHaveBeenCalled();
+    });
+
+    it('does not ask about a Fleet for one already answered', async () => {
+      stored = proposal({
+        status: CharacterFleetProposalStatus.DECLINED,
+        answeredAt: new Date('2026-02-01Z'),
+      });
+
+      await expect(
+        service.decline(characterId, 'proposal-1', ownerId, now),
+      ).rejects.toThrow(ConflictException);
+      expect(audienceService.canViewScope).not.toHaveBeenCalled();
+    });
+
+    it('refuses a lapsed one as expired', async () => {
+      stored = proposal({ status: CharacterFleetProposalStatus.LAPSED });
+
+      await expect(
+        service.decline(characterId, 'proposal-1', ownerId, now),
+      ).rejects.toThrow(/expired on/);
+    });
+
     it('reports a proposal that is not this Character’s', async () => {
       stored = null;
 

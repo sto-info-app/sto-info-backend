@@ -34,6 +34,13 @@ export function toProposalState(
     return CharacterFleetProposalState.DECLINED;
   }
 
+  // Only ever written once a proposal has expired, so it says nothing the
+  // deadline did not already. Read explicitly rather than from the date, so
+  // that it cannot come back as pending if somebody edits the deadline.
+  if (proposal.status === CharacterFleetProposalStatus.LAPSED) {
+    return CharacterFleetProposalState.EXPIRED;
+  }
+
   return proposal.expiresAt.getTime() <= now.getTime()
     ? CharacterFleetProposalState.EXPIRED
     : CharacterFleetProposalState.PENDING;

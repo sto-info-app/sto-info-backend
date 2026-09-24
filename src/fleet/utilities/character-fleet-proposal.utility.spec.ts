@@ -53,4 +53,15 @@ describe('toProposalState', () => {
       ),
     ).toBe(CharacterFleetProposalState.EXPIRED);
   });
+
+  // Written only after expiry, when a later import asked again. Read from
+  // the status, so a deadline edited afterwards cannot revive it.
+  it('reports a lapsed proposal as expired whatever the clock says', () => {
+    expect(
+      toProposalState(
+        { status: CharacterFleetProposalStatus.LAPSED, expiresAt },
+        new Date('2026-05-01T12:00:00.000Z'),
+      ),
+    ).toBe(CharacterFleetProposalState.EXPIRED);
+  });
 });

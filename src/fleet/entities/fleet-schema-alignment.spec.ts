@@ -8,6 +8,7 @@ import { CreateFleetSlugHistory1792900000000 } from '../../database/migrations/1
 import { AddFleetScopeArtwork1793000000000 } from '../../database/migrations/1793000000000-AddFleetScopeArtwork';
 import { AddressStandaloneFleets1793100000000 } from '../../database/migrations/1793100000000-AddressStandaloneFleets';
 import { CreateCharacterFleetProposals1793300000000 } from '../../database/migrations/1793300000000-CreateCharacterFleetProposals';
+import { LapseCharacterFleetProposals1794200000000 } from '../../database/migrations/1794200000000-LapseCharacterFleetProposals';
 import { ArmadaFleetMembershipEntity } from './armada-fleet-membership.entity';
 import { CharacterFleetMembershipEntity } from './character-fleet-membership.entity';
 import { CharacterFleetProposalEntity } from './character-fleet-proposal.entity';
@@ -75,6 +76,7 @@ describe('Fleet schema alignment', () => {
     await new AddFleetScopeArtwork1793000000000().up(queryRunner);
     await new AddressStandaloneFleets1793100000000().up(queryRunner);
     await new CreateCharacterFleetProposals1793300000000().up(queryRunner);
+    await new LapseCharacterFleetProposals1794200000000().up(queryRunner);
     statements = captured;
   });
 

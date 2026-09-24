@@ -9,6 +9,7 @@ import {
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
+  Unique,
   UpdateDateColumn,
 } from 'typeorm';
 
@@ -16,6 +17,7 @@ import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
 
 import { CharacterFleetProposalStatus } from '../enums/character-fleet-proposal-status.enum';
+import { RosterImportSourceEntity } from '../imports/entities/roster-import-source.entity';
 import { StoFleetEntity } from './sto-fleet.entity';
 
 /**
@@ -28,14 +30,15 @@ import { StoFleetEntity } from './sto-fleet.entity';
  * Character. Nothing may turn the first into the second on its own, so this
  * table is where a suggestion waits for the only person entitled to answer it.
  *
- * ## Nothing here raises one yet
+ ## Who raises one
  *
- * FC-014 owns the table, the answer and the routes. What produces proposals
- * from roster evidence is FC-018, which has the identity and confidence work
- * to decide when a row is worth asking about at all. Building the answer first
- * is deliberate: a proposal nobody can decline is worse than no proposal, and
- * the acceptance rules are the part that has to be right before anything
- * starts generating them.
+ * FC-014 owns the table, the answer and the routes. FC-018 raises proposals
+ * from roster evidence: when a Fleet's latest in-force import lists a
+ * Character by exactly the name and handle a registered Character has, and
+ * the Character's owner could see that Fleet anyway. It never asks again
+ * about a Fleet the owner declined or has recorded a membership of, and asks
+ * again about an expired one only by lapsing it — see
+ * {@link CharacterFleetProposalStatus.LAPSED}.
  *
  * ## Competing proposals
  *
@@ -53,7 +56,7 @@ import { StoFleetEntity } from './sto-fleet.entity';
  * column meaning "expired" is wrong from the moment it lapses until a job next
  * runs, and an outage would leave dead proposals answerable; reading the date
  * cannot be stale. {@link CharacterFleetProposalStatus} therefore holds only
- * things a person did.
+ * things a person did, with the one narrow exception of `LAPSED`.
  *
  * `fleetId` is `RESTRICT`, as on the membership: a Fleet record cannot be
  * hard-deleted out from under a question somebody has been asked.
@@ -68,6 +71,8 @@ import { StoFleetEntity } from './sto-fleet.entity';
   'status',
 ])
 @Index('IDX_character_fleet_proposal_fleet_raised', ['fleetId', 'raisedAt'])
+@Index('IDX_character_fleet_proposal_evidence', ['evidenceImportId'])
+@Unique('UQ_character_fleet_proposal_replaces', ['replacesProposalId'])
 export class CharacterFleetProposalEntity {
   @ApiProperty({ description: 'Unique identifier.' })
   @PrimaryGeneratedColumn('uuid')
@@ -108,6 +113,35 @@ export class CharacterFleetProposalEntity {
   })
   @Column({ type: 'timestamptz', nullable: true, default: null })
   observedAt: Date | null;
+
+  /**
+   * The import whose roster listed the Character, when an import raised it.
+   *
+   * What the proposal rests on, so that it can say which export as well as
+   * when. Null for a proposal a person raised, and once the import is gone:
+   * an answer outlives the evidence it was an answer to.
+   */
+  @ApiProperty({
+    description: 'The import whose roster listed the Character, if any.',
+    nullable: true,
+  })
+  @Column({ type: 'uuid', nullable: true, default: null })
+  evidenceImportId: string | null;
+
+  /**
+   * The expired proposal this one asks again in place of.
+   *
+   * Set only by a roster import re-asking after an unanswered proposal
+   * expired, and that one is `LAPSED` in the same transaction. A proposal can
+   * be replaced at most once, so the questions asked about one Character and
+   * Fleet form a single line the owner can read back.
+   */
+  @ApiProperty({
+    description: 'The expired proposal this one replaces, if any.',
+    nullable: true,
+  })
+  @Column({ type: 'uuid', nullable: true, default: null })
+  replacesProposalId: string | null;
 
   @ApiProperty({ description: 'When the proposal was raised.' })
   @Column({ type: 'timestamptz', nullable: false, default: () => 'now()' })
@@ -167,6 +201,14 @@ export class CharacterFleetProposalEntity {
   @ManyToOne(() => StoFleetEntity, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'fleetId' })
   fleet: StoFleetEntity;
+
+  @ManyToOne(() => RosterImportSourceEntity, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'evidenceImportId' })
+  evidenceImport: RosterImportSourceEntity | null;
+
+  @ManyToOne(() => CharacterFleetProposalEntity, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'replacesProposalId' })
+  replacesProposal: CharacterFleetProposalEntity | null;
 
   @ManyToOne(() => UserEntity, { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'proposedByUserId' })
