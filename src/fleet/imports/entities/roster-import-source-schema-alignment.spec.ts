@@ -6,6 +6,7 @@ import { AddDeclaredContentTypeToRosterImportSource1792500000000 } from '../../.
 import { RecordRosterExportTime1793400000000 } from '../../../database/migrations/1793400000000-RecordRosterExportTime';
 import { PublishRosterImports1793600000000 } from '../../../database/migrations/1793600000000-PublishRosterImports';
 import { GroupConflictingRosterImports1793900000000 } from '../../../database/migrations/1793900000000-GroupConflictingRosterImports';
+import { RecordRosterImportCorrections1794300000000 } from '../../../database/migrations/1794300000000-RecordRosterImportCorrections';
 import { RosterImportSourceEntity } from './roster-import-source.entity';
 
 /**
@@ -43,6 +44,7 @@ describe('Roster import source schema alignment', () => {
     await new RecordRosterExportTime1793400000000().up(queryRunner);
     await new PublishRosterImports1793600000000().up(queryRunner);
     await new GroupConflictingRosterImports1793900000000().up(queryRunner);
+    await new RecordRosterImportCorrections1794300000000().up(queryRunner);
     statements = captured;
   });
 
@@ -176,6 +178,21 @@ describe('Roster import source schema alignment', () => {
     expect(guard).not.toContain(
       'NEW."exportTimezone" IS DISTINCT FROM OLD."exportTimezone"',
     );
+  });
+
+  // An investigator's correction is a change to how the evidence counts,
+  // not to what was uploaded, so the flags sit outside the frozen columns.
+  it('leaves exclusion and the partial mark changeable', () => {
+    const definitions = statements.filter(statement =>
+      statement.includes('roster_import_source_guard'),
+    );
+    const guard = definitions[definitions.length - 1];
+
+    for (const column of ['excluded', 'partial']) {
+      expect(guard).not.toContain(
+        `NEW."${column}" IS DISTINCT FROM OLD."${column}"`,
+      );
+    }
   });
 
   it('drops everything it created when reverted', async () => {

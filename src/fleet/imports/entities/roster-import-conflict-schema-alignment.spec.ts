@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { getMetadataArgsStorage, QueryRunner } from 'typeorm';
 
 import { GroupConflictingRosterImports1793900000000 } from '../../../database/migrations/1793900000000-GroupConflictingRosterImports';
+import { RecordRosterImportCorrections1794300000000 } from '../../../database/migrations/1794300000000-RecordRosterImportCorrections';
 import { RosterImportConflictEntity } from './roster-import-conflict.entity';
 
 /**
@@ -34,10 +35,16 @@ async function capture(
  */
 describe('Roster import conflict schema alignment', () => {
   const migration = new GroupConflictingRosterImports1793900000000();
+  const corrections = new RecordRosterImportCorrections1794300000000();
   let statements: string[];
 
   beforeAll(async () => {
-    statements = await capture(queryRunner => migration.up(queryRunner));
+    // Every migration that shapes this table, in the order they run: FC-019
+    // added the selection and made the group one per instant.
+    statements = [
+      ...(await capture(queryRunner => migration.up(queryRunner))),
+      ...(await capture(queryRunner => corrections.up(queryRunner))),
+    ];
   });
 
   const createTable = (): string => {
@@ -64,9 +71,19 @@ describe('Roster import conflict schema alignment', () => {
       .columns.filter(column => column.target === RosterImportConflictEntity)
       .map(column => column.options.name ?? column.propertyName);
 
-    const migrationColumns = sqlLines()
-      .filter(line => line.startsWith('"'))
-      .map(line => line.slice(1, line.indexOf('"', 1)));
+    const migrationColumns = [
+      ...sqlLines()
+        .filter(line => line.startsWith('"'))
+        .map(line => line.slice(1, line.indexOf('"', 1))),
+      ...statements
+        .map(statement =>
+          /ALTER TABLE "sto_info_app"\."fleet_roster_import_conflict" ADD "([^"]+)" /.exec(
+            statement,
+          ),
+        )
+        .filter(match => match !== null)
+        .map(match => match[1]),
+    ];
 
     expect([...migrationColumns].sort()).toEqual([...entityColumns].sort());
   });
@@ -89,11 +106,11 @@ describe('Roster import conflict schema alignment', () => {
     }
   });
 
-  // One open question per Fleet and instant. A third export claiming the
-  // same moment joins the group rather than opening a second one.
-  it('allows one open group per Fleet and instant', () => {
+  // One group per Fleet and instant, ever: a newcomer for a settled instant
+  // reopens its group, and the selection already made stays in force.
+  it('allows one group per Fleet and instant, settled or not', () => {
     const index = getMetadataArgsStorage().indices.find(
-      candidate => candidate.name === 'UX_roster_import_conflict_open',
+      candidate => candidate.name === 'UX_roster_import_conflict_instant',
     );
 
     expect(index).toEqual(
@@ -101,14 +118,38 @@ describe('Roster import conflict schema alignment', () => {
         target: RosterImportConflictEntity,
         columns: ['fleetId', 'exportedAt'],
         unique: true,
-        where: `"resolvedAt" IS NULL`,
       }),
     );
+    expect(index?.where).toBeUndefined();
     expect(statements).toContainEqual(
-      expect.stringContaining(
-        `CREATE UNIQUE INDEX "UX_roster_import_conflict_open" ON "sto_info_app"."fleet_roster_import_conflict" ("fleetId", "exportedAt") WHERE "resolvedAt" IS NULL`,
-      ),
+      `CREATE UNIQUE INDEX "UX_roster_import_conflict_instant" ON "sto_info_app"."fleet_roster_import_conflict" ("fleetId", "exportedAt")`,
     );
+    expect(statements).toContainEqual(
+      `DROP INDEX "sto_info_app"."UX_roster_import_conflict_open"`,
+    );
+  });
+
+  it('selects only an import in the group, and settles only with a selection', () => {
+    const all = statements.join('\n');
+
+    expect(all).toContain('FOREIGN KEY ("selectedImportId", "id")');
+    expect(all).toContain(
+      'REFERENCES "sto_info_app"."fleet_roster_import_source"("id", "conflictGroupId")',
+    );
+    expect(all).toContain(
+      'CHECK ("resolvedAt" IS NULL OR "selectedImportId" IS NOT NULL)',
+    );
+  });
+
+  it('restores the open-group index when the corrections are reverted', async () => {
+    const reverted = await capture(queryRunner =>
+      corrections.down(queryRunner),
+    );
+
+    expect(reverted).toContainEqual(
+      `CREATE UNIQUE INDEX "UX_roster_import_conflict_open" ON "sto_info_app"."fleet_roster_import_conflict" ("fleetId", "exportedAt") WHERE "resolvedAt" IS NULL`,
+    );
+    expect(reverted.join('\n')).toContain('DROP COLUMN "selectedImportId"');
   });
 
   it('drops everything it created when reverted', async () => {

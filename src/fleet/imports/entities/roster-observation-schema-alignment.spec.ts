@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { getMetadataArgsStorage, QueryRunner } from 'typeorm';
 
 import { CreateRosterObservation1793500000000 } from '../../../database/migrations/1793500000000-CreateRosterObservation';
+import { RecordRosterImportCorrections1794300000000 } from '../../../database/migrations/1794300000000-RecordRosterImportCorrections';
 import { RosterObservationEntity } from './roster-observation.entity';
 
 /**
@@ -26,7 +27,10 @@ describe('Roster observation schema alignment', () => {
       }),
     } as unknown as QueryRunner;
 
+    // Every migration that shapes this table, in the order they run: FC-019
+    // added the exclusion flag.
     await new CreateRosterObservation1793500000000().up(queryRunner);
+    await new RecordRosterImportCorrections1794300000000().up(queryRunner);
     statements = captured;
   });
 
@@ -54,10 +58,23 @@ describe('Roster observation schema alignment', () => {
       .columns.filter(column => column.target === RosterObservationEntity)
       .map(column => column.options.name ?? column.propertyName);
 
-  const migrationColumns = (): string[] =>
-    sqlLines()
+  /** Every `ALTER TABLE … ADD "column"` this table's migrations run. */
+  const addedColumns = (): string[] =>
+    statements
+      .map(statement =>
+        /ALTER TABLE "sto_info_app"\."fleet_roster_observation" ADD "([^"]+)" /.exec(
+          statement,
+        ),
+      )
+      .filter(match => match !== null)
+      .map(match => match[1]);
+
+  const migrationColumns = (): string[] => [
+    ...sqlLines()
       .filter(line => line.startsWith('"'))
-      .map(line => line.slice(1, line.indexOf('"', 1)));
+      .map(line => line.slice(1, line.indexOf('"', 1))),
+    ...addedColumns(),
+  ];
 
   const guard = (): string => {
     const definitions = statements.filter(statement =>
@@ -183,6 +200,12 @@ describe('Roster observation schema alignment', () => {
         `NEW."${column}Ambiguous" IS DISTINCT FROM OLD."${column}Ambiguous"`,
       );
     }
+  });
+
+  // Excluding a row changes whether it counts, never what it said.
+  it('leaves the exclusion flag changeable', () => {
+    expect(addedColumns()).toEqual(['excluded']);
+    expect(guard()).not.toContain('NEW."excluded" IS DISTINCT FROM');
   });
 
   it('drops everything it created when reverted', async () => {
