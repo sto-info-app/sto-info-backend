@@ -127,8 +127,16 @@ describe('ScanRequestProducerService', () => {
       await service.requestScan(asset());
 
       expect(add.mock.calls[0][2]).toEqual(
-        expect.objectContaining({ jobId: `${ASSET_ID}:1` }),
+        expect.objectContaining({ jobId: `${ASSET_ID}_1` }),
       );
+    });
+
+    it('keeps a colon out of the job, which BullMQ refuses', async () => {
+      await service.requestScan(asset());
+
+      const { jobId } = add.mock.calls[0][2] as { jobId: string };
+
+      expect(jobId).not.toContain(':');
     });
 
     it('asks BullMQ to retry with backoff rather than giving up at once', async () => {

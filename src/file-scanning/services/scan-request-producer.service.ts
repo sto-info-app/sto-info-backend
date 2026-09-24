@@ -103,8 +103,11 @@ export class ScanRequestProducerService {
     const scanning = await this._fileAssetService.markScanning(asset.id);
 
     try {
+      // An underscore, not a colon. BullMQ refuses a custom identifier with a
+      // colon in it, and a UUID never holds an underscore, so the two parts
+      // still split one way only.
       await this._queue.add(FILE_SCAN_REQUEST_JOB, request, {
-        jobId: `${asset.id}:${asset.policyVersion}`,
+        jobId: `${asset.id}_${asset.policyVersion}`,
         attempts: DELIVERY_ATTEMPTS,
         backoff: { type: 'exponential', delay: 1_000 },
         removeOnComplete: true,
