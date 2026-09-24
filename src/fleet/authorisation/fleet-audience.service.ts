@@ -5,6 +5,7 @@ import { IsNull, Repository } from 'typeorm';
 
 import { CommunitySubscriptionEntity } from '../entities/community-subscription.entity';
 import { FleetAudience } from '../enums/fleet-audience.enum';
+import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 import { FleetAuthorisationService } from './fleet-authorisation.service';
 import { FLEET_CAPABILITIES } from './fleet-capability.constants';
 import { ScopeAuthorisation, ScopeRef } from './scope-authorisation.interface';
@@ -106,6 +107,48 @@ export class FleetAudienceService {
     }
 
     throw new NotFoundException('Not found');
+  }
+
+  /**
+   * Reports whether somebody may see a scope at all.
+   *
+   * The same two questions the page reads ask: whether they may see the
+   * owning Community and, for a Fleet, whether they may see the Fleet. An
+   * Armada has no audience of its own, so its Community's is the whole of it.
+   * Kept in step with those reads so that a route which refuses somebody can
+   * tell whether the refusal would confirm something the page denies exists.
+   *
+   * @param ref - The scope.
+   * @param userId - The viewer, or null when signed out.
+   * @returns True when they may see it. A scope that does not resolve is false.
+   */
+  async canViewScope(ref: ScopeRef, userId: string | null): Promise<boolean> {
+    const authorisation = await this._authorisationService.authorise(
+      userId,
+      ref,
+    );
+
+    if (authorisation === null) {
+      return false;
+    }
+
+    const { scope } = authorisation;
+
+    const canViewCommunity = await this.canView(
+      scope.communityAudience,
+      { kind: FleetScopeKind.COMMUNITY, id: scope.communityId },
+      userId,
+    );
+
+    if (!canViewCommunity || scope.fleetAudience === null) {
+      return canViewCommunity;
+    }
+
+    return this.canView(
+      scope.fleetAudience,
+      { kind: FleetScopeKind.FLEET, id: scope.id },
+      userId,
+    );
   }
 
   /**

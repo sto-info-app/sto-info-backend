@@ -1,3 +1,4 @@
+import { FleetAudience } from '../enums/fleet-audience.enum';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 import { FleetScopeRole } from '../enums/fleet-scope-role.enum';
 import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
@@ -64,6 +65,15 @@ export interface ResolvedScope {
    * the Community that holds it.
    */
   readonly effectiveStatus: FleetScopeStatus;
+  /** Who may see the owning Community. */
+  readonly communityAudience: FleetAudience;
+  /**
+   * Who may see the Fleet, when this scope is a Fleet.
+   *
+   * Null for a Community, whose audience is {@link communityAudience}, and for
+   * an Armada, which carries no audience of its own.
+   */
+  readonly fleetAudience: FleetAudience | null;
   /**
    * The scope's authorisation revision, and the Community's when they differ.
    *

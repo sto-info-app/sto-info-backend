@@ -1,7 +1,13 @@
-import { ExecutionContext, ForbiddenException, Logger } from '@nestjs/common';
+import {
+  ExecutionContext,
+  ForbiddenException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
+import { FleetAudienceService } from './fleet-audience.service';
 import { FleetAuthorisationService } from './fleet-authorisation.service';
 import { FLEET_CAPABILITIES } from './fleet-capability.constants';
 import { ScopeCapabilityRequirement } from './requires-scope-capability.decorator';
@@ -11,6 +17,7 @@ describe('ScopeCapabilityGuard', () => {
   let guard: ScopeCapabilityGuard;
   let reflector: { getAllAndOverride: jest.Mock };
   let authorisation: { assertCapability: jest.Mock };
+  let audience: { canViewScope: jest.Mock };
 
   /**
    * Builds an execution context around a request.
@@ -33,9 +40,11 @@ describe('ScopeCapabilityGuard', () => {
   beforeEach(() => {
     reflector = { getAllAndOverride: jest.fn() };
     authorisation = { assertCapability: jest.fn().mockResolvedValue({}) };
+    audience = { canViewScope: jest.fn().mockResolvedValue(true) };
     guard = new ScopeCapabilityGuard(
       reflector as unknown as Reflector,
       authorisation as unknown as FleetAuthorisationService,
+      audience as unknown as FleetAudienceService,
     );
     jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
   });
@@ -202,5 +211,68 @@ describe('ScopeCapabilityGuard', () => {
     await expect(
       guard.canActivate(contextFor({ params: { fleetId: 'fleet-1' } })),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  describe('wording a refusal', () => {
+    const request = {
+      user: { id: 'user-1' },
+      params: { fleetId: 'fleet-1', communityId: 'community-1' },
+    };
+
+    beforeEach(() => {
+      reflector.getAllAndOverride.mockReturnValue({
+        capability: FLEET_CAPABILITIES.ROSTER_IMPORT,
+        source: {
+          kind: FleetScopeKind.FLEET,
+          param: 'fleetId',
+          communityParam: 'communityId',
+        },
+      });
+      authorisation.assertCapability.mockRejectedValue(
+        new ForbiddenException('Insufficient permissions'),
+      );
+    });
+
+    // A 403 would confirm, to anybody holding the identifier, a Fleet that
+    // the page tells the same person does not exist.
+    it('tells somebody who may not see the scope that it does not exist', async () => {
+      audience.canViewScope.mockResolvedValue(false);
+
+      await expect(
+        guard.canActivate(contextFor(request)),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(audience.canViewScope).toHaveBeenCalledWith(
+        {
+          kind: FleetScopeKind.FLEET,
+          id: 'fleet-1',
+          withinCommunityId: 'community-1',
+        },
+        'user-1',
+      );
+    });
+
+    it('tells somebody who can see the scope that they may not do this', async () => {
+      await expect(
+        guard.canActivate(contextFor(request)),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('passes on a scope that does not exist without asking again', async () => {
+      authorisation.assertCapability.mockRejectedValue(
+        new NotFoundException('Not found'),
+      );
+
+      await expect(
+        guard.canActivate(contextFor(request)),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(audience.canViewScope).not.toHaveBeenCalled();
+    });
+
+    it('asks nothing about visibility when the capability is held', async () => {
+      authorisation.assertCapability.mockResolvedValue({});
+
+      await expect(guard.canActivate(contextFor(request))).resolves.toBe(true);
+      expect(audience.canViewScope).not.toHaveBeenCalled();
+    });
   });
 });

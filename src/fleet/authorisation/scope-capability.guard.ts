@@ -4,9 +4,11 @@ import {
   ForbiddenException,
   Injectable,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
+import { FleetAudienceService } from './fleet-audience.service';
 import { FleetAuthorisationService } from './fleet-authorisation.service';
 import {
   REQUIRES_SCOPE_CAPABILITY_KEY,
@@ -30,6 +32,13 @@ interface ScopedRequest {
  * fourth acceptance criterion is met by there being one decision, not two that
  * are reviewed together.
  *
+ * The one thing it adds is how a refusal is worded. Somebody who may not see
+ * the scope at all is told it does not exist, exactly as the page read tells
+ * them, rather than that they may not act on it: a 403 there would confirm a
+ * Fleet the page denies, to anybody holding its identifier. Somebody who can
+ * see the scope and still lacks the capability is told so, because nothing is
+ * disclosed by it.
+ *
  * When no requirement is declared the guard is a no-op, matching
  * {@link PermissionsGuard} and the roles guard.
  */
@@ -42,10 +51,12 @@ export class ScopeCapabilityGuard implements CanActivate {
    *
    * @param _reflector - Used to read the requirement from handlers/controllers.
    * @param _authorisationService - Decides whether the caller holds it.
+   * @param _audienceService - Says whether a refused caller may see the scope.
    */
   constructor(
     private readonly _reflector: Reflector,
     private readonly _authorisationService: FleetAuthorisationService,
+    private readonly _audienceService: FleetAudienceService,
   ) {}
 
   /**
@@ -54,9 +65,10 @@ export class ScopeCapabilityGuard implements CanActivate {
    * @param context - The execution context.
    * @returns True when access is permitted.
    * @throws NotFoundException when the scope does not resolve, which includes a
-   *   scope that belongs to a different Community than the route claimed.
+   *   scope that belongs to a different Community than the route claimed, and
+   *   when the caller lacks the capability and may not see the scope either.
    * @throws ForbiddenException when the route is misconfigured, or the caller
-   *   does not hold the capability.
+   *   can see the scope and does not hold the capability.
    */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const requirement =
@@ -87,11 +99,22 @@ export class ScopeCapabilityGuard implements CanActivate {
     // guard and the handler can never disagree about who is acting.
     const userId = request.user?.id ?? request.user?.userId ?? null;
 
-    await this._authorisationService.assertCapability(
-      userId,
-      scopeRef,
-      requirement.capability,
-    );
+    try {
+      await this._authorisationService.assertCapability(
+        userId,
+        scopeRef,
+        requirement.capability,
+      );
+    } catch (error) {
+      if (
+        error instanceof ForbiddenException &&
+        !(await this._audienceService.canViewScope(scopeRef, userId))
+      ) {
+        throw new NotFoundException('Not found');
+      }
+
+      throw error;
+    }
 
     return true;
   }

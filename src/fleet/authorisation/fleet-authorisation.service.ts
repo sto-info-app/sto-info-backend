@@ -264,7 +264,13 @@ export class FleetAuthorisationService {
 
     const community = await this._communityRepository.findOne({
       where: { id: ref.id, deletedAt: IsNull() },
-      select: { id: true, ownerUserId: true, status: true, revision: true },
+      select: {
+        id: true,
+        ownerUserId: true,
+        status: true,
+        revision: true,
+        visibility: true,
+      },
     });
 
     if (!community) {
@@ -281,6 +287,8 @@ export class FleetAuthorisationService {
       status: community.status,
       communityStatus: community.status,
       effectiveStatus: community.status,
+      communityAudience: community.visibility,
+      fleetAudience: null,
       revision: community.revision,
     };
   }
@@ -301,7 +309,13 @@ export class FleetAuthorisationService {
   ): Promise<ResolvedScope | null> {
     const fleet = await this._fleetRepository.findOne({
       where: { id: ref.id, deletedAt: IsNull() },
-      select: { id: true, communityId: true, status: true, revision: true },
+      select: {
+        id: true,
+        communityId: true,
+        status: true,
+        revision: true,
+        visibility: true,
+      },
     });
 
     if (!fleet || fleet.communityId === null) {
@@ -324,6 +338,8 @@ export class FleetAuthorisationService {
       status: fleet.status,
       communityStatus: community.status,
       effectiveStatus: narrowerStatus(fleet.status, community.status),
+      communityAudience: community.visibility,
+      fleetAudience: fleet.visibility,
       revision: fleet.revision,
     };
   }
@@ -362,6 +378,8 @@ export class FleetAuthorisationService {
       status: armada.status,
       communityStatus: community.status,
       effectiveStatus: narrowerStatus(armada.status, community.status),
+      communityAudience: community.visibility,
+      fleetAudience: null,
       revision: armada.revision,
     };
   }
@@ -387,7 +405,13 @@ export class FleetAuthorisationService {
 
     return this._communityRepository.findOne({
       where: { id: communityId, deletedAt: IsNull() },
-      select: { id: true, ownerUserId: true, status: true, revision: true },
+      select: {
+        id: true,
+        ownerUserId: true,
+        status: true,
+        revision: true,
+        visibility: true,
+      },
     });
   }
 
