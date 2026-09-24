@@ -270,7 +270,8 @@ export class CharacterFleetMembershipService {
    * @param characterId - The Character being recorded against.
    * @param input - The Fleet, the interval and the audience.
    * @param options - What established the membership and who wrote it.
-   * @returns The membership that was written.
+   * @returns The membership that was written, with its Fleet's platform and
+   *   Community loaded.
    */
   async openWithin(
     manager: EntityManager,
@@ -284,8 +285,11 @@ export class CharacterFleetMembershipService {
       throw new BadRequestException('A membership cannot end before it began.');
     }
 
+    // Read with what the answer names: every caller hands the membership
+    // straight to the mapper, which shows the Fleet's platform and Community.
     const fleet = await manager.findOne(StoFleetEntity, {
       where: { id: input.fleetId },
+      relations: { platform: true, community: true },
     });
 
     if (fleet === null) {
@@ -321,7 +325,14 @@ export class CharacterFleetMembershipService {
       recordedAt: new Date(),
     });
 
-    return manager.save(CharacterFleetMembershipEntity, membership);
+    const written = await manager.save(
+      CharacterFleetMembershipEntity,
+      membership,
+    );
+
+    written.fleet = fleet;
+
+    return written;
   }
 
   /**

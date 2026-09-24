@@ -229,6 +229,28 @@ describe('CharacterFleetMembershipService', () => {
       });
     });
 
+    /**
+     * Recording by hand and accepting a proposal both hand the membership
+     * straight to the mapper, which names the Fleet's platform and Community.
+     * Without them loaded, the write succeeded and its answer failed.
+     */
+    it('returns the membership with its Fleet, platform and Community', async () => {
+      const fleet = Object.assign(new StoFleetEntity(), { id: fleetId });
+
+      answers.set(StoFleetEntity, fleet);
+
+      const written = await service.record(characterId, ownerId, {
+        fleetId,
+        validFrom: new Date('2026-02-01T00:00:00.000Z'),
+      });
+
+      expect(manager.findOne).toHaveBeenCalledWith(StoFleetEntity, {
+        where: { id: fleetId },
+        relations: { platform: true, community: true },
+      });
+      expect(written.fleet).toBe(fleet);
+    });
+
     it('honours an audience the owner chose', async () => {
       const written = await service.record(characterId, ownerId, {
         fleetId,
