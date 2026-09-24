@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 
 import { Injectable, Logger } from '@nestjs/common';
 
+import { DataSource } from 'typeorm';
+
 import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
 
 import { readAssetPlacementDetail } from '../constants/asset-placement-detail.constants';
@@ -107,7 +109,10 @@ export interface PublicationOutcome {
  *    wrote.
  * 3. **The asset is published and the placement activated.** The asset
  *    stays in quarantine storage with no delivery reference, and its bytes
- *    are kept: they are the evidence the rows were read from.
+ *    are kept: they are the evidence the rows were read from. A feature that
+ *    keeps something up to date with what is in force is told inside the
+ *    transaction that activates the placement, so both land or neither
+ *    does.
  *
  * A feature that will not use the file refuses it. The placement is settled
  * as rejected, the asset refused with the feature's code, and the bytes
@@ -131,6 +136,8 @@ export class AssetPublicationService {
    * @param _quarantine - The private bucket.
    * @param _images - Cloudflare Images.
    * @param _withdrawal - What takes a published picture down.
+   * @param _dataSource - Opens the transaction a restricted placement is
+   *   activated in.
    */
   constructor(
     private readonly _fileAssets: FileAssetService,
@@ -139,6 +146,7 @@ export class AssetPublicationService {
     private readonly _quarantine: QuarantineStorageService,
     private readonly _images: ImageUploadsService,
     private readonly _withdrawal: AssetWithdrawalService,
+    private readonly _dataSource: DataSource,
   ) {}
 
   /**
@@ -257,7 +265,10 @@ export class AssetPublicationService {
       await this._fileAssets.publish(asset.id);
     }
 
-    await this._placements.activate(placement);
+    await this._dataSource.transaction(async manager => {
+      await this._placements.activate(placement, manager);
+      await publisher.activated?.(placement.subjectId, manager);
+    });
 
     this._logger.log(
       `[placeRestricted] Restricted asset in force - AssetId: ${asset.id}, ` +

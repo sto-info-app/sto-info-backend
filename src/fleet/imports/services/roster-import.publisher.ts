@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 
 import { FileAssetSubject } from 'src/file-assets/enums/file-asset-subject.enum';
 import {
@@ -11,6 +11,7 @@ import {
   RestrictedAssetReceipt,
 } from 'src/file-assets/services/asset-publisher.registry';
 
+import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
 import { RosterObservationEntity } from '../entities/roster-observation.entity';
 import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum';
@@ -187,6 +188,47 @@ export class RosterImportPublisher
     );
 
     return { outcome: 'ACCEPTED' };
+  }
+
+  /**
+   * Moves the Fleet's last imported date on to this import's export instant.
+   *
+   * Called as the import's placement goes into force, in the same
+   * transaction, so the date never names an import that is not in force.
+   *
+   * The later of the two dates, never simply this one. Exports can be
+   * imported out of order, and an older one arriving late fills in history
+   * rather than changing the roster, so it leaves the date where it was.
+   * That also makes a second call harmless. An import with no instant, which
+   * the column allows but publication never produces, moves nothing.
+   *
+   * @param subjectId - The import.
+   * @param manager - The transaction the placement is being activated in.
+   */
+  async activated(subjectId: string, manager: EntityManager): Promise<void> {
+    const record = await manager.findOne(RosterImportSourceEntity, {
+      where: { id: subjectId },
+      select: { id: true, fleetId: true, exportedAt: true },
+    });
+
+    if (record === null || record.exportedAt === null) {
+      return;
+    }
+
+    // GREATEST ignores a null, so a Fleet's first import sets the date.
+    await manager
+      .createQueryBuilder()
+      .update(StoFleetEntity)
+      .set({
+        lastEffectiveImportAt: () =>
+          'GREATEST("lastEffectiveImportAt", :exportedAt)',
+      })
+      .where('id = :fleetId')
+      .setParameters({
+        fleetId: record.fleetId,
+        exportedAt: record.exportedAt,
+      })
+      .execute();
   }
 
   /**

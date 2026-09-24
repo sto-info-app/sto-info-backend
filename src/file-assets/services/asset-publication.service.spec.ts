@@ -4,6 +4,7 @@ import { Readable } from 'node:stream';
 import { Logger } from '@nestjs/common';
 
 import { jest } from '@jest/globals';
+import { DataSource, EntityManager } from 'typeorm';
 
 import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
 
@@ -88,7 +89,11 @@ describe('AssetPublicationService', () => {
     (...args: any[]) => Promise<any>
   >;
   let withdrawByReference: jest.Mock<(...args: any[]) => Promise<any>>;
+  let transaction: jest.Mock<(...args: any[]) => Promise<any>>;
   let service: AssetPublicationService;
+
+  /** The manager the transaction hands its body. */
+  const manager = { name: 'the transaction' } as unknown as EntityManager;
 
   beforeEach(() => {
     findById = jest
@@ -133,6 +138,9 @@ describe('AssetPublicationService', () => {
     withdrawByReference = jest
       .fn<(...args: any[]) => Promise<any>>()
       .mockResolvedValue({ deleted: true, revoked: true });
+    transaction = jest.fn((body: (m: EntityManager) => Promise<unknown>) =>
+      body(manager),
+    );
 
     service = new AssetPublicationService(
       {
@@ -154,6 +162,7 @@ describe('AssetPublicationService', () => {
       { getStream, remove } as unknown as QuarantineStorageService,
       { publishImageToCloudflareImages } as unknown as ImageUploadsService,
       { withdrawByReference } as unknown as AssetWithdrawalService,
+      { transaction } as unknown as DataSource,
     );
 
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
@@ -438,7 +447,94 @@ describe('AssetPublicationService', () => {
       });
 
       expect(publishAsset).toHaveBeenCalledWith('asset-1');
-      expect(activate).toHaveBeenCalledWith(rosterPlacement());
+      expect(activate).toHaveBeenCalledWith(rosterPlacement(), manager);
+    });
+
+    it('does without being told when the feature has nothing to keep', async () => {
+      // The default publisher has no hook, and activation happens anyway.
+      await expect(service.publish('asset-1')).resolves.toEqual(
+        expect.objectContaining({ published: true }),
+      );
+
+      expect(transaction).toHaveBeenCalledTimes(1);
+      expect(activate).toHaveBeenCalledTimes(1);
+    });
+
+    describe('for a feature that keeps something up to date', () => {
+      let activated: jest.Mock<(...args: any[]) => Promise<any>>;
+
+      beforeEach(() => {
+        activated = jest
+          .fn<(...args: any[]) => Promise<any>>()
+          .mockResolvedValue(undefined);
+        requireRestricted.mockImplementation(() => ({
+          subject: FileAssetSubject.ROSTER_IMPORT,
+          receive,
+          activated,
+        }));
+      });
+
+      // Both inside one transaction, with its manager, so the placement and
+      // what the feature keeps about it land together or not at all.
+      it('tells it inside the transaction that activates the placement', async () => {
+        const order: string[] = [];
+
+        transaction.mockImplementation(
+          async (body: (m: EntityManager) => Promise<unknown>) => {
+            order.push('begin');
+            const result = await body(manager);
+            order.push('commit');
+
+            return result;
+          },
+        );
+        activate.mockImplementation(() => {
+          order.push('activate');
+
+          return Promise.resolve({ active: rosterPlacement(), replaced: null });
+        });
+        activated.mockImplementation(() => {
+          order.push('activated');
+
+          return Promise.resolve();
+        });
+
+        await service.publish('asset-1');
+
+        expect(order).toEqual(['begin', 'activate', 'activated', 'commit']);
+        expect(activate).toHaveBeenCalledWith(rosterPlacement(), manager);
+        expect(activated).toHaveBeenCalledWith('import-1', manager);
+      });
+
+      it('tells it when resuming an asset it already accepted', async () => {
+        findById.mockResolvedValue(
+          rosterAsset({ state: FileAssetState.AVAILABLE }),
+        );
+
+        await service.publish('asset-1');
+
+        expect(activated).toHaveBeenCalledWith('import-1', manager);
+      });
+
+      // The transaction rolls the activation back, and the job is retried.
+      it('fails the publication when the feature cannot keep up', async () => {
+        activated.mockRejectedValue(new Error('the Fleet row is locked'));
+
+        await expect(service.publish('asset-1')).rejects.toThrow(
+          'the Fleet row is locked',
+        );
+      });
+
+      it('is not told about a placement that was held', async () => {
+        receive.mockResolvedValue({
+          outcome: 'HELD',
+          reason: 'EXPORT_INSTANT_IN_CONFLICT',
+        });
+
+        await service.publish('asset-1');
+
+        expect(activated).not.toHaveBeenCalled();
+      });
     });
 
     it('never goes near Cloudflare, and never asks for a picture publisher', async () => {

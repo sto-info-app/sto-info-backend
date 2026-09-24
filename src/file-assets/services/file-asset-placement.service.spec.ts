@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import { In, LessThan, Repository } from 'typeorm';
+import { EntityManager, In, LessThan, Repository } from 'typeorm';
 
 import { FileAssetPlacementEntity } from '../entities/file-asset-placement.entity';
 import { FileAssetPlacementState } from '../enums/file-asset-placement-state.enum';
@@ -130,6 +130,32 @@ describe('FileAssetPlacementService', () => {
       const { replaced } = await service.activate(placement());
 
       expect(replaced?.state).toBe(FileAssetPlacementState.SUPERSEDED);
+    });
+
+    // So that a feature told about the activation can write in the same
+    // transaction, and the two land together or not at all.
+    it("does all of it in the caller's transaction when given one", async () => {
+      const previous = placement({
+        id: 'placement-0',
+        state: FileAssetPlacementState.ACTIVE,
+      });
+      const transactional = {
+        findOne: jest.fn(() => Promise.resolve(previous)),
+        save: jest.fn((row: unknown) => Promise.resolve(row)),
+      };
+      const getRepository = jest.fn(() => transactional);
+
+      const { active, replaced } = await service.activate(placement(), {
+        getRepository,
+      } as unknown as EntityManager);
+
+      expect(getRepository).toHaveBeenCalledWith(FileAssetPlacementEntity);
+      expect(transactional.save).toHaveBeenCalledTimes(2);
+      expect(repository.findOne).not.toHaveBeenCalled();
+      expect(repository.save).not.toHaveBeenCalled();
+      expect(active.state).toBe(FileAssetPlacementState.ACTIVE);
+      expect(replaced?.state).toBe(FileAssetPlacementState.SUPERSEDED);
+      expect(replaced?.settledAt).toBeInstanceOf(Date);
     });
   });
 

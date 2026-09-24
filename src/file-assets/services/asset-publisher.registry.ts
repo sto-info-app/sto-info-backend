@@ -1,5 +1,7 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 
+import { EntityManager } from 'typeorm';
+
 import { FileAssetSlot } from '../enums/file-asset-slot.enum';
 import { FileAssetSubject } from '../enums/file-asset-subject.enum';
 
@@ -133,6 +135,24 @@ export interface RestrictedAssetPublisher {
   receive(
     attachment: RestrictedAssetAttachment,
   ): Promise<RestrictedAssetReceipt>;
+
+  /**
+   * Hears that a record's placement has gone into force.
+   *
+   * Optional. For a feature that keeps something about its records up to
+   * date with what is in force, such as when a Fleet's roster last changed.
+   * Called inside the transaction that activates the placement, with that
+   * transaction's manager, so the two land together or not at all: a failure
+   * here leaves the placement pending and the job is retried.
+   *
+   * May be called more than once for the same record, for the same reason
+   * {@link receive} may. An implementation must leave the same result
+   * however often it runs.
+   *
+   * @param subjectId - Which record of the publisher's kind.
+   * @param manager - The transaction the placement is being activated in.
+   */
+  activated?(subjectId: string, manager: EntityManager): Promise<void>;
 }
 
 /**

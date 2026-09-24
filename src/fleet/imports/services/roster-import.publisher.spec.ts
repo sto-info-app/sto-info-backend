@@ -20,6 +20,7 @@ import {
   RestrictedAssetAttachment,
 } from 'src/file-assets/services/asset-publisher.registry';
 
+import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
 import { RosterObservationEntity } from '../entities/roster-observation.entity';
 import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum';
@@ -426,6 +427,86 @@ describe('RosterImportPublisher', () => {
         rejectionCode: RosterPublicationRejectionCode.EXPORT_TIMEZONE_MISSING,
       });
       expect(transaction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('an import going into force', () => {
+    const EXPORTED_AT = new Date('2024-01-01T12:00:00.000Z');
+
+    let findOne: jest.Mock<(...args: any[]) => Promise<any>>;
+    let builder: Record<string, jest.Mock>;
+    let activation: EntityManager;
+
+    beforeEach(() => {
+      findOne = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
+        id: IMPORT_ID,
+        fleetId: FLEET_ID,
+        exportedAt: EXPORTED_AT,
+      });
+      builder = {};
+      for (const step of ['update', 'set', 'where', 'setParameters']) {
+        builder[step] = jest.fn(() => builder);
+      }
+      builder.execute = jest.fn(() => Promise.resolve({ affected: 1 }));
+      activation = {
+        findOne,
+        createQueryBuilder: jest.fn(() => builder),
+      } as unknown as EntityManager;
+    });
+
+    it('reads the import inside the transaction it was handed', async () => {
+      await publisher.activated(IMPORT_ID, activation);
+
+      expect(findOne).toHaveBeenCalledWith(RosterImportSourceEntity, {
+        where: { id: IMPORT_ID },
+        select: { id: true, fleetId: true, exportedAt: true },
+      });
+    });
+
+    it("moves the Fleet's date on to the export instant", async () => {
+      await publisher.activated(IMPORT_ID, activation);
+
+      expect(builder.update).toHaveBeenCalledWith(StoFleetEntity);
+      expect(builder.where).toHaveBeenCalledWith('id = :fleetId');
+      expect(builder.setParameters).toHaveBeenCalledWith({
+        fleetId: FLEET_ID,
+        exportedAt: EXPORTED_AT,
+      });
+      expect(builder.execute).toHaveBeenCalledTimes(1);
+    });
+
+    // An older export imported late fills in history; it does not move the
+    // date back, and a second call leaves the same date.
+    it('keeps whichever date is later', async () => {
+      await publisher.activated(IMPORT_ID, activation);
+
+      const [[changes]] = builder.set.mock.calls as [
+        [{ lastEffectiveImportAt: () => string }],
+      ];
+
+      expect(changes.lastEffectiveImportAt()).toBe(
+        'GREATEST("lastEffectiveImportAt", :exportedAt)',
+      );
+    });
+
+    it('moves nothing for an import that is not there', async () => {
+      findOne.mockResolvedValue(null);
+
+      await publisher.activated(IMPORT_ID, activation);
+
+      expect(builder.execute).not.toHaveBeenCalled();
+    });
+
+    it('moves nothing for an import with no instant', async () => {
+      findOne.mockResolvedValue({
+        id: IMPORT_ID,
+        fleetId: FLEET_ID,
+        exportedAt: null,
+      });
+
+      await publisher.activated(IMPORT_ID, activation);
+
+      expect(builder.execute).not.toHaveBeenCalled();
     });
   });
 });

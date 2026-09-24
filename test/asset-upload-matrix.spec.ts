@@ -387,6 +387,9 @@ describe('every upload caller, end to end', () => {
       quarantine,
       images,
       new AssetWithdrawalService(fileAssets, placementService, images),
+      // Pictures are never activated in a transaction; only a restricted
+      // placement is, and there is none here.
+      {} as never,
     );
 
     for (const publisher of [

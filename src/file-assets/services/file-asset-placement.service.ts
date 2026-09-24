@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { In, LessThan, Repository } from 'typeorm';
+import { EntityManager, In, LessThan, Repository } from 'typeorm';
 
 import { FileAssetPlacementEntity } from '../entities/file-asset-placement.entity';
 import { FileAssetPlacementState } from '../enums/file-asset-placement-state.enum';
@@ -116,28 +116,40 @@ export class FileAssetPlacementService {
    * bytes it replaced rather than leaving them published for ever.
    *
    * @param placement - The pending placement.
+   * @param manager - A transaction to do it in, when the caller has one.
    * @returns The now-active placement, and the one it replaced.
    */
-  async activate(placement: FileAssetPlacementEntity): Promise<{
+  async activate(
+    placement: FileAssetPlacementEntity,
+    manager?: EntityManager,
+  ): Promise<{
     active: FileAssetPlacementEntity;
     replaced: FileAssetPlacementEntity | null;
   }> {
-    const existing = await this.findInState(
-      placement.subject,
-      placement.subjectId,
-      placement.slot,
-      FileAssetPlacementState.ACTIVE,
-    );
+    const repository =
+      manager?.getRepository(FileAssetPlacementEntity) ?? this._repository;
 
-    const replaced =
-      existing === null
-        ? null
-        : await this.settle(existing, FileAssetPlacementState.SUPERSEDED);
+    const existing = await repository.findOne({
+      where: {
+        subject: placement.subject,
+        subjectId: placement.subjectId,
+        slot: placement.slot,
+        state: FileAssetPlacementState.ACTIVE,
+      },
+    });
+
+    let replaced: FileAssetPlacementEntity | null = null;
+
+    if (existing !== null) {
+      existing.state = FileAssetPlacementState.SUPERSEDED;
+      existing.settledAt = new Date();
+      replaced = await repository.save(existing);
+    }
 
     placement.state = FileAssetPlacementState.ACTIVE;
     placement.settledAt = new Date();
 
-    const active = await this._repository.save(placement);
+    const active = await repository.save(placement);
 
     return { active, replaced };
   }
