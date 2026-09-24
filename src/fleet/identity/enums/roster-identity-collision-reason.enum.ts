@@ -27,4 +27,10 @@ export enum RosterIdentityCollisionReason {
   HANDLE_SPLIT = 'HANDLE_SPLIT',
   /** More than one old handle's Characters moved to the same new handle. */
   HANDLE_MERGE = 'HANDLE_MERGE',
+  /**
+   * A partial export between the two compared lists both names at once, so
+   * neither replaced the other. Partial exports are skipped for pairing
+   * (FC-019), and this is what they still say.
+   */
+  LISTED_TOGETHER = 'LISTED_TOGETHER',
 }

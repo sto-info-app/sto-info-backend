@@ -237,7 +237,12 @@ export class RosterIdentityRecomputeService {
         order: { line: 'ASC' },
       });
 
-      latest = { importId: record.id, exportedAt, rows: observations };
+      latest = {
+        importId: record.id,
+        exportedAt,
+        rows: observations,
+        complete: true,
+      };
       matcher.add(latest);
       imports += 1;
     }

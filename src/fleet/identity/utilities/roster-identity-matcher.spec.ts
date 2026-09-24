@@ -69,7 +69,7 @@ function snapshot(
   exportedAt: string,
   rows: RosterIdentityRow[],
 ): RosterIdentitySnapshot {
-  return { importId, exportedAt: new Date(exportedAt), rows };
+  return { importId, exportedAt: new Date(exportedAt), rows, complete: true };
 }
 
 /**
@@ -643,6 +643,113 @@ describe('RosterIdentityMatcher', () => {
       expect(forward.links).toHaveLength(1);
       // Failed the first time, held the second: a failure is not forgotten.
       expect(held(forward, RosterIdentitySignal.LEVEL_NOT_LOWER)).toBe(false);
+    });
+  });
+
+  // FC-019: an export marked partial, or with a row excluded, cannot show
+  // that a name is gone. Steve decided on 25 September 2026 that it is
+  // skipped for pairing and still records the names it lists.
+  describe('skipping exports that cannot show a name gone', () => {
+    const partial = (
+      importId: string,
+      exportedAt: string,
+      rows: RosterIdentityRow[],
+    ): RosterIdentitySnapshot => ({
+      ...snapshot(importId, exportedAt, rows),
+      complete: false,
+    });
+
+    it('suggests nothing from a partial export that lacks the old name', () => {
+      const found = match(
+        snapshot('import-1', '2024-01-01T00:00:00Z', [row('Kira', '@one')]),
+        partial('import-2', '2024-02-01T00:00:00Z', [row('Nerys', '@one')]),
+      );
+
+      expect(found.candidates.size).toBe(0);
+      expect([...found.aliases.keys()]).toEqual([
+        rosterAliasKey('kira', '@one'),
+        rosterAliasKey('nerys', '@one'),
+      ]);
+    });
+
+    it('compares the complete exports either side of a partial one', () => {
+      const found = match(
+        snapshot('import-1', '2024-01-01T00:00:00Z', [row('Kira', '@one')]),
+        partial('import-2', '2024-02-01T00:00:00Z', [row('Nerys', '@one')]),
+        snapshot('import-3', '2024-03-01T00:00:00Z', [row('Nerys', '@one')]),
+      );
+
+      expect([...found.candidates.values()]).toEqual([
+        expect.objectContaining({
+          kind: RosterIdentityCandidateKind.CHARACTER_RENAME,
+          earlierImportId: 'import-1',
+          laterImportId: 'import-3',
+          collisionReasons: [],
+        }),
+      ]);
+      expect(
+        found.aliases.get(rosterAliasKey('nerys', '@one'))!.firstObservedAt,
+      ).toEqual(new Date('2024-02-01T00:00:00Z'));
+    });
+
+    it('calls a pair a collision when a skipped export lists both names', () => {
+      const found = match(
+        snapshot('import-1', '2024-01-01T00:00:00Z', [row('Kira', '@one')]),
+        partial('import-2', '2024-02-01T00:00:00Z', [
+          row('Kira', '@one'),
+          row('Nerys', '@one'),
+        ]),
+        snapshot('import-3', '2024-03-01T00:00:00Z', [row('Nerys', '@one')]),
+      );
+
+      expect(
+        [...found.candidates.values()].map(each => each.collisionReasons),
+      ).toEqual([[RosterIdentityCollisionReason.LISTED_TOGETHER]]);
+    });
+
+    it('forgets the skipped exports once a complete one has been compared', () => {
+      const found = match(
+        snapshot('import-1', '2024-01-01T00:00:00Z', [row('Kira', '@one')]),
+        partial('import-2', '2024-02-01T00:00:00Z', [
+          row('Odo', '@two'),
+          row('Rom', '@two'),
+        ]),
+        snapshot('import-3', '2024-03-01T00:00:00Z', [row('Odo', '@two')]),
+        snapshot('import-4', '2024-04-01T00:00:00Z', [row('Rom', '@two')]),
+      );
+
+      expect([...found.candidates.values()]).toEqual([
+        expect.objectContaining({
+          earlierImportId: 'import-3',
+          laterImportId: 'import-4',
+          collisionReasons: [],
+        }),
+      ]);
+    });
+
+    it('has nothing to compare a partial export before the first complete one with', () => {
+      const found = match(
+        partial('import-1', '2024-01-01T00:00:00Z', [
+          row('Kira', '@one'),
+          row('Nerys', '@one'),
+        ]),
+        snapshot('import-2', '2024-02-01T00:00:00Z', [row('Kira', '@one')]),
+        snapshot('import-3', '2024-03-01T00:00:00Z', [row('Nerys', '@one')]),
+      );
+
+      expect(
+        [...found.candidates.values()].map(each => each.collisionReasons),
+      ).toEqual([[]]);
+    });
+
+    it('still refuses a partial export out of order', () => {
+      const matcher = new RosterIdentityMatcher();
+
+      matcher.add(partial('import-2', '2024-02-01T00:00:00Z', []));
+
+      expect(() =>
+        matcher.add(snapshot('import-1', '2024-01-01T00:00:00Z', [])),
+      ).toThrow(/export order/);
     });
   });
 

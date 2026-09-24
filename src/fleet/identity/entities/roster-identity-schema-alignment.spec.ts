@@ -2,6 +2,8 @@ import { beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { getMetadataArgsStorage, QueryRunner } from 'typeorm';
 
 import { CreateRosterIdentities1794100000000 } from '../../../database/migrations/1794100000000-CreateRosterIdentities';
+import { AddListedTogetherCollisionReason1794500000000 } from '../../../database/migrations/1794500000000-AddListedTogetherCollisionReason';
+import { RosterIdentityCollisionReason } from '../enums/roster-identity-collision-reason.enum';
 import { RosterIdentityAliasEntity } from './roster-identity-alias.entity';
 import { RosterIdentityCandidateLinkEntity } from './roster-identity-candidate-link.entity';
 import { RosterIdentityCandidateEntity } from './roster-identity-candidate.entity';
@@ -201,6 +203,48 @@ describe('Roster identity schema alignment', () => {
       expect.stringContaining(
         `CREATE TRIGGER "TR_roster_identity_decision_guard" BEFORE UPDATE ON "sto_info_app"."fleet_roster_identity_decision"`,
       ),
+    );
+  });
+
+  // FC-019 added a reason by a later migration. The type is the first
+  // migration's values and every one added since, and has to be exactly the
+  // reasons the matcher can give.
+  it('gives the collision reason type exactly the reasons the code knows', async () => {
+    const later = await capture(queryRunner =>
+      new AddListedTogetherCollisionReason1794500000000().up(queryRunner),
+    );
+    const created =
+      /CREATE TYPE "sto_info_app"\."roster_identity_collision_reason_enum" AS ENUM \(([^)]*)\)/.exec(
+        statements.join(' '),
+      );
+    const added = later
+      .map(statement =>
+        /ALTER TYPE "sto_info_app"\."roster_identity_collision_reason_enum" ADD VALUE IF NOT EXISTS '([A-Z_]+)'/.exec(
+          statement,
+        ),
+      )
+      .filter(match => match !== null)
+      .map(match => match[1]);
+
+    expect([
+      ...created![1].split(', ').map(value => value.slice(1, -1)),
+      ...added,
+    ]).toEqual(Object.values(RosterIdentityCollisionReason));
+  });
+
+  it('puts the collision reasons back as they were when the addition is reverted', async () => {
+    const reverted = (
+      await capture(queryRunner =>
+        new AddListedTogetherCollisionReason1794500000000().down(queryRunner),
+      )
+    ).join(' ');
+
+    expect(reverted).toContain(
+      `CREATE TYPE "sto_info_app"."roster_identity_collision_reason_enum" AS ENUM ('SEVERAL_PARTNERS', 'OLD_HANDLE_STILL_PRESENT', 'NEW_HANDLE_ALREADY_PRESENT', 'HANDLE_SPLIT', 'HANDLE_MERGE')`,
+    );
+    expect(reverted).toContain('array_remove("collisionReasons"');
+    expect(reverted).toContain(
+      `ALTER COLUMN "collisionReasons" SET DEFAULT '{}'`,
     );
   });
 

@@ -29,14 +29,22 @@ export interface RosterIdentityRow {
   readonly rankChangedAtAmbiguous: boolean;
 }
 
-/** One in-force export, as the matcher reads it. */
+/** One effective export, as the matcher reads it. */
 export interface RosterIdentitySnapshot {
   /** The import it was read from. */
   readonly importId: string;
   /** The instant its export was taken. */
   readonly exportedAt: Date;
-  /** Its rows. One per exact name and handle, as the reader guarantees. */
+  /**
+   * Its rows that count: one per exact name and handle, as the reader
+   * guarantees, less any an investigator excluded.
+   */
   readonly rows: readonly RosterIdentityRow[];
+  /**
+   * Whether it can show a name gone: not marked partial, and with no row
+   * excluded. Only complete exports are compared (FC-019).
+   */
+  readonly complete: boolean;
 }
 
 /** One exact name and handle, and when the in-force exports listed it. */
@@ -118,6 +126,7 @@ const COLLISION_ORDER: readonly RosterIdentityCollisionReason[] = [
   RosterIdentityCollisionReason.NEW_HANDLE_ALREADY_PRESENT,
   RosterIdentityCollisionReason.HANDLE_SPLIT,
   RosterIdentityCollisionReason.HANDLE_MERGE,
+  RosterIdentityCollisionReason.LISTED_TOGETHER,
 ];
 
 /**
@@ -183,18 +192,21 @@ interface Draft {
 
 /**
  * Works out a Fleet's roster identities and rename candidates from its
- * in-force exports.
+ * effective exports.
  *
- * Pure: no database, no clock. The recompute reads every in-force import of a
+ * Pure: no database, no clock. The replay reads every effective import of a
  * Fleet in export order and hands each one to {@link add}, and this keeps only
- * the export before it, so a Fleet's whole history is one pass in memory the
- * size of two exports.
+ * the last complete export and any partial ones since, so a Fleet's whole
+ * history is one pass in memory the size of a few exports.
  *
  * ## What makes a candidate — plan section 3.6, decided 24 September 2026
  *
- * Only two consecutive in-force exports are ever compared, and only a row in
+ * Only two consecutive complete exports are ever compared, and only a row in
  * the earlier that is gone from the later against a row in the later that was
- * not in the earlier. Then, as hard gates:
+ * not in the earlier. An export marked partial, or with a row excluded, cannot
+ * show that a name is gone, so it is skipped for pairing and only records the
+ * names it lists — Steve's decision of 25 September 2026. Then, as hard
+ * gates:
  *
  * - **A Character rename** keeps the handle and changes the name.
  * - **An account rename** keeps the name and changes the handle.
@@ -214,15 +226,24 @@ interface Draft {
  * also a collision when the old handle is still in the later export or the new
  * one was already in the earlier — a handle belongs to a whole account, so
  * neither can happen to an account that was renamed — or when the Characters
- * of one handle split between two, or two handles' merge into one. A collision
- * is still reported, so that a reviewer can see why nothing was suggested.
+ * of one handle split between two, or two handles' merge into one. And a pair
+ * is a collision when a partial export skipped between the two lists both of
+ * its names at once, since then neither replaced the other. A collision is
+ * still reported, so that a reviewer can see why nothing was suggested.
  */
 export class RosterIdentityMatcher {
   private readonly _aliases = new Map<string, MatchedAlias>();
 
   private readonly _drafts = new Map<string, Draft>();
 
+  /** The last complete export added. */
   private _previous: RosterIdentitySnapshot | null = null;
+
+  /** Partial exports added since it, each as the alias keys it lists. */
+  private _skipped: Array<ReadonlySet<string>> = [];
+
+  /** The instant of the last export added, complete or not. */
+  private _lastAt: number | null = null;
 
   /**
    * Reads the next export, in export order.
@@ -233,16 +254,27 @@ export class RosterIdentityMatcher {
    */
   add(snapshot: RosterIdentitySnapshot): void {
     if (
-      this._previous !== null &&
-      snapshot.exportedAt.getTime() <= this._previous.exportedAt.getTime()
+      this._lastAt !== null &&
+      snapshot.exportedAt.getTime() <= this._lastAt
     ) {
       throw new Error(
         'Roster exports must be added in export order, one per instant',
       );
     }
 
+    this._lastAt = snapshot.exportedAt.getTime();
+
     for (const row of snapshot.rows) {
       this.observe(row, snapshot.exportedAt);
+    }
+
+    if (!snapshot.complete) {
+      // Before the first complete export there is nothing to compare across.
+      if (this._previous !== null) {
+        this._skipped.push(new Set(snapshot.rows.map(row => this.keyOf(row))));
+      }
+
+      return;
     }
 
     if (this._previous !== null) {
@@ -250,6 +282,7 @@ export class RosterIdentityMatcher {
     }
 
     this._previous = snapshot;
+    this._skipped = [];
   }
 
   /**
@@ -394,6 +427,10 @@ export class RosterIdentityMatcher {
         draft.collisions.add(RosterIdentityCollisionReason.SEVERAL_PARTNERS);
       }
 
+      if (this.listedTogether(pair)) {
+        draft.collisions.add(RosterIdentityCollisionReason.LISTED_TOGETHER);
+      }
+
       if (pair.kind !== RosterIdentityCandidateKind.ACCOUNT_RENAME) {
         continue;
       }
@@ -421,6 +458,20 @@ export class RosterIdentityMatcher {
         draft.collisions.add(RosterIdentityCollisionReason.HANDLE_MERGE);
       }
     }
+  }
+
+  /**
+   * Whether a partial export skipped since the earlier one lists both of a
+   * pair's names at once.
+   *
+   * @param pair - The pair.
+   * @returns True if one does.
+   */
+  private listedTogether(pair: Pair): boolean {
+    const from = this.keyOf(pair.from);
+    const to = this.keyOf(pair.to);
+
+    return this._skipped.some(keys => keys.has(from) && keys.has(to));
   }
 
   /**
