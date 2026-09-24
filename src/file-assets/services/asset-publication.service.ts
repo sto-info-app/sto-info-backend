@@ -270,6 +270,8 @@ export class AssetPublicationService {
       await publisher.activated?.(placement.subjectId, manager);
     });
 
+    await publisher.afterActivation?.(placement.subjectId);
+
     this._logger.log(
       `[placeRestricted] Restricted asset in force - AssetId: ${asset.id}, ` +
         `Subject: ${placement.subject}, Slot: ${placement.slot}`,

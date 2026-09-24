@@ -12,6 +12,7 @@ import {
 } from 'src/file-assets/services/asset-publisher.registry';
 
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
+import { RosterIdentityQueueService } from '../../identity/services/roster-identity-queue.service';
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
 import { RosterObservationEntity } from '../entities/roster-observation.entity';
 import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum';
@@ -71,6 +72,14 @@ const OBSERVATION_INSERT_BATCH = 500;
  * than read into observations: which of the two is the roster at that moment
  * is somebody's decision. It is checked only once the file has read, because
  * a file that does not read is refused whatever else is true of it.
+ *
+ * ## It asks for the Fleet's identities to be worked out again
+ *
+ * Once an import is in force and committed, the Fleet's roster identities,
+ * rename candidates and association proposals are recomputed from every
+ * in-force import (FC-018). Queued, because that reads the Fleet's whole
+ * history; and only after the commit, so the job cannot run before the
+ * import it is about is visible to it.
  */
 @Injectable()
 export class RosterImportPublisher
@@ -90,6 +99,7 @@ export class RosterImportPublisher
    *   values.
    * @param _registry - Which publisher writes which table.
    * @param _conflicts - Says whether an import has to wait.
+   * @param _identities - Asks for a Fleet's identities to be recomputed.
    */
   constructor(
     @InjectRepository(RosterImportSourceEntity)
@@ -99,6 +109,7 @@ export class RosterImportPublisher
     private readonly _typedParser: RosterTypedParserService,
     private readonly _registry: AssetPublisherRegistry,
     private readonly _conflicts: RosterImportConflictService,
+    private readonly _identities: RosterIdentityQueueService,
   ) {}
 
   /**
@@ -229,6 +240,27 @@ export class RosterImportPublisher
         exportedAt: record.exportedAt,
       })
       .execute();
+  }
+
+  /**
+   * Asks for the Fleet's identities to be recomputed, now the import counts.
+   *
+   * An import that has gone missing since is passed over: there is no Fleet
+   * to ask about, and a job that failed for it would only be retried.
+   *
+   * @param subjectId - The import.
+   */
+  async afterActivation(subjectId: string): Promise<void> {
+    const record = await this._imports.findOne({
+      where: { id: subjectId },
+      select: { id: true, fleetId: true },
+    });
+
+    if (record === null) {
+      return;
+    }
+
+    await this._identities.enqueue(record.fleetId);
   }
 
   /**

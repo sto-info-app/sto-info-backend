@@ -537,6 +537,67 @@ describe('AssetPublicationService', () => {
       });
     });
 
+    describe('for a feature with work to start once the record counts', () => {
+      let afterActivation: jest.Mock<(...args: any[]) => Promise<any>>;
+
+      beforeEach(() => {
+        afterActivation = jest
+          .fn<(...args: any[]) => Promise<any>>()
+          .mockResolvedValue(undefined);
+        requireRestricted.mockImplementation(() => ({
+          subject: FileAssetSubject.ROSTER_IMPORT,
+          receive,
+          afterActivation,
+        }));
+      });
+
+      // After the commit, so that a job it queues cannot read the database
+      // before the placement it is about is visible.
+      it('tells it once the activation has committed', async () => {
+        const order: string[] = [];
+
+        transaction.mockImplementation(
+          async (body: (m: EntityManager) => Promise<unknown>) => {
+            order.push('begin');
+            const result = await body(manager);
+            order.push('commit');
+
+            return result;
+          },
+        );
+        afterActivation.mockImplementation(() => {
+          order.push('afterActivation');
+
+          return Promise.resolve();
+        });
+
+        await service.publish('asset-1');
+
+        expect(order).toEqual(['begin', 'commit', 'afterActivation']);
+        expect(afterActivation).toHaveBeenCalledWith('import-1');
+      });
+
+      // Retried from the start, which finds the placement already active.
+      it('fails the publication when the work cannot be started', async () => {
+        afterActivation.mockRejectedValue(new Error('Redis is not answering'));
+
+        await expect(service.publish('asset-1')).rejects.toThrow(
+          'Redis is not answering',
+        );
+      });
+
+      it('is not told about a placement that was held', async () => {
+        receive.mockResolvedValue({
+          outcome: 'HELD',
+          reason: 'EXPORT_INSTANT_IN_CONFLICT',
+        });
+
+        await service.publish('asset-1');
+
+        expect(afterActivation).not.toHaveBeenCalled();
+      });
+    });
+
     it('never goes near Cloudflare, and never asks for a picture publisher', async () => {
       await service.publish('asset-1');
 

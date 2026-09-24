@@ -153,6 +153,24 @@ export interface RestrictedAssetPublisher {
    * @param manager - The transaction the placement is being activated in.
    */
   activated?(subjectId: string, manager: EntityManager): Promise<void>;
+
+  /**
+   * Hears that a record's placement is in force and committed.
+   *
+   * Optional. For a feature that has work to start once the record counts,
+   * which must not run before the activation is visible to other
+   * transactions: queueing a job from {@link activated} would let a worker
+   * pick it up and read the database before the placement it is about had
+   * been committed.
+   *
+   * A failure fails the publication job, which is retried from the start.
+   * The placement is already active by then, so the retry finds it so,
+   * activates nothing and calls both hooks again; an implementation must
+   * therefore leave the same result however often it runs.
+   *
+   * @param subjectId - Which record of the publisher's kind.
+   */
+  afterActivation?(subjectId: string): Promise<void>;
 }
 
 /**

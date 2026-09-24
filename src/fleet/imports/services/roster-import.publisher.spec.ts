@@ -21,6 +21,7 @@ import {
 } from 'src/file-assets/services/asset-publisher.registry';
 
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
+import { RosterIdentityQueueService } from '../../identity/services/roster-identity-queue.service';
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
 import { RosterObservationEntity } from '../entities/roster-observation.entity';
 import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum';
@@ -69,6 +70,7 @@ describe('RosterImportPublisher', () => {
   let transaction: jest.Mock;
   let registry: { registerRestricted: jest.Mock };
   let conflicts: { isHeld: jest.Mock };
+  let identities: { enqueue: jest.Mock };
 
   beforeEach(() => {
     record = {
@@ -97,6 +99,7 @@ describe('RosterImportPublisher', () => {
 
     registry = { registerRestricted: jest.fn() };
     conflicts = { isHeld: jest.fn(() => Promise.resolve(false)) };
+    identities = { enqueue: jest.fn(() => Promise.resolve()) };
 
     publisher = new RosterImportPublisher(
       imports as unknown as Repository<RosterImportSourceEntity>,
@@ -106,6 +109,7 @@ describe('RosterImportPublisher', () => {
       new RosterTypedParserService(),
       registry as unknown as AssetPublisherRegistry,
       conflicts as unknown as RosterImportConflictService,
+      identities as unknown as RosterIdentityQueueService,
     );
 
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
@@ -507,6 +511,50 @@ describe('RosterImportPublisher', () => {
       await publisher.activated(IMPORT_ID, activation);
 
       expect(builder.execute).not.toHaveBeenCalled();
+    });
+
+    it('asks for nothing to be recomputed inside the transaction', async () => {
+      await publisher.activated(IMPORT_ID, activation);
+
+      expect(identities.enqueue).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('an import in force and committed', () => {
+    beforeEach(() => {
+      imports.findOne.mockImplementation(() =>
+        Promise.resolve({ id: IMPORT_ID, fleetId: FLEET_ID }),
+      );
+    });
+
+    it("asks for the Fleet's identities to be recomputed", async () => {
+      await publisher.afterActivation(IMPORT_ID);
+
+      expect(imports.findOne).toHaveBeenCalledWith({
+        where: { id: IMPORT_ID },
+        select: { id: true, fleetId: true },
+      });
+      expect(identities.enqueue).toHaveBeenCalledWith(FLEET_ID);
+    });
+
+    it('asks for nothing for an import that has gone', async () => {
+      imports.findOne.mockImplementation(() => Promise.resolve(null));
+
+      await publisher.afterActivation(IMPORT_ID);
+
+      expect(identities.enqueue).not.toHaveBeenCalled();
+    });
+
+    // The publication job fails and is retried, finding the placement
+    // already active and asking again.
+    it('fails when the recompute cannot be queued', async () => {
+      identities.enqueue.mockImplementation(() =>
+        Promise.reject(new Error('Redis is not answering')),
+      );
+
+      await expect(publisher.afterActivation(IMPORT_ID)).rejects.toThrow(
+        'Redis is not answering',
+      );
     });
   });
 });
