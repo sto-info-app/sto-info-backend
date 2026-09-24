@@ -20,16 +20,16 @@ import { StoFleetEntity } from '../../entities/sto-fleet.entity';
  * Found at upload and kept until somebody decides which stands. Every import
  * in the group points here; the first version of the moment the site saw
  * stays in force, and any import saying something different waits, held,
- * until the group is resolved.
+ * until an investigator selects one.
  *
- * Resolving is not built yet, which is why nothing here records how a group
- * was resolved: that shape is the resolving ticket's to decide, and a column
- * nothing writes would be a guess at it.
+ * One group per Fleet and instant, ever. An export arriving for an instant
+ * whose group was settled reopens it, and the selection already made stays
+ * the roster at that moment until somebody selects again. Each selection is
+ * in `fleet_roster_import_action`; this row holds the current one.
  */
 @Entity({ name: 'fleet_roster_import_conflict' })
-@Index('UX_roster_import_conflict_open', ['fleetId', 'exportedAt'], {
+@Index('UX_roster_import_conflict_instant', ['fleetId', 'exportedAt'], {
   unique: true,
-  where: `"resolvedAt" IS NULL`,
 })
 export class RosterImportConflictEntity {
   @ApiProperty({ description: 'Unique identifier.' })
@@ -55,6 +55,15 @@ export class RosterImportConflictEntity {
   })
   @Column({ type: 'timestamptz', nullable: true, default: null })
   resolvedAt: Date | null;
+
+  @ApiProperty({
+    description:
+      'The export an investigator selected as the roster at this moment, or ' +
+      'null while nobody has. Always one of the group’s own imports.',
+    nullable: true,
+  })
+  @Column({ type: 'uuid', nullable: true, default: null })
+  selectedImportId: string | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

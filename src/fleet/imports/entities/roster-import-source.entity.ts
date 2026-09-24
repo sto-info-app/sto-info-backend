@@ -8,6 +8,7 @@ import {
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
+  Unique,
   UpdateDateColumn,
 } from 'typeorm';
 
@@ -64,6 +65,7 @@ import { RosterImportConflictEntity } from './roster-import-conflict.entity';
 })
 @Index('IDX_roster_import_source_fleet_exported', ['fleetId', 'exportedAt'])
 @Index('IDX_roster_import_source_conflict', ['conflictGroupId'])
+@Unique('UQ_roster_import_source_conflict_member', ['id', 'conflictGroupId'])
 export class RosterImportSourceEntity {
   @ApiProperty({ description: 'Unique identifier.' })
   @PrimaryGeneratedColumn('uuid')
@@ -243,6 +245,24 @@ export class RosterImportSourceEntity {
   })
   @Column({ type: 'uuid', nullable: true, default: null })
   conflictGroupId: string | null;
+
+  @ApiProperty({
+    description:
+      'Whether an investigator has taken this import out of the Fleet’s ' +
+      'history. It stays in force as a file and as evidence, and leaves ' +
+      'every result derived from the roster until it is reinstated.',
+  })
+  @Column({ type: 'boolean', nullable: false, default: false })
+  excluded: boolean;
+
+  @ApiProperty({
+    description:
+      'Whether an investigator has said this export may not list everybody. ' +
+      'Its rows still say who was there; nobody missing from it is taken to ' +
+      'have left.',
+  })
+  @Column({ type: 'boolean', nullable: false, default: false })
+  partial: boolean;
 
   @ApiProperty({ description: 'When the upload was accepted.' })
   @Column({ type: 'timestamptz', nullable: false, default: () => 'now()' })

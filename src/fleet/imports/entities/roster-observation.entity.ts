@@ -225,6 +225,15 @@ export class RosterObservationEntity {
   @Column({ type: 'boolean', nullable: false, default: false })
   publicCommentEditedAtAmbiguous: boolean;
 
+  @ApiProperty({
+    description:
+      'Whether an investigator has excluded this row. The member it names ' +
+      'is unknown in this export rather than absent from it, and the ' +
+      'values it holds are kept.',
+  })
+  @Column({ type: 'boolean', nullable: false, default: false })
+  excluded: boolean;
+
   @ApiProperty({ description: 'When the row was written.' })
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

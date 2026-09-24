@@ -7,6 +7,7 @@ import { FileScanningModule } from 'src/file-scanning/file-scanning.module';
 import { FleetNameAliasEntity } from '../entities/fleet-name-alias.entity';
 import { FleetModule } from '../fleet.module';
 import { FleetRosterIdentityModule } from '../identity/fleet-roster-identity.module';
+import { RosterImportActionEntity } from './entities/roster-import-action.entity';
 import { RosterImportConflictEntity } from './entities/roster-import-conflict.entity';
 import { RosterImportSourceEntity } from './entities/roster-import-source.entity';
 import { RosterObservationEntity } from './entities/roster-observation.entity';
@@ -41,6 +42,7 @@ import { RosterTypedParserService } from './services/roster-typed-parser.service
     TypeOrmModule.forFeature([
       RosterImportSourceEntity,
       RosterImportConflictEntity,
+      RosterImportActionEntity,
       RosterObservationEntity,
       FleetNameAliasEntity,
     ]),
