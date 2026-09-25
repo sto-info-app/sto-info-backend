@@ -65,6 +65,7 @@ import { PreviewRosterImportDto } from './dto/preview-roster-import.dto';
 import { RosterImportDetailDto } from './dto/roster-import-detail.dto';
 import { RosterImportPageDto } from './dto/roster-import-page.dto';
 import { RosterImportPreviewDto } from './dto/roster-import-preview.dto';
+import { RosterImportRowPageDto } from './dto/roster-import-rows.dto';
 import { RosterImportSourceDto } from './dto/roster-import-source.dto';
 import { UploadRosterImportDto } from './dto/upload-roster-import.dto';
 import { RosterImportCorrectionService } from './services/roster-import-correction.service';
@@ -231,6 +232,38 @@ export class RosterImportsController {
     );
 
     return this._statusService.detail(fleetId, importId, investigator);
+  }
+
+  /**
+   * Lists one import's rows, in line order, for an investigator choosing
+   * rows to exclude (FC-020).
+   *
+   * @param fleetId - The Fleet.
+   * @param importId - The import.
+   * @param query - Which page.
+   * @returns The page.
+   */
+  @Get(':importId/rows')
+  @UseGuards(JwtAuthGuard, ScopeCapabilityGuard)
+  @RequiresScopeCapability(FLEET_CAPABILITIES.ROSTER_INVESTIGATE, FLEET_SCOPE)
+  @ApiOperation({ summary: "List one roster import's rows" })
+  @ApiOkResponse({ type: RosterImportRowPageDto })
+  @ApiNotFoundResponse({ description: 'The Fleet has no such import.' })
+  async rows(
+    @Param('fleetId', ParseUUIDPipe) fleetId: string,
+    @Param('importId', ParseUUIDPipe) importId: string,
+    @Query() query: PaginatedQueryDto,
+  ): Promise<RosterImportRowPageDto> {
+    await this._featureService.assertFlagEnabled(
+      FLEET_FEATURE_FLAGS.IMPORTS_ENABLED,
+    );
+
+    return this._statusService.rows(
+      fleetId,
+      importId,
+      query.page,
+      query.pageSize,
+    );
   }
 
   /**

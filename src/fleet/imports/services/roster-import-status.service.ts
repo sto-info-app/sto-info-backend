@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { FindOptionsRelations, Not, Repository } from 'typeorm';
+import { FindOptionsRelations, In, IsNull, Not, Repository } from 'typeorm';
 
 import { FileAssetPlacementEntity } from 'src/file-assets/entities/file-asset-placement.entity';
 import { FileAssetPlacementState } from 'src/file-assets/enums/file-asset-placement-state.enum';
@@ -13,8 +13,10 @@ import {
   resolveDirectoryPageSize,
 } from '../../utilities/directory-query.utility';
 import { RosterImportActionDto } from '../dto/roster-import-action.dto';
+import { RosterImportConflictPageDto } from '../dto/roster-import-conflicts.dto';
 import { RosterImportDetailDto } from '../dto/roster-import-detail.dto';
 import { RosterImportPageDto } from '../dto/roster-import-page.dto';
+import { RosterImportRowPageDto } from '../dto/roster-import-rows.dto';
 import { RosterImportSourceDto } from '../dto/roster-import-source.dto';
 import { RosterImportActionEntity } from '../entities/roster-import-action.entity';
 import { RosterImportConflictEntity } from '../entities/roster-import-conflict.entity';
@@ -22,6 +24,7 @@ import { RosterImportSourceEntity } from '../entities/roster-import-source.entit
 import { RosterObservationEntity } from '../entities/roster-observation.entity';
 import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum';
 import { RosterHoldReason } from '../enums/roster-hold-reason.enum';
+import { RosterImportConflictFilter } from '../enums/roster-import-conflict-filter.enum';
 import { RosterImportStatus } from '../enums/roster-import-status.enum';
 import { RosterPublicationRejectionCode } from '../enums/roster-publication-rejection-code.enum';
 
@@ -231,6 +234,150 @@ export class RosterImportStatusService {
               }),
             ),
     };
+  }
+
+  /**
+   * Lists one import's rows, in line order, for an investigator choosing
+   * rows to exclude (FC-020).
+   *
+   * @param fleetId - The Fleet it must belong to.
+   * @param importId - The import.
+   * @param page - The page asked for, from one.
+   * @param pageSize - How many to a page.
+   * @returns The page. An import with no rows in force gives none.
+   * @throws NotFoundException when the Fleet has no such import.
+   */
+  async rows(
+    fleetId: string,
+    importId: string,
+    page?: number,
+    pageSize?: number,
+  ): Promise<RosterImportRowPageDto> {
+    const record = await this.require(fleetId, importId);
+    const resolvedPage = resolveDirectoryPage(page);
+    const resolvedPageSize = resolveDirectoryPageSize(pageSize);
+    const [rows, total] = await this._observations.findAndCount({
+      where: { importSourceId: record.id },
+      select: {
+        id: true,
+        line: true,
+        characterName: true,
+        accountHandle: true,
+        guildRank: true,
+        level: true,
+        contributionTotal: true,
+        joinedAt: true,
+        lastActiveAt: true,
+        excluded: true,
+      },
+      order: { line: 'ASC' },
+      skip: (resolvedPage - 1) * resolvedPageSize,
+      take: resolvedPageSize,
+    });
+
+    return {
+      items: rows.map(row => ({
+        line: row.line,
+        characterName: row.characterName,
+        accountHandle: row.accountHandle,
+        guildRank: row.guildRank,
+        level: row.level,
+        contributionTotal: row.contributionTotal,
+        joinedAt: row.joinedAt,
+        lastActiveAt: row.lastActiveAt,
+        excluded: row.excluded,
+      })),
+      total,
+      page: resolvedPage,
+      pageSize: resolvedPageSize,
+    };
+  }
+
+  /**
+   * Lists a Fleet's conflict groups, latest moment first, each with its
+   * exports (FC-020).
+   *
+   * Read from the groups themselves rather than from a revision's inputs: an
+   * export that is only held asks for no replay, so a revision can be one
+   * behind a group.
+   *
+   * @param fleetId - The Fleet.
+   * @param filter - Which groups.
+   * @param page - The page asked for, from one.
+   * @param pageSize - How many to a page.
+   * @returns The page.
+   */
+  async conflicts(
+    fleetId: string,
+    filter: RosterImportConflictFilter = RosterImportConflictFilter.OPEN,
+    page?: number,
+    pageSize?: number,
+  ): Promise<RosterImportConflictPageDto> {
+    const resolvedPage = resolveDirectoryPage(page);
+    const resolvedPageSize = resolveDirectoryPageSize(pageSize);
+    const [groups, total] = await this._conflicts.findAndCount({
+      where: {
+        fleetId,
+        ...(filter === RosterImportConflictFilter.OPEN
+          ? { resolvedAt: IsNull() }
+          : {}),
+        ...(filter === RosterImportConflictFilter.SETTLED
+          ? { resolvedAt: Not(IsNull()) }
+          : {}),
+      },
+      order: { exportedAt: 'DESC', id: 'DESC' },
+      skip: (resolvedPage - 1) * resolvedPageSize,
+      take: resolvedPageSize,
+    });
+    const members =
+      groups.length === 0
+        ? []
+        : await this.summariseWithGroups(
+            await this._imports.find({
+              where: {
+                fleetId,
+                conflictGroupId: In(groups.map(group => group.id)),
+              },
+              relations: RELATIONS,
+              // The order the conflict service decides by.
+              order: { uploadedAt: 'ASC', id: 'ASC' },
+            }),
+          );
+
+    return {
+      items: groups.map(group => ({
+        id: group.id,
+        exportedAt: group.exportedAt,
+        openedAt: group.openedAt,
+        resolvedAt: group.resolvedAt,
+        selectedImportId: group.selectedImportId,
+        members: members
+          .filter(member => member.groupId === group.id)
+          .map(member => member.summary),
+      })),
+      total,
+      page: resolvedPage,
+      pageSize: resolvedPageSize,
+    };
+  }
+
+  /**
+   * Summarises imports, keeping which group each is in.
+   *
+   * @param records - The imports.
+   * @returns Each import's summary beside its group.
+   */
+  private async summariseWithGroups(
+    records: readonly RosterImportSourceEntity[],
+  ): Promise<
+    Array<{ groupId: string | null; summary: RosterImportSourceDto }>
+  > {
+    const summaries = await this.summarise(records);
+
+    return records.map((record, index) => ({
+      groupId: record.conflictGroupId,
+      summary: summaries[index],
+    }));
   }
 
   /**

@@ -135,6 +135,7 @@ describe('RosterImportsController', () => {
     list: jest.Mock<(...args: unknown[]) => Promise<RosterImportPageDto>>;
     summary: jest.Mock<(...args: unknown[]) => Promise<RosterImportSourceDto>>;
     detail: jest.Mock<(...args: unknown[]) => Promise<RosterImportDetailDto>>;
+    rows: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
   };
   let authorisation: {
     hasCapability: jest.Mock<(...args: unknown[]) => Promise<boolean>>;
@@ -182,6 +183,9 @@ describe('RosterImportsController', () => {
         Promise.resolve({ items: [SUMMARY], total: 1, page: 1, pageSize: 20 }),
       ),
       summary: jest.fn(() => Promise.resolve(SUMMARY)),
+      rows: jest.fn(() =>
+        Promise.resolve({ items: [], total: 0, page: 1, pageSize: 20 }),
+      ),
       detail: jest.fn(() =>
         Promise.resolve({
           ...SUMMARY,
@@ -626,6 +630,48 @@ describe('RosterImportsController', () => {
 
       await expect(call()).rejects.toBeInstanceOf(NotFoundException);
       expect(corrections[handler]).not.toHaveBeenCalled();
+    });
+  });
+
+  // FC-020: choosing rows to exclude is correcting, an investigator's.
+  describe('one import’s rows', () => {
+    it('is open to investigators only', () => {
+      expect(
+        Reflect.getMetadata(
+          REQUIRES_SCOPE_CAPABILITY_KEY,
+          RosterImportsController.prototype.rows,
+        ),
+      ).toEqual({
+        capability: FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+        source: {
+          kind: FleetScopeKind.FLEET,
+          param: 'fleetId',
+          communityParam: 'communityId',
+        },
+      });
+    });
+
+    it('asks for the page it was given', async () => {
+      await expect(
+        controller.rows(FLEET_ID, IMPORT_ID, { page: 2, pageSize: 50 }),
+      ).resolves.toEqual({ items: [], total: 0, page: 1, pageSize: 20 });
+      expect(statusService.rows).toHaveBeenCalledWith(
+        FLEET_ID,
+        IMPORT_ID,
+        2,
+        50,
+      );
+    });
+
+    it('is hidden while imports are switched off', async () => {
+      featureService.assertFlagEnabled.mockImplementationOnce(() => {
+        throw new NotFoundException('Not found');
+      });
+
+      await expect(
+        controller.rows(FLEET_ID, IMPORT_ID, {}),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(statusService.rows).not.toHaveBeenCalled();
     });
   });
 

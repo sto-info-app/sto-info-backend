@@ -8,7 +8,7 @@ import {
   it,
   jest,
 } from '@jest/globals';
-import { Not, Repository } from 'typeorm';
+import { FindOperator, Not, Repository } from 'typeorm';
 
 import { FileAssetPlacementEntity } from 'src/file-assets/entities/file-asset-placement.entity';
 import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
@@ -22,6 +22,7 @@ import { RosterImportConflictEntity } from '../entities/roster-import-conflict.e
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
 import { RosterObservationEntity } from '../entities/roster-observation.entity';
 import { RosterImportActionKind } from '../enums/roster-import-action-kind.enum';
+import { RosterImportConflictFilter } from '../enums/roster-import-conflict-filter.enum';
 import { RosterImportStatus } from '../enums/roster-import-status.enum';
 import { RosterRowRejectionCode } from '../enums/roster-row-rejection-code.enum';
 import { RosterSourceHeaderShape } from '../enums/roster-source-header-shape.enum';
@@ -112,10 +113,12 @@ describe('RosterImportStatusService', () => {
   };
   let observations: {
     find: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
+    findAndCount: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
   };
   let actions: { find: jest.Mock<(...args: unknown[]) => Promise<unknown>> };
   let conflicts: {
     findOne: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
+    findAndCount: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
   };
   let service: RosterImportStatusService;
   let warn: jest.SpiedFunction<(message: unknown) => void>;
@@ -151,9 +154,15 @@ describe('RosterImportStatusService', () => {
       findByAssetIds: jest.fn(() => Promise.resolve([])),
     };
 
-    observations = { find: jest.fn(() => Promise.resolve([])) };
+    observations = {
+      find: jest.fn(() => Promise.resolve([])),
+      findAndCount: jest.fn(() => Promise.resolve([[], 0])),
+    };
     actions = { find: jest.fn(() => Promise.resolve([])) };
-    conflicts = { findOne: jest.fn(() => Promise.resolve(null)) };
+    conflicts = {
+      findOne: jest.fn(() => Promise.resolve(null)),
+      findAndCount: jest.fn(() => Promise.resolve([[], 0])),
+    };
 
     service = new RosterImportStatusService(
       imports as unknown as Repository<RosterImportSourceEntity>,
@@ -704,6 +713,148 @@ describe('RosterImportStatusService', () => {
       await expect(
         service.detail(FLEET_ID, 'import-9', true),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+  describe('rows', () => {
+    const row = {
+      id: 'observation-1',
+      line: 2,
+      characterName: 'Tova Reen',
+      accountHandle: '@fixture004',
+      guildRank: 'Member',
+      level: 65,
+      contributionTotal: '98300',
+      joinedAt: EXPORTED_AT,
+      lastActiveAt: null,
+      excluded: true,
+    };
+
+    it('lists an import’s rows in line order, a page at a time', async () => {
+      observations.findAndCount.mockResolvedValue([[row], 93]);
+
+      await expect(service.rows(FLEET_ID, 'import-1', 2, 20)).resolves.toEqual({
+        items: [
+          {
+            line: 2,
+            characterName: 'Tova Reen',
+            accountHandle: '@fixture004',
+            guildRank: 'Member',
+            level: 65,
+            contributionTotal: '98300',
+            joinedAt: EXPORTED_AT,
+            lastActiveAt: null,
+            excluded: true,
+          },
+        ],
+        total: 93,
+        page: 2,
+        pageSize: 20,
+      });
+      expect(observations.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { importSourceId: 'import-1' },
+          order: { line: 'ASC' },
+          skip: 20,
+          take: 20,
+        }),
+      );
+    });
+
+    it('reports an import of another Fleet as absent', async () => {
+      imports.findOne.mockResolvedValue(null);
+
+      await expect(service.rows(FLEET_ID, 'import-9')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(observations.findAndCount).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('conflicts', () => {
+    const OPENED_AT = new Date('2026-09-24T21:00:00.000Z');
+    const group = (id: string, resolvedAt: Date | null) =>
+      ({
+        id,
+        fleetId: FLEET_ID,
+        exportedAt: EXPORTED_AT,
+        openedAt: OPENED_AT,
+        resolvedAt,
+        selectedImportId: resolvedAt === null ? null : 'import-a',
+      }) as RosterImportConflictEntity;
+
+    it('lists the open groups by default, latest moment first, each with its exports', async () => {
+      conflicts.findAndCount.mockResolvedValue([
+        [group('group-1', null), group('group-2', null)],
+        2,
+      ]);
+      imports.find.mockResolvedValue([
+        importOf({ id: 'import-a', conflictGroupId: 'group-1' }),
+        importOf({ id: 'import-b', conflictGroupId: 'group-1' }),
+        importOf({ id: 'import-c', conflictGroupId: 'group-2' }),
+      ]);
+
+      const page = await service.conflicts(FLEET_ID);
+
+      const [{ where, order }] = conflicts.findAndCount.mock.calls[0] as [
+        { where: Record<string, unknown>; order: Record<string, string> },
+      ];
+
+      expect(where.fleetId).toBe(FLEET_ID);
+      expect((where.resolvedAt as FindOperator<unknown>).type).toBe('isNull');
+      expect(order).toEqual({ exportedAt: 'DESC', id: 'DESC' });
+      expect(imports.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          relations: RELATIONS,
+          order: { uploadedAt: 'ASC', id: 'ASC' },
+        }),
+      );
+      expect(page).toMatchObject({ total: 2, page: 1 });
+      expect(page.items[0]).toMatchObject({
+        id: 'group-1',
+        exportedAt: EXPORTED_AT,
+        openedAt: OPENED_AT,
+        resolvedAt: null,
+        selectedImportId: null,
+      });
+      expect(page.items[0].members.map(member => member.id)).toEqual([
+        'import-a',
+        'import-b',
+      ]);
+      expect(page.items[1].members.map(member => member.id)).toEqual([
+        'import-c',
+      ]);
+    });
+
+    it('lists the settled groups when asked', async () => {
+      await service.conflicts(FLEET_ID, RosterImportConflictFilter.SETTLED);
+
+      const [{ where }] = conflicts.findAndCount.mock.calls[0] as [
+        { where: Record<string, unknown> },
+      ];
+
+      const settled = where.resolvedAt as FindOperator<FindOperator<unknown>>;
+
+      expect(settled.type).toBe('not');
+      expect(settled.child?.type).toBe('isNull');
+    });
+
+    it('lists every group when asked, and reads no exports for none', async () => {
+      const page = await service.conflicts(
+        FLEET_ID,
+        RosterImportConflictFilter.ALL,
+        3,
+        10,
+      );
+
+      expect(conflicts.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { fleetId: FLEET_ID },
+          skip: 20,
+          take: 10,
+        }),
+      );
+      expect(page.items).toEqual([]);
+      expect(imports.find).not.toHaveBeenCalled();
     });
   });
 });

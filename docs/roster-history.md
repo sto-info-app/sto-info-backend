@@ -170,6 +170,10 @@ An import's detail shows an investigator its excluded lines, its corrections new
 investigator's STO Info username, and its conflict group's selection. Everybody who can read it sees
 whether it is excluded or partial.
 
+For the pages investigators correct from (FC-020), an import's rows can be listed a page at a
+time. A Fleet's conflict groups can be listed too — open, settled or all — read from the groups
+themselves rather than from a revision's inputs, since a revision can be one behind a group.
+
 ## Rank order
 
 Plan section 3.7: a Fleet's rank labels are its own, with no order common to Fleets, so a change of

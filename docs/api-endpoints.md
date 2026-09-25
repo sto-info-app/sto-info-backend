@@ -537,6 +537,39 @@ Fleet's roster is replayed once it is; the response still reports it `HELD`.
 **Response (409):** no other export claims its moment, it is excluded, it is already the one
 selected, or it is neither in force nor waiting.
 
+### GET /fleet-communities/:communityId/fleets/:fleetId/roster-imports/:importId/rows
+
+One import's rows, in line order, for an investigator choosing rows to exclude (FC-020).
+
+**Authentication Required.** `roster.investigate` at that Fleet.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Query:** `page` and `pageSize` (at most 50).
+
+**Response (200):** `{ items, total, page, pageSize }`. Each row gives its line, Character name,
+account handle, rank label, level, cumulative contribution as a decimal string, Join Date, Last
+Active and whether it is excluded. An import with no rows in force gives none.
+
+**Response (404):** the Fleet has no such import.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/roster-import-conflicts
+
+A Fleet's conflict groups, latest moment first (FC-020). See
+[Roster history](roster-history.md#selecting-between-exports-of-one-moment).
+
+**Authentication Required.** `roster.investigate` at that Fleet.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Query:** `page`, `pageSize` (at most 50) and `state`: `OPEN` (the default) for groups waiting
+for a selection, whether never settled or reopened, `SETTLED`, or `ALL`.
+
+**Response (200):** `{ items, total, page, pageSize }`. Each group gives the moment it claims,
+when it was opened and last settled, the selected export, and its exports in the order they
+arrived, each as the import list reports it. Selecting one is `POST
+…/roster-imports/:importId/selection`.
+
 ### GET /fleet-communities/:communityId/fleets/:fleetId/roster-projection
 
 Where a Fleet's roster history stands. See [Roster history](roster-history.md).

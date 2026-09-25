@@ -12,6 +12,7 @@ import { RosterImportActionEntity } from './entities/roster-import-action.entity
 import { RosterImportConflictEntity } from './entities/roster-import-conflict.entity';
 import { RosterImportSourceEntity } from './entities/roster-import-source.entity';
 import { RosterObservationEntity } from './entities/roster-observation.entity';
+import { RosterImportConflictsController } from './roster-import-conflicts.controller';
 import { RosterImportsController } from './roster-imports.controller';
 import { RosterCsvPrivacyParserService } from './services/roster-csv-privacy-parser.service';
 import { RosterExportIdentityService } from './services/roster-export-identity.service';
@@ -50,7 +51,7 @@ import { RosterTypedParserService } from './services/roster-typed-parser.service
       FleetNameAliasEntity,
     ]),
   ],
-  controllers: [RosterImportsController],
+  controllers: [RosterImportsController, RosterImportConflictsController],
   providers: [
     RosterCsvPrivacyParserService,
     RosterTypedParserService,
