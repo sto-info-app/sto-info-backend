@@ -13,6 +13,8 @@ import { RosterIntervalSummaryEntity } from './entities/roster-interval-summary.
 import { RosterProjectionInputEntity } from './entities/roster-projection-input.entity';
 import { RosterProjectionEntity } from './entities/roster-projection.entity';
 import { RosterReplayProcessor } from './processors/roster-replay.processor';
+import { RosterProjectionController } from './roster-projection.controller';
+import { RosterProjectionStatusService } from './services/roster-projection-status.service';
 import { RosterReplayEvidenceService } from './services/roster-replay-evidence.service';
 import { RosterReplayQueueService } from './services/roster-replay-queue.service';
 import { RosterReplaySweepService } from './services/roster-replay-sweep.service';
@@ -43,8 +45,10 @@ import { RosterReplayService } from './services/roster-replay.service';
       RosterIntervalSummaryEntity,
     ]),
   ],
+  controllers: [RosterProjectionController],
   providers: [
     RosterIdentityRecomputeService,
+    RosterProjectionStatusService,
     RosterReplayEvidenceService,
     RosterReplayQueueService,
     RosterReplayService,

@@ -27,6 +27,13 @@ The database uses PostgreSQL with TypeORM for object-relational mapping.
 | `RosterIdentityCandidateEntity` | `fleet_roster_identity_candidate` | A Character or account rename the evidence suggests, and where a reviewer has left it |
 | `RosterIdentityCandidateLinkEntity` | `fleet_roster_identity_candidate_link` | Each pair of aliases a rename candidate would join |
 | `RosterIdentityDecisionEntity` | `fleet_roster_identity_decision` | Each confirm, reject or undo on a candidate, write-once |
+| `RosterImportConflictEntity` | `fleet_roster_import_conflict` | Exports of one Fleet that claim one moment and disagree, and the one an investigator selected |
+| `RosterImportActionEntity` | `fleet_roster_import_action` | Each exclusion, reinstatement, partial mark, row exclusion, timezone correction and selection, with who and why, write-once — see [Roster history](roster-history.md#corrections) |
+| `RosterProjectionEntity` | `fleet_roster_projection` | Which revision of a Fleet's roster history is published, and whether a newer one has been asked for — see [Roster history](roster-history.md) |
+| `RosterProjectionInputEntity` | `fleet_roster_projection_input` | What a revision made of each import it considered |
+| `RosterEpisodeEntity` | `fleet_roster_episode` | One stretch of one identity's membership, bounded by exports |
+| `RosterChangeEntity` | `fleet_roster_change` | One change to one member between two exports |
+| `RosterIntervalSummaryEntity` | `fleet_roster_interval_summary` | What happened between two consecutive effective exports |
 
 ### Platform Launcher Image Mapping
 
@@ -240,6 +247,27 @@ check violation in two cases:
 | `UX_roster_identity_candidate_character`, `UX_roster_identity_candidate_account` | `fleet_roster_identity_candidate` | One candidate per alias pair, or handle pair, per Fleet, so a rejected one is found again rather than suggested again |
 | `UX_roster_identity_decision_revision` | `fleet_roster_identity_decision` | Decisions are numbered per candidate, so two reviewers cannot both record the next one |
 | `TR_roster_identity_decision_guard` | `fleet_roster_identity_decision` | Refuses any change to a decision except its actor being cleared when their account is deleted |
+
+### Roster corrections and history
+
+| Constraint | Table | What it guarantees |
+| --- | --- | --- |
+| `UX_roster_import_conflict_instant` | `fleet_roster_import_conflict` | One group per Fleet and instant, settled or not, so a newcomer for a settled moment reopens its group rather than starting another |
+| `FK_roster_import_conflict_selected` | `fleet_roster_import_conflict` | Through `(selectedImportId, id)` to the import's `(id, conflictGroupId)`, so a group can only select one of its own exports |
+| `CHK_roster_import_conflict_selected` | `fleet_roster_import_conflict` | A settled group always has a selection |
+| `CHK_roster_import_action_reason` | `fleet_roster_import_action` | Every correction gives a reason that is not blank |
+| `CHK_roster_import_action_conflict` | `fleet_roster_import_action` | A selection names its group, and nothing else does |
+| `TR_roster_import_action_guard` | `fleet_roster_import_action` | Refuses any change to a correction except its actor being cleared when their account is deleted |
+| `CHK_roster_projection_counters` | `fleet_roster_projection` | `built` never passes `requested` |
+| `CHK_roster_projection_published` | `fleet_roster_projection` | A revision other than 0 has been published |
+| `FK_roster_episode_identity` | `fleet_roster_episode` | Through `(identityId, fleetId)`, so no episode joins one Fleet's history to another's |
+| `FK_roster_change_episode` | `fleet_roster_change` | Through Fleet, revision, identity and ordinal, so a change belongs to an episode of its own revision |
+| `CHK_roster_change_delta` | `fleet_roster_change` | A contribution delta only on a rise, and only above zero: a fall is a reset, never a negative donation |
+| `CHK_roster_episode_end` | `fleet_roster_episode` | An ended episode says by when; only a departure names the export that proved it |
+
+Every derived table carries its revision, and a rebuild writes the next beside the published one
+before switching to it. The derived tables cascade from their Fleet and imports; they hold nothing
+a replay cannot rebuild.
 
 ### Roster import provenance
 

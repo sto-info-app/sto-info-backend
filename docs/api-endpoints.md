@@ -537,6 +537,22 @@ Fleet's roster is replayed once it is; the response still reports it `HELD`.
 **Response (409):** no other export claims its moment, it is excluded, it is already the one
 selected, or it is neither in force nor waiting.
 
+### GET /fleet-communities/:communityId/fleets/:fleetId/roster-projection
+
+Where a Fleet's roster history stands. See [Roster history](roster-history.md).
+
+**Authentication Required.** `roster.import` or `roster.investigate` at that Fleet, as for its
+imports. A caller who cannot see the Fleet is told it does not exist.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Response (200):** `{ revision, publishedAt, stale, latestImportId, inputs }`. `revision` is 0
+before the first is built. `stale` is true when a change has been made since the published
+revision was built; it is still what is served until the next one is. `inputs` lists every import
+the revision considered, in export order, each with its filename, export instant, whether it was
+marked partial, how many rows were excluded, and its `outcome`: `EFFECTIVE`, `EXCLUDED`,
+`NOT_SELECTED`, `AWAITING_SELECTION` or `SAME_AS_EFFECTIVE`.
+
 ### GET /fleet-communities/:communityId/fleets/:fleetId/roster-identities/candidates
 
 List a Fleet's rename candidates, open ones first. See [Roster identities](roster-identities.md).

@@ -170,6 +170,14 @@ An import's detail shows an investigator its excluded lines, its corrections new
 investigator's STO Info username, and its conflict group's selection. Everybody who can read it sees
 whether it is excluded or partial.
 
+## Where the history stands
+
+`GET …/fleets/:fleetId/roster-projection` — for whoever imports or investigates a Fleet's rosters —
+reports the published revision, whether it is stale, and every import it considered with what it
+made of each. It reads the revision number first and then only that revision's inputs. See
+[the API](api-endpoints.md#get-fleet-communitiescommunityidfleetsfleetidroster-projection). The
+roster, history and reports themselves are FC-020's.
+
 ## After deploying
 
 Run once, so Fleets imported earlier get a first revision:
@@ -187,5 +195,7 @@ npm run fleet:replay-rosters
 | `roster-projector.fuzz.spec.ts` | Over generated histories: order invariance, no negative delta, the per-interval partition, departures only at complete exports, ordered and disjoint episodes |
 | `roster-input-classifier.spec.ts` | Which import of a moment is read, with and without a selection |
 | `roster-replay.service.spec.ts` | Skipping a covered request, the revision written beside and published, the revision before kept, the Fleet's date following it, and proposals raised once |
-| `roster-import-correction.service.spec.ts` | Each correction's refusals, the lock, the record, and the request committed with the change |
+| `roster-import-correction.service.spec.ts` | Each correction's refusals, the lock, the record, and the request committed with the change; the timezone re-read and the selection's release of a held export |
+| `roster-import-conflict.service.spec.ts` | One group per moment, reopened when a newcomer disagrees with its selection; holding judged against the selection |
+| `roster-projection-status.service.spec.ts` | The status pinned to one revision, and stale when a change is waiting |
 | `roster-projection-schema-alignment.spec.ts` | The five entities against their migration |
