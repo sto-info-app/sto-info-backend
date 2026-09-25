@@ -3,10 +3,10 @@ import {
   Controller,
   Get,
   Param,
-  ParseEnumPipe,
   ParseUUIDPipe,
   Put,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -15,8 +15,11 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiProduces,
   ApiTags,
 } from '@nestjs/swagger';
+
+import { Response } from 'express';
 
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from 'src/auth/optional-jwt-auth.guard';
@@ -28,6 +31,7 @@ import { ScopeCapabilityGuard } from '../authorisation/scope-capability.guard';
 import { FLEET_FEATURE_FLAGS } from '../constants/fleet-feature.constants';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 import { FleetFeatureService } from '../fleet-feature.service';
+import { StoFleetService } from '../services/sto-fleet.service';
 import { FleetContributionReportDto } from './dto/fleet-contribution-report.dto';
 import {
   FleetActivityReportDto,
@@ -44,6 +48,7 @@ import {
   FleetTenureReportDto,
 } from './dto/fleet-tenure-report.dto';
 import { FleetReport } from './enums/fleet-report.enum';
+import { ParseFleetReportPipe } from './pipes/parse-fleet-report.pipe';
 import { FleetContributionReportService } from './services/fleet-contribution-report.service';
 import { FleetGrowthReportService } from './services/fleet-growth-report.service';
 import { FleetReportAccessService } from './services/fleet-report-access.service';
@@ -52,6 +57,10 @@ import {
   FleetReportContext,
   FleetReportContextService,
 } from './services/fleet-report-context.service';
+import {
+  FleetReportCsvService,
+  FleetReportDto,
+} from './services/fleet-report-csv.service';
 import { FleetTenureReportService } from './services/fleet-tenure-report.service';
 
 /** Where every route here finds its Fleet, for the capability guard. */
@@ -77,6 +86,8 @@ export class FleetReportsController {
    * @param _growthService - Builds the growth and activity reports.
    * @param _tenureService - Builds the tenure and ranks reports.
    * @param _contributionService - Builds the contribution report.
+   * @param _csvService - Writes a report as CSV.
+   * @param _fleetService - Names the Fleet in an export.
    * @param _featureService - Reports whether imports are switched on.
    */
   constructor(
@@ -86,6 +97,8 @@ export class FleetReportsController {
     private readonly _growthService: FleetGrowthReportService,
     private readonly _tenureService: FleetTenureReportService,
     private readonly _contributionService: FleetContributionReportService,
+    private readonly _csvService: FleetReportCsvService,
+    private readonly _fleetService: StoFleetService,
     private readonly _featureService: FleetFeatureService,
   ) {}
 
@@ -171,7 +184,7 @@ export class FleetReportsController {
   @ApiBadRequestResponse({ description: 'It has that audience already.' })
   async setAudience(
     @Param('fleetId', ParseUUIDPipe) fleetId: string,
-    @Param('report', new ParseEnumPipe(FleetReport)) report: FleetReport,
+    @Param('report', ParseFleetReportPipe) report: FleetReport,
     @UserId() userId: string,
     @Body() body: SetFleetReportAudienceDto,
   ): Promise<FleetReportAudiencesDto> {
@@ -316,6 +329,70 @@ export class FleetReportsController {
         userId,
       ),
     );
+  }
+
+  /**
+   * Exports a report as CSV: the tables exactly as the viewer is shown them.
+   *
+   * @param communityId - The Community, as the path names it.
+   * @param fleetId - The Fleet.
+   * @param report - The report.
+   * @param query - The span, and the export for its detail.
+   * @param userId - The viewer, or null when signed out.
+   * @param response - Where the download's headers are set.
+   * @returns The CSV text.
+   */
+  @Get(':report/csv')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({ summary: 'Export one of this Fleet’s reports as CSV' })
+  @ApiProduces('text/csv')
+  @ApiOkResponse({ description: 'The report as CSV, UTF-8 with a BOM.' })
+  @ApiNotFoundResponse({ description: 'The viewer may not see it.' })
+  async csv(
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('fleetId', ParseUUIDPipe) fleetId: string,
+    @Param('report', ParseFleetReportPipe) report: FleetReport,
+    @Query() query: FleetReportQueryDto,
+    @OptionalUserId() userId: string | null,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<string> {
+    const built = await this.build(
+      await this.open(communityId, fleetId, report, query, userId),
+    );
+    const fleet = await this._fleetService.findByIdOrFail(communityId, fleetId);
+    const now = new Date();
+
+    response.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    response.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${fleet.slug}-${report.toLowerCase()}-${now
+        .toISOString()
+        .slice(0, 10)}.csv"`,
+    );
+    response.setHeader('Cache-Control', 'private, no-store');
+
+    return this._csvService.render(built, fleet.exactGameName, now);
+  }
+
+  /**
+   * Builds whichever report a context was opened for.
+   *
+   * @param context - The revision, span and view.
+   * @returns The report.
+   */
+  private build(context: FleetReportContext): Promise<FleetReportDto> {
+    switch (context.header.report) {
+      case FleetReport.GROWTH:
+        return this._growthService.growth(context);
+      case FleetReport.ACTIVITY:
+        return this._growthService.activity(context);
+      case FleetReport.TENURE:
+        return this._tenureService.tenure(context);
+      case FleetReport.RANKS:
+        return this._tenureService.ranks(context);
+      case FleetReport.CONTRIBUTION:
+        return this._contributionService.contribution(context);
+    }
   }
 
   /**

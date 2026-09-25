@@ -6,6 +6,7 @@ import { FLEET_FEATURE_FLAGS } from '../constants/fleet-feature.constants';
 import { FleetAudience } from '../enums/fleet-audience.enum';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 import { FleetFeatureService } from '../fleet-feature.service';
+import { StoFleetService } from '../services/sto-fleet.service';
 import { FleetReportView } from './enums/fleet-report-view.enum';
 import { FleetReport } from './enums/fleet-report.enum';
 import { FleetReportsController } from './fleet-reports.controller';
@@ -14,6 +15,7 @@ import { FleetGrowthReportService } from './services/fleet-growth-report.service
 import { FleetReportAccessService } from './services/fleet-report-access.service';
 import { FleetReportAudienceService } from './services/fleet-report-audience.service';
 import { FleetReportContextService } from './services/fleet-report-context.service';
+import { FleetReportCsvService } from './services/fleet-report-csv.service';
 import { FleetTenureReportService } from './services/fleet-tenure-report.service';
 
 const SOURCE = {
@@ -29,6 +31,8 @@ describe('FleetReportsController', () => {
   let growthService: { growth: jest.Mock; activity: jest.Mock };
   let tenureService: { tenure: jest.Mock; ranks: jest.Mock };
   let contributionService: { contribution: jest.Mock };
+  let csvService: { render: jest.Mock };
+  let fleetService: { findByIdOrFail: jest.Mock };
   let featureService: { assertFlagEnabled: jest.Mock };
   let controller: FleetReportsController;
 
@@ -62,6 +66,15 @@ describe('FleetReportsController', () => {
     contributionService = {
       contribution: jest.fn(() => Promise.resolve({ intervals: [] })),
     };
+    csvService = { render: jest.fn(() => 'csv text') };
+    fleetService = {
+      findByIdOrFail: jest.fn(() =>
+        Promise.resolve({
+          slug: 'fixture-basic-fleet',
+          exactGameName: 'Fixture Basic Fleet',
+        }),
+      ),
+    };
     featureService = {
       assertFlagEnabled: jest.fn(() => Promise.resolve()),
     };
@@ -72,6 +85,8 @@ describe('FleetReportsController', () => {
       growthService as unknown as FleetGrowthReportService,
       tenureService as unknown as FleetTenureReportService,
       contributionService as unknown as FleetContributionReportService,
+      csvService as unknown as FleetReportCsvService,
+      fleetService as unknown as StoFleetService,
       featureService as unknown as FleetFeatureService,
     );
   });
@@ -183,6 +198,112 @@ describe('FleetReportsController', () => {
           FleetReportsController.prototype[route],
         ),
       ).toBeUndefined();
+    });
+  });
+
+  describe('the CSV export', () => {
+    let headers: Record<string, string>;
+    let response: { setHeader: jest.Mock };
+
+    beforeEach(() => {
+      headers = {};
+      response = {
+        setHeader: jest.fn((name: string, value: string) => {
+          headers[name] = value;
+        }),
+      };
+      jest.useFakeTimers({ now: new Date('2026-09-25T12:00:00Z') });
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it.each([
+      [FleetReport.GROWTH, () => growthService.growth],
+      [FleetReport.ACTIVITY, () => growthService.activity],
+      [FleetReport.TENURE, () => tenureService.tenure],
+      [FleetReport.RANKS, () => tenureService.ranks],
+      [FleetReport.CONTRIBUTION, () => contributionService.contribution],
+    ])(
+      'writes the %s report as the viewer is shown it',
+      async (report, builder) => {
+        contextService.open.mockResolvedValue({
+          fleetId: 'fleet-1',
+          header: { report },
+        });
+
+        await expect(
+          controller.csv(
+            'community-1',
+            'fleet-1',
+            report,
+            {},
+            null,
+            response as never,
+          ),
+        ).resolves.toBe('csv text');
+        expect(accessService.require).toHaveBeenCalledWith(
+          expect.objectContaining({ withinCommunityId: 'community-1' }),
+          report,
+          null,
+        );
+        expect(builder()).toHaveBeenCalledWith({
+          fleetId: 'fleet-1',
+          header: { report },
+        });
+        expect(csvService.render).toHaveBeenCalledWith(
+          expect.anything(),
+          'Fixture Basic Fleet',
+          new Date('2026-09-25T12:00:00Z'),
+        );
+        expect(fleetService.findByIdOrFail).toHaveBeenCalledWith(
+          'community-1',
+          'fleet-1',
+        );
+      },
+    );
+
+    it('offers it as a download named for the Fleet, report and day', async () => {
+      contextService.open.mockResolvedValue({
+        fleetId: 'fleet-1',
+        header: { report: FleetReport.GROWTH },
+      });
+
+      await controller.csv(
+        'community-1',
+        'fleet-1',
+        FleetReport.GROWTH,
+        {},
+        'user-1',
+        response as never,
+      );
+
+      expect(headers).toEqual({
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition':
+          'attachment; filename="fixture-basic-fleet-growth-2026-09-25.csv"',
+        'Cache-Control': 'private, no-store',
+      });
+    });
+
+    it('writes nothing for a viewer who may not see the report', async () => {
+      accessService.require.mockRejectedValue(
+        new NotFoundException('Not found'),
+      );
+
+      await expect(
+        controller.csv(
+          'community-1',
+          'fleet-1',
+          FleetReport.GROWTH,
+          {},
+          null,
+          response as never,
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(csvService.render).not.toHaveBeenCalled();
+      expect(response.setHeader).not.toHaveBeenCalled();
     });
   });
 

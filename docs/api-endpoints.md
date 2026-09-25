@@ -803,6 +803,28 @@ aggregate view.
 
 **Response (404):** the caller may not see it.
 
+### GET /fleet-communities/:communityId/fleets/:fleetId/reports/:report/csv
+
+One of a Fleet's reports as CSV (FC-020). See [Fleet reports](fleet-reports.md#csv-export).
+
+**Authentication Optional**, as for the report itself.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Path:** `:report` is `growth`, `tenure`, `ranks`, `activity` or `contribution`, in any case.
+
+**Query:** as for the report.
+
+**Response (200):** `text/csv; charset=utf-8`, UTF-8 with a byte order mark, offered as an
+attachment named for the Fleet, the report and the day. It holds the tables exactly as the caller
+is shown them, with every hidden figure written `< 5`, below comment lines giving the report,
+revision, span and view and when it was made. Instants are ISO 8601 UTC. `Cache-Control` is
+`private, no-store`.
+
+**Response (400):** `:report` names no report.
+
+**Response (404):** the caller may not see it.
+
 ### GET /fleet-communities/:communityId/fleets/:fleetId/reports/audiences
 
 Who may see each of a Fleet's reports (FC-020). See [Fleet reports](fleet-reports.md).
@@ -823,6 +845,8 @@ Change who may see one of a Fleet's reports.
 **Authentication Required.** `scope.settings.manage` at that Fleet: its Owner.
 
 **Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Path:** `:report` is `growth`, `tenure`, `ranks`, `activity` or `contribution`, in any case.
 
 **Request:** `{ "audience": "PRIVATE" | "FLEET_MEMBERS" | "COMMUNITY" | "PUBLIC" }`.
 

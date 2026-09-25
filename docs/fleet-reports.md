@@ -122,3 +122,22 @@ the interval is listed, marked, and is in no interval's total.
 
 For an aggregate audience the four counts are one group, since they account for every member at
 either end exactly once, and the total is hidden when fewer than five members' deltas make it up.
+
+## CSV export
+
+Each report can be downloaded as CSV. It holds the tables exactly as the viewer is shown them
+(Steve's decision of 25 September 2026), so an aggregate audience's export names nobody, and
+every figure its view hides is written `< 5`. A full view's member list follows the report's
+own tables, after a blank line.
+
+Comment lines starting `#` come first. They name the report and the Fleet, the revision and when
+it was published, the span and how many exports it covers, and the view, and say when the file
+was made. The file is UTF-8 with a byte order mark, so a spreadsheet reads it as such. Every
+instant is ISO 8601 UTC, and every line ends with CRLF, as RFC 4180 has it.
+
+A cell a spreadsheet would run as a formula — text starting `=`, `+`, `-`, `@`, a tab or a
+carriage return — is prefixed with an apostrophe, since a cell can hold somebody's Character name.
+Account handles start `@`, so every handle in a full export carries one.
+
+The browser cannot read the download's `Content-Disposition` across origins, so the frontend names
+the file itself, the same way: Fleet, report and day.
