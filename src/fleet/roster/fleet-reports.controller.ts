@@ -38,6 +38,10 @@ import {
 } from './dto/fleet-report-audience.dto';
 import { FleetReportQueryDto } from './dto/fleet-report-query.dto';
 import { FleetReportAccessDto } from './dto/fleet-report.dto';
+import {
+  FleetRanksReportDto,
+  FleetTenureReportDto,
+} from './dto/fleet-tenure-report.dto';
 import { FleetReport } from './enums/fleet-report.enum';
 import { FleetGrowthReportService } from './services/fleet-growth-report.service';
 import { FleetReportAccessService } from './services/fleet-report-access.service';
@@ -46,6 +50,7 @@ import {
   FleetReportContext,
   FleetReportContextService,
 } from './services/fleet-report-context.service';
+import { FleetTenureReportService } from './services/fleet-tenure-report.service';
 
 /** Where every route here finds its Fleet, for the capability guard. */
 const FLEET_SOURCE = {
@@ -68,6 +73,7 @@ export class FleetReportsController {
    * @param _accessService - Decides how much of each report a viewer sees.
    * @param _contextService - Opens a report over its revision and span.
    * @param _growthService - Builds the growth and activity reports.
+   * @param _tenureService - Builds the tenure and ranks reports.
    * @param _featureService - Reports whether imports are switched on.
    */
   constructor(
@@ -75,6 +81,7 @@ export class FleetReportsController {
     private readonly _accessService: FleetReportAccessService,
     private readonly _contextService: FleetReportContextService,
     private readonly _growthService: FleetGrowthReportService,
+    private readonly _tenureService: FleetTenureReportService,
     private readonly _featureService: FleetFeatureService,
   ) {}
 
@@ -222,6 +229,56 @@ export class FleetReportsController {
         query,
         userId,
       ),
+    );
+  }
+
+  /**
+   * Reads the tenure report.
+   *
+   * @param communityId - The Community, as the path names it.
+   * @param fleetId - The Fleet.
+   * @param query - The span, and the export its members are listed at.
+   * @param userId - The viewer, or null when signed out.
+   * @returns The report, as much of it as the viewer is shown.
+   */
+  @Get('tenure')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({ summary: "Read this Fleet's tenure report" })
+  @ApiOkResponse({ type: FleetTenureReportDto })
+  @ApiNotFoundResponse({ description: 'The viewer may not see it.' })
+  async tenure(
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('fleetId', ParseUUIDPipe) fleetId: string,
+    @Query() query: FleetReportQueryDto,
+    @OptionalUserId() userId: string | null,
+  ): Promise<FleetTenureReportDto> {
+    return this._tenureService.tenure(
+      await this.open(communityId, fleetId, FleetReport.TENURE, query, userId),
+    );
+  }
+
+  /**
+   * Reads the ranks report.
+   *
+   * @param communityId - The Community, as the path names it.
+   * @param fleetId - The Fleet.
+   * @param query - The span.
+   * @param userId - The viewer, or null when signed out.
+   * @returns The report, as much of it as the viewer is shown.
+   */
+  @Get('ranks')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({ summary: "Read this Fleet's ranks report" })
+  @ApiOkResponse({ type: FleetRanksReportDto })
+  @ApiNotFoundResponse({ description: 'The viewer may not see it.' })
+  async ranks(
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('fleetId', ParseUUIDPipe) fleetId: string,
+    @Query() query: FleetReportQueryDto,
+    @OptionalUserId() userId: string | null,
+  ): Promise<FleetRanksReportDto> {
+    return this._tenureService.ranks(
+      await this.open(communityId, fleetId, FleetReport.RANKS, query, userId),
     );
   }
 

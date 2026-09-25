@@ -70,6 +70,7 @@ describe('FleetReportContextService', () => {
         minimumCohort: 5,
       },
       exports: EXPORTS,
+      first: EXPORTS[0],
       at: EXPORTS[2],
     });
   });
@@ -83,6 +84,8 @@ describe('FleetReportContextService', () => {
     );
 
     expect(context.exports).toEqual([EXPORTS[1]]);
+    // Still the Fleet's first, though the span starts later.
+    expect(context.first).toBe(EXPORTS[0]);
     expect(context.header.range).toEqual({
       from: new Date('2024-11-01T12:00:00Z'),
       to: new Date('2024-11-30T23:59:59Z'),
@@ -118,6 +121,19 @@ describe('FleetReportContextService', () => {
         at: 'import-1',
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('has no first export before the first revision', async () => {
+    revisions.effectiveExports.mockResolvedValue([]);
+
+    const context = await service.open(
+      'fleet-1',
+      FleetReport.RANKS,
+      FleetReportView.FULL,
+      {},
+    );
+
+    expect(context.first).toBeNull();
   });
 
   it('covers nothing for an empty span', async () => {

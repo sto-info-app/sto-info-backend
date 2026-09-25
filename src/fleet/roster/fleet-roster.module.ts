@@ -24,6 +24,7 @@ import { FleetReportAccessService } from './services/fleet-report-access.service
 import { FleetReportAudienceService } from './services/fleet-report-audience.service';
 import { FleetReportContextService } from './services/fleet-report-context.service';
 import { FleetReportQueryService } from './services/fleet-report-query.service';
+import { FleetTenureReportService } from './services/fleet-tenure-report.service';
 import { PublishedRosterRevisionService } from './services/published-roster-revision.service';
 import { RosterHistoryService } from './services/roster-history.service';
 import { RosterMemberNameService } from './services/roster-member-name.service';
@@ -68,6 +69,7 @@ import { RosterViewService } from './services/roster-view.service';
     FleetGrowthReportService,
     FleetReportContextService,
     FleetReportQueryService,
+    FleetTenureReportService,
     PublishedRosterRevisionService,
     RosterHistoryService,
     RosterMemberNameService,

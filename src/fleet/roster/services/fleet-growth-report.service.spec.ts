@@ -39,6 +39,7 @@ function context(view: FleetReportView, exports = EXPORTS): FleetReportContext {
       minimumCohort: 5,
     },
     exports,
+    first: EXPORTS[0],
     at: null,
   };
 }

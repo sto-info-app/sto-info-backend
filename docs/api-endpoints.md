@@ -738,6 +738,47 @@ it, longer ago, or with no Last Active.
 
 **Response (404):** the caller may not see it.
 
+### GET /fleet-communities/:communityId/fleets/:fleetId/reports/tenure
+
+How long a Fleet's members had been listed, at each export (FC-020). See
+[Fleet reports](fleet-reports.md#tenure).
+
+**Authentication Optional**, as for growth.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Query:** optionally `from` and `to`, and for a full view `at`, the effective export to list the
+members at. The latest in the span by default.
+
+**Response (200):** the header and `exports`, oldest first. Each gives the export, whether it was
+partial, the members it listed, and `bands`: how many had been listed under 30 days, 30 to 90
+days, 90 days to a year, one to two years, or two or more. `atLeast` gives, of each band, those
+whose episode no earlier export bounds. A full view also gives `at` and `members`: each member at
+that export, with the first export of their episode, whole days since, their band, and whether it
+is at least that long. Both are null in an aggregate view.
+
+**Response (400):** `at` is not an effective export in the span.
+
+**Response (404):** the caller may not see it.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/reports/ranks
+
+A Fleet's rank distribution at each export (FC-020). See [Fleet reports](fleet-reports.md#ranks).
+
+**Authentication Optional**, as for growth.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Query:** optionally `from` and `to`.
+
+**Response (200):** the header and `exports`, oldest first. Each gives the export, whether it was
+partial, and `labels`: each rank label it lists with its tier and members, highest tier first and
+unplaced labels last. `changes` gives the rank changes it revealed: `promoted` and `demoted`
+between tiers of the Fleet's rank order, `changed` for every other change of label, and
+`acrossGap` for those bounded more widely. It is null for the Fleet's first export.
+
+**Response (404):** the caller may not see it.
+
 ### GET /fleet-communities/:communityId/fleets/:fleetId/reports/audiences
 
 Who may see each of a Fleet's reports (FC-020). See [Fleet reports](fleet-reports.md).

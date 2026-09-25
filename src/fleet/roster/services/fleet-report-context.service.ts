@@ -19,6 +19,11 @@ export interface FleetReportContext {
   /** The effective exports within the span, oldest first. */
   readonly exports: readonly EffectiveRosterExport[];
   /**
+   * The Fleet's first effective export, in the span or not: the one export
+   * that ends no interval. Null before the first.
+   */
+  readonly first: EffectiveRosterExport | null;
+  /**
    * For a full view, the export whose detail is shown: the one asked for,
    * or the latest in the span. Null for an aggregate view, or an empty span.
    */
@@ -62,9 +67,11 @@ export class FleetReportContextService {
     const pinned = await this._revisions.pin(fleetId);
     const from = query.from === undefined ? null : new Date(query.from);
     const to = query.to === undefined ? null : new Date(query.to);
-    const exports = (
-      await this._revisions.effectiveExports(fleetId, pinned.revision)
-    ).filter(
+    const every = await this._revisions.effectiveExports(
+      fleetId,
+      pinned.revision,
+    );
+    const exports = every.filter(
       entry =>
         (from === null || entry.exportedAt >= from) &&
         (to === null || entry.exportedAt <= to),
@@ -86,6 +93,7 @@ export class FleetReportContextService {
         minimumCohort: REPORT_MINIMUM_COHORT,
       },
       exports,
+      first: every.length > 0 ? every[0] : null,
       at: view === FleetReportView.FULL ? chooseAt(exports, query.at) : null,
     };
   }

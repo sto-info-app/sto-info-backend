@@ -2,8 +2,10 @@ import { DataSource } from 'typeorm';
 
 import { RosterIdentityAliasEntity } from '../../identity/entities/roster-identity-alias.entity';
 import { RosterObservationEntity } from '../../imports/entities/roster-observation.entity';
+import { RosterEpisodeEntity } from '../../projection/entities/roster-episode.entity';
 import { RosterProjectionInputEntity } from '../../projection/entities/roster-projection-input.entity';
 import { RosterActivityBand } from '../enums/roster-activity-band.enum';
+import { RosterTenureBand } from '../enums/roster-tenure-band.enum';
 import { FleetReportQueryService } from './fleet-report-query.service';
 
 /** A chainable query-builder double. */
@@ -28,6 +30,8 @@ function builder(rows: unknown[] = []): Builder {
     'groupBy',
     'addGroupBy',
     'setParameters',
+    'orderBy',
+    'addOrderBy',
   ]) {
     double[method] = jest.fn(() => double);
   }
@@ -157,6 +161,119 @@ describe('FleetReportQueryService', () => {
 
     it('asks nothing for no exports', async () => {
       await expect(service.activity('fleet-1', 4, [])).resolves.toEqual([]);
+      expect(dataSource.createQueryBuilder).not.toHaveBeenCalled();
+    });
+  });
+  describe('tenure', () => {
+    it('counts each export’s members by how long their episode had run', async () => {
+      const members = builder();
+      const counts = builder([
+        {
+          importId: 'import-1',
+          band: RosterTenureBand.YEARS_1_TO_2,
+          openStart: true,
+          count: '7',
+        },
+      ]);
+
+      hand(members, counts);
+
+      await expect(service.tenure('fleet-1', 4, ['import-1'])).resolves.toEqual(
+        [
+          {
+            importId: 'import-1',
+            band: RosterTenureBand.YEARS_1_TO_2,
+            openStart: true,
+            count: 7,
+          },
+        ],
+      );
+      expect(members.innerJoin).toHaveBeenCalledWith(
+        RosterEpisodeEntity,
+        'e',
+        expect.stringContaining(
+          'e.firstObservedAt <= i.exportedAt AND e.lastObservedAt >= i.exportedAt',
+        ),
+      );
+      expect(members.addSelect).toHaveBeenCalledWith(
+        "BOOL_OR(e.startKind = 'FIRST_SEEN')",
+        'openStart',
+      );
+
+      const [band] = counts.addSelect.mock.calls[0] as [string];
+
+      for (const limit of ['30', '90', '365', '730']) {
+        expect(band).toContain(`< INTERVAL '${limit} days'`);
+      }
+
+      expect(counts.addGroupBy).toHaveBeenCalledWith('m."openStart"');
+    });
+
+    it('asks nothing for no exports', async () => {
+      await expect(service.tenure('fleet-1', 4, [])).resolves.toEqual([]);
+      expect(dataSource.createQueryBuilder).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('tenureMembers', () => {
+    it('lists one export’s members, named by their top row, longest listed first', async () => {
+      const first = new Date('2023-12-31T12:00:00Z');
+      const query = builder([
+        {
+          identityId: 'identity-1',
+          characterName: 'Aria Venn',
+          accountHandle: '@fixture001',
+          firstObservedAt: first,
+          openStart: true,
+          importId: 'import-1',
+        },
+      ]);
+
+      hand(query);
+
+      await expect(
+        service.tenureMembers('fleet-1', 4, 'import-1'),
+      ).resolves.toEqual([
+        {
+          identityId: 'identity-1',
+          characterName: 'Aria Venn',
+          accountHandle: '@fixture001',
+          firstObservedAt: first,
+          openStart: true,
+        },
+      ]);
+      expect(query.andWhere).toHaveBeenCalledWith(
+        'i.importSourceId IN (:...importIds)',
+        { importIds: ['import-1'] },
+      );
+      expect(query.addSelect).toHaveBeenCalledWith(
+        '(ARRAY_AGG(o.characterName ORDER BY o.line))[1]',
+        'characterName',
+      );
+      expect(query.orderBy).toHaveBeenCalledWith('"firstObservedAt"', 'ASC');
+    });
+  });
+
+  describe('ranks', () => {
+    it('counts each export’s members under each label', async () => {
+      const query = builder([
+        { importId: 'import-1', label: 'Officer', count: '3' },
+      ]);
+
+      hand(query);
+
+      await expect(service.ranks('fleet-1', 4, ['import-1'])).resolves.toEqual([
+        { importId: 'import-1', label: 'Officer', count: 3 },
+      ]);
+      expect(query.addSelect).toHaveBeenCalledWith(
+        'COUNT(DISTINCT a.identityId)',
+        'count',
+      );
+      expect(query.addGroupBy).toHaveBeenCalledWith('o.guildRank');
+    });
+
+    it('asks nothing for no exports', async () => {
+      await expect(service.ranks('fleet-1', 4, [])).resolves.toEqual([]);
       expect(dataSource.createQueryBuilder).not.toHaveBeenCalled();
     });
   });
