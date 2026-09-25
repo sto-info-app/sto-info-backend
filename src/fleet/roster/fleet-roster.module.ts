@@ -8,6 +8,9 @@ import { CharacterFleetMembershipEntity } from '../entities/character-fleet-memb
 import { FleetModule } from '../fleet.module';
 import { RosterIdentityAliasEntity } from '../identity/entities/roster-identity-alias.entity';
 import { RosterObservationEntity } from '../imports/entities/roster-observation.entity';
+import { RosterChangeEntity } from '../projection/entities/roster-change.entity';
+import { RosterEpisodeEntity } from '../projection/entities/roster-episode.entity';
+import { RosterIntervalSummaryEntity } from '../projection/entities/roster-interval-summary.entity';
 import { RosterProjectionInputEntity } from '../projection/entities/roster-projection-input.entity';
 import { RosterProjectionEntity } from '../projection/entities/roster-projection.entity';
 import { FleetReportAudienceChangeEntity } from './entities/fleet-report-audience-change.entity';
@@ -16,7 +19,11 @@ import { RosterRankOrderActionEntity } from './entities/roster-rank-order-action
 import { RosterRankOrderEntity } from './entities/roster-rank-order.entity';
 import { RosterController } from './roster.controller';
 import { PublishedRosterRevisionService } from './services/published-roster-revision.service';
+import { RosterHistoryService } from './services/roster-history.service';
+import { RosterMemberNameService } from './services/roster-member-name.service';
 import { RosterProfileLinkService } from './services/roster-profile-link.service';
+import { RosterRankOrderService } from './services/roster-rank-order.service';
+import { RosterTimelineService } from './services/roster-timeline.service';
 import { RosterViewService } from './services/roster-view.service';
 
 /**
@@ -35,6 +42,9 @@ import { RosterViewService } from './services/roster-view.service';
     TypeOrmModule.forFeature([
       RosterProjectionEntity,
       RosterProjectionInputEntity,
+      RosterEpisodeEntity,
+      RosterChangeEntity,
+      RosterIntervalSummaryEntity,
       RosterObservationEntity,
       RosterIdentityAliasEntity,
       RosterRankOrderEntity,
@@ -48,7 +58,11 @@ import { RosterViewService } from './services/roster-view.service';
   controllers: [RosterController],
   providers: [
     PublishedRosterRevisionService,
+    RosterHistoryService,
+    RosterMemberNameService,
     RosterProfileLinkService,
+    RosterRankOrderService,
+    RosterTimelineService,
     RosterViewService,
   ],
 })

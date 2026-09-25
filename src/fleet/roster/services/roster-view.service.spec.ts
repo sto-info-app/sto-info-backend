@@ -11,6 +11,7 @@ import {
   PublishedRosterRevisionService,
 } from './published-roster-revision.service';
 import { RosterProfileLinkService } from './roster-profile-link.service';
+import { RosterRankOrderService } from './roster-rank-order.service';
 import { ROSTER_PAGE_SIZE, RosterViewService } from './roster-view.service';
 
 const FLEET_ID = 'fleet-1';
@@ -123,7 +124,7 @@ describe('RosterViewService', () => {
   let builders: QueryBuilderDouble[];
   let observations: { createQueryBuilder: jest.Mock };
   let aliases: { find: jest.Mock };
-  let rankOrder: { find: jest.Mock };
+  let rankOrder: { tiers: jest.Mock };
   let profileLinks: { find: jest.Mock };
   let service: RosterViewService;
 
@@ -183,11 +184,13 @@ describe('RosterViewService', () => {
       ),
     };
     rankOrder = {
-      find: jest.fn(() =>
-        Promise.resolve([
-          { fleetId: FLEET_ID, label: 'Officer', tier: 1 },
-          { fleetId: FLEET_ID, label: 'Member', tier: 2 },
-        ]),
+      tiers: jest.fn(() =>
+        Promise.resolve(
+          new Map([
+            ['Officer', 1],
+            ['Member', 2],
+          ]),
+        ),
       ),
     };
     profileLinks = { find: jest.fn(() => Promise.resolve(new Map())) };
@@ -197,7 +200,7 @@ describe('RosterViewService', () => {
       revisions as unknown as PublishedRosterRevisionService,
       observations as unknown as Repository<RosterObservationEntity>,
       aliases as unknown as Repository<RosterIdentityAliasEntity>,
-      rankOrder as unknown as Repository<RosterRankOrderEntity>,
+      rankOrder as unknown as RosterRankOrderService,
       profileLinks as unknown as RosterProfileLinkService,
     );
   });
@@ -593,9 +596,7 @@ describe('RosterViewService', () => {
         { label: 'Recruit', tier: null, members: 5 },
       ]);
       expect(ranksQuery().groupBy).toHaveBeenCalledWith('o.guildRank');
-      expect(rankOrder.find).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { fleetId: FLEET_ID } }),
-      );
+      expect(rankOrder.tiers).toHaveBeenCalledWith(FLEET_ID);
     });
   });
 });

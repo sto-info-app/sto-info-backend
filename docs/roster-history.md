@@ -223,6 +223,28 @@ of 25 September 2026:
   A handle two such Characters share links to neither. A row that does not link says nothing
   about why.
 
+## Reading the history
+
+`GET …/roster/history` shows `roster.view` holders the history interval by interval, newest first,
+and `GET …/roster/members/:identityId` one member's. See
+[the API](api-endpoints.md#get-fleet-communitiescommunityidfleetsfleetidrosterhistory). Steve's
+decisions of 25 September 2026:
+
+- **By interval.** Each interval shows its summary, and beneath it the changes its later export
+  revealed. A change across a gap sits under the export that revealed it, showing its wider bounds,
+  and is in none of the interval's totals, as FC-019 counted it.
+- **Contribution as totals.** The History tab lists joins, rejoins, departures, renames, rank and
+  Join Date changes. A member's contribution rises and resets are on their timeline and in the
+  contribution report, not in the list, where on a real Fleet they would be most of it.
+- **Names as listed.** A change records its member by identity. It is named as the export that
+  showed it listed them: the later export, or the earlier for a departure, since the later does
+  not list them.
+- **Promotions only by tiers.** A rank change is `PROMOTED` or `DEMOTED` only between two tiers of
+  the Fleet's [rank order](#rank-order), read when the page is drawn.
+- **A member's timeline.** Their episodes, every change with its contribution figures, and their
+  row on each effective export listing them. The registry link follows the roster's rule, for the
+  latest export listing them.
+
 ## After deploying
 
 Run once, so Fleets imported earlier get a first revision:

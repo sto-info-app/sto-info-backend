@@ -596,6 +596,63 @@ pageSize }`.
 
 No officer field exists to return: they are discarded before anything is stored.
 
+### GET /fleet-communities/:communityId/fleets/:fleetId/roster/history
+
+A page of a Fleet's roster history, newest interval first (FC-020). See
+[Roster history](roster-history.md#reading-the-history).
+
+**Authentication Required.** `roster.view` at that Fleet. A caller who cannot see the Fleet is told
+it does not exist.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Query:** `page`, `pageSize` (10 intervals a page, and never more) and, optionally, `kinds` —
+comma-separated, from `JOINED`, `REJOINED`, `LEFT`, `RENAMED`, `RANK_CHANGED` and
+`JOIN_DATE_CHANGED`. Every one of them when omitted.
+
+**Response (200):** `{ revision, publishedAt, stale, items, total, page, pageSize }`. Each item is
+an interval between two consecutive effective exports, with its summary and the changes the later
+export revealed:
+
+- **The summary:** members at each end; how many joined, rejoined, left, were left unknown, were
+  renamed or changed rank or Join Date; how many changes were revealed across a gap; and the
+  contribution total with its known, reset, baseline and unknown counts.
+- **Each change:** its member and kind, and the exports it lies between, never a date.
+  - `acrossGap` marks bounds wider than the interval; such a change is in none of its totals.
+  - `member` is the name and handle as the export that showed them listed them: the later export,
+    or the earlier for a departure.
+  - `rankMove` is `PROMOTED` or `DEMOTED` only for a move between two tiers of the Fleet's rank
+    order, and otherwise null.
+  - A rename carries both names and handles, a rank change both labels, and a Join Date change
+    both dates.
+
+Contribution rises and resets are not listed here: they are in each interval's totals and on the
+member's timeline.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/roster/members/:identityId
+
+One member's history in a Fleet (FC-020).
+
+**Authentication Required.** `roster.view` at that Fleet.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Response (200):** `{ revision, publishedAt, stale, identityId, member, profile, episodes,
+changes, rows }`.
+
+- `member` is their name and handle on the latest effective export listing them.
+- `profile` is their Character's registry path, on the roster's terms, for that export.
+- `episodes` gives each stretch of membership: how it began and ended, and the exports bounding
+  each.
+- `changes` is every change, contribution rises and resets included, oldest first. A rise carries
+  its delta, and a reset none.
+- `rows` is their row on each effective export listing them: name, handle, level, rank and tier,
+  cumulative contribution and Last Active. A row an investigator excluded is shown only to
+  `roster.investigate` holders.
+
+**Response (404):** the published revision has nothing of that member. A member of another Fleet,
+or one whose names a confirmed rename has since joined to another member, is reported the same way.
+
 ### GET /fleet-communities/:communityId/fleets/:fleetId/roster-identities/candidates
 
 List a Fleet's rename candidates, open ones first. See [Roster identities](roster-identities.md).

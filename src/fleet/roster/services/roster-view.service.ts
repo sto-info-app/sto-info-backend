@@ -27,6 +27,7 @@ import {
   PublishedRosterRevisionService,
 } from './published-roster-revision.service';
 import { RosterProfileLinkService } from './roster-profile-link.service';
+import { RosterRankOrderService } from './roster-rank-order.service';
 
 /** How many rows a roster page carries unless asked for fewer. */
 export const ROSTER_PAGE_SIZE = 50;
@@ -75,7 +76,7 @@ export class RosterViewService {
    * @param _revisions - Pins the reader to the published revision.
    * @param _observations - Every row of every export.
    * @param _aliases - Which member each name and handle belongs to.
-   * @param _rankOrder - Where each rank label sits in the Fleet's order.
+   * @param _rankOrder - Reads the Fleet's rank order.
    * @param _profileLinks - Decides which rows may link to a registry page.
    */
   constructor(
@@ -84,8 +85,7 @@ export class RosterViewService {
     private readonly _observations: Repository<RosterObservationEntity>,
     @InjectRepository(RosterIdentityAliasEntity)
     private readonly _aliases: Repository<RosterIdentityAliasEntity>,
-    @InjectRepository(RosterRankOrderEntity)
-    private readonly _rankOrder: Repository<RosterRankOrderEntity>,
+    private readonly _rankOrder: RosterRankOrderService,
     private readonly _profileLinks: RosterProfileLinkService,
   ) {}
 
@@ -132,7 +132,7 @@ export class RosterViewService {
     }
 
     const shown = effective[index];
-    const tiers = await this.tiers(fleetId);
+    const tiers = await this._rankOrder.tiers(fleetId);
     const [rows, total] = await this.rows(shown.importId, query, viewer)
       .offset((page - 1) * pageSize)
       .limit(pageSize)
@@ -225,21 +225,6 @@ export class RosterViewService {
     }
 
     return builder;
-  }
-
-  /**
-   * Reads the Fleet's rank order.
-   *
-   * @param fleetId - The Fleet.
-   * @returns Each placed label's tier.
-   */
-  private async tiers(fleetId: string): Promise<Map<string, number>> {
-    const placed = await this._rankOrder.find({
-      where: { fleetId },
-      select: { fleetId: true, label: true, tier: true },
-    });
-
-    return new Map(placed.map(entry => [entry.label, entry.tier]));
   }
 
   /**
