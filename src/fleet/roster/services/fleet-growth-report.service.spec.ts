@@ -178,9 +178,10 @@ describe('FleetGrowthReportService', () => {
       expect(report.intervals[0]).toMatchObject({
         membersAtStart: 40,
         membersAtEnd: 42,
-        // left (3) and across a gap (1) are hidden, so nothing else has to be.
-        joined: 6,
-        rejoined: 0,
+        // left (3) and across a gap (1) count 4 between them, so rejoined
+        // (0) and then joined (6) are hidden too.
+        joined: null,
+        rejoined: null,
         left: null,
         unknown: 9,
         acrossGap: null,
@@ -255,7 +256,7 @@ describe('FleetGrowthReportService', () => {
       });
     });
 
-    it('hides an aggregate audience’s small bands, and the smallest other', async () => {
+    it('hides an aggregate audience’s small bands, and others until they count five', async () => {
       const report = await service.activity(context(FleetReportView.AGGREGATE));
 
       expect(report.exports[0]).toMatchObject({
@@ -265,7 +266,7 @@ describe('FleetGrowthReportService', () => {
           [RosterActivityBand.WITHIN_30_DAYS]: 12,
           [RosterActivityBand.WITHIN_90_DAYS]: null,
           [RosterActivityBand.OVER_90_DAYS]: null,
-          [RosterActivityBand.UNKNOWN]: 5,
+          [RosterActivityBand.UNKNOWN]: null,
         },
       });
     });

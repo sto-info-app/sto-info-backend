@@ -39,10 +39,11 @@ never as forbidden, so the answer does not confirm what a private Fleet has.
 The Community's followers and anybody else see counts and totals only: never a name, a handle, a
 comment or a member's own figure, and no drilldown to them. Every figure is hidden — null in the
 API and `< 5` in an export — when it counts from 1 to 4 members (Steve's decision of 25 September
-2026). Where that hides exactly one count in a group that makes up a whole, such as a report's
-bands or rank labels, the smallest count still shown is hidden too, so the first cannot be got
-back by subtraction. A contribution total is hidden when fewer than five members' deltas make it
-up.
+2026). In a group that makes up a whole, such as a report's bands or rank labels, the smallest
+counts still shown are then hidden too, one by one, until the hidden counts together count at
+least five, or every count is hidden. Otherwise a hidden count could be got back by subtracting
+the rest from a total shown beside them. A zero goes first, as it gives the least away. A
+contribution total is hidden when fewer than five members' deltas make it up.
 
 Members are counted as roster identities: a Character, across its renames. One member listed twice
 on an export, when both names of a confirmed rename are still listed, counts once. Where a report

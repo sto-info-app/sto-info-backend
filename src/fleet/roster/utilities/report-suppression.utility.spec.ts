@@ -19,12 +19,27 @@ describe('report suppression', () => {
     });
 
     // With a total shown elsewhere, one hidden cell could be subtracted back.
-    it('hides the smallest shown count too when only one is hidden', () => {
+    it('hides the smallest shown counts too until the hidden count five', () => {
       expect(suppressGroup([20, 3, 11, 40])).toEqual([20, null, null, 40]);
     });
 
-    it('takes a zero as the smallest shown count', () => {
-      expect(suppressGroup([20, 3, 0, 40])).toEqual([20, null, null, 40]);
+    it('hides no more once the small ones already count five', () => {
+      expect(suppressGroup([2, 3, 40])).toEqual([null, null, 40]);
+    });
+
+    // A zero hidden beside a 3 leaves the two adding up to a visible 3.
+    it('hides past a zero until the hidden count five', () => {
+      expect(suppressGroup([20, 3, 0, 40])).toEqual([null, null, null, 40]);
+    });
+
+    it('hides the whole group when nothing less will do', () => {
+      expect(suppressGroup([1, 5, 0, 0, 0])).toEqual([
+        null,
+        null,
+        null,
+        null,
+        null,
+      ]);
     });
 
     it('takes the first of two equal smallest counts', () => {
