@@ -501,8 +501,9 @@ Confirm, reject or undo a rename candidate.
 loaded>, "reason": "..." }`. A reason is optional to confirm or reject and required to undo; at
 most 500 characters.
 
-**Response (200):** the candidate as it now stands. The Fleet's identities are recomputed
-afterwards, on a queue. No alias, account or account handle is changed by the request itself.
+**Response (200):** the candidate as it now stands. The Fleet's roster is replayed afterwards, on
+a queue, which recomputes its identities and history as one revision. No alias, account or account
+handle is changed by the request itself.
 
 **Response (404):** the Fleet has no such candidate. One of another Fleet is reported the same way.
 

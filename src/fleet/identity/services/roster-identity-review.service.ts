@@ -9,6 +9,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager, FindOptionsWhere, In } from 'typeorm';
 
 import { RosterImportSourceEntity } from '../../imports/entities/roster-import-source.entity';
+import { RosterReplayQueueService } from '../../projection/services/roster-replay-queue.service';
 import {
   resolveDirectoryPage,
   resolveDirectoryPageSize,
@@ -26,7 +27,6 @@ import { RosterIdentityCandidateEntity } from '../entities/roster-identity-candi
 import { RosterIdentityDecisionEntity } from '../entities/roster-identity-decision.entity';
 import { RosterIdentityCandidateState } from '../enums/roster-identity-candidate-state.enum';
 import { RosterIdentityDecisionAction } from '../enums/roster-identity-decision-action.enum';
-import { RosterIdentityQueueService } from './roster-identity-queue.service';
 
 /**
  * Where each action may be taken from, and where it leaves the candidate.
@@ -104,12 +104,12 @@ export class RosterIdentityReviewService {
    * Creates an instance of RosterIdentityReviewService.
    *
    * @param _dataSource - The connection decisions take their transaction on.
-   * @param _queue - Asks for the Fleet's identities to be recomputed.
+   * @param _replays - Asks for the Fleet's roster to be replayed.
    */
   constructor(
     @InjectDataSource()
     private readonly _dataSource: DataSource,
-    private readonly _queue: RosterIdentityQueueService,
+    private readonly _replays: RosterReplayQueueService,
   ) {}
 
   /**
@@ -224,6 +224,10 @@ export class RosterIdentityReviewService {
         { state: transition.to, revision },
       );
 
+      // In the same transaction, so the decision cannot stand without the
+      // Fleet's projection knowing it is behind.
+      await this._replays.request(manager, fleetId);
+
       const updated = await manager.findOneOrFail(
         RosterIdentityCandidateEntity,
         { where: { id: candidateId }, relations: { links: true } },
@@ -240,7 +244,7 @@ export class RosterIdentityReviewService {
         `Revision: ${described.revision}`,
     );
 
-    await this._queue.enqueue(fleetId);
+    await this._replays.enqueue(fleetId);
 
     return described;
   }

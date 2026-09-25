@@ -20,8 +20,7 @@ import {
   RestrictedAssetAttachment,
 } from 'src/file-assets/services/asset-publisher.registry';
 
-import { StoFleetEntity } from '../../entities/sto-fleet.entity';
-import { RosterIdentityQueueService } from '../../identity/services/roster-identity-queue.service';
+import { RosterReplayQueueService } from '../../projection/services/roster-replay-queue.service';
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
 import { RosterObservationEntity } from '../entities/roster-observation.entity';
 import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum';
@@ -70,7 +69,7 @@ describe('RosterImportPublisher', () => {
   let transaction: jest.Mock;
   let registry: { registerRestricted: jest.Mock };
   let conflicts: { isHeld: jest.Mock };
-  let identities: { enqueue: jest.Mock };
+  let replays: { request: jest.Mock; enqueue: jest.Mock };
 
   beforeEach(() => {
     record = {
@@ -99,7 +98,10 @@ describe('RosterImportPublisher', () => {
 
     registry = { registerRestricted: jest.fn() };
     conflicts = { isHeld: jest.fn(() => Promise.resolve(false)) };
-    identities = { enqueue: jest.fn(() => Promise.resolve()) };
+    replays = {
+      request: jest.fn(() => Promise.resolve()),
+      enqueue: jest.fn(() => Promise.resolve()),
+    };
 
     publisher = new RosterImportPublisher(
       imports as unknown as Repository<RosterImportSourceEntity>,
@@ -109,7 +111,7 @@ describe('RosterImportPublisher', () => {
       new RosterTypedParserService(),
       registry as unknown as AssetPublisherRegistry,
       conflicts as unknown as RosterImportConflictService,
-      identities as unknown as RosterIdentityQueueService,
+      replays as unknown as RosterReplayQueueService,
     );
 
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
@@ -435,27 +437,15 @@ describe('RosterImportPublisher', () => {
   });
 
   describe('an import going into force', () => {
-    const EXPORTED_AT = new Date('2024-01-01T12:00:00.000Z');
-
     let findOne: jest.Mock<(...args: any[]) => Promise<any>>;
-    let builder: Record<string, jest.Mock>;
     let activation: EntityManager;
 
     beforeEach(() => {
       findOne = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
         id: IMPORT_ID,
         fleetId: FLEET_ID,
-        exportedAt: EXPORTED_AT,
       });
-      builder = {};
-      for (const step of ['update', 'set', 'where', 'setParameters']) {
-        builder[step] = jest.fn(() => builder);
-      }
-      builder.execute = jest.fn(() => Promise.resolve({ affected: 1 }));
-      activation = {
-        findOne,
-        createQueryBuilder: jest.fn(() => builder),
-      } as unknown as EntityManager;
+      activation = { findOne } as unknown as EntityManager;
     });
 
     it('reads the import inside the transaction it was handed', async () => {
@@ -463,60 +453,26 @@ describe('RosterImportPublisher', () => {
 
       expect(findOne).toHaveBeenCalledWith(RosterImportSourceEntity, {
         where: { id: IMPORT_ID },
-        select: { id: true, fleetId: true, exportedAt: true },
+        select: { id: true, fleetId: true },
       });
     });
 
-    it("moves the Fleet's date on to the export instant", async () => {
+    // The import cannot be in force without its Fleet's projection knowing
+    // it is behind. The Fleet's last imported date follows the published
+    // revision since FC-019, so nothing else is written here.
+    it("records the Fleet's replay request in that transaction", async () => {
       await publisher.activated(IMPORT_ID, activation);
 
-      expect(builder.update).toHaveBeenCalledWith(StoFleetEntity);
-      expect(builder.where).toHaveBeenCalledWith('id = :fleetId');
-      expect(builder.setParameters).toHaveBeenCalledWith({
-        fleetId: FLEET_ID,
-        exportedAt: EXPORTED_AT,
-      });
-      expect(builder.execute).toHaveBeenCalledTimes(1);
+      expect(replays.request).toHaveBeenCalledWith(activation, FLEET_ID);
+      expect(replays.enqueue).not.toHaveBeenCalled();
     });
 
-    // An older export imported late fills in history; it does not move the
-    // date back, and a second call leaves the same date.
-    it('keeps whichever date is later', async () => {
-      await publisher.activated(IMPORT_ID, activation);
-
-      const [[changes]] = builder.set.mock.calls as [
-        [{ lastEffectiveImportAt: () => string }],
-      ];
-
-      expect(changes.lastEffectiveImportAt()).toBe(
-        'GREATEST("lastEffectiveImportAt", :exportedAt)',
-      );
-    });
-
-    it('moves nothing for an import that is not there', async () => {
+    it('asks for nothing for an import that is not there', async () => {
       findOne.mockResolvedValue(null);
 
       await publisher.activated(IMPORT_ID, activation);
 
-      expect(builder.execute).not.toHaveBeenCalled();
-    });
-
-    it('moves nothing for an import with no instant', async () => {
-      findOne.mockResolvedValue({
-        id: IMPORT_ID,
-        fleetId: FLEET_ID,
-        exportedAt: null,
-      });
-
-      await publisher.activated(IMPORT_ID, activation);
-
-      expect(builder.execute).not.toHaveBeenCalled();
-    });
-
-    it('asks for nothing to be recomputed inside the transaction', async () => {
-      await publisher.activated(IMPORT_ID, activation);
-
-      expect(identities.enqueue).not.toHaveBeenCalled();
+      expect(replays.request).not.toHaveBeenCalled();
     });
   });
 
@@ -527,14 +483,14 @@ describe('RosterImportPublisher', () => {
       );
     });
 
-    it("asks for the Fleet's identities to be recomputed", async () => {
+    it("queues the Fleet's replay", async () => {
       await publisher.afterActivation(IMPORT_ID);
 
       expect(imports.findOne).toHaveBeenCalledWith({
         where: { id: IMPORT_ID },
         select: { id: true, fleetId: true },
       });
-      expect(identities.enqueue).toHaveBeenCalledWith(FLEET_ID);
+      expect(replays.enqueue).toHaveBeenCalledWith(FLEET_ID);
     });
 
     it('asks for nothing for an import that has gone', async () => {
@@ -542,13 +498,14 @@ describe('RosterImportPublisher', () => {
 
       await publisher.afterActivation(IMPORT_ID);
 
-      expect(identities.enqueue).not.toHaveBeenCalled();
+      expect(replays.enqueue).not.toHaveBeenCalled();
     });
 
     // The publication job fails and is retried, finding the placement
-    // already active and asking again.
-    it('fails when the recompute cannot be queued', async () => {
-      identities.enqueue.mockImplementation(() =>
+    // already active and asking again; the request is already recorded, so
+    // the sweep would queue it even if the retries ran out.
+    it('fails when the replay cannot be queued', async () => {
+      replays.enqueue.mockImplementation(() =>
         Promise.reject(new Error('Redis is not answering')),
       );
 

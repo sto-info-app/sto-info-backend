@@ -1,6 +1,7 @@
 import { RosterChangeKind } from '../enums/roster-change-kind.enum';
 import { RosterEpisodeEnd } from '../enums/roster-episode-end.enum';
 import { RosterEpisodeStart } from '../enums/roster-episode-start.enum';
+import { compareText } from './compare-text.utility';
 
 /** What the projector needs of one roster row. Nothing it does not use. */
 export interface ProjectorRow {
@@ -121,10 +122,11 @@ export interface ProjectedChange {
   /** What changed. */
   readonly kind: RosterChangeKind;
   /**
-   * The export it happened after, or null when no export bounds it below.
-   * Always the latest export known to show the earlier state.
+   * The export it happened after: the latest known to show the earlier
+   * state. Every change has one; an arrival no export bounds below is a
+   * FIRST_SEEN episode and records no change.
    */
-  readonly from: ProjectorBound | null;
+  readonly from: ProjectorBound;
   /** The export it happened by. */
   readonly to: ProjectorBound;
   /**
@@ -558,7 +560,8 @@ export class RosterProjector {
         startKind === RosterEpisodeStart.REJOINED
           ? RosterChangeKind.REJOINED
           : RosterChangeKind.JOINED,
-      from: startedAfter,
+      // Not FIRST_SEEN, so an earlier export shows them absent.
+      from: startedAfter!,
       to: sighting.bound,
       // Found at or before the export immediately before this one.
       acrossGap:
@@ -995,15 +998,4 @@ function agreed(
   return rows.every(row => read(row)?.getTime() === first?.getTime())
     ? first
     : null;
-}
-
-/**
- * Orders two strings by code unit, the same in every locale.
- *
- * @param a - One string.
- * @param b - The other.
- * @returns Negative, zero or positive.
- */
-function compareText(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
 }

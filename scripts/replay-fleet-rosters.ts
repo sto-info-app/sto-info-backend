@@ -1,14 +1,18 @@
 /**
- * Queues a roster identity recompute for every Fleet with an import in force.
+ * Asks for a roster replay of every Fleet with an import in force.
  *
- * FC-018 recomputes a Fleet's identities whenever one of its imports goes
- * into force, so a Fleet imported before FC-018 was deployed has none until
- * its next import. Run this once after deploying it; Steve chose on 24
- * September 2026 to do this by hand rather than on every start.
+ * FC-018 recomputed a Fleet's identities whenever one of its imports went
+ * into force, and FC-019 replaces that with a replay that also builds the
+ * Fleet's history, so a Fleet imported before FC-019 was deployed has no
+ * projection until its next import. Run this once after deploying it, as
+ * Steve chose on 24 September 2026 for the identity backfill it replaces.
  *
- * It only queues. The running backend's workers do the recomputes, one Fleet
- * at a time under each Fleet's lock, so running it twice, or while imports are
- * arriving, costs a wasted pass and nothing else.
+ * For each Fleet it records a request, bumping the Fleet's `requested`
+ * counter, and then queues a job. Both are needed: a job that found no
+ * request outstanding would build nothing. The running backend's workers do
+ * the replays, one Fleet at a time under each Fleet's lock, so running this
+ * twice, or while imports are arriving, costs a wasted pass and nothing
+ * else.
  *
  * It does not boot the application. A script that did would start its queue
  * workers too, and they would take the jobs this has just queued inside a
@@ -18,7 +22,7 @@
  * Prints one line of JSON: how many Fleets were queued, or with `--dry-run`
  * how many would have been.
  *
- * Usage: npm run fleet:backfill-identities [-- --dry-run]
+ * Usage: npm run fleet:replay-rosters [-- --dry-run]
  */
 
 import { BullModule } from '@nestjs/bullmq';
@@ -30,8 +34,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
 import { getTypeOrmConfig } from '../config/typeorm.config';
-import { ROSTER_IDENTITY_QUEUE } from '../src/fleet/identity/constants/roster-identity.constants';
-import { RosterIdentityQueueService } from '../src/fleet/identity/services/roster-identity-queue.service';
+import { ROSTER_REPLAY_QUEUE } from '../src/fleet/projection/constants/roster-replay.constants';
+import { RosterReplayQueueService } from '../src/fleet/projection/services/roster-replay-queue.service';
 import { QueueModule } from '../src/shared/queue/queue.module';
 
 const SCHEMA = process.env.DB_SCHEMA ?? 'sto_info_app';
@@ -45,11 +49,11 @@ const SCHEMA = process.env.DB_SCHEMA ?? 'sto_info_app';
     }),
     TypeOrmModule.forRootAsync({ useFactory: getTypeOrmConfig }),
     QueueModule,
-    BullModule.registerQueue({ name: ROSTER_IDENTITY_QUEUE }),
+    BullModule.registerQueue({ name: ROSTER_REPLAY_QUEUE }),
   ],
-  providers: [RosterIdentityQueueService],
+  providers: [RosterReplayQueueService],
 })
-class BackfillModule {}
+class ReplayModule {}
 
 /**
  * Finds every Fleet with at least one import in force.
@@ -75,7 +79,7 @@ async function fleetsWithImportsInForce(
 
 async function main(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run');
-  const app = await NestFactory.createApplicationContext(BackfillModule, {
+  const app = await NestFactory.createApplicationContext(ReplayModule, {
     logger: ['error', 'warn'],
   });
 
@@ -83,10 +87,14 @@ async function main(): Promise<void> {
     const fleets = await fleetsWithImportsInForce(app.get(DataSource));
 
     if (!dryRun) {
-      const queue = app.get(RosterIdentityQueueService);
+      const dataSource = app.get(DataSource);
+      const replays = app.get(RosterReplayQueueService);
 
       for (const fleetId of fleets) {
-        await queue.enqueue(fleetId);
+        await dataSource.transaction(manager =>
+          replays.request(manager, fleetId),
+        );
+        await replays.enqueue(fleetId);
       }
     }
 
@@ -99,7 +107,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  new Logger('BackfillFleetIdentities').error(
+  new Logger('ReplayFleetRosters').error(
     error instanceof Error ? error.message : String(error),
   );
   process.exit(1);

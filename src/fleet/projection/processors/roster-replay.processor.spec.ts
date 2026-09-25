@@ -2,21 +2,21 @@ import { Logger } from '@nestjs/common';
 
 import { Job } from 'bullmq';
 
-import { RosterIdentityRecomputeService } from '../services/roster-identity-recompute.service';
-import { RosterIdentityProcessor } from './roster-identity.processor';
+import { RosterReplayService } from '../services/roster-replay.service';
+import { RosterReplayProcessor } from './roster-replay.processor';
 
-describe('RosterIdentityProcessor', () => {
-  let recompute: { recompute: jest.Mock };
-  let processor: RosterIdentityProcessor;
+describe('RosterReplayProcessor', () => {
+  let replay: { replay: jest.Mock };
+  let processor: RosterReplayProcessor;
   let error: jest.SpyInstance;
 
   const job = (data: unknown): Job<unknown> =>
     ({ id: 'job-1', data }) as unknown as Job<unknown>;
 
   beforeEach(() => {
-    recompute = { recompute: jest.fn(() => Promise.resolve({})) };
-    processor = new RosterIdentityProcessor(
-      recompute as unknown as RosterIdentityRecomputeService,
+    replay = { replay: jest.fn(() => Promise.resolve({})) };
+    processor = new RosterReplayProcessor(
+      replay as unknown as RosterReplayService,
     );
     error = jest
       .spyOn(Logger.prototype, 'error')
@@ -27,10 +27,10 @@ describe('RosterIdentityProcessor', () => {
     jest.restoreAllMocks();
   });
 
-  it('recomputes the Fleet the job names', async () => {
+  it('replays the Fleet the job names', async () => {
     await processor.process(job({ fleetId: 'fleet-1' }));
 
-    expect(recompute.recompute).toHaveBeenCalledWith('fleet-1');
+    expect(replay.replay).toHaveBeenCalledWith('fleet-1');
   });
 
   it.each([
@@ -42,14 +42,14 @@ describe('RosterIdentityProcessor', () => {
   ])('drops a job with %s rather than retrying it', async (_case, data) => {
     await expect(processor.process(job(data))).resolves.toBeUndefined();
 
-    expect(recompute.recompute).not.toHaveBeenCalled();
+    expect(replay.replay).not.toHaveBeenCalled();
     expect(error).toHaveBeenCalledWith(
-      '[process] Identity job rejected - JobId: job-1',
+      '[process] Replay job rejected - JobId: job-1',
     );
   });
 
   it('rethrows a failure, so the job is retried', async () => {
-    recompute.recompute.mockRejectedValue(new Error('lock timeout'));
+    replay.replay.mockRejectedValue(new Error('lock timeout'));
 
     await expect(
       processor.process(job({ fleetId: 'fleet-1' })),

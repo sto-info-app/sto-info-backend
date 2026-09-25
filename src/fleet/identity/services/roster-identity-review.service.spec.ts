@@ -3,6 +3,7 @@ import { ConflictException, Logger, NotFoundException } from '@nestjs/common';
 import { DataSource, EntityTarget, FindOperator } from 'typeorm';
 
 import { RosterImportSourceEntity } from '../../imports/entities/roster-import-source.entity';
+import { RosterReplayQueueService } from '../../projection/services/roster-replay-queue.service';
 import { RosterIdentityAliasEntity } from '../entities/roster-identity-alias.entity';
 import { RosterIdentityCandidateEntity } from '../entities/roster-identity-candidate.entity';
 import { RosterIdentityDecisionEntity } from '../entities/roster-identity-decision.entity';
@@ -12,7 +13,6 @@ import { RosterIdentityCollisionReason } from '../enums/roster-identity-collisio
 import { RosterIdentityConfidence } from '../enums/roster-identity-confidence.enum';
 import { RosterIdentityDecisionAction } from '../enums/roster-identity-decision-action.enum';
 import { RosterIdentitySignal } from '../enums/roster-identity-signal.enum';
-import { RosterIdentityQueueService } from './roster-identity-queue.service';
 import { RosterIdentityReviewService } from './roster-identity-review.service';
 
 const FLEET_ID = 'fleet-1';
@@ -30,7 +30,7 @@ describe('RosterIdentityReviewService', () => {
     update: jest.Mock;
     query: jest.Mock;
   };
-  let queue: { enqueue: jest.Mock };
+  let queue: { request: jest.Mock; enqueue: jest.Mock };
   let service: RosterIdentityReviewService;
   let decisions: Array<Partial<RosterIdentityDecisionEntity>>;
 
@@ -103,7 +103,10 @@ describe('RosterIdentityReviewService', () => {
       ),
       query: jest.fn(() => Promise.resolve([])),
     };
-    queue = { enqueue: jest.fn(() => Promise.resolve()) };
+    queue = {
+      request: jest.fn(() => Promise.resolve()),
+      enqueue: jest.fn(() => Promise.resolve()),
+    };
 
     service = new RosterIdentityReviewService(
       {
@@ -112,7 +115,7 @@ describe('RosterIdentityReviewService', () => {
           work(manager),
         ),
       } as unknown as DataSource,
-      queue as unknown as RosterIdentityQueueService,
+      queue as unknown as RosterReplayQueueService,
     );
 
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
@@ -411,13 +414,19 @@ describe('RosterIdentityReviewService', () => {
       );
     });
 
-    // The recompute works out which aliases share an identity from what
-    // was confirmed; the decision itself touches no alias and no account.
-    it('asks for the Fleet’s identities to follow, once committed', async () => {
+    // The replay works out which aliases share an identity from what was
+    // confirmed; the decision itself touches no alias and no account. The
+    // request is recorded with the decision, and the job queued after it.
+    it('asks for the Fleet’s roster to be replayed, and queues it once committed', async () => {
       const order: string[] = [];
 
       manager.update.mockImplementation(() => {
         order.push('update');
+
+        return Promise.resolve();
+      });
+      queue.request.mockImplementation(() => {
+        order.push('request');
 
         return Promise.resolve();
       });
@@ -429,7 +438,8 @@ describe('RosterIdentityReviewService', () => {
 
       await decide(RosterIdentityDecisionAction.CONFIRM);
 
-      expect(order).toEqual(['update', 'enqueue']);
+      expect(order).toEqual(['update', 'request', 'enqueue']);
+      expect(queue.request).toHaveBeenCalledWith(manager, FLEET_ID);
       expect(queue.enqueue).toHaveBeenCalledWith(FLEET_ID);
       expect(manager.update).not.toHaveBeenCalledWith(
         RosterIdentityAliasEntity,
@@ -452,6 +462,7 @@ describe('RosterIdentityReviewService', () => {
         decide(RosterIdentityDecisionAction.CONFIRM, 3),
       ).rejects.toThrow(/changed since you loaded it/);
       expect(manager.insert).not.toHaveBeenCalled();
+      expect(queue.request).not.toHaveBeenCalled();
       expect(queue.enqueue).not.toHaveBeenCalled();
     });
 

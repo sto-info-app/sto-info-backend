@@ -1,23 +1,10 @@
 import { randomUUID } from 'crypto';
 
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectDataSource } from '@nestjs/typeorm';
+import { Injectable } from '@nestjs/common';
 
-import { DataSource, EntityManager, In, IsNull, Not } from 'typeorm';
+import { EntityManager, In } from 'typeorm';
 
-import { FileAssetPlacementEntity } from 'src/file-assets/entities/file-asset-placement.entity';
-import { FileAssetPlacementState } from 'src/file-assets/enums/file-asset-placement-state.enum';
-import { FileAssetSubject } from 'src/file-assets/enums/file-asset-subject.enum';
-import { normalizeHandle } from 'src/shared/utilities/handle.utility';
-import { CharacterEntity } from 'src/sto/character/entities/character.entity';
-
-import { RosterImportSourceEntity } from '../../imports/entities/roster-import-source.entity';
-import { RosterObservationEntity } from '../../imports/entities/roster-observation.entity';
-import { CharacterFleetProposalService } from '../../services/character-fleet-proposal.service';
-import {
-  ROSTER_IDENTITY_WRITE_BATCH,
-  rosterIdentityLockKey,
-} from '../constants/roster-identity.constants';
+import { ROSTER_IDENTITY_WRITE_BATCH } from '../constants/roster-identity.constants';
 import { RosterIdentityAliasEntity } from '../entities/roster-identity-alias.entity';
 import { RosterIdentityCandidateLinkEntity } from '../entities/roster-identity-candidate-link.entity';
 import { RosterIdentityCandidateEntity } from '../entities/roster-identity-candidate.entity';
@@ -38,8 +25,6 @@ import {
 
 /** What one recompute did, in counts. Nothing a roster row said. */
 export interface RosterIdentityRecomputeSummary {
-  /** In-force exports read. */
-  readonly imports: number;
   /** Aliases the Fleet now has. */
   readonly aliases: number;
   /** Candidates suggested for the first time. */
@@ -52,12 +37,18 @@ export interface RosterIdentityRecomputeSummary {
   readonly deleted: number;
   /** Aliases that moved to a different identity. */
   readonly reassigned: number;
-  /** Registered Characters with a proposal from this Fleet open. */
-  readonly proposed: number;
+}
+
+/** What a recompute leaves behind: the aliases, and what it did. */
+export interface RosterIdentityRecomputeResult {
+  /** Every alias of the Fleet, as now stored, each with its identity. */
+  readonly aliases: readonly RosterIdentityAliasEntity[];
+  /** What it did, in counts. */
+  readonly summary: RosterIdentityRecomputeSummary;
 }
 
 /**
- * Works a Fleet's roster identities out again from its evidence and its
+ * Works out a Fleet's roster identities again from its evidence and its
  * reviewers' decisions.
  *
  * Plan section 3.6 allows a full replay of a Fleet in v1 because an identity
@@ -66,17 +57,22 @@ export interface RosterIdentityRecomputeSummary {
  * it import by import: an older export imported late has to be able to undo
  * a suggestion it now sits in the middle of, and only a full pass sees that.
  *
- * ## One pass, under a lock
+ * ## Inside the replay
  *
- * A transaction-scoped advisory lock on the Fleet serialises recomputes, so
- * two queued for one Fleet run one after the other and the second reads what
- * the first wrote. Within it:
+ * Since FC-019 this is one step of a Fleet's roster replay, which takes the
+ * Fleet's lock, decides which exports are effective, and hands them here
+ * before building the projection from the identities this leaves. Steve
+ * decided on 25 September 2026 that identities and projection are one job
+ * and one revision, so that no report is ever built from identities a
+ * different pass worked out. Proposals are raised by the replay after it
+ * commits.
  *
- * 1. Every in-force import is read in export order through
- *    {@link RosterIdentityMatcher}. Held, refused and pending imports are not
- *    in force and are not read.
+ * Within the replay's transaction:
+ *
+ * 1. Every effective export is read in export order through
+ *    {@link RosterIdentityMatcher}, which compares only complete ones.
  * 2. Aliases are upserted by their exact key, so an alias keeps its UUID and
- *    its identity across recomputes; one no in-force export lists any more
+ *    its identity across recomputes; one no effective export lists any more
  *    keeps its row with its observed dates cleared.
  * 3. Candidates are brought into line by {@link planCandidates}: a decided
  *    one is never changed, only flagged when its evidence moves.
@@ -84,170 +80,44 @@ export interface RosterIdentityRecomputeSummary {
  *    every confirmed candidate.
  *
  * Nothing about any observation is written: the alias table is the join.
- *
- * ## Then proposals, outside it
- *
- * Once the identities are committed, every registered Character that the
- * latest in-force export names exactly, by Character name and account handle,
- * is handed to {@link CharacterFleetProposalService.raiseFromEvidence}, which
- * decides whether to ask. Each is its own transaction there, over the locked
- * Character, so a proposal is never held up by the Fleet's lock and a
- * Character's owner answering is never held up by a Fleet's recompute.
- *
- * Only exact names are proposed, never one reached through a rename: Steve's
- * decision of 24 September 2026, and ADR-0002's rule that nothing inferred
- * reaches a person's own history without them.
  */
 @Injectable()
 export class RosterIdentityRecomputeService {
-  private readonly _logger = new Logger(RosterIdentityRecomputeService.name);
-
   /**
-   * Creates an instance of RosterIdentityRecomputeService.
+   * Recomputes one Fleet's identities from its effective exports.
    *
-   * @param _dataSource - The connection the recompute takes its transaction
-   *   on.
-   * @param _proposals - Raises a proposal where the rules allow one.
-   */
-  constructor(
-    @InjectDataSource()
-    private readonly _dataSource: DataSource,
-    private readonly _proposals: CharacterFleetProposalService,
-  ) {}
-
-  /**
-   * Recomputes one Fleet.
-   *
+   * @param manager - The replay's transaction, holding the Fleet's lock.
    * @param fleetId - The Fleet.
-   * @returns What it did, in counts.
+   * @param snapshots - Its effective exports, in export order.
+   * @returns Every alias as now stored, and what was done, in counts.
    */
-  async recompute(fleetId: string): Promise<RosterIdentityRecomputeSummary> {
-    const worked = await this._dataSource.transaction(async manager => {
-      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
-        rosterIdentityLockKey(fleetId),
-      ]);
-
-      const evidence = await this.readEvidence(manager, fleetId);
-      const aliases = await this.saveAliases(manager, fleetId, evidence.match);
-      const candidates = await this.saveCandidates(
-        manager,
-        fleetId,
-        evidence.match,
-        aliases,
-      );
-      const reassigned = await this.assign(manager, fleetId, aliases);
-
-      return { ...evidence, aliases, candidates, reassigned };
-    });
-
-    const proposed =
-      worked.latest === null ? 0 : await this.propose(fleetId, worked.latest);
-
-    const summary: RosterIdentityRecomputeSummary = {
-      imports: worked.imports,
-      aliases: worked.aliases.length,
-      inserted: worked.candidates.inserted,
-      refreshed: worked.candidates.refreshed,
-      restaled: worked.candidates.restaled,
-      deleted: worked.candidates.deleted,
-      reassigned: worked.reassigned,
-      proposed,
-    };
-
-    this._logger.log(
-      `[recompute] Roster identities recomputed - FleetId: ${fleetId}, ` +
-        `Imports: ${summary.imports}, Aliases: ${summary.aliases}, ` +
-        `Inserted: ${summary.inserted}, Refreshed: ${summary.refreshed}, ` +
-        `Restaled: ${summary.restaled}, Deleted: ${summary.deleted}, ` +
-        `Reassigned: ${summary.reassigned}, Proposed: ${summary.proposed}`,
-    );
-
-    return summary;
-  }
-
-  /**
-   * Reads every in-force export of a Fleet through the matcher.
-   *
-   * Two in-force imports claiming one instant have the same sanitised
-   * contents, because any that differ are held in a conflict group rather
-   * than put in force, so the second says nothing the first did not and is
-   * passed over.
-   *
-   * @param manager - The transaction to read through.
-   * @param fleetId - The Fleet.
-   * @returns What the exports amount to, how many were read and the latest.
-   */
-  private async readEvidence(
+  async recomputeWithin(
     manager: EntityManager,
     fleetId: string,
-  ): Promise<{
-    match: RosterIdentityMatch;
-    imports: number;
-    latest: RosterIdentitySnapshot | null;
-  }> {
+    snapshots: readonly RosterIdentitySnapshot[],
+  ): Promise<RosterIdentityRecomputeResult> {
     const matcher = new RosterIdentityMatcher();
-    const records = await manager.find(RosterImportSourceEntity, {
-      where: { fleetId, exportedAt: Not(IsNull()) },
-      select: { id: true, exportedAt: true },
-      order: { exportedAt: 'ASC', id: 'ASC' },
-    });
 
-    if (records.length === 0) {
-      return { match: matcher.result(), imports: 0, latest: null };
+    for (const snapshot of snapshots) {
+      matcher.add(snapshot);
     }
 
-    const placements = await manager.find(FileAssetPlacementEntity, {
-      where: {
-        subject: FileAssetSubject.ROSTER_IMPORT,
-        state: FileAssetPlacementState.ACTIVE,
-        subjectId: In(records.map(record => record.id)),
-      },
-      select: { subjectId: true },
-    });
-    const inForce = new Set(placements.map(placement => placement.subjectId));
+    const match = matcher.result();
+    const saved = await this.saveAliases(manager, fleetId, match);
+    const candidates = await this.saveCandidates(
+      manager,
+      fleetId,
+      match,
+      saved,
+    );
+    const reassigned = await this.assign(manager, fleetId, saved);
 
-    let latest: RosterIdentitySnapshot | null = null;
-    let imports = 0;
-
-    for (const record of records) {
-      const exportedAt = record.exportedAt!;
-
-      if (
-        !inForce.has(record.id) ||
-        latest?.exportedAt.getTime() === exportedAt.getTime()
-      ) {
-        continue;
-      }
-
-      const observations = await manager.find(RosterObservationEntity, {
-        where: { importSourceId: record.id },
-        select: {
-          characterName: true,
-          characterNameNormalised: true,
-          accountHandle: true,
-          accountHandleNormalised: true,
-          level: true,
-          className: true,
-          contributionTotal: true,
-          joinedAt: true,
-          joinedAtAmbiguous: true,
-          rankChangedAt: true,
-          rankChangedAtAmbiguous: true,
-        },
-        order: { line: 'ASC' },
-      });
-
-      latest = {
-        importId: record.id,
-        exportedAt,
-        rows: observations,
-        complete: true,
-      };
-      matcher.add(latest);
-      imports += 1;
-    }
-
-    return { match: matcher.result(), imports, latest };
+    return {
+      aliases: await manager.find(RosterIdentityAliasEntity, {
+        where: { fleetId },
+      }),
+      summary: { aliases: saved.length, ...candidates, reassigned },
+    };
   }
 
   /**
@@ -463,57 +333,6 @@ export class RosterIdentityRecomputeService {
     }
 
     return changes.size;
-  }
-
-  /**
-   * Offers each registered Character the latest export names a proposal.
-   *
-   * A roster handle carries the game's leading `@` and an STO Info account
-   * handle cannot begin with one, so it is dropped before the two are
-   * compared the way a Character's own full handle is normalised.
-   *
-   * @param fleetId - The Fleet.
-   * @param latest - Its latest in-force export.
-   * @returns How many registered Characters have a proposal open from it.
-   */
-  private async propose(
-    fleetId: string,
-    latest: RosterIdentitySnapshot,
-  ): Promise<number> {
-    const handles = [
-      ...new Set(
-        latest.rows.map(row =>
-          normalizeHandle(
-            `${row.characterName}@${row.accountHandle.replace(/^@/, '')}`,
-          ),
-        ),
-      ),
-    ];
-
-    if (handles.length === 0) {
-      return 0;
-    }
-
-    const characters = await this._dataSource.manager.find(CharacterEntity, {
-      where: { fullHandleNormalized: In(handles) },
-      select: { id: true },
-    });
-
-    let proposed = 0;
-
-    for (const character of characters) {
-      const proposal = await this._proposals.raiseFromEvidence(character.id, {
-        fleetId,
-        evidenceImportId: latest.importId,
-        observedAt: latest.exportedAt,
-      });
-
-      if (proposal !== null) {
-        proposed += 1;
-      }
-    }
-
-    return proposed;
   }
 
   /**

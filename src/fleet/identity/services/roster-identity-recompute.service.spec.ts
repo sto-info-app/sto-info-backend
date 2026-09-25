@@ -1,15 +1,8 @@
-import { Logger } from '@nestjs/common';
+import { EntityManager, EntityTarget, FindOperator } from 'typeorm';
 
-import { DataSource, EntityTarget, FindOperator } from 'typeorm';
-
-import { FileAssetPlacementEntity } from 'src/file-assets/entities/file-asset-placement.entity';
 import { FileAssetPlacementState } from 'src/file-assets/enums/file-asset-placement-state.enum';
 import { FileAssetSubject } from 'src/file-assets/enums/file-asset-subject.enum';
-import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 
-import { RosterImportSourceEntity } from '../../imports/entities/roster-import-source.entity';
-import { RosterObservationEntity } from '../../imports/entities/roster-observation.entity';
-import { CharacterFleetProposalService } from '../../services/character-fleet-proposal.service';
 import { ROSTER_IDENTITY_WRITE_BATCH } from '../constants/roster-identity.constants';
 import { RosterIdentityAliasEntity } from '../entities/roster-identity-alias.entity';
 import { RosterIdentityCandidateLinkEntity } from '../entities/roster-identity-candidate-link.entity';
@@ -18,7 +11,11 @@ import { RosterIdentityEntity } from '../entities/roster-identity.entity';
 import { RosterIdentityCandidateKind } from '../enums/roster-identity-candidate-kind.enum';
 import { RosterIdentityCandidateState } from '../enums/roster-identity-candidate-state.enum';
 import { RosterIdentityConfidence } from '../enums/roster-identity-confidence.enum';
-import { RosterIdentityRecomputeService } from './roster-identity-recompute.service';
+import { RosterIdentitySnapshot } from '../utilities/roster-identity-matcher';
+import {
+  RosterIdentityRecomputeService,
+  RosterIdentityRecomputeSummary,
+} from './roster-identity-recompute.service';
 
 const FLEET_ID = 'fleet-1';
 const JOINED = new Date('2023-01-04T18:00:00.000Z');
@@ -28,11 +25,14 @@ type Row = Record<string, unknown>;
 /**
  * The tables a recompute touches, held in memory.
  *
- * Only as much of TypeORM as the service uses: `find` with equality and
- * `In()`, `insert`, `upsert` on the alias key, `update` and `delete` by
- * identifier. It is enough to run the real matcher and planner against rows
- * that change between two recomputes, which is where the service's own rules
- * live.
+ * Only as much of TypeORM as the service uses: `find` with equality,
+ * `insert`, `upsert` on the alias key, `update` and `delete` by identifier.
+ * It is enough to run the real matcher and planner against rows that change
+ * between two recomputes, which is where the service's own rules live.
+ *
+ * The imports are kept here too, although the recompute no longer reads
+ * them: the replay does, and hands it snapshots. {@link snapshotsOf} stands
+ * in for that, so a test can change an import and recompute again.
  */
 class FakeTables {
   imports: Row[] = [];
@@ -42,16 +42,15 @@ class FakeTables {
   aliases: Row[] = [];
   candidates: Row[] = [];
   links: Row[] = [];
-  characters: Row[] = [];
   private clock = 0;
 
   /**
-   * Adds an in-force import.
+   * Adds an import.
    *
    * @param id - The import.
    * @param exportedAt - When its export was taken.
    * @param rows - Its observations.
-   * @param state - Its placement's state.
+   * @param state - Its placement's state: only an active one is effective.
    */
   addImport(
     id: string,
@@ -76,28 +75,6 @@ class FakeTables {
     const where = (options.where ?? {}) as Row;
 
     switch (entity) {
-      case RosterImportSourceEntity:
-        return Promise.resolve(
-          [...this.imports].sort(
-            (a, b) =>
-              (a.exportedAt as Date).getTime() -
-                (b.exportedAt as Date).getTime() ||
-              String(a.id).localeCompare(String(b.id)),
-          ),
-        );
-      case FileAssetPlacementEntity:
-        return Promise.resolve(
-          this.placements.filter(
-            placement =>
-              placement.subject === where.subject &&
-              placement.state === where.state &&
-              this.within(where.subjectId, placement.subjectId),
-          ),
-        );
-      case RosterObservationEntity:
-        return Promise.resolve(
-          this.observations.get(where.importSourceId as string) ?? [],
-        );
       case RosterIdentityAliasEntity:
         return Promise.resolve(this.aliases.map(alias => ({ ...alias })));
       case RosterIdentityCandidateEntity:
@@ -113,15 +90,6 @@ class FakeTables {
                 link => link.candidateId === candidate.id,
               ),
             })),
-        );
-      case CharacterEntity:
-        return Promise.resolve(
-          this.characters.filter(character =>
-            this.within(
-              where.fullHandleNormalized,
-              character.fullHandleNormalized,
-            ),
-          ),
         );
       default:
         throw new Error('Unexpected find');
@@ -199,8 +167,6 @@ class FakeTables {
     return Promise.resolve();
   });
 
-  query = jest.fn(() => Promise.resolve([]));
-
   /**
    * Whether a value satisfies an equality or `In()` condition.
    *
@@ -261,11 +227,52 @@ function observed(name: string, handle: string, overrides: Row = {}): Row {
   };
 }
 
+/**
+ * The effective exports, as the replay would hand them over: those whose
+ * placement is active, in export order, every one complete.
+ *
+ * @param tables - The tables.
+ * @returns The snapshots.
+ */
+function snapshotsOf(tables: FakeTables): RosterIdentitySnapshot[] {
+  return tables.imports
+    .filter(record =>
+      tables.placements.some(
+        placement =>
+          placement.subjectId === record.id &&
+          placement.state === FileAssetPlacementState.ACTIVE,
+      ),
+    )
+    .sort(
+      (a, b) =>
+        (a.exportedAt as Date).getTime() - (b.exportedAt as Date).getTime(),
+    )
+    .map(record => ({
+      importId: record.id as string,
+      exportedAt: record.exportedAt as Date,
+      rows: (tables.observations.get(record.id as string) ??
+        []) as unknown as RosterIdentitySnapshot['rows'],
+      complete: true,
+    }));
+}
+
 describe('RosterIdentityRecomputeService', () => {
   let tables: FakeTables;
-  let proposals: { raiseFromEvidence: jest.Mock };
   let service: RosterIdentityRecomputeService;
-  let log: jest.SpyInstance;
+
+  /**
+   * Recomputes the Fleet from the effective exports the tables hold.
+   *
+   * @returns What it did, in counts.
+   */
+  const recompute = async (): Promise<RosterIdentityRecomputeSummary> =>
+    (
+      await service.recomputeWithin(
+        tables as unknown as EntityManager,
+        FLEET_ID,
+        snapshotsOf(tables),
+      )
+    ).summary;
 
   /**
    * The alias for a name and handle.
@@ -283,110 +290,47 @@ describe('RosterIdentityRecomputeService', () => {
 
   beforeEach(() => {
     tables = new FakeTables();
-    proposals = {
-      raiseFromEvidence: jest.fn(() => Promise.resolve({ id: 'proposal-1' })),
-    };
+    service = new RosterIdentityRecomputeService();
+  });
 
-    const manager = tables;
+  it('recomputes nothing from no exports', async () => {
+    await expect(
+      service.recomputeWithin(tables as unknown as EntityManager, FLEET_ID, []),
+    ).resolves.toEqual({
+      aliases: [],
+      summary: {
+        aliases: 0,
+        inserted: 0,
+        refreshed: 0,
+        restaled: 0,
+        deleted: 0,
+        reassigned: 0,
+      },
+    });
+  });
 
-    service = new RosterIdentityRecomputeService(
-      {
-        manager,
-        transaction: jest.fn((work: (m: unknown) => Promise<unknown>) =>
-          work(manager),
-        ),
-      } as unknown as DataSource,
-      proposals as unknown as CharacterFleetProposalService,
+  // The replay builds the projection from these, so they have to be the
+  // aliases as they stand after identities were reassigned.
+  it('hands back every alias as stored once identities are assigned', async () => {
+    tables.addImport('import-1', '2024-01-01T00:00:00Z', [
+      observed('Kira', '@one'),
+    ]);
+    tables.addImport('import-2', '2024-02-01T00:00:00Z', [
+      observed('Nerys', '@one'),
+    ]);
+    await recompute();
+    tables.candidates[0].state = RosterIdentityCandidateState.CONFIRMED;
+
+    const { aliases } = await service.recomputeWithin(
+      tables as unknown as EntityManager,
+      FLEET_ID,
+      snapshotsOf(tables),
     );
 
-    log = jest
-      .spyOn(Logger.prototype, 'log')
-      .mockImplementation(() => undefined);
-  });
-
-  afterEach(() => {
-    jest.restoreAllMocks();
-  });
-
-  it('serialises recomputes of one Fleet behind a lock', async () => {
-    await service.recompute(FLEET_ID);
-
-    expect(tables.query).toHaveBeenCalledWith(
-      'SELECT pg_advisory_xact_lock(hashtext($1))',
-      [`fleet-roster-identity:${FLEET_ID}`],
-    );
-  });
-
-  it('does nothing for a Fleet with no imports', async () => {
-    await expect(service.recompute(FLEET_ID)).resolves.toEqual({
-      imports: 0,
-      aliases: 0,
-      inserted: 0,
-      refreshed: 0,
-      restaled: 0,
-      deleted: 0,
-      reassigned: 0,
-      proposed: 0,
-    });
-    expect(tables.find).not.toHaveBeenCalledWith(
-      FileAssetPlacementEntity,
-      expect.anything(),
-    );
-    expect(proposals.raiseFromEvidence).not.toHaveBeenCalled();
-  });
-
-  describe('reading the evidence', () => {
-    it('reads only imports in force, and asks for them by placement', async () => {
-      tables.addImport('import-1', '2024-01-01T00:00:00Z', [
-        observed('Kira', '@one'),
-      ]);
-      tables.addImport(
-        'import-held',
-        '2024-02-01T00:00:00Z',
-        [observed('Odo', '@two')],
-        FileAssetPlacementState.HELD,
-      );
-
-      const summary = await service.recompute(FLEET_ID);
-
-      expect(summary.imports).toBe(1);
-      expect(tables.aliases).toHaveLength(1);
-      expect(tables.find).toHaveBeenCalledWith(
-        FileAssetPlacementEntity,
-        expect.objectContaining({
-          where: expect.objectContaining({
-            subject: FileAssetSubject.ROSTER_IMPORT,
-            state: FileAssetPlacementState.ACTIVE,
-          }),
-        }),
-      );
-    });
-
-    // Any two in force at one instant have the same sanitised contents.
-    it('passes over a second in-force import claiming the same instant', async () => {
-      tables.addImport('import-1', '2024-01-01T00:00:00Z', [
-        observed('Kira', '@one'),
-      ]);
-      tables.addImport('import-2', '2024-01-01T00:00:00Z', [
-        observed('Kira', '@one'),
-      ]);
-
-      await expect(service.recompute(FLEET_ID)).resolves.toMatchObject({
-        imports: 1,
-      });
-    });
-
-    it('reads observations in line order, and only the columns it matches on', async () => {
-      tables.addImport('import-1', '2024-01-01T00:00:00Z', []);
-
-      await service.recompute(FLEET_ID);
-
-      expect(tables.find).toHaveBeenCalledWith(RosterObservationEntity, {
-        where: { importSourceId: 'import-1' },
-        select: expect.not.objectContaining({ publicComment: true }),
-        order: { line: 'ASC' },
-      });
-    });
+    expect(aliases.map(each => each.identityId)).toEqual([
+      alias('kira', '@one').identityId,
+      alias('kira', '@one').identityId,
+    ]);
   });
 
   describe('aliases', () => {
@@ -395,7 +339,7 @@ describe('RosterIdentityRecomputeService', () => {
         observed('Kira', '@one'),
       ]);
 
-      await service.recompute(FLEET_ID);
+      await recompute();
 
       const kira = alias('kira', '@one');
 
@@ -416,13 +360,13 @@ describe('RosterIdentityRecomputeService', () => {
       tables.addImport('import-1', '2024-01-01T00:00:00Z', [
         observed('Kira', '@one'),
       ]);
-      await service.recompute(FLEET_ID);
+      await recompute();
       const before = { ...alias('kira', '@one') };
 
       tables.addImport('import-2', '2024-02-01T00:00:00Z', [
         observed('Kira', '@one'),
       ]);
-      await service.recompute(FLEET_ID);
+      await recompute();
 
       expect(tables.identities).toHaveLength(1);
       expect(alias('kira', '@one')).toMatchObject({
@@ -436,23 +380,23 @@ describe('RosterIdentityRecomputeService', () => {
       tables.addImport('import-1', '2024-01-01T00:00:00Z', [
         observed('Kira', '@one'),
       ]);
-      await service.recompute(FLEET_ID);
+      await recompute();
       tables.upsert.mockClear();
 
-      await service.recompute(FLEET_ID);
+      await recompute();
 
       expect(tables.upsert).not.toHaveBeenCalled();
     });
 
     // Its import left force, but a decision may cite it, so the row stays.
-    it('keeps an alias no in-force export lists, with its dates cleared', async () => {
+    it('keeps an alias no effective export lists, with its dates cleared', async () => {
       tables.addImport('import-1', '2024-01-01T00:00:00Z', [
         observed('Kira', '@one'),
       ]);
-      await service.recompute(FLEET_ID);
+      await recompute();
 
       tables.placements[0].state = FileAssetPlacementState.WITHDRAWN;
-      await service.recompute(FLEET_ID);
+      await recompute();
 
       expect(alias('kira', '@one')).toMatchObject({
         firstObservedAt: null,
@@ -460,7 +404,7 @@ describe('RosterIdentityRecomputeService', () => {
       });
 
       tables.update.mockClear();
-      await service.recompute(FLEET_ID);
+      await recompute();
 
       expect(tables.update).not.toHaveBeenCalledWith(
         RosterIdentityAliasEntity,
@@ -477,7 +421,7 @@ describe('RosterIdentityRecomputeService', () => {
 
       tables.addImport('import-1', '2024-01-01T00:00:00Z', members);
 
-      await service.recompute(FLEET_ID);
+      await recompute();
 
       expect(tables.insert).toHaveBeenCalledTimes(2);
       expect(tables.upsert).toHaveBeenCalledTimes(2);
@@ -507,7 +451,7 @@ describe('RosterIdentityRecomputeService', () => {
     });
 
     it('records a rename the evidence suggests, with its link', async () => {
-      await expect(service.recompute(FLEET_ID)).resolves.toMatchObject({
+      await expect(recompute()).resolves.toMatchObject({
         inserted: 1,
       });
 
@@ -539,7 +483,7 @@ describe('RosterIdentityRecomputeService', () => {
     it('records an account rename by its handles', async () => {
       tables.observations.set('import-2', [observed('Kira', '@two')]);
 
-      await service.recompute(FLEET_ID);
+      await recompute();
 
       expect(tables.candidates[0]).toMatchObject({
         kind: RosterIdentityCandidateKind.ACCOUNT_RENAME,
@@ -551,7 +495,7 @@ describe('RosterIdentityRecomputeService', () => {
     });
 
     it('rewrites an open one from the evidence, links and all', async () => {
-      await service.recompute(FLEET_ID);
+      await recompute();
       const [first] = tables.candidates;
 
       tables.candidates[0].stale = true;
@@ -559,7 +503,7 @@ describe('RosterIdentityRecomputeService', () => {
         observed('Nerys', '@one', { level: 50 }),
       ]);
 
-      await expect(service.recompute(FLEET_ID)).resolves.toMatchObject({
+      await expect(recompute()).resolves.toMatchObject({
         inserted: 0,
         refreshed: 1,
       });
@@ -575,11 +519,11 @@ describe('RosterIdentityRecomputeService', () => {
 
     // An older export imported late now sits between the two.
     it('removes an undecided one the evidence no longer suggests', async () => {
-      await service.recompute(FLEET_ID);
+      await recompute();
 
       tables.addImport('import-between', '2024-01-15T00:00:00Z', []);
 
-      await expect(service.recompute(FLEET_ID)).resolves.toMatchObject({
+      await expect(recompute()).resolves.toMatchObject({
         deleted: 1,
       });
       expect(tables.candidates).toEqual([]);
@@ -587,7 +531,7 @@ describe('RosterIdentityRecomputeService', () => {
     });
 
     it('keeps a decided one the evidence no longer suggests, flagged', async () => {
-      await service.recompute(FLEET_ID);
+      await recompute();
       Object.assign(tables.candidates[0], {
         state: RosterIdentityCandidateState.REJECTED,
         revision: 1,
@@ -595,7 +539,7 @@ describe('RosterIdentityRecomputeService', () => {
 
       tables.addImport('import-between', '2024-01-15T00:00:00Z', []);
 
-      await expect(service.recompute(FLEET_ID)).resolves.toMatchObject({
+      await expect(recompute()).resolves.toMatchObject({
         restaled: 1,
       });
       expect(tables.candidates[0]).toMatchObject({
@@ -607,7 +551,7 @@ describe('RosterIdentityRecomputeService', () => {
         each => each.id !== 'import-between',
       );
 
-      await service.recompute(FLEET_ID);
+      await recompute();
 
       expect(tables.candidates[0].stale).toBe(false);
     });
@@ -621,7 +565,7 @@ describe('RosterIdentityRecomputeService', () => {
       tables.addImport('import-2', '2024-02-01T00:00:00Z', [
         observed('Nerys', '@one'),
       ]);
-      await service.recompute(FLEET_ID);
+      await recompute();
     });
 
     it('leaves each alias its own identity while nothing is confirmed', () => {
@@ -633,7 +577,7 @@ describe('RosterIdentityRecomputeService', () => {
     it('joins a confirmed rename into the identity seen first', async () => {
       tables.candidates[0].state = RosterIdentityCandidateState.CONFIRMED;
 
-      await expect(service.recompute(FLEET_ID)).resolves.toMatchObject({
+      await expect(recompute()).resolves.toMatchObject({
         reassigned: 1,
       });
       expect(alias('nerys', '@one').identityId).toBe(
@@ -643,81 +587,14 @@ describe('RosterIdentityRecomputeService', () => {
 
     it('separates them again once the confirmation is undone', async () => {
       tables.candidates[0].state = RosterIdentityCandidateState.CONFIRMED;
-      await service.recompute(FLEET_ID);
+      await recompute();
 
       tables.candidates[0].state = RosterIdentityCandidateState.OPEN;
-      await service.recompute(FLEET_ID);
+      await recompute();
 
       expect(alias('nerys', '@one').identityId).toBe(
         alias('nerys', '@one').originIdentityId,
       );
     });
-  });
-
-  describe('proposals', () => {
-    beforeEach(() => {
-      tables.addImport('import-1', '2024-01-01T00:00:00Z', [
-        observed('Old Name', '@gone'),
-      ]);
-      tables.addImport('import-2', '2024-02-01T00:00:00Z', [
-        observed('Kira Nerys', '@Bajor#1234'),
-        observed('Odo', '@changeling'),
-      ]);
-      tables.characters = [
-        { id: 'character-kira', fullHandleNormalized: 'kira nerys@bajor#1234' },
-        { id: 'character-elsewhere', fullHandleNormalized: 'old name@gone' },
-      ];
-    });
-
-    // STO Info account handles cannot begin with an @, so the roster's is
-    // dropped before the two are compared.
-    it('offers each registered Character the latest export names exactly', async () => {
-      await expect(service.recompute(FLEET_ID)).resolves.toMatchObject({
-        proposed: 1,
-      });
-      expect(proposals.raiseFromEvidence).toHaveBeenCalledTimes(1);
-      expect(proposals.raiseFromEvidence).toHaveBeenCalledWith(
-        'character-kira',
-        {
-          fleetId: FLEET_ID,
-          evidenceImportId: 'import-2',
-          observedAt: new Date('2024-02-01T00:00:00Z'),
-        },
-      );
-    });
-
-    it('counts only the Characters a proposal is open for', async () => {
-      proposals.raiseFromEvidence.mockResolvedValue(null);
-
-      await expect(service.recompute(FLEET_ID)).resolves.toMatchObject({
-        proposed: 0,
-      });
-    });
-
-    it('asks nothing when the latest export lists nobody', async () => {
-      tables.observations.set('import-2', []);
-
-      await service.recompute(FLEET_ID);
-
-      expect(tables.find).not.toHaveBeenCalledWith(
-        CharacterEntity,
-        expect.anything(),
-      );
-    });
-  });
-
-  it('logs what it did in counts, and nothing a roster said', async () => {
-    tables.addImport('import-1', '2024-01-01T00:00:00Z', [
-      observed('Kira', '@one'),
-    ]);
-
-    await service.recompute(FLEET_ID);
-
-    expect(log).toHaveBeenCalledWith(
-      `[recompute] Roster identities recomputed - FleetId: ${FLEET_ID}, ` +
-        'Imports: 1, Aliases: 1, Inserted: 0, Refreshed: 0, Restaled: 0, ' +
-        'Deleted: 0, Reassigned: 0, Proposed: 0',
-    );
-    expect(JSON.stringify(log.mock.calls)).not.toContain('Kira');
   });
 });

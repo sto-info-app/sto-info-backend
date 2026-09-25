@@ -11,8 +11,7 @@ import {
   RestrictedAssetReceipt,
 } from 'src/file-assets/services/asset-publisher.registry';
 
-import { StoFleetEntity } from '../../entities/sto-fleet.entity';
-import { RosterIdentityQueueService } from '../../identity/services/roster-identity-queue.service';
+import { RosterReplayQueueService } from '../../projection/services/roster-replay-queue.service';
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
 import { RosterObservationEntity } from '../entities/roster-observation.entity';
 import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum';
@@ -73,13 +72,13 @@ const OBSERVATION_INSERT_BATCH = 500;
  * is somebody's decision. It is checked only once the file has read, because
  * a file that does not read is refused whatever else is true of it.
  *
- * ## It asks for the Fleet's identities to be worked out again
+ * ## It asks for the Fleet's roster to be replayed
  *
- * Once an import is in force and committed, the Fleet's roster identities,
- * rename candidates and association proposals are recomputed from every
- * in-force import (FC-018). Queued, because that reads the Fleet's whole
- * history; and only after the commit, so the job cannot run before the
- * import it is about is visible to it.
+ * Once an import is in force, the Fleet's identities, history and proposals
+ * are rebuilt from every effective import (FC-018, FC-019). The request is
+ * recorded in the transaction that puts the import in force, so the two
+ * cannot part; the job is queued only after the commit, so it cannot run
+ * before the import it is about is visible to it.
  */
 @Injectable()
 export class RosterImportPublisher
@@ -99,7 +98,7 @@ export class RosterImportPublisher
    *   values.
    * @param _registry - Which publisher writes which table.
    * @param _conflicts - Says whether an import has to wait.
-   * @param _identities - Asks for a Fleet's identities to be recomputed.
+   * @param _replays - Asks for a Fleet's roster to be replayed.
    */
   constructor(
     @InjectRepository(RosterImportSourceEntity)
@@ -109,7 +108,7 @@ export class RosterImportPublisher
     private readonly _typedParser: RosterTypedParserService,
     private readonly _registry: AssetPublisherRegistry,
     private readonly _conflicts: RosterImportConflictService,
-    private readonly _identities: RosterIdentityQueueService,
+    private readonly _replays: RosterReplayQueueService,
   ) {}
 
   /**
@@ -202,16 +201,13 @@ export class RosterImportPublisher
   }
 
   /**
-   * Moves the Fleet's last imported date on to this import's export instant.
+   * Records that the Fleet's roster has to be replayed.
    *
    * Called as the import's placement goes into force, in the same
-   * transaction, so the date never names an import that is not in force.
-   *
-   * The later of the two dates, never simply this one. Exports can be
-   * imported out of order, and an older one arriving late fills in history
-   * rather than changing the roster, so it leaves the date where it was.
-   * That also makes a second call harmless. An import with no instant, which
-   * the column allows but publication never produces, moves nothing.
+   * transaction, so an import can never be in force without its Fleet's
+   * projection knowing it is behind. The Fleet's last imported date is no
+   * longer moved here: since FC-019 it follows the published revision, back
+   * as well as forward.
    *
    * @param subjectId - The import.
    * @param manager - The transaction the placement is being activated in.
@@ -219,31 +215,18 @@ export class RosterImportPublisher
   async activated(subjectId: string, manager: EntityManager): Promise<void> {
     const record = await manager.findOne(RosterImportSourceEntity, {
       where: { id: subjectId },
-      select: { id: true, fleetId: true, exportedAt: true },
+      select: { id: true, fleetId: true },
     });
 
-    if (record === null || record.exportedAt === null) {
+    if (record === null) {
       return;
     }
 
-    // GREATEST ignores a null, so a Fleet's first import sets the date.
-    await manager
-      .createQueryBuilder()
-      .update(StoFleetEntity)
-      .set({
-        lastEffectiveImportAt: () =>
-          'GREATEST("lastEffectiveImportAt", :exportedAt)',
-      })
-      .where('id = :fleetId')
-      .setParameters({
-        fleetId: record.fleetId,
-        exportedAt: record.exportedAt,
-      })
-      .execute();
+    await this._replays.request(manager, record.fleetId);
   }
 
   /**
-   * Asks for the Fleet's identities to be recomputed, now the import counts.
+   * Queues the Fleet's replay, now the import counts.
    *
    * An import that has gone missing since is passed over: there is no Fleet
    * to ask about, and a job that failed for it would only be retried.
@@ -260,7 +243,7 @@ export class RosterImportPublisher
       return;
     }
 
-    await this._identities.enqueue(record.fleetId);
+    await this._replays.enqueue(record.fleetId);
   }
 
   /**

@@ -74,12 +74,15 @@ the database refuses to let it leave `OPEN`:
 | `NEW_HANDLE_ALREADY_PRESENT` | The new handle was already in the earlier export |
 | `HANDLE_SPLIT` | One handle's Characters moved to more than one new handle |
 | `HANDLE_MERGE` | Two handles' Characters moved to the same new one |
+| `LISTED_TOGETHER` | A partial export between the two listed both names at once |
 
 ## The recompute
 
-A Fleet's identities are worked out again from scratch — every in-force import, in export order —
-whenever an import goes into force or a reviewer decides something. It runs on the
-`fleet-roster-identity` queue, one Fleet at a time under an advisory lock, and:
+A Fleet's identities are worked out again from scratch — every effective import, in export order —
+whenever an import goes into force, a reviewer decides something, or an investigator corrects an
+import. Since FC-019 this is the first step of the Fleet's roster replay (see
+[roster-history.md](roster-history.md)), which runs on the `fleet-roster-replay` queue, one Fleet
+at a time under the same advisory lock a decision takes. The recompute:
 
 1. upserts aliases by their exact key, so an alias keeps its UUID and identity;
 2. inserts new candidates, rewrites open ones from the evidence, removes undecided ones the
@@ -88,9 +91,12 @@ whenever an import goes into force or a reviewer decides something. It runs on t
 3. joins aliases linked by confirmed candidates into the identity of whichever was seen first, and
    returns an alias to its own identity when nothing joins it any more.
 
-An older export imported late can therefore undo a suggestion it now sits in the middle of. Jobs
-are not keyed by Fleet, because a keyed job is dropped while one is running and the running one may
-already have read past the change; coalescing them is FC-019's.
+An older export imported late can therefore undo a suggestion it now sits in the middle of.
+
+Only complete exports are compared. An export marked partial, or with a row excluded, cannot show
+that a name is gone, so it is skipped for pairing and only records the names it lists; a pair whose
+two names such an export lists at once is the collision `LISTED_TOGETHER`. Excluded rows, excluded
+imports and exports not selected in a conflict group are no evidence of anything here.
 
 Only counts are logged. Nothing any roster row said reaches a log line.
 
@@ -101,16 +107,18 @@ Only counts are logged. Nothing any roster row said reaches a log line.
 A decision names the revision the reviewer saw, so two reviewers cannot both take the next one.
 Nothing goes from confirmed to rejected without an undo between, and an undo must give a reason.
 
-A decision touches no alias and no account. It queues the recompute, which is the only thing that
-moves an alias, and the recompute writes only roster tables. **A confirmed account rename never
-changes an STO Info account handle.**
+A decision touches no alias and no account. It asks for a replay in its own transaction, and the
+replay's recompute is the only thing that moves an alias, and writes only roster tables. **A
+confirmed account rename never changes an STO Info account handle.**
 
 ## Association proposals
 
-After each recompute, every registered Character whose full handle matches a row of the Fleet's
-**latest in-force export exactly** — Character name and account handle, with the roster's leading
-`@` dropped — is offered a proposal through `CharacterFleetProposalService.raiseFromEvidence`.
-Nothing reached through a rename is proposed.
+After a replay publishes a revision whose latest effective export is not the one proposals were
+last raised from, every registered Character whose full handle matches a counted row of that
+export **exactly** — Character name and account handle, with the roster's leading `@` dropped — is
+offered a proposal through `CharacterFleetProposalService.raiseFromEvidence`. Nothing reached
+through a rename is proposed, and a replay that changed history but not the latest export asks
+nobody anything again.
 
 No proposal is raised when:
 
@@ -132,14 +140,16 @@ Character's Fleet panel.
 
 ## After deploying
 
-Fleets imported before FC-018 have no identities until their next import. Run once:
+Fleets imported before FC-019 have no projection, and those imported before FC-018 no identities,
+until their next import. Run once:
 
 ```bash
-npm run fleet:backfill-identities -- --dry-run
-npm run fleet:backfill-identities
+npm run fleet:replay-rosters -- --dry-run
+npm run fleet:replay-rosters
 ```
 
-It only queues, so running it twice costs a wasted pass.
+It records a request and queues a job for each Fleet with an import in force, so running it twice
+costs a wasted pass. It replaces FC-018's `fleet:backfill-identities`.
 
 ## How it is proved
 
@@ -148,6 +158,7 @@ It only queues, so running it twice costs a wasted pass.
 | `roster-identity-matcher.spec.ts` | The corpus's Character rename, account rename and contribution reset fixtures through the real readers; every hard gate; every collision reason; grading; ordering |
 | `roster-identity-planner.spec.ts` | Insert, rewrite, flag and delete rules for stored candidates; identity assignment, chains and undo |
 | `roster-identity-recompute.service.spec.ts` | The whole pass against in-memory tables across successive recomputes |
+| `roster-replay.service.spec.ts` | Proposals: raised from the latest effective export once, and finished after a crash |
 | `roster-identity-review.service.spec.ts` | Listing, every transition and refusal, the revision check, the lock |
 | `character-fleet-proposal.service.spec.ts` | Every reason not to ask, lapsing, deduplication and hiding |
 | `roster-identity-schema-alignment.spec.ts` | The entities against the migration |

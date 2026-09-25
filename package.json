@@ -43,7 +43,7 @@
     "e2e": "npm run test:e2e",
     "e2e:support": "ts-node -r tsconfig-paths/register scripts/e2e-support.ts",
     "fixtures:fleet-corpus": "ts-node -r tsconfig-paths/register scripts/generate-fleet-corpus-fixtures.ts",
-    "fleet:backfill-identities": "ts-node -r tsconfig-paths/register scripts/backfill-fleet-identities.ts",
+    "fleet:replay-rosters": "ts-node -r tsconfig-paths/register scripts/replay-fleet-rosters.ts",
     "rehearse:migration": "bash scripts/migration-rehearsal/run-rehearsal.sh",
     "rehearse:migration:fleet-authorisation": "bash scripts/migration-rehearsal/run-rehearsal.sh src/database/migrations/1791600000000-CreateFleetCommunityDomainTables.ts,src/database/migrations/1791700000000-CreateScopeCapabilityGrants.ts fleet-authorisation",
     "rehearse:migration:user-preferences": "bash scripts/migration-rehearsal/run-rehearsal.sh src/database/migrations/1791800000000-CreateUserPreference.ts,src/database/migrations/1791900000000-SeedFleetFeatureSwitch.ts user-preferences",
