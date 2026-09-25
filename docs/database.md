@@ -36,6 +36,8 @@ The database uses PostgreSQL with TypeORM for object-relational mapping.
 | `RosterIntervalSummaryEntity` | `fleet_roster_interval_summary` | What happened between two consecutive effective exports |
 | `RosterRankOrderEntity` | `fleet_roster_rank_order` | Which tier each of a Fleet's rank labels is in, when an investigator has ordered them — see [Roster history](roster-history.md#rank-order) |
 | `RosterRankOrderActionEntity` | `fleet_roster_rank_order_action` | Each edit to a Fleet's rank order, the order before and after, with who and why, write-once |
+| `FleetReportAudienceEntity` | `fleet_report_audience` | Who the Owner has let see each of a Fleet's reports; a report with no row is private |
+| `FleetReportAudienceChangeEntity` | `fleet_report_audience_change` | Each change to a report's audience, from what to what and who made it, write-once |
 
 ### Platform Launcher Image Mapping
 
@@ -271,6 +273,9 @@ check violation in two cases:
 | `CHK_roster_rank_order_action_reason` | `fleet_roster_rank_order_action` | Every edit gives a reason that is not blank |
 | `CHK_roster_rank_order_action_tiers` | `fleet_roster_rank_order_action` | Both orders are JSON lists of tiers |
 | `TR_roster_rank_order_action_guard` | `fleet_roster_rank_order_action` | Refuses any change to an edit except its actor being cleared when their account is deleted |
+| `PK_fleet_report_audience` | `fleet_report_audience` | One audience per Fleet and report |
+| `CHK_fleet_report_audience_change_moved` | `fleet_report_audience_change` | A change records a move to a different audience |
+| `TR_fleet_report_audience_change_guard` | `fleet_report_audience_change` | Refuses any change to a record except its actor being cleared when their account is deleted |
 
 Every derived table carries its revision, and a rebuild writes the next beside the published one
 before switching to it. The derived tables cascade from their Fleet and imports; they hold nothing
