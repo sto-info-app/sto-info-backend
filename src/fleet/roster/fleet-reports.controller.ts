@@ -6,11 +6,13 @@ import {
   ParseEnumPipe,
   ParseUUIDPipe,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -27,13 +29,23 @@ import { FLEET_FEATURE_FLAGS } from '../constants/fleet-feature.constants';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 import { FleetFeatureService } from '../fleet-feature.service';
 import {
+  FleetActivityReportDto,
+  FleetGrowthReportDto,
+} from './dto/fleet-growth-report.dto';
+import {
   FleetReportAudiencesDto,
   SetFleetReportAudienceDto,
 } from './dto/fleet-report-audience.dto';
+import { FleetReportQueryDto } from './dto/fleet-report-query.dto';
 import { FleetReportAccessDto } from './dto/fleet-report.dto';
 import { FleetReport } from './enums/fleet-report.enum';
+import { FleetGrowthReportService } from './services/fleet-growth-report.service';
 import { FleetReportAccessService } from './services/fleet-report-access.service';
 import { FleetReportAudienceService } from './services/fleet-report-audience.service';
+import {
+  FleetReportContext,
+  FleetReportContextService,
+} from './services/fleet-report-context.service';
 
 /** Where every route here finds its Fleet, for the capability guard. */
 const FLEET_SOURCE = {
@@ -54,11 +66,15 @@ export class FleetReportsController {
    *
    * @param _audienceService - Reads and changes each report's audience.
    * @param _accessService - Decides how much of each report a viewer sees.
+   * @param _contextService - Opens a report over its revision and span.
+   * @param _growthService - Builds the growth and activity reports.
    * @param _featureService - Reports whether imports are switched on.
    */
   constructor(
     private readonly _audienceService: FleetReportAudienceService,
     private readonly _accessService: FleetReportAccessService,
+    private readonly _contextService: FleetReportContextService,
+    private readonly _growthService: FleetGrowthReportService,
     private readonly _featureService: FleetFeatureService,
   ) {}
 
@@ -151,6 +167,96 @@ export class FleetReportsController {
     await this.assertEnabled();
 
     return this._audienceService.set(fleetId, report, body.audience, userId);
+  }
+
+  /**
+   * Reads the growth report.
+   *
+   * @param communityId - The Community, as the path names it.
+   * @param fleetId - The Fleet.
+   * @param query - The span.
+   * @param userId - The viewer, or null when signed out.
+   * @returns The report, as much of it as the viewer is shown.
+   */
+  @Get('growth')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({ summary: "Read this Fleet's growth report" })
+  @ApiOkResponse({ type: FleetGrowthReportDto })
+  @ApiNotFoundResponse({ description: 'The viewer may not see it.' })
+  async growth(
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('fleetId', ParseUUIDPipe) fleetId: string,
+    @Query() query: FleetReportQueryDto,
+    @OptionalUserId() userId: string | null,
+  ): Promise<FleetGrowthReportDto> {
+    return this._growthService.growth(
+      await this.open(communityId, fleetId, FleetReport.GROWTH, query, userId),
+    );
+  }
+
+  /**
+   * Reads the activity report.
+   *
+   * @param communityId - The Community, as the path names it.
+   * @param fleetId - The Fleet.
+   * @param query - The span.
+   * @param userId - The viewer, or null when signed out.
+   * @returns The report, as much of it as the viewer is shown.
+   */
+  @Get('activity')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({ summary: "Read this Fleet's activity report" })
+  @ApiOkResponse({ type: FleetActivityReportDto })
+  @ApiNotFoundResponse({ description: 'The viewer may not see it.' })
+  async activity(
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('fleetId', ParseUUIDPipe) fleetId: string,
+    @Query() query: FleetReportQueryDto,
+    @OptionalUserId() userId: string | null,
+  ): Promise<FleetActivityReportDto> {
+    return this._growthService.activity(
+      await this.open(
+        communityId,
+        fleetId,
+        FleetReport.ACTIVITY,
+        query,
+        userId,
+      ),
+    );
+  }
+
+  /**
+   * Opens a report for a viewer, as much of it as they are shown.
+   *
+   * @param communityId - The Community, as the path names it.
+   * @param fleetId - The Fleet.
+   * @param report - The report.
+   * @param query - The span, and the export for its detail.
+   * @param userId - The viewer, or null when signed out.
+   * @returns What it is built from.
+   * @throws NotFoundException when imports are off or the viewer may not see
+   *   it.
+   */
+  private async open(
+    communityId: string,
+    fleetId: string,
+    report: FleetReport,
+    query: FleetReportQueryDto,
+    userId: string | null,
+  ): Promise<FleetReportContext> {
+    await this.assertEnabled();
+
+    const view = await this._accessService.require(
+      {
+        kind: FleetScopeKind.FLEET,
+        id: fleetId,
+        withinCommunityId: communityId,
+      },
+      report,
+      userId,
+    );
+
+    return this._contextService.open(fleetId, report, view, query);
   }
 
   /**

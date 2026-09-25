@@ -9,8 +9,10 @@ import { FleetFeatureService } from '../fleet-feature.service';
 import { FleetReportView } from './enums/fleet-report-view.enum';
 import { FleetReport } from './enums/fleet-report.enum';
 import { FleetReportsController } from './fleet-reports.controller';
+import { FleetGrowthReportService } from './services/fleet-growth-report.service';
 import { FleetReportAccessService } from './services/fleet-report-access.service';
 import { FleetReportAudienceService } from './services/fleet-report-audience.service';
+import { FleetReportContextService } from './services/fleet-report-context.service';
 
 const SOURCE = {
   kind: FleetScopeKind.FLEET,
@@ -20,7 +22,9 @@ const SOURCE = {
 
 describe('FleetReportsController', () => {
   let audienceService: { audiences: jest.Mock; set: jest.Mock };
-  let accessService: { visible: jest.Mock };
+  let accessService: { visible: jest.Mock; require: jest.Mock };
+  let contextService: { open: jest.Mock };
+  let growthService: { growth: jest.Mock; activity: jest.Mock };
   let featureService: { assertFlagEnabled: jest.Mock };
   let controller: FleetReportsController;
 
@@ -38,6 +42,14 @@ describe('FleetReportsController', () => {
           ]),
         ),
       ),
+      require: jest.fn(() => Promise.resolve(FleetReportView.AGGREGATE)),
+    };
+    contextService = {
+      open: jest.fn(() => Promise.resolve({ fleetId: 'fleet-1' })),
+    };
+    growthService = {
+      growth: jest.fn(() => Promise.resolve({ intervals: [] })),
+      activity: jest.fn(() => Promise.resolve({ exports: [] })),
     };
     featureService = {
       assertFlagEnabled: jest.fn(() => Promise.resolve()),
@@ -45,6 +57,8 @@ describe('FleetReportsController', () => {
     controller = new FleetReportsController(
       audienceService as unknown as FleetReportAudienceService,
       accessService as unknown as FleetReportAccessService,
+      contextService as unknown as FleetReportContextService,
+      growthService as unknown as FleetGrowthReportService,
       featureService as unknown as FleetFeatureService,
     );
   });
@@ -98,6 +112,55 @@ describe('FleetReportsController', () => {
     ).toBeUndefined();
   });
 
+  describe.each([
+    ['growth', FleetReport.GROWTH, 'growth', { intervals: [] }],
+    ['activity', FleetReport.ACTIVITY, 'activity', { exports: [] }],
+  ] as const)('the %s report', (route, report, built, answer) => {
+    it('is opened as much as the viewer is shown, over the span asked for', async () => {
+      const query = { from: '2024-01-01T00:00:00Z' };
+
+      await expect(
+        controller[route]('community-1', 'fleet-1', query, 'user-1'),
+      ).resolves.toEqual(answer);
+      expect(accessService.require).toHaveBeenCalledWith(
+        {
+          kind: FleetScopeKind.FLEET,
+          id: 'fleet-1',
+          withinCommunityId: 'community-1',
+        },
+        report,
+        'user-1',
+      );
+      expect(contextService.open).toHaveBeenCalledWith(
+        'fleet-1',
+        report,
+        FleetReportView.AGGREGATE,
+        query,
+      );
+      expect(growthService[built]).toHaveBeenCalledWith({ fleetId: 'fleet-1' });
+    });
+
+    it('is refused as not found to a viewer who may not see it', async () => {
+      accessService.require.mockRejectedValue(
+        new NotFoundException('Not found'),
+      );
+
+      await expect(
+        controller[route]('community-1', 'fleet-1', {}, null),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(contextService.open).not.toHaveBeenCalled();
+    });
+
+    it('asks no capability of its viewer', () => {
+      expect(
+        Reflect.getMetadata(
+          REQUIRES_SCOPE_CAPABILITY_KEY,
+          FleetReportsController.prototype[route],
+        ),
+      ).toBeUndefined();
+    });
+  });
+
   it('reads the audiences', async () => {
     await expect(controller.audiences('fleet-1')).resolves.toEqual({
       reports: [],
@@ -134,6 +197,10 @@ describe('FleetReportsController', () => {
       controller.list('community-1', 'fleet-1', null),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(accessService.visible).not.toHaveBeenCalled();
+    await expect(
+      controller.growth('community-1', 'fleet-1', {}, null),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(accessService.require).not.toHaveBeenCalled();
     await expect(
       controller.setAudience('fleet-1', FleetReport.GROWTH, 'owner-1', {
         audience: FleetAudience.PUBLIC,

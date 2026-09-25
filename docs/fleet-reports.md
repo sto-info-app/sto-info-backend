@@ -59,3 +59,24 @@ A full view also draws detail at one export: the latest in the span, or the one 
 
 The roster history's five: `GROWTH`, `TENURE`, `RANKS`, `ACTIVITY` and `CONTRIBUTION`. Holdings,
 recruitment and event attendance join them with their own stories.
+
+Every count is taken in the database, grouped by export, so a Fleet with hundreds of exports is
+read a row per export and band rather than a row per member. None reads a row an investigator
+excluded.
+
+### Growth
+
+FC-019's interval summaries, one row per interval between two consecutive effective exports:
+members at each end, and how many joined, rejoined and left, were left unknown by a partial
+export, or were revealed across a gap. Beside them, the account handles each end listed — observed
+accounts, never people (Steve's decision of 25 September 2026).
+
+For an aggregate audience, the five movements are one group: with the members at each end shown,
+any one of them could otherwise be worked out from the rest.
+
+### Activity
+
+Each export's members, banded by how long before the export's own instant their latest Last
+Active was: within 7, 30 or 90 days, longer, or not given (Steve's decision of 25 September 2026).
+A Last Active after the export, which a clock or zone mismatch can give, is within 7 days. The
+bands are one group, beside the total they make up.

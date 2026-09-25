@@ -700,6 +700,44 @@ The reports of a Fleet the caller may see, and how much of each (FC-020). See
 who may see none of them, or not the Fleet, or who names the wrong Community, is given an empty
 list.
 
+### GET /fleet-communities/:communityId/fleets/:fleetId/reports/growth
+
+A Fleet's growth and loss, interval by interval (FC-020). See
+[Fleet reports](fleet-reports.md#growth).
+
+**Authentication Optional.** As much of it as the caller is shown: see
+[who may see a report](fleet-reports.md#who-may-see-a-report).
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Query:** optionally `from` and `to`, ISO 8601 instants. An interval is covered when its later
+export was taken between them.
+
+**Response (200):** the report's header — `report`, `view`, `revision`, `publishedAt`, `stale`,
+`range`, `coverage` and `minimumCohort` — and `intervals`, oldest first. Each gives both exports,
+whether the later was partial, the members at each end, and how many joined, rejoined and left,
+were left unknown, or were revealed across a gap. It also gives the account handles listed at
+each end. In an aggregate view, a figure that is null was hidden.
+
+**Response (404):** the caller may not see it.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/reports/activity
+
+A Fleet's imported activity at each export (FC-020). See
+[Fleet reports](fleet-reports.md#activity).
+
+**Authentication Optional**, as for growth.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Query:** optionally `from` and `to`. An export is covered when it was taken between them.
+
+**Response (200):** the header, and `exports`, oldest first. Each gives the export, whether it was
+partial, the members it listed, and `bands`: how many were last active within 7, 30 or 90 days of
+it, longer ago, or with no Last Active.
+
+**Response (404):** the caller may not see it.
+
 ### GET /fleet-communities/:communityId/fleets/:fleetId/reports/audiences
 
 Who may see each of a Fleet's reports (FC-020). See [Fleet reports](fleet-reports.md).
