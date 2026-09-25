@@ -17,7 +17,8 @@ import {
 } from '@nestjs/swagger';
 
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
-import { UserId } from 'src/auth/user-id.decorator';
+import { OptionalJwtAuthGuard } from 'src/auth/optional-jwt-auth.guard';
+import { OptionalUserId, UserId } from 'src/auth/user-id.decorator';
 
 import { FLEET_CAPABILITIES } from '../authorisation/fleet-capability.constants';
 import { RequiresScopeCapability } from '../authorisation/requires-scope-capability.decorator';
@@ -29,7 +30,9 @@ import {
   FleetReportAudiencesDto,
   SetFleetReportAudienceDto,
 } from './dto/fleet-report-audience.dto';
+import { FleetReportAccessDto } from './dto/fleet-report.dto';
 import { FleetReport } from './enums/fleet-report.enum';
+import { FleetReportAccessService } from './services/fleet-report-access.service';
 import { FleetReportAudienceService } from './services/fleet-report-audience.service';
 
 /** Where every route here finds its Fleet, for the capability guard. */
@@ -50,12 +53,51 @@ export class FleetReportsController {
    * Creates an instance of FleetReportsController.
    *
    * @param _audienceService - Reads and changes each report's audience.
+   * @param _accessService - Decides how much of each report a viewer sees.
    * @param _featureService - Reports whether imports are switched on.
    */
   constructor(
     private readonly _audienceService: FleetReportAudienceService,
+    private readonly _accessService: FleetReportAccessService,
     private readonly _featureService: FleetFeatureService,
   ) {}
+
+  /**
+   * Lists the reports a viewer may see, and how much of each.
+   *
+   * Open to anybody, signed in or not. A viewer who may not see the Fleet,
+   * or any of its reports, is given an empty list, the same answer as a
+   * Fleet with nothing to show them.
+   *
+   * @param communityId - The Community, as the path names it.
+   * @param fleetId - The Fleet.
+   * @param userId - The viewer, or null when signed out.
+   * @returns Each report they may see, in the reports' order.
+   */
+  @Get()
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({
+    summary: 'List the reports of this Fleet the viewer may see',
+  })
+  @ApiOkResponse({ type: [FleetReportAccessDto] })
+  async list(
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('fleetId', ParseUUIDPipe) fleetId: string,
+    @OptionalUserId() userId: string | null,
+  ): Promise<FleetReportAccessDto[]> {
+    await this.assertEnabled();
+
+    const views = await this._accessService.visible(
+      {
+        kind: FleetScopeKind.FLEET,
+        id: fleetId,
+        withinCommunityId: communityId,
+      },
+      userId,
+    );
+
+    return [...views].map(([report, view]) => ({ report, view }));
+  }
 
   /**
    * Reads every report's audience and every change to one.

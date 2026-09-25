@@ -100,6 +100,23 @@ describe('FleetReportAudienceService', () => {
     });
   });
 
+  describe('chosen', () => {
+    it('reads every report’s audience at once, private unless chosen', async () => {
+      await expect(service.chosen(FLEET_ID)).resolves.toEqual(
+        new Map([
+          [FleetReport.GROWTH, FleetAudience.PUBLIC],
+          [FleetReport.TENURE, FleetAudience.PRIVATE],
+          [FleetReport.RANKS, FleetAudience.PRIVATE],
+          [FleetReport.ACTIVITY, FleetAudience.PRIVATE],
+          [FleetReport.CONTRIBUTION, FleetAudience.PRIVATE],
+        ]),
+      );
+      expect(audiences.find).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { fleetId: FLEET_ID } }),
+      );
+    });
+  });
+
   describe('audiences', () => {
     it('lists every report, private unless chosen, and every change', async () => {
       await expect(service.audiences(FLEET_ID)).resolves.toEqual({

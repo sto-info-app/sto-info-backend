@@ -29,6 +29,32 @@ audience a report already has is refused.
 The Owner and Admins can read every report's audience and change. Anybody else learns only
 whether a report is shown to them.
 
+Nothing of a report is shown to anybody who may not see the Fleet itself. The Fleet's and its
+Community's own audiences come first, so a public report on a Fleet visible only to its Community
+stays hidden from everybody outside it. A report hidden from a viewer is reported as not found,
+never as forbidden, so the answer does not confirm what a private Fleet has.
+
+## What an aggregate audience is shown
+
+The Community's followers and anybody else see counts and totals only: never a name, a handle, a
+comment or a member's own figure, and no drilldown to them. Every figure is hidden — null in the
+API and `< 5` in an export — when it counts from 1 to 4 members (Steve's decision of 25 September
+2026). Where that hides exactly one count in a group that makes up a whole, such as a report's
+bands or rank labels, the smallest count still shown is hidden too, so the first cannot be got
+back by subtraction. A contribution total is hidden when fewer than five members' deltas make it
+up.
+
+Members are counted as roster identities: a Character, across its renames. One member listed twice
+on an export, when both names of a confirmed rename are still listed, counts once. Where a report
+counts accounts too, they are observed account handles, never people.
+
+## What every report says about itself
+
+Each reads the published revision alone, over a span — every effective export by default, or those
+taken between `from` and `to` — and says which revision, over which span and from how many exports.
+A full view also draws detail at one export: the latest in the span, or the one asked for with
+`at`.
+
 ## The reports
 
 The roster history's five: `GROWTH`, `TENURE`, `RANKS`, `ACTIVITY` and `CONTRIBUTION`. Holdings,

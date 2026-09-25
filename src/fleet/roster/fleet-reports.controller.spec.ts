@@ -6,8 +6,10 @@ import { FLEET_FEATURE_FLAGS } from '../constants/fleet-feature.constants';
 import { FleetAudience } from '../enums/fleet-audience.enum';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 import { FleetFeatureService } from '../fleet-feature.service';
+import { FleetReportView } from './enums/fleet-report-view.enum';
 import { FleetReport } from './enums/fleet-report.enum';
 import { FleetReportsController } from './fleet-reports.controller';
+import { FleetReportAccessService } from './services/fleet-report-access.service';
 import { FleetReportAudienceService } from './services/fleet-report-audience.service';
 
 const SOURCE = {
@@ -18,6 +20,7 @@ const SOURCE = {
 
 describe('FleetReportsController', () => {
   let audienceService: { audiences: jest.Mock; set: jest.Mock };
+  let accessService: { visible: jest.Mock };
   let featureService: { assertFlagEnabled: jest.Mock };
   let controller: FleetReportsController;
 
@@ -26,11 +29,22 @@ describe('FleetReportsController', () => {
       audiences: jest.fn(() => Promise.resolve({ reports: [], changes: [] })),
       set: jest.fn(() => Promise.resolve({ reports: [], changes: [] })),
     };
+    accessService = {
+      visible: jest.fn(() =>
+        Promise.resolve(
+          new Map([
+            [FleetReport.GROWTH, FleetReportView.AGGREGATE],
+            [FleetReport.CONTRIBUTION, FleetReportView.AGGREGATE],
+          ]),
+        ),
+      ),
+    };
     featureService = {
       assertFlagEnabled: jest.fn(() => Promise.resolve()),
     };
     controller = new FleetReportsController(
       audienceService as unknown as FleetReportAudienceService,
+      accessService as unknown as FleetReportAccessService,
       featureService as unknown as FleetFeatureService,
     );
   });
@@ -55,6 +69,33 @@ describe('FleetReportsController', () => {
       capability: FLEET_CAPABILITIES.SCOPE_SETTINGS_MANAGE,
       source: SOURCE,
     });
+  });
+
+  it('lists the reports a viewer may see, asking about the Fleet the path names', async () => {
+    await expect(
+      controller.list('community-1', 'fleet-1', null),
+    ).resolves.toEqual([
+      { report: FleetReport.GROWTH, view: FleetReportView.AGGREGATE },
+      { report: FleetReport.CONTRIBUTION, view: FleetReportView.AGGREGATE },
+    ]);
+    expect(accessService.visible).toHaveBeenCalledWith(
+      {
+        kind: FleetScopeKind.FLEET,
+        id: 'fleet-1',
+        withinCommunityId: 'community-1',
+      },
+      null,
+    );
+  });
+
+  // Open to anybody: the list itself decides what to show.
+  it('asks no capability of whoever lists them', () => {
+    expect(
+      Reflect.getMetadata(
+        REQUIRES_SCOPE_CAPABILITY_KEY,
+        FleetReportsController.prototype.list,
+      ),
+    ).toBeUndefined();
   });
 
   it('reads the audiences', async () => {
@@ -89,6 +130,10 @@ describe('FleetReportsController', () => {
     await expect(controller.audiences('fleet-1')).rejects.toBeInstanceOf(
       NotFoundException,
     );
+    await expect(
+      controller.list('community-1', 'fleet-1', null),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(accessService.visible).not.toHaveBeenCalled();
     await expect(
       controller.setAudience('fleet-1', FleetReport.GROWTH, 'owner-1', {
         audience: FleetAudience.PUBLIC,

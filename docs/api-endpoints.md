@@ -687,6 +687,19 @@ has listed, which the message names.
 
 **Response (409):** the order changed since it was loaded.
 
+### GET /fleet-communities/:communityId/fleets/:fleetId/reports
+
+The reports of a Fleet the caller may see, and how much of each (FC-020). See
+[Fleet reports](fleet-reports.md#who-may-see-a-report).
+
+**Authentication Optional.** Signed-out callers are shown the public reports of a public Fleet.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Response (200):** a list of `{ report, view }`, where `view` is `FULL` or `AGGREGATE`. A caller
+who may see none of them, or not the Fleet, or who names the wrong Community, is given an empty
+list.
+
 ### GET /fleet-communities/:communityId/fleets/:fleetId/reports/audiences
 
 Who may see each of a Fleet's reports (FC-020). See [Fleet reports](fleet-reports.md).

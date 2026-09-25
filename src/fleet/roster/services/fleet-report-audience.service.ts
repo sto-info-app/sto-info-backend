@@ -56,6 +56,27 @@ export class FleetReportAudienceService {
   }
 
   /**
+   * Reads who may see each report, in one query.
+   *
+   * @param fleetId - The Fleet.
+   * @returns Each report's audience; `PRIVATE` where none has been chosen.
+   */
+  async chosen(fleetId: string): Promise<Map<FleetReport, FleetAudience>> {
+    const rows = await this._audiences.find({
+      where: { fleetId },
+      select: { fleetId: true, report: true, audience: true },
+    });
+    const byReport = new Map(rows.map(row => [row.report, row.audience]));
+
+    return new Map(
+      Object.values(FleetReport).map(report => [
+        report,
+        byReport.get(report) ?? FleetAudience.PRIVATE,
+      ]),
+    );
+  }
+
+  /**
    * Reads every report's audience and every change to one.
    *
    * @param fleetId - The Fleet.
