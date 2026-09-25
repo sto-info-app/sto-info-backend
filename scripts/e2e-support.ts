@@ -25,6 +25,8 @@
  * Usage: npm run e2e:support -- <command> [arguments]
  */
 
+import { writeSync } from 'node:fs';
+
 import { INestApplicationContext, Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 
@@ -34,6 +36,11 @@ import { AppModule } from '../src/app.module';
 import { CustomTrackingCleanupService } from '../src/cron/jobs/custom-tracking-cleanup/custom-tracking-cleanup.service';
 import { CustomTrackingImageCleanupService } from '../src/custom-tracking/retention/custom-tracking-image-cleanup.service';
 import { CustomTrackingPurgeService } from '../src/custom-tracking/retention/custom-tracking-purge.service';
+import {
+  inspectEnvironment,
+  prepareFixtureActor,
+  readFixtureActor,
+} from './e2e-actors';
 
 const SCHEMA = process.env.DB_SCHEMA ?? 'sto_info_app';
 
@@ -51,7 +58,7 @@ interface SupportContext {
   dataSource: DataSource;
 }
 
-type SupportResult = Record<string, unknown>;
+type SupportResult = object;
 
 async function userIdFor(
   dataSource: DataSource,
@@ -281,6 +288,37 @@ async function finish(
   return { finished: cleared, pictures };
 }
 
+/**
+ * Report the database, the feature switches and the fixture actors.
+ *
+ * The harness compares this with the database name and Redis database it was
+ * told to use. Nothing in the report is a password or a connection string.
+ */
+async function preflight(
+  { dataSource }: SupportContext,
+  demoEmail: string,
+  publicSlug: string,
+  privateSlug: string,
+): Promise<SupportResult> {
+  return inspectEnvironment(dataSource, demoEmail, publicSlug, privateSlug);
+}
+
+/** Enable one fixture actor again, so a retry starts from a known account. */
+async function prepare(
+  { dataSource }: SupportContext,
+  email: string,
+): Promise<SupportResult> {
+  return prepareFixtureActor(dataSource, email);
+}
+
+/** Read one fixture actor. The demonstration member is not accepted here. */
+async function actor(
+  { dataSource }: SupportContext,
+  email: string,
+): Promise<SupportResult> {
+  return readFixtureActor(dataSource, email);
+}
+
 const COMMANDS: Record<
   string,
   (context: SupportContext, ...args: string[]) => Promise<SupportResult>
@@ -294,6 +332,9 @@ const COMMANDS: Record<
   disabled,
   cleanup,
   counts,
+  preflight,
+  prepare,
+  actor,
 };
 
 async function main(): Promise<void> {
@@ -320,12 +361,21 @@ async function main(): Promise<void> {
     );
 
     process.stdout.write(`${JSON.stringify(result)}\n`);
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error ? (error.stack ?? error.message) : String(error);
+
+    writeSync(2, `${message}\n`);
+    throw error;
   } finally {
     await app.close();
   }
 }
 
-void main().catch((error: Error) => {
-  process.stderr.write(`${error.message}\n`);
+void main().catch((error: unknown) => {
+  const message =
+    error instanceof Error ? (error.stack ?? error.message) : String(error);
+
+  writeSync(2, `${message}\n`);
   process.exit(1);
 });
