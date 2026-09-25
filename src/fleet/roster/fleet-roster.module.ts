@@ -19,6 +19,7 @@ import { RosterRankOrderActionEntity } from './entities/roster-rank-order-action
 import { RosterRankOrderEntity } from './entities/roster-rank-order.entity';
 import { FleetReportsController } from './fleet-reports.controller';
 import { RosterController } from './roster.controller';
+import { FleetContributionReportService } from './services/fleet-contribution-report.service';
 import { FleetGrowthReportService } from './services/fleet-growth-report.service';
 import { FleetReportAccessService } from './services/fleet-report-access.service';
 import { FleetReportAudienceService } from './services/fleet-report-audience.service';
@@ -66,6 +67,7 @@ import { RosterViewService } from './services/roster-view.service';
   providers: [
     FleetReportAccessService,
     FleetReportAudienceService,
+    FleetContributionReportService,
     FleetGrowthReportService,
     FleetReportContextService,
     FleetReportQueryService,

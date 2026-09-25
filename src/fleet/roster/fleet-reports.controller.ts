@@ -28,6 +28,7 @@ import { ScopeCapabilityGuard } from '../authorisation/scope-capability.guard';
 import { FLEET_FEATURE_FLAGS } from '../constants/fleet-feature.constants';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 import { FleetFeatureService } from '../fleet-feature.service';
+import { FleetContributionReportDto } from './dto/fleet-contribution-report.dto';
 import {
   FleetActivityReportDto,
   FleetGrowthReportDto,
@@ -43,6 +44,7 @@ import {
   FleetTenureReportDto,
 } from './dto/fleet-tenure-report.dto';
 import { FleetReport } from './enums/fleet-report.enum';
+import { FleetContributionReportService } from './services/fleet-contribution-report.service';
 import { FleetGrowthReportService } from './services/fleet-growth-report.service';
 import { FleetReportAccessService } from './services/fleet-report-access.service';
 import { FleetReportAudienceService } from './services/fleet-report-audience.service';
@@ -74,6 +76,7 @@ export class FleetReportsController {
    * @param _contextService - Opens a report over its revision and span.
    * @param _growthService - Builds the growth and activity reports.
    * @param _tenureService - Builds the tenure and ranks reports.
+   * @param _contributionService - Builds the contribution report.
    * @param _featureService - Reports whether imports are switched on.
    */
   constructor(
@@ -82,6 +85,7 @@ export class FleetReportsController {
     private readonly _contextService: FleetReportContextService,
     private readonly _growthService: FleetGrowthReportService,
     private readonly _tenureService: FleetTenureReportService,
+    private readonly _contributionService: FleetContributionReportService,
     private readonly _featureService: FleetFeatureService,
   ) {}
 
@@ -279,6 +283,38 @@ export class FleetReportsController {
   ): Promise<FleetRanksReportDto> {
     return this._tenureService.ranks(
       await this.open(communityId, fleetId, FleetReport.RANKS, query, userId),
+    );
+  }
+
+  /**
+   * Reads the contribution report.
+   *
+   * @param communityId - The Community, as the path names it.
+   * @param fleetId - The Fleet.
+   * @param query - The span, and the export ending the interval whose
+   *   members are listed.
+   * @param userId - The viewer, or null when signed out.
+   * @returns The report, as much of it as the viewer is shown.
+   */
+  @Get('contribution')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({ summary: "Read this Fleet's contribution report" })
+  @ApiOkResponse({ type: FleetContributionReportDto })
+  @ApiNotFoundResponse({ description: 'The viewer may not see it.' })
+  async contribution(
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('fleetId', ParseUUIDPipe) fleetId: string,
+    @Query() query: FleetReportQueryDto,
+    @OptionalUserId() userId: string | null,
+  ): Promise<FleetContributionReportDto> {
+    return this._contributionService.contribution(
+      await this.open(
+        communityId,
+        fleetId,
+        FleetReport.CONTRIBUTION,
+        query,
+        userId,
+      ),
     );
   }
 

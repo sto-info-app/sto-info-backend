@@ -105,3 +105,20 @@ widely than the interval are counted apart. The Fleet's first export reveals non
 that starts a later span still shows its own.
 
 For an aggregate audience, each export's labels are one group, and so are its changes.
+
+### Contribution
+
+FC-019's interval summaries: the sum of every known rise between two consecutive exports, and how
+many members it rests on, how many reset, how many began a new baseline, and how many are unknown.
+Plan section 3.7 and R13 hold throughout:
+
+- Nothing is allocated to a day or a week between the exports.
+- A fall is a reset, never a negative gift.
+- Nothing says what was given.
+
+A full view also lists, for one interval, each member's rise, largest first, then each reset, with
+the totals either side (Steve's decision of 25 September 2026). A change bounded more widely than
+the interval is listed, marked, and is in no interval's total.
+
+For an aggregate audience the four counts are one group, since they account for every member at
+either end exactly once, and the total is hidden when fewer than five members' deltas make it up.

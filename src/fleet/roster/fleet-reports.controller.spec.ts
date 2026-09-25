@@ -9,6 +9,7 @@ import { FleetFeatureService } from '../fleet-feature.service';
 import { FleetReportView } from './enums/fleet-report-view.enum';
 import { FleetReport } from './enums/fleet-report.enum';
 import { FleetReportsController } from './fleet-reports.controller';
+import { FleetContributionReportService } from './services/fleet-contribution-report.service';
 import { FleetGrowthReportService } from './services/fleet-growth-report.service';
 import { FleetReportAccessService } from './services/fleet-report-access.service';
 import { FleetReportAudienceService } from './services/fleet-report-audience.service';
@@ -27,6 +28,7 @@ describe('FleetReportsController', () => {
   let contextService: { open: jest.Mock };
   let growthService: { growth: jest.Mock; activity: jest.Mock };
   let tenureService: { tenure: jest.Mock; ranks: jest.Mock };
+  let contributionService: { contribution: jest.Mock };
   let featureService: { assertFlagEnabled: jest.Mock };
   let controller: FleetReportsController;
 
@@ -57,6 +59,9 @@ describe('FleetReportsController', () => {
       tenure: jest.fn(() => Promise.resolve({ members: [] })),
       ranks: jest.fn(() => Promise.resolve({ exports: [] })),
     };
+    contributionService = {
+      contribution: jest.fn(() => Promise.resolve({ intervals: [] })),
+    };
     featureService = {
       assertFlagEnabled: jest.fn(() => Promise.resolve()),
     };
@@ -66,6 +71,7 @@ describe('FleetReportsController', () => {
       contextService as unknown as FleetReportContextService,
       growthService as unknown as FleetGrowthReportService,
       tenureService as unknown as FleetTenureReportService,
+      contributionService as unknown as FleetContributionReportService,
       featureService as unknown as FleetFeatureService,
     );
   });
@@ -124,6 +130,7 @@ describe('FleetReportsController', () => {
     ['activity', FleetReport.ACTIVITY, { exports: [] }],
     ['tenure', FleetReport.TENURE, { members: [] }],
     ['ranks', FleetReport.RANKS, { exports: [] }],
+    ['contribution', FleetReport.CONTRIBUTION, { intervals: [] }],
   ] as const)('the %s report', (route, report, answer) => {
     it('is opened as much as the viewer is shown, over the span asked for', async () => {
       const query = { from: '2024-01-01T00:00:00Z' };
@@ -146,10 +153,14 @@ describe('FleetReportsController', () => {
         FleetReportView.AGGREGATE,
         query,
       );
-      const builder =
-        route === 'growth' || route === 'activity'
-          ? growthService[route]
-          : tenureService[route];
+      const builders = {
+        growth: growthService.growth,
+        activity: growthService.activity,
+        tenure: tenureService.tenure,
+        ranks: tenureService.ranks,
+        contribution: contributionService.contribution,
+      };
+      const builder = builders[route];
 
       expect(builder).toHaveBeenCalledWith({ fleetId: 'fleet-1' });
     });

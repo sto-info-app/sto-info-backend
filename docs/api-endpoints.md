@@ -779,6 +779,30 @@ between tiers of the Fleet's rank order, `changed` for every other change of lab
 
 **Response (404):** the caller may not see it.
 
+### GET /fleet-communities/:communityId/fleets/:fleetId/reports/contribution
+
+What a Fleet's members contributed, interval by interval (FC-020). See
+[Fleet reports](fleet-reports.md#contribution).
+
+**Authentication Optional**, as for growth.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Query:** optionally `from` and `to`, and for a full view `at`, the effective export ending the
+interval whose members are listed. The latest in the span by default.
+
+**Response (200):** the header and `intervals`, oldest first. Each gives both exports, whether the
+later was partial, and `contributionDelta`, the sum of every known rise, as a decimal string. It
+also gives how many members that rests on (`known`), how many reset, how many began a new
+baseline, and how many are unknown. A full view also gives `at` and `members`: each member's rise
+in that interval, largest first, then each reset. Each carries the totals either side and the
+export it happened after, and one bounded more widely is marked `acrossGap`. Both are null in an
+aggregate view.
+
+**Response (400):** `at` is not an effective export in the span.
+
+**Response (404):** the caller may not see it.
+
 ### GET /fleet-communities/:communityId/fleets/:fleetId/reports/audiences
 
 Who may see each of a Fleet's reports (FC-020). See [Fleet reports](fleet-reports.md).
