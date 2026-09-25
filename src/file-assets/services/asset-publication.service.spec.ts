@@ -819,6 +819,39 @@ describe('AssetPublicationService', () => {
       });
     });
 
+    // FC-019: once somebody selects a held roster export, it is queued
+    // again, and the feature is asked again.
+    describe('that was held and is queued again', () => {
+      beforeEach(() => {
+        findByAssetId.mockResolvedValue(
+          rosterPlacement({ state: FileAssetPlacementState.HELD }),
+        );
+      });
+
+      it('asks the feature again, and puts it in force when it accepts', async () => {
+        await expect(service.publish('asset-1')).resolves.toEqual(
+          expect.objectContaining({ published: true }),
+        );
+
+        expect(receive).toHaveBeenCalled();
+        expect(publishAsset).toHaveBeenCalledWith('asset-1');
+        expect(activate).toHaveBeenCalled();
+      });
+
+      it('holds it again when the feature still needs a decision', async () => {
+        receive.mockResolvedValue({
+          outcome: 'HELD',
+          reason: 'EXPORT_INSTANT_IN_CONFLICT',
+        });
+
+        await expect(service.publish('asset-1')).resolves.toEqual(
+          expect.objectContaining({ refusal: 'HELD_BY_FEATURE' }),
+        );
+        expect(hold).toHaveBeenCalled();
+        expect(activate).not.toHaveBeenCalled();
+      });
+    });
+
     it.each([
       FileAssetPlacementState.ACTIVE,
       FileAssetPlacementState.HELD,

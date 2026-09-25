@@ -140,7 +140,7 @@ describe('RosterImportsController', () => {
     hasCapability: jest.Mock<(...args: unknown[]) => Promise<boolean>>;
   };
   let corrections: Record<
-    'exclude' | 'reinstate' | 'markPartial' | 'excludeRows',
+    'exclude' | 'reinstate' | 'markPartial' | 'excludeRows' | 'select',
     jest.Mock<(...args: unknown[]) => Promise<unknown>>
   >;
 
@@ -198,6 +198,7 @@ describe('RosterImportsController', () => {
       reinstate: jest.fn(() => Promise.resolve({ id: IMPORT_ID })),
       markPartial: jest.fn(() => Promise.resolve({ id: IMPORT_ID })),
       excludeRows: jest.fn(() => Promise.resolve({ id: IMPORT_ID })),
+      select: jest.fn(() => Promise.resolve({ id: IMPORT_ID })),
     };
 
     controller = new RosterImportsController(
@@ -563,6 +564,7 @@ describe('RosterImportsController', () => {
       'excludeRows',
       { lines: [2], excluded: true, reason: 'Duplicated' },
     ],
+    ['selecting one', 'select', { reason: 'The one the officer meant' }],
   ] as const)('%s', (_name, handler, body) => {
     const call = () =>
       (

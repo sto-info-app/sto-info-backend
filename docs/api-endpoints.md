@@ -510,6 +510,17 @@ the header being line one, as the import's problems name them; each is a data li
 asked — the whole request is refused, so the correction recorded names exactly the rows that
 changed — or the import's rows have not been read because it is held.
 
+### POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports/:importId/selection
+
+Select the export that stands for a moment several exports claim. As `exclusions`, with
+`{ "reason": "..." }`. The selection can be changed by selecting another export of the moment.
+
+A held export has never been read, so selecting one queues it to be read into force, and the
+Fleet's roster is replayed once it is; the response still reports it `HELD`.
+
+**Response (409):** no other export claims its moment, it is excluded, it is already the one
+selected, or it is neither in force nor waiting.
+
 ### GET /fleet-communities/:communityId/fleets/:fleetId/roster-identities/candidates
 
 List a Fleet's rename candidates, open ones first. See [Roster identities](roster-identities.md).

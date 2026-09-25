@@ -8,7 +8,7 @@ import {
   it,
   jest,
 } from '@jest/globals';
-import { EntityManager, In, IsNull, Not, Repository } from 'typeorm';
+import { EntityManager, In, Not, Repository } from 'typeorm';
 
 import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
@@ -48,7 +48,12 @@ function member(
 
 describe('RosterImportConflictService', () => {
   let service: RosterImportConflictService;
-  let conflicts: { findOne: jest.Mock; create: jest.Mock; save: jest.Mock };
+  let conflicts: {
+    findOne: jest.Mock;
+    create: jest.Mock;
+    save: jest.Mock;
+    update: jest.Mock;
+  };
   let imports: { find: jest.Mock; update: jest.Mock };
   let manager: { query: jest.Mock; getRepository: jest.Mock };
   let warned: jest.SpiedFunction<Logger['warn']>;
@@ -60,6 +65,7 @@ describe('RosterImportConflictService', () => {
       save: jest.fn((values: unknown) =>
         Promise.resolve({ id: GROUP_ID, ...(values as object) }),
       ),
+      update: jest.fn(() => Promise.resolve({})),
     };
 
     imports = {
@@ -149,12 +155,9 @@ describe('RosterImportConflictService', () => {
         fleetId: FLEET_ID,
         exportedAt: EXPORTED_AT,
       });
+      // One group per moment, ever, settled or not.
       expect(conflicts.findOne).toHaveBeenCalledWith({
-        where: {
-          fleetId: FLEET_ID,
-          exportedAt: EXPORTED_AT,
-          resolvedAt: IsNull(),
-        },
+        where: { fleetId: FLEET_ID, exportedAt: EXPORTED_AT },
       });
     });
 
@@ -176,7 +179,11 @@ describe('RosterImportConflictService', () => {
     });
 
     it('joins the group already open for the instant', async () => {
-      const open = { id: 'open-group' } as RosterImportConflictEntity;
+      const open = {
+        id: 'open-group',
+        selectedImportId: null,
+        resolvedAt: null,
+      } as RosterImportConflictEntity;
 
       conflicts.findOne.mockImplementation(() => Promise.resolve(open));
       imports.find.mockImplementation(() =>
@@ -185,10 +192,67 @@ describe('RosterImportConflictService', () => {
 
       await expect(group(member('new', 'b'))).resolves.toBe(open);
       expect(conflicts.save).not.toHaveBeenCalled();
+      expect(conflicts.update).not.toHaveBeenCalled();
       expect(imports.update).toHaveBeenCalledWith(
-        { id: In(['new', 'earlier']) },
+        { id: 'new' },
         { conflictGroupId: 'open-group' },
       );
+    });
+
+    describe('when the moment’s group was settled', () => {
+      const settled = {
+        id: 'settled-group',
+        selectedImportId: 'chosen',
+        resolvedAt: new Date('2024-02-01T00:00:00Z'),
+      } as RosterImportConflictEntity;
+
+      beforeEach(() => {
+        conflicts.findOne.mockImplementation(() => Promise.resolve(settled));
+        imports.find.mockImplementation(() =>
+          Promise.resolve([member('first', 'a'), member('chosen', 'b')]),
+        );
+      });
+
+      // A copy of what was selected changes nothing anybody decided.
+      it('joins without reopening when it says the same as the selection', async () => {
+        await expect(group(member('new', 'b'))).resolves.toBe(settled);
+
+        expect(imports.update).toHaveBeenCalledWith(
+          { id: 'new' },
+          { conflictGroupId: 'settled-group' },
+        );
+        expect(conflicts.update).not.toHaveBeenCalled();
+      });
+
+      // Steve's decision of 25 September 2026: the selection stays in force
+      // and the newcomer waits for an investigator to select again.
+      it('reopens it when it says something different from the selection', async () => {
+        await expect(group(member('new', 'a'))).resolves.toEqual({
+          ...settled,
+          resolvedAt: null,
+        });
+
+        expect(conflicts.update).toHaveBeenCalledWith(
+          { id: 'settled-group' },
+          { resolvedAt: null },
+        );
+        expect(conflicts.save).not.toHaveBeenCalled();
+        expect(warned).toHaveBeenCalledWith(
+          `[join] Settled roster conflict reopened - ` +
+            `ConflictGroupId: settled-group, FleetId: ${FLEET_ID}, ` +
+            `ImportId: new`,
+        );
+      });
+
+      it('reopens nothing when the selection is not among the moment’s imports', async () => {
+        imports.find.mockImplementation(() =>
+          Promise.resolve([member('first', 'a')]),
+        );
+
+        await group(member('new', 'c'));
+
+        expect(conflicts.update).not.toHaveBeenCalled();
+      });
     });
 
     it('says so, with identifiers and a count', async () => {
@@ -207,7 +271,7 @@ describe('RosterImportConflictService', () => {
   });
 
   describe('deciding whether an import waits', () => {
-    const open = { id: GROUP_ID, resolvedAt: null };
+    const open = { id: GROUP_ID, selectedImportId: null, resolvedAt: null };
 
     beforeEach(() => {
       conflicts.findOne.mockImplementation(() => Promise.resolve(open));
@@ -218,14 +282,44 @@ describe('RosterImportConflictService', () => {
       expect(conflicts.findOne).not.toHaveBeenCalled();
     });
 
-    it('does not hold an import whose group is resolved', async () => {
+    it('does not hold an import whose group cannot be found', async () => {
       conflicts.findOne.mockImplementation(() => Promise.resolve(null));
 
       await expect(
         service.isHeld(member('new', 'b', FileAssetState.CLEAN, GROUP_ID)),
       ).resolves.toBe(false);
       expect(conflicts.findOne).toHaveBeenCalledWith({
-        where: { id: GROUP_ID, resolvedAt: IsNull() },
+        where: { id: GROUP_ID },
+      });
+    });
+
+    describe('once an investigator has selected an export', () => {
+      beforeEach(() => {
+        conflicts.findOne.mockImplementation(() =>
+          Promise.resolve({ id: GROUP_ID, selectedImportId: 'chosen' }),
+        );
+        imports.find.mockImplementation(() =>
+          Promise.resolve([member('first', 'a'), member('chosen', 'b')]),
+        );
+      });
+
+      it('never holds the selected export', async () => {
+        await expect(
+          service.isHeld(member('chosen', 'b', FileAssetState.CLEAN, GROUP_ID)),
+        ).resolves.toBe(false);
+        expect(imports.find).not.toHaveBeenCalled();
+      });
+
+      it('holds one that differs from the selection, the first version included', async () => {
+        await expect(
+          service.isHeld(member('first', 'a', FileAssetState.CLEAN, GROUP_ID)),
+        ).resolves.toBe(true);
+      });
+
+      it('does not hold one that says the same as the selection', async () => {
+        await expect(
+          service.isHeld(member('copy', 'b', FileAssetState.CLEAN, GROUP_ID)),
+        ).resolves.toBe(false);
       });
     });
 

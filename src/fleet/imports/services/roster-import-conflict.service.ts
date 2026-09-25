@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { EntityManager, In, IsNull, Not, Repository } from 'typeorm';
+import { EntityManager, In, Not, Repository } from 'typeorm';
 
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
 
@@ -25,16 +25,27 @@ import { RosterImportSourceEntity } from '../entities/roster-import-source.entit
  * in force, so it cannot disagree with anything that is, and counting it
  * would hold a genuine export behind a file nobody will ever read.
  *
+ * ## One group per moment, ever
+ *
+ * Steve decided on 25 September 2026 that an export arriving for a moment
+ * whose group was settled joins that group rather than starting another. If
+ * it says something different from the export selected there, the group is
+ * reopened: the selection stays in force, and the newcomer waits until an
+ * investigator selects again.
+ *
  * ## Holding
  *
- * The first version of a moment the site saw stays in force; an import
- * saying something different waits until the group is resolved. "First" is
- * the earliest upload in the group that has not been refused, and an import
- * saying the same as it is not held, because it is not different.
+ * Until an investigator selects an export of the moment, the first version
+ * the site saw stays in force, and an import saying something different
+ * waits. "First" is the earliest upload in the group that has not been
+ * refused. Once one is selected, it is the reference instead. An import
+ * saying the same as the reference is not held, because it is not
+ * different, and the selected import is never held.
  *
  * That is decided when the file is published rather than when it is
  * grouped, because a scan takes time and the first upload may be refused in
- * the meantime.
+ * the meantime — and it is decided again when a held import is selected and
+ * queued for publication once more.
  */
 @Injectable()
 export class RosterImportConflictService {
@@ -54,8 +65,8 @@ export class RosterImportConflictService {
   ) {}
 
   /**
-   * Puts a newly recorded import in a group with every other import of the
-   * same Fleet and instant, when any of them says something different.
+   * Puts a newly recorded import in its moment's group, making one when it
+   * is the first to disagree.
    *
    * @param manager - The transaction the import was recorded in.
    * @param record - The import, already inserted in that transaction.
@@ -81,19 +92,23 @@ export class RosterImportConflictService {
       })
     ).filter(other => other.asset.state !== FileAssetState.REJECTED);
 
+    const existing = await conflicts.findOne({
+      where: { fleetId: record.fleetId, exportedAt },
+    });
+
+    if (existing !== null) {
+      return this.join(manager, existing, record, others);
+    }
+
     if (
       !others.some(other => other.sanitisedSha256 !== record.sanitisedSha256)
     ) {
       return null;
     }
 
-    const group =
-      (await conflicts.findOne({
-        where: { fleetId: record.fleetId, exportedAt, resolvedAt: IsNull() },
-      })) ??
-      (await conflicts.save(
-        conflicts.create({ fleetId: record.fleetId, exportedAt }),
-      ));
+    const group = await conflicts.save(
+      conflicts.create({ fleetId: record.fleetId, exportedAt }),
+    );
 
     await imports.update(
       { id: In([record.id, ...others.map(other => other.id)]) },
@@ -111,11 +126,55 @@ export class RosterImportConflictService {
   }
 
   /**
-   * Says whether an import has to wait for its group to be resolved.
+   * Adds an import to the group its moment already has, reopening a settled
+   * group when it disagrees with the export selected there.
+   *
+   * @param manager - The transaction the import was recorded in.
+   * @param group - The moment's group.
+   * @param record - The import.
+   * @param others - The other imports of the moment, refused ones aside.
+   * @returns The group.
+   */
+  private async join(
+    manager: EntityManager,
+    group: RosterImportConflictEntity,
+    record: RosterImportSourceEntity,
+    others: readonly RosterImportSourceEntity[],
+  ): Promise<RosterImportConflictEntity> {
+    await manager
+      .getRepository(RosterImportSourceEntity)
+      .update({ id: record.id }, { conflictGroupId: group.id });
+
+    const selected = others.find(other => other.id === group.selectedImportId);
+
+    if (
+      group.resolvedAt !== null &&
+      selected !== undefined &&
+      selected.sanitisedSha256 !== record.sanitisedSha256
+    ) {
+      await manager
+        .getRepository(RosterImportConflictEntity)
+        .update({ id: group.id }, { resolvedAt: null });
+
+      this._logger.warn(
+        `[join] Settled roster conflict reopened - ` +
+          `ConflictGroupId: ${group.id}, FleetId: ${record.fleetId}, ` +
+          `ImportId: ${record.id}`,
+      );
+
+      return { ...group, resolvedAt: null };
+    }
+
+    return group;
+  }
+
+  /**
+   * Says whether an import has to wait for an investigator.
    *
    * @param record - The import being published.
-   * @returns True when it is in an open group and differs from the first
-   *   version of the moment the site saw.
+   * @returns True when it is in a group and differs from the export the
+   *   group selected, or from the first version of the moment the site saw
+   *   while nothing is selected.
    */
   async isHeld(record: RosterImportSourceEntity): Promise<boolean> {
     if (record.conflictGroupId === null) {
@@ -123,10 +182,10 @@ export class RosterImportConflictService {
     }
 
     const group = await this._conflicts.findOne({
-      where: { id: record.conflictGroupId, resolvedAt: IsNull() },
+      where: { id: record.conflictGroupId },
     });
 
-    if (group === null) {
+    if (group === null || group.selectedImportId === record.id) {
       return false;
     }
 
@@ -138,10 +197,12 @@ export class RosterImportConflictService {
 
     // The import being published is a member and has just been cleared, so
     // there is always at least one that was not refused.
-    const first =
-      members.find(member => member.asset.state !== FileAssetState.REJECTED) ??
+    const reference =
+      (group.selectedImportId === null
+        ? members.find(member => member.asset.state !== FileAssetState.REJECTED)
+        : members.find(member => member.id === group.selectedImportId)) ??
       record;
 
-    return first.sanitisedSha256 !== record.sanitisedSha256;
+    return reference.sanitisedSha256 !== record.sanitisedSha256;
   }
 }

@@ -566,6 +566,42 @@ export class RosterImportsController {
   }
 
   /**
+   * Selects an export as the one that stands for its disputed moment.
+   *
+   * @param fleetId - The Fleet.
+   * @param importId - The export to select.
+   * @param userId - The investigator.
+   * @param body - Why.
+   * @returns The import as it now stands.
+   */
+  @Post(':importId/selection')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, ScopeCapabilityGuard)
+  @RequiresScopeCapability(FLEET_CAPABILITIES.ROSTER_INVESTIGATE, FLEET_SCOPE)
+  @ApiOperation({
+    summary: 'Select the export that stands for a disputed moment',
+  })
+  @ApiOkResponse({ type: RosterImportDetailDto })
+  @ApiNotFoundResponse({ description: 'The Fleet has no such import.' })
+  @ApiConflictResponse({
+    description:
+      'No other export claims its moment, it is excluded, it is already ' +
+      'the one selected, or it is neither in force nor waiting.',
+  })
+  async select(
+    @Param('fleetId', ParseUUIDPipe) fleetId: string,
+    @Param('importId', ParseUUIDPipe) importId: string,
+    @UserId() userId: string,
+    @Body() body: RosterImportReasonDto,
+  ): Promise<RosterImportDetailDto> {
+    await this._featureService.assertFlagEnabled(
+      FLEET_FEATURE_FLAGS.IMPORTS_ENABLED,
+    );
+
+    return this._correctionService.select(fleetId, importId, userId, body);
+  }
+
+  /**
    * Runs the three refusals that precede reading a file, and returns the
    * Fleet.
    *

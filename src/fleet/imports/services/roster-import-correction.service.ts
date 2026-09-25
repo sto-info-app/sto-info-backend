@@ -12,6 +12,7 @@ import { DataSource, EntityManager, In } from 'typeorm';
 import { FileAssetPlacementEntity } from 'src/file-assets/entities/file-asset-placement.entity';
 import { FileAssetPlacementState } from 'src/file-assets/enums/file-asset-placement-state.enum';
 import { FileAssetSubject } from 'src/file-assets/enums/file-asset-subject.enum';
+import { AssetPublicationQueueService } from 'src/file-assets/services/asset-publication-queue.service';
 
 import { RosterReplayQueueService } from '../../projection/services/roster-replay-queue.service';
 import {
@@ -24,6 +25,7 @@ import {
   RosterImportActionDetail,
   RosterImportActionEntity,
 } from '../entities/roster-import-action.entity';
+import { RosterImportConflictEntity } from '../entities/roster-import-conflict.entity';
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
 import { RosterObservationEntity } from '../entities/roster-observation.entity';
 import { RosterImportActionKind } from '../enums/roster-import-action-kind.enum';
@@ -35,14 +37,26 @@ const CORRECTABLE: readonly FileAssetPlacementState[] = [
   FileAssetPlacementState.HELD,
 ];
 
+/** What a correction did, for the record and for what follows the commit. */
+interface Corrected {
+  /** What the action log calls it. */
+  readonly action: RosterImportActionKind;
+  /** The lines, or the zone and instant, it changed. */
+  readonly detail: RosterImportActionDetail | null;
+  /** For a selection, the group it settled. */
+  readonly conflictGroupId?: string;
+  /**
+   * For a selection of a held export, true: it has to be read and put in
+   * force, and its going into force queues the replay.
+   */
+  readonly release?: boolean;
+}
+
 /** What one correction does, inside its transaction. */
 type Correction = (
   manager: EntityManager,
   record: RosterImportSourceEntity,
-) => Promise<{
-  readonly action: RosterImportActionKind;
-  readonly detail: RosterImportActionDetail | null;
-}>;
+) => Promise<Corrected>;
 
 /**
  * Lets an investigator change how an import counts (FC-019).
@@ -67,6 +81,16 @@ type Correction = (
  *
  * Only `roster.investigate` holders reach this, and a reason is required of
  * every correction: Steve's decisions of 25 September 2026.
+ *
+ * ## Selecting an export
+ *
+ * Settles which export of a disputed moment stands, and can be changed by
+ * selecting another. A held export has never been read, so selecting one
+ * queues it for publication once the selection commits; the publisher,
+ * asked again, finds it selected and reads it into force, and its going
+ * into force queues the replay. Until then the moment reads as awaiting,
+ * and if the publication cannot finish, the replay request recorded here
+ * leaves the projection stale for the sweep rather than silently wrong.
  */
 @Injectable()
 export class RosterImportCorrectionService {
@@ -79,12 +103,14 @@ export class RosterImportCorrectionService {
    *   on.
    * @param _replays - Asks for the Fleet's roster to be replayed.
    * @param _status - Reports the import as it now stands.
+   * @param _publications - Queues a selected held export to be read.
    */
   constructor(
     @InjectDataSource()
     private readonly _dataSource: DataSource,
     private readonly _replays: RosterReplayQueueService,
     private readonly _status: RosterImportStatusService,
+    private readonly _publications: AssetPublicationQueueService,
   ) {}
 
   /**
@@ -268,6 +294,69 @@ export class RosterImportCorrectionService {
   }
 
   /**
+   * Selects an export as the one that stands for its disputed moment.
+   *
+   * @param fleetId - The Fleet.
+   * @param importId - The export to select.
+   * @param userId - The investigator.
+   * @param body - Why.
+   * @returns The import as it now stands.
+   */
+  async select(
+    fleetId: string,
+    importId: string,
+    userId: string,
+    body: RosterImportReasonDto,
+  ): Promise<RosterImportDetailDto> {
+    return this.correct(
+      fleetId,
+      importId,
+      userId,
+      body.reason,
+      async (manager, record) => {
+        if (record.conflictGroupId === null) {
+          throw new ConflictException(
+            'No other export claims this moment, so there is nothing to ' +
+              'select between.',
+          );
+        }
+
+        if (record.excluded) {
+          throw new ConflictException(
+            'This import is excluded. Reinstate it before selecting it.',
+          );
+        }
+
+        const group = await manager.findOneOrFail(RosterImportConflictEntity, {
+          where: { id: record.conflictGroupId },
+          lock: { mode: 'pessimistic_write' },
+        });
+
+        if (group.selectedImportId === record.id) {
+          throw new ConflictException(
+            'This export is already the one selected.',
+          );
+        }
+
+        await manager.update(
+          RosterImportConflictEntity,
+          { id: group.id },
+          { selectedImportId: record.id, resolvedAt: new Date() },
+        );
+
+        return {
+          action: RosterImportActionKind.CONFLICT_SELECTED,
+          detail: null,
+          conflictGroupId: group.id,
+          release:
+            (await this.placementState(manager, record)) ===
+            FileAssetPlacementState.HELD,
+        };
+      },
+    );
+  }
+
+  /**
    * Runs one correction: lock, check, change, record, ask for a replay, and
    * after the commit queue it.
    *
@@ -287,7 +376,7 @@ export class RosterImportCorrectionService {
     reason: string,
     work: Correction,
   ): Promise<RosterImportDetailDto> {
-    const action = await this._dataSource.transaction(async manager => {
+    const done = await this._dataSource.transaction(async manager => {
       const record = await manager.findOne(RosterImportSourceEntity, {
         where: { id: importId, fleetId },
         lock: { mode: 'pessimistic_write' },
@@ -299,27 +388,32 @@ export class RosterImportCorrectionService {
 
       await this.requireCorrectable(manager, record);
 
-      const done = await work(manager, record);
+      const corrected = await work(manager, record);
 
       await manager.insert(RosterImportActionEntity, {
         fleetId,
         importSourceId: record.id,
-        action: done.action,
+        conflictGroupId: corrected.conflictGroupId ?? null,
+        action: corrected.action,
         actorUserId: userId,
         reason,
-        detail: done.detail,
+        detail: corrected.detail,
       });
       await this._replays.request(manager, fleetId);
 
-      return done.action;
+      return { ...corrected, assetId: record.assetId };
     });
 
     this._logger.log(
       `[correct] Roster import corrected - FleetId: ${fleetId}, ` +
-        `ImportId: ${importId}, Action: ${action}`,
+        `ImportId: ${importId}, Action: ${done.action}`,
     );
 
-    await this._replays.enqueue(fleetId);
+    if (done.release === true) {
+      await this._publications.enqueue(done.assetId);
+    } else {
+      await this._replays.enqueue(fleetId);
+    }
 
     return this._status.detail(fleetId, importId, true);
   }

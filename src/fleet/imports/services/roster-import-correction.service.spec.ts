@@ -10,9 +10,11 @@ import { DataSource, EntityTarget, FindOperator } from 'typeorm';
 import { FileAssetPlacementEntity } from 'src/file-assets/entities/file-asset-placement.entity';
 import { FileAssetPlacementState } from 'src/file-assets/enums/file-asset-placement-state.enum';
 import { FileAssetSubject } from 'src/file-assets/enums/file-asset-subject.enum';
+import { AssetPublicationQueueService } from 'src/file-assets/services/asset-publication-queue.service';
 
 import { RosterReplayQueueService } from '../../projection/services/roster-replay-queue.service';
 import { RosterImportActionEntity } from '../entities/roster-import-action.entity';
+import { RosterImportConflictEntity } from '../entities/roster-import-conflict.entity';
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
 import { RosterObservationEntity } from '../entities/roster-observation.entity';
 import { RosterImportActionKind } from '../enums/roster-import-action-kind.enum';
@@ -34,6 +36,8 @@ describe('RosterImportCorrectionService', () => {
   let manager: Record<string, jest.Mock>;
   let replays: { request: jest.Mock; enqueue: jest.Mock };
   let status: { detail: jest.Mock };
+  let publications: { enqueue: jest.Mock };
+  let group: Row;
   let service: RosterImportCorrectionService;
 
   beforeEach(() => {
@@ -80,6 +84,15 @@ describe('RosterImportCorrectionService', () => {
 
         return Promise.resolve();
       }),
+      findOneOrFail: jest.fn(() => Promise.resolve({ ...group })),
+    };
+    group = { id: 'group-1', selectedImportId: null, resolvedAt: null };
+    publications = {
+      enqueue: jest.fn(() => {
+        order.push('publish');
+
+        return Promise.resolve();
+      }),
     };
     replays = {
       request: jest.fn(() => {
@@ -105,6 +118,7 @@ describe('RosterImportCorrectionService', () => {
       } as unknown as DataSource,
       replays as unknown as RosterReplayQueueService,
       status as unknown as RosterImportStatusService,
+      publications as unknown as AssetPublicationQueueService,
     );
 
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
@@ -183,6 +197,7 @@ describe('RosterImportCorrectionService', () => {
       expect(recorded()).toEqual({
         fleetId: FLEET_ID,
         importSourceId: IMPORT_ID,
+        conflictGroupId: null,
         action: RosterImportActionKind.EXCLUDED,
         actorUserId: USER_ID,
         reason: REASON,
@@ -277,6 +292,84 @@ describe('RosterImportCorrectionService', () => {
           reason: REASON,
         }),
       ).rejects.toThrow(new ConflictException(message));
+    });
+  });
+
+  describe('selecting an export', () => {
+    const select = () =>
+      service.select(FLEET_ID, IMPORT_ID, USER_ID, { reason: REASON });
+
+    beforeEach(() => {
+      record!.conflictGroupId = 'group-1';
+    });
+
+    it('settles the group on it, locking the group', async () => {
+      await select();
+
+      expect(manager.findOneOrFail).toHaveBeenCalledWith(
+        RosterImportConflictEntity,
+        { where: { id: 'group-1' }, lock: { mode: 'pessimistic_write' } },
+      );
+      expect(manager.update).toHaveBeenCalledWith(
+        RosterImportConflictEntity,
+        { id: 'group-1' },
+        { selectedImportId: IMPORT_ID, resolvedAt: expect.any(Date) },
+      );
+      expect(recorded()).toMatchObject({
+        action: RosterImportActionKind.CONFLICT_SELECTED,
+        conflictGroupId: 'group-1',
+        detail: null,
+      });
+    });
+
+    // Steve's decision of 25 September 2026: a selection can be changed.
+    it('replaces an earlier selection', async () => {
+      group.selectedImportId = 'import-other';
+
+      await expect(select()).resolves.toEqual({ id: IMPORT_ID });
+    });
+
+    it('queues the replay at once for an export already in force', async () => {
+      await select();
+
+      expect(order).toEqual(['update', 'insert', 'request', 'enqueue']);
+      expect(publications.enqueue).not.toHaveBeenCalled();
+    });
+
+    // A held export has never been read. Its publication reads it into
+    // force, and its going into force queues the replay; queuing one now
+    // would publish a revision with nothing read for the moment.
+    it('queues a held export to be read, and leaves the replay to its going into force', async () => {
+      placementState = FileAssetPlacementState.HELD;
+
+      await select();
+
+      expect(order).toEqual(['update', 'insert', 'request', 'publish']);
+      expect(publications.enqueue).toHaveBeenCalledWith('asset-1');
+      expect(replays.enqueue).not.toHaveBeenCalled();
+      expect(replays.request).toHaveBeenCalledWith(manager, FLEET_ID);
+    });
+
+    it('refuses an import no other export disputes', async () => {
+      record!.conflictGroupId = null;
+
+      await expect(select()).rejects.toThrow(/nothing to select between/);
+      expect(manager.findOneOrFail).not.toHaveBeenCalled();
+    });
+
+    it('refuses an excluded import', async () => {
+      record!.excluded = true;
+
+      await expect(select()).rejects.toThrow(/Reinstate it before selecting/);
+    });
+
+    it('refuses the export already selected', async () => {
+      group.selectedImportId = IMPORT_ID;
+
+      await expect(select()).rejects.toThrow(
+        new ConflictException('This export is already the one selected.'),
+      );
+      expect(manager.insert).not.toHaveBeenCalled();
     });
   });
 

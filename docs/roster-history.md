@@ -130,6 +130,7 @@ import, records its request for a replay in the same transaction, and queues it 
 | --- | --- |
 | **Exclude** an import, or **reinstate** it | It stays evidence and leaves every derived result. Reinstating rebuilds exactly what was there before |
 | Mark an export **partial**, or complete again | Its rows still show who was there, but nobody missing from it is taken to have left |
+| **Select** the export that stands for a disputed moment | It is read for the moment and the group's other exports are not. A held export is read into force first |
 | **Exclude rows**, or put them back | Each member an excluded row names is unknown in that export — neither present nor absent |
 
 Only an import in force, or held for a conflicting export, can be corrected: one still scanning,
@@ -138,6 +139,20 @@ refused or given up on has never counted. Only one in force has rows to exclude.
 An export marked partial, or with any row excluded, is also skipped when renames are paired — see
 [Roster identities](roster-identities.md#the-recompute) — so a rename resting on it is flagged stale
 until the export is complete again.
+
+### Selecting between exports of one moment
+
+FC-017 groups exports of a Fleet that claim the same instant and say different things, keeps the
+first version in force and holds the rest. Selecting settles the group: the selected export is read
+for the moment, and a copy of it is `SAME_AS_EFFECTIVE`. A held export has never been read, so
+selecting one queues it for publication; the publisher is asked again, finds it selected and reads
+it into force, and its going into force queues the replay.
+
+There is one group per Fleet and instant, ever (Steve's decision of 25 September 2026). An export
+arriving for a settled moment joins its group; if it says something different from the selection,
+the group is reopened and the newcomer held, while the selection stays in force. Selecting again
+settles it. An import that is merely held asks for no replay, so it appears among a revision's
+inputs from the next one.
 
 An import's detail shows an investigator its excluded lines, its corrections newest first with the
 investigator's STO Info username, and its conflict group's selection. Everybody who can read it sees

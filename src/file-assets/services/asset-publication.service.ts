@@ -121,7 +121,10 @@ export interface PublicationOutcome {
  * A feature that needs somebody to decide first holds it. The placement is
  * held, the asset stays `CLEAN` and the bytes stay where they are, so a
  * retried job asks the feature again rather than resuming a publication
- * that never started, and nothing from the file is in force.
+ * that never started, and nothing from the file is in force. Once somebody
+ * has decided, the feature queues the asset again and is asked again: a
+ * held placement goes into force from here like a pending one, or is held
+ * again.
  */
 @Injectable()
 export class AssetPublicationService {
@@ -177,7 +180,15 @@ export class AssetPublicationService {
 
     const restricted = asset.audience === FileAssetAudience.RESTRICTED;
 
-    if (placement.state !== FileAssetPlacementState.PENDING) {
+    // A held restricted file is asked about again when it is queued again:
+    // whoever held it may have decided since. Only while the asset is still
+    // CLEAN, so the feature is always asked and never skipped.
+    const askAgain =
+      restricted &&
+      placement.state === FileAssetPlacementState.HELD &&
+      asset.state === FileAssetState.CLEAN;
+
+    if (placement.state !== FileAssetPlacementState.PENDING && !askAgain) {
       // A restricted placement is never superseded, because each one is its
       // own record. One that is no longer pending is in force, held, refused
       // or swept, and in the first two cases its bytes are evidence and must
