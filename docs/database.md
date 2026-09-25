@@ -36,7 +36,7 @@ The database uses PostgreSQL with TypeORM for object-relational mapping.
 | `RosterIntervalSummaryEntity` | `fleet_roster_interval_summary` | What happened between two consecutive effective exports |
 | `RosterRankOrderEntity` | `fleet_roster_rank_order` | Which tier each of a Fleet's rank labels is in, when an investigator has ordered them — see [Roster history](roster-history.md#rank-order) |
 | `RosterRankOrderActionEntity` | `fleet_roster_rank_order_action` | Each edit to a Fleet's rank order, the order before and after, with who and why, write-once |
-| `FleetReportAudienceEntity` | `fleet_report_audience` | Who the Owner has let see each of a Fleet's reports; a report with no row is private |
+| `FleetReportAudienceEntity` | `fleet_report_audience` | Who the Owner has let see each of a Fleet's reports; a report with no row is private — see [Fleet reports](fleet-reports.md) |
 | `FleetReportAudienceChangeEntity` | `fleet_report_audience_change` | Each change to a report's audience, from what to what and who made it, write-once |
 
 ### Platform Launcher Image Mapping

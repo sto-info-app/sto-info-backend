@@ -1,13 +1,17 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
   ParseUUIDPipe,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiConflictResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -31,7 +35,12 @@ import {
 } from './dto/roster-history.dto';
 import { RosterPageDto } from './dto/roster-page.dto';
 import { RosterQueryDto } from './dto/roster-query.dto';
+import {
+  RosterRankOrderDto,
+  UpdateRosterRankOrderDto,
+} from './dto/roster-rank-order.dto';
 import { RosterHistoryService } from './services/roster-history.service';
+import { RosterRankOrderService } from './services/roster-rank-order.service';
 import { RosterTimelineService } from './services/roster-timeline.service';
 import {
   RosterViewer,
@@ -61,6 +70,7 @@ export class RosterController {
    * @param _viewService - Reads the roster.
    * @param _historyService - Reads the history.
    * @param _timelineService - Reads one member's history.
+   * @param _rankOrderService - Reads and edits the rank order.
    * @param _authorisationService - Tells an investigator from a reader.
    * @param _featureService - Reports whether imports are switched on.
    */
@@ -68,6 +78,7 @@ export class RosterController {
     private readonly _viewService: RosterViewService,
     private readonly _historyService: RosterHistoryService,
     private readonly _timelineService: RosterTimelineService,
+    private readonly _rankOrderService: RosterRankOrderService,
     private readonly _authorisationService: FleetAuthorisationService,
     private readonly _featureService: FleetFeatureService,
   ) {}
@@ -148,6 +159,62 @@ export class RosterController {
       identityId,
       await this.viewer(fleetId, userId),
     );
+  }
+
+  /**
+   * Reads the Fleet's rank order.
+   *
+   * Open to every roster reader, since each roster row already shows its
+   * tier. Only an investigator is shown the labels to place and every edit.
+   *
+   * @param fleetId - The Fleet.
+   * @param userId - The reader.
+   * @returns The order.
+   */
+  @Get('rank-order')
+  @UseGuards(JwtAuthGuard, ScopeCapabilityGuard)
+  @RequiresScopeCapability(FLEET_CAPABILITIES.ROSTER_VIEW, FLEET_SOURCE)
+  @ApiOperation({ summary: "Read this Fleet's rank order" })
+  @ApiOkResponse({ type: RosterRankOrderDto })
+  async rankOrder(
+    @Param('fleetId', ParseUUIDPipe) fleetId: string,
+    @UserId() userId: string,
+  ): Promise<RosterRankOrderDto> {
+    await this.assertEnabled();
+
+    const { investigator } = await this.viewer(fleetId, userId);
+
+    return this._rankOrderService.view(fleetId, investigator);
+  }
+
+  /**
+   * Replaces the Fleet's rank order, with a reason.
+   *
+   * @param fleetId - The Fleet.
+   * @param userId - The investigator.
+   * @param body - The new order, the order as loaded, and why.
+   * @returns The order as the investigator now sees it.
+   */
+  @Put('rank-order')
+  @UseGuards(JwtAuthGuard, ScopeCapabilityGuard)
+  @RequiresScopeCapability(FLEET_CAPABILITIES.ROSTER_INVESTIGATE, FLEET_SOURCE)
+  @ApiOperation({ summary: "Replace this Fleet's rank order" })
+  @ApiOkResponse({ type: RosterRankOrderDto })
+  @ApiBadRequestResponse({
+    description:
+      'Nothing would change, or the order places a label no import listed.',
+  })
+  @ApiConflictResponse({
+    description: 'The order changed since it was loaded.',
+  })
+  async updateRankOrder(
+    @Param('fleetId', ParseUUIDPipe) fleetId: string,
+    @UserId() userId: string,
+    @Body() body: UpdateRosterRankOrderDto,
+  ): Promise<RosterRankOrderDto> {
+    await this.assertEnabled();
+
+    return this._rankOrderService.update(fleetId, userId, body);
   }
 
   /**

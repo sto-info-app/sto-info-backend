@@ -9,6 +9,7 @@ import { FleetFeatureService } from '../fleet-feature.service';
 import { RosterChangeKind } from '../projection/enums/roster-change-kind.enum';
 import { RosterController } from './roster.controller';
 import { RosterHistoryService } from './services/roster-history.service';
+import { RosterRankOrderService } from './services/roster-rank-order.service';
 import { RosterTimelineService } from './services/roster-timeline.service';
 import { RosterViewService } from './services/roster-view.service';
 
@@ -16,6 +17,7 @@ describe('RosterController', () => {
   let viewService: { page: jest.Mock };
   let historyService: { page: jest.Mock };
   let timelineService: { timeline: jest.Mock };
+  let rankOrderService: { view: jest.Mock; update: jest.Mock };
   let authorisationService: { hasCapability: jest.Mock };
   let featureService: { assertFlagEnabled: jest.Mock };
   let controller: RosterController;
@@ -28,6 +30,10 @@ describe('RosterController', () => {
     timelineService = {
       timeline: jest.fn(() => Promise.resolve({ identityId: 'identity-1' })),
     };
+    rankOrderService = {
+      view: jest.fn(() => Promise.resolve({ tiers: [] })),
+      update: jest.fn(() => Promise.resolve({ tiers: [['Officer']] })),
+    };
     authorisationService = {
       hasCapability: jest.fn(() => Promise.resolve(false)),
     };
@@ -38,13 +44,14 @@ describe('RosterController', () => {
       viewService as unknown as RosterViewService,
       historyService as unknown as RosterHistoryService,
       timelineService as unknown as RosterTimelineService,
+      rankOrderService as unknown as RosterRankOrderService,
       authorisationService as unknown as FleetAuthorisationService,
       featureService as unknown as FleetFeatureService,
     );
   });
 
   // The private roster: following a Community never confers roster.view.
-  it.each(['roster', 'history', 'timeline'] as const)(
+  it.each(['roster', 'history', 'timeline', 'rankOrder'] as const)(
     'keeps %s to roster.view holders',
     route => {
       expect(
@@ -125,6 +132,49 @@ describe('RosterController', () => {
     });
   });
 
+  describe('rank order', () => {
+    it('is edited by investigators only', () => {
+      expect(
+        Reflect.getMetadata(
+          REQUIRES_SCOPE_CAPABILITY_KEY,
+          RosterController.prototype.updateRankOrder,
+        ),
+      ).toMatchObject({ capability: FLEET_CAPABILITIES.ROSTER_INVESTIGATE });
+    });
+
+    it('is read in full by an investigator', async () => {
+      authorisationService.hasCapability.mockResolvedValue(true);
+
+      await expect(controller.rankOrder('fleet-1', 'user-1')).resolves.toEqual({
+        tiers: [],
+      });
+      expect(rankOrderService.view).toHaveBeenCalledWith('fleet-1', true);
+    });
+
+    it('is read as tiers alone by a reader', async () => {
+      await controller.rankOrder('fleet-1', 'user-1');
+
+      expect(rankOrderService.view).toHaveBeenCalledWith('fleet-1', false);
+    });
+
+    it('is replaced as asked', async () => {
+      const body = {
+        tiers: [['Officer']],
+        expected: [],
+        reason: 'Officers outrank members',
+      };
+
+      await expect(
+        controller.updateRankOrder('fleet-1', 'user-1', body),
+      ).resolves.toEqual({ tiers: [['Officer']] });
+      expect(rankOrderService.update).toHaveBeenCalledWith(
+        'fleet-1',
+        'user-1',
+        body,
+      );
+    });
+  });
+
   describe('while imports are switched off', () => {
     beforeEach(() => {
       featureService.assertFlagEnabled.mockRejectedValue(
@@ -144,6 +194,21 @@ describe('RosterController', () => {
         NotFoundException,
       );
       expect(historyService.page).not.toHaveBeenCalled();
+    });
+
+    it('hides the rank order', async () => {
+      await expect(
+        controller.rankOrder('fleet-1', 'user-1'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(
+        controller.updateRankOrder('fleet-1', 'user-1', {
+          tiers: [],
+          expected: [],
+          reason: 'x',
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(rankOrderService.view).not.toHaveBeenCalled();
+      expect(rankOrderService.update).not.toHaveBeenCalled();
     });
 
     it('hides a member', async () => {

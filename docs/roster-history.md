@@ -185,6 +185,12 @@ labels (FC-020, Steve's decisions of 25 September 2026):
   labels, so an edit shows at once and needs no replay.
 - **Every edit gives a reason**, and `fleet_roster_rank_order_action` keeps the order before and
   after, with who made it and when. Like an import correction, it is append-only.
+- **Anyone who reads the roster can read the order**, since each row shows its tier. Only an
+  investigator is shown the labels to place and the edits.
+- **An edit replaces the whole order.** It sends the order as it was loaded, under a lock on the
+  Fleet's order. One made to an order somebody has changed since is refused with 409, and one that
+  changes nothing with 400. Labels within a tier have no order, so two orders that differ only
+  there are the same order.
 
 An order confers nothing in the app: a label is text, however high its tier.
 

@@ -653,6 +653,67 @@ changes, rows }`.
 **Response (404):** the published revision has nothing of that member. A member of another Fleet,
 or one whose names a confirmed rename has since joined to another member, is reported the same way.
 
+### GET /fleet-communities/:communityId/fleets/:fleetId/roster/rank-order
+
+A Fleet's rank order (FC-020). See [Roster history](roster-history.md#rank-order).
+
+**Authentication Required.** `roster.view` at that Fleet.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Response (200):** `{ tiers, labels, actions }`. `tiers` lists the tiers highest first, each a
+list of labels; it is empty when the Fleet has no order. For `roster.investigate` holders,
+`labels` lists every label the Fleet's imports have listed, with its tier or null. `actions` lists
+every edit, newest first, with the investigator's STO Info username, the reason, and the order
+before and after. Both are null for anybody else.
+
+### PUT /fleet-communities/:communityId/fleets/:fleetId/roster/rank-order
+
+Replace a Fleet's rank order.
+
+**Authentication Required.** `roster.investigate` at that Fleet.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Request:** `{ "tiers": [["Admiral"], ["Captain", "Commander"]], "expected": <the tiers as
+loaded>, "reason": "..." }`. Tiers run highest first, and each holds one or more labels exactly as
+exports list them. No label may be placed twice, and at most 255 may be placed. An empty list
+clears the order. A reason is required, at most 500 characters.
+
+**Response (200):** the order as an investigator sees it.
+
+**Response (400):** nothing would change, or the order places a label none of the Fleet's imports
+has listed, which the message names.
+
+**Response (409):** the order changed since it was loaded.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/reports/audiences
+
+Who may see each of a Fleet's reports (FC-020). See [Fleet reports](fleet-reports.md).
+
+**Authentication Required.** `reports.view` at that Fleet: its Owner and Admins.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Response (200):** `{ reports, changes }`. `reports` gives each of `GROWTH`, `TENURE`, `RANKS`,
+`ACTIVITY` and `CONTRIBUTION` with its audience, and when that was last changed or null. A report
+never changed is `PRIVATE`. `changes` lists every change, newest first: the report, the audience
+before and after, and who made it by STO Info username.
+
+### PUT /fleet-communities/:communityId/fleets/:fleetId/reports/:report/audience
+
+Change who may see one of a Fleet's reports.
+
+**Authentication Required.** `scope.settings.manage` at that Fleet: its Owner.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Request:** `{ "audience": "PRIVATE" | "FLEET_MEMBERS" | "COMMUNITY" | "PUBLIC" }`.
+
+**Response (200):** every report's audience and change, as after it.
+
+**Response (400):** the report has that audience already, or `:report` is not a report.
+
 ### GET /fleet-communities/:communityId/fleets/:fleetId/roster-identities/candidates
 
 List a Fleet's rename candidates, open ones first. See [Roster identities](roster-identities.md).
