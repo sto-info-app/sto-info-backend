@@ -541,6 +541,9 @@ job proves nothing.
 | `disabled <email> on\|off`         | Disable or re-enable their account.              |
 | `cleanup`                          | Run tonight's retention job now.                 |
 | `counts <email>`                   | What they hold, live and deleted.                |
+| `preflight <email> <public> <private>` | The database, switches and fixture actors. No passwords. |
+| `prepare <email>`                  | Enable one fixture actor again.                  |
+| `actor <email>`                    | That fixture actor's role and grants.            |
 
 The picture journey is the only one that reaches outside the machine it runs
 on — the file is scanned by a third party and stored in Cloudflare Images — so
