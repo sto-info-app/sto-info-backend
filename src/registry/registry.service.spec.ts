@@ -905,6 +905,86 @@ describe('RegistryService', () => {
     });
   });
 
+  describe('findVisibleCharacterPaths', () => {
+    it('asks nothing when no captain is named', async () => {
+      const paths = await service.findVisibleCharacterPaths([], 'viewer-1');
+
+      expect(paths.size).toBe(0);
+      expect(characterRepository.createQueryBuilder).not.toHaveBeenCalled();
+      expect(blockService.getBlockedUserIds).not.toHaveBeenCalled();
+    });
+
+    it('holds each captain to the whole opt-in chain', async () => {
+      await service.findVisibleCharacterPaths(['character-1'], 'viewer-1');
+
+      expect(characterQb.where).toHaveBeenCalledWith(
+        'character.id IN (:...characterIds)',
+        { characterIds: ['character-1'] },
+      );
+
+      for (const condition of [
+        'character.publiclyVisible = true',
+        'character.deletedAt IS NULL',
+        'account.publiclyVisible = true',
+        'account.deletedAt IS NULL',
+        'profile.publiclyVisible = true',
+        'profile.deletedAt IS NULL',
+        'user.deletedAt IS NULL',
+        'user.isAccountDisabled = false',
+      ]) {
+        expect(characterQb.andWhere).toHaveBeenCalledWith(condition);
+      }
+    });
+
+    it('returns each openable captain by ID', async () => {
+      characterQb.getRawMany.mockResolvedValue([
+        {
+          characterId: 'character-1',
+          username: 'captain.picard',
+          accountSlug: 'SteveX~1234',
+          characterSlug: 'rex@stevex~1234',
+        },
+      ]);
+
+      const paths = await service.findVisibleCharacterPaths(
+        ['character-1', 'character-2'],
+        null,
+      );
+
+      expect([...paths.entries()]).toEqual([
+        [
+          'character-1',
+          {
+            username: 'captain.picard',
+            accountSlug: 'SteveX~1234',
+            characterSlug: 'rex@stevex~1234',
+          },
+        ],
+      ]);
+    });
+
+    it('leaves out a captain whose member is blocked either way', async () => {
+      blockService.getBlockedUserIds.mockResolvedValue(['user-9']);
+
+      await service.findVisibleCharacterPaths(['character-1'], 'viewer-1');
+
+      expect(blockService.getBlockedUserIds).toHaveBeenCalledWith('viewer-1');
+      expect(characterQb.andWhere).toHaveBeenCalledWith(
+        'account.userId NOT IN (:...blockedUserIds)',
+        { blockedUserIds: ['user-9'] },
+      );
+    });
+
+    it('adds no block clause when nobody is blocked', async () => {
+      await service.findVisibleCharacterPaths(['character-1'], null);
+
+      expect(characterQb.andWhere).not.toHaveBeenCalledWith(
+        'account.userId NOT IN (:...blockedUserIds)',
+        expect.anything(),
+      );
+    });
+  });
+
   describe('custom tracking on a detail page', () => {
     const aSection = (): CustomTrackingPublicSection =>
       ({

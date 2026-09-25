@@ -193,8 +193,35 @@ An order confers nothing in the app: a label is text, however high its tier.
 `GET …/fleets/:fleetId/roster-projection` — for whoever imports or investigates a Fleet's rosters —
 reports the published revision, whether it is stale, and every import it considered with what it
 made of each. It reads the revision number first and then only that revision's inputs. See
-[the API](api-endpoints.md#get-fleet-communitiescommunityidfleetsfleetidroster-projection). The
-roster, history and reports themselves are FC-020's.
+[the API](api-endpoints.md#get-fleet-communitiescommunityidfleetsfleetidroster-projection).
+
+## Reading the roster
+
+`GET …/fleets/:fleetId/roster` (FC-020) shows a Fleet's approved members — `roster.view` holders —
+the roster as one export listed it. See
+[the API](api-endpoints.md#get-fleet-communitiescommunityidfleetsfleetidroster). Steve's decisions
+of 25 September 2026:
+
+- **Which export.** The last of the published revision's effective exports at or before the
+  instant asked for, or the latest. An excluded export, or one not selected for its moment, is
+  never shown, because the history does not stand on it.
+- **What a row shows.** Everything the export kept, handles, Public Comments and Last Active
+  included (plan R10). The rows an investigator excluded are shown to investigators alone, marked.
+- **One member, two rows.** A confirmed rename whose two names an export still lists is one member
+  and two rows. Each row carries its member and how many rows that member has, so the two stay
+  told apart rather than being merged.
+- **Profile links.** A row is evidence that somebody by that name and handle was listed, never
+  whose Character it is (ADR-0002). It links to a Character's registry page only when all of
+  these hold:
+  - a registered Character has exactly the row's full handle;
+  - its owner has recorded a membership of the Fleet covering the export's moment;
+  - that record's audience includes the reader — `PRIVATE` there meaning the Character's owner
+    alone;
+  - the registry would show the reader the page, with profile, account and Character public and
+    no block either way.
+
+  A handle two such Characters share links to neither. A row that does not link says nothing
+  about why.
 
 ## After deploying
 

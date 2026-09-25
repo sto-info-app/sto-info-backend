@@ -553,6 +553,49 @@ the revision considered, in export order, each with its filename, export instant
 marked partial, how many rows were excluded, and its `outcome`: `EFFECTIVE`, `EXCLUDED`,
 `NOT_SELECTED`, `AWAITING_SELECTION` or `SAME_AS_EFFECTIVE`.
 
+### GET /fleet-communities/:communityId/fleets/:fleetId/roster
+
+A page of a Fleet's roster, as one effective export listed it (FC-020). See
+[Roster history](roster-history.md#reading-the-roster).
+
+**Authentication Required.** `roster.view` at that Fleet: its approved members and up. Following
+the Community never confers it. A caller who cannot see the Fleet is told it does not exist.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Query:**
+
+- `asOf` — an ISO 8601 instant. The roster is shown as the last effective export at or before it
+  listed it; the latest export when omitted.
+- `page` and `pageSize` — 50 rows a page unless fewer are asked for, and never more.
+- `sort` — `NAME` (the default), `HANDLE`, `RANK`, `LEVEL`, `JOINED`, `CONTRIBUTION` or
+  `LAST_ACTIVE`, and `direction`, `ASC` (the default) or `DESC`. `RANK` orders by the Fleet's rank
+  tiers, then label. Rows with no tier, Join Date or Last Active come last either way, and every
+  ordering ends on name, handle and line.
+- `search` — part of a Character name or an account handle, case-insensitively, at most 50
+  characters.
+- `rank` — only rows with exactly this rank label.
+
+**Response (200):** `{ revision, publishedAt, stale, coverage, export, ranks, items, total, page,
+pageSize }`.
+
+- `coverage` gives the number of effective exports the revision has, and the first and latest.
+- `export` is the export shown — its import, instant and whether it was marked partial, with the
+  one before and after it for stepping — or null when none is at or before `asOf`.
+- `ranks` counts the rows holding each label on that export, highest tier first.
+- Each item is a row: its line, Character name, account handle, level, class, profession, rank
+  label and tier, cumulative contribution as a decimal string, Join Date, rank-change date, Last
+  Active, status, Public Comment and when it was edited.
+- An item also carries the member it belongs to (`identityId`), and how many rows of the export
+  that member has (`identityRows`), so that two names a confirmed rename joined stay told apart.
+- `profile` is the path of the row's Character on the registry, or null. It is given only when
+  the Character's owner has recorded its membership of the Fleet for the export's moment, that
+  record's audience includes the caller, and the registry would show the caller the Character.
+- A row an investigator excluded is shown only to `roster.investigate` holders, with `excluded`
+  true.
+
+No officer field exists to return: they are discarded before anything is stored.
+
 ### GET /fleet-communities/:communityId/fleets/:fleetId/roster-identities/candidates
 
 List a Fleet's rename candidates, open ones first. See [Roster identities](roster-identities.md).

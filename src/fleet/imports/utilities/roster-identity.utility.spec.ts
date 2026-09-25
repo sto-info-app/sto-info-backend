@@ -1,6 +1,7 @@
 import {
   normaliseRosterAccountHandle,
   normaliseRosterCharacterName,
+  rosterRowFullHandle,
 } from './roster-identity.utility';
 
 describe('roster identity folding', () => {
@@ -29,6 +30,20 @@ describe('roster identity folding', () => {
   describe('normaliseRosterAccountHandle', () => {
     it('folds a handle the way the site folds its own', () => {
       expect(normaliseRosterAccountHandle(' @VexLoran ')).toBe('@vexloran');
+    });
+  });
+
+  describe('rosterRowFullHandle', () => {
+    it('folds a row into a Character full handle with one @', () => {
+      expect(rosterRowFullHandle('Vex Loran', '@VexLoran#1234')).toBe(
+        'vex loran@vexloran#1234',
+      );
+    });
+
+    it('takes a handle exported without its @ the same way', () => {
+      expect(rosterRowFullHandle('Vex Loran', 'VexLoran')).toBe(
+        'vex loran@vexloran',
+      );
     });
   });
 });

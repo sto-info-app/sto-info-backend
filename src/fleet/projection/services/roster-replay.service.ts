@@ -3,7 +3,6 @@ import { InjectDataSource } from '@nestjs/typeorm';
 
 import { DataSource, EntityManager, In, IsNull, LessThan } from 'typeorm';
 
-import { normalizeHandle } from 'src/shared/utilities/handle.utility';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
@@ -19,6 +18,7 @@ import {
 } from '../../identity/utilities/roster-identity-matcher';
 import { RosterImportSourceEntity } from '../../imports/entities/roster-import-source.entity';
 import { RosterObservationEntity } from '../../imports/entities/roster-observation.entity';
+import { rosterRowFullHandle } from '../../imports/utilities/roster-identity.utility';
 import { CharacterFleetProposalService } from '../../services/character-fleet-proposal.service';
 import { ROSTER_PROJECTION_WRITE_BATCH } from '../constants/roster-replay.constants';
 import { RosterChangeEntity } from '../entities/roster-change.entity';
@@ -509,9 +509,7 @@ export class RosterReplayService {
     const handles = [
       ...new Set(
         rows.map(row =>
-          normalizeHandle(
-            `${row.characterName}@${row.accountHandle.replace(/^@/, '')}`,
-          ),
+          rosterRowFullHandle(row.characterName, row.accountHandle),
         ),
       ),
     ];

@@ -35,3 +35,23 @@ export function normaliseRosterCharacterName(name: string): string {
 export function normaliseRosterAccountHandle(handle: string): string {
   return normalizeHandle(handle);
 }
+
+/**
+ * Folds a roster row's name and handle into a registered Character's full
+ * handle, as `character.fullHandleNormalized` holds it.
+ *
+ * The one place a roster row is put beside a registered Character: FC-018's
+ * proposals and FC-020's profile links both match on it, and must agree.
+ * The export writes the handle with its leading `@`, and a Character's full
+ * handle has exactly one.
+ *
+ * @param characterName - The Character name, exactly as exported.
+ * @param accountHandle - The account handle, exactly as exported.
+ * @returns The full handle, trimmed and lower-cased.
+ */
+export function rosterRowFullHandle(
+  characterName: string,
+  accountHandle: string,
+): string {
+  return normalizeHandle(`${characterName}@${accountHandle.replace(/^@/, '')}`);
+}
