@@ -55,17 +55,30 @@ import {
   ROSTER_UPLOAD_SCHEMA,
   rosterExportUnavailableMessage,
 } from './constants/roster-upload.constants';
+import {
+  ExcludeRosterRowsDto,
+  MarkRosterImportPartialDto,
+  RosterImportReasonDto,
+} from './dto/correct-roster-import.dto';
 import { PreviewRosterImportDto } from './dto/preview-roster-import.dto';
 import { RosterImportDetailDto } from './dto/roster-import-detail.dto';
 import { RosterImportPageDto } from './dto/roster-import-page.dto';
 import { RosterImportPreviewDto } from './dto/roster-import-preview.dto';
 import { RosterImportSourceDto } from './dto/roster-import-source.dto';
 import { UploadRosterImportDto } from './dto/upload-roster-import.dto';
+import { RosterImportCorrectionService } from './services/roster-import-correction.service';
 import { RosterImportIngressService } from './services/roster-import-ingress.service';
 import { RosterImportPreviewService } from './services/roster-import-preview.service';
 import { RosterImportStatusService } from './services/roster-import-status.service';
 
 /** Who may read a Fleet's imports: whoever sends them, and whoever looks into them. */
+/** The scope every roster import route is checked against. */
+const FLEET_SCOPE = {
+  kind: FleetScopeKind.FLEET,
+  param: 'fleetId',
+  communityParam: 'communityId',
+} as const;
+
 const IMPORT_READERS = [
   FLEET_CAPABILITIES.ROSTER_IMPORT,
   FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
@@ -131,6 +144,7 @@ export class RosterImportsController {
    *   recorded on.
    * @param _statusService - Reports what became of each import.
    * @param _authorisationService - Says whether a reader investigates imports.
+   * @param _correctionService - Changes how an import counts.
    */
   constructor(
     private readonly _ingressService: RosterImportIngressService,
@@ -139,6 +153,7 @@ export class RosterImportsController {
     private readonly _fleetService: StoFleetService,
     private readonly _statusService: RosterImportStatusService,
     private readonly _authorisationService: FleetAuthorisationService,
+    private readonly _correctionService: RosterImportCorrectionService,
   ) {}
 
   /**
@@ -411,6 +426,143 @@ export class RosterImportsController {
     file.buffer = Buffer.alloc(0);
 
     return preview;
+  }
+
+  /**
+   * Takes an import out of the Fleet's history.
+   *
+   * @param fleetId - The Fleet.
+   * @param importId - The import.
+   * @param userId - The investigator.
+   * @param body - Why.
+   * @returns The import as it now stands.
+   */
+  @Post(':importId/exclusions')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, ScopeCapabilityGuard)
+  @RequiresScopeCapability(FLEET_CAPABILITIES.ROSTER_INVESTIGATE, FLEET_SCOPE)
+  @ApiOperation({ summary: "Exclude a roster import from the Fleet's history" })
+  @ApiOkResponse({ type: RosterImportDetailDto })
+  @ApiNotFoundResponse({ description: 'The Fleet has no such import.' })
+  @ApiConflictResponse({
+    description:
+      'It is already excluded, or is neither in force nor waiting on a ' +
+      'conflicting export.',
+  })
+  async exclude(
+    @Param('fleetId', ParseUUIDPipe) fleetId: string,
+    @Param('importId', ParseUUIDPipe) importId: string,
+    @UserId() userId: string,
+    @Body() body: RosterImportReasonDto,
+  ): Promise<RosterImportDetailDto> {
+    await this._featureService.assertFlagEnabled(
+      FLEET_FEATURE_FLAGS.IMPORTS_ENABLED,
+    );
+
+    return this._correctionService.exclude(fleetId, importId, userId, body);
+  }
+
+  /**
+   * Puts an excluded import back into the Fleet's history.
+   *
+   * @param fleetId - The Fleet.
+   * @param importId - The import.
+   * @param userId - The investigator.
+   * @param body - Why.
+   * @returns The import as it now stands.
+   */
+  @Post(':importId/reinstate')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, ScopeCapabilityGuard)
+  @RequiresScopeCapability(FLEET_CAPABILITIES.ROSTER_INVESTIGATE, FLEET_SCOPE)
+  @ApiOperation({ summary: 'Put an excluded roster import back' })
+  @ApiOkResponse({ type: RosterImportDetailDto })
+  @ApiNotFoundResponse({ description: 'The Fleet has no such import.' })
+  @ApiConflictResponse({
+    description:
+      'It is not excluded, or is neither in force nor waiting on a ' +
+      'conflicting export.',
+  })
+  async reinstate(
+    @Param('fleetId', ParseUUIDPipe) fleetId: string,
+    @Param('importId', ParseUUIDPipe) importId: string,
+    @UserId() userId: string,
+    @Body() body: RosterImportReasonDto,
+  ): Promise<RosterImportDetailDto> {
+    await this._featureService.assertFlagEnabled(
+      FLEET_FEATURE_FLAGS.IMPORTS_ENABLED,
+    );
+
+    return this._correctionService.reinstate(fleetId, importId, userId, body);
+  }
+
+  /**
+   * Says whether an export may not list everybody.
+   *
+   * @param fleetId - The Fleet.
+   * @param importId - The import.
+   * @param userId - The investigator.
+   * @param body - Whether it is partial, and why.
+   * @returns The import as it now stands.
+   */
+  @Post(':importId/partial')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, ScopeCapabilityGuard)
+  @RequiresScopeCapability(FLEET_CAPABILITIES.ROSTER_INVESTIGATE, FLEET_SCOPE)
+  @ApiOperation({ summary: 'Mark a roster export partial, or complete' })
+  @ApiOkResponse({ type: RosterImportDetailDto })
+  @ApiNotFoundResponse({ description: 'The Fleet has no such import.' })
+  @ApiConflictResponse({
+    description:
+      'It is already marked as asked, or is neither in force nor waiting ' +
+      'on a conflicting export.',
+  })
+  async markPartial(
+    @Param('fleetId', ParseUUIDPipe) fleetId: string,
+    @Param('importId', ParseUUIDPipe) importId: string,
+    @UserId() userId: string,
+    @Body() body: MarkRosterImportPartialDto,
+  ): Promise<RosterImportDetailDto> {
+    await this._featureService.assertFlagEnabled(
+      FLEET_FEATURE_FLAGS.IMPORTS_ENABLED,
+    );
+
+    return this._correctionService.markPartial(fleetId, importId, userId, body);
+  }
+
+  /**
+   * Excludes some of an import's rows, or puts them back.
+   *
+   * @param fleetId - The Fleet.
+   * @param importId - The import.
+   * @param userId - The investigator.
+   * @param body - Which lines, which way, and why.
+   * @returns The import as it now stands.
+   */
+  @Post(':importId/row-exclusions')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, ScopeCapabilityGuard)
+  @RequiresScopeCapability(FLEET_CAPABILITIES.ROSTER_INVESTIGATE, FLEET_SCOPE)
+  @ApiOperation({ summary: "Exclude a roster import's rows, or put them back" })
+  @ApiOkResponse({ type: RosterImportDetailDto })
+  @ApiBadRequestResponse({ description: 'A line names no row of it.' })
+  @ApiNotFoundResponse({ description: 'The Fleet has no such import.' })
+  @ApiConflictResponse({
+    description:
+      'A row is already as asked, or its rows have not been read because ' +
+      'it is not in force.',
+  })
+  async excludeRows(
+    @Param('fleetId', ParseUUIDPipe) fleetId: string,
+    @Param('importId', ParseUUIDPipe) importId: string,
+    @UserId() userId: string,
+    @Body() body: ExcludeRosterRowsDto,
+  ): Promise<RosterImportDetailDto> {
+    await this._featureService.assertFlagEnabled(
+      FLEET_FEATURE_FLAGS.IMPORTS_ENABLED,
+    );
+
+    return this._correctionService.excludeRows(fleetId, importId, userId, body);
   }
 
   /**

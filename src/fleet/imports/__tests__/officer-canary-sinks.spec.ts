@@ -28,11 +28,15 @@ import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { FleetFeatureService } from '../../fleet-feature.service';
 import { FleetPolicyService } from '../../fleet-policy.service';
 import { StoFleetService } from '../../services/sto-fleet.service';
+import { RosterImportActionEntity } from '../entities/roster-import-action.entity';
+import { RosterImportConflictEntity } from '../entities/roster-import-conflict.entity';
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
+import { RosterObservationEntity } from '../entities/roster-observation.entity';
 import { RosterImportsController } from '../roster-imports.controller';
 import { RosterCsvPrivacyParserService } from '../services/roster-csv-privacy-parser.service';
 import { RosterExportIdentityService } from '../services/roster-export-identity.service';
 import { RosterImportConflictService } from '../services/roster-import-conflict.service';
+import { RosterImportCorrectionService } from '../services/roster-import-correction.service';
 import { RosterImportIngressService } from '../services/roster-import-ingress.service';
 import { RosterImportPreviewService } from '../services/roster-import-preview.service';
 import { RosterImportStatusService } from '../services/roster-import-status.service';
@@ -298,8 +302,17 @@ describe('Officer canary sinks', () => {
         assertFlagEnabled: jest.fn(() => Promise.resolve()),
       } as unknown as FleetFeatureService,
       fleetService,
-      new RosterImportStatusService(repository, placementService),
+      // The upload never reads an import's corrections, and nothing here
+      // corrects one, so those collaborators are left empty.
+      new RosterImportStatusService(
+        repository,
+        placementService,
+        {} as Repository<RosterObservationEntity>,
+        {} as Repository<RosterImportActionEntity>,
+        {} as Repository<RosterImportConflictEntity>,
+      ),
       {} as FleetAuthorisationService,
+      {} as RosterImportCorrectionService,
     );
   });
 

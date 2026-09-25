@@ -170,4 +170,18 @@ export class RosterImportSourceDto {
 
   @ApiProperty({ description: 'When the upload was accepted.' })
   uploadedAt: Date;
+
+  @ApiProperty({
+    description:
+      'Whether an investigator has taken it out of the Fleet’s history. It ' +
+      'stays as evidence and counts for nothing until it is reinstated.',
+  })
+  excluded: boolean;
+
+  @ApiProperty({
+    description:
+      'Whether an investigator has said it may not list everybody, so ' +
+      'nobody missing from it is taken to have left.',
+  })
+  partial: boolean;
 }

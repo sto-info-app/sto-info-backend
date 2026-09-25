@@ -17,7 +17,11 @@ import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
 import { FileAssetPlacementService } from 'src/file-assets/services/file-asset-placement.service';
 import { UserEntity } from 'src/user/entities/user.entity';
 
+import { RosterImportActionEntity } from '../entities/roster-import-action.entity';
+import { RosterImportConflictEntity } from '../entities/roster-import-conflict.entity';
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
+import { RosterObservationEntity } from '../entities/roster-observation.entity';
+import { RosterImportActionKind } from '../enums/roster-import-action-kind.enum';
 import { RosterImportStatus } from '../enums/roster-import-status.enum';
 import { RosterRowRejectionCode } from '../enums/roster-row-rejection-code.enum';
 import { RosterSourceHeaderShape } from '../enums/roster-source-header-shape.enum';
@@ -68,6 +72,8 @@ function importOf(
     conflictGroupId: null,
     uploadedAt: UPLOADED_AT,
     uploadedBy: { profile: { username: 'kmarr' } } as UserEntity,
+    excluded: false,
+    partial: false,
     ...overrides,
     asset: {
       id: `asset-of-${id}`,
@@ -104,6 +110,13 @@ describe('RosterImportStatusService', () => {
       (...args: unknown[]) => Promise<FileAssetPlacementEntity[]>
     >;
   };
+  let observations: {
+    find: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
+  };
+  let actions: { find: jest.Mock<(...args: unknown[]) => Promise<unknown>> };
+  let conflicts: {
+    findOne: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
+  };
   let service: RosterImportStatusService;
   let warn: jest.SpiedFunction<(message: unknown) => void>;
 
@@ -138,9 +151,16 @@ describe('RosterImportStatusService', () => {
       findByAssetIds: jest.fn(() => Promise.resolve([])),
     };
 
+    observations = { find: jest.fn(() => Promise.resolve([])) };
+    actions = { find: jest.fn(() => Promise.resolve([])) };
+    conflicts = { findOne: jest.fn(() => Promise.resolve(null)) };
+
     service = new RosterImportStatusService(
       imports as unknown as Repository<RosterImportSourceEntity>,
       placements as unknown as FileAssetPlacementService,
+      observations as unknown as Repository<RosterObservationEntity>,
+      actions as unknown as Repository<RosterImportActionEntity>,
+      conflicts as unknown as Repository<RosterImportConflictEntity>,
     );
 
     warn = jest
@@ -236,7 +256,20 @@ describe('RosterImportStatusService', () => {
         problemCount: 0,
         uploadedByName: 'kmarr',
         uploadedAt: UPLOADED_AT,
+        excluded: false,
+        partial: false,
       });
+    });
+
+    // FC-019: whoever can read an import can see whether it still counts.
+    it('says whether an investigator excluded it or marked it partial', async () => {
+      imports.findOne.mockResolvedValue(
+        importOf({ excluded: true, partial: true }),
+      );
+
+      await expect(
+        service.summary(FLEET_ID, 'import-1'),
+      ).resolves.toMatchObject({ excluded: true, partial: true });
     });
 
     // Looked up within the Fleet, so an import of another Fleet is absent
@@ -490,9 +523,15 @@ describe('RosterImportStatusService', () => {
           problemCount: 2,
           problems: null,
           conflictMembers: null,
+          selectedImportId: null,
+          excludedLines: null,
+          actions: null,
         }),
       );
       expect(imports.find).not.toHaveBeenCalled();
+      expect(observations.find).not.toHaveBeenCalled();
+      expect(actions.find).not.toHaveBeenCalled();
+      expect(conflicts.findOne).not.toHaveBeenCalled();
     });
 
     it('shows an investigator every row problem as a line, a column and a code', async () => {
@@ -516,8 +555,117 @@ describe('RosterImportStatusService', () => {
 
       expect(detail.problems).toEqual([]);
       expect(detail.conflictMembers).toEqual([]);
+      expect(detail.selectedImportId).toBeNull();
+      expect(detail.excludedLines).toEqual([]);
+      expect(detail.actions).toEqual([]);
       expect(imports.find).not.toHaveBeenCalled();
+      expect(conflicts.findOne).not.toHaveBeenCalled();
     });
+
+    it('shows an investigator the lines of the rows excluded, in order', async () => {
+      observations.find.mockResolvedValue([{ line: 4 }, { line: 9 }]);
+
+      const detail = await service.detail(FLEET_ID, 'import-1', true);
+
+      expect(observations.find).toHaveBeenCalledWith({
+        where: { importSourceId: 'import-1', excluded: true },
+        select: { line: true },
+        order: { line: 'ASC' },
+      });
+      expect(detail.excludedLines).toEqual([4, 9]);
+    });
+
+    it('shows an investigator every correction, newest first, by username', async () => {
+      const actedAt = new Date('2024-12-01T09:00:00Z');
+
+      actions.find.mockResolvedValue([
+        {
+          id: 'action-2',
+          action: RosterImportActionKind.ROWS_EXCLUDED,
+          actor: { profile: { username: 'odo' } },
+          reason: 'Duplicated rows',
+          detail: { lines: [4, 9] },
+          actedAt,
+        },
+        {
+          id: 'action-1',
+          action: RosterImportActionKind.MARKED_PARTIAL,
+          actor: null,
+          reason: 'Cut off',
+          detail: null,
+          actedAt,
+        },
+      ]);
+
+      const detail = await service.detail(FLEET_ID, 'import-1', true);
+
+      expect(actions.find).toHaveBeenCalledWith({
+        where: { importSourceId: 'import-1' },
+        relations: { actor: { profile: true } },
+        order: { actedAt: 'DESC', id: 'DESC' },
+      });
+      expect(detail.actions).toEqual([
+        {
+          id: 'action-2',
+          action: RosterImportActionKind.ROWS_EXCLUDED,
+          actorName: 'odo',
+          reason: 'Duplicated rows',
+          detail: { lines: [4, 9] },
+          actedAt,
+        },
+        {
+          id: 'action-1',
+          action: RosterImportActionKind.MARKED_PARTIAL,
+          actorName: null,
+          reason: 'Cut off',
+          detail: null,
+          actedAt,
+        },
+      ]);
+    });
+
+    it('names nobody for a correction whose investigator has no profile', async () => {
+      actions.find.mockResolvedValue([
+        {
+          id: 'action-1',
+          action: RosterImportActionKind.EXCLUDED,
+          actor: {},
+          reason: 'Wrong Fleet',
+          detail: null,
+          actedAt: new Date(),
+        },
+      ]);
+
+      const detail = await service.detail(FLEET_ID, 'import-1', true);
+
+      expect(detail.actions![0].actorName).toBeNull();
+    });
+
+    it.each([
+      [
+        'its group selected an export',
+        { selectedImportId: 'import-3' },
+        'import-3',
+      ],
+      ['nobody has selected one', { selectedImportId: null }, null],
+      ['its group cannot be found', null, null],
+    ])(
+      'shows an investigator the selection when %s',
+      async (_case, group, expected) => {
+        imports.findOne.mockResolvedValue(
+          importOf({ conflictGroupId: 'group-1' }),
+        );
+        conflicts.findOne.mockResolvedValue(group);
+
+        const detail = await service.detail(FLEET_ID, 'import-1', true);
+
+        expect(conflicts.findOne).toHaveBeenCalledWith({
+          where: { id: 'group-1' },
+          select: { id: true, selectedImportId: true },
+        });
+        expect(detail.selectedImportId).toBe(expected);
+      },
+    );
 
     it('shows an investigator the other exports of the moment, oldest first', async () => {
       const record = importOf({ id: 'import-2', conflictGroupId: 'group-1' });

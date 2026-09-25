@@ -12,10 +12,14 @@ import {
   resolveDirectoryPage,
   resolveDirectoryPageSize,
 } from '../../utilities/directory-query.utility';
+import { RosterImportActionDto } from '../dto/roster-import-action.dto';
 import { RosterImportDetailDto } from '../dto/roster-import-detail.dto';
 import { RosterImportPageDto } from '../dto/roster-import-page.dto';
 import { RosterImportSourceDto } from '../dto/roster-import-source.dto';
+import { RosterImportActionEntity } from '../entities/roster-import-action.entity';
+import { RosterImportConflictEntity } from '../entities/roster-import-conflict.entity';
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
+import { RosterObservationEntity } from '../entities/roster-observation.entity';
 import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum';
 import { RosterHoldReason } from '../enums/roster-hold-reason.enum';
 import { RosterImportStatus } from '../enums/roster-import-status.enum';
@@ -89,11 +93,20 @@ export class RosterImportStatusService {
    *
    * @param _imports - Import provenance.
    * @param _placements - What publication made of each import.
+   * @param _observations - Read for the rows an investigator excluded.
+   * @param _actions - Every correction made to an import.
+   * @param _conflicts - Which export a conflict group selected.
    */
   constructor(
     @InjectRepository(RosterImportSourceEntity)
     private readonly _imports: Repository<RosterImportSourceEntity>,
     private readonly _placements: FileAssetPlacementService,
+    @InjectRepository(RosterObservationEntity)
+    private readonly _observations: Repository<RosterObservationEntity>,
+    @InjectRepository(RosterImportActionEntity)
+    private readonly _actions: Repository<RosterImportActionEntity>,
+    @InjectRepository(RosterImportConflictEntity)
+    private readonly _conflicts: Repository<RosterImportConflictEntity>,
   ) {}
 
   /**
@@ -167,11 +180,35 @@ export class RosterImportStatusService {
     const [summary] = await this.summarise([record]);
 
     if (!investigator) {
-      return { ...summary, problems: null, conflictMembers: null };
+      return {
+        ...summary,
+        problems: null,
+        conflictMembers: null,
+        selectedImportId: null,
+        excludedLines: null,
+        actions: null,
+      };
     }
 
     return {
       ...summary,
+      selectedImportId:
+        record.conflictGroupId === null
+          ? null
+          : ((
+              await this._conflicts.findOne({
+                where: { id: record.conflictGroupId },
+                select: { id: true, selectedImportId: true },
+              })
+            )?.selectedImportId ?? null),
+      excludedLines: (
+        await this._observations.find({
+          where: { importSourceId: record.id, excluded: true },
+          select: { line: true },
+          order: { line: 'ASC' },
+        })
+      ).map(observation => observation.line),
+      actions: await this.history(record.id),
       problems: (record.publicationProblems ?? []).map(problem => ({
         code: problem.code,
         line: problem.line,
@@ -194,6 +231,29 @@ export class RosterImportStatusService {
               }),
             ),
     };
+  }
+
+  /**
+   * Every correction made to an import, newest first.
+   *
+   * @param importId - The import.
+   * @returns Its actions, each naming its investigator by username.
+   */
+  private async history(importId: string): Promise<RosterImportActionDto[]> {
+    const actions = await this._actions.find({
+      where: { importSourceId: importId },
+      relations: { actor: { profile: true } },
+      order: { actedAt: 'DESC', id: 'DESC' },
+    });
+
+    return actions.map(action => ({
+      id: action.id,
+      action: action.action,
+      actorName: action.actor?.profile?.username ?? null,
+      reason: action.reason,
+      detail: action.detail === null ? null : { ...action.detail },
+      actedAt: action.actedAt,
+    }));
   }
 
   /**
@@ -279,6 +339,8 @@ export class RosterImportStatusService {
       problemCount: record.publicationProblems?.length ?? 0,
       uploadedByName: record.uploadedBy?.profile?.username ?? null,
       uploadedAt: record.uploadedAt,
+      excluded: record.excluded,
+      partial: record.partial,
     };
   }
 

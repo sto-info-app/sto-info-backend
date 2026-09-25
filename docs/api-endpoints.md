@@ -471,6 +471,45 @@ count, **how many officer notes were discarded**, the parser version, the asset'
 codes describe shape rather than content, and no part of the file appears in the response, the
 log or anywhere else. Refused uploads leave nothing behind.
 
+### POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports/:importId/exclusions
+
+Take an import out of the Fleet's history. See [Roster history](roster-history.md#corrections).
+
+**Authentication Required.** `roster.investigate` at that Fleet. An importer cannot correct their
+own upload.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Request:** `{ "reason": "..." }`. Required of every correction, trimmed, at most 500 characters.
+
+**Response (200):** the import as an investigator sees it, now `excluded`, with its corrections
+newest first. The Fleet's roster is replayed afterwards, on a queue.
+
+**Response (404):** the Fleet has no such import.
+
+**Response (409):** it is already excluded, or it is neither in force nor waiting on a conflicting
+export.
+
+### POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports/:importId/reinstate
+
+Put an excluded import back. As `exclusions`, with `{ "reason": "..." }`; **409** when it is not
+excluded.
+
+### POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports/:importId/partial
+
+Say whether an export may not list everybody. As `exclusions`, with
+`{ "partial": true | false, "reason": "..." }`; **409** when it is already as asked.
+
+### POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports/:importId/row-exclusions
+
+Exclude some of an import's rows, or put them back. As `exclusions`, with
+`{ "lines": [2, 5], "excluded": true | false, "reason": "..." }`. Lines are the sanitised file's,
+the header being line one, as the import's problems name them; each is a data line, listed once.
+
+**Response (400):** a line names no row of the import. **Response (409):** a row is already as
+asked — the whole request is refused, so the correction recorded names exactly the rows that
+changed — or the import's rows have not been read because it is held.
+
 ### GET /fleet-communities/:communityId/fleets/:fleetId/roster-identities/candidates
 
 List a Fleet's rename candidates, open ones first. See [Roster identities](roster-identities.md).

@@ -30,6 +30,7 @@ import { RosterImportSourceEntity } from './entities/roster-import-source.entity
 import { RosterImportStatus } from './enums/roster-import-status.enum';
 import { RosterSourceHeaderShape } from './enums/roster-source-header-shape.enum';
 import { RosterImportsController } from './roster-imports.controller';
+import { RosterImportCorrectionService } from './services/roster-import-correction.service';
 import { RosterImportIngressService } from './services/roster-import-ingress.service';
 import { RosterImportPreviewService } from './services/roster-import-preview.service';
 import { RosterImportStatusService } from './services/roster-import-status.service';
@@ -138,6 +139,10 @@ describe('RosterImportsController', () => {
   let authorisation: {
     hasCapability: jest.Mock<(...args: unknown[]) => Promise<boolean>>;
   };
+  let corrections: Record<
+    'exclude' | 'reinstate' | 'markPartial' | 'excludeRows',
+    jest.Mock<(...args: unknown[]) => Promise<unknown>>
+  >;
 
   /**
    * The response an upload may set its status on.
@@ -177,12 +182,22 @@ describe('RosterImportsController', () => {
           ...SUMMARY,
           problems: null,
           conflictMembers: null,
+          selectedImportId: null,
+          excludedLines: null,
+          actions: null,
         }),
       ),
     };
 
     authorisation = {
       hasCapability: jest.fn(() => Promise.resolve(false)),
+    };
+
+    corrections = {
+      exclude: jest.fn(() => Promise.resolve({ id: IMPORT_ID })),
+      reinstate: jest.fn(() => Promise.resolve({ id: IMPORT_ID })),
+      markPartial: jest.fn(() => Promise.resolve({ id: IMPORT_ID })),
+      excludeRows: jest.fn(() => Promise.resolve({ id: IMPORT_ID })),
     };
 
     controller = new RosterImportsController(
@@ -192,6 +207,7 @@ describe('RosterImportsController', () => {
       fleetService as unknown as StoFleetService,
       statusService as unknown as RosterImportStatusService,
       authorisation as unknown as FleetAuthorisationService,
+      corrections as unknown as RosterImportCorrectionService,
     );
   });
 
@@ -529,6 +545,74 @@ describe('RosterImportsController', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
 
       expect(statusService[handler]).not.toHaveBeenCalled();
+    });
+  });
+
+  // FC-019: correcting an import is an investigator's, never an importer's
+  // — Steve's decision of 25 September 2026.
+  describe.each([
+    ['excluding an import', 'exclude', { reason: 'Wrong Fleet' }],
+    ['reinstating one', 'reinstate', { reason: 'Right Fleet after all' }],
+    [
+      'marking one partial',
+      'markPartial',
+      { partial: true, reason: 'Cut off' },
+    ],
+    [
+      'excluding its rows',
+      'excludeRows',
+      { lines: [2], excluded: true, reason: 'Duplicated' },
+    ],
+  ] as const)('%s', (_name, handler, body) => {
+    const call = () =>
+      (
+        controller[handler] as (
+          fleetId: string,
+          importId: string,
+          userId: string,
+          body: unknown,
+        ) => Promise<unknown>
+      ).call(controller, FLEET_ID, IMPORT_ID, USER_ID, body);
+
+    it('is open to investigators only', () => {
+      const requirement = Reflect.getMetadata(
+        REQUIRES_SCOPE_CAPABILITY_KEY,
+        RosterImportsController.prototype[handler],
+      ) as ScopeCapabilityRequirement;
+
+      expect(requirement).toEqual({
+        capability: FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+        source: {
+          kind: FleetScopeKind.FLEET,
+          param: 'fleetId',
+          communityParam: 'communityId',
+        },
+      });
+    });
+
+    it('answers 200 with the import as it now stands', async () => {
+      expect(
+        Reflect.getMetadata(
+          HTTP_CODE_METADATA,
+          RosterImportsController.prototype[handler],
+        ),
+      ).toBe(HttpStatus.OK);
+      await expect(call()).resolves.toEqual({ id: IMPORT_ID });
+      expect(corrections[handler]).toHaveBeenCalledWith(
+        FLEET_ID,
+        IMPORT_ID,
+        USER_ID,
+        body,
+      );
+    });
+
+    it('is hidden while imports are switched off', async () => {
+      featureService.assertFlagEnabled.mockImplementationOnce(() => {
+        throw new NotFoundException('Not found');
+      });
+
+      await expect(call()).rejects.toBeInstanceOf(NotFoundException);
+      expect(corrections[handler]).not.toHaveBeenCalled();
     });
   });
 

@@ -119,6 +119,30 @@ again, and one that crashed between publishing and proposing is finished by the 
 Fleet, even one with nothing to build. The rules for who is asked are FC-018's, in
 [Roster identities](roster-identities.md#association-proposals).
 
+## Corrections
+
+An investigator — a `roster.investigate` holder, never an importer as such — can change how an
+import counts without changing anything it said. Every correction requires a reason and is kept,
+with who made it and when, in `fleet_roster_import_action`, which is append-only. Each one locks the
+import, records its request for a replay in the same transaction, and queues it after committing.
+
+| Correction | What the replay makes of it |
+| --- | --- |
+| **Exclude** an import, or **reinstate** it | It stays evidence and leaves every derived result. Reinstating rebuilds exactly what was there before |
+| Mark an export **partial**, or complete again | Its rows still show who was there, but nobody missing from it is taken to have left |
+| **Exclude rows**, or put them back | Each member an excluded row names is unknown in that export — neither present nor absent |
+
+Only an import in force, or held for a conflicting export, can be corrected: one still scanning,
+refused or given up on has never counted. Only one in force has rows to exclude.
+
+An export marked partial, or with any row excluded, is also skipped when renames are paired — see
+[Roster identities](roster-identities.md#the-recompute) — so a rename resting on it is flagged stale
+until the export is complete again.
+
+An import's detail shows an investigator its excluded lines, its corrections newest first with the
+investigator's STO Info username, and its conflict group's selection. Everybody who can read it sees
+whether it is excluded or partial.
+
 ## After deploying
 
 Run once, so Fleets imported earlier get a first revision:
@@ -136,4 +160,5 @@ npm run fleet:replay-rosters
 | `roster-projector.fuzz.spec.ts` | Over generated histories: order invariance, no negative delta, the per-interval partition, departures only at complete exports, ordered and disjoint episodes |
 | `roster-input-classifier.spec.ts` | Which import of a moment is read, with and without a selection |
 | `roster-replay.service.spec.ts` | Skipping a covered request, the revision written beside and published, the revision before kept, the Fleet's date following it, and proposals raised once |
+| `roster-import-correction.service.spec.ts` | Each correction's refusals, the lock, the record, and the request committed with the change |
 | `roster-projection-schema-alignment.spec.ts` | The five entities against their migration |

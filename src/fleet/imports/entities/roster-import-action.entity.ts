@@ -25,7 +25,7 @@ import { RosterImportSourceEntity } from './roster-import-source.entity';
  */
 export interface RosterImportActionDetail {
   /** The sanitised file's lines the action named, header as line one. */
-  readonly lines?: readonly number[];
+  readonly lines?: number[];
   /** The zone the import was read through before. */
   readonly fromTimezone?: string | null;
   /** The zone it is read through now. */

@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+import { RosterImportActionDto } from './roster-import-action.dto';
 import { RosterPreviewProblemDto } from './roster-import-preview.dto';
 import { RosterImportSourceDto } from './roster-import-source.dto';
 
@@ -35,4 +36,31 @@ export class RosterImportDetailDto extends RosterImportSourceDto {
     nullable: true,
   })
   conflictMembers: RosterImportSourceDto[] | null;
+
+  @ApiProperty({
+    description:
+      'The export selected as the roster at this moment, when its conflict ' +
+      'group has a selection; otherwise null. Null unless the caller ' +
+      'investigates imports.',
+    nullable: true,
+  })
+  selectedImportId: string | null;
+
+  @ApiProperty({
+    description:
+      'The lines of the rows an investigator has excluded, in order. Null ' +
+      'unless the caller investigates imports.',
+    type: [Number],
+    nullable: true,
+  })
+  excludedLines: number[] | null;
+
+  @ApiProperty({
+    description:
+      'Every correction made to it, newest first. Null unless the caller ' +
+      'investigates imports.',
+    type: [RosterImportActionDto],
+    nullable: true,
+  })
+  actions: RosterImportActionDto[] | null;
 }

@@ -16,6 +16,7 @@ import { RosterImportsController } from './roster-imports.controller';
 import { RosterCsvPrivacyParserService } from './services/roster-csv-privacy-parser.service';
 import { RosterExportIdentityService } from './services/roster-export-identity.service';
 import { RosterImportConflictService } from './services/roster-import-conflict.service';
+import { RosterImportCorrectionService } from './services/roster-import-correction.service';
 import { RosterImportIngressService } from './services/roster-import-ingress.service';
 import { RosterImportPreviewService } from './services/roster-import-preview.service';
 import { RosterImportStatusService } from './services/roster-import-status.service';
@@ -55,6 +56,7 @@ import { RosterTypedParserService } from './services/roster-typed-parser.service
     RosterTypedParserService,
     RosterExportIdentityService,
     RosterImportConflictService,
+    RosterImportCorrectionService,
     RosterImportIngressService,
     RosterImportPreviewService,
     RosterImportStatusService,
