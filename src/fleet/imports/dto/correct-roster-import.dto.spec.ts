@@ -3,6 +3,7 @@ import { validate } from 'class-validator';
 
 import { ROSTER_CSV_LIMITS } from '../constants/roster-csv.constants';
 import {
+  CorrectRosterImportTimezoneDto,
   ExcludeRosterRowsDto,
   MarkRosterImportPartialDto,
   ROSTER_IMPORT_REASON_MAX_LENGTH,
@@ -145,6 +146,32 @@ describe('Roster import correction DTOs', () => {
       await expect(
         failures(ExcludeRosterRowsDto, { lines: [2], reason: 'Duplicated' }),
       ).resolves.toEqual(['excluded']);
+    });
+  });
+
+  describe('timezone correction', () => {
+    it('accepts a zone, and a moment where the stamp names two', async () => {
+      await expect(
+        failures(CorrectRosterImportTimezoneDto, {
+          timezone: 'America/New_York',
+          exportedAt: '2024-11-03T05:30:00.000Z',
+          reason: 'Exported in New York',
+        }),
+      ).resolves.toEqual([]);
+    });
+
+    it.each([
+      ['no zone', {}, 'timezone'],
+      ['a zone nobody has', { timezone: 'Mars/Olympus_Mons' }, 'timezone'],
+      [
+        'a moment that is not a timestamp',
+        { timezone: 'Europe/London', exportedAt: 'tomorrow' },
+        'exportedAt',
+      ],
+    ])('refuses %s', async (_case, body, property) => {
+      await expect(
+        failures(CorrectRosterImportTimezoneDto, { reason: 'x', ...body }),
+      ).resolves.toEqual([property]);
     });
   });
 });

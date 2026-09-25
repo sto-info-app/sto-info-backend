@@ -140,7 +140,12 @@ describe('RosterImportsController', () => {
     hasCapability: jest.Mock<(...args: unknown[]) => Promise<boolean>>;
   };
   let corrections: Record<
-    'exclude' | 'reinstate' | 'markPartial' | 'excludeRows' | 'select',
+    | 'exclude'
+    | 'reinstate'
+    | 'markPartial'
+    | 'excludeRows'
+    | 'select'
+    | 'correctTimezone',
     jest.Mock<(...args: unknown[]) => Promise<unknown>>
   >;
 
@@ -199,6 +204,7 @@ describe('RosterImportsController', () => {
       markPartial: jest.fn(() => Promise.resolve({ id: IMPORT_ID })),
       excludeRows: jest.fn(() => Promise.resolve({ id: IMPORT_ID })),
       select: jest.fn(() => Promise.resolve({ id: IMPORT_ID })),
+      correctTimezone: jest.fn(() => Promise.resolve({ id: IMPORT_ID })),
     };
 
     controller = new RosterImportsController(
@@ -565,6 +571,11 @@ describe('RosterImportsController', () => {
       { lines: [2], excluded: true, reason: 'Duplicated' },
     ],
     ['selecting one', 'select', { reason: 'The one the officer meant' }],
+    [
+      'correcting its timezone',
+      'correctTimezone',
+      { timezone: 'America/New_York', reason: 'Exported in New York' },
+    ],
   ] as const)('%s', (_name, handler, body) => {
     const call = () =>
       (

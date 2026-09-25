@@ -510,6 +510,22 @@ the header being line one, as the import's problems name them; each is a data li
 asked — the whole request is refused, so the correction recorded names exactly the rows that
 changed — or the import's rows have not been read because it is held.
 
+### POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports/:importId/timezone-correction
+
+Read an export again through the timezone it was really taken in. As `exclusions`, with
+`{ "timezone": "America/New_York", "exportedAt": "...", "reason": "..." }`. `exportedAt` is needed
+only when the stamp names two moments in that zone, and must be one of them, exactly as at upload.
+
+The export's stamp and every date in its rows are read again from the local text kept for this.
+The response gives the new zone and instant, and the correction's detail records both readings.
+
+**Response (400):** through that zone the stamp or a row's date never happened, or the stamp names
+two moments and none, or neither, was given. The body is an upload refusal's: a `code` and every
+row `problem` as a line, a column and a code. Nothing is changed.
+
+**Response (409):** it is in a conflict group, it is already read through that zone, another
+export of the Fleet — named — already claims the new moment, or it is neither in force nor waiting.
+
 ### POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports/:importId/selection
 
 Select the export that stands for a moment several exports claim. As `exclusions`, with

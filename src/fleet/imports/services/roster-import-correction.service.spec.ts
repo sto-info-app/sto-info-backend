@@ -9,6 +9,7 @@ import { DataSource, EntityTarget, FindOperator } from 'typeorm';
 
 import { FileAssetPlacementEntity } from 'src/file-assets/entities/file-asset-placement.entity';
 import { FileAssetPlacementState } from 'src/file-assets/enums/file-asset-placement-state.enum';
+import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
 import { FileAssetSubject } from 'src/file-assets/enums/file-asset-subject.enum';
 import { AssetPublicationQueueService } from 'src/file-assets/services/asset-publication-queue.service';
 
@@ -17,7 +18,10 @@ import { RosterImportActionEntity } from '../entities/roster-import-action.entit
 import { RosterImportConflictEntity } from '../entities/roster-import-conflict.entity';
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
 import { RosterObservationEntity } from '../entities/roster-observation.entity';
+import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum';
+import { RosterFilenameRejectionCode } from '../enums/roster-filename-rejection-code.enum';
 import { RosterImportActionKind } from '../enums/roster-import-action-kind.enum';
+import { RosterRowRejectionCode } from '../enums/roster-row-rejection-code.enum';
 import { RosterImportCorrectionService } from './roster-import-correction.service';
 import { RosterImportStatusService } from './roster-import-status.service';
 
@@ -47,6 +51,7 @@ describe('RosterImportCorrectionService', () => {
       assetId: 'asset-1',
       excluded: false,
       partial: false,
+      conflictGroupId: null,
     };
     placementState = FileAssetPlacementState.ACTIVE;
     rows = [
@@ -370,6 +375,281 @@ describe('RosterImportCorrectionService', () => {
         new ConflictException('This export is already the one selected.'),
       );
       expect(manager.insert).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('correcting a timezone', () => {
+    let observations: Row[];
+    let claimants: Row[];
+
+    /** The refusal body a request met, or the result it got. */
+    const correct = (timezone: string, exportedAt?: string) =>
+      service.correctTimezone(FLEET_ID, IMPORT_ID, USER_ID, {
+        timezone,
+        exportedAt,
+        reason: REASON,
+      });
+
+    const refusal = async (
+      promise: Promise<unknown>,
+    ): Promise<Record<string, unknown>> => {
+      try {
+        await promise;
+      } catch (error) {
+        return (error as BadRequestException).getResponse() as Record<
+          string,
+          unknown
+        >;
+      }
+
+      throw new Error('Expected a refusal');
+    };
+
+    beforeEach(() => {
+      Object.assign(record!, {
+        exportTimezone: 'UTC',
+        exportLocalStamp: '2024-11-01T12:00:00',
+        exportedAt: new Date('2024-11-01T12:00:00Z'),
+        originalFilename: 'Fleet_20241101-120000.Csv',
+      });
+      observations = [
+        {
+          id: 'row-2',
+          line: 2,
+          joinedAtLocal: '2022-01-09T18:20:00',
+          rankChangedAtLocal: null,
+          lastActiveAtLocal: '2024-10-27T01:30:00',
+          publicCommentEditedAtLocal: null,
+        },
+        {
+          id: 'row-3',
+          line: 3,
+          joinedAtLocal: null,
+          rankChangedAtLocal: null,
+          lastActiveAtLocal: null,
+          publicCommentEditedAtLocal: null,
+        },
+      ];
+      claimants = [];
+      manager.find.mockImplementation(
+        (entity: EntityTarget<unknown>) =>
+          Promise.resolve(
+            entity === RosterObservationEntity ? observations : claimants,
+          ) as never,
+      );
+      manager.query = jest.fn(() => Promise.resolve([]));
+    });
+
+    it('reads the stamp again through the zone, and records both readings', async () => {
+      await correct('America/New_York');
+
+      expect(manager.update).toHaveBeenCalledWith(
+        RosterImportSourceEntity,
+        { id: IMPORT_ID },
+        {
+          exportTimezone: 'America/New_York',
+          exportedAt: new Date('2024-11-01T16:00:00Z'),
+          exportedAtAmbiguous: false,
+        },
+      );
+      expect(recorded()).toMatchObject({
+        action: RosterImportActionKind.TIMEZONE_CORRECTED,
+        detail: {
+          fromTimezone: 'UTC',
+          toTimezone: 'America/New_York',
+          fromExportedAt: '2024-11-01T12:00:00.000Z',
+          toExportedAt: '2024-11-01T16:00:00.000Z',
+        },
+      });
+    });
+
+    // The last-active time falls in the hour London's clocks went back,
+    // so it names two moments: the earlier is kept, and flagged.
+    it('reads every date in the rows again, from the local text', async () => {
+      await correct('Europe/London');
+
+      expect(manager.update).toHaveBeenCalledWith(
+        RosterObservationEntity,
+        { id: 'row-2' },
+        {
+          joinedAt: new Date('2022-01-09T18:20:00Z'),
+          joinedAtAmbiguous: false,
+          lastActiveAt: new Date('2024-10-27T00:30:00Z'),
+          lastActiveAtAmbiguous: true,
+        },
+      );
+      // A row with no dates has nothing to re-read.
+      expect(manager.update).not.toHaveBeenCalledWith(
+        RosterObservationEntity,
+        { id: 'row-3' },
+        expect.anything(),
+      );
+    });
+
+    it('records no earlier instant for an import that never had one', async () => {
+      record!.exportedAt = null;
+
+      await correct('America/New_York');
+
+      expect(recorded()).toMatchObject({
+        detail: { fromExportedAt: null },
+      });
+    });
+
+    it('takes the lock an upload claiming the new moment takes', async () => {
+      await correct('America/New_York');
+
+      expect(manager.query).toHaveBeenCalledWith(
+        'SELECT pg_advisory_xact_lock(hashtext($1))',
+        [`fleet-roster-export:${FLEET_ID}:2024-11-01T16:00:00.000Z`],
+      );
+    });
+
+    it('refuses a moment another export already claims, naming it', async () => {
+      claimants = [
+        {
+          id: 'import-9',
+          originalFilename: 'Fleet_20241101-160000.Csv',
+          asset: { state: FileAssetState.AVAILABLE },
+        },
+      ];
+
+      await expect(correct('America/New_York')).rejects.toThrow(
+        new ConflictException(
+          'Another export of this Fleet, Fleet_20241101-160000.Csv, already ' +
+            'claims that moment.',
+        ),
+      );
+      expect(manager.insert).not.toHaveBeenCalled();
+    });
+
+    it('pays no attention to a refused export at that moment', async () => {
+      claimants = [
+        { id: 'import-9', asset: { state: FileAssetState.REJECTED } },
+      ];
+
+      await expect(correct('America/New_York')).resolves.toEqual({
+        id: IMPORT_ID,
+      });
+    });
+
+    it('refuses an import in a conflict group', async () => {
+      record!.conflictGroupId = 'group-1';
+
+      await expect(correct('America/New_York')).rejects.toThrow(
+        /before correcting its timezone/,
+      );
+    });
+
+    it('refuses the zone it is already read through, however it is spelled', async () => {
+      record!.exportTimezone = 'Europe/London';
+
+      await expect(correct('europe/london')).rejects.toThrow(
+        new ConflictException(
+          'This import is already read through that timezone.',
+        ),
+      );
+    });
+
+    it('refuses an import with no export time to read', async () => {
+      record!.exportLocalStamp = null;
+
+      await expect(correct('America/New_York')).rejects.toThrow(
+        /no export time/,
+      );
+    });
+
+    it('refuses a stamp that never happened in that zone', async () => {
+      record!.exportLocalStamp = '2024-03-31T01:30:00';
+
+      await expect(refusal(correct('Europe/London'))).resolves.toEqual({
+        message:
+          'Through that timezone this export cannot be read, so nothing ' +
+          'was corrected.',
+        code: RosterFilenameRejectionCode.STAMP_NONEXISTENT,
+        line: null,
+        problems: [],
+      });
+    });
+
+    describe('a stamp that names two moments in that zone', () => {
+      beforeEach(() => {
+        record!.exportLocalStamp = '2024-10-27T01:30:00';
+      });
+
+      it('has to be told which', async () => {
+        await expect(refusal(correct('Europe/London'))).resolves.toMatchObject({
+          code: RosterFilenameRejectionCode.STAMP_CHOICE_REQUIRED,
+        });
+      });
+
+      it('takes the one it is told, and records that it was chosen', async () => {
+        await correct('Europe/London', '2024-10-27T01:30:00.000Z');
+
+        expect(manager.update).toHaveBeenCalledWith(
+          RosterImportSourceEntity,
+          { id: IMPORT_ID },
+          expect.objectContaining({
+            exportedAt: new Date('2024-10-27T01:30:00Z'),
+            exportedAtAmbiguous: true,
+          }),
+        );
+      });
+
+      it('refuses a moment that is neither of the two', async () => {
+        await expect(
+          refusal(correct('Europe/London', '2024-10-27T03:00:00.000Z')),
+        ).resolves.toMatchObject({
+          code: RosterFilenameRejectionCode.STAMP_CHOICE_NOT_A_CANDIDATE,
+        });
+      });
+    });
+
+    it('refuses a moment chosen for a stamp that names only one', async () => {
+      await expect(
+        refusal(correct('America/New_York', '2024-11-01T12:00:00.000Z')),
+      ).resolves.toMatchObject({
+        code: RosterFilenameRejectionCode.STAMP_CHOICE_NOT_A_CANDIDATE,
+      });
+    });
+
+    it('accepts the moment chosen when it is the only one', async () => {
+      await expect(
+        correct('America/New_York', '2024-11-01T16:00:00.000Z'),
+      ).resolves.toEqual({ id: IMPORT_ID });
+    });
+
+    it('refuses the whole correction when a date never happened there, saying where', async () => {
+      observations[1].joinedAtLocal = '2024-03-31T01:30:00';
+
+      await expect(refusal(correct('Europe/London'))).resolves.toMatchObject({
+        code: RosterCsvRejectionCode.ROWS_UNREADABLE,
+        problems: [
+          {
+            code: RosterRowRejectionCode.DATE_NONEXISTENT,
+            line: 3,
+            column: 'Join Date',
+          },
+        ],
+      });
+      expect(manager.update).not.toHaveBeenCalled();
+    });
+
+    it('reads only the local text of each row, in line order', async () => {
+      await correct('America/New_York');
+
+      expect(manager.find).toHaveBeenCalledWith(RosterObservationEntity, {
+        where: { importSourceId: IMPORT_ID },
+        select: {
+          id: true,
+          line: true,
+          joinedAtLocal: true,
+          rankChangedAtLocal: true,
+          lastActiveAtLocal: true,
+          publicCommentEditedAtLocal: true,
+        },
+        order: { line: 'ASC' },
+      });
     });
   });
 

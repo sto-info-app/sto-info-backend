@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 import { Transform } from 'class-transformer';
 import {
@@ -8,12 +8,17 @@ import {
   IsArray,
   IsBoolean,
   IsInt,
+  IsISO8601,
+  IsOptional,
+  IsString,
   Min,
   Validate,
   ValidationArguments,
   ValidatorConstraint,
   ValidatorConstraintInterface,
 } from 'class-validator';
+
+import { IsIanaTimezoneConstraint } from 'src/shared/utilities/is-iana-timezone.constraint';
 
 import { ROSTER_CSV_LIMITS } from '../constants/roster-csv.constants';
 
@@ -123,4 +128,29 @@ export class ExcludeRosterRowsDto extends RosterImportReasonDto {
   })
   @IsBoolean()
   readonly excluded: boolean;
+}
+
+/** Re-reads an export through the zone it was really taken in, and why. */
+export class CorrectRosterImportTimezoneDto extends RosterImportReasonDto {
+  @ApiProperty({
+    description:
+      'The IANA timezone the exporting player’s clock was really set to. ' +
+      'The export’s stamp and every date in its rows are read again through ' +
+      'it, from the local text kept for exactly this.',
+    example: 'America/New_York',
+  })
+  @IsString()
+  @Validate(IsIanaTimezoneConstraint)
+  readonly timezone: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Which moment the stamp names, for the one morning a year it names ' +
+      'two in that zone. Required then, and refused unless it is one of ' +
+      'the two, exactly as at upload.',
+    example: '2024-11-03T05:30:00.000Z',
+  })
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  readonly exportedAt?: string;
 }

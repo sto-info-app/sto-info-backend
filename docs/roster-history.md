@@ -130,6 +130,7 @@ import, records its request for a replay in the same transaction, and queues it 
 | --- | --- |
 | **Exclude** an import, or **reinstate** it | It stays evidence and leaves every derived result. Reinstating rebuilds exactly what was there before |
 | Mark an export **partial**, or complete again | Its rows still show who was there, but nobody missing from it is taken to have left |
+| **Correct the timezone** an export was read in | Its stamp and every row date are read again from the local text, so it takes its true place in the Fleet's history |
 | **Select** the export that stands for a disputed moment | It is read for the moment and the group's other exports are not. A held export is read into force first |
 | **Exclude rows**, or put them back | Each member an excluded row names is unknown in that export — neither present nor absent |
 
@@ -139,6 +140,17 @@ refused or given up on has never counted. Only one in force has rows to exclude.
 An export marked partial, or with any row excluded, is also skipped when renames are paired — see
 [Roster identities](roster-identities.md#the-recompute) — so a rename resting on it is flagged stale
 until the export is complete again.
+
+### Correcting a timezone
+
+The local text of the export's stamp and of every date in its rows is kept for exactly this (plan
+section 3.4). A correction reads all of it again through the new zone, or none of it: a stamp or
+date that never happened there refuses it, as an upload would have been refused. A stamp naming two
+moments in the new zone needs one of them chosen, as at upload. The moment it moves to must be free
+— the lock an upload claiming that moment takes is taken first — and an import in a conflict group
+cannot be corrected until the group is settled another way (Steve's decision of 25 September 2026).
+The Fleet-name match made at upload is not redone: a former name's validity runs to months, and a
+correction moves the stamp by hours.
 
 ### Selecting between exports of one moment
 

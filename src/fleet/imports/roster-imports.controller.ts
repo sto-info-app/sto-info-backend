@@ -56,6 +56,7 @@ import {
   rosterExportUnavailableMessage,
 } from './constants/roster-upload.constants';
 import {
+  CorrectRosterImportTimezoneDto,
   ExcludeRosterRowsDto,
   MarkRosterImportPartialDto,
   RosterImportReasonDto,
@@ -563,6 +564,52 @@ export class RosterImportsController {
     );
 
     return this._correctionService.excludeRows(fleetId, importId, userId, body);
+  }
+
+  /**
+   * Reads an export again through the zone it was really taken in.
+   *
+   * @param fleetId - The Fleet.
+   * @param importId - The import.
+   * @param userId - The investigator.
+   * @param body - The zone, the moment where the stamp names two, and why.
+   * @returns The import as it now stands.
+   */
+  @Post(':importId/timezone-correction')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, ScopeCapabilityGuard)
+  @RequiresScopeCapability(FLEET_CAPABILITIES.ROSTER_INVESTIGATE, FLEET_SCOPE)
+  @ApiOperation({ summary: 'Correct the timezone a roster export was read in' })
+  @ApiOkResponse({ type: RosterImportDetailDto })
+  @ApiBadRequestResponse({
+    description:
+      'Through that zone the stamp or a date never happened, or the stamp ' +
+      'names two moments and the request did not say which. The body has ' +
+      'the code and every row problem, as an upload refusal does.',
+  })
+  @ApiNotFoundResponse({ description: 'The Fleet has no such import.' })
+  @ApiConflictResponse({
+    description:
+      'It is in a conflict group, is already read through that zone, the ' +
+      'new moment is claimed by another export, or it is neither in force ' +
+      'nor waiting.',
+  })
+  async correctTimezone(
+    @Param('fleetId', ParseUUIDPipe) fleetId: string,
+    @Param('importId', ParseUUIDPipe) importId: string,
+    @UserId() userId: string,
+    @Body() body: CorrectRosterImportTimezoneDto,
+  ): Promise<RosterImportDetailDto> {
+    await this._featureService.assertFlagEnabled(
+      FLEET_FEATURE_FLAGS.IMPORTS_ENABLED,
+    );
+
+    return this._correctionService.correctTimezone(
+      fleetId,
+      importId,
+      userId,
+      body,
+    );
   }
 
   /**
