@@ -34,6 +34,8 @@ The database uses PostgreSQL with TypeORM for object-relational mapping.
 | `RosterEpisodeEntity` | `fleet_roster_episode` | One stretch of one identity's membership, bounded by exports |
 | `RosterChangeEntity` | `fleet_roster_change` | One change to one member between two exports |
 | `RosterIntervalSummaryEntity` | `fleet_roster_interval_summary` | What happened between two consecutive effective exports |
+| `RosterRankOrderEntity` | `fleet_roster_rank_order` | Which tier each of a Fleet's rank labels is in, when an investigator has ordered them — see [Roster history](roster-history.md#rank-order) |
+| `RosterRankOrderActionEntity` | `fleet_roster_rank_order_action` | Each edit to a Fleet's rank order, the order before and after, with who and why, write-once |
 
 ### Platform Launcher Image Mapping
 
@@ -264,6 +266,11 @@ check violation in two cases:
 | `FK_roster_change_episode` | `fleet_roster_change` | Through Fleet, revision, identity and ordinal, so a change belongs to an episode of its own revision |
 | `CHK_roster_change_delta` | `fleet_roster_change` | A contribution delta only on a rise, and only above zero: a fall is a reset, never a negative donation |
 | `CHK_roster_episode_end` | `fleet_roster_episode` | An ended episode says by when; only a departure names the export that proved it |
+| `PK_roster_rank_order` | `fleet_roster_rank_order` | Each label is placed at most once per Fleet |
+| `CHK_roster_rank_order_tier` | `fleet_roster_rank_order` | Tiers count from 1, the highest |
+| `CHK_roster_rank_order_action_reason` | `fleet_roster_rank_order_action` | Every edit gives a reason that is not blank |
+| `CHK_roster_rank_order_action_tiers` | `fleet_roster_rank_order_action` | Both orders are JSON lists of tiers |
+| `TR_roster_rank_order_action_guard` | `fleet_roster_rank_order_action` | Refuses any change to an edit except its actor being cleared when their account is deleted |
 
 Every derived table carries its revision, and a rebuild writes the next beside the published one
 before switching to it. The derived tables cascade from their Fleet and imports; they hold nothing

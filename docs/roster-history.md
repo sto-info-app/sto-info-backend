@@ -62,7 +62,7 @@ own change row — and members first seen there whom no earlier export bounds. N
 the interval's other totals.
 
 Rank labels are the Fleet's own text, and a change is only ever `RANK_CHANGED`. Nothing here calls
-one a promotion.
+one a promotion; see [Rank order](#rank-order) for what can.
 
 ## The replay
 
@@ -169,6 +169,24 @@ inputs from the next one.
 An import's detail shows an investigator its excluded lines, its corrections newest first with the
 investigator's STO Info username, and its conflict group's selection. Everybody who can read it sees
 whether it is excluded or partial.
+
+## Rank order
+
+Plan section 3.7: a Fleet's rank labels are its own, with no order common to Fleets, so a change of
+label is "rank changed" and never a promotion — unless an investigator has ordered the Fleet's
+labels (FC-020, Steve's decisions of 25 September 2026):
+
+- **An order is tiers.** Tier 1 is the highest, and a tier holds one or more labels. A move between
+  tiers is a promotion or a demotion. A move within a tier — which is what renaming a rank looks
+  like — or to or from a label nobody placed is still only "rank changed".
+- **Labels are matched by exact text**, as exports list them, and only labels the Fleet's imports
+  have listed can be placed.
+- **It is read when a page is drawn**, not replayed into a revision. The change rows keep both
+  labels, so an edit shows at once and needs no replay.
+- **Every edit gives a reason**, and `fleet_roster_rank_order_action` keeps the order before and
+  after, with who made it and when. Like an import correction, it is append-only.
+
+An order confers nothing in the app: a label is text, however high its tier.
 
 ## Where the history stands
 
