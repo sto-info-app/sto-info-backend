@@ -219,6 +219,17 @@ async function bootstrap() {
     'http://localhost:4200',
     'https://dev.startrekonline.info',
   ];
+
+  // A local checkout may serve the site on another port. That address is
+  // APP_FRONTEND_URL. Development and production keep the fixed lists.
+  if (inLocal) {
+    const frontendUrl = configService.get<string>('APP_FRONTEND_URL')?.trim();
+
+    if (frontendUrl && !devAllowedOrigins.includes(frontendUrl)) {
+      devAllowedOrigins.push(frontendUrl);
+    }
+  }
+
   const prodAllowedOrigins = ['https://startrekonline.info'];
 
   let allowedOrigins = devAllowedOrigins;
