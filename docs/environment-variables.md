@@ -162,6 +162,13 @@ These are read by seeders when `NODE_ENV` is not `prod`.
 - `DATASEED_USER_LASTNAME`
 - `DATASEED_USER_PASSWORD`
 
+Local only (`NODE_ENV=local`), read by the Fleet fixture migrations:
+
+- `DATASEED_FLEET_OWNER_EMAIL`: the account that owns the seeded Fixture Community.
+- `DATASEED_FLEET_APPLICANT_EMAIL`, `DATASEED_FLEET_APPLICANT_USERNAME`,
+  `DATASEED_FLEET_APPLICANT_PASSWORD`: a second person, with a Windows Character, to apply to the
+  Fixture Basic Fleet with. All three or nothing. See [Fleet recruitment](fleet-recruitment.md#local-testing).
+
 ## AWS Secrets Manager secret shape
 
 The secret referenced by `AWS_SECRET_NAME` is expected to be JSON with at least:

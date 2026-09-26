@@ -188,6 +188,18 @@ class EnvironmentVariables {
   @IsEmail()
   DATASEED_FLEET_OWNER_EMAIL?: string;
 
+  @IsOptional()
+  @IsEmail()
+  DATASEED_FLEET_APPLICANT_EMAIL?: string;
+
+  @IsOptional()
+  @IsString()
+  DATASEED_FLEET_APPLICANT_USERNAME?: string;
+
+  @IsOptional()
+  @IsString()
+  DATASEED_FLEET_APPLICANT_PASSWORD?: string;
+
   @IsNotEmpty()
   @ValidateIf(o => !o.CLOUDFLARE_R2_ENDPOINT.startsWith('https://'))
   @IsUrl()
