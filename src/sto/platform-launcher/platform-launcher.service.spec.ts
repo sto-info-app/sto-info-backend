@@ -29,9 +29,14 @@ describe('PlatformLauncherService', () => {
           provide: getRepositoryToken(PlatformLauncherEntity),
           useValue: {
             save: jest.fn(),
+            query: jest.fn(),
             findOne: jest.fn(),
             find: jest.fn(),
             remove: jest.fn(),
+            metadata: {
+              schema: 'sto_info_app',
+              tableName: 'platform_launcher',
+            },
           },
         },
       ],
@@ -53,14 +58,9 @@ describe('PlatformLauncherService', () => {
 
   describe('addPlatformLauncherRelation', () => {
     it('should create and save a platform-launcher relation', async () => {
-      const relation = {
-        id: '1',
-        platformId: 'platform-1',
-        launcherId: 'launcher-1',
-      };
       (
-        repository.save as jest.Mock<(...args: any[]) => Promise<any>>
-      ).mockResolvedValue(relation);
+        repository.query as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue([]);
 
       const result = await service.addPlatformLauncherRelation(
         'platform-1',
@@ -69,12 +69,15 @@ describe('PlatformLauncherService', () => {
 
       expect(result.platformId).toBe('platform-1');
       expect(result.launcherId).toBe('launcher-1');
-      expect(repository.save).toHaveBeenCalled();
+      expect(repository.query).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO'),
+        [expect.any(String), 'platform-1', 'launcher-1'],
+      );
     });
 
     it('should throw InternalServerErrorException on save failure', async () => {
       (
-        repository.save as jest.Mock<(...args: any[]) => Promise<any>>
+        repository.query as jest.Mock<(...args: any[]) => Promise<any>>
       ).mockRejectedValue(new Error('DB Error'));
 
       await expect(

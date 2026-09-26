@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import {
   BadRequestException,
   Injectable,
@@ -56,12 +58,22 @@ export class PlatformLauncherService {
       throw new BadRequestException('Launcher ID is required');
     }
 
-    const platformLauncher = new PlatformLauncherEntity();
-    platformLauncher.platformId = platformId;
-    platformLauncher.launcherId = launcherId;
+    // `save()` and `insert()` write the join columns from the relation
+    // objects. Those are unset here, so either call stores null foreign keys
+    // and collides with the global default row. The foreign keys are written
+    // as parameters instead.
+    const metadata = this._platformLauncherRepository.metadata;
+    const table = metadata.schema
+      ? `"${metadata.schema}"."${metadata.tableName}"`
+      : `"${metadata.tableName}"`;
+
     try {
-      await this._platformLauncherRepository.save(platformLauncher);
-      return platformLauncher;
+      await this._platformLauncherRepository.query(
+        `INSERT INTO ${table} ("id", "platformId", "launcherId", "createdAt", "updatedAt") VALUES ($1, $2, $3, now(), now())`,
+        [randomUUID(), platformId, launcherId],
+      );
+
+      return { platformId, launcherId } as PlatformLauncherEntity;
     } catch (error: unknown) {
       throw new InternalServerErrorException(
         'Failed to add new platform-launcher relation',
