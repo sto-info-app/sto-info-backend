@@ -82,5 +82,8 @@ import { RosterViewService } from './services/roster-view.service';
     RosterTimelineService,
     RosterViewService,
   ],
+  // Recruitment reads the published revision to show a decider what the
+  // roster says about an applicant (FC-021).
+  exports: [PublishedRosterRevisionService],
 })
 export class FleetRosterModule {}

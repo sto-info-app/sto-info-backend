@@ -1,7 +1,7 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 
-import { DataSource, EntityTarget } from 'typeorm';
+import { DataSource, EntityManager, EntityTarget } from 'typeorm';
 
 import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
@@ -64,6 +64,7 @@ describe('CharacterFleetProposalService', () => {
       proposedByUserId: null,
       answeredAt: null,
       answeredByUserId: null,
+      applicationId: null,
       ...overrides,
     });
 
@@ -273,6 +274,59 @@ describe('CharacterFleetProposalService', () => {
       expect(manager.save).not.toHaveBeenCalled();
     });
 
+    it('cites the accepted application that raised it', async () => {
+      stored = null;
+
+      const raised = await service.raise(
+        characterId,
+        { fleetId, applicationId: 'application-1' },
+        now,
+      );
+
+      expect(raised).toMatchObject({ applicationId: 'application-1' });
+    });
+
+    /**
+     * An acceptance landing on a question the roster already asked makes it
+     * the application's question too, so a confirmation is recorded as
+     * coming from the application.
+     */
+    it('makes an open question from the roster the application’s too', async () => {
+      const open = proposal({ evidenceImportId: 'import-1' });
+
+      stored = open;
+
+      await service.raise(
+        characterId,
+        { fleetId, applicationId: 'application-1' },
+        now,
+      );
+
+      expect(manager.save).toHaveBeenCalledWith(
+        CharacterFleetProposalEntity,
+        expect.objectContaining({
+          id: 'proposal-1',
+          applicationId: 'application-1',
+          evidenceImportId: 'import-1',
+        }),
+      );
+    });
+
+    it('leaves an open question that already has an application alone', async () => {
+      const open = proposal({ applicationId: 'application-0' });
+
+      stored = open;
+
+      await expect(
+        service.raise(
+          characterId,
+          { fleetId, applicationId: 'application-1' },
+          now,
+        ),
+      ).resolves.toBe(open);
+      expect(manager.save).not.toHaveBeenCalled();
+    });
+
     it('cites the import it rests on', async () => {
       stored = null;
 
@@ -324,6 +378,42 @@ describe('CharacterFleetProposalService', () => {
       stored = null;
 
       const raised = await service.raise(characterId, { fleetId });
+
+      expect(raised.raisedAt.getTime()).toBeLessThanOrEqual(Date.now());
+    });
+  });
+
+  describe('raising one inside somebody else’s transaction', () => {
+    it('writes through the manager it was given', async () => {
+      stored = null;
+      const outer = {
+        findOne: jest.fn(() => Promise.resolve(null)),
+        create: jest.fn((_entity: unknown, input: object) =>
+          Object.assign(new CharacterFleetProposalEntity(), input),
+        ),
+        save: jest.fn((_entity: unknown, row: object) => Promise.resolve(row)),
+      };
+
+      const raised = await service.raiseWithin(
+        outer as unknown as EntityManager,
+        characterId,
+        { fleetId, applicationId: 'application-1' },
+        now,
+      );
+
+      expect(raised).toMatchObject({ applicationId: 'application-1' });
+      expect(outer.save).toHaveBeenCalled();
+      expect(manager.save).not.toHaveBeenCalled();
+    });
+
+    it('takes its own instant when none is given', async () => {
+      stored = null;
+
+      const raised = await service.raiseWithin(
+        manager as unknown as EntityManager,
+        characterId,
+        { fleetId },
+      );
 
       expect(raised.raisedAt.getTime()).toBeLessThanOrEqual(Date.now());
     });
@@ -557,6 +647,24 @@ describe('CharacterFleetProposalService', () => {
       await service.accept(characterId, 'proposal-1', ownerId);
 
       expect(membershipService.openWithin).toHaveBeenCalled();
+    });
+  });
+
+  describe('accepting one an application raised', () => {
+    it('records the membership as coming from the application', async () => {
+      stored = proposal({ applicationId: 'application-1' });
+
+      await service.accept(characterId, 'proposal-1', ownerId, {}, now);
+
+      expect(membershipService.openWithin).toHaveBeenCalledWith(
+        manager,
+        characterId,
+        expect.objectContaining({ fleetId, validFrom: now }),
+        expect.objectContaining({
+          source: CharacterFleetMembershipSource.APPLICATION,
+          proposalId: 'proposal-1',
+        }),
+      );
     });
   });
 

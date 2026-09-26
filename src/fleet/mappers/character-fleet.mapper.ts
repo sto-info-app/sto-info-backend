@@ -83,6 +83,7 @@ export class CharacterFleetMapper {
       raisedAt: proposal.raisedAt,
       expiresAt: proposal.expiresAt,
       answeredAt: proposal.answeredAt,
+      fromApplication: Boolean(proposal.applicationId),
     };
   }
 }

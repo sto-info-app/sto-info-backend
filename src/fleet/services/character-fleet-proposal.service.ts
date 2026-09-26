@@ -37,6 +37,8 @@ export interface RaiseProposalInput {
   readonly proposedByUserId?: string | null;
   /** The import whose roster listed the Character, where one did. */
   readonly evidenceImportId?: string | null;
+  /** The accepted application that raised it, where one did (FC-021). */
+  readonly applicationId?: string | null;
 }
 
 /** What a roster import says about somebody's Character. */
@@ -188,6 +190,27 @@ export class CharacterFleetProposalService {
   }
 
   /**
+   * Raises a proposal inside a transaction somebody else opened.
+   *
+   * For an accepted application (FC-021), whose grant of membership and
+   * question about the Character have to commit or fail together.
+   *
+   * @param manager - The transaction.
+   * @param characterId - The Character being asked about.
+   * @param input - The Fleet, and the application raising it.
+   * @param now - The instant it is raised at.
+   * @returns The pending proposal, new or already there.
+   */
+  async raiseWithin(
+    manager: EntityManager,
+    characterId: string,
+    input: RaiseProposalInput,
+    now: Date = new Date(),
+  ): Promise<CharacterFleetProposalEntity> {
+    return this._openOrReplace(manager, characterId, input, now);
+  }
+
+  /**
    * Raises a proposal from a roster import, unless there is a reason not to.
    *
    * The producer FC-018 adds. Called for each registered Character whose
@@ -331,7 +354,9 @@ export class CharacterFleetProposalService {
           visibility: input.visibility,
         },
         {
-          source: CharacterFleetMembershipSource.CONFIRMED_IMPORT,
+          source: proposal.applicationId
+            ? CharacterFleetMembershipSource.APPLICATION
+            : CharacterFleetMembershipSource.CONFIRMED_IMPORT,
           proposalId: proposal.id,
           actorUserId: userId,
         },
@@ -410,6 +435,15 @@ export class CharacterFleetProposalService {
       open !== null &&
       toProposalState(open, now) === CharacterFleetProposalState.PENDING
     ) {
+      // An acceptance landing on a question the roster already asked makes
+      // it the application's question too, so confirming it records the
+      // membership as coming from the application — the stronger of the two.
+      if (input.applicationId && !open.applicationId) {
+        open.applicationId = input.applicationId;
+
+        return manager.save(CharacterFleetProposalEntity, open);
+      }
+
       return open;
     }
 
@@ -430,6 +464,7 @@ export class CharacterFleetProposalService {
       ),
       proposedByUserId: input.proposedByUserId ?? null,
       evidenceImportId: input.evidenceImportId ?? null,
+      applicationId: input.applicationId ?? null,
       replacesProposalId: open?.id ?? null,
     });
 

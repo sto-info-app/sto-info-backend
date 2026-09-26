@@ -336,6 +336,15 @@ The client does not render Markdown itself, on purpose. Storytime's renderer dem
 
 Behind sign-in alone rather than a creator permission, matching Arcs: the four fields are not all behind one permission, and this route reads nothing, writes nothing and returns only the caller's own text. Capped at the Chapter body's length whatever the caller may save, and counted against the general write rate limit — the editors fetch once per switch into Preview and cache the result against the source, so typing costs nothing.
 
+### GET /admin/file-scanning/diagnostics
+
+Scan usage over the last 24 hours, 7 days and 30 days, the engine and signatures the latest
+attempt reported, the scan request queue and the assets awaiting a verdict (FC-003). Totals only.
+A part whose source cannot be reached is `null`. See
+[File assets](file-assets.md#watching-the-scanner-get-adminfile-scanningdiagnostics).
+
+**Authentication Required.** The `ADMIN` role.
+
 ### PATCH /admin/storytime/configuration
 
 Switch Storytime on or off at runtime. `GET` on the same path reports the current state. Both require the `ADMIN` role.
@@ -442,6 +451,11 @@ Reachable while Fleet Community is switched off: this is how the client learns t
 It says nothing about any Community, Fleet or person.
 
 **No Authentication Required**
+
+### Recruitment
+
+Joining, applying, invitations, decisions, leaving and removal. See
+[Fleet recruitment](fleet-recruitment.md#routes) for every route and who may call it.
 
 ### POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports
 

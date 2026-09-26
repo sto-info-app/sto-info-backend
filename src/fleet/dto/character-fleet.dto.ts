@@ -141,6 +141,13 @@ export class CharacterFleetProposalDto {
     nullable: true,
   })
   answeredAt: Date | null;
+
+  @ApiProperty({
+    description:
+      'Whether an accepted application to the Fleet raised it, rather than ' +
+      'roster evidence (FC-021).',
+  })
+  fromApplication: boolean;
 }
 
 /**

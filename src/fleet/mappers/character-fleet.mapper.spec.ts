@@ -157,7 +157,17 @@ describe('CharacterFleetMapper', () => {
         raisedAt: new Date('2026-01-02T00:00:00.000Z'),
         expiresAt: new Date('2026-04-02T00:00:00.000Z'),
         answeredAt: null,
+        fromApplication: false,
       });
+    });
+
+    it('says when an accepted application raised it, without naming it', () => {
+      const dto = mapper.toProposalDto(
+        proposal({ applicationId: 'application-1' }),
+      );
+
+      expect(dto.fromApplication).toBe(true);
+      expect(dto).not.toHaveProperty('applicationId');
     });
 
     /**

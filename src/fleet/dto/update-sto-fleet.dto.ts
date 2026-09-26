@@ -18,9 +18,14 @@ import { CreateStoFleetDto } from './create-sto-fleet.dto';
  * The exact game name can be changed, because Fleets are renamed in game and
  * the record has to be able to follow. Doing so re-mints the slug and leaves
  * the old one behind as a redirect.
+ *
+ * **The recruitment state is not changed here.** It is set at registration
+ * and changed afterwards only through the Fleet's recruitment settings, which
+ * keep a version of every change so an application keeps the form it
+ * answered (FC-021).
  */
 export class UpdateStoFleetDto extends PartialType(
-  OmitType(CreateStoFleetDto, ['platformId'] as const),
+  OmitType(CreateStoFleetDto, ['platformId', 'recruitmentState'] as const),
 ) {
   /**
    * The revision the caller last saw, for optimistic concurrency.

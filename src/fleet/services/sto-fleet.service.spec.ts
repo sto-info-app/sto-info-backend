@@ -818,11 +818,11 @@ describe('StoFleetService', () => {
       const fleet = await service.update(
         communityId,
         fleetId,
-        { revision: 1, recruitmentState: FleetRecruitmentState.OPEN },
+        { revision: 1, visibility: FleetAudience.COMMUNITY },
         actingUserId,
       );
 
-      expect(fleet.recruitmentState).toBe(FleetRecruitmentState.OPEN);
+      expect(fleet.visibility).toBe(FleetAudience.COMMUNITY);
     });
 
     it('re-mints the address when the Fleet is renamed', async () => {

@@ -31,6 +31,7 @@ import { FileScanningModule } from './file-scanning/file-scanning.module';
 import { FleetModule } from './fleet/fleet.module';
 import { FleetImagesModule } from './fleet/images/fleet-images.module';
 import { FleetRosterImportsModule } from './fleet/imports/fleet-roster-imports.module';
+import { FleetRecruitmentModule } from './fleet/recruitment/fleet-recruitment.module';
 import { FleetRosterModule } from './fleet/roster/fleet-roster.module';
 import { HealthModule } from './health/health.module';
 import { MailModule } from './mail/mail.module';
@@ -135,6 +136,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     FileScanningModule,
     FleetRosterImportsModule,
     FleetRosterModule,
+    FleetRecruitmentModule,
     FleetImagesModule,
     RegistryModule,
     ModerationModule,
