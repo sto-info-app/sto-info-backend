@@ -483,6 +483,26 @@ The message shapes, the versioning and the recovery path after a Redis loss are 
 [queues documentation](../../sto-info-file-scan-worker/docs/queues.md); the contract file itself is
 duplicated byte for byte in both repositories and held together by a digest.
 
+### Watching the scanner: `GET /admin/file-scanning/diagnostics`
+
+FC-003 asked for usage figures that tell initial scans, re-scans, retries, latency and backlog
+apart. This administrator-only route reads four sources, each on its own, and a part is `null`
+when its source cannot be reached. That way the page still shows the rest while something is down,
+which is when it is most needed.
+
+| Part | Source |
+| --- | --- |
+| `usage` | The worker's `scan_usage` view: one entry each for 24 hours, 7 days and 30 days. |
+| `engine` | The worker's `scan_engine_status` view, plus the signature age worked out here. |
+| `queue` | The `file-scan` queue's own job counts, prioritised jobs counted as waiting. |
+| `awaiting` | The registry's assets in `QUARANTINED`, `SCANNING` and `RETRY_PENDING`. |
+
+**This application cannot read the worker's attempt table, and does not need to.** The worker's
+migration `1794800000000-RecordScanUsage` grants the two views, which carry totals only, to the
+role named by the worker's `BACKEND_DB_ROLE`. Nothing in the answer names an asset, a file, an
+owner or a signature. The definitions of re-scan, retry, scan time and wait are in the worker's
+[database documentation](../../sto-info-file-scan-worker/docs/database.md).
+
 ## Uploading a picture, since FC-012
 
 Every picture the site accepts — a profile picture, a Character portrait, seven kinds of

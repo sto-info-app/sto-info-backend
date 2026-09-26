@@ -1,7 +1,9 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetsModule } from 'src/file-assets/file-assets.module';
 import { QueueModule } from 'src/shared/queue/queue.module';
 
@@ -10,6 +12,8 @@ import {
   FILE_SCAN_VERDICT_QUEUE,
 } from './contract/file-scan-contract';
 import { ScanVerdictProcessor } from './processors/scan-verdict.processor';
+import { ScanDiagnosticsController } from './scan-diagnostics.controller';
+import { ScanDiagnosticsService } from './services/scan-diagnostics.service';
 import { ScanRequestProducerService } from './services/scan-request-producer.service';
 import { ScanVerdictService } from './services/scan-verdict.service';
 
@@ -39,12 +43,15 @@ import { ScanVerdictService } from './services/scan-verdict.service';
     ConfigModule,
     FileAssetsModule,
     QueueModule,
+    TypeOrmModule.forFeature([FileAssetEntity]),
     BullModule.registerQueue(
       { name: FILE_SCAN_REQUEST_QUEUE },
       { name: FILE_SCAN_VERDICT_QUEUE },
     ),
   ],
+  controllers: [ScanDiagnosticsController],
   providers: [
+    ScanDiagnosticsService,
     ScanRequestProducerService,
     ScanVerdictService,
     ScanVerdictProcessor,
