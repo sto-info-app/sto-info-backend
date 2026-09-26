@@ -371,13 +371,13 @@ because the only thing that knew about it was the reference just removed.
 
 Five things put a picture in the queue:
 
-| Reason             | What happened                                            |
-| ------------------ | -------------------------------------------------------- |
-| `REPLACED`         | A newer picture took its place                            |
-| `REMOVED`          | Its owner deleted it                                      |
-| `RETENTION`        | The retention sweep removed what held it                  |
-| `ACCOUNT_CLOSED`   | Its owner's account was erased                            |
-| `ABANDONED_UPLOAD` | It reached Cloudflare but the write did not commit        |
+| Reason             | What happened                                      |
+| ------------------ | -------------------------------------------------- |
+| `REPLACED`         | A newer picture took its place                     |
+| `REMOVED`          | Its owner deleted it                               |
+| `RETENTION`        | The retention sweep removed what held it           |
+| `ACCOUNT_CLOSED`   | Its owner's account was erased                     |
+| `ABANDONED_UPLOAD` | It reached Cloudflare but the write did not commit |
 
 The reason is recorded because a queue that only says "delete this" cannot be
 reasoned about when it stops draining. A backlog that is all
@@ -439,12 +439,12 @@ value from one of our own enumerations. That is the point of it being a class:
 there is no parameter that could carry something a user wrote, so no future
 edit can start logging somebody's notes about themselves by accident.
 
-| Recorded                         | Why the site-wide HTTP log is not enough        |
-| -------------------------------- | ----------------------------------------------- |
-| Which ceiling a request hit       | A hundred refusals a minute is only legible as abuse if they are all the same limit |
+| Recorded                           | Why the site-wide HTTP log is not enough                                             |
+| ---------------------------------- | ------------------------------------------------------------------------------------ |
+| Which ceiling a request hit        | A hundred refusals a minute is only legible as abuse if they are all the same limit  |
 | Which field type failed validation | One type failing everywhere is our bug; many types failing for one member is probing |
-| The class of an upload failure    | Distinguishes a refused crop from Cloudflare being down |
-| What the cleanup jobs did         | Nothing else reports on work that happens when no request is in flight |
+| The class of an upload failure     | Distinguishes a refused crop from Cloudflare being down                              |
+| What the cleanup jobs did          | Nothing else reports on work that happens when no request is in flight               |
 
 The reason a value was refused is deliberately not recorded. Every sentence
 validation produces names the rule and some quote the configured bound, and
@@ -530,24 +530,48 @@ it — purging a member's data, running the retention sweep — it calls that
 service rather than writing its own SQL: a rehearsal of a job that is not the
 job proves nothing.
 
-| Command                            | What it does                                    |
-| ---------------------------------- | ----------------------------------------------- |
-| `begin <email>`                    | Switch the feature on; clear that member's data. |
-| `finish <email>`                   | Clear it again; switch the feature off.          |
-| `flag on\|off`                     | The master switch on its own.                    |
-| `reset <email>`                    | The account-closure purge, for one member.       |
-| `stale-acceptance <email>`         | Make their acceptance look like an old version.  |
-| `age <email> <days>`               | Backdate everything they have deleted.           |
-| `disabled <email> on\|off`         | Disable or re-enable their account.              |
-| `cleanup`                          | Run tonight's retention job now.                 |
-| `counts <email>`                   | What they hold, live and deleted.                |
-| `preflight <email> <public> <private>` | The database, switches and fixture actors. No passwords. |
-| `prepare <email>`                  | Enable one fixture actor again.                  |
-| `actor <email>`                    | That fixture actor's role and grants.            |
+| Command                                                                  | What it does                                                                   |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `begin <email>`                                                          | Switch the feature on; clear that member's data.                               |
+| `finish <email>`                                                         | Clear it again; switch the feature off.                                        |
+| `flag on\|off`                                                           | The master switch on its own.                                                  |
+| `reset <email>`                                                          | The account-closure purge, for one member.                                     |
+| `stale-acceptance <email>`                                               | Make their acceptance look like an old version.                                |
+| `age <email> <days>`                                                     | Backdate everything they have deleted.                                         |
+| `disabled <email> on\|off`                                               | Disable or re-enable their account.                                            |
+| `cleanup`                                                                | Run tonight's retention job now.                                               |
+| `counts <email>`                                                         | What they hold, live and deleted.                                              |
+| `preflight <email> <public> <private>`                                   | The database, switches and fixture actors. No passwords.                       |
+| `prepare <email>`                                                        | Enable one fixture actor again.                                                |
+| `actor <email>`                                                          | That fixture actor's role and grants.                                          |
+| `snapshot <email>`                                                       | That member's accounts, captains, and one public and one private profile.      |
+| `set-note <email> <slug> <note>`                                         | Replace one account's notes. The note is base64url.                            |
+| `account-restore ...`                                                    | Put two publication flags and one note back.                                   |
+| `discard-account <email> <handle>`                                       | Soft-delete an account the case created.                                       |
+| `news-seed`                                                              | Publish one bulletin and leave a draft.                                        |
+| `news-clear`                                                             | Remove those bulletins.                                                        |
+| `storytime-off`                                                          | Switch Storytime off.                                                          |
+| `storytime-on`                                                           | Switch Storytime on, without publishing a voyage.                              |
+| `storytime-discard-weekly <email>`                                       | Remove stories and arcs titled `E2E Weekly…`.                                  |
+| `profile-identity <email>`                                               | That member's username, first name and registry flag.                          |
+| `profile-identity-set <email> <username> <first name> <public\|private>` | Replace those three. The first name is base64url.                              |
+| `storytime-begin <owner> <reader>`                                       | Switch Storytime on, publish a voyage, and deny the reader creator permission. |
+| `storytime-finish <owner> <reader>`                                      | Remove the voyage, restore the permission, and switch Storytime off.           |
+| `auth-limit-clear`                                                       | Forget the auth rate-limit counters so a case has its own allowance.           |
+| `auth-link <email>`                                                      | The verification and reset links stored for an `e2eext` account. No mail.      |
+| `auth-link-expire <email> <verification\|reset>`                         | Age that stored link.                                                          |
+| `discard-external <email>`                                               | Hard-delete that `e2eext` account. Does not send mail.                         |
+| `contact-latest <message>`                                               | The newest contact row with that message. The message is base64url.            |
+| `contact-discard <message>`                                              | Remove those rows. The message is base64url.                                   |
+| `personnel-picture-clear <email>`                                        | Delete that member's personnel picture from Cloudflare and clear the id.       |
+| `character-picture-clear <email> <account> <captain>`                    | The same for one captain that member owns.                                     |
 
-The picture journey is the only one that reaches outside the machine it runs
-on — the file is scanned by a third party and stored in Cloudflare Images — so
-it is skipped unless `E2E_IMAGES=on` is set.
+The picture journey is one that reaches outside the machine it runs on — the
+file is scanned by a third party and stored in Cloudflare Images — so it is
+skipped unless `E2E_IMAGES=on` is set. Profile pictures, character pictures
+and Storytime artwork are the same kind of opt-in. Registration, reset and
+contact cases open the link or row stored when the form is submitted. They
+do not read a mailbox.
 
 ## Not built
 

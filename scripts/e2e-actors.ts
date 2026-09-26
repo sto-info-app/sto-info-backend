@@ -7,10 +7,11 @@
  * this list and is never given one of these roles: that account stays a
  * member, because several journeys exist to prove what a member cannot do.
  *
- * News, Storytime content and mail are not created here. Those belong to
- * later phases. This file only makes the people known, and gives three of
- * them one Storytime permission each so a later test can tell a moderator
- * from an administrator.
+ * News and Storytime content are created by scripts/e2e-content.ts when a
+ * case needs them, and removed again afterwards. Mail is not created here.
+ * This file only makes the people known, and gives three of them one
+ * Storytime permission each so a later test can tell a moderator from an
+ * administrator.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -98,6 +99,7 @@ export interface KnownActor {
   code: string;
   email: string;
   username: string;
+  userId: string;
   role: string;
   emailVerified: boolean;
   isAccountDisabled: boolean;
@@ -452,7 +454,7 @@ async function readKnownActor(
 ): Promise<KnownActor> {
   const rows = (await dataSource.query(
     `
-      SELECT u."role", u."emailVerified", u."isAccountDisabled", p."username"
+      SELECT u."id", u."role", u."emailVerified", u."isAccountDisabled", p."username"
       FROM "${SCHEMA}"."user" u
       JOIN "${SCHEMA}"."user_profile" p ON p."userId" = u."id"
       WHERE lower(u."email") = lower($1)
@@ -462,6 +464,7 @@ async function readKnownActor(
     `,
     [actor.email],
   )) as Array<{
+    id: string;
     role: string;
     emailVerified: boolean;
     isAccountDisabled: boolean;
@@ -508,6 +511,7 @@ async function readKnownActor(
     code: actor.code,
     email: actor.email,
     username: row.username,
+    userId: row.id,
     role: row.role,
     emailVerified: row.emailVerified,
     isAccountDisabled: row.isAccountDisabled,

@@ -41,6 +41,31 @@ import {
   prepareFixtureActor,
   readFixtureActor,
 } from './e2e-actors';
+import {
+  clearNewsCommand,
+  discardAccount,
+  discardWeeklyStories,
+  readProfileIdentity,
+  restoreAccounts,
+  seedNews,
+  setAccountNote,
+  snapshot,
+  storytimeBegin,
+  storytimeFinish,
+  storytimeOff,
+  storytimeOn,
+  writeProfileIdentity,
+} from './e2e-content';
+import {
+  clearAuthRateLimit,
+  clearCharacterPicture,
+  clearPersonnelPicture,
+  discardContactRequest,
+  discardExternalUser,
+  expireAuthLink,
+  readAuthLink,
+  readContactRequest,
+} from './e2e-external';
 
 const SCHEMA = process.env.DB_SCHEMA ?? 'sto_info_app';
 
@@ -319,6 +344,23 @@ async function actor(
   return readFixtureActor(dataSource, email);
 }
 
+/**
+ * First names travel as base64url, the same way account notes do.
+ *
+ * `--null--` clears the name. `--empty--` stores an empty string.
+ */
+function decodeProfileName(encoded: string): string | null {
+  if (encoded === '--null--') {
+    return null;
+  }
+
+  if (encoded === '--empty--') {
+    return '';
+  }
+
+  return Buffer.from(encoded, 'base64url').toString('utf8');
+}
+
 const COMMANDS: Record<
   string,
   (context: SupportContext, ...args: string[]) => Promise<SupportResult>
@@ -335,6 +377,109 @@ const COMMANDS: Record<
   preflight,
   prepare,
   actor,
+  snapshot,
+  'set-note': setAccountNote,
+  'account-restore': restoreAccounts,
+  'discard-account': discardAccount,
+  'news-seed': seedNews,
+  'news-clear': clearNewsCommand,
+  'storytime-off': storytimeOff,
+  'storytime-on': storytimeOn,
+  'storytime-begin': storytimeBegin,
+  'storytime-finish': storytimeFinish,
+  'storytime-discard-weekly': (context, email) => {
+    if (!email) {
+      throw new Error('storytime-discard-weekly needs the owner email.');
+    }
+
+    return discardWeeklyStories(context, email);
+  },
+  'profile-identity': (context, email) => {
+    if (!email) {
+      throw new Error('profile-identity needs the member email.');
+    }
+
+    return readProfileIdentity(context.dataSource, email);
+  },
+  'profile-identity-set': (context, email, username, firstName, state) => {
+    if (!email || !username || !firstName || !state) {
+      throw new Error(
+        'profile-identity-set needs email, username, first name and public or private.',
+      );
+    }
+
+    return writeProfileIdentity(
+      context.dataSource,
+      email,
+      username,
+      decodeProfileName(firstName),
+      state,
+    );
+  },
+  'auth-limit-clear': () => clearAuthRateLimit(),
+  'auth-link': (context, email) => {
+    if (!email) {
+      throw new Error('auth-link needs the external email.');
+    }
+
+    return readAuthLink(context.dataSource, email);
+  },
+  'auth-link-expire': (context, email, kind) => {
+    if (!email || !kind) {
+      throw new Error(
+        'auth-link-expire needs the email and verification or reset.',
+      );
+    }
+
+    return expireAuthLink(context.dataSource, email, kind);
+  },
+  'discard-external': (context, email) => {
+    if (!email) {
+      throw new Error('discard-external needs the external email.');
+    }
+
+    return discardExternalUser(context.dataSource, email);
+  },
+  'contact-latest': (context, message) => {
+    if (!message) {
+      throw new Error('contact-latest needs the message, base64url.');
+    }
+
+    return readContactRequest(context.dataSource, message);
+  },
+  'contact-discard': (context, message) => {
+    if (!message) {
+      throw new Error('contact-discard needs the message, base64url.');
+    }
+
+    return discardContactRequest(context.dataSource, message);
+  },
+  'personnel-picture-clear': (context, email) => {
+    if (!email) {
+      throw new Error('personnel-picture-clear needs the member email.');
+    }
+
+    return clearPersonnelPicture(context, email);
+  },
+  'character-picture-clear': (
+    context,
+    email,
+    accountHandle,
+    characterHandle,
+  ) => {
+    if (!email || !accountHandle || !characterHandle) {
+      throw new Error(
+        'character-picture-clear needs the email, account handle and captain handle.',
+      );
+    }
+
+    return clearCharacterPicture(
+      context,
+      email,
+      accountHandle,
+      characterHandle,
+    );
+  },
 };
 
 async function main(): Promise<void> {
