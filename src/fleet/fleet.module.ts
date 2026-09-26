@@ -33,6 +33,7 @@ import { CharacterFleetMapper } from './mappers/character-fleet.mapper';
 import { FleetCommunityMapper } from './mappers/fleet-community.mapper';
 import { StoArmadaMapper } from './mappers/sto-armada.mapper';
 import { StoFleetMapper } from './mappers/sto-fleet.mapper';
+import { FleetInvitationEntity } from './recruitment/entities/fleet-invitation.entity';
 import { CharacterFleetMembershipService } from './services/character-fleet-membership.service';
 import { CharacterFleetProposalService } from './services/character-fleet-proposal.service';
 import { CommunitySubscriptionService } from './services/community-subscription.service';
@@ -86,6 +87,9 @@ import { UnregisteredFleetsController } from './unregistered-fleets.controller';
       CharacterFleetProposalEntity,
       PlatformEntity,
       UserEntity,
+      // Read by the audience service alone: an open invitation shows the
+      // invitee the Fleet (FC-021). Written by the recruitment module.
+      FleetInvitationEntity,
       // Read for one column, never written here. A scope page has to say
       // whether the viewer may paint over the picture an unregistered Fleet
       // is showing, and that is a question about who owns the asset.

@@ -43,7 +43,7 @@ describe('CommunityFleetsController', () => {
     update: jest.Mock;
     close: jest.Mock;
   };
-  let audienceService: { assertCanView: jest.Mock };
+  let audienceService: { assertCanViewFleet: jest.Mock };
   let featureService: {
     assertEnabled: jest.Mock;
     assertFlagEnabled: jest.Mock;
@@ -61,7 +61,7 @@ describe('CommunityFleetsController', () => {
       close: jest.fn(() => Promise.resolve(FLEET)),
     };
 
-    audienceService = { assertCanView: jest.fn(() => Promise.resolve()) };
+    audienceService = { assertCanViewFleet: jest.fn(() => Promise.resolve()) };
 
     featureService = {
       assertEnabled: jest.fn(() => Promise.resolve()),
@@ -175,9 +175,8 @@ describe('CommunityFleetsController', () => {
       await expect(
         controller.findOne(COMMUNITY_ID, FLEET_ID, null),
       ).resolves.toBe(FLEET);
-      expect(audienceService.assertCanView).toHaveBeenCalledWith(
-        FleetAudience.PUBLIC,
-        { kind: FleetScopeKind.FLEET, id: FLEET_ID },
+      expect(audienceService.assertCanViewFleet).toHaveBeenCalledWith(
+        FLEET,
         null,
       );
     });
@@ -187,7 +186,7 @@ describe('CommunityFleetsController', () => {
      * response cannot confirm that a private Fleet exists — plan section 5.
      */
     it('reports a Fleet the caller may not see as absent', async () => {
-      audienceService.assertCanView.mockRejectedValue(
+      audienceService.assertCanViewFleet.mockRejectedValue(
         new NotFoundException('Not found'),
       );
 

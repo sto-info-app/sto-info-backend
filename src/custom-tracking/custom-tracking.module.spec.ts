@@ -28,6 +28,7 @@ import { ScopeMembershipEntity } from '../fleet/entities/scope-membership.entity
 import { ScopeRoleAssignmentEntity } from '../fleet/entities/scope-role-assignment.entity';
 import { StoArmadaEntity } from '../fleet/entities/sto-armada.entity';
 import { StoFleetEntity } from '../fleet/entities/sto-fleet.entity';
+import { FleetInvitationEntity } from '../fleet/recruitment/entities/fleet-invitation.entity';
 import { AppSettingEntity } from '../settings/entities/app-setting.entity';
 import { SettingsService } from '../settings/settings.service';
 import { SecretsService } from '../shared/secrets/secrets.service';
@@ -147,6 +148,9 @@ describe('CustomTrackingModule', () => {
     ScopeCapabilityGrantEntity,
     CharacterFleetMembershipEntity,
     CharacterFleetProposalEntity,
+    // Read by the Fleet audience service: an open invitation shows the
+    // invitee the Fleet (FC-021).
+    FleetInvitationEntity,
     PlatformEntity,
   ];
 

@@ -1,3 +1,5 @@
+import { NotFoundException } from '@nestjs/common';
+
 import {
   AuthorisationWorld,
   createAuthorisationWorld,
@@ -5,6 +7,7 @@ import {
 import { FleetAudience } from '../enums/fleet-audience.enum';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
+import { FleetInvitationStatus } from '../recruitment/enums/fleet-invitation-status.enum';
 import { ScopeRef } from './scope-authorisation.interface';
 
 /**
@@ -17,6 +20,7 @@ describe('FleetAudienceService: seeing a scope', () => {
   const OWNER = 'user-owner';
   const FOLLOWER = 'user-follower';
   const STRANGER = 'user-stranger';
+  const INVITEE = 'user-invitee';
 
   const OPEN_COMMUNITY = 'community-open';
   const CLOSED_COMMUNITY = 'community-closed';
@@ -31,6 +35,7 @@ describe('FleetAudienceService: seeing a scope', () => {
         { id: OWNER, isAccountDisabled: false },
         { id: FOLLOWER, isAccountDisabled: false },
         { id: STRANGER, isAccountDisabled: false },
+        { id: INVITEE, isAccountDisabled: false },
       ],
       communities: [
         {
@@ -69,6 +74,13 @@ describe('FleetAudienceService: seeing a scope', () => {
           status: FleetScopeStatus.ACTIVE,
           revision: 1,
           visibility: FleetAudience.PUBLIC,
+        },
+        {
+          id: 'fleet-private',
+          communityId: OPEN_COMMUNITY,
+          status: FleetScopeStatus.ACTIVE,
+          revision: 1,
+          visibility: FleetAudience.PRIVATE,
         },
       ],
       armadas: [
@@ -205,5 +217,170 @@ describe('FleetAudienceService: seeing a scope', () => {
         STRANGER,
       ),
     ).resolves.toBe(false);
+  });
+
+  /**
+   * FC-021: a Fleet nobody outside it can see reaches a person only by
+   * inviting them, so an open invitation shows the invitee the Fleet — and
+   * nothing more.
+   */
+  describe('with an invitation', () => {
+    const DAY = 24 * 60 * 60 * 1000;
+
+    const invite = (
+      fleetId: string,
+      status = FleetInvitationStatus.PENDING,
+      expiresAt = new Date(Date.now() + DAY),
+    ): void => {
+      world.rows.invitations.push({
+        id: `invitation-${world.rows.invitations.length}`,
+        fleetId,
+        invitedUserId: INVITEE,
+        status,
+        expiresAt,
+      });
+    };
+
+    it.each([
+      ["a Community's Fleet", 'fleet-community'],
+      ['a private Fleet', 'fleet-private'],
+      // The invitation reaches past the Community's audience too, since the
+      // Fleet cannot be seen without it.
+      ['a Fleet in a Community for its followers', 'fleet-public-in-closed'],
+    ])('shows the invitee %s while it is open', async (_name, fleetId) => {
+      invite(fleetId);
+
+      await expect(
+        world.audience.canViewScope(
+          scope(FleetScopeKind.FLEET, fleetId),
+          INVITEE,
+        ),
+      ).resolves.toBe(true);
+    });
+
+    it.each([
+      ['lapsed', FleetInvitationStatus.PENDING, new Date(Date.now() - DAY)],
+      ['declined', FleetInvitationStatus.DECLINED, undefined],
+      ['withdrawn', FleetInvitationStatus.WITHDRAWN, undefined],
+      ['accepted', FleetInvitationStatus.ACCEPTED, undefined],
+    ])(
+      'shows nothing once the invitation is %s',
+      async (_name, status, expiresAt) => {
+        invite('fleet-community', status, expiresAt);
+
+        await expect(
+          world.audience.canViewScope(
+            scope(FleetScopeKind.FLEET, 'fleet-community'),
+            INVITEE,
+          ),
+        ).resolves.toBe(false);
+      },
+    );
+
+    it('shows no other Fleet', async () => {
+      invite('fleet-community');
+
+      await expect(
+        world.audience.canViewScope(
+          scope(FleetScopeKind.FLEET, 'fleet-private'),
+          INVITEE,
+        ),
+      ).resolves.toBe(false);
+    });
+
+    it('does not show the Community itself', async () => {
+      invite('fleet-public-in-closed');
+
+      await expect(
+        world.audience.canViewScope(
+          scope(FleetScopeKind.COMMUNITY, CLOSED_COMMUNITY),
+          INVITEE,
+        ),
+      ).resolves.toBe(false);
+    });
+
+    /**
+     * Seeing the Fleet is not being in it: content published to its members
+     * stays theirs.
+     */
+    it("opens nothing published to the Fleet's members", async () => {
+      invite('fleet-community');
+
+      await expect(
+        world.audience.canView(
+          FleetAudience.FLEET_MEMBERS,
+          scope(FleetScopeKind.FLEET, 'fleet-community'),
+          INVITEE,
+        ),
+      ).resolves.toBe(false);
+    });
+  });
+
+  describe('assertCanViewFleet', () => {
+    const fleet = (id: string, visibility: FleetAudience) => ({
+      id,
+      visibility,
+    });
+
+    const CLOSED = {
+      id: CLOSED_COMMUNITY,
+      visibility: FleetAudience.COMMUNITY,
+    };
+
+    it('lets through somebody the audiences allow', async () => {
+      await expect(
+        world.audience.assertCanViewFleet(
+          fleet('fleet-public', FleetAudience.PUBLIC),
+          null,
+          { id: OPEN_COMMUNITY, visibility: FleetAudience.PUBLIC },
+        ),
+      ).resolves.toBeUndefined();
+    });
+
+    it("reads the Fleet's audience alone when given no Community", async () => {
+      await expect(
+        world.audience.assertCanViewFleet(
+          fleet('fleet-public-in-closed', FleetAudience.PUBLIC),
+          STRANGER,
+        ),
+      ).resolves.toBeUndefined();
+    });
+
+    it("refuses somebody the Community's audience shuts out", async () => {
+      await expect(
+        world.audience.assertCanViewFleet(
+          fleet('fleet-public-in-closed', FleetAudience.PUBLIC),
+          STRANGER,
+          CLOSED,
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("refuses somebody the Fleet's audience shuts out", async () => {
+      await expect(
+        world.audience.assertCanViewFleet(
+          fleet('fleet-community', FleetAudience.COMMUNITY),
+          null,
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('lets through an invitee past both audiences', async () => {
+      world.rows.invitations.push({
+        id: 'invitation-closed',
+        fleetId: 'fleet-public-in-closed',
+        invitedUserId: INVITEE,
+        status: FleetInvitationStatus.PENDING,
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+
+      await expect(
+        world.audience.assertCanViewFleet(
+          fleet('fleet-public-in-closed', FleetAudience.PUBLIC),
+          INVITEE,
+          CLOSED,
+        ),
+      ).resolves.toBeUndefined();
+    });
   });
 });

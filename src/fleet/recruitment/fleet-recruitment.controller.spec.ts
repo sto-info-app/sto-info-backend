@@ -27,7 +27,7 @@ const SOURCE = {
 describe('FleetRecruitmentController', () => {
   let feature: { assertEnabled: jest.Mock };
   let fleets: { findByIdOrFail: jest.Mock };
-  let audience: { assertCanView: jest.Mock };
+  let audience: { assertCanViewFleet: jest.Mock };
   let view: { view: jest.Mock };
   let settings: { save: jest.Mock; describe: jest.Mock };
   let applications: Record<string, jest.Mock>;
@@ -38,7 +38,7 @@ describe('FleetRecruitmentController', () => {
   beforeEach(() => {
     feature = { assertEnabled: jest.fn(() => Promise.resolve()) };
     fleets = { findByIdOrFail: jest.fn(() => Promise.resolve(FLEET)) };
-    audience = { assertCanView: jest.fn(() => Promise.resolve()) };
+    audience = { assertCanViewFleet: jest.fn(() => Promise.resolve()) };
     view = { view: jest.fn(() => Promise.resolve({ viewer: null })) };
     settings = {
       save: jest.fn(() => Promise.resolve({ version: 3 })),
@@ -108,11 +108,7 @@ describe('FleetRecruitmentController', () => {
     await expect(
       controller.view('community-1', 'fleet-1', 'user-1'),
     ).resolves.toEqual({ viewer: null });
-    expect(audience.assertCanView).toHaveBeenCalledWith(
-      FleetAudience.COMMUNITY,
-      { kind: FleetScopeKind.FLEET, id: 'fleet-1' },
-      'user-1',
-    );
+    expect(audience.assertCanViewFleet).toHaveBeenCalledWith(FLEET, 'user-1');
     expect(view.view).toHaveBeenCalledWith(FLEET, 'user-1');
   });
 

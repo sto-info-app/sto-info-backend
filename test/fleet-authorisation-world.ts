@@ -12,6 +12,7 @@ import { ScopeMembershipEntity } from '../src/fleet/entities/scope-membership.en
 import { ScopeRoleAssignmentEntity } from '../src/fleet/entities/scope-role-assignment.entity';
 import { StoArmadaEntity } from '../src/fleet/entities/sto-armada.entity';
 import { StoFleetEntity } from '../src/fleet/entities/sto-fleet.entity';
+import { FleetInvitationEntity } from '../src/fleet/recruitment/entities/fleet-invitation.entity';
 import { CommunitySubscriptionService } from '../src/fleet/services/community-subscription.service';
 import { FleetScopeViewerService } from '../src/fleet/services/fleet-scope-viewer.service';
 import { UserEntity } from '../src/user/entities/user.entity';
@@ -157,6 +158,7 @@ export interface WorldRows {
   roles?: Partial<ScopeRoleAssignmentEntity>[];
   grants?: Partial<ScopeCapabilityGrantEntity>[];
   subscriptions?: Partial<CommunitySubscriptionEntity>[];
+  invitations?: Partial<FleetInvitationEntity>[];
 }
 
 /** The services under test, wired to the world's rows. */
@@ -232,6 +234,7 @@ export function createAuthorisationWorld(
       deletedAt: null,
       ...row,
     })),
+    invitations: rows.invitations ?? [],
   };
 
   const repository = <T extends Row>(source: unknown): Repository<never> =>
@@ -257,6 +260,7 @@ export function createAuthorisationWorld(
     audience: new FleetAudienceService(
       authorisation,
       repository(filled.subscriptions),
+      repository(filled.invitations),
     ),
     subscription,
     // No assets: the viewer service reads them only for a Fleet nobody has

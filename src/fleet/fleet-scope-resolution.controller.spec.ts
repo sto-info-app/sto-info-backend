@@ -76,7 +76,10 @@ describe('FleetScopeResolutionController', () => {
     resolveStandaloneBySlugOrFail: jest.Mock;
   };
   let armadaService: { resolveBySlugOrFail: jest.Mock };
-  let audienceService: { assertCanView: jest.Mock };
+  let audienceService: {
+    assertCanView: jest.Mock;
+    assertCanViewFleet: jest.Mock;
+  };
   let featureService: { assertEnabled: jest.Mock };
   let viewerService: { forScope: jest.Mock; forStandaloneFleet: jest.Mock };
   let fleetMapper: { toDto: jest.Mock };
@@ -108,7 +111,10 @@ describe('FleetScopeResolutionController', () => {
       ),
     };
 
-    audienceService = { assertCanView: jest.fn(() => Promise.resolve()) };
+    audienceService = {
+      assertCanView: jest.fn(() => Promise.resolve()),
+      assertCanViewFleet: jest.fn(() => Promise.resolve()),
+    };
     featureService = { assertEnabled: jest.fn(() => Promise.resolve()) };
     viewerService = {
       forScope: jest.fn(() => Promise.resolve(NO_VIEWER)),
@@ -207,33 +213,34 @@ describe('FleetScopeResolutionController', () => {
     );
   });
 
-  it('checks that the caller may see the Community and the Fleet', async () => {
+  /**
+   * One question about the Fleet and its Community together, because an open
+   * invitation shows the invitee a Fleet whose Community they could not
+   * otherwise see (FC-021).
+   */
+  it('checks that the caller may see the Fleet in its Community', async () => {
     await resolve();
 
-    expect(audienceService.assertCanView).toHaveBeenCalledWith(
-      FleetAudience.PUBLIC,
-      { kind: FleetScopeKind.COMMUNITY, id: COMMUNITY_ID },
+    expect(audienceService.assertCanViewFleet).toHaveBeenCalledWith(
+      FLEET,
       USER_ID,
+      COMMUNITY,
     );
-    expect(audienceService.assertCanView).toHaveBeenCalledWith(
-      FleetAudience.PUBLIC,
-      { kind: FleetScopeKind.FLEET, id: FLEET_ID },
-      USER_ID,
-    );
+    expect(audienceService.assertCanView).not.toHaveBeenCalled();
   });
 
   /**
-   * A Community the caller may not see stops the resolution there, before
-   * anything inside it is read. Answering a question about a Fleet in a
-   * Community they cannot see would confirm the Community exists.
+   * The Fleet is looked up before the question is asked, and the answer is
+   * the same 404 as for an address that names nothing, so the order confirms
+   * nothing about a Community the caller cannot see.
    */
-  it('stops at the Community when the caller may not see it', async () => {
-    audienceService.assertCanView.mockRejectedValueOnce(
+  it('reports a Fleet the caller may not see as absent', async () => {
+    audienceService.assertCanViewFleet.mockRejectedValueOnce(
       new NotFoundException('Not found'),
     );
 
     await expect(resolve()).rejects.toBeInstanceOf(NotFoundException);
-    expect(fleetService.resolveBySlugOrFail).not.toHaveBeenCalled();
+    expect(viewerService.forScope).not.toHaveBeenCalled();
   });
 
   describe('when an address is out of date', () => {

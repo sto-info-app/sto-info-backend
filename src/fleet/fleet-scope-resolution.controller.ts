@@ -138,12 +138,6 @@ export class FleetScopeResolutionController {
     const community =
       await this._communityService.resolveBySlugOrFail(communitySlug);
 
-    await this._audienceService.assertCanView(
-      community.community.visibility,
-      { kind: FleetScopeKind.COMMUNITY, id: community.community.id },
-      userId,
-    );
-
     const platform =
       await this._platformService.findBySegmentOrFail(platformSegment);
 
@@ -153,10 +147,13 @@ export class FleetScopeResolutionController {
       fleetSlug,
     );
 
-    await this._audienceService.assertCanView(
-      resolved.fleet.visibility,
-      { kind: FleetScopeKind.FLEET, id: resolved.fleet.id },
+    // Both audiences at once, after the Fleet is found: an open invitation
+    // shows the invitee a Fleet whose Community they could not otherwise see.
+    // Every refusal on the way is the same 404, so the order confirms nothing.
+    await this._audienceService.assertCanViewFleet(
+      resolved.fleet,
       userId,
+      community.community,
     );
 
     const canonicalPlatformSegment = toPlatformSegment(platform.name);

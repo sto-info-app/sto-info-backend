@@ -307,10 +307,6 @@ export class CommunityFleetsController {
     fleet: StoFleetEntity,
     userId: string | null,
   ): Promise<void> {
-    await this._audienceService.assertCanView(
-      fleet.visibility,
-      { kind: FleetScopeKind.FLEET, id: fleet.id },
-      userId,
-    );
+    await this._audienceService.assertCanViewFleet(fleet, userId);
   }
 }

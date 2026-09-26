@@ -36,6 +36,7 @@ import { FleetModule } from './fleet.module';
 import { FleetCommunityMapper } from './mappers/fleet-community.mapper';
 import { StoArmadaMapper } from './mappers/sto-armada.mapper';
 import { StoFleetMapper } from './mappers/sto-fleet.mapper';
+import { FleetInvitationEntity } from './recruitment/entities/fleet-invitation.entity';
 import { CharacterFleetMembershipService } from './services/character-fleet-membership.service';
 import { CharacterFleetProposalService } from './services/character-fleet-proposal.service';
 import { CommunitySubscriptionService } from './services/community-subscription.service';
@@ -72,7 +73,12 @@ describe('FleetModule', () => {
    * `forFeature` registrations are per-module even when the module declaring
    * them is global, so borrowing one means registering it again here.
    */
-  const BORROWED_ENTITIES = [UserEntity, PlatformEntity, FileAssetEntity];
+  const BORROWED_ENTITIES = [
+    UserEntity,
+    PlatformEntity,
+    FileAssetEntity,
+    FleetInvitationEntity,
+  ];
 
   const SERVICES = [
     FleetFeatureService,

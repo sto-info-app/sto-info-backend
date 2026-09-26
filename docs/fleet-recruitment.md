@@ -105,6 +105,13 @@ invitation lapses **14 days** after it is sent; expiry is a date read when it is
 `LAPSED` is set only when a lapsed invitation is replaced by a new one. At most one invitation
 per person per Fleet is open.
 
+An open invitation shows the invitee the Fleet, whatever the Fleet's or its Community's
+visibility. A Fleet only its Community can see has no other way to reach a person, since nobody
+outside can find it to apply. The invitee sees the Fleet as anybody allowed to see it would: its
+page, and what that page shows everybody. The Community's own page, and anything published to the
+Community or to the Fleet's members, stays closed to them. `FleetAudienceService` decides this,
+so every route that asks whether somebody may see a Fleet gives the same answer.
+
 ## Routes
 
 | Route | Who |

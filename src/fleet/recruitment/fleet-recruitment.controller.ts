@@ -126,11 +126,9 @@ export class FleetRecruitmentController {
     await this._featureService.assertEnabled();
 
     const fleet = await this._fleetService.findByIdOrFail(communityId, fleetId);
-    await this._audienceService.assertCanView(
-      fleet.visibility,
-      { kind: FleetScopeKind.FLEET, id: fleet.id },
-      userId,
-    );
+    // An open invitation shows the invitee the Fleet, and this is where
+    // they answer it.
+    await this._audienceService.assertCanViewFleet(fleet, userId);
 
     return this._viewService.view(fleet, userId);
   }

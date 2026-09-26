@@ -6,6 +6,8 @@ import { IsNull, Repository } from 'typeorm';
 import { CommunitySubscriptionEntity } from '../entities/community-subscription.entity';
 import { FleetAudience } from '../enums/fleet-audience.enum';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
+import { FleetInvitationEntity } from '../recruitment/entities/fleet-invitation.entity';
+import { FleetInvitationStatus } from '../recruitment/enums/fleet-invitation-status.enum';
 import { FleetAuthorisationService } from './fleet-authorisation.service';
 import { FLEET_CAPABILITIES } from './fleet-capability.constants';
 import { ScopeAuthorisation, ScopeRef } from './scope-authorisation.interface';
@@ -25,6 +27,12 @@ import { ScopeAuthorisation, ScopeRef } from './scope-authorisation.interface';
  * consulted for `FLEET_MEMBERS`, which is FC-005's second acceptance criterion
  * — following a Community never opens a private roster (R07).
  *
+ * An open invitation is the one other thing that shows somebody a Fleet
+ * (FC-021). A Fleet only its Community can see has no other way to reach a
+ * person, so while the invitation is open the invitee sees the Fleet as
+ * anybody allowed to see it would — its page, and what that page shows
+ * everybody. Nothing published to a narrower audience opens with it.
+ *
  * The four audiences are matched by name rather than compared as an ordering.
  * {@link FleetAudience} is written widest-first and it would be tempting to
  * treat it as a number, but then inserting a value later would silently widen
@@ -37,11 +45,14 @@ export class FleetAudienceService {
    *
    * @param _authorisationService - Resolves roles, capabilities and membership.
    * @param _subscriptionRepository - Repository of Community subscriptions.
+   * @param _invitationRepository - Repository of invitations to join a Fleet.
    */
   constructor(
     private readonly _authorisationService: FleetAuthorisationService,
     @InjectRepository(CommunitySubscriptionEntity)
     private readonly _subscriptionRepository: Repository<CommunitySubscriptionEntity>,
+    @InjectRepository(FleetInvitationEntity)
+    private readonly _invitationRepository: Repository<FleetInvitationEntity>,
   ) {}
 
   /**
@@ -110,6 +121,45 @@ export class FleetAudienceService {
   }
 
   /**
+   * Requires that somebody may see a Fleet.
+   *
+   * Its own audience and, where given, its Community's — or an open
+   * invitation to it, which shows the invitee the Fleet whatever either
+   * audience is.
+   *
+   * @param fleet - The Fleet.
+   * @param userId - The viewer, or null when signed out.
+   * @param community - The Community holding it, when the caller checks that
+   *   too.
+   * @throws NotFoundException when they may not, for the reason
+   *   {@link assertCanView} gives.
+   */
+  async assertCanViewFleet(
+    fleet: { id: string; visibility: FleetAudience },
+    userId: string | null,
+    community?: { id: string; visibility: FleetAudience },
+  ): Promise<void> {
+    const byAudience =
+      (community === undefined ||
+        (await this.canView(
+          community.visibility,
+          { kind: FleetScopeKind.COMMUNITY, id: community.id },
+          userId,
+        ))) &&
+      (await this.canView(
+        fleet.visibility,
+        { kind: FleetScopeKind.FLEET, id: fleet.id },
+        userId,
+      ));
+
+    if (byAudience || (await this.isInvitedTo(fleet.id, userId))) {
+      return;
+    }
+
+    throw new NotFoundException('Not found');
+  }
+
+  /**
    * Reports whether somebody may see a scope at all.
    *
    * The same two questions the page reads ask: whether they may see the
@@ -117,6 +167,9 @@ export class FleetAudienceService {
    * Armada has no audience of its own, so its Community's is the whole of it.
    * Kept in step with those reads so that a route which refuses somebody can
    * tell whether the refusal would confirm something the page denies exists.
+   *
+   * An open invitation to a Fleet shows it to the invitee, as it does on
+   * the page.
    *
    * @param ref - The scope.
    * @param userId - The viewer, or null when signed out.
@@ -140,15 +193,54 @@ export class FleetAudienceService {
       userId,
     );
 
-    if (!canViewCommunity || scope.fleetAudience === null) {
+    if (scope.fleetAudience === null) {
       return canViewCommunity;
     }
 
-    return this.canView(
-      scope.fleetAudience,
-      { kind: FleetScopeKind.FLEET, id: scope.id },
-      userId,
-    );
+    if (
+      canViewCommunity &&
+      (await this.canView(
+        scope.fleetAudience,
+        { kind: FleetScopeKind.FLEET, id: scope.id },
+        userId,
+      ))
+    ) {
+      return true;
+    }
+
+    return this.isInvitedTo(scope.id, userId);
+  }
+
+  /**
+   * Reports whether somebody holds an open invitation to a Fleet.
+   *
+   * Open while it is waiting and has not lapsed, which is read from its
+   * `expiresAt` rather than a status (see {@link FleetInvitationStatus}).
+   *
+   * @param fleetId - The Fleet.
+   * @param userId - The viewer, or null when signed out.
+   * @returns True when an invitation to them is open.
+   */
+  private async isInvitedTo(
+    fleetId: string,
+    userId: string | null,
+  ): Promise<boolean> {
+    if (userId === null) {
+      return false;
+    }
+
+    // At most one is waiting, by the partial unique index; its lapse is
+    // compared here rather than in the query.
+    const invitation = await this._invitationRepository.findOne({
+      where: {
+        fleetId,
+        invitedUserId: userId,
+        status: FleetInvitationStatus.PENDING,
+      },
+      select: { id: true, expiresAt: true },
+    });
+
+    return invitation !== null && invitation.expiresAt > new Date();
   }
 
   /**
