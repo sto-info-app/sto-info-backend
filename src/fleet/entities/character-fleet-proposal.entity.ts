@@ -18,6 +18,7 @@ import { UserEntity } from 'src/user/entities/user.entity';
 
 import { CharacterFleetProposalStatus } from '../enums/character-fleet-proposal-status.enum';
 import { RosterImportSourceEntity } from '../imports/entities/roster-import-source.entity';
+import { FleetApplicationEntity } from '../recruitment/entities/fleet-application.entity';
 import { StoFleetEntity } from './sto-fleet.entity';
 
 /**
@@ -72,6 +73,7 @@ import { StoFleetEntity } from './sto-fleet.entity';
 ])
 @Index('IDX_character_fleet_proposal_fleet_raised', ['fleetId', 'raisedAt'])
 @Index('IDX_character_fleet_proposal_evidence', ['evidenceImportId'])
+@Index('IDX_character_fleet_proposal_application', ['applicationId'])
 @Unique('UQ_character_fleet_proposal_replaces', ['replacesProposalId'])
 export class CharacterFleetProposalEntity {
   @ApiProperty({ description: 'Unique identifier.' })
@@ -127,6 +129,21 @@ export class CharacterFleetProposalEntity {
   })
   @Column({ type: 'uuid', nullable: true, default: null })
   evidenceImportId: string | null;
+
+  /**
+   * The accepted application that raised it, when one did (FC-021).
+   *
+   * An acceptance grants Fleet membership but leaves the Character where its
+   * owner put it; this asks them to confirm the Fleet once the in-game
+   * invitation has happened, and a confirmation records the membership as
+   * coming from the application rather than from roster evidence.
+   */
+  @ApiProperty({
+    description: 'The accepted application that raised it, if any.',
+    nullable: true,
+  })
+  @Column({ type: 'uuid', nullable: true, default: null })
+  applicationId: string | null;
 
   /**
    * The expired proposal this one asks again in place of.
@@ -205,6 +222,10 @@ export class CharacterFleetProposalEntity {
   @ManyToOne(() => RosterImportSourceEntity, { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'evidenceImportId' })
   evidenceImport: RosterImportSourceEntity | null;
+
+  @ManyToOne(() => FleetApplicationEntity, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'applicationId' })
+  application: FleetApplicationEntity | null;
 
   @ManyToOne(() => CharacterFleetProposalEntity, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'replacesProposalId' })
