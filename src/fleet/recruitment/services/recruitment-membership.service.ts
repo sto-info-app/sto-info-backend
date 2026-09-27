@@ -47,7 +47,8 @@ export interface GrantMembershipInput {
  *
  * A membership is the access grant itself (ADR-0002). Granting one also asks
  * the member, by a proposal, to confirm their Character's Fleet once the
- * in-game invitation has happened, which STO Info cannot do for them. Every
+ * in-game invitation has happened, which STO Info cannot do for them; ending
+ * the membership before they answer takes that question back. Every
  * grant, departure and removal is logged in `scope_membership_action` and
  * advances the Fleet's authorisation revision in the same transaction.
  */
@@ -362,7 +363,8 @@ export class RecruitmentMembershipService {
   }
 
   /**
-   * Ends a membership, logs it, drops any role held at the Fleet and
+   * Ends a membership, logs it, drops any role held at the Fleet, takes back
+   * any unanswered question about the member's Character that it asked, and
    * advertises the change.
    *
    * @param manager - The transaction.
@@ -409,6 +411,12 @@ export class RecruitmentMembershipService {
         validTo: IsNull(),
       },
       { validTo: now },
+    );
+
+    await this._proposalService.withdrawRecruitedWithin(
+      manager,
+      membership.fleetId as string,
+      membership.userId,
     );
 
     await this._revisionService.bump(

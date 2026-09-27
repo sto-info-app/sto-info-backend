@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 
-import { DataSource, EntityManager } from 'typeorm';
+import { DataSource, EntityManager, In } from 'typeorm';
 
 import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
@@ -211,6 +211,57 @@ export class CharacterFleetProposalService {
     now: Date = new Date(),
   ): Promise<CharacterFleetProposalEntity> {
     return this._openOrReplace(manager, characterId, input, now);
+  }
+
+  /**
+   * Takes back the questions a member's Fleet membership asked, as it ends.
+   *
+   * Every unanswered proposal about the Fleet that one of the member's
+   * accepted applications raised is `WITHDRAWN`: it asked them to confirm
+   * the Fleet once the in-game invitation happened, and that is no longer
+   * coming. One a roster import raised, which the application only adopted,
+   * is handed back to the roster instead — the Character is still listed
+   * there, whatever became of the membership.
+   *
+   * @param manager - The transaction ending the membership.
+   * @param fleetId - The Fleet.
+   * @param userId - The member.
+   */
+  async withdrawRecruitedWithin(
+    manager: EntityManager,
+    fleetId: string,
+    userId: string,
+  ): Promise<void> {
+    const proposals = await manager.find(CharacterFleetProposalEntity, {
+      where: {
+        fleetId,
+        status: CharacterFleetProposalStatus.PENDING,
+        application: { applicantUserId: userId },
+      },
+      relations: { application: true },
+    });
+
+    const recruited = proposals.filter(
+      proposal =>
+        proposal.evidenceImportId === null && proposal.observedAt === null,
+    );
+    const adopted = proposals.filter(proposal => !recruited.includes(proposal));
+
+    if (recruited.length > 0) {
+      await manager.update(
+        CharacterFleetProposalEntity,
+        { id: In(recruited.map(proposal => proposal.id)) },
+        { status: CharacterFleetProposalStatus.WITHDRAWN },
+      );
+    }
+
+    if (adopted.length > 0) {
+      await manager.update(
+        CharacterFleetProposalEntity,
+        { id: In(adopted.map(proposal => proposal.id)) },
+        { applicationId: null },
+      );
+    }
   }
 
   /**

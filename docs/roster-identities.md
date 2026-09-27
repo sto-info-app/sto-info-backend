@@ -128,8 +128,8 @@ No proposal is raised when:
 - the owner has recorded a membership of that Fleet, current or ended.
 
 An open proposal is returned rather than a second one raised. An expired one was never answered, so
-the next import lapses it (`LAPSED`, the only status the site writes rather than a person) and asks
-again, the new one naming the old in `replacesProposalId`. A proposal cites the import it rests on
+the next import lapses it (`LAPSED`, one of two statuses the site writes rather than a person, with
+`WITHDRAWN`) and asks again, the new one naming the old in `replacesProposalId`. A proposal cites the import it rests on
 and the instant that export was taken.
 
 An unanswered proposal from a Fleet its owner can no longer see is left out of their list and

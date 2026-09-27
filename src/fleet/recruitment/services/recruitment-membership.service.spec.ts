@@ -44,6 +44,7 @@ describe('RecruitmentMembershipService', () => {
   };
   let bump: jest.Mock;
   let raiseWithin: jest.Mock;
+  let withdrawRecruitedWithin: jest.Mock;
   let service: RecruitmentMembershipService;
 
   beforeEach(() => {
@@ -66,6 +67,7 @@ describe('RecruitmentMembershipService', () => {
     };
     bump = jest.fn(() => Promise.resolve(2));
     raiseWithin = jest.fn(() => Promise.resolve({ id: 'proposal-1' }));
+    withdrawRecruitedWithin = jest.fn(() => Promise.resolve());
     const dataSource = {
       manager,
       transaction: jest.fn((work: (m: typeof manager) => Promise<unknown>) =>
@@ -75,7 +77,10 @@ describe('RecruitmentMembershipService', () => {
     service = new RecruitmentMembershipService(
       dataSource as unknown as DataSource,
       { bump } as unknown as FleetAuthorisationRevisionService,
-      { raiseWithin } as unknown as CharacterFleetProposalService,
+      {
+        raiseWithin,
+        withdrawRecruitedWithin,
+      } as unknown as CharacterFleetProposalService,
     );
   });
 
@@ -253,6 +258,11 @@ describe('RecruitmentMembershipService', () => {
         expect.objectContaining({ fleetId: 'fleet-1', userId: 'member-1' }),
         { validTo: expect.any(Date) },
       );
+      expect(withdrawRecruitedWithin).toHaveBeenCalledWith(
+        em(),
+        'fleet-1',
+        'member-1',
+      );
       expect(bump).toHaveBeenCalledWith(FleetScopeKind.FLEET, 'fleet-1', em());
     });
 
@@ -299,6 +309,12 @@ describe('RecruitmentMembershipService', () => {
             reason: 'Inactive for a year',
           }),
         ]);
+        // The question about their Character goes with the membership.
+        expect(withdrawRecruitedWithin).toHaveBeenCalledWith(
+          em(),
+          'fleet-1',
+          'member-1',
+        );
       },
     );
 

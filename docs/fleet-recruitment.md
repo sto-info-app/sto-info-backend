@@ -98,6 +98,13 @@ reason; somebody holding a role at the Fleet is not removed until the role goes.
 role held at the Fleet and advance the authorisation revision. Because a membership row is
 updated in place, every grant, departure and removal is logged in `scope_membership_action`.
 
+Either way, a proposal the member's accepted application raised and that is still unanswered is
+withdrawn (`WITHDRAWN`, the other status the site writes rather than a person): it asked them to
+confirm the Fleet once the in-game invitation happened, and that invitation is no longer coming.
+They can still record the Fleet by hand. A proposal a roster import raised, which the application
+only adopted, goes back to being the roster's question. The `WithdrawCharacterFleetProposals`
+migration applied the same rule to memberships that had already ended.
+
 ## Invitations
 
 An officer holding `applications.decide` invites a person by their STO Info username. An

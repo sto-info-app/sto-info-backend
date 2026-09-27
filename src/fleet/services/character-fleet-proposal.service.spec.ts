@@ -1,7 +1,7 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 
-import { DataSource, EntityManager, EntityTarget } from 'typeorm';
+import { DataSource, EntityManager, EntityTarget, In } from 'typeorm';
 
 import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
@@ -25,6 +25,7 @@ describe('CharacterFleetProposalService', () => {
     save: jest.Mock;
     create: jest.Mock;
     exists: jest.Mock;
+    update: jest.Mock;
   };
   let audienceService: { canViewScope: jest.Mock };
   let membershipService: {
@@ -59,6 +60,7 @@ describe('CharacterFleetProposalService', () => {
       fleetId,
       status: CharacterFleetProposalStatus.PENDING,
       observedAt: null,
+      evidenceImportId: null,
       raisedAt: new Date('2026-01-01T00:00:00.000Z'),
       expiresAt: new Date('2026-12-01T00:00:00.000Z'),
       proposedByUserId: null,
@@ -85,6 +87,7 @@ describe('CharacterFleetProposalService', () => {
         ),
       ),
       exists: jest.fn(() => Promise.resolve(false)),
+      update: jest.fn(() => Promise.resolve({})),
       save: jest.fn((_entity, row) => Promise.resolve(row)),
       create: jest.fn((entity: EntityTarget<unknown>, input) =>
         entity === CharacterFleetProposalEntity
@@ -416,6 +419,81 @@ describe('CharacterFleetProposalService', () => {
       );
 
       expect(raised.raisedAt.getTime()).toBeLessThanOrEqual(Date.now());
+    });
+  });
+
+  describe('taking back what a Fleet membership asked', () => {
+    const withdraw = () =>
+      service.withdrawRecruitedWithin(
+        manager as unknown as EntityManager,
+        fleetId,
+        ownerId,
+      );
+
+    it('reads the member’s unanswered proposals about the Fleet', async () => {
+      await withdraw();
+
+      expect(manager.find).toHaveBeenCalledWith(CharacterFleetProposalEntity, {
+        where: {
+          fleetId,
+          status: CharacterFleetProposalStatus.PENDING,
+          application: { applicantUserId: ownerId },
+        },
+        relations: { application: true },
+      });
+    });
+
+    it('writes nothing when the membership asked nothing', async () => {
+      await withdraw();
+
+      expect(manager.update).not.toHaveBeenCalled();
+    });
+
+    it('withdraws the ones its applications raised', async () => {
+      manager.find.mockResolvedValueOnce([
+        proposal({ id: 'proposal-1', applicationId: 'application-1' }),
+        proposal({ id: 'proposal-2', applicationId: 'application-2' }),
+      ]);
+
+      await withdraw();
+
+      expect(manager.update).toHaveBeenCalledTimes(1);
+      expect(manager.update).toHaveBeenCalledWith(
+        CharacterFleetProposalEntity,
+        { id: In(['proposal-1', 'proposal-2']) },
+        { status: CharacterFleetProposalStatus.WITHDRAWN },
+      );
+    });
+
+    // The roster asked first, and the Character is still listed there.
+    it('hands one a roster raised back to the roster', async () => {
+      manager.find.mockResolvedValueOnce([
+        proposal({
+          id: 'proposal-1',
+          applicationId: 'application-1',
+          evidenceImportId: 'import-1',
+          observedAt: new Date('2026-01-01T00:00:00.000Z'),
+        }),
+        proposal({
+          id: 'proposal-2',
+          applicationId: 'application-2',
+          observedAt: new Date('2026-01-01T00:00:00.000Z'),
+        }),
+        proposal({ id: 'proposal-3', applicationId: 'application-3' }),
+      ]);
+
+      await withdraw();
+
+      expect(manager.update).toHaveBeenCalledWith(
+        CharacterFleetProposalEntity,
+        { id: In(['proposal-3']) },
+        { status: CharacterFleetProposalStatus.WITHDRAWN },
+      );
+      expect(manager.update).toHaveBeenCalledWith(
+        CharacterFleetProposalEntity,
+        { id: In(['proposal-1', 'proposal-2']) },
+        { applicationId: null },
+      );
     });
   });
 

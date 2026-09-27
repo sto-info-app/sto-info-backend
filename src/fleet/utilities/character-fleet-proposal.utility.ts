@@ -34,6 +34,10 @@ export function toProposalState(
     return CharacterFleetProposalState.DECLINED;
   }
 
+  if (proposal.status === CharacterFleetProposalStatus.WITHDRAWN) {
+    return CharacterFleetProposalState.WITHDRAWN;
+  }
+
   // Only ever written once a proposal has expired, so it says nothing the
   // deadline did not already. Read explicitly rather than from the date, so
   // that it cannot come back as pending if somebody edits the deadline.

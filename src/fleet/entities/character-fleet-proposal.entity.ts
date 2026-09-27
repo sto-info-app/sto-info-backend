@@ -39,7 +39,9 @@ import { StoFleetEntity } from './sto-fleet.entity';
  * the Character's owner could see that Fleet anyway. It never asks again
  * about a Fleet the owner declined or has recorded a membership of, and asks
  * again about an expired one only by lapsing it — see
- * {@link CharacterFleetProposalStatus.LAPSED}.
+ * {@link CharacterFleetProposalStatus.LAPSED}. FC-021 raises one when an
+ * application is accepted, and withdraws it if the Fleet membership ends
+ * before it is answered — see {@link CharacterFleetProposalStatus.WITHDRAWN}.
  *
  * ## Competing proposals
  *
@@ -57,7 +59,8 @@ import { StoFleetEntity } from './sto-fleet.entity';
  * column meaning "expired" is wrong from the moment it lapses until a job next
  * runs, and an outage would leave dead proposals answerable; reading the date
  * cannot be stale. {@link CharacterFleetProposalStatus} therefore holds only
- * things a person did, with the one narrow exception of `LAPSED`.
+ * things a person did, with the narrow exceptions of `LAPSED` and
+ * `WITHDRAWN`.
  *
  * `fleetId` is `RESTRICT`, as on the membership: a Fleet record cannot be
  * hard-deleted out from under a question somebody has been asked.

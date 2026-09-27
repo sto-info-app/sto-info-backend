@@ -22,6 +22,20 @@ describe('toProposalState', () => {
     ).toBe(state);
   });
 
+  // Taken back when the Fleet membership ended, which says more than the
+  // deadline would, before it and after it.
+  it.each([new Date('2026-05-01Z'), new Date('2030-01-01Z')])(
+    'reports a withdrawn proposal as withdrawn at %s',
+    at => {
+      expect(
+        toProposalState(
+          { status: CharacterFleetProposalStatus.WITHDRAWN, expiresAt },
+          at,
+        ),
+      ).toBe(CharacterFleetProposalState.WITHDRAWN);
+    },
+  );
+
   it('is pending while there is time left', () => {
     expect(
       toProposalState(

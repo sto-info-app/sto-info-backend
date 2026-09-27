@@ -1,15 +1,15 @@
 /**
  * What has become of a proposal that a Character belongs to a Fleet.
  *
- * Three of the four values are something a person did. There is no `EXPIRED`
+ * Three of the five values are something a person did. There is no `EXPIRED`
  * here on purpose: nobody expires a proposal, time does, and a status column
  * that has to be swept by a job is wrong between the moment it lapses and the
  * moment the job next runs. Expiry is read from `expiresAt` instead — see
  * {@link CharacterFleetProposalState}, which is what a client is told and
  * does carry an expired value.
  *
- * The fourth, `LAPSED`, is the one exception, added by FC-018 and kept as
- * narrow as it can be: see its own note.
+ * The other two, `LAPSED` (FC-018) and `WITHDRAWN` (FC-021), are the
+ * exceptions, each kept as narrow as it can be: see their own notes.
  *
  * `PENDING` is the only status the unique index counts, so a Fleet may hold at
  * most one unanswered proposal for a Character at a time while other Fleets
@@ -34,6 +34,16 @@ export enum CharacterFleetProposalStatus {
    * changes; Steve's decision of 24 September 2026.
    */
   LAPSED = 'LAPSED',
+  /**
+   * The Fleet membership that asked it ended before it was answered.
+   *
+   * Written only for a proposal an accepted application raised, in the
+   * transaction that ends the member's Fleet membership: it asked them to
+   * confirm the Fleet once the in-game invitation happened, and that
+   * invitation is no longer coming. Nobody answered, so `answeredAt` stays
+   * null; Steve's decision of 27 September 2026.
+   */
+  WITHDRAWN = 'WITHDRAWN',
 }
 
 /**
@@ -52,4 +62,6 @@ export enum CharacterFleetProposalState {
   DECLINED = 'DECLINED',
   /** Never answered, and too late to answer now. */
   EXPIRED = 'EXPIRED',
+  /** Never answered, and taken back when the Fleet membership ended. */
+  WITHDRAWN = 'WITHDRAWN',
 }
