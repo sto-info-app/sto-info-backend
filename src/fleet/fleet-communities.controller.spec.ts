@@ -36,6 +36,7 @@ const NO_VIEWER = {
   capabilities: [],
   mayManageBanner: false,
   mayManageEmblem: false,
+  roles: [],
   relationship: FleetScopeRelationship.NONE,
   isFollowingCommunity: false,
   followerCount: 0,
@@ -48,7 +49,6 @@ describe('FleetCommunitiesController', () => {
     findByIdOrFail: jest.Mock;
     resolveBySlugOrFail: jest.Mock;
     update: jest.Mock;
-    close: jest.Mock;
   };
   let audienceService: { assertCanView: jest.Mock; canView: jest.Mock };
   let featureService: {
@@ -73,7 +73,6 @@ describe('FleetCommunitiesController', () => {
         Promise.resolve({ community: COMMUNITY, redirectedFrom: null }),
       ),
       update: jest.fn(() => Promise.resolve(COMMUNITY)),
-      close: jest.fn(() => Promise.resolve(COMMUNITY)),
     };
 
     audienceService = {
@@ -281,29 +280,6 @@ describe('FleetCommunitiesController', () => {
     });
   });
 
-  describe('close', () => {
-    it('closes the Community for the caller', async () => {
-      await expect(controller.close(COMMUNITY_ID, USER_ID)).resolves.toBe(
-        COMMUNITY,
-      );
-      expect(communityService.close).toHaveBeenCalledWith(
-        COMMUNITY_ID,
-        USER_ID,
-      );
-    });
-
-    it('refuses when the feature is switched off', async () => {
-      featureService.assertEnabled.mockImplementationOnce(() => {
-        throw new NotFoundException('Not found');
-      });
-
-      await expect(
-        controller.close(COMMUNITY_ID, USER_ID),
-      ).rejects.toBeInstanceOf(NotFoundException);
-      expect(communityService.close).not.toHaveBeenCalled();
-    });
-  });
-
   /**
    * The capability a route requires is metadata, so a wrong one denies
    * quietly and looks exactly like a working restriction. Reading it back is
@@ -321,13 +297,6 @@ describe('FleetCommunitiesController', () => {
     it('requires settings management to change a Community', () => {
       expect(requirementOf('update')).toEqual({
         capability: FLEET_CAPABILITIES.SCOPE_SETTINGS_MANAGE,
-        source: { kind: FleetScopeKind.COMMUNITY, param: 'communityId' },
-      });
-    });
-
-    it('requires the closure capability to close one', () => {
-      expect(requirementOf('close')).toEqual({
-        capability: FLEET_CAPABILITIES.SCOPE_CLOSE,
         source: { kind: FleetScopeKind.COMMUNITY, param: 'communityId' },
       });
     });

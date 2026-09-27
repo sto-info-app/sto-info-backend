@@ -8,6 +8,7 @@ import { FLEET_CAPABILITIES } from '../authorisation/fleet-capability.constants'
 import { ScopeAuthorisation } from '../authorisation/scope-authorisation.interface';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 import { FleetScopeRelationship } from '../enums/fleet-scope-relationship.enum';
+import { FleetScopeRole } from '../enums/fleet-scope-role.enum';
 import { ScopeMembershipStatus } from '../enums/scope-membership-status.enum';
 import { CommunitySubscriptionService } from './community-subscription.service';
 import { FleetScopeViewerService } from './fleet-scope-viewer.service';
@@ -22,6 +23,7 @@ const FLEET_REF = { kind: FleetScopeKind.FLEET, id: FLEET_ID };
 /** Nothing held, nothing followed, nothing counted. */
 const NOTHING = {
   capabilities: [],
+  roles: [],
   mayManageBanner: false,
   mayManageEmblem: false,
   relationship: FleetScopeRelationship.NONE,
@@ -34,14 +36,17 @@ const NOTHING = {
  *
  * @param capabilities - What the caller holds at the scope.
  * @param membership - Their membership at the scope, when they have one.
+ * @param roles - The role labels they hold there.
  * @returns The authorisation.
  */
 function authorisation(
   capabilities: string[],
   membership: ScopeMembershipStatus | null = null,
+  roles: FleetScopeRole[] = [],
 ): ScopeAuthorisation {
   return {
     capabilities: new Set(capabilities),
+    roles: new Set(roles),
     scope: { communityId: COMMUNITY_ID },
     membershipStatus: membership,
     isApprovedMember: membership === ScopeMembershipStatus.APPROVED,
@@ -112,12 +117,16 @@ describe('FleetScopeViewerService', () => {
       expect(countFollowers).not.toHaveBeenCalled();
     });
 
-    it('reports the capabilities the caller holds there', async () => {
+    it('reports the capabilities and roles the caller holds there', async () => {
       authorise.mockResolvedValue(
-        authorisation([
-          FLEET_CAPABILITIES.SCOPE_IMAGES_MANAGE,
-          FLEET_CAPABILITIES.MEMBERS_VIEW,
-        ]),
+        authorisation(
+          [
+            FLEET_CAPABILITIES.SCOPE_IMAGES_MANAGE,
+            FLEET_CAPABILITIES.MEMBERS_VIEW,
+          ],
+          null,
+          [FleetScopeRole.ADMIN],
+        ),
       );
 
       await expect(
@@ -128,6 +137,7 @@ describe('FleetScopeViewerService', () => {
           FLEET_CAPABILITIES.SCOPE_IMAGES_MANAGE,
           FLEET_CAPABILITIES.MEMBERS_VIEW,
         ],
+        roles: [FleetScopeRole.ADMIN],
         mayManageBanner: true,
         mayManageEmblem: true,
         followerCount: 0,

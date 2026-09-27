@@ -12,6 +12,7 @@ import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 
 import { FleetAuthorisationRevisionService } from '../../authorisation/fleet-authorisation-revision.service';
 import { CharacterFleetMembershipEntity } from '../../entities/character-fleet-membership.entity';
+import { ScopeCapabilityGrantEntity } from '../../entities/scope-capability-grant.entity';
 import { ScopeMembershipEntity } from '../../entities/scope-membership.entity';
 import { ScopeRoleAssignmentEntity } from '../../entities/scope-role-assignment.entity';
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
@@ -256,6 +257,15 @@ describe('RecruitmentMembershipService', () => {
       expect(manager.update).toHaveBeenCalledWith(
         ScopeRoleAssignmentEntity,
         expect.objectContaining({ fleetId: 'fleet-1', userId: 'member-1' }),
+        { validTo: expect.any(Date) },
+      );
+      // A capability given to or taken from them here goes with them.
+      expect(manager.update).toHaveBeenCalledWith(
+        ScopeCapabilityGrantEntity,
+        expect.objectContaining({
+          fleetId: 'fleet-1',
+          subjectUserId: 'member-1',
+        }),
         { validTo: expect.any(Date) },
       );
       expect(withdrawRecruitedWithin).toHaveBeenCalledWith(

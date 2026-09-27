@@ -951,40 +951,6 @@ describe('StoFleetService', () => {
     });
   });
 
-  describe('close', () => {
-    it('closes the Fleet rather than deleting it', async () => {
-      const fleet = await service.close(communityId, fleetId, actingUserId);
-
-      expect(fleet.status).toBe(FleetScopeStatus.CLOSED);
-      expect(fleet.closedAt).toBeInstanceOf(Date);
-      expect(fleet.deletedAt).toBeNull();
-    });
-
-    it('advances the authorisation revision, which closure always must', async () => {
-      await service.close(communityId, fleetId, actingUserId);
-
-      expect(revisionService.bump).toHaveBeenCalledWith(
-        FleetScopeKind.FLEET,
-        fleetId,
-      );
-    });
-
-    /**
-     * The instant of closure is evidence. A retried request has nothing new
-     * to say about when it happened, so it must not be able to move it.
-     */
-    it('does not move the closure instant when the Fleet is already closed', async () => {
-      const closedAt = new Date('2026-01-01T00:00:00.000Z');
-      stored = buildFleet({ status: FleetScopeStatus.CLOSED, closedAt });
-
-      const fleet = await service.close(communityId, fleetId, actingUserId);
-
-      expect(fleet.closedAt).toBe(closedAt);
-      expect(fleetRepository.save).not.toHaveBeenCalled();
-      expect(revisionService.bump).not.toHaveBeenCalled();
-    });
-  });
-
   describe('findDirectoryPage', () => {
     /** The listing query, which is always the first one built. */
     const listing = (): MockQueryBuilder => builders[0];

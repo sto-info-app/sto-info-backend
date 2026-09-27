@@ -576,44 +576,6 @@ describe('FleetCommunityService', () => {
     });
   });
 
-  describe('close', () => {
-    it('closes the Community and records when', async () => {
-      const saved = await service.close(communityId, ownerUserId);
-
-      expect(saved.status).toBe(FleetScopeStatus.CLOSED);
-      expect(saved.closedAt).toBeInstanceOf(Date);
-      expect(saved.deletedAt).toBeNull();
-    });
-
-    /** Closure withdraws every mutating capability, so this bump is not optional. */
-    it('advances the authorisation revision', async () => {
-      await service.close(communityId, ownerUserId);
-
-      expect(revisionService.bump).toHaveBeenCalledWith(
-        FleetScopeKind.COMMUNITY,
-        communityId,
-      );
-    });
-
-    /**
-     * A retried request must not rewrite when the Community closed. The
-     * instant is evidence, and the second call has nothing new to say.
-     */
-    it('does nothing to a Community that is already closed', async () => {
-      const closedAt = new Date('2026-09-01T10:00:00.000Z');
-      stored = buildCommunity({
-        status: FleetScopeStatus.CLOSED,
-        closedAt,
-      });
-
-      const saved = await service.close(communityId, ownerUserId);
-
-      expect(saved.closedAt).toBe(closedAt);
-      expect(communityRepository.save).not.toHaveBeenCalled();
-      expect(revisionService.bump).not.toHaveBeenCalled();
-    });
-  });
-
   describe('findDirectoryPage', () => {
     beforeEach(() => {
       listed = [buildCommunity()];

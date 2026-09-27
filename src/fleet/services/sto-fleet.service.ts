@@ -26,7 +26,6 @@ import { FleetAudience } from '../enums/fleet-audience.enum';
 import { FleetDirectorySort } from '../enums/fleet-directory-sort.enum';
 import { FleetDirectoryStatusFilter } from '../enums/fleet-directory-status-filter.enum';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
-import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
 import {
   applyDirectoryStatus,
   applyExactGameNameSearch,
@@ -516,44 +515,6 @@ export class StoFleetService {
     }
 
     this._logger.log(`Fleet '${saved.slug}' updated by ${actingUserId}`);
-
-    return saved;
-  }
-
-  /**
-   * Closes a Fleet, keeping everything it holds.
-   *
-   * Idempotent: closing a closed Fleet succeeds and does not move the closure
-   * instant, so a retried request cannot rewrite when it happened. The row
-   * keeps `deletedAt` null, so its Armada placements, roster history and web
-   * address all survive it — plan section 4.1.
-   *
-   * @param communityId - The Community named in the path.
-   * @param fleetId - The Fleet.
-   * @param actingUserId - The caller, for the log.
-   * @returns The closed Fleet.
-   */
-  async close(
-    communityId: string,
-    fleetId: string,
-    actingUserId: string,
-  ): Promise<StoFleetEntity> {
-    const fleet = await this.findByIdOrFail(communityId, fleetId);
-
-    if (fleet.status === FleetScopeStatus.CLOSED) {
-      return fleet;
-    }
-
-    fleet.status = FleetScopeStatus.CLOSED;
-    fleet.closedAt = new Date();
-
-    const saved = await this._fleetRepository.save(fleet);
-
-    // Closure withdraws every mutating capability at the Fleet, so unlike a
-    // rename this one is not optional.
-    await this._revisionService.bump(FleetScopeKind.FLEET, saved.id);
-
-    this._logger.log(`Fleet '${saved.slug}' closed by ${actingUserId}`);
 
     return saved;
   }

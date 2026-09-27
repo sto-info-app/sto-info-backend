@@ -41,7 +41,6 @@ describe('CommunityFleetsController', () => {
     findByIdOrFail: jest.Mock;
     findDuplicates: jest.Mock;
     update: jest.Mock;
-    close: jest.Mock;
   };
   let audienceService: { assertCanViewFleet: jest.Mock };
   let featureService: {
@@ -58,7 +57,6 @@ describe('CommunityFleetsController', () => {
       findByIdOrFail: jest.fn(() => Promise.resolve(FLEET)),
       findDuplicates: jest.fn(() => Promise.resolve([RIVAL])),
       update: jest.fn(() => Promise.resolve(FLEET)),
-      close: jest.fn(() => Promise.resolve(FLEET)),
     };
 
     audienceService = { assertCanViewFleet: jest.fn(() => Promise.resolve()) };
@@ -223,19 +221,6 @@ describe('CommunityFleetsController', () => {
     });
   });
 
-  describe('close', () => {
-    it('closes the Fleet', async () => {
-      await expect(
-        controller.close(COMMUNITY_ID, FLEET_ID, USER_ID),
-      ).resolves.toBe(FLEET);
-      expect(fleetService.close).toHaveBeenCalledWith(
-        COMMUNITY_ID,
-        FLEET_ID,
-        USER_ID,
-      );
-    });
-  });
-
   /**
    * Read back from the metadata rather than reviewed by eye. A mistyped
    * capability denies quietly and looks exactly like a working restriction,
@@ -284,31 +269,17 @@ describe('CommunityFleetsController', () => {
       });
     });
 
-    it('requires the closure capability at the Fleet to close one', () => {
-      expect(requirementOf('close')).toEqual({
-        capability: FLEET_CAPABILITIES.SCOPE_CLOSE,
-        source: {
-          kind: FleetScopeKind.FLEET,
-          param: 'fleetId',
-          communityParam: 'communityId',
-        },
-      });
-    });
-
     /**
      * Naming the Community parameter is what turns the path segment into a
      * checked claim: a Fleet held by a different Community resolves to
      * nothing. Leaving it out would make the segment decorative, which is
      * the shape most cross-tenant mistakes take.
      */
-    it.each(['update', 'close'] as const)(
-      'checks the Community segment of the %s route rather than trusting it',
-      method => {
-        expect(requirementOf(method)?.source.communityParam).toBe(
-          'communityId',
-        );
-      },
-    );
+    it('checks the Community segment of the update route rather than trusting it', () => {
+      expect(requirementOf('update')?.source.communityParam).toBe(
+        'communityId',
+      );
+    });
 
     /** Reading is visibility, not capability — ADR-0002. */
     it('requires none to read, which is a question for the audience', () => {

@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -256,42 +255,6 @@ export class CommunityFleetsController {
       dto,
       userId,
     );
-
-    return this._mapper.toDto(fleet);
-  }
-
-  /**
-   * Closes a Fleet, keeping everything it holds.
-   *
-   * @param communityId - The Community.
-   * @param fleetId - The Fleet.
-   * @param userId - The caller.
-   * @returns The closed Fleet.
-   */
-  @Delete(':fleetId')
-  @UseGuards(JwtAuthGuard, ScopeCapabilityGuard)
-  @RequiresScopeCapability(FLEET_CAPABILITIES.SCOPE_CLOSE, {
-    kind: FleetScopeKind.FLEET,
-    param: 'fleetId',
-    communityParam: 'communityId',
-  })
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary: 'Close a Fleet',
-    description:
-      'Closure is a status change, not a deletion. The Fleet stays ' +
-      'readable, keeps its Armada placements, roster history and web ' +
-      'address, and accepts nothing new.',
-  })
-  @ApiOkResponse({ type: StoFleetDto })
-  async close(
-    @Param('communityId', ParseUUIDPipe) communityId: string,
-    @Param('fleetId', ParseUUIDPipe) fleetId: string,
-    @UserId() userId: string,
-  ): Promise<StoFleetDto> {
-    await this._featureService.assertEnabled();
-
-    const fleet = await this._fleetService.close(communityId, fleetId, userId);
 
     return this._mapper.toDto(fleet);
   }

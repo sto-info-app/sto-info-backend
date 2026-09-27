@@ -387,38 +387,6 @@ export class FleetCommunitiesController {
   }
 
   /**
-   * Closes a Community, keeping everything it holds.
-   *
-   * @param communityId - The Community.
-   * @param userId - The caller.
-   * @returns The closed Community.
-   */
-  @Delete(':communityId')
-  @UseGuards(JwtAuthGuard, ScopeCapabilityGuard)
-  @RequiresScopeCapability(FLEET_CAPABILITIES.SCOPE_CLOSE, {
-    kind: FleetScopeKind.COMMUNITY,
-    param: 'communityId',
-  })
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary: 'Close a Fleet Community',
-    description:
-      'Closure is a status change, not a deletion. The Community stays ' +
-      'readable, keeps its web address, and accepts nothing new.',
-  })
-  @ApiOkResponse({ type: FleetCommunityDto })
-  async close(
-    @Param('communityId', ParseUUIDPipe) communityId: string,
-    @UserId() userId: string,
-  ): Promise<FleetCommunityDto> {
-    await this._featureService.assertEnabled();
-
-    const community = await this._communityService.close(communityId, userId);
-
-    return this._mapper.toDto(community);
-  }
-
-  /**
    * Reports the follow state a route has just brought about.
    *
    * The count is re-read rather than adjusted, because it is a fact about

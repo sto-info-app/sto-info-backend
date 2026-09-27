@@ -5,6 +5,7 @@ import {
   FleetCapability,
 } from '../authorisation/fleet-capability.constants';
 import { FleetScopeRelationship } from '../enums/fleet-scope-relationship.enum';
+import { FleetScopeRole } from '../enums/fleet-scope-role.enum';
 
 /**
  * What the caller looking at a scope may do to it.
@@ -37,6 +38,16 @@ export class FleetScopeViewerDto {
       'hold one at.',
   })
   capabilities: FleetCapability[];
+
+  @ApiProperty({
+    isArray: true,
+    enum: FleetScopeRole,
+    description:
+      'The fixed role labels this caller holds here, those held at the ' +
+      'Community included. Empty when signed out. Display only: what a ' +
+      'label allows is in `capabilities`.',
+  })
+  roles: FleetScopeRole[];
 
   /**
    * Whether to offer setting or replacing the wide banner.

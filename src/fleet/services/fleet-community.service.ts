@@ -19,7 +19,6 @@ import { FleetCommunityEntity } from '../entities/fleet-community.entity';
 import { FleetAudience } from '../enums/fleet-audience.enum';
 import { FleetDirectorySort } from '../enums/fleet-directory-sort.enum';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
-import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
 import {
   applyDirectoryStatus,
   resolveDirectoryPage,
@@ -355,39 +354,6 @@ export class FleetCommunityService {
 
     this._logger.log(
       `Fleet Community '${saved.slug}' updated by ${actingUserId}`,
-    );
-
-    return saved;
-  }
-
-  /**
-   * Closes a Community, keeping everything it holds.
-   *
-   * Idempotent: closing a closed Community succeeds and does not move the
-   * closure instant, so a retried request cannot rewrite when it happened.
-   *
-   * @param id - The Community.
-   * @param actingUserId - The caller, for the log.
-   * @returns The closed Community.
-   */
-  async close(id: string, actingUserId: string): Promise<FleetCommunityEntity> {
-    const community = await this.findByIdOrFail(id);
-
-    if (community.status === FleetScopeStatus.CLOSED) {
-      return community;
-    }
-
-    community.status = FleetScopeStatus.CLOSED;
-    community.closedAt = new Date();
-
-    const saved = await this._communityRepository.save(community);
-
-    // Closure withdraws every mutating capability at the Community and at each
-    // Fleet and Armada inside it, so this one is not optional.
-    await this._revisionService.bump(FleetScopeKind.COMMUNITY, saved.id);
-
-    this._logger.log(
-      `Fleet Community '${saved.slug}' closed by ${actingUserId}`,
     );
 
     return saved;

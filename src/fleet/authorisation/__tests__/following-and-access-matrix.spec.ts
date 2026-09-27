@@ -327,6 +327,7 @@ describe('Fleet following: relationship and access matrix', () => {
 
       expect(Object.keys(viewer)).toEqual([
         'capabilities',
+        'roles',
         'mayManageBanner',
         'mayManageEmblem',
         'relationship',

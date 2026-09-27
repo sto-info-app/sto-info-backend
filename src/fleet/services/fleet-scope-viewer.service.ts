@@ -40,6 +40,7 @@ export interface FleetScopeArtworkState {
  */
 const NOTHING: FleetScopeViewerDto = {
   capabilities: [],
+  roles: [],
   mayManageBanner: false,
   mayManageEmblem: false,
   relationship: FleetScopeRelationship.NONE,
@@ -138,6 +139,7 @@ export class FleetScopeViewerService {
 
     return {
       capabilities,
+      roles: [...authorisation.roles],
       mayManageBanner: mayManageArtwork,
       mayManageEmblem: mayManageArtwork,
       relationship: toScopeRelationship(authorisation, isFollowingCommunity),

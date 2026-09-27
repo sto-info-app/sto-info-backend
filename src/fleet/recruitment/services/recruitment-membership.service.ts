@@ -14,6 +14,7 @@ import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 
 import { FleetAuthorisationRevisionService } from '../../authorisation/fleet-authorisation-revision.service';
 import { CharacterFleetMembershipEntity } from '../../entities/character-fleet-membership.entity';
+import { ScopeCapabilityGrantEntity } from '../../entities/scope-capability-grant.entity';
 import { ScopeMembershipEntity } from '../../entities/scope-membership.entity';
 import { ScopeRoleAssignmentEntity } from '../../entities/scope-role-assignment.entity';
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
@@ -363,9 +364,9 @@ export class RecruitmentMembershipService {
   }
 
   /**
-   * Ends a membership, logs it, drops any role held at the Fleet, takes back
-   * any unanswered question about the member's Character that it asked, and
-   * advertises the change.
+   * Ends a membership, logs it, drops any role and personal grant held at
+   * the Fleet, takes back any unanswered question about the member's
+   * Character that it asked, and advertises the change.
    *
    * @param manager - The transaction.
    * @param membership - The membership, locked.
@@ -408,6 +409,17 @@ export class RecruitmentMembershipService {
       {
         fleetId: membership.fleetId as string,
         userId: membership.userId,
+        validTo: IsNull(),
+      },
+      { validTo: now },
+    );
+    // A capability granted or denied to them here goes with the role: the
+    // Owner can say so again if they come back.
+    await manager.update(
+      ScopeCapabilityGrantEntity,
+      {
+        fleetId: membership.fleetId as string,
+        subjectUserId: membership.userId,
         validTo: IsNull(),
       },
       { validTo: now },

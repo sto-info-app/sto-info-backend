@@ -56,6 +56,7 @@ const NO_VIEWER = {
   capabilities: [],
   mayManageBanner: false,
   mayManageEmblem: false,
+  roles: [],
 };
 
 const ARMADA_ID = '20000000-0000-4000-8000-000000000005';
