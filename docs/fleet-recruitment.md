@@ -144,3 +144,8 @@ Every route is behind the Fleet Community switch.
 set. They get a Windows account and the Character **Dax Orlan@fixture002**, level 65, whom the
 Fixture Basic Fleet's roster exports list as a Recruit, so the evidence panel has something to
 show.
+
+`1795100000000-SeedLocalFleetApplicantConsole` gives the same person a PlayStation account and the
+Character **Kira Venn@fixtureps002**, also level 65 and Starfleet (2409), for the Fixture Console
+Fleet. The game writes no roster export on console, so no roster names them and the evidence panel
+has nothing to show: recruitment there is tried without it.
