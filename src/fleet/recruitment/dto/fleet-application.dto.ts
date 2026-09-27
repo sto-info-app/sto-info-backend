@@ -13,16 +13,58 @@ import {
   Max,
   MaxLength,
   Min,
+  Validate,
   ValidateNested,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
 } from 'class-validator';
 
 import { CharacterFleetSummaryDto } from '../../dto/character-fleet.dto';
 import { ScopeMembershipStatus } from '../../enums/scope-membership-status.enum';
-import { MAX_APPLICATION_QUESTIONS } from '../application-form.interface';
+import {
+  MAX_ANSWER_LENGTH,
+  MAX_APPLICATION_QUESTIONS,
+} from '../application-form.interface';
 import { ApplicationQuestionKind } from '../enums/application-question-kind.enum';
 import { FleetApplicationActionKind } from '../enums/fleet-application-action-kind.enum';
 import { FleetApplicationRoute } from '../enums/fleet-application-route.enum';
 import { FleetApplicationStatus } from '../enums/fleet-application-status.enum';
+
+/** The longest answer any kind of question takes. */
+const LONGEST_ANSWER = Math.max(...Object.values(MAX_ANSWER_LENGTH));
+
+/**
+ * Accepts what an answer can be: text, or true or false for a yes-or-no
+ * question.
+ *
+ * Only the shape is checked here. Whether it suits its question — the right
+ * kind, one of the options, short enough — needs the form, and the service
+ * checks it there, naming the question.
+ */
+@ValidatorConstraint({ name: 'isApplicationAnswerValue' })
+export class IsApplicationAnswerValue implements ValidatorConstraintInterface {
+  /**
+   * Whether a value could answer some question.
+   *
+   * @param value - The value sent.
+   * @returns True for a boolean, or text no longer than any answer may be.
+   */
+  validate(value: unknown): boolean {
+    return (
+      typeof value === 'boolean' ||
+      (typeof value === 'string' && value.length <= LONGEST_ANSWER)
+    );
+  }
+
+  /**
+   * Says what an answer has to be.
+   *
+   * @returns The message.
+   */
+  defaultMessage(): string {
+    return `An answer is text of at most ${LONGEST_ANSWER} characters, or yes or no.`;
+  }
+}
 
 /** One answer as an applicant sends it. */
 export class ApplicationAnswerInputDto {
@@ -35,6 +77,7 @@ export class ApplicationAnswerInputDto {
     description: 'Text, the option chosen, or true or false for yes or no.',
     oneOf: [{ type: 'string' }, { type: 'boolean' }],
   })
+  @Validate(IsApplicationAnswerValue)
   readonly value: string | boolean;
 }
 
