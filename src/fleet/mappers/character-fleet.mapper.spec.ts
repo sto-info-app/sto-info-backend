@@ -10,6 +10,8 @@ import {
   CharacterFleetProposalStatus,
 } from '../enums/character-fleet-proposal-status.enum';
 import { FleetAudience } from '../enums/fleet-audience.enum';
+import { FleetApplicationEntity } from '../recruitment/entities/fleet-application.entity';
+import { FleetApplicationRoute } from '../recruitment/enums/fleet-application-route.enum';
 import { CharacterFleetMapper } from './character-fleet.mapper';
 
 describe('CharacterFleetMapper', () => {
@@ -157,17 +159,25 @@ describe('CharacterFleetMapper', () => {
         raisedAt: new Date('2026-01-02T00:00:00.000Z'),
         expiresAt: new Date('2026-04-02T00:00:00.000Z'),
         answeredAt: null,
-        fromApplication: false,
+        recruitedBy: null,
       });
     });
 
-    it('says when an accepted application raised it, without naming it', () => {
+    it.each([
+      FleetApplicationRoute.APPLICATION,
+      FleetApplicationRoute.INVITATION,
+      FleetApplicationRoute.OPEN_JOIN,
+    ])('says recruitment raised it by %s, without naming it', route => {
       const dto = mapper.toProposalDto(
-        proposal({ applicationId: 'application-1' }),
+        proposal({
+          applicationId: 'application-1',
+          application: { route } as FleetApplicationEntity,
+        }),
       );
 
-      expect(dto.fromApplication).toBe(true);
+      expect(dto.recruitedBy).toBe(route);
       expect(dto).not.toHaveProperty('applicationId');
+      expect(dto).not.toHaveProperty('application');
     });
 
     /**

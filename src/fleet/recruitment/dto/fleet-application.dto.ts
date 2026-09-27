@@ -17,6 +17,7 @@ import {
 } from 'class-validator';
 
 import { CharacterFleetSummaryDto } from '../../dto/character-fleet.dto';
+import { ScopeMembershipStatus } from '../../enums/scope-membership-status.enum';
 import { MAX_APPLICATION_QUESTIONS } from '../application-form.interface';
 import { ApplicationQuestionKind } from '../enums/application-question-kind.enum';
 import { FleetApplicationActionKind } from '../enums/fleet-application-action-kind.enum';
@@ -276,4 +277,25 @@ export class MyFleetApplicationDto {
     nullable: true,
   })
   decisionNote: string | null;
+
+  @ApiPropertyOptional({
+    description:
+      'For an accepted application, how the membership it granted has ' +
+      'since ended: LEFT when they left, REVOKED when they were removed. ' +
+      'Null while it stands, and for anything not accepted.',
+    enum: [ScopeMembershipStatus.LEFT, ScopeMembershipStatus.REVOKED],
+    nullable: true,
+  })
+  membershipEnded: MembershipEnding | null;
+
+  @ApiProperty({
+    description:
+      'Whether they may still see the Fleet, and so whether it can be ' +
+      'linked to.',
+  })
+  fleetVisible: boolean;
 }
+
+/** How a membership an application granted can have ended. */
+export type MembershipEnding =
+  ScopeMembershipStatus.LEFT | ScopeMembershipStatus.REVOKED;

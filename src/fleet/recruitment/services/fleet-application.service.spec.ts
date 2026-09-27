@@ -11,8 +11,10 @@ import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 import { FactionEntity } from 'src/sto/character/entities/faction.entity';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 
+import { ScopeMembershipEntity } from '../../entities/scope-membership.entity';
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { FleetRecruitmentState } from '../../enums/fleet-recruitment-state.enum';
+import { ScopeMembershipStatus } from '../../enums/scope-membership-status.enum';
 import { CharacterFleetMapper } from '../../mappers/character-fleet.mapper';
 import { FleetApplicationActionEntity } from '../entities/fleet-application-action.entity';
 import { FleetApplicationEntity } from '../entities/fleet-application.entity';
@@ -111,6 +113,7 @@ describe('FleetApplicationService', () => {
   let current: CurrentRecruitment;
   let stored: FleetApplicationEntity | null;
   let pendingExists: boolean;
+  let memberships: { fleetId: string; status: ScopeMembershipStatus }[];
   let manager: Record<string, jest.Mock>;
   let eligibility: Record<string, jest.Mock>;
   let membership: Record<string, jest.Mock>;
@@ -121,6 +124,7 @@ describe('FleetApplicationService', () => {
     current = recruitment();
     stored = application();
     pendingExists = false;
+    memberships = [];
     manager = {
       findOne: jest.fn((entity: unknown) => {
         switch (entity) {
@@ -162,7 +166,9 @@ describe('FleetApplicationService', () => {
               },
             ]);
           case FleetApplicationEntity:
-            return Promise.resolve([stored]);
+            return Promise.resolve(stored === null ? [] : [stored]);
+          case ScopeMembershipEntity:
+            return Promise.resolve(memberships);
           default:
             return Promise.resolve([]);
         }
@@ -177,6 +183,7 @@ describe('FleetApplicationService', () => {
     eligibility = {
       loadFleet: jest.fn(() => Promise.resolve(FLEET)),
       assertVisible: jest.fn(() => Promise.resolve()),
+      canSee: jest.fn(() => Promise.resolve(true)),
       assertNotOwner: jest.fn(),
       requireCharacter: jest.fn(() => Promise.resolve(CHARACTER)),
     };
@@ -778,6 +785,8 @@ describe('FleetApplicationService', () => {
           submittedAt: stored?.submittedAt,
           decidedAt: null,
           decisionNote: null,
+          membershipEnded: null,
+          fleetVisible: true,
         },
       ]);
       expect(manager.find).toHaveBeenCalledWith(
@@ -788,6 +797,74 @@ describe('FleetApplicationService', () => {
           take: 100,
         }),
       );
+    });
+
+    it('reads nothing more when there is nothing to list', async () => {
+      stored = null;
+
+      await expect(service.listMine('applicant-1')).resolves.toEqual([]);
+      expect(manager.find).not.toHaveBeenCalledWith(
+        ScopeMembershipEntity,
+        expect.anything(),
+      );
+    });
+
+    it('reads their memberships of the listed Fleets alone', async () => {
+      await service.listMine('applicant-1');
+
+      expect(manager.find).toHaveBeenCalledWith(
+        ScopeMembershipEntity,
+        expect.objectContaining({
+          where: expect.objectContaining({ userId: 'applicant-1' }),
+        }),
+      );
+      expect(eligibility.canSee).toHaveBeenCalledWith('fleet-1', 'applicant-1');
+    });
+
+    it.each([ScopeMembershipStatus.LEFT, ScopeMembershipStatus.REVOKED])(
+      'says an accepted membership has since ended as %s',
+      async status => {
+        stored = application({ status: FleetApplicationStatus.ACCEPTED });
+        memberships = [{ fleetId: 'fleet-1', status }];
+
+        const [mine] = await service.listMine('applicant-1');
+
+        expect(mine.membershipEnded).toBe(status);
+      },
+    );
+
+    it('says nothing has ended while the membership stands', async () => {
+      stored = application({ status: FleetApplicationStatus.ACCEPTED });
+      memberships = [
+        { fleetId: 'fleet-1', status: ScopeMembershipStatus.APPROVED },
+      ];
+
+      const [mine] = await service.listMine('applicant-1');
+
+      expect(mine.membershipEnded).toBeNull();
+    });
+
+    /**
+     * A rejected application never granted anything, so a membership the
+     * person holds or held by some other way is not its to describe.
+     */
+    it('says nothing has ended for an application never accepted', async () => {
+      stored = application({ status: FleetApplicationStatus.REJECTED });
+      memberships = [
+        { fleetId: 'fleet-1', status: ScopeMembershipStatus.LEFT },
+      ];
+
+      const [mine] = await service.listMine('applicant-1');
+
+      expect(mine.membershipEnded).toBeNull();
+    });
+
+    it('says when the Fleet can no longer be seen', async () => {
+      eligibility.canSee.mockResolvedValue(false);
+
+      const [mine] = await service.listMine('applicant-1');
+
+      expect(mine.fleetVisible).toBe(false);
     });
   });
 });

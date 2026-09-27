@@ -152,6 +152,14 @@ describe('RecruitmentEligibilityService', () => {
     });
   });
 
+  describe('canSee', () => {
+    it.each([true, false])('answers %s as the audience does', async answer => {
+      visible = answer;
+
+      await expect(service.canSee('fleet-1', 'user-1')).resolves.toBe(answer);
+    });
+  });
+
   describe('assertNotOwner', () => {
     it('refuses the Community’s Owner', () => {
       expect(() => service.assertNotOwner(FLEET, 'owner-1')).toThrow(

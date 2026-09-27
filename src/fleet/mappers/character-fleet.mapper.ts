@@ -66,7 +66,8 @@ export class CharacterFleetMapper {
   /**
    * Maps a proposal, with the clock's answer rather than the stored status.
    *
-   * @param proposal - The proposal, with its Fleet loaded.
+   * @param proposal - The proposal, with its Fleet and any application
+   *   loaded.
    * @param now - The instant to judge the deadline at.
    * @returns The proposal as the Character's owner sees it.
    */
@@ -83,7 +84,7 @@ export class CharacterFleetMapper {
       raisedAt: proposal.raisedAt,
       expiresAt: proposal.expiresAt,
       answeredAt: proposal.answeredAt,
-      fromApplication: Boolean(proposal.applicationId),
+      recruitedBy: proposal.application?.route ?? null,
     };
   }
 }

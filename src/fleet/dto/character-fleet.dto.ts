@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 import {
   IsDateString,
@@ -11,6 +11,7 @@ import {
 import { CharacterFleetMembershipSource } from '../enums/character-fleet-membership-source.enum';
 import { CharacterFleetProposalState } from '../enums/character-fleet-proposal-status.enum';
 import { FleetAudience } from '../enums/fleet-audience.enum';
+import { FleetApplicationRoute } from '../recruitment/enums/fleet-application-route.enum';
 
 /**
  * The Fleet named by a personal membership or a proposal.
@@ -142,12 +143,15 @@ export class CharacterFleetProposalDto {
   })
   answeredAt: Date | null;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description:
-      'Whether an accepted application to the Fleet raised it, rather than ' +
-      'roster evidence (FC-021).',
+      'How the Character came into the Fleet when recruitment raised it — ' +
+      'an accepted application, an accepted invitation or a join — rather ' +
+      'than roster evidence (FC-021). Null for roster evidence.',
+    enum: FleetApplicationRoute,
+    nullable: true,
   })
-  fromApplication: boolean;
+  recruitedBy: FleetApplicationRoute | null;
 }
 
 /**

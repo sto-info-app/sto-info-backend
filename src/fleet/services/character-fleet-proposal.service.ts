@@ -138,7 +138,10 @@ export class CharacterFleetProposalService {
       CharacterFleetProposalEntity,
       {
         where: { characterId },
-        relations: { fleet: { platform: true, community: true } },
+        relations: {
+          fleet: { platform: true, community: true },
+          application: true,
+        },
         order: { raisedAt: 'DESC' },
       },
     );
@@ -525,7 +528,10 @@ export class CharacterFleetProposalService {
   ): Promise<CharacterFleetProposalEntity> {
     const proposal = await manager.findOne(CharacterFleetProposalEntity, {
       where: { id: proposalId, characterId },
-      relations: { fleet: { platform: true, community: true } },
+      relations: {
+        fleet: { platform: true, community: true },
+        application: true,
+      },
     });
 
     if (

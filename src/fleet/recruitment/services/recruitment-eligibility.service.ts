@@ -81,14 +81,23 @@ export class RecruitmentEligibilityService {
    * @throws NotFoundException when they may not see it.
    */
   async assertVisible(fleet: StoFleetEntity, userId: string): Promise<void> {
-    const visible = await this._audience.canViewScope(
-      { kind: FleetScopeKind.FLEET, id: fleet.id },
-      userId,
-    );
-
-    if (!visible) {
+    if (!(await this.canSee(fleet.id, userId))) {
       throw new NotFoundException('Not found');
     }
+  }
+
+  /**
+   * Reports whether somebody may see a Fleet.
+   *
+   * @param fleetId - The Fleet.
+   * @param userId - Who is asking.
+   * @returns True when they may.
+   */
+  canSee(fleetId: string, userId: string): Promise<boolean> {
+    return this._audience.canViewScope(
+      { kind: FleetScopeKind.FLEET, id: fleetId },
+      userId,
+    );
   }
 
   /**

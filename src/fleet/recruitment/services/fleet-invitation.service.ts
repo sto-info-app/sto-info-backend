@@ -355,6 +355,10 @@ export class FleetInvitationService {
       submittedAt: application.submittedAt,
       decidedAt: application.decidedAt,
       decisionNote: application.decisionNote,
+      // Accepted a moment ago, so the membership stands and the Fleet is
+      // theirs to see.
+      membershipEnded: null,
+      fleetVisible: true,
     };
   }
 

@@ -13,7 +13,9 @@ import { DataSource, EntityManager, In } from 'typeorm';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 import { FactionEntity } from 'src/sto/character/entities/faction.entity';
 
+import { ScopeMembershipEntity } from '../../entities/scope-membership.entity';
 import { FleetRecruitmentState } from '../../enums/fleet-recruitment-state.enum';
+import { ScopeMembershipStatus } from '../../enums/scope-membership-status.enum';
 import { CharacterFleetMapper } from '../../mappers/character-fleet.mapper';
 import { ApplicationQuestion } from '../application-form.interface';
 import {
@@ -24,6 +26,7 @@ import {
   FleetApplicationQueryDto,
   FleetApplicationSummaryDto,
   FleetCharacterChoiceDto,
+  MembershipEnding,
   MyFleetApplicationDto,
   SubmitFleetApplicationDto,
 } from '../dto/fleet-application.dto';
@@ -533,7 +536,7 @@ export class FleetApplicationService {
       },
     );
 
-    return applications.map(application => this.toMine(application));
+    return this.toMine(userId, applications);
   }
 
   /**
@@ -558,17 +561,52 @@ export class FleetApplicationService {
       },
     );
 
-    return this.toMine(application);
+    const [mine] = await this.toMine(userId, [application]);
+
+    return mine;
   }
 
   /**
-   * Maps an application for its applicant.
+   * Maps applications for their applicant.
    *
-   * @param application - The application, with its Fleet and Character.
-   * @returns It, as they see it.
+   * Each says whether the membership an acceptance granted still stands, and
+   * whether the Fleet can still be opened: once somebody leaves a Fleet only
+   * its Community can see, they cannot (FC-021). Both are read once per
+   * Fleet.
+   *
+   * @param userId - The applicant.
+   * @param applications - Theirs, each with its Fleet and Character.
+   * @returns Each, as they see it, in the same order.
    */
-  private toMine(application: FleetApplicationEntity): MyFleetApplicationDto {
-    return {
+  private async toMine(
+    userId: string,
+    applications: readonly FleetApplicationEntity[],
+  ): Promise<MyFleetApplicationDto[]> {
+    const fleetIds = [...new Set(applications.map(a => a.fleetId))];
+
+    if (fleetIds.length === 0) {
+      return [];
+    }
+
+    const memberships = await this._dataSource.manager.find(
+      ScopeMembershipEntity,
+      {
+        where: { userId, fleetId: In(fleetIds) },
+        select: { fleetId: true, status: true },
+      },
+    );
+    const statusByFleet = new Map(
+      memberships.map(membership => [membership.fleetId, membership.status]),
+    );
+    const visibleFleets = new Set<string>();
+
+    for (const fleetId of fleetIds) {
+      if (await this._eligibility.canSee(fleetId, userId)) {
+        visibleFleets.add(fleetId);
+      }
+    }
+
+    return applications.map(application => ({
       id: application.id,
       fleet: this._fleetMapper.toSummaryDto(application.fleet),
       status: application.status,
@@ -577,7 +615,12 @@ export class FleetApplicationService {
       submittedAt: application.submittedAt,
       decidedAt: application.decidedAt,
       decisionNote: application.decisionNote,
-    };
+      membershipEnded: endingOf(
+        application,
+        statusByFleet.get(application.fleetId),
+      ),
+      fleetVisible: visibleFleets.has(application.fleetId),
+    }));
   }
 
   /**
@@ -627,6 +670,31 @@ export class FleetApplicationService {
       };
     });
   }
+}
+
+/**
+ * Says how the membership an accepted application granted has since ended.
+ *
+ * The membership row is updated in place, so it is the current one: somebody
+ * who left and came back in by a later application is a member again, and
+ * nothing has ended.
+ *
+ * @param application - The application.
+ * @param status - Their membership of its Fleet now, if they have one.
+ * @returns LEFT or REVOKED, or null while it stands or was never granted.
+ */
+function endingOf(
+  application: FleetApplicationEntity,
+  status: ScopeMembershipStatus | undefined,
+): MembershipEnding | null {
+  if (application.status !== FleetApplicationStatus.ACCEPTED) {
+    return null;
+  }
+
+  return status === ScopeMembershipStatus.LEFT ||
+    status === ScopeMembershipStatus.REVOKED
+    ? status
+    : null;
 }
 
 /**
