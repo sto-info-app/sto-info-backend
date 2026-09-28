@@ -472,6 +472,12 @@ Requests to join an Armada, where each Fleet sits, moves and departures, and the
 The tier of each of a Fleet's holdings, recorded by hand, and their history. See
 [Fleet holdings](fleet-holdings.md#routes) for every route and who may call it.
 
+### News
+
+A Community's, a Fleet's and an Armada's own news, its audiences and covers, and a site
+administrator's takedowns. See [Fleet news](fleet-news.md#routes) for every route and who may
+call it. The site's own `/news` routes never return a scoped post.
+
 ### POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports
 
 Upload an STO roster export for a Fleet.

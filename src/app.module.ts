@@ -34,6 +34,7 @@ import { FleetGovernanceModule } from './fleet/governance/fleet-governance.modul
 import { FleetHoldingsModule } from './fleet/holdings/fleet-holdings.module';
 import { FleetImagesModule } from './fleet/images/fleet-images.module';
 import { FleetRosterImportsModule } from './fleet/imports/fleet-roster-imports.module';
+import { ScopeNewsModule } from './fleet/news/scope-news.module';
 import { FleetRecruitmentModule } from './fleet/recruitment/fleet-recruitment.module';
 import { FleetRosterModule } from './fleet/roster/fleet-roster.module';
 import { HealthModule } from './health/health.module';
@@ -144,6 +145,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     FleetHoldingsModule,
     FleetArmadasModule,
     FleetImagesModule,
+    ScopeNewsModule,
     RegistryModule,
     ModerationModule,
   ],
