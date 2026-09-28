@@ -34,6 +34,7 @@ import { OwnershipTransferEntity } from './ownership-transfer.entity';
 @Entity({ name: 'scope_governance_action' })
 @Index('IDX_scope_governance_action_community', ['communityId', 'createdAt'])
 @Index('IDX_scope_governance_action_fleet', ['fleetId', 'createdAt'])
+@Index('IDX_scope_governance_action_armada', ['armadaId', 'createdAt'])
 @Index('IDX_scope_governance_action_actor', ['actorUserId'])
 @Index('IDX_scope_governance_action_subject', ['subjectUserId'])
 @Index('IDX_scope_governance_action_transfer', ['transferId'])
@@ -52,6 +53,13 @@ export class ScopeGovernanceActionEntity {
   })
   @Column({ type: 'uuid', nullable: true, default: null })
   fleetId: string | null;
+
+  @ApiProperty({
+    description: 'The Armada, when the change was made at an Armada.',
+    nullable: true,
+  })
+  @Column({ type: 'uuid', nullable: true, default: null })
+  armadaId: string | null;
 
   @ApiProperty({ enum: ScopeGovernanceActionKind })
   @Column({

@@ -12,6 +12,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+import { GeneralFactionEntity } from 'src/sto/character/entities/general-faction.entity';
 import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
 
 import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
@@ -70,6 +71,18 @@ export class StoArmadaEntity {
   @ApiProperty({ description: 'Community display label.', nullable: true })
   @Column({ type: 'varchar', length: 255, nullable: true, default: null })
   displayName: string | null;
+
+  /**
+   * Allegiance: Federation or Klingon, from the general faction reference
+   * data (FC-024). A Fleet must share it to be placed here.
+   *
+   * Nullable only for an Armada registered before it existed; every
+   * registration now sets it, and an Armada without one accepts no Fleet. It
+   * cannot change while a Fleet is placed.
+   */
+  @ApiProperty({ description: 'Allegiance, if set.', nullable: true })
+  @Column({ type: 'uuid', nullable: true, default: null })
+  allegianceFactionId: string | null;
 
   /**
    * Lowercase URL segment, unique within the Community *and* platform.
@@ -144,4 +157,8 @@ export class StoArmadaEntity {
   @ManyToOne(() => PlatformEntity, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'platformId' })
   platform: PlatformEntity;
+
+  @ManyToOne(() => GeneralFactionEntity, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'allegianceFactionId' })
+  allegianceFaction: GeneralFactionEntity | null;
 }

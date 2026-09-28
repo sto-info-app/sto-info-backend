@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { getMetadataArgsStorage, QueryRunner } from 'typeorm';
 
 import { CreateScopeGovernance1795300000000 } from '../../../database/migrations/1795300000000-CreateScopeGovernance';
+import { CreateArmadaTopology1795500000000 } from '../../../database/migrations/1795500000000-CreateArmadaTopology';
 import { OwnershipTransferEntity } from './ownership-transfer.entity';
 import { ScopeGovernanceActionEntity } from './scope-governance-action.entity';
 
@@ -38,9 +39,30 @@ describe('Governance schema alignment', () => {
   const migration = new CreateScopeGovernance1795300000000();
   let statements: string[];
 
+  /** What later migrations add to these tables. */
+  let later: string[];
+
   beforeAll(async () => {
     statements = await capture(queryRunner => migration.up(queryRunner));
+    later = await capture(queryRunner =>
+      new CreateArmadaTopology1795500000000().up(queryRunner),
+    );
   });
+
+  /**
+   * Columns a later migration adds to a table with `ADD COLUMN`.
+   *
+   * @param table - The table.
+   * @returns Their names.
+   */
+  const addedLater = (table: string): string[] =>
+    later
+      .filter(statement =>
+        statement.startsWith(
+          `ALTER TABLE "sto_info_app"."${table}" ADD COLUMN "`,
+        ),
+      )
+      .map(statement => statement.split('ADD COLUMN "')[1].split('"')[0]);
 
   const createTable = (table: string): string => {
     const found = statements.find(statement =>
@@ -70,9 +92,12 @@ describe('Governance schema alignment', () => {
   it.each(TABLES)(
     'declares exactly the columns %s is created with',
     (table, entity) => {
-      const migrationColumns = sqlLines(table)
-        .filter(line => line.startsWith('"'))
-        .map(line => line.slice(1, line.indexOf('"', 1)));
+      const migrationColumns = [
+        ...sqlLines(table)
+          .filter(line => line.startsWith('"'))
+          .map(line => line.slice(1, line.indexOf('"', 1))),
+        ...addedLater(table),
+      ];
 
       expect([...migrationColumns].sort()).toEqual(
         declared(entity)
@@ -161,6 +186,13 @@ describe('Governance schema alignment', () => {
         ),
       );
     }
+  });
+
+  it('names at most one of a Fleet and an Armada on a logged change', () => {
+    expect(addedLater('scope_governance_action')).toEqual(['armadaId']);
+    expect(later).toContainEqual(
+      `ALTER TABLE "sto_info_app"."scope_governance_action" ADD CONSTRAINT "CHK_scope_governance_action_one_child" CHECK ("fleetId" IS NULL OR "armadaId" IS NULL)`,
+    );
   });
 
   it('drops everything it created when reverted', async () => {

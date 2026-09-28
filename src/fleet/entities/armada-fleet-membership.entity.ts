@@ -98,8 +98,9 @@ export class ArmadaFleetMembershipEntity {
   /**
    * The association this one reports to.
    *
-   * Null for an Alpha and required for a Beta or Gamma, enforced by a check
-   * constraint. It points at the *association* rather than the Fleet, so
+   * The Beta a Gamma sits under, and null for an Alpha or a Beta, enforced
+   * by a check constraint. A Beta reports to the Armada's Alpha slot rather
+   * than to one Alpha's placement, because the slot may stand empty (FC-024). It points at the *association* rather than the Fleet, so
    * reparenting is a new row and the old parentage stays readable.
    */
   @ApiProperty({
