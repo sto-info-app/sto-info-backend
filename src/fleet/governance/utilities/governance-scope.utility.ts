@@ -12,18 +12,18 @@ import { ScopeRef } from '../../authorisation/scope-authorisation.interface';
 import { FleetScopeKind } from '../../enums/fleet-scope-kind.enum';
 
 /**
- * A Community or Fleet whose governance is being read or changed (FC-022).
- *
- * Armadas are left for FC-024 to FC-026, which build them: Steve's decision
- * of 27 September 2026.
+ * A Community, Fleet or Armada whose governance is being read or changed
+ * (FC-022; Armadas from FC-025).
  */
 export interface GovernanceScope {
   /** Which kind it is. */
-  readonly kind: FleetScopeKind.COMMUNITY | FleetScopeKind.FLEET;
-  /** The Community, which a Fleet also names. */
+  readonly kind: FleetScopeKind;
+  /** The Community, which a Fleet or Armada also names. */
   readonly communityId: string;
-  /** The Fleet, or null for the Community itself. */
+  /** The Fleet, or null for anything else. */
   readonly fleetId: string | null;
+  /** The Armada, or null for anything else. */
+  readonly armadaId: string | null;
 }
 
 /**
@@ -33,7 +33,12 @@ export interface GovernanceScope {
  * @returns The scope.
  */
 export function communityScope(communityId: string): GovernanceScope {
-  return { kind: FleetScopeKind.COMMUNITY, communityId, fleetId: null };
+  return {
+    kind: FleetScopeKind.COMMUNITY,
+    communityId,
+    fleetId: null,
+    armadaId: null,
+  };
 }
 
 /**
@@ -47,7 +52,21 @@ export function fleetScope(
   communityId: string,
   fleetId: string,
 ): GovernanceScope {
-  return { kind: FleetScopeKind.FLEET, communityId, fleetId };
+  return { kind: FleetScopeKind.FLEET, communityId, fleetId, armadaId: null };
+}
+
+/**
+ * Names an Armada.
+ *
+ * @param communityId - The Community holding it.
+ * @param armadaId - The Armada.
+ * @returns The scope.
+ */
+export function armadaScope(
+  communityId: string,
+  armadaId: string,
+): GovernanceScope {
+  return { kind: FleetScopeKind.ARMADA, communityId, fleetId: null, armadaId };
 }
 
 /**
@@ -57,20 +76,40 @@ export function fleetScope(
  * @returns The reference, pinned to its Community.
  */
 export function toScopeRef(scope: GovernanceScope): ScopeRef {
-  return scope.fleetId === null
-    ? { kind: FleetScopeKind.COMMUNITY, id: scope.communityId }
-    : {
-        kind: FleetScopeKind.FLEET,
-        id: scope.fleetId,
+  switch (scope.kind) {
+    case FleetScopeKind.COMMUNITY:
+      return { kind: scope.kind, id: scope.communityId };
+    case FleetScopeKind.FLEET:
+      return {
+        kind: scope.kind,
+        id: scope.fleetId as string,
         withinCommunityId: scope.communityId,
       };
+    case FleetScopeKind.ARMADA:
+      return {
+        kind: scope.kind,
+        id: scope.armadaId as string,
+        withinCommunityId: scope.communityId,
+      };
+  }
 }
 
 /**
- * Matches rows held at exactly this scope, not at a Fleet inside it.
+ * The scope's own identifier, as its kind names it.
  *
- * A role or grant at the Community reaches every Fleet in it, so reading the
- * Community's own rows has to exclude the Fleets' rows explicitly.
+ * @param scope - The scope.
+ * @returns The Community's, the Fleet's or the Armada's ID.
+ */
+export function scopeIdOf(scope: GovernanceScope): string {
+  return scope.fleetId ?? scope.armadaId ?? scope.communityId;
+}
+
+/**
+ * Matches rows held at exactly this scope, not at a Fleet or Armada inside
+ * it.
+ *
+ * A role or grant at the Community reaches every Fleet and Armada in it, so
+ * reading the Community's own rows has to exclude theirs explicitly.
  *
  * @param scope - The scope.
  * @returns The condition.
@@ -81,7 +120,7 @@ export function atExactly<T extends ScopedRow>(
   return {
     communityId: scope.communityId,
     fleetId: scope.fleetId ?? IsNull(),
-    armadaId: IsNull(),
+    armadaId: scope.armadaId ?? IsNull(),
   } as FindOptionsWhere<T>;
 }
 

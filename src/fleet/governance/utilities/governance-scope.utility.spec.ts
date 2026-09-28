@@ -5,6 +5,7 @@ import { IsNull } from 'typeorm';
 import { FLEET_CAPABILITIES } from '../../authorisation/fleet-capability.constants';
 import { FleetScopeKind } from '../../enums/fleet-scope-kind.enum';
 import {
+  armadaScope,
   atExactly,
   communityScope,
   delegableAt,
@@ -13,24 +14,40 @@ import {
   requireDelegable,
   requireReason,
   ScopedRow,
+  scopeIdOf,
   toScopeRef,
 } from './governance-scope.utility';
 
 const COMMUNITY_ID = '20000000-0000-4000-8000-000000000001';
 const FLEET_ID = '20000000-0000-4000-8000-000000000002';
+const ARMADA_ID = '20000000-0000-4000-8000-000000000003';
 
 describe('governance scope utilities', () => {
-  it('names a Community and a Fleet', () => {
+  it('names a Community, a Fleet and an Armada', () => {
     expect(communityScope(COMMUNITY_ID)).toEqual({
       kind: FleetScopeKind.COMMUNITY,
       communityId: COMMUNITY_ID,
       fleetId: null,
+      armadaId: null,
     });
     expect(fleetScope(COMMUNITY_ID, FLEET_ID)).toEqual({
       kind: FleetScopeKind.FLEET,
       communityId: COMMUNITY_ID,
       fleetId: FLEET_ID,
+      armadaId: null,
     });
+    expect(armadaScope(COMMUNITY_ID, ARMADA_ID)).toEqual({
+      kind: FleetScopeKind.ARMADA,
+      communityId: COMMUNITY_ID,
+      fleetId: null,
+      armadaId: ARMADA_ID,
+    });
+  });
+
+  it('reads each scope’s own ID', () => {
+    expect(scopeIdOf(communityScope(COMMUNITY_ID))).toBe(COMMUNITY_ID);
+    expect(scopeIdOf(fleetScope(COMMUNITY_ID, FLEET_ID))).toBe(FLEET_ID);
+    expect(scopeIdOf(armadaScope(COMMUNITY_ID, ARMADA_ID))).toBe(ARMADA_ID);
   });
 
   // A Fleet is pinned to the Community in the path, so a Fleet another
@@ -43,6 +60,11 @@ describe('governance scope utilities', () => {
     expect(toScopeRef(fleetScope(COMMUNITY_ID, FLEET_ID))).toEqual({
       kind: FleetScopeKind.FLEET,
       id: FLEET_ID,
+      withinCommunityId: COMMUNITY_ID,
+    });
+    expect(toScopeRef(armadaScope(COMMUNITY_ID, ARMADA_ID))).toEqual({
+      kind: FleetScopeKind.ARMADA,
+      id: ARMADA_ID,
       withinCommunityId: COMMUNITY_ID,
     });
   });
@@ -59,6 +81,11 @@ describe('governance scope utilities', () => {
       fleetId: FLEET_ID,
       armadaId: IsNull(),
     });
+    expect(atExactly<ScopedRow>(armadaScope(COMMUNITY_ID, ARMADA_ID))).toEqual({
+      communityId: COMMUNITY_ID,
+      fleetId: IsNull(),
+      armadaId: ARMADA_ID,
+    });
   });
 
   describe('the capability ceiling', () => {
@@ -73,6 +100,10 @@ describe('governance scope utilities', () => {
       expect(atFleet).toContain(FLEET_CAPABILITIES.NEWS_WRITE);
       expect(atFleet).not.toContain(FLEET_CAPABILITIES.SCOPE_CHILDREN_REGISTER);
       expect(atCommunity).toContain(FLEET_CAPABILITIES.SCOPE_CHILDREN_REGISTER);
+      expect(
+        delegableAt(FleetScopeKind.ARMADA).map(definition => definition.code),
+      ).toContain(FLEET_CAPABILITIES.ARMADA_MANAGE);
+      expect(atFleet).toContain(FLEET_CAPABILITIES.ARMADA_REQUEST);
 
       for (const ownerOnly of [
         FLEET_CAPABILITIES.SCOPE_SETTINGS_MANAGE,

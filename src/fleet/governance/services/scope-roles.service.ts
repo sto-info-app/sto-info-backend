@@ -9,6 +9,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 
 import { DataSource, EntityManager, In, IsNull, Not } from 'typeorm';
 
+import { armadaMemberIds } from '../../armadas/utilities/armada-arrangement.utility';
 import { FleetAuthorisationRevisionService } from '../../authorisation/fleet-authorisation-revision.service';
 import { FleetAuthorisationService } from '../../authorisation/fleet-authorisation.service';
 import { FLEET_CAPABILITIES } from '../../authorisation/fleet-capability.constants';
@@ -37,6 +38,7 @@ import {
   optionalReason,
   requireDelegable,
   requireReason,
+  scopeIdOf,
   toScopeRef,
 } from '../utilities/governance-scope.utility';
 import { OwnershipTransferService } from './ownership-transfer.service';
@@ -44,6 +46,16 @@ import { ScopeGovernanceLogService } from './scope-governance-log.service';
 
 /** The role labels an Owner gives and takes; Owner itself moves by transfer. */
 const MANAGED_ROLES = [FleetScopeRole.ADMIN, FleetScopeRole.OFFICER];
+
+/** Who may be given a role, by kind of scope, for a refusal. */
+const NOT_ELIGIBLE: Readonly<Record<FleetScopeKind, string>> = {
+  [FleetScopeKind.COMMUNITY]:
+    'Only an approved member of one of this Community’s Fleets can be given a role here.',
+  [FleetScopeKind.FLEET]:
+    'Only an approved member of this Fleet can be given a role here.',
+  [FleetScopeKind.ARMADA]:
+    'Only an approved member of one of this Armada’s Fleets can be given a role here.',
+};
 
 /** What a role label is called in a refusal. */
 const ROLE_NAMES: Record<FleetScopeRole, string> = {
@@ -244,11 +256,7 @@ export class ScopeRolesService {
       await this.assertNotOwner(manager, scope, dto.userId);
 
       if (!(await this.eligible(manager, scope)).includes(dto.userId)) {
-        throw new BadRequestException(
-          scope.fleetId === null
-            ? 'Only an approved member of one of this Community’s Fleets can be given a role here.'
-            : 'Only an approved member of this Fleet can be given a role here.',
-        );
+        throw new BadRequestException(NOT_ELIGIBLE[scope.kind]);
       }
 
       const held = await manager.findOne(ScopeRoleAssignmentEntity, {
@@ -274,7 +282,7 @@ export class ScopeRolesService {
         manager.create(ScopeRoleAssignmentEntity, {
           communityId: scope.communityId,
           fleetId: scope.fleetId,
-          armadaId: null,
+          armadaId: scope.armadaId,
           userId: dto.userId,
           role: dto.role,
           validFrom: new Date(),
@@ -341,7 +349,10 @@ export class ScopeRolesService {
         reason: why,
       });
 
-      if (scope.fleetId === null && assignment.role === FleetScopeRole.ADMIN) {
+      if (
+        scope.kind === FleetScopeKind.COMMUNITY &&
+        assignment.role === FleetScopeRole.ADMIN
+      ) {
         await this._transfers.cancelOpenWithin(manager, scope.communityId, {
           actorUserId,
           onlyTo: assignment.userId,
@@ -416,7 +427,7 @@ export class ScopeRolesService {
           manager.create(ScopeCapabilityGrantEntity, {
             communityId: scope.communityId,
             fleetId: scope.fleetId,
-            armadaId: null,
+            armadaId: scope.armadaId,
             subjectUserId: null,
             subjectRole: FleetScopeRole.OFFICER,
             capability,
@@ -514,7 +525,7 @@ export class ScopeRolesService {
         manager.create(ScopeCapabilityGrantEntity, {
           communityId: scope.communityId,
           fleetId: scope.fleetId,
-          armadaId: null,
+          armadaId: scope.armadaId,
           subjectUserId: dto.userId,
           subjectRole: null,
           capability,
@@ -624,13 +635,17 @@ export class ScopeRolesService {
    *
    * @param manager - The manager.
    * @param scope - The scope.
-   * @returns The approved members of the Fleet, or of any Fleet in the
-   *   Community.
+   * @returns The approved members of the Fleet; of any Fleet in the
+   *   Community; or, at an Armada, of any Fleet placed in it now (FC-025).
    */
   private async eligible(
     manager: EntityManager,
     scope: GovernanceScope,
   ): Promise<string[]> {
+    if (scope.kind === FleetScopeKind.ARMADA) {
+      return armadaMemberIds(manager, scope.armadaId as string);
+    }
+
     const memberships = await manager.find(ScopeMembershipEntity, {
       where: {
         communityId: scope.communityId,
@@ -677,10 +692,6 @@ export class ScopeRolesService {
     manager: EntityManager,
     scope: GovernanceScope,
   ): Promise<void> {
-    await this._revisionService.bump(
-      scope.fleetId === null ? FleetScopeKind.COMMUNITY : FleetScopeKind.FLEET,
-      scope.fleetId ?? scope.communityId,
-      manager,
-    );
+    await this._revisionService.bump(scope.kind, scopeIdOf(scope), manager);
   }
 }

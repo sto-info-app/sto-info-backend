@@ -7,6 +7,7 @@ import { ScopeCapabilityEffect } from '../../enums/scope-capability-effect.enum'
 import { ScopeGovernanceActionEntity } from '../entities/scope-governance-action.entity';
 import { ScopeGovernanceActionKind } from '../enums/scope-governance-action-kind.enum';
 import {
+  armadaScope,
   communityScope,
   fleetScope,
 } from '../utilities/governance-scope.utility';
@@ -55,6 +56,7 @@ describe('ScopeGovernanceLogService', () => {
     expect(manager.save).toHaveBeenCalledWith(ScopeGovernanceActionEntity, {
       communityId: COMMUNITY_ID,
       fleetId: FLEET_ID,
+      armadaId: null,
       action: ScopeGovernanceActionKind.ROLE_ASSIGNED,
       actorUserId: OWNER_ID,
       asSiteAdmin: false,
@@ -90,19 +92,23 @@ describe('ScopeGovernanceLogService', () => {
     );
   });
 
-  // A Community's history is its own; each Fleet keeps its own.
+  // A Community's history is its own; each Fleet and Armada keeps its own.
   it.each([
-    ['a Community', communityScope(COMMUNITY_ID), IsNull()],
-    ['a Fleet', fleetScope(COMMUNITY_ID, FLEET_ID), FLEET_ID],
-  ])('reads %s’s own history, newest first', async (_label, scope, fleetId) => {
-    await service.list(scope);
+    ['a Community', communityScope(COMMUNITY_ID), IsNull(), IsNull()],
+    ['a Fleet', fleetScope(COMMUNITY_ID, FLEET_ID), FLEET_ID, IsNull()],
+    ['an Armada', armadaScope(COMMUNITY_ID, FLEET_ID), IsNull(), FLEET_ID],
+  ])(
+    'reads %s’s own history, newest first',
+    async (_label, scope, fleetId, armadaId) => {
+      await service.list(scope);
 
-    expect(manager.find).toHaveBeenCalledWith(ScopeGovernanceActionEntity, {
-      where: { communityId: COMMUNITY_ID, fleetId },
-      order: { createdAt: 'DESC', id: 'DESC' },
-      take: GOVERNANCE_HISTORY_LIMIT,
-    });
-  });
+      expect(manager.find).toHaveBeenCalledWith(ScopeGovernanceActionEntity, {
+        where: { communityId: COMMUNITY_ID, fleetId, armadaId },
+        order: { createdAt: 'DESC', id: 'DESC' },
+        take: GOVERNANCE_HISTORY_LIMIT,
+      });
+    },
+  );
 
   it('names people by username, and nobody it cannot name or has gone', async () => {
     const at = new Date('2026-09-27T10:00:00.000Z');

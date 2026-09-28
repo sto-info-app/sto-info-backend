@@ -4,8 +4,11 @@ Who governs a Community or Fleet: role labels, delegated capabilities, ownership
 (FC-022). The code is in `src/fleet/governance`. The decisions below are Steve's, from
 27 September 2026.
 
-Armadas are built by FC-024 to FC-026, which add them here. Until then an Armada closes as it
-always has, through `DELETE /fleet-communities/:c/armadas/:a`.
+An Armada has roles and delegation too (FC-025): the Community's Owner appoints its Admins and
+Officers from the approved members of the Fleets placed in it, and a role there ends when its
+holder's Fleet leaves or they leave the Fleet. An Armada closes through its own route,
+`DELETE /fleet-communities/:c/armadas/:a`, which ends its placements. See
+[Fleet Armadas](fleet-armadas.md).
 
 ## Ownership
 
@@ -83,11 +86,12 @@ granting. The log's check constraints require it too, not only the service.
 ## Closure
 
 Closing a Community or Fleet is a status change, never a deletion: the record, its web address,
-its roster history and its Armada placements all stay, and the resolver withdraws every mutating
-capability from a closed scope. Closure also ends every role and capability grant held at exactly
-that scope; their rows keep their dates. Memberships, recruitment, artwork and the Fleets inside a
-Community are left as they are. A reason is required, and closing what is closed already changes
-nothing.
+its roster history and its past Armada placements all stay, and the resolver withdraws every
+mutating capability from a closed scope. Closure also ends every role and capability grant held at
+exactly that scope; their rows keep their dates. A closed Fleet also comes out of its Armada and
+its open Armada request is cancelled (FC-024); see [Fleet Armadas](fleet-armadas.md#closure).
+Memberships, recruitment, artwork and the Fleets inside a Community are left as they are. A reason
+is required, and closing what is closed already changes nothing.
 
 A member who leaves a Fleet, or is removed, loses any role and personal grant or denial held at
 that Fleet with the membership.
@@ -118,6 +122,7 @@ the offer it cites, going. The Manage pages show the newest 50.
 | `POST …/governance/ownership/:id/decline` | The Admin offered it |
 | `POST …/governance/close` | `scope.close` |
 | `… /fleet-communities/:c/fleets/:f/governance/…` | The same, less ownership, at one Fleet |
+| `… /fleet-communities/:c/armadas/:a/governance/…` | The same, less ownership and closure, at one Armada |
 | `GET  /admin/fleet-communities/:c/dispute` | Site ADMIN |
 | `POST /admin/fleet-communities/:c/owner` | Site ADMIN |
 | `POST /admin/fleet-communities/:c/close` | Site ADMIN |

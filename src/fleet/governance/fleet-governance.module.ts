@@ -11,6 +11,7 @@ import { ScopeRoleAssignmentEntity } from '../entities/scope-role-assignment.ent
 import { StoFleetEntity } from '../entities/sto-fleet.entity';
 import { FleetModule } from '../fleet.module';
 import { AdminFleetGovernanceController } from './admin-fleet-governance.controller';
+import { ArmadaGovernanceController } from './armada-governance.controller';
 import { CommunityGovernanceController } from './community-governance.controller';
 import { OwnershipTransferEntity } from './entities/ownership-transfer.entity';
 import { ScopeGovernanceActionEntity } from './entities/scope-governance-action.entity';
@@ -45,6 +46,7 @@ import { ScopeRolesService } from './services/scope-roles.service';
   controllers: [
     CommunityGovernanceController,
     FleetGovernanceController,
+    ArmadaGovernanceController,
     AdminFleetGovernanceController,
   ],
   providers: [

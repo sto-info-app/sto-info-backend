@@ -68,6 +68,7 @@ export class ScopeGovernanceLogService {
       manager.create(ScopeGovernanceActionEntity, {
         communityId: entry.scope.communityId,
         fleetId: entry.scope.fleetId,
+        armadaId: entry.scope.armadaId,
         action: entry.action,
         actorUserId: entry.actorUserId,
         asSiteAdmin: entry.asSiteAdmin ?? false,
@@ -84,8 +85,8 @@ export class ScopeGovernanceLogService {
   /**
    * Reads a scope's recent history, newest first.
    *
-   * A Community's history is its own changes, not its Fleets'; each Fleet
-   * shows its own.
+   * A Community's history is its own changes, not its Fleets' or Armadas';
+   * each of those shows its own.
    *
    * @param scope - The scope.
    * @returns Up to {@link GOVERNANCE_HISTORY_LIMIT} entries.
@@ -96,6 +97,7 @@ export class ScopeGovernanceLogService {
       where: {
         communityId: scope.communityId,
         fleetId: scope.fleetId ?? IsNull(),
+        armadaId: scope.armadaId ?? IsNull(),
       },
       order: { createdAt: 'DESC', id: 'DESC' },
       take: GOVERNANCE_HISTORY_LIMIT,

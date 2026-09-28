@@ -13,6 +13,7 @@ import { FleetAuthorisationRevisionService } from '../../authorisation/fleet-aut
 import { FleetAuthorisationService } from '../../authorisation/fleet-authorisation.service';
 import { FLEET_CAPABILITIES } from '../../authorisation/fleet-capability.constants';
 import { ScopeAuthorisation } from '../../authorisation/scope-authorisation.interface';
+import { ArmadaFleetMembershipEntity } from '../../entities/armada-fleet-membership.entity';
 import { FleetCommunityEntity } from '../../entities/fleet-community.entity';
 import { ScopeCapabilityGrantEntity } from '../../entities/scope-capability-grant.entity';
 import { ScopeMembershipEntity } from '../../entities/scope-membership.entity';
@@ -23,6 +24,7 @@ import { ScopeCapabilityEffect } from '../../enums/scope-capability-effect.enum'
 import { ScopeMembershipStatus } from '../../enums/scope-membership-status.enum';
 import { ScopeGovernanceActionKind } from '../enums/scope-governance-action-kind.enum';
 import {
+  armadaScope,
   communityScope,
   fleetScope,
 } from '../utilities/governance-scope.utility';
@@ -44,6 +46,7 @@ const SINCE = new Date('2026-09-01T00:00:00.000Z');
 
 const FLEET = fleetScope(COMMUNITY_ID, FLEET_ID);
 const COMMUNITY = communityScope(COMMUNITY_ID);
+const ARMADA = armadaScope(COMMUNITY_ID, 'armada-1');
 
 describe('ScopeRolesService', () => {
   let authorisation: ScopeAuthorisation | null;
@@ -51,6 +54,8 @@ describe('ScopeRolesService', () => {
   let grants: Partial<ScopeCapabilityGrantEntity>[];
   let members: string[];
   let found: object | null;
+  /** The Fleets placed in the Armada, for its eligibility (FC-025). */
+  let placedFleets: string[];
   let isOwner: boolean;
   let holdsRole: boolean;
   let manager: {
@@ -93,6 +98,7 @@ describe('ScopeRolesService', () => {
     grants = [];
     members = [MEMBER_ID, ADMIN_ID, OWNER_ID];
     found = null;
+    placedFleets = [];
     isOwner = false;
     holdsRole = false;
     manager = {
@@ -105,6 +111,9 @@ describe('ScopeRolesService', () => {
         }
         if (entity === ScopeMembershipEntity) {
           return Promise.resolve(members.map(userId => ({ userId })));
+        }
+        if (entity === ArmadaFleetMembershipEntity) {
+          return Promise.resolve(placedFleets.map(fleetId => ({ fleetId })));
         }
         if (entity === UserProfileEntity) {
           return Promise.resolve([
@@ -303,6 +312,23 @@ describe('ScopeRolesService', () => {
         OWNER_ID,
       );
 
+    // FC-025: an Armada's roles go to the members of its placed Fleets.
+    it('appoints a member of a Fleet placed in the Armada, and advertises it there', async () => {
+      placedFleets = [FLEET_ID];
+
+      await appoint(ARMADA);
+
+      expect(manager.save).toHaveBeenCalledWith(
+        ScopeRoleAssignmentEntity,
+        expect.objectContaining({ armadaId: 'armada-1', fleetId: null }),
+      );
+      expect(bump).toHaveBeenCalledWith(
+        FleetScopeKind.ARMADA,
+        'armada-1',
+        manager,
+      );
+    });
+
     it('refuses the Owner, who holds everything already', async () => {
       isOwner = true;
 
@@ -319,6 +345,10 @@ describe('ScopeRolesService', () => {
       [
         COMMUNITY,
         'Only an approved member of one of this Community’s Fleets can be given a role here.',
+      ],
+      [
+        ARMADA,
+        'Only an approved member of one of this Armada’s Fleets can be given a role here.',
       ],
     ])('refuses somebody who is not a member (%#)', async (scope, message) => {
       await expect(appoint(scope, OUTSIDER_ID)).rejects.toThrow(
