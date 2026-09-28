@@ -46,6 +46,7 @@ The database uses PostgreSQL with TypeORM for object-relational mapping.
 | `FleetHoldingStatusEntity` | `fleet_holding_status` | Where each track of a Fleet's holdings stands; a track with no row is at tier 0 |
 | `FleetHoldingChangeEntity` | `fleet_holding_change` | One save of one holding, with who and why, write-once |
 | `FleetHoldingHistoryEntity` | `fleet_holding_history` | Each track a change moved, from what tier to what, write-once |
+| `NewsPostEntity` | `news_post` | The site's news, and a Community's, a Fleet's or an Armada's with its audience and cover — see [Fleet news](fleet-news.md) |
 
 ### Platform Launcher Image Mapping
 

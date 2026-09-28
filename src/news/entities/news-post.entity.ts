@@ -10,11 +10,20 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+import { FleetAudience } from 'src/fleet/enums/fleet-audience.enum';
+
 import { NewsCategory } from '../enums/news-category.enum';
 import { NewsStatus } from '../enums/news-status.enum';
 
 /**
- * A public news post / release note authored by a site administrator.
+ * A news post: the site's own, written by a site administrator, or a
+ * Community's, a Fleet's or an Armada's (FC-027).
+ *
+ * The site's posts name no scope, have a category and no audience, and are
+ * public once published. A scoped post names its Community and, for a Fleet or
+ * an Armada, that too; it has an audience and no category, and may carry a
+ * cover image. `CHK_news_post_scope` holds both shapes, and every query for
+ * the site's news asks for `communityId IS NULL` explicitly.
  */
 @Entity({ name: 'news_post' })
 export class NewsPostEntity {
@@ -23,10 +32,10 @@ export class NewsPostEntity {
   id: string;
 
   @ApiProperty({
-    description: 'URL-friendly unique slug used to address the post.',
+    description:
+      'URL-friendly slug used to address the post, unique among the site’s posts or within its scope.',
     example: 'v1-2-0-release-notes',
   })
-  @Index({ unique: true })
   @Column({ type: 'varchar', length: 280, nullable: false })
   slug: string;
 
@@ -45,14 +54,19 @@ export class NewsPostEntity {
   @Column({ type: 'text', nullable: false })
   body: string;
 
-  @ApiProperty({ enum: NewsCategory, description: 'Category grouping.' })
+  @ApiProperty({
+    enum: NewsCategory,
+    description: 'Category grouping, for the site’s posts only.',
+    nullable: true,
+  })
   @Column({
     type: 'enum',
     enum: NewsCategory,
     enumName: 'news_category_enum',
+    nullable: true,
     default: NewsCategory.GENERAL,
   })
-  category: NewsCategory;
+  category: NewsCategory | null;
 
   @ApiProperty({ enum: NewsStatus, description: 'Publication state.' })
   @Index()
@@ -78,6 +92,55 @@ export class NewsPostEntity {
   })
   @Column({ type: 'uuid', nullable: true, default: null })
   authorId: string | null;
+
+  @ApiProperty({
+    description: 'The Community a scoped post belongs to; null for the site’s.',
+    nullable: true,
+  })
+  @Column({ type: 'uuid', nullable: true, default: null })
+  communityId: string | null;
+
+  @ApiProperty({
+    description: 'The Fleet a Fleet’s post belongs to.',
+    nullable: true,
+  })
+  @Column({ type: 'uuid', nullable: true, default: null })
+  fleetId: string | null;
+
+  @ApiProperty({
+    description: 'The Armada an Armada’s post belongs to.',
+    nullable: true,
+  })
+  @Column({ type: 'uuid', nullable: true, default: null })
+  armadaId: string | null;
+
+  @ApiProperty({
+    enum: FleetAudience,
+    description: 'Who may read a scoped post; null for the site’s.',
+    nullable: true,
+  })
+  @Column({
+    type: 'enum',
+    enum: FleetAudience,
+    enumName: 'fleet_audience_enum',
+    nullable: true,
+    default: null,
+  })
+  audience: FleetAudience | null;
+
+  @ApiProperty({
+    description: 'Delivery reference of a scoped post’s cover image.',
+    nullable: true,
+  })
+  @Column({ type: 'varchar', length: 255, nullable: true, default: null })
+  coverImageId: string | null;
+
+  @ApiProperty({
+    description: 'What the cover image shows.',
+    nullable: true,
+  })
+  @Column({ type: 'varchar', length: 300, nullable: true, default: null })
+  coverImageAlt: string | null;
 
   @CreateDateColumn()
   createdAt: Date;

@@ -3,7 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { jest } from '@jest/globals';
-import { QueryFailedError, Repository } from 'typeorm';
+import { IsNull, QueryFailedError, Repository } from 'typeorm';
 
 import { NewsPostEntity } from './entities/news-post.entity';
 import { NewsCategory } from './enums/news-category.enum';
@@ -17,6 +17,7 @@ describe('NewsService', () => {
     select: jest.Mock;
     addSelect: jest.Mock;
     where: jest.Mock;
+    andWhere: jest.Mock;
     groupBy: jest.Mock;
     getRawMany: jest.Mock<
       () => Promise<Array<{ category: NewsCategory; count: string }>>
@@ -28,6 +29,7 @@ describe('NewsService', () => {
       select: jest.fn(() => queryBuilder),
       addSelect: jest.fn(() => queryBuilder),
       where: jest.fn(() => queryBuilder),
+      andWhere: jest.fn(() => queryBuilder),
       groupBy: jest.fn(() => queryBuilder),
       getRawMany: jest.fn(() =>
         Promise.resolve([] as Array<{ category: NewsCategory; count: string }>),
@@ -74,7 +76,7 @@ describe('NewsService', () => {
       });
       expect(repository.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { status: NewsStatus.PUBLISHED },
+          where: { communityId: IsNull(), status: NewsStatus.PUBLISHED },
           skip: 0,
           take: 10,
         }),
@@ -93,6 +95,7 @@ describe('NewsService', () => {
       expect(repository.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
+            communityId: IsNull(),
             status: NewsStatus.PUBLISHED,
             category: NewsCategory.RELEASE_NOTES,
           },
@@ -116,6 +119,16 @@ describe('NewsService', () => {
         [NewsCategory.RELEASE_NOTES]: 1,
       });
     });
+
+    it('counts only the site’s own posts, never a Fleet’s', async () => {
+      repository.findAndCount.mockResolvedValue([[], 0]);
+
+      await service.findPublished({});
+
+      expect(queryBuilder.where).toHaveBeenCalledWith(
+        'post.communityId IS NULL',
+      );
+    });
   });
 
   describe('findPublishedBySlug', () => {
@@ -124,6 +137,13 @@ describe('NewsService', () => {
       repository.findOne.mockResolvedValue(post);
 
       await expect(service.findPublishedBySlug('slug')).resolves.toBe(post);
+      expect(repository.findOne).toHaveBeenCalledWith({
+        where: {
+          slug: 'slug',
+          communityId: IsNull(),
+          status: NewsStatus.PUBLISHED,
+        },
+      });
     });
 
     it('throws when not found', async () => {
@@ -371,7 +391,7 @@ describe('NewsService', () => {
       });
       expect(repository.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: {},
+          where: { communityId: IsNull() },
           skip: 0,
           take: 10,
         }),
@@ -389,7 +409,7 @@ describe('NewsService', () => {
 
       expect(repository.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { category: NewsCategory.GENERAL },
+          where: { communityId: IsNull(), category: NewsCategory.GENERAL },
           skip: 25,
           take: 25,
         }),
@@ -429,6 +449,9 @@ describe('NewsService', () => {
       const result = await service.findOneById('1');
 
       expect(result).toBe(post);
+      expect(repository.findOne).toHaveBeenCalledWith({
+        where: { id: '1', communityId: IsNull() },
+      });
     });
 
     it('throws NotFoundException when not found', async () => {

@@ -64,4 +64,9 @@ export enum FileAssetSubject {
    * the bytes where they are and writes observations instead of a reference.
    */
   ROSTER_IMPORT = 'ROSTER_IMPORT',
+  /**
+   * A Community's, a Fleet's or an Armada's news post, for its cover image
+   * (FC-027). The site's own posts carry no picture.
+   */
+  NEWS_POST = 'NEWS_POST',
 }

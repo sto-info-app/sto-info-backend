@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { QueryFailedError, Repository } from 'typeorm';
+import { IsNull, QueryFailedError, Repository } from 'typeorm';
 
 import { normaliseToSlug } from 'src/shared/utilities/slug.utility';
 
@@ -36,6 +36,15 @@ export interface PaginatedNews {
   categoryCounts?: NewsCategoryCounts;
 }
 
+/**
+ * The site's own news.
+ *
+ * A Community, a Fleet or an Armada keeps its news in the same table
+ * (FC-027), so every query here asks for posts naming no Community. That is
+ * asked explicitly, every time, rather than left to a default scope: a scoped
+ * post reaching the public list, the RSS feed, the sitemap or an
+ * administrator's editor would publish it to people its audience excludes.
+ */
 @Injectable()
 export class NewsService {
   /**
@@ -60,6 +69,7 @@ export class NewsService {
 
     const [items, total] = await this._newsRepository.findAndCount({
       where: {
+        communityId: IsNull(),
         status: NewsStatus.PUBLISHED,
         ...(query.category ? { category: query.category } : {}),
       },
@@ -84,7 +94,8 @@ export class NewsService {
       .createQueryBuilder('post')
       .select('post.category', 'category')
       .addSelect('COUNT(*)', 'count')
-      .where('post.status = :status', { status: NewsStatus.PUBLISHED })
+      .where('post.communityId IS NULL')
+      .andWhere('post.status = :status', { status: NewsStatus.PUBLISHED })
       .groupBy('post.category')
       .getRawMany<{ category: NewsCategory; count: string }>();
 
@@ -104,7 +115,7 @@ export class NewsService {
    */
   async findPublishedBySlug(slug: string): Promise<NewsPostEntity> {
     const post = await this._newsRepository.findOne({
-      where: { slug, status: NewsStatus.PUBLISHED },
+      where: { slug, communityId: IsNull(), status: NewsStatus.PUBLISHED },
     });
 
     if (!post) {
@@ -129,7 +140,10 @@ export class NewsService {
     const pageSize = this.clampPageSize(query.pageSize);
 
     const [items, total] = await this._newsRepository.findAndCount({
-      where: query.category ? { category: query.category } : {},
+      where: {
+        communityId: IsNull(),
+        ...(query.category ? { category: query.category } : {}),
+      },
       order: { status: 'ASC', publishedAt: 'DESC', createdAt: 'DESC' },
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -139,14 +153,19 @@ export class NewsService {
   }
 
   /**
-   * Finds any post by ID, regardless of status (admin use).
+   * Finds any of the site's posts by ID, regardless of status (admin use).
+   *
+   * A scoped post is not found here, which is what keeps the site's editor,
+   * and its publish and delete routes, off a Fleet's news.
    *
    * @param id - The post ID.
    * @returns The post.
    * @throws NotFoundException when no post matches the ID.
    */
   async findOneById(id: string): Promise<NewsPostEntity> {
-    const post = await this._newsRepository.findOne({ where: { id } });
+    const post = await this._newsRepository.findOne({
+      where: { id, communityId: IsNull() },
+    });
 
     if (!post) {
       throw new NotFoundException('News post not found');
