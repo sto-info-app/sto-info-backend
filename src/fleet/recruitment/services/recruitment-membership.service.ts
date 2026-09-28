@@ -12,11 +12,16 @@ import { DataSource, EntityManager, In, IsNull } from 'typeorm';
 
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 
+import {
+  endIneligibleArmadaRoles,
+  openPlacementOf,
+} from '../../armadas/utilities/armada-arrangement.utility';
 import { FleetAuthorisationRevisionService } from '../../authorisation/fleet-authorisation-revision.service';
 import { CharacterFleetMembershipEntity } from '../../entities/character-fleet-membership.entity';
 import { ScopeCapabilityGrantEntity } from '../../entities/scope-capability-grant.entity';
 import { ScopeMembershipEntity } from '../../entities/scope-membership.entity';
 import { ScopeRoleAssignmentEntity } from '../../entities/scope-role-assignment.entity';
+import { StoArmadaEntity } from '../../entities/sto-armada.entity';
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { FleetScopeKind } from '../../enums/fleet-scope-kind.enum';
 import { ScopeMembershipStatus } from '../../enums/scope-membership-status.enum';
@@ -430,6 +435,29 @@ export class RecruitmentMembershipService {
       membership.fleetId as string,
       membership.userId,
     );
+
+    // An Armada role is for its Fleets' members, so leaving the Fleet it
+    // came through ends it, unless another placed Fleet still counts them
+    // (FC-025).
+    const placement = await openPlacementOf(
+      manager,
+      membership.fleetId as string,
+    );
+
+    if (placement !== null) {
+      await endIneligibleArmadaRoles(
+        manager,
+        { id: placement.armadaId, communityId: placement.communityId },
+        end.actorUserId,
+        now,
+      );
+      await manager.increment(
+        StoArmadaEntity,
+        { id: placement.armadaId },
+        'revision',
+        1,
+      );
+    }
 
     await this._revisionService.bump(
       FleetScopeKind.FLEET,

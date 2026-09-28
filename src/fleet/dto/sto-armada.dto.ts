@@ -46,6 +46,14 @@ export class StoArmadaDto {
   displayName: string | null;
 
   @ApiProperty({
+    description:
+      'Allegiance: the Federation or Klingon general faction, or null for an ' +
+      'Armada registered before it had one, which takes no Fleets (FC-024).',
+    nullable: true,
+  })
+  allegianceFactionId: string | null;
+
+  @ApiProperty({
     description: 'Lowercase URL segment, unique per Community and platform.',
   })
   slug: string;
@@ -159,6 +167,18 @@ export class ResolvedStoArmadaDto {
 
   @ApiProperty({ description: 'The platform’s current URL segment.' })
   platformSegment: string;
+
+  /* Named here rather than on the Armada itself, whose shape is returned by
+   * routes that have no reason to load the faction. The id alone means
+   * nothing to a signed-out reader, who cannot ask the character lookup. */
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'Its allegiance, Federation or Klingon, or null for an Armada ' +
+      'registered before either was required.',
+  })
+  allegianceName: string | null;
 
   @ApiProperty({
     description:

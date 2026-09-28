@@ -11,10 +11,12 @@ import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 
 import { FleetAuthorisationRevisionService } from '../../authorisation/fleet-authorisation-revision.service';
+import { ArmadaFleetMembershipEntity } from '../../entities/armada-fleet-membership.entity';
 import { CharacterFleetMembershipEntity } from '../../entities/character-fleet-membership.entity';
 import { ScopeCapabilityGrantEntity } from '../../entities/scope-capability-grant.entity';
 import { ScopeMembershipEntity } from '../../entities/scope-membership.entity';
 import { ScopeRoleAssignmentEntity } from '../../entities/scope-role-assignment.entity';
+import { StoArmadaEntity } from '../../entities/sto-armada.entity';
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { FleetScopeKind } from '../../enums/fleet-scope-kind.enum';
 import { ScopeMembershipStatus } from '../../enums/scope-membership-status.enum';
@@ -42,7 +44,10 @@ describe('RecruitmentMembershipService', () => {
     create: jest.Mock;
     save: jest.Mock;
     update: jest.Mock;
+    increment: jest.Mock;
   };
+  /** Where the Fleet sits in an Armada, if anywhere (FC-025). */
+  let placement: { armadaId: string; communityId: string } | null;
   let bump: jest.Mock;
   let raiseWithin: jest.Mock;
   let withdrawRecruitedWithin: jest.Mock;
@@ -52,8 +57,13 @@ describe('RecruitmentMembershipService', () => {
     membership = null;
     recorded = false;
     holdsRole = false;
+    placement = null;
     manager = {
-      findOne: jest.fn(() => Promise.resolve(membership)),
+      findOne: jest.fn((entity: unknown) =>
+        Promise.resolve(
+          entity === ArmadaFleetMembershipEntity ? placement : membership,
+        ),
+      ),
       find: jest.fn(() => Promise.resolve([])),
       exists: jest.fn((entity: unknown) =>
         Promise.resolve(
@@ -65,6 +75,7 @@ describe('RecruitmentMembershipService', () => {
         Promise.resolve({ id: 'membership-new', ...data }),
       ),
       update: jest.fn(() => Promise.resolve({})),
+      increment: jest.fn(() => Promise.resolve()),
     };
     bump = jest.fn(() => Promise.resolve(2));
     raiseWithin = jest.fn(() => Promise.resolve({ id: 'proposal-1' }));
@@ -234,6 +245,35 @@ describe('RecruitmentMembershipService', () => {
   });
 
   describe('leave', () => {
+    // FC-025: an Armada role is for its Fleets' members.
+    it('ends the Armada roles its member no longer qualifies for', async () => {
+      membership = member(ScopeMembershipStatus.APPROVED);
+      placement = { armadaId: 'armada-1', communityId: 'community-1' };
+
+      await service.leave('community-1', 'fleet-1', 'member-1');
+
+      expect(manager.find).toHaveBeenCalledWith(
+        ScopeRoleAssignmentEntity,
+        expect.objectContaining({
+          where: expect.objectContaining({ armadaId: 'armada-1' }),
+        }),
+      );
+      expect(manager.increment).toHaveBeenCalledWith(
+        StoArmadaEntity,
+        { id: 'armada-1' },
+        'revision',
+        1,
+      );
+    });
+
+    it('touches no Armada when the Fleet is in none', async () => {
+      membership = member(ScopeMembershipStatus.APPROVED);
+
+      await service.leave('community-1', 'fleet-1', 'member-1');
+
+      expect(manager.increment).not.toHaveBeenCalled();
+    });
+
     it('ends the membership as LEFT, drops any role and advertises it', async () => {
       membership = member(ScopeMembershipStatus.APPROVED);
 

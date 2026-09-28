@@ -76,6 +76,8 @@ export const FLEET_CAPABILITIES = {
 
   /** Decide Fleet join requests and restructure Armada placement. */
   ARMADA_MANAGE: 'armada.manage',
+  /** Ask for a Fleet to join an Armada, and take it out again (FC-025). */
+  ARMADA_REQUEST: 'armada.request',
 } as const;
 
 /** A recognised scoped capability. */
@@ -338,6 +340,15 @@ export const FLEET_CAPABILITY_DEFINITIONS: readonly FleetCapabilityDefinition[] 
       mutating: true,
       delegable: true,
       scopeKinds: [FleetScopeKind.COMMUNITY, FleetScopeKind.ARMADA],
+    },
+    {
+      code: FLEET_CAPABILITIES.ARMADA_REQUEST,
+      name: 'Request an Armada',
+      description:
+        'Ask for the Fleet to join an Armada, and take it out of one.',
+      mutating: true,
+      delegable: true,
+      scopeKinds: [FleetScopeKind.COMMUNITY, FleetScopeKind.FLEET],
     },
   ];
 

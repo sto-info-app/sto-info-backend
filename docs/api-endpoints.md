@@ -462,6 +462,11 @@ Joining, applying, invitations, decisions, leaving and removal. See
 Roles, delegated capabilities, ownership offers, a site administrator's dispute actions, and
 closure. See [Fleet governance](fleet-governance.md#routes) for every route and who may call it.
 
+### Armadas
+
+Requests to join an Armada, where each Fleet sits, moves and departures, and the history. See
+[Fleet Armadas](fleet-armadas.md#routes) for every route and who may call it.
+
 ### Holdings
 
 The tier of each of a Fleet's holdings, recorded by hand, and their history. See

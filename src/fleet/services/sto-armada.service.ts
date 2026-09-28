@@ -15,6 +15,12 @@ import {
   SelectQueryBuilder,
 } from 'typeorm';
 
+import {
+  assertArmadaAllegiance,
+  endArmadaForClosure,
+  lockArmada,
+  openPlacements,
+} from '../armadas/utilities/armada-arrangement.utility';
 import { FleetAuthorisationRevisionService } from '../authorisation/fleet-authorisation-revision.service';
 import { CreateStoArmadaDto } from '../dto/create-sto-armada.dto';
 import { StoArmadaDirectoryQueryDto } from '../dto/fleet-directory-query.dto';
@@ -123,6 +129,11 @@ export class StoArmadaService {
   ): Promise<RegisteredArmada> {
     const platform = await this._platformService.findByIdOrFail(dto.platformId);
 
+    await assertArmadaAllegiance(
+      this._armadaRepository.manager,
+      dto.allegianceFactionId,
+    );
+
     const slug = await this.mintSlug(communityId, platform.id, {
       desiredSlug: dto.slug,
       name: dto.exactGameName,
@@ -134,6 +145,7 @@ export class StoArmadaService {
       exactGameName: dto.exactGameName,
       exactGameNameNormalized: toNormalisedExactGameName(dto.exactGameName),
       displayName: dto.displayName ?? null,
+      allegianceFactionId: dto.allegianceFactionId,
       slug,
     });
 
@@ -165,7 +177,7 @@ export class StoArmadaService {
    *
    * @param communityId - The Community named in the path.
    * @param armadaId - The Armada.
-   * @returns The Armada, with its platform and Community loaded.
+   * @returns The Armada, with its platform, Community and allegiance loaded.
    * @throws NotFoundException when no such Armada belongs to that Community.
    */
   async findByIdOrFail(
@@ -174,7 +186,7 @@ export class StoArmadaService {
   ): Promise<StoArmadaEntity> {
     const armada = await this._armadaRepository.findOne({
       where: { id: armadaId, communityId, deletedAt: IsNull() },
-      relations: { platform: true, community: true },
+      relations: { platform: true, community: true, allegianceFaction: true },
     });
 
     if (!armada) {
@@ -200,7 +212,7 @@ export class StoArmadaService {
   ): Promise<{ armada: StoArmadaEntity; redirected: boolean }> {
     const live = await this._armadaRepository.findOne({
       where: { communityId, platformId, slug, deletedAt: IsNull() },
-      relations: { platform: true, community: true },
+      relations: { platform: true, community: true, allegianceFaction: true },
     });
 
     if (live) {
@@ -338,6 +350,25 @@ export class StoArmadaService {
 
     const previousSlug = armada.slug;
 
+    if (
+      dto.allegianceFactionId !== undefined &&
+      dto.allegianceFactionId !== armada.allegianceFactionId
+    ) {
+      await assertArmadaAllegiance(
+        this._armadaRepository.manager,
+        dto.allegianceFactionId,
+      );
+
+      if (
+        (await openPlacements(this._armadaRepository.manager, armada.id))
+          .length > 0
+      ) {
+        throw new ConflictException(
+          'An Armada’s allegiance cannot change while it has Fleets.',
+        );
+      }
+    }
+
     if (dto.exactGameName !== undefined || dto.slug !== undefined) {
       armada.slug = await this.mintSlug(communityId, armada.platformId, {
         desiredSlug: dto.slug,
@@ -376,12 +407,13 @@ export class StoArmadaService {
   }
 
   /**
-   * Closes an Armada, keeping everything it holds.
+   * Closes an Armada, keeping everything it held.
    *
    * Idempotent: closing a closed Armada succeeds and does not move the
-   * closure instant. The placements stay readable, so which Fleets were in
-   * it and when survives the Armada being wound up — FC-004's third
-   * acceptance criterion.
+   * closure instant. Its open placements and requests end with it, so its
+   * Fleets are free to join another (FC-024); the ended placements stay
+   * readable, so which Fleets were in it and when survives the Armada being
+   * wound up — FC-004's third acceptance criterion.
    *
    * @param communityId - The Community named in the path.
    * @param armadaId - The Armada.
@@ -393,20 +425,33 @@ export class StoArmadaService {
     armadaId: string,
     actingUserId: string,
   ): Promise<StoArmadaEntity> {
-    const armada = await this.findByIdOrFail(communityId, armadaId);
+    const saved = await this._armadaRepository.manager.transaction(
+      async manager => {
+        const armada = await lockArmada(manager, communityId, armadaId);
 
-    if (armada.status === FleetScopeStatus.CLOSED) {
-      return armada;
-    }
+        if (armada.status === FleetScopeStatus.CLOSED) {
+          return armada;
+        }
 
-    armada.status = FleetScopeStatus.CLOSED;
-    armada.closedAt = new Date();
+        const now = new Date();
 
-    const saved = await this._armadaRepository.save(armada);
+        armada.status = FleetScopeStatus.CLOSED;
+        armada.closedAt = now;
 
-    // Closure withdraws every mutating capability at the Armada, so unlike a
-    // rename this one is not optional.
-    await this._revisionService.bump(FleetScopeKind.ARMADA, saved.id);
+        const closed = await manager.save(StoArmadaEntity, armada);
+
+        await endArmadaForClosure(manager, closed, actingUserId, now);
+        // Closure withdraws every mutating capability at the Armada, so
+        // unlike a rename this one is not optional.
+        await this._revisionService.bump(
+          FleetScopeKind.ARMADA,
+          closed.id,
+          manager,
+        );
+
+        return closed;
+      },
+    );
 
     this._logger.log(`Armada '${saved.slug}' closed by ${actingUserId}`);
 

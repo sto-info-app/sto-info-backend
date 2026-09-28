@@ -2,7 +2,10 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 import { DataSource } from 'typeorm';
 
+import { ArmadaJoinRequestEntity } from '../../armadas/entities/armada-join-request.entity';
+import { ArmadaJoinRequestStatus } from '../../armadas/enums/armada-join-request-status.enum';
 import { FleetAuthorisationRevisionService } from '../../authorisation/fleet-authorisation-revision.service';
+import { ArmadaFleetMembershipEntity } from '../../entities/armada-fleet-membership.entity';
 import { FleetCommunityEntity } from '../../entities/fleet-community.entity';
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { FleetScopeKind } from '../../enums/fleet-scope-kind.enum';
@@ -23,7 +26,7 @@ const OWNER_ID = '22000000-0000-4000-8000-000000000003';
 
 describe('ScopeClosureService', () => {
   let stored: { status: FleetScopeStatus; closedAt: Date | null } | null;
-  let manager: { findOne: jest.Mock; save: jest.Mock };
+  let manager: { findOne: jest.Mock; save: jest.Mock; update: jest.Mock };
   let bump: jest.Mock;
   let record: jest.Mock;
   let endAllWithin: jest.Mock;
@@ -33,8 +36,12 @@ describe('ScopeClosureService', () => {
   beforeEach(() => {
     stored = { status: FleetScopeStatus.ACTIVE, closedAt: null };
     manager = {
-      findOne: jest.fn(() => Promise.resolve(stored)),
+      // A Fleet in no Armada: the placement read finds nothing.
+      findOne: jest.fn((entity: unknown) =>
+        Promise.resolve(entity === ArmadaFleetMembershipEntity ? null : stored),
+      ),
       save: jest.fn((_entity: unknown, row: object) => Promise.resolve(row)),
+      update: jest.fn(() => Promise.resolve({ affected: 0 })),
     };
     bump = jest.fn(() => Promise.resolve(2));
     record = jest.fn(() => Promise.resolve());
@@ -179,6 +186,25 @@ describe('ScopeClosureService', () => {
         FleetScopeKind.FLEET,
         FLEET_ID,
         manager,
+      );
+    });
+
+    // FC-024: a closed Fleet asks to join no Armada, and leaves its own.
+    it('cancels the Fleet’s open Armada request, and ends any placement', async () => {
+      await close();
+
+      expect(manager.update).toHaveBeenCalledWith(
+        ArmadaJoinRequestEntity,
+        { fleetId: FLEET_ID, status: ArmadaJoinRequestStatus.PENDING },
+        expect.objectContaining({
+          status: ArmadaJoinRequestStatus.CANCELLED,
+        }),
+      );
+      expect(manager.findOne).toHaveBeenCalledWith(
+        ArmadaFleetMembershipEntity,
+        expect.objectContaining({
+          where: expect.objectContaining({ fleetId: FLEET_ID }),
+        }),
       );
     });
 

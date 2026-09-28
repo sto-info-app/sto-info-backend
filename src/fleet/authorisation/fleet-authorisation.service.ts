@@ -7,10 +7,11 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { ClsService } from 'nestjs-cls';
-import { IsNull, Not, Repository } from 'typeorm';
+import { In, IsNull, Not, Repository } from 'typeorm';
 
 import { UserEntity } from 'src/user/entities/user.entity';
 
+import { ArmadaFleetMembershipEntity } from '../entities/armada-fleet-membership.entity';
 import { FleetCommunityEntity } from '../entities/fleet-community.entity';
 import { ScopeCapabilityGrantEntity } from '../entities/scope-capability-grant.entity';
 import { ScopeMembershipEntity } from '../entities/scope-membership.entity';
@@ -70,7 +71,10 @@ const CLS_AUTHORISATION_INDEX_KEY = 'fleetAuthorisation:keys';
  * R07, "joining a community never unlocks a private roster". Nothing reaches
  * sideways: a role on one Fleet says nothing about a sibling Fleet, and a role
  * on an Armada says nothing about the Fleets placed in it, which is what stops
- * Armada membership becoming a route to other people's rosters.
+ * Armada membership becoming a route to other people's rosters. The one thing
+ * that does reach up is membership: an approved member of a Fleet placed in
+ * an Armada is that Armada's member while the Fleet stays (FC-025), with no
+ * capability that reads a Fleet.
  *
  * **Following confers nothing at all.** `community_subscription` is not read by
  * this service, at any point, for any purpose. Neither is any roster table: an
@@ -465,6 +469,11 @@ export class FleetAuthorisationService {
       applicableMemberships.find(membership =>
         isExactScope(membership, scope),
       ) ?? null;
+    const membership =
+      exactMembership?.status === ScopeMembershipStatus.APPROVED
+        ? exactMembership
+        : ((await this.placedFleetMembership(scope, memberships)) ??
+          exactMembership);
 
     const isSuspended =
       !user ||
@@ -477,18 +486,66 @@ export class FleetAuthorisationService {
 
     const capabilities = isSuspended
       ? new Set<FleetCapability>()
-      : this.collectCapabilities(scope, roles, exactMembership, grants);
+      : this.collectCapabilities(scope, roles, membership, grants);
 
     return {
       scope,
       userId,
       roles,
       capabilities,
-      membershipStatus: exactMembership?.status ?? null,
-      isApprovedMember:
-        exactMembership?.status === ScopeMembershipStatus.APPROVED,
+      membershipStatus: membership?.status ?? null,
+      isApprovedMember: membership?.status === ScopeMembershipStatus.APPROVED,
       isSuspended,
     };
+  }
+
+  /**
+   * Finds what makes a user an Armada's member: an approved membership of a
+   * Fleet placed in it now (FC-025).
+   *
+   * Nothing else reaches an Armada from its Fleets. Membership brings the
+   * member baseline, which the scope limits then narrow to what means
+   * something at an Armada, so no Fleet's roster is ever read through one;
+   * and it ends with the placement, because it is read afresh every time.
+   *
+   * @param scope - The resolved scope.
+   * @param memberships - The user's memberships anywhere in its Community.
+   * @returns The membership, or null at any other kind of scope or when
+   *   none of their Fleets is placed there.
+   */
+  private async placedFleetMembership(
+    scope: ResolvedScope,
+    memberships: readonly ScopeMembershipEntity[],
+  ): Promise<ScopeMembershipEntity | null> {
+    const approved = memberships.filter(
+      membership =>
+        membership.fleetId !== null &&
+        membership.status === ScopeMembershipStatus.APPROVED,
+    );
+
+    if (scope.kind !== FleetScopeKind.ARMADA || approved.length === 0) {
+      return null;
+    }
+
+    const placed = await this._armadaRepository.manager.find(
+      ArmadaFleetMembershipEntity,
+      {
+        where: {
+          armadaId: scope.armadaId as string,
+          fleetId: In(approved.map(membership => membership.fleetId)),
+          validTo: IsNull(),
+          deletedAt: IsNull(),
+        },
+        select: { fleetId: true },
+      },
+    );
+    const placedFleets = new Set(placed.map(placement => placement.fleetId));
+
+    return (
+      approved.find(membership =>
+        placedFleets.has(membership.fleetId as string),
+      ) ?? null
+    );
   }
 
   /**

@@ -16,6 +16,7 @@ import {
   SelectQueryBuilder,
 } from 'typeorm';
 
+import { openPlacementOf } from '../armadas/utilities/armada-arrangement.utility';
 import { FleetAuthorisationRevisionService } from '../authorisation/fleet-authorisation-revision.service';
 import { CreateStoFleetDto } from '../dto/create-sto-fleet.dto';
 import { CreateUnregisteredFleetDto } from '../dto/create-unregistered-fleet.dto';
@@ -476,6 +477,16 @@ export class StoFleetService {
 
     const previousSlug = fleet.slug;
     const previousVisibility = fleet.visibility;
+
+    if (
+      dto.allegianceFactionId !== undefined &&
+      dto.allegianceFactionId !== fleet.allegianceFactionId &&
+      (await openPlacementOf(this._fleetRepository.manager, fleet.id)) !== null
+    ) {
+      throw new ConflictException(
+        'This Fleet’s allegiance cannot change while it is in an Armada.',
+      );
+    }
 
     if (dto.exactGameName !== undefined || dto.slug !== undefined) {
       fleet.slug = await this.mintSlug(communityId, fleet.platformId, {

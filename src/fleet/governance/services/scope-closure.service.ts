@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 
 import { DataSource } from 'typeorm';
 
+import { endFleetForClosure } from '../../armadas/utilities/armada-arrangement.utility';
 import { FleetAuthorisationRevisionService } from '../../authorisation/fleet-authorisation-revision.service';
 import { FleetCommunityEntity } from '../../entities/fleet-community.entity';
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
@@ -171,6 +172,14 @@ export class ScopeClosureService {
       const saved = await manager.save(StoFleetEntity, fleet);
 
       await this._roles.endAllWithin(manager, scope, now);
+      // A closed Fleet comes out of its Armada, and asks to join none
+      // (FC-024).
+      await endFleetForClosure(
+        manager,
+        { id: fleetId, exactGameName: saved.exactGameName },
+        request.actorUserId,
+        now,
+      );
       await this._log.record(manager, {
         scope,
         action: ScopeGovernanceActionKind.CLOSED,

@@ -288,6 +288,7 @@ export class FleetScopeResolutionController {
       communitySlug: community.community.slug,
       communityName: community.community.name,
       platformSegment: canonicalPlatformSegment,
+      allegianceName: resolved.armada.allegianceFaction?.name ?? null,
       redirected:
         resolved.redirected ||
         community.redirectedFrom !== null ||

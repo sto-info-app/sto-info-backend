@@ -1,4 +1,8 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
@@ -6,6 +10,8 @@ import { IsNull, Not, QueryFailedError } from 'typeorm';
 
 import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
 
+import { ArmadaJoinRequestEntity } from '../armadas/entities/armada-join-request.entity';
+import { ArmadaJoinRequestStatus } from '../armadas/enums/armada-join-request-status.enum';
 import { FleetAuthorisationRevisionService } from '../authorisation/fleet-authorisation-revision.service';
 import { FleetCommunityEntity } from '../entities/fleet-community.entity';
 import { StoArmadaEntity } from '../entities/sto-armada.entity';
@@ -71,6 +77,7 @@ function askedFor(builder: MockQueryBuilder, fragment: string): boolean {
 describe('StoArmadaService', () => {
   let service: StoArmadaService;
   let armadaRepository: {
+    manager: unknown;
     findOne: jest.Mock;
     find: jest.Mock;
     count: jest.Mock;
@@ -90,6 +97,23 @@ describe('StoArmadaService', () => {
   const armadaId = 'f0000000-0000-4000-8000-000000000002';
   const platformId = 'f0000000-0000-4000-8000-000000000003';
   const actingUserId = 'f0000000-0000-4000-8000-000000000004';
+  const allegianceFactionId = 'f0000000-0000-4000-8000-000000000005';
+
+  /** What the entity manager reads for the allegiance and placements. */
+  let manager: {
+    findOne: jest.Mock;
+    find: jest.Mock;
+    save: jest.Mock;
+    update: jest.Mock;
+    increment: jest.Mock;
+    transaction: jest.Mock;
+  };
+
+  /** The general faction an allegiance names, or null for none. */
+  let faction: { id: string; name: string } | null;
+
+  /** The Armada's open placements. */
+  let placements: unknown[];
 
   /** What the repository will answer `findOne` with. */
   let stored: StoArmadaEntity | null;
@@ -204,7 +228,27 @@ describe('StoArmadaService', () => {
     candidateWasTaken = null;
     slugHolders = 0;
 
+    faction = { id: allegianceFactionId, name: 'Federation' };
+    placements = [];
+    manager = {
+      findOne: jest.fn((entity: { name: string }) =>
+        Promise.resolve(
+          entity.name === 'GeneralFactionEntity' ? faction : stored,
+        ),
+      ),
+      find: jest.fn(() => Promise.resolve(placements)),
+      save: jest.fn((_entity: unknown, values: StoArmadaEntity) =>
+        Promise.resolve(values),
+      ),
+      update: jest.fn(() => Promise.resolve({ affected: 0 })),
+      increment: jest.fn(() => Promise.resolve()),
+      transaction: jest.fn((work: (m: typeof manager) => Promise<unknown>) =>
+        work(manager),
+      ),
+    };
+
     armadaRepository = {
+      manager,
       findOne: jest.fn(() => Promise.resolve(stored)),
       find: jest.fn(() => Promise.resolve(found)),
       count: jest.fn(() => Promise.resolve(slugHolders)),
@@ -264,7 +308,7 @@ describe('StoArmadaService', () => {
     it('registers the Armada under the Community named in the path', async () => {
       const { armada } = await service.register(
         communityId,
-        { exactGameName: 'Sol Armada', platformId },
+        { exactGameName: 'Sol Armada', platformId, allegianceFactionId },
         actingUserId,
       );
 
@@ -276,7 +320,7 @@ describe('StoArmadaService', () => {
     it('stores an edge space rather than trimming it away', async () => {
       const { armada } = await service.register(
         communityId,
-        { exactGameName: ' Sol Armada', platformId },
+        { exactGameName: ' Sol Armada', platformId, allegianceFactionId },
         actingUserId,
       );
 
@@ -287,7 +331,7 @@ describe('StoArmadaService', () => {
     it('asks for a slug scoped to the Community and the platform', async () => {
       await service.register(
         communityId,
-        { exactGameName: 'Sol Armada', platformId },
+        { exactGameName: 'Sol Armada', platformId, allegianceFactionId },
         actingUserId,
       );
 
@@ -299,7 +343,12 @@ describe('StoArmadaService', () => {
     it('prefers a web address the registrant typed', async () => {
       await service.register(
         communityId,
-        { exactGameName: 'Sol Armada', platformId, slug: 'sol' },
+        {
+          exactGameName: 'Sol Armada',
+          platformId,
+          allegianceFactionId,
+          slug: 'sol',
+        },
         actingUserId,
       );
 
@@ -311,7 +360,7 @@ describe('StoArmadaService', () => {
     it('counts only live Armadas in the same Community and platform', async () => {
       await service.register(
         communityId,
-        { exactGameName: 'Sol Armada', platformId },
+        { exactGameName: 'Sol Armada', platformId, allegianceFactionId },
         actingUserId,
       );
 
@@ -331,7 +380,7 @@ describe('StoArmadaService', () => {
 
       await service.register(
         communityId,
-        { exactGameName: 'Sol Armada', platformId },
+        { exactGameName: 'Sol Armada', platformId, allegianceFactionId },
         actingUserId,
       );
 
@@ -349,6 +398,7 @@ describe('StoArmadaService', () => {
         {
           exactGameName: 'Sol Armada',
           platformId,
+          allegianceFactionId,
           displayName: 'The Sol Lot',
         },
         actingUserId,
@@ -361,7 +411,7 @@ describe('StoArmadaService', () => {
     it('leaves the display name unset when none is given', async () => {
       const { armada } = await service.register(
         communityId,
-        { exactGameName: 'Sol Armada', platformId },
+        { exactGameName: 'Sol Armada', platformId, allegianceFactionId },
         actingUserId,
       );
 
@@ -371,7 +421,7 @@ describe('StoArmadaService', () => {
     it('attaches the platform it already read rather than fetching it again', async () => {
       const { armada } = await service.register(
         communityId,
-        { exactGameName: 'Sol Armada', platformId },
+        { exactGameName: 'Sol Armada', platformId, allegianceFactionId },
         actingUserId,
       );
 
@@ -394,7 +444,7 @@ describe('StoArmadaService', () => {
 
       const { armada, duplicates } = await service.register(
         communityId,
-        { exactGameName: 'Sol Armada', platformId },
+        { exactGameName: 'Sol Armada', platformId, allegianceFactionId },
         actingUserId,
       );
 
@@ -412,7 +462,7 @@ describe('StoArmadaService', () => {
       await expect(
         service.register(
           communityId,
-          { exactGameName: 'Sol Armada', platformId },
+          { exactGameName: 'Sol Armada', platformId, allegianceFactionId },
           actingUserId,
         ),
       ).rejects.toBeInstanceOf(ConflictException);
@@ -428,7 +478,7 @@ describe('StoArmadaService', () => {
       await expect(
         service.register(
           communityId,
-          { exactGameName: 'Sol Armada', platformId },
+          { exactGameName: 'Sol Armada', platformId, allegianceFactionId },
           actingUserId,
         ),
       ).rejects.toBeInstanceOf(QueryFailedError);
@@ -440,10 +490,81 @@ describe('StoArmadaService', () => {
       await expect(
         service.register(
           communityId,
-          { exactGameName: 'Sol Armada', platformId },
+          { exactGameName: 'Sol Armada', platformId, allegianceFactionId },
           actingUserId,
         ),
       ).rejects.toThrow('the connection went away');
+    });
+  });
+
+  describe('the allegiance', () => {
+    it('is kept at registration', async () => {
+      const { armada } = await service.register(
+        communityId,
+        { exactGameName: 'Sol Armada', platformId, allegianceFactionId },
+        actingUserId,
+      );
+
+      expect(armada.allegianceFactionId).toBe(allegianceFactionId);
+    });
+
+    it.each([
+      ['Undecided', { id: allegianceFactionId, name: 'Undecided' }],
+      ['one that does not exist', null],
+    ])('refuses %s at registration', async (_what, answer) => {
+      faction = answer;
+
+      await expect(
+        service.register(
+          communityId,
+          { exactGameName: 'Sol Armada', platformId, allegianceFactionId },
+          actingUserId,
+        ),
+      ).rejects.toThrow(
+        new BadRequestException('An Armada is Federation or Klingon.'),
+      );
+    });
+
+    it('changes while no Fleet is placed', async () => {
+      const armada = await service.update(
+        communityId,
+        armadaId,
+        { allegianceFactionId },
+        actingUserId,
+      );
+
+      expect(armada.allegianceFactionId).toBe(allegianceFactionId);
+    });
+
+    it('does not change while a Fleet is placed', async () => {
+      placements = [{ id: 'placement-1' }];
+
+      await expect(
+        service.update(
+          communityId,
+          armadaId,
+          { allegianceFactionId },
+          actingUserId,
+        ),
+      ).rejects.toThrow(
+        new ConflictException(
+          'An Armada’s allegiance cannot change while it has Fleets.',
+        ),
+      );
+    });
+
+    it('is not checked again when it stays the same', async () => {
+      stored = buildArmada({ allegianceFactionId });
+      placements = [{ id: 'placement-1' }];
+
+      await service.update(
+        communityId,
+        armadaId,
+        { allegianceFactionId, displayName: 'The Sol Lot' },
+        actingUserId,
+      );
+
+      expect(manager.find).not.toHaveBeenCalled();
     });
   });
 
@@ -453,13 +574,13 @@ describe('StoArmadaService', () => {
      * its own: the read routes apply the Community's, and they cannot do
      * that without it.
      */
-    it('reads the Armada with its platform and its Community', async () => {
+    it('reads the Armada with its platform, Community and allegiance', async () => {
       const armada = await service.findByIdOrFail(communityId, armadaId);
 
       expect(armada.id).toBe(armadaId);
       expect(armadaRepository.findOne).toHaveBeenCalledWith({
         where: { id: armadaId, communityId, deletedAt: IsNull() },
-        relations: { platform: true, community: true },
+        relations: { platform: true, community: true, allegianceFaction: true },
       });
     });
 
@@ -722,12 +843,29 @@ describe('StoArmadaService', () => {
       expect(armada.deletedAt).toBeNull();
     });
 
+    it('locks the Armada, and cancels its open requests in the same change', async () => {
+      await service.close(communityId, armadaId, actingUserId);
+
+      expect(manager.findOne).toHaveBeenCalledWith(
+        StoArmadaEntity,
+        expect.objectContaining({ lock: { mode: 'pessimistic_write' } }),
+      );
+      expect(manager.update).toHaveBeenCalledWith(
+        ArmadaJoinRequestEntity,
+        { armadaId, status: ArmadaJoinRequestStatus.PENDING },
+        expect.objectContaining({
+          status: ArmadaJoinRequestStatus.CANCELLED,
+        }),
+      );
+    });
+
     it('advances the authorisation revision, which closure always must', async () => {
       await service.close(communityId, armadaId, actingUserId);
 
       expect(revisionService.bump).toHaveBeenCalledWith(
         FleetScopeKind.ARMADA,
         armadaId,
+        manager,
       );
     });
 
@@ -738,7 +876,7 @@ describe('StoArmadaService', () => {
       const armada = await service.close(communityId, armadaId, actingUserId);
 
       expect(armada.closedAt).toBe(closedAt);
-      expect(armadaRepository.save).not.toHaveBeenCalled();
+      expect(manager.save).not.toHaveBeenCalled();
       expect(revisionService.bump).not.toHaveBeenCalled();
     });
   });

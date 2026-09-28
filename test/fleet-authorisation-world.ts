@@ -5,6 +5,7 @@ import { FileAssetEntity } from '../src/file-assets/entities/file-asset.entity';
 import { FleetAudienceService } from '../src/fleet/authorisation/fleet-audience.service';
 import { FleetAuthorisationRevisionService } from '../src/fleet/authorisation/fleet-authorisation-revision.service';
 import { FleetAuthorisationService } from '../src/fleet/authorisation/fleet-authorisation.service';
+import { ArmadaFleetMembershipEntity } from '../src/fleet/entities/armada-fleet-membership.entity';
 import { CommunitySubscriptionEntity } from '../src/fleet/entities/community-subscription.entity';
 import { FleetCommunityEntity } from '../src/fleet/entities/fleet-community.entity';
 import { ScopeCapabilityGrantEntity } from '../src/fleet/entities/scope-capability-grant.entity';
@@ -56,6 +57,10 @@ function matchesValue(actual: unknown, expected: unknown): boolean {
 
     if (expected.type === 'not') {
       return !matchesValue(actual, expected.child ?? expected.value);
+    }
+
+    if (expected.type === 'in') {
+      return (expected.value as unknown[]).includes(actual);
     }
 
     throw new Error(`Unsupported find operator '${expected.type}'`);
@@ -154,6 +159,8 @@ export interface WorldRows {
   communities?: Partial<FleetCommunityEntity>[];
   fleets?: Partial<StoFleetEntity>[];
   armadas?: Partial<StoArmadaEntity>[];
+  /** Fleets placed in Armadas, which make their members Armada members. */
+  placements?: Partial<ArmadaFleetMembershipEntity>[];
   memberships?: Partial<ScopeMembershipEntity>[];
   roles?: Partial<ScopeRoleAssignmentEntity>[];
   grants?: Partial<ScopeCapabilityGrantEntity>[];
@@ -218,6 +225,11 @@ export function createAuthorisationWorld(
     })),
     fleets: (rows.fleets ?? []).map(row => ({ deletedAt: null, ...row })),
     armadas: (rows.armadas ?? []).map(row => ({ deletedAt: null, ...row })),
+    placements: (rows.placements ?? []).map(row => ({
+      validTo: null,
+      deletedAt: null,
+      ...row,
+    })),
     memberships: withScopeColumns(rows.memberships ?? []),
     roles: withScopeColumns(rows.roles ?? []).map(row => ({
       validTo: null,
@@ -240,10 +252,19 @@ export function createAuthorisationWorld(
   const repository = <T extends Row>(source: unknown): Repository<never> =>
     new InMemoryRepository(source as T[]) as unknown as Repository<never>;
 
+  // The policy reads placements through the Armada repository's manager,
+  // to find an Armada's members among its Fleets' (FC-025).
+  const armadas = Object.assign(repository(filled.armadas), {
+    manager: {
+      find: (_entity: unknown, options: { where?: Where }) =>
+        new InMemoryRepository(filled.placements as Row[]).find(options),
+    },
+  });
+
   const authorisation = new FleetAuthorisationService(
     repository(filled.communities),
     repository(filled.fleets),
-    repository(filled.armadas),
+    armadas as unknown as Repository<never>,
     repository(filled.memberships),
     repository(filled.roles),
     repository(filled.grants),

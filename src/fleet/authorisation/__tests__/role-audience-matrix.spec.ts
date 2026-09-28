@@ -691,6 +691,63 @@ describe('Fleet authorisation: role and audience matrix', () => {
       expect(await capabilitiesOf(FLEET_ADMIN, armadaScope)).toEqual([]);
     });
 
+    // FC-025: membership, and nothing else, reaches up from a placed Fleet.
+    describe('an Armada’s members, through its Fleets', () => {
+      const placeFleet = (
+        validTo: Date | null = null,
+        fleetId: string = FLEET,
+      ): void => {
+        world.rows.placements.push({
+          communityId: COMMUNITY,
+          armadaId: ARMADA,
+          fleetId,
+          validTo,
+          deletedAt: null,
+        });
+      };
+
+      it('makes an approved member of a placed Fleet a member of the Armada', async () => {
+        placeFleet();
+
+        const authorisation = await world.authorisation.authorise(
+          MEMBER,
+          armadaScope,
+        );
+
+        expect(authorisation?.isApprovedMember).toBe(true);
+        expect(authorisation?.capabilities.size).toBeGreaterThan(0);
+        // Nothing that reads a Fleet reaches an Armada.
+        expect(authorisation?.capabilities).not.toContain(
+          FLEET_CAPABILITIES.ROSTER_VIEW,
+        );
+      });
+
+      it('ends with the placement', async () => {
+        placeFleet(new Date('2026-09-01T00:00:00.000Z'));
+
+        const authorisation = await world.authorisation.authorise(
+          MEMBER,
+          armadaScope,
+        );
+
+        expect(authorisation?.isApprovedMember).toBe(false);
+        expect(await capabilitiesOf(MEMBER, armadaScope)).toEqual([]);
+      });
+
+      it('gives nothing to a member of a Fleet not placed there', async () => {
+        expect(await capabilitiesOf(MEMBER, armadaScope)).toEqual([]);
+      });
+
+      // Sharing an Armada is not sharing a roster: a member of one placed
+      // Fleet reads nothing of another placed beside it.
+      it('gives nothing to a placed Fleet’s member at a sibling placed with it', async () => {
+        placeFleet();
+        placeFleet(null, SIBLING_FLEET);
+
+        expect(await capabilitiesOf(MEMBER, SIBLING())).toEqual([]);
+      });
+    });
+
     it('lets a Community role reach both Fleets and Armadas', async () => {
       expect(await capabilitiesOf(COMMUNITY_ADMIN, fleetScope)).toContain(
         FLEET_CAPABILITIES.ROSTER_IMPORT,

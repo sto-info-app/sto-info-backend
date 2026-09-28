@@ -439,9 +439,22 @@ describe('FleetScopeResolutionController', () => {
         communitySlug: 'jupiter-force',
         communityName: 'Jupiter Force',
         platformSegment: 'windows',
+        allegianceName: null,
         redirected: false,
         viewer: NO_VIEWER,
       });
+    });
+
+    it('names the allegiance, which the id alone does not', async () => {
+      armadaService.resolveBySlugOrFail.mockResolvedValue({
+        armada: {
+          ...ARMADA,
+          allegianceFaction: { name: 'Klingon' },
+        } as StoArmadaEntity,
+        redirected: false,
+      });
+
+      expect((await resolveArmada()).allegianceName).toBe('Klingon');
     });
 
     it('asks what the caller may do to the Armada itself', async () => {

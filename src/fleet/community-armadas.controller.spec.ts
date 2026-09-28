@@ -19,6 +19,7 @@ import { StoArmadaService } from './services/sto-armada.service';
 const COMMUNITY_ID = '30000000-0000-4000-8000-000000000001';
 const ARMADA_ID = '30000000-0000-4000-8000-000000000002';
 const PLATFORM_ID = '30000000-0000-4000-8000-000000000003';
+const FACTION_ID = 'faction-federation';
 const USER_ID = '30000000-0000-4000-8000-000000000004';
 
 const ARMADA = {
@@ -87,12 +88,17 @@ describe('CommunityArmadasController', () => {
       const registered = await controller.register(COMMUNITY_ID, USER_ID, {
         exactGameName: 'Sol Armada',
         platformId: PLATFORM_ID,
+        allegianceFactionId: FACTION_ID,
       });
 
       expect(registered.armada).toBe(ARMADA);
       expect(armadaService.register).toHaveBeenCalledWith(
         COMMUNITY_ID,
-        { exactGameName: 'Sol Armada', platformId: PLATFORM_ID },
+        {
+          exactGameName: 'Sol Armada',
+          platformId: PLATFORM_ID,
+          allegianceFactionId: FACTION_ID,
+        },
         USER_ID,
       );
     });
@@ -101,6 +107,7 @@ describe('CommunityArmadasController', () => {
       const registered = await controller.register(COMMUNITY_ID, USER_ID, {
         exactGameName: 'Sol Armada',
         platformId: PLATFORM_ID,
+        allegianceFactionId: FACTION_ID,
       });
 
       expect(registered.duplicates).toEqual([RIVAL]);
@@ -110,6 +117,7 @@ describe('CommunityArmadasController', () => {
       await controller.register(COMMUNITY_ID, USER_ID, {
         exactGameName: 'Sol Armada',
         platformId: PLATFORM_ID,
+        allegianceFactionId: FACTION_ID,
       });
 
       expect(featureService.assertFlagEnabled).toHaveBeenCalledWith(

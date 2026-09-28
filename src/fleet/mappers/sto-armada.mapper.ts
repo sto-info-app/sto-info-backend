@@ -34,6 +34,7 @@ export class StoArmadaMapper {
       platformSegment: toPlatformSegment(armada.platform.name),
       exactGameName: armada.exactGameName,
       displayName: armada.displayName,
+      allegianceFactionId: armada.allegianceFactionId,
       slug: armada.slug,
       status: armada.status,
       closedAt: armada.closedAt,

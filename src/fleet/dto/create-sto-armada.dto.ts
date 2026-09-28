@@ -48,6 +48,15 @@ export class CreateStoArmadaDto {
   @IsUUID()
   readonly platformId: string;
 
+  @ApiProperty({
+    description:
+      'Allegiance: the Federation or Klingon general faction. A Fleet must ' +
+      'share it to be placed in the Armada, and it cannot change while one ' +
+      'is (FC-024).',
+  })
+  @IsUUID()
+  readonly allegianceFactionId: string;
+
   @ApiPropertyOptional({
     description:
       'What the Community prefers to call it, when that differs from the ' +

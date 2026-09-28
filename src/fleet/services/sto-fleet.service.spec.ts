@@ -73,7 +73,10 @@ function askedFor(builder: MockQueryBuilder, fragment: string): boolean {
 
 describe('StoFleetService', () => {
   let service: StoFleetService;
+  /** Where the Fleet sits in an Armada, if anywhere. */
+  let placement: object | null;
   let fleetRepository: {
+    manager: { findOne: jest.Mock };
     findOne: jest.Mock;
     find: jest.Mock;
     count: jest.Mock;
@@ -205,7 +208,10 @@ describe('StoFleetService', () => {
     listedTotal = 0;
     countRows = [];
 
+    placement = null;
     fleetRepository = {
+      // The placement read goes through the manager (FC-024).
+      manager: { findOne: jest.fn(() => Promise.resolve(placement)) },
       findOne: jest.fn(() => Promise.resolve(stored)),
       find: jest.fn(() => Promise.resolve(found)),
       count: jest.fn(() => Promise.resolve(slugHolders)),
@@ -797,6 +803,46 @@ describe('StoFleetService', () => {
   });
 
   describe('update', () => {
+    // FC-024: a placed Fleet shares its Armada's allegiance, and keeps it.
+    it('refuses to change a placed Fleet’s allegiance', async () => {
+      placement = { id: 'placement-1' };
+
+      await expect(
+        service.update(
+          communityId,
+          fleetId,
+          { allegianceFactionId: 'klingon' },
+          actingUserId,
+        ),
+      ).rejects.toThrow(
+        new ConflictException(
+          'This Fleet’s allegiance cannot change while it is in an Armada.',
+        ),
+      );
+    });
+
+    it('changes the allegiance of a Fleet in no Armada', async () => {
+      const fleet = await service.update(
+        communityId,
+        fleetId,
+        { allegianceFactionId: 'klingon' },
+        actingUserId,
+      );
+
+      expect(fleet.allegianceFactionId).toBe('klingon');
+    });
+
+    it('does not look for a placement when the allegiance stays as it is', async () => {
+      await service.update(
+        communityId,
+        fleetId,
+        { allegianceFactionId: stored?.allegianceFactionId ?? undefined },
+        actingUserId,
+      );
+
+      expect(fleetRepository.manager.findOne).not.toHaveBeenCalled();
+    });
+
     it('changes the settings it was given', async () => {
       const fleet = await service.update(
         communityId,
