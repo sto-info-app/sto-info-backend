@@ -30,6 +30,7 @@ import { FileAssetsModule } from './file-assets/file-assets.module';
 import { FileScanningModule } from './file-scanning/file-scanning.module';
 import { FleetModule } from './fleet/fleet.module';
 import { FleetGovernanceModule } from './fleet/governance/fleet-governance.module';
+import { FleetHoldingsModule } from './fleet/holdings/fleet-holdings.module';
 import { FleetImagesModule } from './fleet/images/fleet-images.module';
 import { FleetRosterImportsModule } from './fleet/imports/fleet-roster-imports.module';
 import { FleetRecruitmentModule } from './fleet/recruitment/fleet-recruitment.module';
@@ -139,6 +140,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     FleetRosterModule,
     FleetRecruitmentModule,
     FleetGovernanceModule,
+    FleetHoldingsModule,
     FleetImagesModule,
     RegistryModule,
     ModerationModule,

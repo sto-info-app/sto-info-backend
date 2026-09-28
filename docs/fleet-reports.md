@@ -58,8 +58,9 @@ A full view also draws detail at one export: the latest in the span, or the one 
 
 ## The reports
 
-The roster history's five: `GROWTH`, `TENURE`, `RANKS`, `ACTIVITY` and `CONTRIBUTION`. Holdings,
-recruitment and event attendance join them with their own stories.
+The roster history's five: `GROWTH`, `TENURE`, `RANKS`, `ACTIVITY` and `CONTRIBUTION`. Recruitment
+and event attendance join them with their own stories. Holdings are public, so they have no
+audience to choose and are not a report here: see [Fleet holdings](fleet-holdings.md).
 
 Every count is taken in the database, grouped by export, so a Fleet with hundreds of exports is
 read a row per export and band rather than a row per member. None reads a row an investigator
