@@ -38,6 +38,12 @@ The database uses PostgreSQL with TypeORM for object-relational mapping.
 | `RosterRankOrderActionEntity` | `fleet_roster_rank_order_action` | Each edit to a Fleet's rank order, the order before and after, with who and why, write-once |
 | `FleetReportAudienceEntity` | `fleet_report_audience` | Who the Owner has let see each of a Fleet's reports; a report with no row is private — see [Fleet reports](fleet-reports.md) |
 | `FleetReportAudienceChangeEntity` | `fleet_report_audience_change` | Each change to a report's audience, from what to what and who made it, write-once |
+| `FleetHoldingTypeEntity` | `fleet_holding_type` | Each Fleet holding in the catalogue, the wiki page it was read from and the catalogue version that last changed it — see [Fleet holdings](fleet-holdings.md) |
+| `FleetHoldingTrackEntity` | `fleet_holding_track` | A holding's own track and each of its departments |
+| `FleetHoldingTierEntity` | `fleet_holding_tier` | Every tier each track may be at, which every recorded tier references |
+| `FleetHoldingStatusEntity` | `fleet_holding_status` | Where each track of a Fleet's holdings stands; a track with no row is at tier 0 |
+| `FleetHoldingChangeEntity` | `fleet_holding_change` | One save of one holding, with who and why, write-once |
+| `FleetHoldingHistoryEntity` | `fleet_holding_history` | Each track a change moved, from what tier to what, write-once |
 
 ### Platform Launcher Image Mapping
 
