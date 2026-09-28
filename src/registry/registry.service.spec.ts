@@ -905,6 +905,46 @@ describe('RegistryService', () => {
     });
   });
 
+  describe('findVisibleProfileUserIds', () => {
+    it('asks nothing when nobody is named', async () => {
+      const ids = await service.findVisibleProfileUserIds([], 'viewer-1');
+
+      expect(ids.size).toBe(0);
+      expect(blockService.getBlockedUserIds).not.toHaveBeenCalled();
+    });
+
+    it('holds each member to the public profile chain, once each', async () => {
+      profileQb.getRawMany.mockResolvedValue([{ userId: 'user-1' }]);
+
+      const ids = await service.findVisibleProfileUserIds(
+        ['user-1', 'user-2', 'user-1'],
+        'viewer-1',
+      );
+
+      expect([...ids]).toEqual(['user-1']);
+      expect(profileQb.andWhere).toHaveBeenCalledWith(
+        'profile.userId IN (:...userIds)',
+        { userIds: ['user-1', 'user-2'] },
+      );
+      expect(profileQb.where).toHaveBeenCalledWith(
+        'profile.publiclyVisible = true',
+      );
+      expect(profileQb.select).toHaveBeenCalledWith('profile.userId', 'userId');
+    });
+
+    it('leaves out a member blocked either way', async () => {
+      blockService.getBlockedUserIds.mockResolvedValue(['user-2']);
+
+      await service.findVisibleProfileUserIds(['user-2'], 'viewer-1');
+
+      expect(blockService.getBlockedUserIds).toHaveBeenCalledWith('viewer-1');
+      expect(profileQb.andWhere).toHaveBeenCalledWith(
+        'profile.userId NOT IN (:...blockedUserIds)',
+        { blockedUserIds: ['user-2'] },
+      );
+    });
+  });
+
   describe('findVisibleCharacterPaths', () => {
     it('asks nothing when no captain is named', async () => {
       const paths = await service.findVisibleCharacterPaths([], 'viewer-1');

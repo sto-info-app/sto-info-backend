@@ -372,6 +372,38 @@ export class RegistryService {
   }
 
   /**
+   * Finds which of some members' registry profiles a viewer could open.
+   *
+   * For a page elsewhere that names a member and may link to them — the
+   * author of a Fleet's news post (FC-027) — on exactly the terms
+   * {@link findProfileByUsername} answers: the profile public, the member
+   * active, and no block either way between them and the viewer.
+   *
+   * @param userIds - The members asked about.
+   * @param viewerId - The viewer, or null when signed out.
+   * @returns The users whose profiles the viewer could open. One they could
+   *   not is absent, whatever the reason, so the caller cannot tell why.
+   */
+  async findVisibleProfileUserIds(
+    userIds: readonly string[],
+    viewerId: string | null,
+  ): Promise<Set<string>> {
+    if (userIds.length === 0) {
+      return new Set();
+    }
+
+    const queryBuilder = await this.visibleProfilesQuery(viewerId);
+    const rows = await queryBuilder
+      .andWhere('profile.userId IN (:...userIds)', {
+        userIds: [...new Set(userIds)],
+      })
+      .select('profile.userId', 'userId')
+      .getRawMany<{ userId: string }>();
+
+    return new Set(rows.map(row => row.userId));
+  }
+
+  /**
    * Projects the custom tracking a visitor may see of one record.
    *
    * The projection asks the whole visibility chain of the database again for
