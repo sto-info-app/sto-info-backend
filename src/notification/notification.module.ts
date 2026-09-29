@@ -9,6 +9,9 @@ import { NotificationReadEntity } from './entities/notification-read.entity';
 import { NotificationEntity } from './entities/notification.entity';
 import { NotificationController } from './notification.controller';
 import { NotificationService } from './notification.service';
+import { NotificationOutboxEntity } from './outbox/notification-outbox.entity';
+import { NotificationOutboxRegistry } from './outbox/notification-outbox.registry';
+import { NotificationOutboxService } from './outbox/notification-outbox.service';
 
 @Module({
   imports: [
@@ -17,10 +20,15 @@ import { NotificationService } from './notification.service';
       BannerEntity,
       NotificationEntity,
       NotificationReadEntity,
+      NotificationOutboxEntity,
     ]),
   ],
   controllers: [NotificationController, AppStateController],
-  providers: [NotificationService],
-  exports: [NotificationService],
+  providers: [
+    NotificationService,
+    NotificationOutboxRegistry,
+    NotificationOutboxService,
+  ],
+  exports: [NotificationService, NotificationOutboxRegistry],
 })
 export class NotificationModule {}
