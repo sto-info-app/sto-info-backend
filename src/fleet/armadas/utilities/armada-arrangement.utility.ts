@@ -6,8 +6,12 @@ import { EntityManager, In, IsNull, Not } from 'typeorm';
 
 import { GeneralFactionEntity } from 'src/sto/character/entities/general-faction.entity';
 
+import { ActivityType } from '../../activity/enums/activity.enums';
+import {
+  ActivityRecord,
+  recordActivity,
+} from '../../activity/utilities/record-activity.utility';
 import { ArmadaFleetMembershipEntity } from '../../entities/armada-fleet-membership.entity';
-import { ScopeCapabilityGrantEntity } from '../../entities/scope-capability-grant.entity';
 import { ScopeMembershipEntity } from '../../entities/scope-membership.entity';
 import { ScopeRoleAssignmentEntity } from '../../entities/scope-role-assignment.entity';
 import { StoArmadaEntity } from '../../entities/sto-armada.entity';
@@ -16,6 +20,7 @@ import { ArmadaPosition } from '../../enums/armada-position.enum';
 import { ScopeMembershipStatus } from '../../enums/scope-membership-status.enum';
 import { ScopeGovernanceActionEntity } from '../../governance/entities/scope-governance-action.entity';
 import { ScopeGovernanceActionKind } from '../../governance/enums/scope-governance-action-kind.enum';
+import { endAndLog } from '../../governance/utilities/governance-endings.utility';
 import { ArmadaActionEntity } from '../entities/armada-action.entity';
 import { ArmadaJoinRequestEntity } from '../entities/armada-join-request.entity';
 import { ArmadaActionKind } from '../enums/armada-action-kind.enum';
@@ -320,6 +325,16 @@ export async function applyArmadaChange(
     }),
   );
 
+  await recordActivity(
+    manager,
+    [...changes.entries()].flatMap(([fleetId, change]) =>
+      armadaActivity(armada, fleetId, change, before.get(fleetId) ?? null, {
+        changeId,
+        ...context,
+      }),
+    ),
+  );
+
   await manager.increment(StoArmadaEntity, { id: armada.id }, 'revision', 1);
   await endIneligibleArmadaRoles(
     manager,
@@ -329,6 +344,60 @@ export async function applyArmadaChange(
   );
 
   return started;
+}
+
+/** Which Armada changes go on an activity feed, and as what. */
+const ARMADA_ACTIVITY: Partial<Record<ArmadaActionKind, ActivityType>> = {
+  [ArmadaActionKind.PLACED]: ActivityType.ARMADA_FLEET_PLACED,
+  [ArmadaActionKind.MOVED]: ActivityType.ARMADA_FLEET_MOVED,
+  [ArmadaActionKind.LEFT]: ActivityType.ARMADA_FLEET_LEFT,
+  [ArmadaActionKind.REMOVED]: ActivityType.ARMADA_FLEET_LEFT,
+};
+
+/**
+ * What one Fleet's change puts on the Armada's activity feed and the
+ * Fleet's own (FC-029). An Armada closing is its own item, so the Fleets it
+ * lets go add none.
+ *
+ * @param armada - The Armada.
+ * @param fleetId - The Fleet.
+ * @param change - What happens to it.
+ * @param from - Where it sat before, if it was placed.
+ * @param context - Who, when, and the change it is part of.
+ * @returns An item for each feed, or none.
+ */
+function armadaActivity(
+  armada: StoArmadaEntity,
+  fleetId: string,
+  change: ArmadaChange,
+  from: ArmadaSlot | null,
+  context: ArmadaChangeContext & { readonly changeId: string },
+): ActivityRecord[] {
+  const type = ARMADA_ACTIVITY[change.action];
+
+  if (type === undefined) {
+    return [];
+  }
+
+  const item = {
+    communityId: armada.communityId,
+    type,
+    actorUserId: context.actorUserId,
+    sourceId: armada.id,
+    detail: {
+      fleetId,
+      armadaId: armada.id,
+      from: from?.position ?? null,
+      to: change.slot?.position ?? null,
+    },
+    occurredAt: context.now,
+  };
+  const key = `${type}:${context.changeId}:${fleetId}`;
+
+  return [
+    { ...item, armadaId: armada.id, idempotencyKey: `${key}:ARMADA` },
+    { ...item, fleetId, idempotencyKey: `${key}:FLEET` },
+  ];
 }
 
 /**
@@ -379,13 +448,20 @@ export async function endIneligibleArmadaRoles(
     });
   }
 
-  await manager.update(
-    ScopeCapabilityGrantEntity,
+  // Each grant that goes is logged too (FC-039).
+  await endAndLog(
+    manager,
     {
-      ...open,
-      subjectUserId: eligible.length === 0 ? Not(IsNull()) : Not(In(eligible)),
+      grants: {
+        communityId: armada.communityId,
+        armadaId: armada.id,
+        deletedAt: IsNull(),
+        subjectUserId:
+          eligible.length === 0 ? Not(IsNull()) : Not(In(eligible)),
+      },
     },
-    { validTo: now },
+    ARMADA_ROLE_ENDED_REASON,
+    now,
   );
 }
 

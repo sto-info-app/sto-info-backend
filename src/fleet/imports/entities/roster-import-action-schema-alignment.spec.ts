@@ -64,7 +64,9 @@ describe('Roster import action schema alignment', () => {
   it('declares exactly the columns the migration creates', () => {
     const entityColumns = getMetadataArgsStorage()
       .columns.filter(column => column.target === RosterImportActionEntity)
-      .map(column => column.options.name ?? column.propertyName);
+      .map(column => column.options.name ?? column.propertyName)
+      // FC-039's migration adds the idempotency key; its spec holds that.
+      .filter(column => column !== 'idempotencyKey');
 
     const migrationColumns = sqlLines()
       .filter(line => line.startsWith('"'))

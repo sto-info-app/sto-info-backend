@@ -104,6 +104,16 @@ export class RosterImportActionEntity {
   actedAt: Date;
 
   @ApiProperty({ description: 'When the row was written.' })
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description:
+      'For an entry a job or scheduled run wrote, the key that keeps a ' +
+      'retry from writing it twice (FC-039).',
+  })
+  @Column({ type: 'varchar', length: 200, nullable: true, default: null })
+  idempotencyKey: string | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

@@ -7,9 +7,14 @@ import {
 
 import { DataSource, EntityManager } from 'typeorm';
 
+import { NotificationSeverity } from 'src/notification/enums/notification-severity.enum';
+import { NotificationTarget } from 'src/notification/enums/notification-target.enum';
+import { NotificationService } from 'src/notification/notification.service';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 
+import { insertRecorder } from '../../../../test/insert-recorder';
+import { ActivityType } from '../../activity/enums/activity.enums';
 import { FleetAuthorisationRevisionService } from '../../authorisation/fleet-authorisation-revision.service';
 import { ArmadaFleetMembershipEntity } from '../../entities/armada-fleet-membership.entity';
 import { CharacterFleetMembershipEntity } from '../../entities/character-fleet-membership.entity';
@@ -19,13 +24,18 @@ import { ScopeRoleAssignmentEntity } from '../../entities/scope-role-assignment.
 import { StoArmadaEntity } from '../../entities/sto-armada.entity';
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { FleetScopeKind } from '../../enums/fleet-scope-kind.enum';
+import { FleetScopeRole } from '../../enums/fleet-scope-role.enum';
 import { ScopeMembershipStatus } from '../../enums/scope-membership-status.enum';
+import { ScopeGovernanceActionKind } from '../../governance/enums/scope-governance-action-kind.enum';
 import { CharacterFleetProposalService } from '../../services/character-fleet-proposal.service';
 import { FleetApplicationEntity } from '../entities/fleet-application.entity';
 import { ScopeMembershipActionEntity } from '../entities/scope-membership-action.entity';
 import { FleetApplicationRoute } from '../enums/fleet-application-route.enum';
 import { ScopeMembershipActionKind } from '../enums/scope-membership-action-kind.enum';
-import { RecruitmentMembershipService } from './recruitment-membership.service';
+import {
+  ENDED_BY_LEAVING,
+  RecruitmentMembershipService,
+} from './recruitment-membership.service';
 
 const FLEET = {
   id: 'fleet-1',
@@ -46,7 +56,10 @@ describe('RecruitmentMembershipService', () => {
     save: jest.Mock;
     update: jest.Mock;
     increment: jest.Mock;
+    insert: jest.Mock;
+    createQueryBuilder: jest.Mock;
   };
+  let activity: ReturnType<typeof insertRecorder>;
   /** Where the Fleet sits in an Armada, if anywhere (FC-025). */
   let placement: { armadaId: string; communityId: string } | null;
   let bump: jest.Mock;
@@ -87,10 +100,12 @@ describe('RecruitmentMembershipService', () => {
       ),
       update: jest.fn(() => Promise.resolve({})),
       increment: jest.fn(() => Promise.resolve()),
+      insert: jest.fn(() => Promise.resolve()),
     };
     bump = jest.fn(() => Promise.resolve(2));
     raiseWithin = jest.fn(() => Promise.resolve({ id: 'proposal-1' }));
     withdrawRecruitedWithin = jest.fn(() => Promise.resolve());
+    createNotification = jest.fn(() => Promise.resolve({}));
     const dataSource = {
       manager,
       transaction: jest.fn((work: (m: typeof manager) => Promise<unknown>) =>
@@ -300,6 +315,36 @@ describe('RecruitmentMembershipService', () => {
     it('ends the membership as LEFT, drops any role and advertises it', async () => {
       membership = member(ScopeMembershipStatus.APPROVED);
 
+      manager.find.mockImplementation((entity: unknown) =>
+        Promise.resolve(
+          entity === ScopeRoleAssignmentEntity
+            ? [
+                {
+                  id: 'role-1',
+                  communityId: 'community-1',
+                  fleetId: 'fleet-1',
+                  armadaId: null,
+                  userId: 'member-1',
+                  role: FleetScopeRole.OFFICER,
+                },
+              ]
+            : entity === ScopeCapabilityGrantEntity
+              ? [
+                  {
+                    id: 'grant-1',
+                    communityId: 'community-1',
+                    fleetId: 'fleet-1',
+                    armadaId: null,
+                    subjectUserId: 'member-1',
+                    subjectRole: null,
+                    capability: 'news.write',
+                    effect: 'GRANT',
+                  },
+                ]
+              : [],
+        ),
+      );
+
       await service.leave('community-1', 'fleet-1', 'member-1');
 
       expect(membership).toEqual(
@@ -317,20 +362,54 @@ describe('RecruitmentMembershipService', () => {
           reason: null,
         },
       ]);
+      expect(activity.recorded()).toEqual([
+        expect.objectContaining({
+          type: ActivityType.MEMBER_LEFT,
+          actorUserId: 'member-1',
+          subjectUserId: 'member-1',
+          sourceId: 'membership-1',
+          detail: null,
+        }),
+      ]);
+      expect(manager.find).toHaveBeenCalledWith(ScopeRoleAssignmentEntity, {
+        where: expect.objectContaining({
+          fleetId: 'fleet-1',
+          userId: 'member-1',
+        }),
+      });
       expect(manager.update).toHaveBeenCalledWith(
         ScopeRoleAssignmentEntity,
-        expect.objectContaining({ fleetId: 'fleet-1', userId: 'member-1' }),
+        { id: 'role-1' },
         { validTo: expect.any(Date) },
       );
       // A capability given to or taken from them here goes with them.
-      expect(manager.update).toHaveBeenCalledWith(
-        ScopeCapabilityGrantEntity,
-        expect.objectContaining({
+      expect(manager.find).toHaveBeenCalledWith(ScopeCapabilityGrantEntity, {
+        where: expect.objectContaining({
           fleetId: 'fleet-1',
           subjectUserId: 'member-1',
         }),
+      });
+      expect(manager.update).toHaveBeenCalledWith(
+        ScopeCapabilityGrantEntity,
+        { id: 'grant-1' },
         { validTo: expect.any(Date) },
       );
+      // FC-039: each is logged, by the system, naming the leaving.
+      expect(manager.insert.mock.calls.map(([, row]) => row)).toEqual([
+        expect.objectContaining({
+          action: ScopeGovernanceActionKind.ROLE_WITHDRAWN,
+          actorUserId: null,
+          subjectUserId: 'member-1',
+          reason: ENDED_BY_LEAVING,
+          idempotencyKey: 'ENDED:role-1',
+        }),
+        expect.objectContaining({
+          action: ScopeGovernanceActionKind.CAPABILITY_CLEARED,
+          capability: 'news.write',
+          reason: ENDED_BY_LEAVING,
+          idempotencyKey: 'ENDED:grant-1',
+        }),
+      ]);
       expect(withdrawRecruitedWithin).toHaveBeenCalledWith(
         em(),
         'fleet-1',
@@ -380,6 +459,15 @@ describe('RecruitmentMembershipService', () => {
           expect.objectContaining({
             action: ScopeMembershipActionKind.REMOVED,
             reason: 'Inactive for a year',
+          }),
+        ]);
+        // The reason stays in the log, off the feed.
+        expect(activity.recorded()).toEqual([
+          expect.objectContaining({
+            type: ActivityType.MEMBER_REMOVED,
+            actorUserId: 'officer-1',
+            subjectUserId: 'member-1',
+            detail: null,
           }),
         ]);
         // The question about their Character goes with the membership.

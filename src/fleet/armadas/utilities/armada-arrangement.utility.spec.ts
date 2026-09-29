@@ -3,6 +3,8 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { GeneralFactionEntity } from 'src/sto/character/entities/general-faction.entity';
 
 import { InMemoryManager, Row } from '../../../../test/in-memory-manager';
+import { ActivityEventEntity } from '../../activity/entities/activity-event.entity';
+import { ActivityType } from '../../activity/enums/activity.enums';
 import { ArmadaFleetMembershipEntity } from '../../entities/armada-fleet-membership.entity';
 import { ScopeCapabilityGrantEntity } from '../../entities/scope-capability-grant.entity';
 import { ScopeMembershipEntity } from '../../entities/scope-membership.entity';
@@ -352,6 +354,45 @@ describe('armada arrangement', () => {
           toPosition: null,
         }),
       ]);
+
+      // Each Fleet's change goes on the Armada's feed and on its own.
+      const changeId = actions[0].changeId as string;
+      const item = (
+        type: ActivityType,
+        fleetId: string,
+        from: ArmadaPosition,
+        to: ArmadaPosition | null,
+      ) => ({
+        communityId: COMMUNITY_ID,
+        type,
+        actorUserId: 'manager-1',
+        sourceId: ARMADA_ID,
+        detail: { fleetId, armadaId: ARMADA_ID, from, to },
+        occurredAt: NOW,
+      });
+
+      expect(db.rows(ActivityEventEntity)).toEqual([
+        expect.objectContaining({
+          ...item(ActivityType.ARMADA_FLEET_MOVED, 'g1', GAMMA, GAMMA),
+          armadaId: ARMADA_ID,
+          fleetId: null,
+          idempotencyKey: `ARMADA_FLEET_MOVED:${changeId}:g1:ARMADA`,
+        }),
+        expect.objectContaining({
+          ...item(ActivityType.ARMADA_FLEET_MOVED, 'g1', GAMMA, GAMMA),
+          armadaId: null,
+          fleetId: 'g1',
+          idempotencyKey: `ARMADA_FLEET_MOVED:${changeId}:g1:FLEET`,
+        }),
+        expect.objectContaining({
+          ...item(ActivityType.ARMADA_FLEET_LEFT, 'b1', BETA, null),
+          armadaId: ARMADA_ID,
+        }),
+        expect.objectContaining({
+          ...item(ActivityType.ARMADA_FLEET_LEFT, 'b1', BETA, null),
+          fleetId: 'b1',
+        }),
+      ]);
     });
 
     it('cites no request for a placement made without one', async () => {
@@ -433,9 +474,13 @@ describe('armada arrangement', () => {
       ]);
       db.seed(ScopeCapabilityGrantEntity, [
         {
+          id: `grant-${userId}`,
           communityId: COMMUNITY_ID,
           armadaId: ARMADA_ID,
           subjectUserId: userId,
+          subjectRole: null,
+          capability: 'news.write',
+          effect: 'GRANT',
           validTo: null,
           deletedAt: null,
         },
@@ -487,6 +532,16 @@ describe('armada arrangement', () => {
           subjectUserId: 'outsider-1',
           role: FleetScopeRole.ADMIN,
           reason: ARMADA_ROLE_ENDED_REASON,
+        }),
+        // FC-039: each grant that goes is logged too, by the system.
+        expect.objectContaining({
+          armadaId: ARMADA_ID,
+          action: ScopeGovernanceActionKind.CAPABILITY_CLEARED,
+          actorUserId: null,
+          subjectUserId: 'outsider-1',
+          capability: 'news.write',
+          reason: ARMADA_ROLE_ENDED_REASON,
+          idempotencyKey: 'ENDED:grant-outsider-1',
         }),
       ]);
     });
@@ -575,6 +630,8 @@ describe('armada arrangement', () => {
         ArmadaActionKind.CLOSED,
         ArmadaActionKind.CLOSED,
       ]);
+      // The closure is its own item; the Fleets it lets go add none.
+      expect(db.rows(ActivityEventEntity)).toEqual([]);
     });
 
     it('changes nothing but requests when an empty Armada closes', async () => {

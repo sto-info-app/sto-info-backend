@@ -16,6 +16,7 @@ import { ClsModule } from 'nestjs-cls';
 import { AccessControlModule } from './access-control/access-control.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { SecurityLogModule } from './audit/security-log/security-log.module';
 import { AuthModule } from './auth/auth.module';
 import { UserIdMiddleware } from './auth/user-id.middleware';
 import { RequestIdMiddleware } from './common/http/request-id.middleware';
@@ -158,6 +159,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     FleetRetentionModule,
     AccountDepartureModule,
     FleetErasureModule,
+    SecurityLogModule,
     RegistryModule,
     ModerationModule,
   ],

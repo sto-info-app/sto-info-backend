@@ -6,7 +6,10 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { In, IsNull, Repository } from 'typeorm';
+import { EntityManager, In, IsNull, Repository } from 'typeorm';
+
+import { SiteAdminActionKind } from 'src/audit/site-admin/site-admin-action.enum';
+import { recordSiteAdminAction } from 'src/audit/site-admin/site-admin-action.utility';
 
 import { PublicMemberService } from '../community/public-member.service';
 import { ChatMessageReportEntity } from '../fleet/chat/entities/chat-message-report.entity';
@@ -25,6 +28,16 @@ import { ReportStatus } from './enums/report-status.enum';
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
 
+/**
+ * What the site admin log says of a report moved without a reason (FC-039):
+ * only a live one, since closing one needs a reason.
+ */
+export const REPORT_MOVED_REASONS: Readonly<Record<ReportStatus, string>> = {
+  [ReportStatus.OPEN]: 'Reopened.',
+  [ReportStatus.UNDER_REVIEW]: 'Taken for review.',
+  [ReportStatus.ACTIONED]: 'Closed as actioned.',
+  [ReportStatus.DISMISSED]: 'Dismissed.',
+};
 /** The states a report is still waiting on someone for. */
 export const UNRESOLVED_STATUSES = [
   ReportStatus.OPEN,
@@ -197,13 +210,24 @@ export class ReportService {
     dto: UpdateReportDto,
   ): Promise<UserReportDto> {
     const report = await this.requireReport(reportId);
+    const from = report.status;
 
     report.status = dto.status;
     report.moderatorNotes = dto.moderatorNotes ?? report.moderatorNotes;
     report.reviewedById = adminUserId;
     report.reviewedAt = new Date();
 
-    await this._reportRepository.save(report);
+    await this._reportRepository.manager.transaction(async manager => {
+      await manager.save(UserReportEntity, report);
+      await recordSiteAdminAction(manager, {
+        action: SiteAdminActionKind.USER_REPORT_DECIDED,
+        actorUserId: adminUserId,
+        targetUserId: report.reportedId,
+        subject: { kind: 'USER_REPORT', id: report.id },
+        reason: dto.reason ?? REPORT_MOVED_REASONS[dto.status],
+        detail: { from, to: dto.status },
+      });
+    });
 
     return this.findOneForAdmin(reportId);
   }
@@ -275,28 +299,84 @@ export class ReportService {
    * there are closed in the same breath, so the queue does not keep offering
    * complaints that have already been acted on.
    *
+   * Each report closed is a decision of its own in the site admin log
+   * (FC-039), with the disabling's reason, so no bulk close goes unrecorded.
+   *
+   * @param manager - The disabling's transaction.
    * @param reportedId - The disabled member's user ID.
    * @param adminUserId - The acting administrator's user ID.
+   * @param reason - Why the account was disabled.
    * @returns The number of reports closed.
    */
   async actionReportsAgainst(
+    manager: EntityManager,
     reportedId: string,
     adminUserId: string,
+    reason: string,
   ): Promise<number> {
-    const result = await this._reportRepository.update(
-      {
+    const now = new Date();
+    const members = await manager.find(UserReportEntity, {
+      where: {
         reportedId,
         status: In(UNRESOLVED_STATUSES),
         deletedAt: IsNull(),
       },
-      {
-        status: ReportStatus.ACTIONED,
-        reviewedById: adminUserId,
-        reviewedAt: new Date(),
-      },
-    );
+      select: { id: true, status: true },
+    });
+    const chats = await manager.find(ChatMessageReportEntity, {
+      where: { authorUserId: reportedId, status: In(UNRESOLVED_STATUSES) },
+      select: { id: true, status: true },
+    });
 
-    return result.affected ?? 0;
+    if (members.length > 0) {
+      await manager.update(
+        UserReportEntity,
+        { id: In(members.map(report => report.id)) },
+        {
+          status: ReportStatus.ACTIONED,
+          reviewedById: adminUserId,
+          reviewedAt: now,
+        },
+      );
+    }
+
+    if (chats.length > 0) {
+      await manager.update(
+        ChatMessageReportEntity,
+        { id: In(chats.map(report => report.id)) },
+        {
+          status: ReportStatus.ACTIONED,
+          resolutionNote: 'Closed when the account was disabled.',
+          resolvedByUserId: adminUserId,
+          resolvedAt: now,
+        },
+      );
+    }
+
+    for (const [reports, kind, action] of [
+      [members, 'USER_REPORT', SiteAdminActionKind.USER_REPORT_DECIDED],
+      [chats, 'CHAT_REPORT', SiteAdminActionKind.CHAT_REPORT_DECIDED],
+    ] as const) {
+      for (const report of reports as ReadonlyArray<{
+        id: string;
+        status: ReportStatus;
+      }>) {
+        await recordSiteAdminAction(manager, {
+          action,
+          actorUserId: adminUserId,
+          targetUserId: reportedId,
+          subject: { kind, id: report.id },
+          reason,
+          detail: {
+            from: report.status,
+            to: ReportStatus.ACTIONED,
+            withDisabling: true,
+          },
+        });
+      }
+    }
+
+    return members.length + chats.length;
   }
 
   // ----- Helpers -----

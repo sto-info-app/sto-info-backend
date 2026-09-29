@@ -199,6 +199,7 @@ describe('ScopeGovernanceLogService', () => {
         capability: null,
         clearedEffect: null,
         reason: 'Stepped down',
+        idempotencyKey: 'ENDED:role-1',
         createdAt: at,
       },
       {
@@ -211,6 +212,7 @@ describe('ScopeGovernanceLogService', () => {
         capability: null,
         clearedEffect: null,
         reason: 'Reported',
+        idempotencyKey: null,
         createdAt: at,
       },
       {
@@ -223,6 +225,7 @@ describe('ScopeGovernanceLogService', () => {
         capability: null,
         clearedEffect: null,
         reason: null,
+        idempotencyKey: null,
         createdAt: at,
       },
     ];
@@ -238,6 +241,7 @@ describe('ScopeGovernanceLogService', () => {
         capability: null,
         clearedEffect: null,
         reason: 'Stepped down',
+        automatic: true,
         createdAt: at,
       },
       {
@@ -250,6 +254,7 @@ describe('ScopeGovernanceLogService', () => {
         capability: null,
         clearedEffect: null,
         reason: 'Reported',
+        automatic: false,
         createdAt: at,
       },
       {
@@ -262,6 +267,7 @@ describe('ScopeGovernanceLogService', () => {
         capability: null,
         clearedEffect: null,
         reason: null,
+        automatic: false,
         createdAt: at,
       },
     ]);

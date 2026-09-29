@@ -15,7 +15,10 @@ import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
 
 import { ScanUsageWindowDto } from '../dto/scan-diagnostics.dto';
-import { ScanDiagnosticsService } from './scan-diagnostics.service';
+import {
+  SCAN_REJECTION_PAGE_SIZE,
+  ScanDiagnosticsService,
+} from './scan-diagnostics.service';
 
 const NOW = new Date('2026-09-26T12:00:00.000Z');
 
@@ -71,6 +74,8 @@ describe('ScanDiagnosticsService', () => {
   >;
   let getRawMany: jest.Mock<() => Promise<unknown[]>>;
   let builder: Record<string, jest.Mock>;
+  let findOne: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
+  let findAndCount: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
   let warn: jest.SpiedFunction<Logger['warn']>;
   let service: ScanDiagnosticsService;
 
@@ -106,11 +111,16 @@ describe('ScanDiagnosticsService', () => {
     }
     builder.getRawMany = getRawMany as unknown as jest.Mock;
 
+    findOne = jest.fn(() => Promise.resolve(null));
+    findAndCount = jest.fn(() => Promise.resolve([[], 0]));
+
     service = new ScanDiagnosticsService(
       { query } as unknown as DataSource,
       { getJobCounts } as unknown as Queue,
       {
         createQueryBuilder: jest.fn(() => builder),
+        findOne,
+        findAndCount,
       } as unknown as Repository<FileAssetEntity>,
     );
   });
@@ -303,5 +313,74 @@ describe('ScanDiagnosticsService', () => {
     const result = await service.read();
 
     expect(result.generatedAt).toEqual(NOW);
+  });
+
+  // FC-039: an admin sees why an asset was refused, and with what — the
+  // code and the engine's versions — but never a signature name, which the
+  // asset does not hold, nor anything else about the asset.
+  describe('refused assets', () => {
+    const REJECTED = {
+      id: 'asset-1',
+      kind: 'PROFILE_IMAGE',
+      state: FileAssetState.REJECTED,
+      rejectionCode: 'MALWARE_DETECTED',
+      scanEngine: 'clamav',
+      scanEngineVersion: '1.4.3',
+      scanSignatureVersion: '27500',
+      policyVersion: 3,
+      createdAt: new Date('2026-09-26T10:00:00.000Z'),
+      lastVerdictAt: new Date('2026-09-26T10:01:00.000Z'),
+      ownerUserId: 'owner-1',
+      objectKey: 'quarantine/asset-1',
+      originalFilename: 'holiday.png',
+    };
+    const DETAIL = {
+      id: 'asset-1',
+      kind: 'PROFILE_IMAGE',
+      state: FileAssetState.REJECTED,
+      rejectionCode: 'MALWARE_DETECTED',
+      scanEngine: 'clamav',
+      scanEngineVersion: '1.4.3',
+      scanSignatureVersion: '27500',
+      policyVersion: 3,
+      createdAt: REJECTED.createdAt,
+      lastVerdictAt: REJECTED.lastVerdictAt,
+    };
+
+    it('reads one asset’s outcome and nothing else about it', async () => {
+      findOne.mockResolvedValue(REJECTED);
+
+      await expect(service.asset('asset-1')).resolves.toEqual(DETAIL);
+      expect(findOne).toHaveBeenCalledWith({ where: { id: 'asset-1' } });
+    });
+
+    it('says when there is no such asset', async () => {
+      await expect(service.asset('asset-9')).rejects.toThrow('Not found');
+    });
+
+    it('lists refused assets, newest verdict first, a page at a time', async () => {
+      findAndCount.mockResolvedValue([[REJECTED], 26]);
+
+      await expect(service.rejections(2)).resolves.toEqual({
+        items: [DETAIL],
+        total: 26,
+        page: 2,
+        pageSize: SCAN_REJECTION_PAGE_SIZE,
+      });
+      expect(findAndCount).toHaveBeenCalledWith({
+        where: { state: FileAssetState.REJECTED },
+        order: { lastVerdictAt: 'DESC', id: 'DESC' },
+        skip: SCAN_REJECTION_PAGE_SIZE,
+        take: SCAN_REJECTION_PAGE_SIZE,
+      });
+    });
+
+    it('reads the first page when asked for none', async () => {
+      await service.rejections();
+
+      expect(findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({ skip: 0 }),
+      );
+    });
   });
 });

@@ -22,6 +22,7 @@ import { FleetScopeKind } from '../../enums/fleet-scope-kind.enum';
 import { FleetScopeRole } from '../../enums/fleet-scope-role.enum';
 import { ScopeCapabilityEffect } from '../../enums/scope-capability-effect.enum';
 import { ScopeMembershipStatus } from '../../enums/scope-membership-status.enum';
+import { ScopeGovernanceActionEntity } from '../entities/scope-governance-action.entity';
 import { ScopeGovernanceActionKind } from '../enums/scope-governance-action-kind.enum';
 import {
   armadaScope,
@@ -30,7 +31,7 @@ import {
 } from '../utilities/governance-scope.utility';
 import { OwnershipTransferService } from './ownership-transfer.service';
 import { ScopeGovernanceLogService } from './scope-governance-log.service';
-import { ScopeRolesService } from './scope-roles.service';
+import { ENDED_BY_CLOSURE, ScopeRolesService } from './scope-roles.service';
 
 const COMMUNITY_ID = '24000000-0000-4000-8000-000000000001';
 const FLEET_ID = '24000000-0000-4000-8000-000000000002';
@@ -65,6 +66,7 @@ describe('ScopeRolesService', () => {
     save: jest.Mock;
     create: jest.Mock;
     update: jest.Mock;
+    insert?: jest.Mock;
   };
   let authorise: jest.Mock;
   let bump: jest.Mock;
@@ -768,8 +770,21 @@ describe('ScopeRolesService', () => {
     });
   });
 
-  it('ends every role and grant at exactly the scope, for a closure', async () => {
+  it('ends every role and grant at exactly the scope, for a closure, each logged (FC-039)', async () => {
     const now = new Date();
+
+    manager.insert = jest.fn(() => Promise.resolve());
+    assignments = [
+      {
+        id: 'role-1',
+        communityId: COMMUNITY_ID,
+        fleetId: FLEET_ID,
+        armadaId: null,
+        userId: MEMBER_ID,
+        role: FleetScopeRole.OFFICER,
+      },
+    ];
+    grants = [];
 
     await service.endAllWithin(manager as unknown as EntityManager, FLEET, now);
 
@@ -780,15 +795,26 @@ describe('ScopeRolesService', () => {
       validTo: IsNull(),
     };
 
+    expect(manager.find).toHaveBeenCalledWith(ScopeRoleAssignmentEntity, {
+      where: exactly,
+    });
+    expect(manager.find).toHaveBeenCalledWith(ScopeCapabilityGrantEntity, {
+      where: exactly,
+    });
     expect(manager.update).toHaveBeenCalledWith(
       ScopeRoleAssignmentEntity,
-      exactly,
+      { id: 'role-1' },
       { validTo: now },
     );
-    expect(manager.update).toHaveBeenCalledWith(
-      ScopeCapabilityGrantEntity,
-      exactly,
-      { validTo: now },
+    expect(manager.insert).toHaveBeenCalledWith(
+      ScopeGovernanceActionEntity,
+      expect.objectContaining({
+        action: ScopeGovernanceActionKind.ROLE_WITHDRAWN,
+        actorUserId: null,
+        subjectUserId: MEMBER_ID,
+        reason: ENDED_BY_CLOSURE,
+        idempotencyKey: 'ENDED:role-1',
+      }),
     );
   });
 });

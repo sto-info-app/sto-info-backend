@@ -98,7 +98,7 @@ describe('ModerationAdminController', () => {
     });
 
     it('should pass the acting administrator with the decision', async () => {
-      const dto = { status: ReportStatus.DISMISSED };
+      const dto = { status: ReportStatus.DISMISSED, reason: 'Nothing found' };
 
       await controller.updateReport(ADMIN_ID, REPORT_ID, dto);
 
@@ -138,11 +138,14 @@ describe('ModerationAdminController', () => {
     });
 
     it('should pass the acting administrator when restoring', async () => {
-      await controller.enableUser(ADMIN_ID, MEMBER_ID);
+      await controller.enableUser(ADMIN_ID, MEMBER_ID, {
+        reason: 'Appeal upheld',
+      });
 
       expect(userModerationService.enableUser).toHaveBeenCalledWith(
         MEMBER_ID,
         ADMIN_ID,
+        'Appeal upheld',
       );
     });
   });

@@ -1,5 +1,5 @@
 import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { Queue } from 'bullmq';
@@ -10,10 +10,12 @@ import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
 
 import { FILE_SCAN_REQUEST_QUEUE } from '../contract/file-scan-contract';
 import {
+  ScanAssetDetailDto,
   ScanAwaitingDto,
   ScanDiagnosticsDto,
   ScanEngineStatusDto,
   ScanQueueDto,
+  ScanRejectionPageDto,
   ScanUsageWindowDto,
 } from '../dto/scan-diagnostics.dto';
 
@@ -65,6 +67,9 @@ const TENTH_OF_AN_HOUR_MS = 360_000;
  * Nothing here names an asset, a file, an owner or a signature. The worker's
  * views cannot, and the registry is only counted.
  */
+/** How many refused assets a page lists. */
+export const SCAN_REJECTION_PAGE_SIZE = 25;
+
 @Injectable()
 export class ScanDiagnosticsService {
   private readonly _logger = new Logger(ScanDiagnosticsService.name);
@@ -82,6 +87,57 @@ export class ScanDiagnosticsService {
     @InjectRepository(FileAssetEntity)
     private readonly _assets: Repository<FileAssetEntity>,
   ) {}
+
+  /**
+   * One asset's scan outcome (FC-039).
+   *
+   * @param assetId - The asset.
+   * @returns What the scanner decided, and with what.
+   * @throws NotFoundException when there is no such asset.
+   */
+  async asset(assetId: string): Promise<ScanAssetDetailDto> {
+    const asset = await this._assets.findOne({ where: { id: assetId } });
+
+    if (asset === null) {
+      throw new NotFoundException('Not found');
+    }
+
+    return detailOf(asset);
+  }
+
+  /**
+   * The assets a scanner or policy refused, newest verdict first (FC-039).
+   *
+   * @param page - Which page, from 1.
+   * @returns The page.
+   */
+  async rejections(page = 1): Promise<ScanRejectionPageDto> {
+    const [assets, total] = await this._assets.findAndCount({
+      where: { state: FileAssetState.REJECTED },
+      order: { lastVerdictAt: 'DESC', id: 'DESC' },
+      skip: (page - 1) * SCAN_REJECTION_PAGE_SIZE,
+      take: SCAN_REJECTION_PAGE_SIZE,
+    });
+
+    return {
+      items: assets.map(detailOf),
+      total,
+      page,
+      pageSize: SCAN_REJECTION_PAGE_SIZE,
+    };
+  }
+
+  /**
+   * The signature version the worker last reported: its definition epoch,
+   * which a rescan is deduplicated against (FC-041).
+   *
+   * @returns The epoch, or the worker's own "unknown" when it cannot be read.
+   */
+  async currentDefinitionEpoch(): Promise<string> {
+    const engine = await this.readEngine(new Date());
+
+    return engine?.signatureVersion ?? UNKNOWN_DEFINITION_EPOCH;
+  }
 
   /**
    * Reads everything the page shows.
@@ -238,4 +294,25 @@ export class ScanDiagnosticsService {
         (typeof code === 'string' ? `, Code: ${code}` : ''),
     );
   }
+}
+
+/**
+ * An asset's scan outcome, and nothing else about it.
+ *
+ * @param asset - The asset.
+ * @returns Its outcome.
+ */
+function detailOf(asset: FileAssetEntity): ScanAssetDetailDto {
+  return {
+    id: asset.id,
+    kind: asset.kind,
+    state: asset.state,
+    rejectionCode: asset.rejectionCode,
+    scanEngine: asset.scanEngine,
+    scanEngineVersion: asset.scanEngineVersion,
+    scanSignatureVersion: asset.scanSignatureVersion,
+    policyVersion: asset.policyVersion,
+    createdAt: asset.createdAt,
+    lastVerdictAt: asset.lastVerdictAt,
+  };
 }

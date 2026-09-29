@@ -229,6 +229,14 @@ export class ScopeGovernanceActionDto {
   @ApiPropertyOptional({ nullable: true })
   reason: string | null;
 
+  @ApiProperty({
+    description:
+      'Whether the system recorded it, as a consequence of another change: ' +
+      'a role or grant ended by a closure, a departure or a hand-over ' +
+      '(FC-039).',
+  })
+  automatic: boolean;
+
   @ApiProperty({ description: 'When it happened.' })
   createdAt: Date;
 }

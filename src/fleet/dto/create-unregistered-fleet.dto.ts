@@ -15,7 +15,7 @@ import { IsExactGameNameConstraint } from '../utilities/is-exact-game-name.const
  * - **Nobody can change it and nobody can close it.** Every mutating route
  *   in this feature checks a capability at a scope, and an unregistered
  *   Fleet resolves to no scope at all. Correcting one is an administrator's
- *   job, and adopting one into a Community is FC-039's.
+ *   job, and adopting one into a Community is left to a later story.
  * - **Its address names no Community.** It is reachable under the reserved
  *   `standalone` segment, where a Community's slug would sit, and its own
  *   slug is unique among the standalone records on its platform. It has no

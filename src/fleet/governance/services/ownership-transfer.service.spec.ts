@@ -20,6 +20,7 @@ import { FleetScopeKind } from '../../enums/fleet-scope-kind.enum';
 import { FleetScopeRole } from '../../enums/fleet-scope-role.enum';
 import { FleetScopeStatus } from '../../enums/fleet-scope-status.enum';
 import { OwnershipTransferEntity } from '../entities/ownership-transfer.entity';
+import { ScopeGovernanceActionEntity } from '../entities/scope-governance-action.entity';
 import {
   OwnershipTransferState,
   OwnershipTransferStatus,
@@ -27,6 +28,7 @@ import {
 import { ScopeGovernanceActionKind } from '../enums/scope-governance-action-kind.enum';
 import { communityScope } from '../utilities/governance-scope.utility';
 import {
+  ENDED_BY_OWNERSHIP,
   FORMER_OWNER_REASON,
   OWNERSHIP_OFFER_DAYS,
   OwnershipTransferService,
@@ -55,6 +57,8 @@ describe('OwnershipTransferService', () => {
     save: jest.Mock;
     create: jest.Mock;
     update: jest.Mock;
+    count: jest.Mock;
+    insert: jest.Mock;
   };
   let bump: jest.Mock;
   let record: jest.Mock;
@@ -124,6 +128,8 @@ describe('OwnershipTransferService', () => {
           : { ...data },
       ),
       update: jest.fn(() => Promise.resolve({})),
+      count: jest.fn(() => Promise.resolve(0)),
+      insert: jest.fn(() => Promise.resolve()),
     };
     bump = jest.fn(() => Promise.resolve(2));
     record = jest.fn(() => Promise.resolve());
@@ -462,22 +468,47 @@ describe('OwnershipTransferService', () => {
     });
 
     // A denial left behind would still take a power from the new Owner.
-    it('ends whatever the new Owner held anywhere in the Community', async () => {
+    it('ends whatever the new Owner held anywhere in the Community, each logged (FC-039)', async () => {
+      admins = [
+        {
+          id: 'role-1',
+          communityId: COMMUNITY_ID,
+          fleetId: null,
+          armadaId: null,
+          userId: ADMIN_ID,
+          role: FleetScopeRole.ADMIN,
+        },
+      ];
+
       await accept();
 
-      expect(manager.update).toHaveBeenCalledWith(
-        ScopeRoleAssignmentEntity,
-        { communityId: COMMUNITY_ID, userId: ADMIN_ID, validTo: IsNull() },
-        { validTo: expect.any(Date) },
-      );
-      expect(manager.update).toHaveBeenCalledWith(
-        ScopeCapabilityGrantEntity,
-        {
+      expect(manager.find).toHaveBeenCalledWith(ScopeRoleAssignmentEntity, {
+        where: {
+          communityId: COMMUNITY_ID,
+          userId: ADMIN_ID,
+          validTo: IsNull(),
+        },
+      });
+      expect(manager.find).toHaveBeenCalledWith(ScopeCapabilityGrantEntity, {
+        where: {
           communityId: COMMUNITY_ID,
           subjectUserId: ADMIN_ID,
           validTo: IsNull(),
         },
+      });
+      expect(manager.update).toHaveBeenCalledWith(
+        ScopeRoleAssignmentEntity,
+        { id: 'role-1' },
         { validTo: expect.any(Date) },
+      );
+      expect(manager.insert).toHaveBeenCalledWith(
+        ScopeGovernanceActionEntity,
+        expect.objectContaining({
+          action: ScopeGovernanceActionKind.ROLE_WITHDRAWN,
+          subjectUserId: ADMIN_ID,
+          reason: ENDED_BY_OWNERSHIP,
+          idempotencyKey: 'ENDED:role-1',
+        }),
       );
     });
 
@@ -604,7 +635,7 @@ describe('OwnershipTransferService', () => {
       const view = await service.disputeView(COMMUNITY_ID);
 
       expect(view.offer).toBeNull();
-      expect(view.owner.username).toBeNull();
+      expect(view.owner!.username).toBeNull();
     });
 
     it('requires a reason', async () => {

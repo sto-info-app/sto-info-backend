@@ -31,6 +31,7 @@ import {
   SetPersonalCapabilityDto,
 } from '../dto/scope-governance.dto';
 import { ScopeGovernanceActionKind } from '../enums/scope-governance-action-kind.enum';
+import { endAndLog } from '../utilities/governance-endings.utility';
 import {
   atExactly,
   delegableAt,
@@ -96,6 +97,9 @@ function sortName(person: GovernancePersonDto): string {
  * powers that make somebody the Owner are not delegable. Every row is written
  * at the scope the route resolved, so nothing here can reach another scope.
  */
+/** Why a role or grant ended with its scope (FC-039). */
+export const ENDED_BY_CLOSURE = 'Ended when it was closed.';
+
 @Injectable()
 export class ScopeRolesService {
   /**
@@ -205,7 +209,7 @@ export class ScopeRolesService {
     });
 
     return {
-      owner: person(ownerUserId),
+      owner: ownerUserId === null ? null : person(ownerUserId),
       mayManage,
       holders: assignments.map(row => ({
         ...person(row.userId),
@@ -607,7 +611,8 @@ export class ScopeRolesService {
   /**
    * Ends every role and grant held at exactly this scope, for a closure.
    *
-   * The rows stay, with their dates, so who held what stays answerable.
+   * The rows stay, with their dates, so who held what stays answerable, and
+   * each is logged as ended by the closure (FC-039).
    *
    * @param manager - The closure's transaction.
    * @param scope - The scope.
@@ -618,15 +623,14 @@ export class ScopeRolesService {
     scope: GovernanceScope,
     now: Date,
   ): Promise<void> {
-    await manager.update(
-      ScopeRoleAssignmentEntity,
-      { ...atExactly<ScopeRoleAssignmentEntity>(scope), validTo: IsNull() },
-      { validTo: now },
-    );
-    await manager.update(
-      ScopeCapabilityGrantEntity,
-      { ...atExactly<ScopeCapabilityGrantEntity>(scope), validTo: IsNull() },
-      { validTo: now },
+    await endAndLog(
+      manager,
+      {
+        roles: atExactly<ScopeRoleAssignmentEntity>(scope),
+        grants: atExactly<ScopeCapabilityGrantEntity>(scope),
+      },
+      ENDED_BY_CLOSURE,
+      now,
     );
   }
 

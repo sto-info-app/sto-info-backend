@@ -503,6 +503,15 @@ role named by the worker's `BACKEND_DB_ROLE`. Nothing in the answer names an ass
 owner or a signature. The definitions of re-scan, retry, scan time and wait are in the worker's
 [database documentation](../../sto-info-file-scan-worker/docs/database.md).
 
+### Why an upload was refused (FC-039)
+
+`GET /admin/file-scanning/rejections?page=` lists the assets a scanner or policy refused, newest
+verdict first, 25 to a page, and `GET /admin/file-scanning/assets/:assetId` reads one asset's
+outcome. Both are administrator-only and answer the same shape: the asset's kind and state, its
+rejection code, the engine, engine version, signature version and policy version behind the
+verdict, and when it was uploaded and judged. Never a signature name, which is not recorded, and
+nothing else about the asset. See [Admin audit](admin-audit.md#why-an-upload-was-refused).
+
 ## Uploading a picture, since FC-012
 
 Every picture the site accepts — a profile picture, a Character portrait, seven kinds of

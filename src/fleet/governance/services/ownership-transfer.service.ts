@@ -13,11 +13,11 @@ import { DataSource, EntityManager, IsNull, QueryFailedError } from 'typeorm';
 import { NotificationSeverity } from 'src/notification/enums/notification-severity.enum';
 import { NotificationTarget } from 'src/notification/enums/notification-target.enum';
 import { NotificationService } from 'src/notification/notification.service';
+import { UserEntity } from 'src/user/entities/user.entity';
 
 import { FleetAuthorisationRevisionService } from '../../authorisation/fleet-authorisation-revision.service';
 import { MAX_FLEET_COMMUNITIES_PER_OWNER } from '../../constants/fleet-policy.constants';
 import { FleetCommunityEntity } from '../../entities/fleet-community.entity';
-import { ScopeCapabilityGrantEntity } from '../../entities/scope-capability-grant.entity';
 import { ScopeRoleAssignmentEntity } from '../../entities/scope-role-assignment.entity';
 import { FleetScopeKind } from '../../enums/fleet-scope-kind.enum';
 import { FleetScopeRole } from '../../enums/fleet-scope-role.enum';
@@ -35,6 +35,7 @@ import {
   OwnershipTransferStatus,
 } from '../enums/ownership-transfer-status.enum';
 import { ScopeGovernanceActionKind } from '../enums/scope-governance-action-kind.enum';
+import { endAndLog } from '../utilities/governance-endings.utility';
 import {
   atExactly,
   communityScope,
@@ -49,6 +50,10 @@ const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /** The trigger's wording when an owner would pass the limit. */
 const OWNER_LIMIT_ERROR_FRAGMENT = 'live Fleet Communities';
+
+/** Why a new Owner's own roles and grants ended (FC-039). */
+export const ENDED_BY_OWNERSHIP =
+  'Ended when they became the Owner, who holds everything.';
 
 /** What a former Owner's Admin role says it came from. */
 export const FORMER_OWNER_REASON = 'Previously the Owner';
@@ -595,19 +600,14 @@ export class OwnershipTransferService {
     newOwnerId: string,
     now: Date,
   ): Promise<void> {
-    await manager.update(
-      ScopeRoleAssignmentEntity,
-      { communityId: community.id, userId: newOwnerId, validTo: IsNull() },
-      { validTo: now },
-    );
-    await manager.update(
-      ScopeCapabilityGrantEntity,
+    await endAndLog(
+      manager,
       {
-        communityId: community.id,
-        subjectUserId: newOwnerId,
-        validTo: IsNull(),
+        roles: { communityId: community.id, userId: newOwnerId },
+        grants: { communityId: community.id, subjectUserId: newOwnerId },
       },
-      { validTo: now },
+      ENDED_BY_OWNERSHIP,
+      now,
     );
 
     community.ownerUserId = newOwnerId;

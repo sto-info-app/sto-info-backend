@@ -140,6 +140,16 @@ export class ScopeGovernanceActionEntity {
   transferId: string | null;
 
   @ApiProperty({ description: 'When it happened.' })
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description:
+      'For an entry the system wrote as a consequence, the key that keeps a ' +
+      "retry from writing it twice (FC-039); null for anybody's own act.",
+  })
+  @Column({ type: 'varchar', length: 200, nullable: true, default: null })
+  idempotencyKey: string | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

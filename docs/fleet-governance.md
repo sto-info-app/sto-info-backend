@@ -149,6 +149,12 @@ is required, and closing what is closed already changes nothing.
 A member who leaves a Fleet, or is removed, loses any role and personal grant or denial held at
 that Fleet with the membership.
 
+Each role and grant a closure, a departure, a hand-over or an Armada rearrangement ends is logged
+on its own (FC-039): a `ROLE_WITHDRAWN` or `CAPABILITY_CLEARED` row with no actor and a reason
+naming the cause, keyed `ENDED:<id>` so a retry writes none twice. The history marks these rows
+`automatic` and says what ended rather than who ended it. See
+[Admin audit](admin-audit.md#endings-nobody-chose).
+
 ## The log
 
 `scope_governance_action` records every change here, with who made it and why, in the
@@ -157,6 +163,10 @@ clearings, ownership offers and their answers, dispute actions, suspensions, rei
 closures. It is append-only
 (`TR_scope_governance_action_guard`); the one change it accepts is a named person's account, or
 the offer it cites, going. The Manage pages show the newest 50.
+
+It is the scope's history (FC-039): kept for as long as the scope exists, and read only by its
+Owner and Admins. A site admin's dispute actions also show in the Security Log; see
+[Admin audit](admin-audit.md#the-security-log).
 
 ## Routes
 

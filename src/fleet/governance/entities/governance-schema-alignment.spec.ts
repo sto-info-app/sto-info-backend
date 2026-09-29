@@ -99,9 +99,11 @@ describe('Governance schema alignment', () => {
         ...addedLater(table),
       ];
 
+      // FC-039's migration adds the idempotency key; its spec holds that.
       expect([...migrationColumns].sort()).toEqual(
         declared(entity)
           .map(column => column.options.name ?? column.propertyName)
+          .filter(column => column !== 'idempotencyKey')
           .sort(),
       );
     },

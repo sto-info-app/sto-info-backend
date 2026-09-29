@@ -8,11 +8,15 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { jest } from '@jest/globals';
 
+import { SiteAdminActionEntity } from 'src/audit/site-admin/site-admin-action.entity';
+import { SiteAdminActionKind } from 'src/audit/site-admin/site-admin-action.enum';
+
 import { PublicMemberService } from '../community/public-member.service';
+import { ChatMessageReportEntity } from '../fleet/chat/entities/chat-message-report.entity';
 import { UserReportEntity } from './entities/user-report.entity';
 import { ReportReason } from './enums/report-reason.enum';
 import { ReportStatus } from './enums/report-status.enum';
-import { ReportService } from './report.service';
+import { REPORT_MOVED_REASONS, ReportService } from './report.service';
 
 const REPORTER_ID = 'reporter-1';
 const REPORTED_ID = 'reported-1';
@@ -116,7 +120,15 @@ describe('ReportService', () => {
     count: jest.Mock<() => Promise<number>>;
     update: jest.Mock<() => Promise<{ affected?: number }>>;
     createQueryBuilder: jest.Mock;
+    manager: {
+      find: jest.Mock<() => Promise<unknown[]>>;
+      update: jest.Mock<() => Promise<{ affected?: number }>>;
+      count: jest.Mock<() => Promise<number>>;
+      transaction: jest.Mock;
+    };
   };
+  /** Every row the site admin log was given (FC-039). */
+  let logged: jest.Mock;
   let publicMemberService: {
     requireActiveMember: jest.Mock<() => Promise<{ userId: string }>>;
   };
@@ -133,7 +145,23 @@ describe('ReportService', () => {
       count: jest.fn(() => Promise.resolve(0)),
       update: jest.fn(() => Promise.resolve({ affected: 0 })),
       createQueryBuilder: jest.fn(() => queryBuilder),
+      // Chat reports, read through the same database (FC-036).
+      manager: {
+        find: jest.fn(() => Promise.resolve([] as unknown[])),
+        update: jest.fn(() => Promise.resolve({ affected: 0 })),
+        count: jest.fn(() => Promise.resolve(0)),
+        transaction: jest.fn(),
+      },
     };
+    logged = jest.fn(() => Promise.resolve(undefined));
+    reportRepository.manager.transaction.mockImplementation(((
+      work: (manager: object) => Promise<unknown>,
+    ) =>
+      work({
+        save: (_entity: unknown, report: unknown) =>
+          reportRepository.save(report),
+        insert: logged,
+      })) as never);
     publicMemberService = {
       requireActiveMember: jest.fn(() =>
         Promise.resolve({ userId: REPORTED_ID }),
@@ -331,6 +359,7 @@ describe('ReportService', () => {
       await service.updateForAdmin('report-1', ADMIN_ID, {
         status: ReportStatus.DISMISSED,
         moderatorNotes: 'No evidence found.',
+        reason: 'Nothing to act on',
       });
 
       expect(reportRepository.save).toHaveBeenCalledWith(
@@ -343,6 +372,44 @@ describe('ReportService', () => {
       );
     });
 
+    it('should log the decision with its reason (FC-039)', async () => {
+      queryBuilder.getOne.mockResolvedValue(buildReport());
+
+      await service.updateForAdmin('report-1', ADMIN_ID, {
+        status: ReportStatus.DISMISSED,
+        reason: 'Nothing to act on',
+      });
+
+      expect(logged).toHaveBeenCalledWith(
+        SiteAdminActionEntity,
+        expect.objectContaining({
+          action: SiteAdminActionKind.USER_REPORT_DECIDED,
+          actorUserId: ADMIN_ID,
+          targetUserId: REPORTED_ID,
+          subjectKind: 'USER_REPORT',
+          subjectId: 'report-1',
+          reason: 'Nothing to act on',
+          detail: { from: ReportStatus.OPEN, to: ReportStatus.DISMISSED },
+        }),
+      );
+    });
+
+    it('should log a report taken for review, which needs no reason', async () => {
+      queryBuilder.getOne.mockResolvedValue(buildReport());
+
+      await service.updateForAdmin('report-1', ADMIN_ID, {
+        status: ReportStatus.UNDER_REVIEW,
+      });
+
+      expect(logged).toHaveBeenCalledWith(
+        SiteAdminActionEntity,
+        expect.objectContaining({
+          reason: REPORT_MOVED_REASONS[ReportStatus.UNDER_REVIEW],
+          detail: { from: ReportStatus.OPEN, to: ReportStatus.UNDER_REVIEW },
+        }),
+      );
+    });
+
     it('should keep existing notes when the update supplies none', async () => {
       queryBuilder.getOne.mockResolvedValue(
         buildReport({ moderatorNotes: 'Earlier note' }),
@@ -350,6 +417,7 @@ describe('ReportService', () => {
 
       await service.updateForAdmin('report-1', ADMIN_ID, {
         status: ReportStatus.ACTIONED,
+        reason: 'Warned them',
       });
 
       expect(reportRepository.save).toHaveBeenCalledWith(
@@ -363,6 +431,7 @@ describe('ReportService', () => {
       await expect(
         service.updateForAdmin('report-1', ADMIN_ID, {
           status: ReportStatus.ACTIONED,
+          reason: 'Warned them',
         }),
       ).rejects.toThrow(NotFoundException);
     });
@@ -388,27 +457,131 @@ describe('ReportService', () => {
   });
 
   describe('actionReportsAgainst', () => {
-    it('should close every unresolved report naming the member', async () => {
-      reportRepository.update.mockResolvedValue({ affected: 2 });
+    /**
+     * The disabling's transaction, holding some open reports.
+     *
+     * @param members - Open member reports.
+     * @param chats - Open chat reports.
+     * @returns It.
+     */
+    const disabling = (members: unknown[], chats: unknown[]) => ({
+      find: jest.fn((entity: unknown) =>
+        Promise.resolve(entity === ChatMessageReportEntity ? chats : members),
+      ),
+      update: jest.fn(() => Promise.resolve({})),
+      insert: jest.fn<(entity: unknown, row: unknown) => Promise<undefined>>(
+        () => Promise.resolve(undefined),
+      ),
+    });
+
+    it('should close every open report naming the member, each logged (FC-039)', async () => {
+      const manager = disabling(
+        [{ id: 'member-1', status: ReportStatus.OPEN }],
+        [
+          { id: 'chat-1', status: ReportStatus.OPEN },
+          { id: 'chat-2', status: ReportStatus.UNDER_REVIEW },
+        ],
+      );
 
       await expect(
-        service.actionReportsAgainst(REPORTED_ID, ADMIN_ID),
-      ).resolves.toBe(2);
-      expect(reportRepository.update).toHaveBeenCalledWith(
-        expect.objectContaining({ reportedId: REPORTED_ID }),
+        service.actionReportsAgainst(
+          manager as never,
+          REPORTED_ID,
+          ADMIN_ID,
+          'Spamming',
+        ),
+      ).resolves.toBe(3);
+      expect(manager.update).toHaveBeenCalledWith(
+        UserReportEntity,
+        { id: expect.anything() },
         expect.objectContaining({
           status: ReportStatus.ACTIONED,
           reviewedById: ADMIN_ID,
         }),
       );
+      expect(manager.update).toHaveBeenCalledWith(
+        ChatMessageReportEntity,
+        { id: expect.anything() },
+        expect.objectContaining({
+          status: ReportStatus.ACTIONED,
+          resolutionNote: 'Closed when the account was disabled.',
+          resolvedByUserId: ADMIN_ID,
+        }),
+      );
+      expect(manager.insert.mock.calls.map(([, row]) => row)).toEqual([
+        expect.objectContaining({
+          action: SiteAdminActionKind.USER_REPORT_DECIDED,
+          subjectId: 'member-1',
+          reason: 'Spamming',
+          detail: {
+            from: ReportStatus.OPEN,
+            to: ReportStatus.ACTIONED,
+            withDisabling: true,
+          },
+        }),
+        expect.objectContaining({
+          action: SiteAdminActionKind.CHAT_REPORT_DECIDED,
+          subjectId: 'chat-1',
+        }),
+        expect.objectContaining({
+          action: SiteAdminActionKind.CHAT_REPORT_DECIDED,
+          subjectId: 'chat-2',
+          detail: expect.objectContaining({
+            from: ReportStatus.UNDER_REVIEW,
+          }),
+        }),
+      ]);
     });
 
-    it('should report zero when the driver gives no affected count', async () => {
-      reportRepository.update.mockResolvedValue({});
+    it('should change nothing when nothing is open', async () => {
+      const manager = disabling([], []);
 
       await expect(
-        service.actionReportsAgainst(REPORTED_ID, ADMIN_ID),
+        service.actionReportsAgainst(
+          manager as never,
+          REPORTED_ID,
+          ADMIN_ID,
+          'Spamming',
+        ),
       ).resolves.toBe(0);
+      expect(manager.update).not.toHaveBeenCalled();
+      expect(manager.insert).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('linked queues (FC-036)', () => {
+    it('counts the open chat reports about each reported member', async () => {
+      queryBuilder.getManyAndCount.mockResolvedValue([
+        [
+          buildReport(),
+          buildReport({ id: 'report-2', reportedId: 'reported-2' }),
+        ],
+        2,
+      ]);
+      reportRepository.manager.find.mockResolvedValue([
+        { authorUserId: REPORTED_ID },
+        { authorUserId: REPORTED_ID },
+      ]);
+
+      const page = await service.findForAdmin({});
+
+      expect(page.items.map(item => item.openChatReportCount)).toEqual([2, 0]);
+    });
+
+    it('asks nothing of chat for an empty page', async () => {
+      await service.findForAdmin({});
+
+      expect(reportRepository.manager.find).not.toHaveBeenCalled();
+    });
+
+    it('counts the open chat reports', async () => {
+      reportRepository.manager.count.mockResolvedValue(5);
+
+      await expect(service.countUnresolvedChat()).resolves.toBe(5);
+      expect(reportRepository.manager.count).toHaveBeenCalledWith(
+        ChatMessageReportEntity,
+        expect.anything(),
+      );
     });
   });
 });

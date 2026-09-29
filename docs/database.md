@@ -66,6 +66,7 @@ The database uses PostgreSQL with TypeORM for object-relational mapping.
 | `ModerationHoldEntity` | `moderation_hold` | A site admin's hold on a chat report's evidence, or on everything one member wrote in chat, with its review date — see [Fleet chat](fleet-chat.md#holds) |
 | `ModerationHoldActionEntity` | `moderation_hold_action` | Each placing, extension, release and reading of a hold, with its reason or purpose, and the system's notices and releases past review, write-once |
 | `RosterErasureEntity` | `roster_erasure` | A verified erasure of a Character name and @handle from every roster: a keyed hash, never the pair, and the pseudonym replacing it; the suppression list — see [Privacy: erasure](privacy-erasure.md) |
+| `SiteAdminActionEntity` | `site_admin_action` | Every site-level admin action, with its reason, write-once and kept under the audit policy — see [Admin audit](admin-audit.md) |
 | `RetentionRunEntity` | `retention_run` | One run of a Fleet retention job: when, what it deleted, whether that was all, and any failure; write-once once finished — see [Fleet retention jobs](fleet-retention.md) |
 | `FleetInvestigationGrantEntity` | `fleet_investigation_grant` | A site admin's 24-hour read-only look into a Fleet's imports, with its purpose, write-once — see [Fleet governance](fleet-governance.md) |
 
@@ -395,6 +396,8 @@ describes that table.
 | `roster_erasure` | Kept: it is the suppression list, and its markers are also in the erasure ledger outside the database (FC-038) |
 | `_audit` for chat, roster, news and form content | Identifiers only (FC-038) |
 | `fleet_investigation_grant` | Kept as the record of each look; it goes with its Fleet |
+| `site_admin_action` | Records deleted after `AUDIT_DATA_NUKE_THRESHOLD_DAYS` days; `ipAddress` nulled after `AUDIT_IP_NUKE_THRESHOLD_DAYS` days, like `_audit` (FC-039) |
+| `scope_governance_action`, `scope_membership_action`, `chat_action` | Kept for as long as their scope exists: they are its history (FC-039) |
 
 The Custom Tracking window is a constant rather than an environment variable,
 unlike every other row above. It is published — the content agreement and the

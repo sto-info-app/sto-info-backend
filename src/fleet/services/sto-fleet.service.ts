@@ -193,7 +193,7 @@ export class StoFleetService {
    * feature can withdraw one. That is the accepted cost of keeping one rule
    * for duplicates rather than two: a registration is never refused for
    * looking like something that already exists, here as everywhere else.
-   * Merging or adopting such a record is FC-039's.
+   * Merging or adopting such a record is left to a later story.
    *
    * The audience is set to `PUBLIC` explicitly rather than left to the
    * column default. The default is `COMMUNITY`, and a Community audience on

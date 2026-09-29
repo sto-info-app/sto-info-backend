@@ -216,6 +216,8 @@ All routes below are under `/admin/access-control/*` and require the `ADMIN` rol
 
 Applying the same permission code or limit key twice updates the existing override rather than creating a second, so the write endpoints are safe to repeat. Withdrawal soft-deletes, leaving the pair free to be granted again.
 
+`PUT /admin/access-control/users/:userId/role` takes `{ role, reason }`, and each `DELETE` takes `{ reason }` in its body (FC-039). Every change here is kept in the site admin log with its reason; see [Admin audit](admin-audit.md).
+
 ## Storytime Endpoints
 
 ### GET /storytime/configuration
@@ -344,6 +346,27 @@ A part whose source cannot be reached is `null`. See
 [File assets](file-assets.md#watching-the-scanner-get-adminfile-scanningdiagnostics).
 
 **Authentication Required.** The `ADMIN` role.
+
+### Site admin reasons and the Security Log (FC-039)
+
+Every site-level admin action takes a reason, kept in the site admin log. Beyond the access
+control routes above:
+
+| Route | Reason |
+| ----- | ------ |
+| `POST /admin/moderation/users/:moderatedUserId/disable`, `/enable` | `{ reason }`, required for both |
+| `PATCH /admin/moderation/reports/:reportId` | `reason`, required to close a report as `ACTIONED` or `DISMISSED`; a claim needs none |
+| `POST /admin/chat-reports/:reportId/decision` | `note`, now required |
+| `POST /admin/moderation/custom-tracking/:level/:id/suppress`, `/restore` | `{ reason }` |
+| Storytime moderation | A report's `resolution` is required to close it, and an appeal's `reviewNotes` to decide it |
+
+| Method | Path | Purpose |
+| ------ | ---- | ------- |
+| GET | `/admin/security-log?source=&page=` | What site admins and the retention jobs did, newest first, fifty to a page; `source` is one of `SITE_ADMIN`, `FLEET`, `HOLD`, `INVESTIGATION`, `ERASURE`, `RETENTION` |
+| GET | `/admin/file-scanning/rejections?page=` | Refused assets, newest verdict first, 25 to a page |
+| GET | `/admin/file-scanning/assets/:assetId` | One asset's scan outcome: code and engine, never a signature name |
+
+All three require the `ADMIN` role. See [Admin audit](admin-audit.md).
 
 ### PATCH /admin/storytime/configuration
 
@@ -1490,6 +1513,9 @@ deleted is refused with `404`: it is invisible already.
 
 Put suppressed content back into public view. The timestamp and the
 administrator are both cleared; who did what stays in the audit trail.
+
+Both routes take `{ reason }` (FC-039), kept in the site admin log with the
+owner as the target.
 
 ## File Asset Endpoints
 
