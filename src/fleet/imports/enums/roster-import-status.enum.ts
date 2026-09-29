@@ -37,4 +37,14 @@ export enum RosterImportStatus {
    * has been given up on.
    */
   ABANDONED = 'ABANDONED',
+  /**
+   * It was held, and its file was deleted at the end of its retention before
+   * anybody selected it, so it can no longer be selected (FC-037).
+   */
+  EXPIRED = 'EXPIRED',
+  /**
+   * It was held, and its file was deleted by a verified erasure of somebody
+   * it named before anybody selected it, so it can no longer be (FC-038).
+   */
+  ERASED = 'ERASED',
 }

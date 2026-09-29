@@ -18,6 +18,7 @@ import { ScanRequestProducerService } from 'src/file-scanning/services/scan-requ
 
 import { FleetNameAliasEntity } from '../../entities/fleet-name-alias.entity';
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
+import { RosterSuppressionService } from '../../erasure/roster-suppression.service';
 import { FleetPolicyService } from '../../fleet-policy.service';
 import { ROSTER_OFFICER_HEADER_LINE } from '../constants/roster-csv.constants';
 import {
@@ -239,6 +240,11 @@ describe('RosterImportIngressService', () => {
       scanRequestProducer as unknown as ScanRequestProducerService,
       { importSourceRetentionDays: RETENTION_DAYS } as FleetPolicyService,
       conflicts as unknown as RosterImportConflictService,
+      {
+        scrubber: jest.fn(() =>
+          Promise.resolve((row: readonly string[]) => [...row]),
+        ),
+      } as unknown as RosterSuppressionService,
     );
   });
 

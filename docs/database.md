@@ -65,6 +65,7 @@ The database uses PostgreSQL with TypeORM for object-relational mapping.
 | `ChatReportEvidenceEntity` | `chat_report_evidence` | The reported message and the twenty before it, copied when reported |
 | `ModerationHoldEntity` | `moderation_hold` | A site admin's hold on a chat report's evidence, or on everything one member wrote in chat, with its review date — see [Fleet chat](fleet-chat.md#holds) |
 | `ModerationHoldActionEntity` | `moderation_hold_action` | Each placing, extension, release and reading of a hold, with its reason or purpose, and the system's notices and releases past review, write-once |
+| `RosterErasureEntity` | `roster_erasure` | A verified erasure of a Character name and @handle from every roster: a keyed hash, never the pair, and the pseudonym replacing it; the suppression list — see [Privacy: erasure](privacy-erasure.md) |
 | `RetentionRunEntity` | `retention_run` | One run of a Fleet retention job: when, what it deleted, whether that was all, and any failure; write-once once finished — see [Fleet retention jobs](fleet-retention.md) |
 | `FleetInvestigationGrantEntity` | `fleet_investigation_grant` | A site admin's 24-hour read-only look into a Fleet's imports, with its purpose, write-once — see [Fleet governance](fleet-governance.md) |
 
@@ -380,7 +381,7 @@ describes that table.
 | `_audit_ses_event` (`suppress=true`)  | Hard bounce and complaint records deleted after `SES_SUPPRESSION_RETENTION_DAYS` days (policy: **7 years / 2557 days**)                |
 | `contact_request`                     | Email masked after `CONTACT_REQUEST_EMAIL_MASK_RETENTION_DAYS` days; record deleted after `CONTACT_REQUEST_RECORD_RETENTION_DAYS` days |
 | `user_refresh_token`                  | Expired and revoked tokens deleted nightly                                                                                             |
-| `user`, `user_profile`, `account`, `character` | Soft-deleted immediately on account closure; hard-deleted by cron after `CLOSED_ACCOUNT_RETENTION_DAYS` (validated to be >= `AUDIT_DATA_NUKE_THRESHOLD_DAYS`) |
+| `user`, `user_profile`, `account`, `character` | Soft-deleted immediately on account closure; hard-deleted by cron after `CLOSED_ACCOUNT_RETENTION_DAYS` (validated to be >= `AUDIT_DATA_NUKE_THRESHOLD_DAYS`). An account whose chat messages are held waits for the hold's release; an open Community it still owns is handed to an Admin or closed first, and a closed one keeps no Owner; its own pictures are taken down from Cloudflare (FC-037, FC-038) |
 | `custom_tracking_*` | Soft-deleted immediately; hard-deleted after **180 days** by `CustomTrackingCleanupService`, except options still referenced by a retained value, which the `ON DELETE RESTRICT` foreign key protects for as long as the reference lasts. Purged in full, ahead of the user row, when a closed account is erased |
 | `custom_tracking_image_cleanup` | A queue, not a record: a row exists only between a Cloudflare picture losing its last reference and Cloudflare confirming the deletion. Drained nightly and after every change that orphans a picture |
 | `chat_message` | Deleted after `CHAT_RETENTION_DAYS` days (policy: **45 days**) by a daily job; never read by members after four hours, nor by a transcript after seven days. A member whose messages a site admin holds keeps theirs until the hold is released (FC-036) |
@@ -391,6 +392,8 @@ describes that table.
 | `news_post` (scoped), `character_fleet_membership` | Soft-deleted first; hard-deleted **30 days** later by a daily job (FC-037). The site's own news is not purged |
 | `activity_event` | Deleted after **twelve months** by a daily job |
 | `retention_run` | One row per run of a Fleet retention job; deleted after **a year** (FC-037) |
+| `roster_erasure` | Kept: it is the suppression list, and its markers are also in the erasure ledger outside the database (FC-038) |
+| `_audit` for chat, roster, news and form content | Identifiers only (FC-038) |
 | `fleet_investigation_grant` | Kept as the record of each look; it goes with its Fleet |
 
 The Custom Tracking window is a constant rather than an environment variable,

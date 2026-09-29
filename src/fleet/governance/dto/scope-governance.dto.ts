@@ -80,8 +80,14 @@ export class DelegableCapabilityDto {
 
 /** Who governs a Community or Fleet, for its Manage pages. */
 export class ScopeRolesDto {
-  @ApiProperty({ type: GovernancePersonDto, description: 'The Owner.' })
-  owner: GovernancePersonDto;
+  @ApiProperty({
+    type: GovernancePersonDto,
+    nullable: true,
+    description:
+      'The Owner, or null for a closed Community whose Owner’s account was ' +
+      'erased (FC-038).',
+  })
+  owner: GovernancePersonDto | null;
 
   @ApiProperty({
     description: 'Whether the reader may change any of this.',

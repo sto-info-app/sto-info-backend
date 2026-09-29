@@ -29,4 +29,14 @@ export enum RosterImportActionKind {
 
   /** It was selected as the roster at a moment several exports claim. */
   CONFLICT_SELECTED = 'CONFLICT_SELECTED',
+  /**
+   * Its file was deleted at the end of its retention while it was held, so
+   * it was retired and can no longer be selected (FC-037). The system's.
+   */
+  SOURCE_EXPIRED = 'SOURCE_EXPIRED',
+  /**
+   * Its file was deleted by a verified erasure while it was held, so it was
+   * retired and can no longer be selected (FC-038). The system's.
+   */
+  SOURCE_ERASED = 'SOURCE_ERASED',
 }

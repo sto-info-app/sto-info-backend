@@ -6,8 +6,12 @@ import { jest } from '@jest/globals';
 import { Repository } from 'typeorm';
 
 import { CustomTrackingPurgeService } from 'src/custom-tracking/retention/custom-tracking-purge.service';
+import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
+import { AssetWithdrawalService } from 'src/file-assets/services/asset-withdrawal.service';
+import { ModerationHoldEntity } from 'src/fleet/chat/holds/moderation-hold.entity';
 import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
+import { ACCOUNT_DEPARTURE } from 'src/user/account-departure';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
 
@@ -21,6 +25,11 @@ describe('UserAccountCleanupService', () => {
   let accountRepository: Repository<AccountEntity>;
   let loggerLogSpy: jest.SpiedFunction<(...args: any[]) => any>;
   let purgeUsers: jest.Mock<(userIds: string[]) => Promise<unknown>>;
+  let managerFind: jest.Mock<(entity: unknown) => Promise<unknown[]>>;
+  let depart: jest.Mock<(userId: string) => Promise<unknown[]>>;
+  let withdrawByReference: jest.Mock<
+    (reference: string, reason: string) => Promise<unknown>
+  >;
 
   const createDeleteQueryBuilder = () => {
     const queryBuilder = {
@@ -33,6 +42,12 @@ describe('UserAccountCleanupService', () => {
   };
 
   beforeEach(async () => {
+    managerFind = jest.fn(async () => []);
+    depart = jest.fn(async () => []);
+    withdrawByReference = jest.fn(async () => ({
+      deleted: true,
+      revoked: true,
+    }));
     purgeUsers = jest.fn(async () => ({
       sections: 1,
       tabs: 1,
@@ -50,6 +65,11 @@ describe('UserAccountCleanupService', () => {
           provide: CustomTrackingPurgeService,
           useValue: { purgeUsers },
         },
+        {
+          provide: AssetWithdrawalService,
+          useValue: { withdrawByReference },
+        },
+        { provide: ACCOUNT_DEPARTURE, useValue: { depart } },
         {
           provide: getRepositoryToken(UserEntity),
           useValue: {
@@ -196,6 +216,161 @@ describe('UserAccountCleanupService', () => {
       expect(loggerLogSpy).toHaveBeenCalledWith(
         expect.stringContaining('1 image(s) queued'),
       );
+    });
+
+    /**
+     * Makes every delete succeed.
+     */
+    const deletable = (): void => {
+      for (const repository of [
+        userRefreshTokenRepository,
+        userProfileRepository,
+        accountRepository,
+        userRepository,
+      ]) {
+        (
+          repository.createQueryBuilder as jest.Mock<(...args: any[]) => any>
+        ).mockReturnValue(createDeleteQueryBuilder());
+      }
+    };
+
+    // FC-037 and FC-038: a held member's messages would go with the next
+    // chat purge, so they wait for the hold.
+    it('keeps accounts whose messages are held until the hold ends', async () => {
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+
+      (
+        userRepository.find as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue([{ id: 'u1' }, { id: 'u2' }]);
+      managerFind.mockImplementation(async entity =>
+        entity === ModerationHoldEntity
+          ? [{ id: 'h1', subjectUserId: 'u2' }]
+          : [],
+      );
+      deletable();
+
+      await service.cleanup();
+
+      expect(purgeUsers).toHaveBeenCalledWith(['u1']);
+      expect(depart).toHaveBeenCalledWith('u1');
+      expect(depart).not.toHaveBeenCalledWith('u2');
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('Kept 1 closed account(s)'),
+      );
+      warn.mockRestore();
+    });
+
+    // FC-038: an account closed before its Communities were handed on has
+    // them handed on, or closed, before it goes.
+    it('hands on any Community an account still owns, keeping it when that fails', async () => {
+      const error = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+
+      (
+        userRepository.find as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue([{ id: 'u1' }, { id: 'u2' }, { id: 'u3' }]);
+      depart
+        .mockResolvedValueOnce([])
+        .mockRejectedValueOnce(new Error('owner limit'))
+        .mockRejectedValueOnce('down');
+      deletable();
+
+      await service.cleanup();
+
+      expect(depart).toHaveBeenCalledTimes(3);
+      expect(purgeUsers).toHaveBeenCalledWith(['u1']);
+      expect(error).toHaveBeenCalledWith(
+        expect.stringContaining('UserId: u2'),
+        expect.any(String),
+      );
+      expect(error).toHaveBeenCalledWith(
+        expect.stringContaining('UserId: u3'),
+        'down',
+      );
+      error.mockRestore();
+    });
+
+    it('deletes nothing when every account due is kept', async () => {
+      jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      (
+        userRepository.find as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue([{ id: 'u1' }]);
+      managerFind.mockImplementation(async entity =>
+        entity === ModerationHoldEntity
+          ? [{ id: 'h1', subjectUserId: 'u1' }]
+          : [],
+      );
+
+      await service.cleanup();
+
+      expect(purgeUsers).not.toHaveBeenCalled();
+      expect(loggerLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('No closed accounts eligible'),
+      );
+    });
+
+    // FC-038: the objects their own pictures were served from go too.
+    it('withdraws their own pictures, reporting one it cannot', async () => {
+      const error = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+
+      (
+        userRepository.find as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue([{ id: 'u1' }]);
+      managerFind.mockImplementation(async entity =>
+        entity === FileAssetEntity
+          ? [
+              { id: 'a1', deliveryReference: 'r1' },
+              { id: 'a2', deliveryReference: 'r2' },
+              { id: 'a3', deliveryReference: 'r3' },
+            ]
+          : [],
+      );
+      withdrawByReference
+        .mockResolvedValueOnce({ deleted: true, revoked: true })
+        .mockRejectedValueOnce(new Error('Cloudflare down'))
+        .mockRejectedValueOnce('down');
+      deletable();
+
+      await service.cleanup();
+
+      expect(withdrawByReference).toHaveBeenCalledWith(
+        'r1',
+        'The account was erased',
+      );
+      expect(loggerLogSpy).toHaveBeenCalledWith(
+        'Withdrew 1 of 3 picture(s) of closed account(s).',
+      );
+      expect(error).toHaveBeenCalledWith(
+        'Picture not withdrawn - AssetId: a3',
+        'down',
+      );
+      error.mockRestore();
+    });
+
+    it('erases without the Fleet when it is not there to ask', async () => {
+      const bare = new UserAccountCleanupService(
+        userRepository,
+        userProfileRepository,
+        userRefreshTokenRepository,
+        accountRepository,
+        { purgeUsers } as unknown as CustomTrackingPurgeService,
+        { withdrawByReference } as unknown as AssetWithdrawalService,
+      );
+
+      (
+        userRepository.find as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue([{ id: 'u1' }]);
+      deletable();
+
+      await bare.cleanup();
+
+      expect(purgeUsers).toHaveBeenCalledWith(['u1']);
+      expect(depart).not.toHaveBeenCalled();
     });
 
     it('asks for no purge when nothing is eligible', async () => {

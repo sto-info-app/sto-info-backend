@@ -709,4 +709,69 @@ describe('OwnershipTransferService', () => {
       );
     });
   });
+
+  describe("on the Owner's departure (FC-038)", () => {
+    const REASON = 'The Owner closed their STO Info account.';
+
+    it('hands it to the longest-serving Admin who can take it, and tells them', async () => {
+      admins = [{ userId: OWNER_ID }, { userId: ADMIN_ID }];
+
+      await expect(
+        service.handToSuccessor(COMMUNITY_ID, OWNER_ID, REASON),
+      ).resolves.toBe(ADMIN_ID);
+      expect(community!.ownerUserId).toBe(ADMIN_ID);
+      expect(logged(ScopeGovernanceActionKind.OWNERSHIP_REASSIGNED)).toEqual([
+        expect.objectContaining({
+          actorUserId: OWNER_ID,
+          subjectUserId: ADMIN_ID,
+          reason: REASON,
+        }),
+      ]);
+      expect(bump).toHaveBeenCalled();
+      expect(createNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: ADMIN_ID,
+          title: 'You are now the Owner of Fixture Community',
+          linkUrl: 'https://sto.example/fleets/communities/fixture-community',
+        }),
+      );
+    });
+
+    it('passes over an Admin whose account is closed or who owns the most allowed', async () => {
+      admins = [{ userId: ADMIN_ID }, { userId: OTHER_ID }];
+      manager.exists.mockImplementation((_entity: unknown, options: unknown) =>
+        Promise.resolve(
+          (options as { where: { id?: string } }).where.id !== ADMIN_ID,
+        ),
+      );
+      manager.count.mockResolvedValue(10);
+
+      await expect(
+        service.handToSuccessor(COMMUNITY_ID, OWNER_ID, REASON),
+      ).resolves.toBeNull();
+      expect(community!.ownerUserId).toBe(OWNER_ID);
+      expect(record).not.toHaveBeenCalled();
+      expect(createNotification).not.toHaveBeenCalled();
+    });
+
+    it('keeps the hand-over when the notice cannot be sent, or has nowhere to link', async () => {
+      delete process.env.APP_FRONTEND_URL;
+      createNotification.mockRejectedValue(new Error('down'));
+
+      await expect(
+        service.handToSuccessor(COMMUNITY_ID, OWNER_ID, REASON),
+      ).resolves.toBe(ADMIN_ID);
+      expect(createNotification).toHaveBeenCalledWith(
+        expect.not.objectContaining({ linkUrl: expect.anything() }),
+      );
+    });
+
+    it('shows a closed Community whose Owner was erased as having none', async () => {
+      community = { ...community!, ownerUserId: null };
+
+      await expect(service.disputeView(COMMUNITY_ID)).resolves.toEqual(
+        expect.objectContaining({ owner: null }),
+      );
+    });
+  });
 });

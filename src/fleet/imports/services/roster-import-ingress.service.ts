@@ -21,6 +21,7 @@ import { QuarantineStorageService } from 'src/file-assets/services/quarantine-st
 import { ScanRequestProducerService } from 'src/file-scanning/services/scan-request-producer.service';
 
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
+import { RosterSuppressionService } from '../../erasure/roster-suppression.service';
 import { FleetPolicyService } from '../../fleet-policy.service';
 import {
   boundDeclaredContentType,
@@ -192,6 +193,7 @@ export class RosterImportIngressService {
    * @param _quarantineStorage - The private bucket.
    * @param _policyService - Supplies the published retention window.
    * @param _conflicts - Groups exports that claim the same moment.
+   * @param _suppression - Rewrites rows naming somebody erased (FC-038).
    */
   constructor(
     @InjectRepository(RosterImportSourceEntity)
@@ -205,6 +207,7 @@ export class RosterImportIngressService {
     private readonly _scanRequestProducer: ScanRequestProducerService,
     private readonly _policyService: FleetPolicyService,
     private readonly _conflicts: RosterImportConflictService,
+    private readonly _suppression: RosterSuppressionService,
   ) {}
 
   /**
@@ -243,7 +246,12 @@ export class RosterImportIngressService {
         return this.repeat(earlier, input.timezone, settled);
       }
 
-      const sanitised = this._parser.sanitise(input.source);
+      // Erased members are rewritten before anything is stored, the
+      // sanitised file included (FC-038).
+      const sanitised = this._parser.sanitise(
+        input.source,
+        await this._suppression.scrubber(),
+      );
 
       this.assertRowsReadable(sanitised.csv, input.timezone);
 

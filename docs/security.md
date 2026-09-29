@@ -822,6 +822,12 @@ what somebody wrote, so no later edit can start logging it by accident. The
 reason a value was refused is deliberately not recorded either — validation
 messages name the rule, and one of them could one day name the value.
 
+Fleet content goes further (FC-038). Chat, roster, news and form-content
+entities are marked `@AuditIdentifiersOnly()`, so the audit trail keeps their
+`id` and every `…Id` and nothing a person wrote; Sentry and LogRocket never see
+a request's body, and replays mask every text and input. See
+[Privacy: erasure, departures and telemetry](privacy-erasure.md#telemetry).
+
 The same rule holds in the audit trail. Value fragments and picture
 descriptions are marked `@RedactFromAudit()`, so they are not copied into a
 second table with a different retention period and a different set of readers,

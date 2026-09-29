@@ -496,6 +496,13 @@ messages in each; a scope admin's transcripts, members' reports of messages, and
 queue of those reports (`/admin/chat-reports`). See [Fleet chat](fleet-chat.md#routes) for every
 route and who may call it.
 
+### Privacy
+
+The site admins' verified erasure of roster data (`/admin/roster-erasures`, with a preview and the
+ledger replay run after a restore), and what closing an account does to the Fleet Communities it
+owns (`GET /user/close-account/communities`). See
+[Privacy: erasure](privacy-erasure.md#routes) for every route and who may call it.
+
 ### POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports
 
 Upload an STO roster export for a Fleet.

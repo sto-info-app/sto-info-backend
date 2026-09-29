@@ -306,7 +306,9 @@ export class OwnershipTransferService {
         );
       }
 
-      const formerOwnerId = community.ownerUserId;
+      // An open Community always has an Owner: only a closed one may have
+      // none (CHK_fleet_community_owner_closed).
+      const formerOwnerId = community.ownerUserId!;
 
       await this.handOver(manager, community, actorUserId, now);
 
@@ -400,16 +402,17 @@ export class OwnershipTransferService {
     const manager = this._dataSource.manager;
     const community = await this.findCommunity(manager, communityId);
     const open = await this.openOffer(manager, communityId);
-    const names = await usernamesFor(manager, [community.ownerUserId]);
+    const ownerId = community.ownerUserId;
+    const names = await usernamesFor(manager, [ownerId]);
 
     return {
       communityId: community.id,
       name: community.name,
       status: community.status,
-      owner: {
-        userId: community.ownerUserId,
-        username: names.get(community.ownerUserId) ?? null,
-      },
+      owner:
+        ownerId === null
+          ? null
+          : { userId: ownerId, username: names.get(ownerId) ?? null },
       admins: await this.admins(manager, communityId),
       offer:
         open !== null &&
@@ -473,6 +476,108 @@ export class OwnershipTransferService {
       `[reassign] Ownership moved by a site administrator - ` +
         `CommunityId: ${communityId}`,
     );
+  }
+
+  /**
+   * Hands a Community to its longest-serving Admin who can take it, when its
+   * Owner closes their account (FC-038). Logged as a reassignment by the
+   * departing Owner, with the reason; they keep no role. The new Owner is
+   * told.
+   *
+   * @param communityId - The Community.
+   * @param fromUserId - The departing Owner.
+   * @param reason - Why.
+   * @returns The new Owner, or null when no Admin can take it.
+   */
+  async handToSuccessor(
+    communityId: string,
+    fromUserId: string,
+    reason: string,
+  ): Promise<string | null> {
+    const handed = await this._dataSource.transaction(async manager => {
+      const community = await this.lockCommunity(manager, communityId);
+      const toUserId = await this.successorFor(
+        manager,
+        communityId,
+        fromUserId,
+      );
+
+      if (toUserId === null) {
+        return null;
+      }
+
+      await this.cancelOpenWithin(manager, communityId, {
+        actorUserId: fromUserId,
+      });
+      await this.handOver(manager, community, toUserId, new Date());
+      await this._log.record(manager, {
+        scope: communityScope(communityId),
+        action: ScopeGovernanceActionKind.OWNERSHIP_REASSIGNED,
+        actorUserId: fromUserId,
+        subjectUserId: toUserId,
+        reason,
+      });
+      await this._revisionService.bump(
+        FleetScopeKind.COMMUNITY,
+        communityId,
+        manager,
+      );
+
+      return { community, toUserId };
+    });
+
+    if (handed === null) {
+      return null;
+    }
+
+    this._logger.log(
+      `[handToSuccessor] Ownership handed on as its Owner left - ` +
+        `CommunityId: ${communityId}`,
+    );
+    await this.notifySuccessor(handed.community, handed.toUserId);
+
+    return handed.toUserId;
+  }
+
+  /**
+   * The Admin who would take a Community on its Owner's departure: the
+   * longest-serving whose account is open and who owns fewer than the most
+   * Communities allowed.
+   *
+   * @param manager - The manager.
+   * @param communityId - The Community.
+   * @param departingUserId - The Owner leaving.
+   * @returns Their ID, or null when none can.
+   */
+  async successorFor(
+    manager: EntityManager,
+    communityId: string,
+    departingUserId: string,
+  ): Promise<string | null> {
+    const admins = await manager.find(ScopeRoleAssignmentEntity, {
+      where: {
+        ...atExactly<ScopeRoleAssignmentEntity>(communityScope(communityId)),
+        role: FleetScopeRole.ADMIN,
+        validTo: IsNull(),
+      },
+      order: { validFrom: 'ASC', id: 'ASC' },
+    });
+
+    for (const admin of admins) {
+      if (
+        admin.userId !== departingUserId &&
+        (await manager.exists(UserEntity, {
+          where: { id: admin.userId, disabledAt: IsNull() },
+        })) &&
+        (await manager.count(FleetCommunityEntity, {
+          where: { ownerUserId: admin.userId },
+        })) < MAX_FLEET_COMMUNITIES_PER_OWNER
+      ) {
+        return admin.userId;
+      }
+    }
+
+    return null;
   }
 
   /**
@@ -763,6 +868,40 @@ export class OwnershipTransferService {
       expiresAt: offer.expiresAt,
       answeredAt: offer.answeredAt,
     };
+  }
+
+  /**
+   * Tells the new Owner of a Community whose Owner left, reporting rather
+   * than throwing: the change stands either way.
+   *
+   * @param community - The Community.
+   * @param toUserId - The new Owner.
+   */
+  private async notifySuccessor(
+    community: FleetCommunityEntity,
+    toUserId: string,
+  ): Promise<void> {
+    const frontendUrl = process.env.APP_FRONTEND_URL;
+
+    try {
+      await this._notificationService.createNotification({
+        target: NotificationTarget.USER,
+        userId: toUserId,
+        severity: NotificationSeverity.INFO,
+        title: `You are now the Owner of ${community.name}`,
+        body:
+          `${community.name}'s Owner closed their STO Info account, so ` +
+          'ownership passed to you as its longest-serving Admin.',
+        ...(frontendUrl
+          ? { linkUrl: `${frontendUrl}/fleets/communities/${community.slug}` }
+          : {}),
+      });
+    } catch (error) {
+      this._logger.warn(
+        `[notifySuccessor] The notification was not sent - CommunityId: ` +
+          `${community.id}, Reason: ${(error as Error).name}`,
+      );
+    }
   }
 
   /**

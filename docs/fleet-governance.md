@@ -51,10 +51,62 @@ For an Owner who has vanished or a Community that has been reported, a site admi
 
 - move ownership to one of the Community's Admins, with no acceptance; the former Owner keeps no
   role, and the new Owner may appoint them later;
-- close the Community.
+- close the Community, or one of its Fleets or Armadas (FC-036);
+- suspend or reinstate the Community, or one of its Fleets or Armadas (FC-036; see
+  [Suspension](#suspension));
+- look into one of its Fleets' imports, read-only, for 24 hours (FC-036; see
+  [A site administrator's look into a Fleet](#a-site-administrators-look-into-a-fleet)).
 
-Both need a reason and are logged as a site administrator's (`asSiteAdmin`). A site administrator
-holds no scoped capability, and these are the only two things they can do here.
+Each needs a reason, or for a look a purpose, and each is logged as a site administrator's
+(`asSiteAdmin`).
+
+**Competing registrations (FC-036).** The dispute view lists each of the Community's Fleets and
+Armadas with every other registration of the same exact name on the same platform, private ones
+included, freshest first (`DisputeRegistrationsService`). Each shows where it came from: its
+Community and that Community's Owner, when it was registered, its last roster import, its approved
+members and who may see it. R02: STO Info cannot verify who leads a Fleet in the game, so nothing
+here says which registration is real, and the page says so.
+
+### An Owner closing their account
+
+FC-038, Steve's decision of 29 September 2026. Each open Community goes to its longest-serving
+Admin who can take it, logged as a reassignment by the departing Owner, with the reason "The Owner
+closed their STO Info account."; the new Owner is told. One no Admin can take is closed. The
+closure dialog says which first. A closed Community keeps no Owner once the account is erased. See
+[Privacy: erasure](privacy-erasure.md#an-owner-closing-their-account).
+
+### Suspension
+
+FC-036, Steve's decision of 29 September 2026. A site administrator suspends a Community, Fleet or
+Armada, with a reason, and reinstates it with another (`ScopeSuspensionService`).
+
+- A suspended scope stays readable and accepts nothing new: the resolver withdraws every mutating
+  capability there, as it does at a closed one, so nothing changes and nobody posts in its chat. A
+  Community's suspension reaches its Fleets and Armadas.
+- Unlike closure it ends nothing: roles, grants, memberships and events stand, and come back into
+  force when it is reinstated.
+- Only a site administrator suspends or reinstates a scope (`CHK_scope_governance_action_suspension`),
+  and never a closed one. Suspending what is suspended, or reinstating what is active, changes
+  nothing.
+- Suspending a member, by a holder of `members.manage`, is recruitment's; see
+  [Fleet recruitment](fleet-recruitment.md#leaving-and-removal).
+
+### A site administrator's look into a Fleet
+
+FC-036, Steve's decision of 29 September 2026. A site administrator gives a purpose (10 to 500
+characters) on the dispute page, and may then read that Fleet's Investigate pages for 24 hours:
+its imports and their rows, conflicting exports, identity decisions and rank order. They change
+nothing, and there is still no way to see a raw roster file.
+
+- The grant is a row in `fleet_investigation_grant` (write-once): who, which Fleet, why and until
+  when. It is the record of the look.
+- While it runs, the resolver gives that site administrator `roster.investigate.read` at that
+  Fleet and nowhere else. It is not delegable, is in no role's baseline, and the grant confers it,
+  not the site role. The Investigate read routes accept it beside `roster.investigate`; every
+  correction route still needs `roster.investigate`.
+- The audience rules let them open that Fleet's pages, and its Community's, while it runs.
+- `GET /admin/fleet-investigations` lists every look, newest first, and `…/mine` the caller's
+  open ones.
 
 ## Roles and delegation
 

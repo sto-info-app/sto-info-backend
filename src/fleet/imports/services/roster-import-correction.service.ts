@@ -734,7 +734,9 @@ export class RosterImportCorrectionService {
    * Refuses an import that is neither in force nor held.
    *
    * One still being scanned, refused or given up on has never counted and
-   * never will, so there is nothing for a correction to change.
+   * never will, so there is nothing for a correction to change; nor has one
+   * retired when its file expired (FC-037) or was erased (FC-038) while it
+   * was held.
    *
    * @param manager - The transaction.
    * @param record - The import.
@@ -745,6 +747,13 @@ export class RosterImportCorrectionService {
     record: RosterImportSourceEntity,
   ): Promise<void> {
     const state = await this.placementState(manager, record);
+
+    if (state === FileAssetPlacementState.WITHDRAWN) {
+      throw new ConflictException(
+        'This export’s file has been deleted, so it can no longer be ' +
+          'selected or corrected.',
+      );
+    }
 
     if (state === null || !CORRECTABLE.includes(state)) {
       throw new ConflictException(

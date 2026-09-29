@@ -145,10 +145,11 @@ export class ArmadaNotifierService {
           },
         ],
       });
-      const recipients = new Set([
-        fleet.ownerUserId,
-        ...admins.map(admin => admin.userId),
-      ]);
+      const recipients = new Set(
+        [fleet.ownerUserId, ...admins.map(admin => admin.userId)].filter(
+          (userId): userId is string => userId !== null,
+        ),
+      );
 
       recipients.delete(actorUserId);
 
@@ -207,7 +208,7 @@ export class ArmadaNotifierService {
    */
   private async fleetWithLink(fleetId: string): Promise<{
     fleet: StoFleetEntity;
-    ownerUserId: string;
+    ownerUserId: string | null;
     link: string | null;
   } | null> {
     const manager = this._dataSource.manager;

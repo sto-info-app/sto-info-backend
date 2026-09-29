@@ -27,6 +27,7 @@ import { RosterHoldReason } from '../enums/roster-hold-reason.enum';
 import { RosterImportConflictFilter } from '../enums/roster-import-conflict-filter.enum';
 import { RosterImportStatus } from '../enums/roster-import-status.enum';
 import { RosterPublicationRejectionCode } from '../enums/roster-publication-rejection-code.enum';
+import { ROSTER_SOURCE_ERASED_REASON } from './roster-source-retention.service';
 
 /**
  * What a refusal is reported as when this feature did not make it.
@@ -525,6 +526,18 @@ export class RosterImportStatusService {
       return { status: RosterImportStatus.ABANDONED, reason: null };
     }
 
+    // Only retention (FC-037) and erasure (FC-038) withdraw a roster
+    // import's placement, and the registry says which.
+    if (placement?.state === FileAssetPlacementState.WITHDRAWN) {
+      return {
+        status:
+          asset.revocationReason === ROSTER_SOURCE_ERASED_REASON
+            ? RosterImportStatus.ERASED
+            : RosterImportStatus.EXPIRED,
+        reason: null,
+      };
+    }
+
     if (asset.state === FileAssetState.REJECTED) {
       return {
         status: RosterImportStatus.REFUSED,
@@ -553,7 +566,7 @@ export class RosterImportStatusService {
 
     // Nothing writes any other combination today: a cleared file with no
     // placement to publish into, bytes deleted from under a pending import,
-    // a placement superseded or withdrawn. Whatever it is, nothing will move
+    // a placement superseded. Whatever it is, nothing will move
     // it on, which is what ABANDONED says; and it is logged, because it means
     // something upstream did what this was never told it could.
     this._logger.warn(

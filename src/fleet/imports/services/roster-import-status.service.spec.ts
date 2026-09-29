@@ -30,6 +30,7 @@ import {
   RosterImportStatusService,
   SCAN_REFUSED,
 } from './roster-import-status.service';
+import { ROSTER_SOURCE_ERASED_REASON } from './roster-source-retention.service';
 
 const FLEET_ID = 'fleet-1';
 const UPLOADED_AT = new Date('2026-09-19T00:00:00.000Z');

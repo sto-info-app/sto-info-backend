@@ -89,8 +89,15 @@ describe('Roster import action schema alignment', () => {
     }
   });
 
-  it('gives the enum exactly the actions the entity knows', () => {
+  // FC-037's and FC-038's migrations add SOURCE_EXPIRED and SOURCE_ERASED;
+  // the retention spec holds those.
+  it('gives the enum exactly the actions the entity knew then', () => {
     const values = Object.values(RosterImportActionKind)
+      .filter(
+        value =>
+          value !== RosterImportActionKind.SOURCE_EXPIRED &&
+          value !== RosterImportActionKind.SOURCE_ERASED,
+      )
       .map(value => `'${value}'`)
       .join(', ');
 

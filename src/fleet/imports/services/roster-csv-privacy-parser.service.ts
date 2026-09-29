@@ -141,12 +141,17 @@ export class RosterCsvPrivacyParserService {
    *
    * @param source - The bytes as received. Not retained, not copied and not
    *   returned; the caller disposes of them.
+   * @param scrub - Rewrites a row that names somebody erased (FC-038), before
+   *   it is written into the sanitised file.
    * @returns The sanitised CSV and what is worth recording about the source.
    * @throws RosterCsvRejectedError when the upload does not satisfy the
    *   grammar or exceeds a limit. The error carries a code and a line number
    *   and no content.
    */
-  sanitise(source: Buffer): SanitisedRoster {
+  sanitise(
+    source: Buffer,
+    scrub: (row: readonly string[]) => string[] = row => [...row],
+  ): SanitisedRoster {
     const lines = this.splitLines(this.decode(source));
 
     this.assertLineIsSafe(lines[0], 1);
@@ -178,7 +183,7 @@ export class RosterCsvPrivacyParserService {
 
       const row = this.readRow(line, lineNumber, headerShape);
 
-      rows.push(row.values);
+      rows.push(scrub(row.values));
 
       if (row.hasOfficerTail) {
         officerTailRowCount += 1;

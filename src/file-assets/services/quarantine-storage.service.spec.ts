@@ -6,6 +6,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -130,6 +131,45 @@ describe('QuarantineStorageService', () => {
       expect(command).toBeInstanceOf(DeleteObjectCommand);
       expect(command.input.Bucket).toBe('sto-info-quarantine-local');
       expect(command.input.Key).toBe('local/assets/a');
+    });
+  });
+
+  describe('read (FC-038)', () => {
+    it('reads a whole object into one buffer', async () => {
+      s3Client.send.mockResolvedValueOnce({
+        Body: Readable.from([Buffer.from('ab'), 'cd']),
+      });
+
+      await expect(service.read('local/x', null)).resolves.toEqual(
+        Buffer.from('abcd'),
+      );
+    });
+  });
+
+  describe('listKeys (FC-038)', () => {
+    it('lists every key under a prefix, page by page', async () => {
+      s3Client.send
+        .mockResolvedValueOnce({
+          Contents: [{ Key: 'p/a' }, {}],
+          IsTruncated: true,
+          NextContinuationToken: 't2',
+        })
+        .mockResolvedValueOnce({ IsTruncated: false });
+
+      await expect(service.listKeys('p/')).resolves.toEqual(['p/a']);
+
+      const first = s3Client.send.mock.calls[0][0] as ListObjectsV2Command;
+      const second = s3Client.send.mock.calls[1][0] as ListObjectsV2Command;
+
+      expect(first).toBeInstanceOf(ListObjectsV2Command);
+      expect(first.input).toEqual(
+        expect.objectContaining({
+          Bucket: 'sto-info-quarantine-local',
+          Prefix: 'p/',
+          ContinuationToken: undefined,
+        }),
+      );
+      expect(second.input.ContinuationToken).toBe('t2');
     });
   });
 

@@ -189,6 +189,10 @@ The secret referenced by `AWS_SECRET_NAME` is expected to be JSON with at least:
 - `cloudflareR2QuarantineSecret`: Reads and writes the private quarantine bucket
 - `cloudflareR2ExportsAccessKey`: Reads, writes and deletes the private exports bucket (FC-035)
 - `cloudflareR2ExportsSecret`: Reads, writes and deletes the private exports bucket (FC-035)
+- `rosterErasureKey`: Keys the HMAC of every erased Character name and @handle (FC-038). A long
+  random string, kept for good: without it the suppression list can't be matched, erasure answers
+  503, and once anybody is erased a roster upload is refused. See
+  [Privacy: erasure](privacy-erasure.md#verified-roster-erasure)
 
 Locally, the two exports keys are the MinIO credentials, as the quarantine keys are.
 

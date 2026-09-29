@@ -17,8 +17,14 @@ export class FleetCommunityDto {
   @ApiProperty({ description: 'Unique identifier.' })
   id: string;
 
-  @ApiProperty({ description: 'The user who owns this Community.' })
-  ownerUserId: string;
+  @ApiProperty({
+    description:
+      'The user who owns this Community, or null for a closed one whose ' +
+      'Owner’s account was erased (FC-038).',
+    nullable: true,
+    type: String,
+  })
+  ownerUserId: string | null;
 
   @ApiProperty({ description: 'Display name, as the owner wrote it.' })
   name: string;

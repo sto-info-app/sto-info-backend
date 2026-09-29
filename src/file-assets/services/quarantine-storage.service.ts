@@ -6,6 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -152,6 +153,53 @@ export class QuarantineStorageService {
     );
 
     this._logger.log(`[remove] Removed from quarantine - Key: ${objectKey}`);
+  }
+
+  /**
+   * Reads a whole object.
+   *
+   * @param objectKey - The key.
+   * @param objectVersion - The version, when the store gave one.
+   * @returns Its bytes.
+   */
+  async read(objectKey: string, objectVersion: string | null): Promise<Buffer> {
+    const chunks: Buffer[] = [];
+
+    for await (const chunk of await this.getStream(objectKey, objectVersion)) {
+      chunks.push(Buffer.from(chunk as Buffer));
+    }
+
+    return Buffer.concat(chunks);
+  }
+
+  /**
+   * Lists every key under a prefix, a page at a time.
+   *
+   * @param prefix - The prefix.
+   * @returns The keys, in the store's order.
+   */
+  async listKeys(prefix: string): Promise<string[]> {
+    const keys: string[] = [];
+    let token: string | undefined;
+
+    do {
+      const page = await this._s3Client.send(
+        new ListObjectsV2Command({
+          Bucket: this._bucketName,
+          Prefix: prefix,
+          ContinuationToken: token,
+        }),
+      );
+
+      keys.push(
+        ...(page.Contents ?? [])
+          .map(object => object.Key)
+          .filter((key): key is string => key !== undefined),
+      );
+      token = page.IsTruncated ? page.NextContinuationToken : undefined;
+    } while (token !== undefined);
+
+    return keys;
   }
 
   /**

@@ -4,6 +4,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { FleetNameAliasEntity } from '../../entities/fleet-name-alias.entity';
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
+import { RosterSuppressionService } from '../../erasure/roster-suppression.service';
 import { ROSTER_PREVIEW_SAMPLE_ROWS } from '../constants/roster-typed.constants';
 import { RosterDateResolution } from '../enums/roster-date-resolution.enum';
 import { RosterFilenameRejectionCode } from '../enums/roster-filename-rejection-code.enum';
@@ -128,6 +129,14 @@ describe('RosterImportPreviewService', () => {
         {
           provide: getRepositoryToken(FleetNameAliasEntity),
           useValue: { find: jest.fn(() => Promise.resolve([])) },
+        },
+        {
+          provide: RosterSuppressionService,
+          useValue: {
+            scrubber: jest.fn(() =>
+              Promise.resolve((row: readonly string[]) => [...row]),
+            ),
+          },
         },
       ],
     }).compile();

@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
+import { RosterSuppressionService } from '../../erasure/roster-suppression.service';
 import { ROSTER_PREVIEW_SAMPLE_ROWS } from '../constants/roster-typed.constants';
 import {
   RosterImportPreviewDto,
@@ -85,11 +86,13 @@ export class RosterImportPreviewService {
    * @param _typedParser - The reader that turns the sanitised file into
    *   values.
    * @param _identityService - Reads the filename against the Fleet.
+   * @param _suppression - Rewrites rows naming somebody erased (FC-038).
    */
   constructor(
     private readonly _parser: RosterCsvPrivacyParserService,
     private readonly _typedParser: RosterTypedParserService,
     private readonly _identityService: RosterExportIdentityService,
+    private readonly _suppression: RosterSuppressionService,
   ) {}
 
   /**
@@ -115,7 +118,10 @@ export class RosterImportPreviewService {
       assertRosterFilenameUsable(input.originalFilename);
 
       sourceSha256 = createHash('sha256').update(input.source).digest('hex');
-      sanitised = this._parser.sanitise(input.source);
+      sanitised = this._parser.sanitise(
+        input.source,
+        await this._suppression.scrubber(),
+      );
     } catch (error) {
       if (!(error instanceof RosterCsvRejectedError)) {
         throw error;

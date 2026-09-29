@@ -171,6 +171,18 @@ describe('ArmadaNotifierService', () => {
     );
   });
 
+  it('tells only the Admins of a closed Community whose Owner was erased (FC-038)', async () => {
+    db.rows(FleetCommunityEntity)[0].ownerUserId = null;
+
+    await service.removed('armada-1', ['fleet-1'], 'Inactive', 'manager-1');
+
+    expect(
+      createNotification.mock.calls.map(
+        ([call]: [{ userId: string }]) => call.userId,
+      ),
+    ).toEqual(['fleet-admin', 'community-admin']);
+  });
+
   it('tells nobody of a removal from an Armada or of a Fleet that has gone', async () => {
     await service.removed('missing', ['fleet-1'], 'Inactive', 'manager-1');
     await service.removed('armada-1', ['missing'], 'Inactive', 'manager-1');

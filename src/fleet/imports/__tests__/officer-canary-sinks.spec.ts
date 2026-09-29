@@ -25,6 +25,7 @@ import { ScanRequestProducerService } from 'src/file-scanning/services/scan-requ
 import { FleetAuthorisationService } from '../../authorisation/fleet-authorisation.service';
 import { FleetNameAliasEntity } from '../../entities/fleet-name-alias.entity';
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
+import { RosterSuppressionService } from '../../erasure/roster-suppression.service';
 import { FleetFeatureService } from '../../fleet-feature.service';
 import { FleetPolicyService } from '../../fleet-policy.service';
 import { StoFleetService } from '../../services/sto-fleet.service';
@@ -273,6 +274,11 @@ describe('Officer canary sinks', () => {
       {
         group: jest.fn(() => Promise.resolve(null)),
       } as unknown as RosterImportConflictService,
+      {
+        scrubber: jest.fn(() =>
+          Promise.resolve((row: readonly string[]) => [...row]),
+        ),
+      } as unknown as RosterSuppressionService,
     );
 
     // On a platform the game exports rosters from, because this sweep is
@@ -293,6 +299,11 @@ describe('Officer canary sinks', () => {
       new RosterCsvPrivacyParserService(),
       new RosterTypedParserService(),
       identityService,
+      {
+        scrubber: jest.fn(() =>
+          Promise.resolve((row: readonly string[]) => [...row]),
+        ),
+      } as unknown as RosterSuppressionService,
     );
 
     controller = new RosterImportsController(

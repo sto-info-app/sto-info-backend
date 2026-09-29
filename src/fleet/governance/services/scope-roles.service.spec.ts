@@ -261,6 +261,17 @@ describe('ScopeRolesService', () => {
       });
     });
 
+    it('shows no Owner for a closed Community whose Owner was erased (FC-038)', async () => {
+      authorisation = {
+        ...authorisation,
+        scope: { communityOwnerUserId: null },
+      } as unknown as ScopeAuthorisation;
+
+      await expect(service.view(FLEET, OWNER_ID)).resolves.toEqual(
+        expect.objectContaining({ owner: null }),
+      );
+    });
+
     it('shows an Admin who governs, and nobody to appoint', async () => {
       authorisation = reader([FleetScopeRole.ADMIN]);
 
