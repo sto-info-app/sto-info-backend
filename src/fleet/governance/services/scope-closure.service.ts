@@ -6,11 +6,15 @@ import { DataSource } from 'typeorm';
 import { endFleetForClosure } from '../../armadas/utilities/armada-arrangement.utility';
 import { FleetAuthorisationRevisionService } from '../../authorisation/fleet-authorisation-revision.service';
 import { FleetCommunityEntity } from '../../entities/fleet-community.entity';
+import { StoArmadaEntity } from '../../entities/sto-armada.entity';
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { FleetScopeKind } from '../../enums/fleet-scope-kind.enum';
 import { FleetScopeStatus } from '../../enums/fleet-scope-status.enum';
+import { endEventsForClosure } from '../../events/utilities/event-closure.utility';
+import { StoArmadaService } from '../../services/sto-armada.service';
 import { ScopeGovernanceActionKind } from '../enums/scope-governance-action-kind.enum';
 import {
+  armadaScope,
   communityScope,
   fleetScope,
   requireReason,
@@ -55,6 +59,7 @@ export class ScopeClosureService {
    * @param _log - Records the closure.
    * @param _roles - Ends the roles and grants held there.
    * @param _transfers - Cancels a Community's open ownership offer.
+   * @param _armadas - Closes an Armada, for a site admin (FC-036).
    */
   constructor(
     @InjectDataSource()
@@ -63,6 +68,7 @@ export class ScopeClosureService {
     private readonly _log: ScopeGovernanceLogService,
     private readonly _roles: ScopeRolesService,
     private readonly _transfers: OwnershipTransferService,
+    private readonly _armadas: StoArmadaService,
   ) {}
 
   /**
@@ -188,10 +194,17 @@ export class ScopeClosureService {
         request.actorUserId,
         now,
       );
+      await endEventsForClosure(
+        manager,
+        { communityId, fleetId, armadaId: null },
+        request.actorUserId,
+        now,
+      );
       await this._log.record(manager, {
         scope,
         action: ScopeGovernanceActionKind.CLOSED,
         actorUserId: request.actorUserId,
+        asSiteAdmin: request.asSiteAdmin,
         reason,
       });
       await this._revisionService.bump(FleetScopeKind.FLEET, fleetId, manager);
@@ -202,5 +215,39 @@ export class ScopeClosureService {
     this._logger.log(`[closeFleet] Fleet closed - FleetId: ${fleetId}`);
 
     return closed;
+  }
+
+  /**
+   * Closes an Armada as a site admin, with a reason (FC-036). Its own
+   * closure does the rest, as its Owner's would; this adds the governance
+   * entry, which its Owner's closure has never had.
+   *
+   * @param communityId - The Community holding it.
+   * @param armadaId - The Armada.
+   * @param request - Who, and why.
+   * @returns The Armada, closed.
+   * @throws BadRequestException when no reason is given.
+   * @throws NotFoundException when the Community holds no such Armada.
+   */
+  async closeArmadaAsSiteAdmin(
+    communityId: string,
+    armadaId: string,
+    request: ClosureRequest,
+  ): Promise<StoArmadaEntity> {
+    const reason = requireReason(request.reason, 'Say why it is being closed.');
+
+    return this._armadas.close(
+      communityId,
+      armadaId,
+      request.actorUserId,
+      (manager, closed) =>
+        this._log.record(manager, {
+          scope: armadaScope(communityId, closed.id),
+          action: ScopeGovernanceActionKind.CLOSED,
+          actorUserId: request.actorUserId,
+          asSiteAdmin: true,
+          reason,
+        }),
+    );
   }
 }

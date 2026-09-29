@@ -30,14 +30,18 @@ describe('RosterImportConflictsController', () => {
   });
 
   // Settling a conflict is investigating; an importer only sees their own.
-  it('is open to investigators only', () => {
+  // A site admin looking in reads it too (FC-036).
+  it('is open to investigators, and a site admin looking in', () => {
     expect(
       Reflect.getMetadata(
         REQUIRES_SCOPE_CAPABILITY_KEY,
         RosterImportConflictsController.prototype.list,
       ),
     ).toEqual({
-      capability: FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+      capability: [
+        FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+        FLEET_CAPABILITIES.ROSTER_INVESTIGATE_READ,
+      ],
       source: {
         kind: FleetScopeKind.FLEET,
         param: 'fleetId',

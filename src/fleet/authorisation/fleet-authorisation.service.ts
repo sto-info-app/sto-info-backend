@@ -7,7 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { ClsService } from 'nestjs-cls';
-import { In, IsNull, Not, Repository } from 'typeorm';
+import { In, IsNull, MoreThan, Not, Repository } from 'typeorm';
 
 import { UserEntity } from 'src/user/entities/user.entity';
 
@@ -23,7 +23,9 @@ import { FleetScopeRole } from '../enums/fleet-scope-role.enum';
 import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
 import { ScopeCapabilityEffect } from '../enums/scope-capability-effect.enum';
 import { ScopeMembershipStatus } from '../enums/scope-membership-status.enum';
+import { FleetInvestigationGrantEntity } from '../governance/entities/fleet-investigation-grant.entity';
 import {
+  FLEET_CAPABILITIES,
   FLEET_CAPABILITY_BY_CODE,
   FleetCapability,
 } from './fleet-capability.constants';
@@ -62,7 +64,11 @@ const CLS_AUTHORISATION_INDEX_KEY = 'fleetAuthorisation:keys';
  * feature at all"; it cannot answer "may they read *this* roster", and wiring
  * the two together is exactly how a support capability turns into access to
  * every Fleet in the application. App-administrator investigation is a separate,
- * reason-logged route (plan section 4.3), not a quiet bypass in this method.
+ * reason-logged route (plan section 4.3), not a quiet bypass in this method:
+ * a site admin who has given a purpose for one Fleet holds
+ * `roster.investigate.read` there, and nothing else, for 24 hours (FC-036).
+ * The grant row confers it, never the role: only a site admin's route makes
+ * one, and it runs its 24 hours unless the account is disabled.
  *
  * **Community-scope roles reach down; memberships do not.** A role assignment
  * at the Community applies to every Fleet and Armada in it, because the
@@ -420,6 +426,24 @@ export class FleetAuthorisationService {
   }
 
   /**
+   * Whether a site admin holds a live investigation grant for a Fleet, or
+   * for any Fleet in a Community (FC-036). The grant is the whole of it: only
+   * a site admin's route makes one, and one that has run out is no grant.
+   *
+   * @param userId - The site admin.
+   * @param where - The Fleet, or the Community.
+   * @returns True while one runs.
+   */
+  async isInvestigating(
+    userId: string,
+    where: { readonly fleetId: string } | { readonly communityId: string },
+  ): Promise<boolean> {
+    return this._userRepository.manager.exists(FleetInvestigationGrantEntity, {
+      where: { adminUserId: userId, ...where, expiresAt: MoreThan(new Date()) },
+    });
+  }
+
+  /**
    * Builds the answer for a caller who is not signed in.
    *
    * Anonymous callers hold no capability anywhere. Public *visibility* is a
@@ -484,9 +508,20 @@ export class FleetAuthorisationService {
 
     const roles = this.collectRoles(userId, scope, assignments, isSuspended);
 
-    const capabilities = isSuspended
-      ? new Set<FleetCapability>()
-      : this.collectCapabilities(scope, roles, membership, grants);
+    const capabilities = new Set<FleetCapability>(
+      isSuspended
+        ? []
+        : this.collectCapabilities(scope, roles, membership, grants),
+    );
+
+    if (
+      scope.kind === FleetScopeKind.FLEET &&
+      user !== null &&
+      !user.isAccountDisabled &&
+      (await this.isInvestigating(userId, { fleetId: scope.id }))
+    ) {
+      capabilities.add(FLEET_CAPABILITIES.ROSTER_INVESTIGATE_READ);
+    }
 
     return {
       scope,

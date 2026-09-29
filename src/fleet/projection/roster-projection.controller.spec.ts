@@ -38,6 +38,7 @@ describe('RosterProjectionController', () => {
       capability: [
         FLEET_CAPABILITIES.ROSTER_IMPORT,
         FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+        FLEET_CAPABILITIES.ROSTER_INVESTIGATE_READ,
       ],
       source: {
         kind: FleetScopeKind.FLEET,

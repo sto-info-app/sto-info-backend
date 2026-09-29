@@ -9,6 +9,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
 
 import { PublicMemberService } from '../community/public-member.service';
+import { ChatMessageReportEntity } from '../fleet/chat/entities/chat-message-report.entity';
 import { UserEntity } from '../user/entities/user.entity';
 import { CreateUserReportDto } from './dto/create-user-report.dto';
 import { ReportQueryDto } from './dto/report-query.dto';
@@ -153,7 +154,9 @@ export class ReportService {
       .getManyAndCount();
 
     return {
-      items: reports.map(report => this.toReport(report)),
+      items: await this.withChatCounts(
+        reports.map(report => this.toReport(report)),
+      ),
       total,
       page,
       pageSize,
@@ -169,7 +172,11 @@ export class ReportService {
    * @throws {NotFoundException} When no such live report exists.
    */
   async findOneForAdmin(reportId: string): Promise<UserReportDto> {
-    return this.toReport(await this.requireReport(reportId));
+    return (
+      await this.withChatCounts([
+        this.toReport(await this.requireReport(reportId)),
+      ])
+    )[0];
   }
 
   /**
@@ -198,7 +205,7 @@ export class ReportService {
 
     await this._reportRepository.save(report);
 
-    return this.toReport(await this.requireReport(reportId));
+    return this.findOneForAdmin(reportId);
   }
 
   /**
@@ -250,7 +257,19 @@ export class ReportService {
   }
 
   /**
-   * Resolves every unresolved report naming a member as actioned.
+   * Counts the chat reports still waiting on an administrator (FC-036).
+   *
+   * @returns The number of open chat reports.
+   */
+  countUnresolvedChat(): Promise<number> {
+    return this._reportRepository.manager.count(ChatMessageReportEntity, {
+      where: { status: In(UNRESOLVED_STATUSES) },
+    });
+  }
+
+  /**
+   * Resolves every unresolved report naming a member as actioned: member
+   * reports, and reports of their chat messages (FC-036).
    *
    * Called when an administrator disables an account: the reports that led
    * there are closed in the same breath, so the queue does not keep offering
@@ -281,6 +300,41 @@ export class ReportService {
   }
 
   // ----- Helpers -----
+
+  /**
+   * Adds how many open chat reports there are about each reported member
+   * (FC-036), so the two queues point at each other.
+   *
+   * @param reports - The reports.
+   * @returns The same reports, counted.
+   */
+  private async withChatCounts(
+    reports: UserReportDto[],
+  ): Promise<UserReportDto[]> {
+    const ids = [...new Set(reports.map(report => report.reported.userId))];
+    const open =
+      ids.length === 0
+        ? []
+        : await this._reportRepository.manager.find(ChatMessageReportEntity, {
+            where: {
+              authorUserId: In(ids),
+              status: In(UNRESOLVED_STATUSES),
+            },
+            select: { id: true, authorUserId: true },
+          });
+    const counts = new Map<string, number>();
+
+    for (const report of open) {
+      const author = report.authorUserId as string;
+
+      counts.set(author, (counts.get(author) ?? 0) + 1);
+    }
+
+    return reports.map(report => ({
+      ...report,
+      openChatReportCount: counts.get(report.reported.userId) ?? 0,
+    }));
+  }
 
   /**
    * Loads a live report with both members and the reviewer attached.
@@ -343,6 +397,7 @@ export class ReportService {
         null,
       reviewedAt: report.reviewedAt,
       createdAt: report.createdAt,
+      openChatReportCount: 0,
     };
   }
 

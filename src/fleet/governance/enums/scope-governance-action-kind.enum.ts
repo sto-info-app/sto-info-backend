@@ -35,4 +35,8 @@ export enum ScopeGovernanceActionKind {
   OWNERSHIP_REASSIGNED = 'OWNERSHIP_REASSIGNED',
   /** The scope was closed. Carries its reason. */
   CLOSED = 'CLOSED',
+  /** A site admin suspended the scope: read-only until reinstated (FC-036). */
+  SUSPENDED = 'SUSPENDED',
+  /** A site admin lifted a scope's suspension (FC-036). */
+  REINSTATED = 'REINSTATED',
 }

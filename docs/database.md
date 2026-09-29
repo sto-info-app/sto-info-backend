@@ -63,6 +63,9 @@ The database uses PostgreSQL with TypeORM for object-relational mapping.
 | `ChatTranscriptEntity` | `chat_transcript` | A scope admin's transcript of one channel, over at most the last seven days, with its purpose |
 | `ChatMessageReportEntity` | `chat_message_report` | A reader's report of a chat message, once per person, for the site's admins |
 | `ChatReportEvidenceEntity` | `chat_report_evidence` | The reported message and the twenty before it, copied when reported |
+| `ModerationHoldEntity` | `moderation_hold` | A site admin's hold on a chat report's evidence, or on everything one member wrote in chat, with its review date — see [Fleet chat](fleet-chat.md#holds) |
+| `ModerationHoldActionEntity` | `moderation_hold_action` | Each placing, extension, release and reading of a hold, with its reason or purpose, and the system's notices and releases past review, write-once |
+| `FleetInvestigationGrantEntity` | `fleet_investigation_grant` | A site admin's 24-hour read-only look into a Fleet's imports, with its purpose, write-once — see [Fleet governance](fleet-governance.md) |
 
 ### Platform Launcher Image Mapping
 

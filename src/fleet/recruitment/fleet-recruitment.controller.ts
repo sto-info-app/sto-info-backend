@@ -450,4 +450,69 @@ export class FleetRecruitmentController {
       userId,
     );
   }
+
+  /**
+   * Suspends a member, with a reason (FC-036).
+   *
+   * @param communityId - The Community.
+   * @param fleetId - The Fleet.
+   * @param membershipId - The membership.
+   * @param userId - Who is suspending them.
+   * @param dto - Why.
+   */
+  @Post('members/:membershipId/suspend')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard, ScopeCapabilityGuard)
+  @RequiresScopeCapability(FLEET_CAPABILITIES.MEMBERS_MANAGE, FLEET_SOURCE)
+  @ApiOperation({ summary: 'Suspend a member' })
+  @ApiNoContentResponse({ description: 'Suspended.' })
+  @ApiConflictResponse({ description: 'They hold a role at the Fleet.' })
+  async suspendMember(
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('fleetId', ParseUUIDPipe) fleetId: string,
+    @Param('membershipId', ParseUUIDPipe) membershipId: string,
+    @UserId() userId: string,
+    @Body() dto: RemoveFleetMemberDto,
+  ): Promise<void> {
+    await this._featureService.assertEnabled();
+    await this._membershipService.suspend(
+      communityId,
+      fleetId,
+      membershipId,
+      dto.reason,
+      userId,
+    );
+  }
+
+  /**
+   * Lifts a member's suspension, with a reason (FC-036).
+   *
+   * @param communityId - The Community.
+   * @param fleetId - The Fleet.
+   * @param membershipId - The membership.
+   * @param userId - Who is reinstating them.
+   * @param dto - Why.
+   */
+  @Post('members/:membershipId/reinstate')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard, ScopeCapabilityGuard)
+  @RequiresScopeCapability(FLEET_CAPABILITIES.MEMBERS_MANAGE, FLEET_SOURCE)
+  @ApiOperation({ summary: 'Reinstate a suspended member' })
+  @ApiNoContentResponse({ description: 'Reinstated.' })
+  async reinstateMember(
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('fleetId', ParseUUIDPipe) fleetId: string,
+    @Param('membershipId', ParseUUIDPipe) membershipId: string,
+    @UserId() userId: string,
+    @Body() dto: RemoveFleetMemberDto,
+  ): Promise<void> {
+    await this._featureService.assertEnabled();
+    await this._membershipService.reinstate(
+      communityId,
+      fleetId,
+      membershipId,
+      dto.reason,
+      userId,
+    );
+  }
 }

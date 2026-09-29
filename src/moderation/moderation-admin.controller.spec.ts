@@ -19,6 +19,8 @@ describe('ModerationAdminController', () => {
     findForAdmin: jest.Mock<() => Promise<PaginatedReportsDto>>;
     findOneForAdmin: jest.Mock<() => Promise<UserReportDto>>;
     updateForAdmin: jest.Mock<() => Promise<UserReportDto>>;
+    countUnresolved: jest.Mock<() => Promise<number>>;
+    countUnresolvedChat: jest.Mock<() => Promise<number>>;
   };
   let userModerationService: {
     findUsers: jest.Mock;
@@ -43,6 +45,8 @@ describe('ModerationAdminController', () => {
       ),
       findOneForAdmin: jest.fn(() => Promise.resolve(report)),
       updateForAdmin: jest.fn(() => Promise.resolve(report)),
+      countUnresolved: jest.fn(() => Promise.resolve(2)),
+      countUnresolvedChat: jest.fn(() => Promise.resolve(3)),
     };
     userModerationService = {
       findUsers: jest.fn(() =>
@@ -77,6 +81,14 @@ describe('ModerationAdminController', () => {
       await controller.findReports(query);
 
       expect(reportService.findForAdmin).toHaveBeenCalledWith(query);
+    });
+
+    it('should count both queues’ open reports (FC-036)', async () => {
+      await expect(controller.openCounts()).resolves.toEqual({
+        userReports: 2,
+        chatReports: 3,
+        total: 5,
+      });
     });
 
     it('should fetch a single report by ID', async () => {

@@ -10,8 +10,12 @@ import { FleetCommunityEntity } from '../../entities/fleet-community.entity';
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { FleetScopeKind } from '../../enums/fleet-scope-kind.enum';
 import { FleetScopeStatus } from '../../enums/fleet-scope-status.enum';
+import { ScopeEventEntity } from '../../events/entities/scope-event.entity';
+import { ScopeEventStatus } from '../../events/enums/scope-event.enums';
+import { StoArmadaService } from '../../services/sto-armada.service';
 import { ScopeGovernanceActionKind } from '../enums/scope-governance-action-kind.enum';
 import {
+  armadaScope,
   communityScope,
   fleetScope,
 } from '../utilities/governance-scope.utility';
@@ -36,6 +40,7 @@ describe('ScopeClosureService', () => {
   let record: jest.Mock;
   let endAllWithin: jest.Mock;
   let cancelOpenWithin: jest.Mock;
+  let armadaClose: jest.Mock;
   let service: ScopeClosureService;
 
   beforeEach(() => {
@@ -54,6 +59,20 @@ describe('ScopeClosureService', () => {
     record = jest.fn(() => Promise.resolve());
     endAllWithin = jest.fn(() => Promise.resolve());
     cancelOpenWithin = jest.fn(() => Promise.resolve());
+    armadaClose = jest.fn(
+      async (
+        _community: string,
+        armadaId: string,
+        _actor: string,
+        within: (m: typeof manager, closed: object) => Promise<void>,
+      ) => {
+        const closed = { id: armadaId, status: FleetScopeStatus.CLOSED };
+
+        await within(manager, closed);
+
+        return closed;
+      },
+    );
     service = new ScopeClosureService(
       {
         transaction: jest.fn((work: (m: typeof manager) => Promise<unknown>) =>
@@ -64,6 +83,7 @@ describe('ScopeClosureService', () => {
       { record } as unknown as ScopeGovernanceLogService,
       { endAllWithin } as unknown as ScopeRolesService,
       { cancelOpenWithin } as unknown as OwnershipTransferService,
+      { close: armadaClose } as unknown as StoArmadaService,
     );
   });
 
@@ -201,6 +221,7 @@ describe('ScopeClosureService', () => {
         scope,
         action: ScopeGovernanceActionKind.CLOSED,
         actorUserId: OWNER_ID,
+        asSiteAdmin: undefined,
         reason: 'Merged into another',
       });
       expect(bump).toHaveBeenCalledWith(
@@ -236,6 +257,44 @@ describe('ScopeClosureService', () => {
 
       expect(manager.save).not.toHaveBeenCalled();
       expect(bump).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('closing an Armada as a site admin (FC-036)', () => {
+    const ARMADA_ID = '22000000-0000-4000-8000-000000000004';
+
+    it('requires a reason before touching anything', async () => {
+      await expect(
+        service.closeArmadaAsSiteAdmin(COMMUNITY_ID, ARMADA_ID, {
+          reason: ' ',
+          actorUserId: OWNER_ID,
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(armadaClose).not.toHaveBeenCalled();
+    });
+
+    it('closes it as its Owner would, and logs it as a site admin’s', async () => {
+      await expect(
+        service.closeArmadaAsSiteAdmin(COMMUNITY_ID, ARMADA_ID, {
+          reason: ' Abandoned ',
+          actorUserId: OWNER_ID,
+        }),
+      ).resolves.toEqual(
+        expect.objectContaining({ status: FleetScopeStatus.CLOSED }),
+      );
+      expect(armadaClose).toHaveBeenCalledWith(
+        COMMUNITY_ID,
+        ARMADA_ID,
+        OWNER_ID,
+        expect.any(Function),
+      );
+      expect(record).toHaveBeenCalledWith(manager, {
+        scope: armadaScope(COMMUNITY_ID, ARMADA_ID),
+        action: ScopeGovernanceActionKind.CLOSED,
+        actorUserId: OWNER_ID,
+        asSiteAdmin: true,
+        reason: 'Abandoned',
+      });
     });
   });
 });

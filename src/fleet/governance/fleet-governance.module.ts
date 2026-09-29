@@ -10,20 +10,29 @@ import { ScopeMembershipEntity } from '../entities/scope-membership.entity';
 import { ScopeRoleAssignmentEntity } from '../entities/scope-role-assignment.entity';
 import { StoFleetEntity } from '../entities/sto-fleet.entity';
 import { FleetModule } from '../fleet.module';
-import { AdminFleetGovernanceController } from './admin-fleet-governance.controller';
+import {
+  AdminFleetGovernanceController,
+  AdminFleetInvestigationsController,
+} from './admin-fleet-governance.controller';
 import { ArmadaGovernanceController } from './armada-governance.controller';
 import { CommunityGovernanceController } from './community-governance.controller';
+import { FleetInvestigationGrantEntity } from './entities/fleet-investigation-grant.entity';
 import { OwnershipTransferEntity } from './entities/ownership-transfer.entity';
 import { ScopeGovernanceActionEntity } from './entities/scope-governance-action.entity';
 import { FleetGovernanceController } from './fleet-governance.controller';
+import { CommunityOwnerDepartureService } from './services/community-owner-departure.service';
+import { DisputeRegistrationsService } from './services/dispute-registrations.service';
+import { FleetInvestigationService } from './services/fleet-investigation.service';
 import { OwnershipTransferService } from './services/ownership-transfer.service';
 import { ScopeClosureService } from './services/scope-closure.service';
 import { ScopeGovernanceLogService } from './services/scope-governance-log.service';
 import { ScopeRolesService } from './services/scope-roles.service';
+import { ScopeSuspensionService } from './services/scope-suspension.service';
 
 /**
  * Who governs a Community or Fleet: roles, delegation, ownership and closure
- * (FC-022).
+ * (FC-022), and a site admin's suspensions, disputes and looks into a Fleet
+ * (FC-036).
  *
  * Above the Fleet domain, whose authorisation reads the rows this writes.
  * Nothing below it needs anything of it.
@@ -35,6 +44,7 @@ import { ScopeRolesService } from './services/scope-roles.service';
     TypeOrmModule.forFeature([
       ScopeGovernanceActionEntity,
       OwnershipTransferEntity,
+      FleetInvestigationGrantEntity,
       FleetCommunityEntity,
       StoFleetEntity,
       ScopeRoleAssignmentEntity,
@@ -48,12 +58,18 @@ import { ScopeRolesService } from './services/scope-roles.service';
     FleetGovernanceController,
     ArmadaGovernanceController,
     AdminFleetGovernanceController,
+    AdminFleetInvestigationsController,
   ],
   providers: [
+    CommunityOwnerDepartureService,
     OwnershipTransferService,
     ScopeClosureService,
     ScopeGovernanceLogService,
     ScopeRolesService,
+    ScopeSuspensionService,
+    DisputeRegistrationsService,
+    FleetInvestigationService,
   ],
+  exports: [CommunityOwnerDepartureService],
 })
 export class FleetGovernanceModule {}

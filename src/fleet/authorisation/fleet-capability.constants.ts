@@ -50,6 +50,11 @@ export const FLEET_CAPABILITIES = {
   ROSTER_IMPORT: 'roster.import',
   /** Inspect an import's processing detail, exclusions and conflicts. */
   ROSTER_INVESTIGATE: 'roster.investigate',
+  /**
+   * Read what `roster.investigate` reads, and change nothing: a site admin's,
+   * for 24 hours under a logged purpose, and nobody else's (FC-036).
+   */
+  ROSTER_INVESTIGATE_READ: 'roster.investigate.read',
   /** Retrieve the stored source file of an import. */
   ROSTER_SOURCE_DOWNLOAD: 'roster.source.download',
   /** Read the scope's reports and aggregates. */
@@ -250,6 +255,15 @@ export const FLEET_CAPABILITY_DEFINITIONS: readonly FleetCapabilityDefinition[] 
       mutating: true,
       delegable: true,
       scopeKinds: [FleetScopeKind.COMMUNITY, FleetScopeKind.FLEET],
+    },
+    {
+      code: FLEET_CAPABILITIES.ROSTER_INVESTIGATE_READ,
+      name: 'Look into imports (site admin)',
+      description:
+        "Read an import's processing detail, exclusions and identity conflicts, changing nothing. Only ever a site admin's, for 24 hours under a logged purpose.",
+      mutating: false,
+      delegable: false,
+      scopeKinds: [FleetScopeKind.FLEET],
     },
     {
       code: FLEET_CAPABILITIES.ROSTER_SOURCE_DOWNLOAD,

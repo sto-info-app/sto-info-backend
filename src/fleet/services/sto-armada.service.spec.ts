@@ -10,6 +10,8 @@ import { IsNull, Not, QueryFailedError } from 'typeorm';
 
 import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
 
+import { insertRecorder } from '../../../test/insert-recorder';
+import { ActivityType } from '../activity/enums/activity.enums';
 import { ArmadaJoinRequestEntity } from '../armadas/entities/armada-join-request.entity';
 import { ArmadaJoinRequestStatus } from '../armadas/enums/armada-join-request-status.enum';
 import { FleetAuthorisationRevisionService } from '../authorisation/fleet-authorisation-revision.service';
@@ -20,6 +22,8 @@ import { FleetDirectorySort } from '../enums/fleet-directory-sort.enum';
 import { FleetDirectoryStatusFilter } from '../enums/fleet-directory-status-filter.enum';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
+import { ScopeEventEntity } from '../events/entities/scope-event.entity';
+import { ScopeEventStatus } from '../events/enums/scope-event.enums';
 import { FleetPlatformService } from './fleet-platform.service';
 import { FleetSlugService } from './fleet-slug.service';
 import { StoArmadaService } from './sto-armada.service';
@@ -107,7 +111,11 @@ describe('StoArmadaService', () => {
     update: jest.Mock;
     increment: jest.Mock;
     transaction: jest.Mock;
+    createQueryBuilder: jest.Mock;
   };
+
+  /** What went on the activity feed. */
+  let activity: ReturnType<typeof insertRecorder>;
 
   /** The general faction an allegiance names, or null for none. */
   let faction: { id: string; name: string } | null;
@@ -230,7 +238,9 @@ describe('StoArmadaService', () => {
 
     faction = { id: allegianceFactionId, name: 'Federation' };
     placements = [];
+    activity = insertRecorder();
     manager = {
+      createQueryBuilder: activity.createQueryBuilder,
       findOne: jest.fn((entity: { name: string }) =>
         Promise.resolve(
           entity.name === 'GeneralFactionEntity' ? faction : stored,
@@ -859,6 +869,45 @@ describe('StoArmadaService', () => {
       );
     });
 
+    it('ends the Armada’s own events with it (FC-028)', async () => {
+      await service.close(communityId, armadaId, actingUserId);
+
+      expect(manager.find).toHaveBeenCalledWith(ScopeEventEntity, {
+        where: {
+          communityId,
+          armadaId,
+          status: ScopeEventStatus.ACTIVE,
+        },
+        lock: { mode: 'pessimistic_write' },
+      });
+    });
+
+    it('puts the closure on the Armada’s feed (FC-029)', async () => {
+      await service.close(communityId, armadaId, actingUserId);
+
+      expect(activity.recorded()).toEqual([
+        expect.objectContaining({
+          communityId,
+          armadaId,
+          type: ActivityType.SCOPE_CLOSED,
+          actorUserId: actingUserId,
+          sourceId: armadaId,
+        }),
+      ]);
+    });
+
+    it('takes a step in the same change instead of its feed item, for a site admin (FC-036)', async () => {
+      const within = jest.fn(() => Promise.resolve());
+
+      await service.close(communityId, armadaId, actingUserId, within);
+
+      expect(within).toHaveBeenCalledWith(
+        manager,
+        expect.objectContaining({ status: FleetScopeStatus.CLOSED }),
+      );
+      expect(activity.recorded()).toEqual([]);
+    });
+
     it('advances the authorisation revision, which closure always must', async () => {
       await service.close(communityId, armadaId, actingUserId);
 
@@ -878,6 +927,7 @@ describe('StoArmadaService', () => {
       expect(armada.closedAt).toBe(closedAt);
       expect(manager.save).not.toHaveBeenCalled();
       expect(revisionService.bump).not.toHaveBeenCalled();
+      expect(activity.recorded()).toEqual([]);
     });
   });
 

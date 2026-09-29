@@ -173,7 +173,13 @@ export class RosterController {
    */
   @Get('rank-order')
   @UseGuards(JwtAuthGuard, ScopeCapabilityGuard)
-  @RequiresScopeCapability(FLEET_CAPABILITIES.ROSTER_VIEW, FLEET_SOURCE)
+  @RequiresScopeCapability(
+    [
+      FLEET_CAPABILITIES.ROSTER_VIEW,
+      FLEET_CAPABILITIES.ROSTER_INVESTIGATE_READ,
+    ],
+    FLEET_SOURCE,
+  )
   @ApiOperation({ summary: "Read this Fleet's rank order" })
   @ApiOkResponse({ type: RosterRankOrderDto })
   async rankOrder(
@@ -236,11 +242,19 @@ export class RosterController {
    * @returns The reader, and whether they investigate its rosters.
    */
   private async viewer(fleetId: string, userId: string): Promise<RosterViewer> {
-    const investigator = await this._authorisationService.hasCapability(
-      userId,
-      { kind: FleetScopeKind.FLEET, id: fleetId },
-      FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
-    );
+    const ref = { kind: FleetScopeKind.FLEET, id: fleetId };
+    // A site admin looking in reads as an investigator does (FC-036).
+    const investigator =
+      (await this._authorisationService.hasCapability(
+        userId,
+        ref,
+        FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+      )) ||
+      (await this._authorisationService.hasCapability(
+        userId,
+        ref,
+        FLEET_CAPABILITIES.ROSTER_INVESTIGATE_READ,
+      ));
 
     return { userId, investigator };
   }

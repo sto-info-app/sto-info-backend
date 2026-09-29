@@ -84,6 +84,13 @@ const FLEET_SCOPE = {
 const IMPORT_READERS = [
   FLEET_CAPABILITIES.ROSTER_IMPORT,
   FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+  FLEET_CAPABILITIES.ROSTER_INVESTIGATE_READ,
+] as const;
+
+/** Who may read what investigating reads: investigators, and a site admin looking in (FC-036). */
+const INVESTIGATION_READERS = [
+  FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+  FLEET_CAPABILITIES.ROSTER_INVESTIGATE_READ,
 ] as const;
 
 /**
@@ -219,17 +226,23 @@ export class RosterImportsController {
       FLEET_FEATURE_FLAGS.IMPORTS_ENABLED,
     );
 
-    // Resolved once per request already, by the guard, so this is a lookup
-    // in what it found rather than a second authorisation.
-    const investigator = await this._authorisationService.hasCapability(
-      userId,
-      {
-        kind: FleetScopeKind.FLEET,
-        id: fleetId,
-        withinCommunityId: communityId,
-      },
-      FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
-    );
+    // Resolved once per request already, by the guard, so these are lookups
+    // in what it found rather than a second authorisation. A site admin
+    // looking in reads what an investigator reads (FC-036).
+    const ref = {
+      kind: FleetScopeKind.FLEET,
+      id: fleetId,
+      withinCommunityId: communityId,
+    };
+    let investigator = false;
+
+    for (const capability of INVESTIGATION_READERS) {
+      investigator ||= await this._authorisationService.hasCapability(
+        userId,
+        ref,
+        capability,
+      );
+    }
 
     return this._statusService.detail(fleetId, importId, investigator);
   }
@@ -245,7 +258,7 @@ export class RosterImportsController {
    */
   @Get(':importId/rows')
   @UseGuards(JwtAuthGuard, ScopeCapabilityGuard)
-  @RequiresScopeCapability(FLEET_CAPABILITIES.ROSTER_INVESTIGATE, FLEET_SCOPE)
+  @RequiresScopeCapability(INVESTIGATION_READERS, FLEET_SCOPE)
   @ApiOperation({ summary: "List one roster import's rows" })
   @ApiOkResponse({ type: RosterImportRowPageDto })
   @ApiNotFoundResponse({ description: 'The Fleet has no such import.' })

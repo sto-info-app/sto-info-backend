@@ -45,7 +45,14 @@ describe('RosterIdentitiesController', () => {
       ) as ScopeCapabilityRequirement;
 
       expect(requirement).toEqual({
-        capability: FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+        // A site admin looking in reads, and never decides (FC-036).
+        capability:
+          handler === 'list'
+            ? [
+                FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+                FLEET_CAPABILITIES.ROSTER_INVESTIGATE_READ,
+              ]
+            : FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
         source: {
           kind: FleetScopeKind.FLEET,
           param: 'fleetId',

@@ -13,6 +13,7 @@ import { ScopeMembershipEntity } from '../src/fleet/entities/scope-membership.en
 import { ScopeRoleAssignmentEntity } from '../src/fleet/entities/scope-role-assignment.entity';
 import { StoArmadaEntity } from '../src/fleet/entities/sto-armada.entity';
 import { StoFleetEntity } from '../src/fleet/entities/sto-fleet.entity';
+import { FleetInvestigationGrantEntity } from '../src/fleet/governance/entities/fleet-investigation-grant.entity';
 import { FleetInvitationEntity } from '../src/fleet/recruitment/entities/fleet-invitation.entity';
 import { CommunitySubscriptionService } from '../src/fleet/services/community-subscription.service';
 import { FleetScopeViewerService } from '../src/fleet/services/fleet-scope-viewer.service';
@@ -61,6 +62,10 @@ function matchesValue(actual: unknown, expected: unknown): boolean {
 
     if (expected.type === 'in') {
       return (expected.value as unknown[]).includes(actual);
+    }
+
+    if (expected.type === 'moreThan') {
+      return (actual as Date) > (expected.value as Date);
     }
 
     throw new Error(`Unsupported find operator '${expected.type}'`);
@@ -166,6 +171,8 @@ export interface WorldRows {
   grants?: Partial<ScopeCapabilityGrantEntity>[];
   subscriptions?: Partial<CommunitySubscriptionEntity>[];
   invitations?: Partial<FleetInvitationEntity>[];
+  /** Site admins' looks into Fleets (FC-036). */
+  investigations?: Partial<FleetInvestigationGrantEntity>[];
 }
 
 /** The services under test, wired to the world's rows. */
@@ -247,6 +254,7 @@ export function createAuthorisationWorld(
       ...row,
     })),
     invitations: rows.invitations ?? [],
+    investigations: rows.investigations ?? [],
   };
 
   const repository = <T extends Row>(source: unknown): Repository<never> =>
@@ -268,7 +276,18 @@ export function createAuthorisationWorld(
     repository(filled.memberships),
     repository(filled.roles),
     repository(filled.grants),
-    repository(filled.users),
+    // The resolver reads site admins' looks into a Fleet through the user
+    // repository's manager (FC-036).
+    Object.assign(repository(filled.users), {
+      manager: {
+        exists: (_entity: unknown, options: { where?: Where }) =>
+          Promise.resolve(
+            filled.investigations.some(row =>
+              matchesWhere(row as Row, options.where),
+            ),
+          ),
+      },
+    }) as unknown as Repository<never>,
     cls,
   );
 

@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 
 import {
+  EntityManager,
   FindOptionsWhere,
   IsNull,
   Not,
@@ -15,6 +16,8 @@ import {
   SelectQueryBuilder,
 } from 'typeorm';
 
+import { ActivityType } from '../activity/enums/activity.enums';
+import { recordActivity } from '../activity/utilities/record-activity.utility';
 import {
   assertArmadaAllegiance,
   endArmadaForClosure,
@@ -31,6 +34,7 @@ import { FleetDirectorySort } from '../enums/fleet-directory-sort.enum';
 import { FleetDirectoryStatusFilter } from '../enums/fleet-directory-status-filter.enum';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
+import { endEventsForClosure } from '../events/utilities/event-closure.utility';
 import {
   applyDirectoryStatus,
   applyExactGameNameSearch,
@@ -418,12 +422,16 @@ export class StoArmadaService {
    * @param communityId - The Community named in the path.
    * @param armadaId - The Armada.
    * @param actingUserId - The caller, for the log.
+   * @param within - A step to take in the same transaction, once closed. A
+   *   site admin's closure logs itself here, with its reason, and that entry
+   *   puts it on the feed instead (FC-036).
    * @returns The closed Armada.
    */
   async close(
     communityId: string,
     armadaId: string,
     actingUserId: string,
+    within?: (manager: EntityManager, closed: StoArmadaEntity) => Promise<void>,
   ): Promise<StoArmadaEntity> {
     const saved = await this._armadaRepository.manager.transaction(
       async manager => {
@@ -441,6 +449,30 @@ export class StoArmadaService {
         const closed = await manager.save(StoArmadaEntity, armada);
 
         await endArmadaForClosure(manager, closed, actingUserId, now);
+        // Its events have nothing ahead of them (FC-028).
+        await endEventsForClosure(
+          manager,
+          { communityId, fleetId: null, armadaId: closed.id },
+          actingUserId,
+          now,
+        );
+        if (within !== undefined) {
+          await within(manager, closed);
+        } else {
+          // An Armada's closure has no governance entry to put it on the
+          // feed, so it goes on here (FC-029).
+          await recordActivity(manager, [
+            {
+              communityId,
+              armadaId: closed.id,
+              type: ActivityType.SCOPE_CLOSED,
+              actorUserId: actingUserId,
+              sourceId: closed.id,
+              idempotencyKey: `${ActivityType.SCOPE_CLOSED}:${closed.id}:${now.toISOString()}`,
+              occurredAt: now,
+            },
+          ]);
+        }
         // Closure withdraws every mutating capability at the Armada, so
         // unlike a rename this one is not optional.
         await this._revisionService.bump(

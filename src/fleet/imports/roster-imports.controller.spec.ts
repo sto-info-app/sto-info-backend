@@ -535,6 +535,7 @@ describe('RosterImportsController', () => {
         capability: [
           FLEET_CAPABILITIES.ROSTER_IMPORT,
           FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+          FLEET_CAPABILITIES.ROSTER_INVESTIGATE_READ,
         ],
         source: {
           kind: FleetScopeKind.FLEET,
@@ -635,14 +636,17 @@ describe('RosterImportsController', () => {
 
   // FC-020: choosing rows to exclude is correcting, an investigator's.
   describe('one import’s rows', () => {
-    it('is open to investigators only', () => {
+    it('is open to investigators, and a site admin looking in', () => {
       expect(
         Reflect.getMetadata(
           REQUIRES_SCOPE_CAPABILITY_KEY,
           RosterImportsController.prototype.rows,
         ),
       ).toEqual({
-        capability: FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+        capability: [
+          FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+          FLEET_CAPABILITIES.ROSTER_INVESTIGATE_READ,
+        ],
         source: {
           kind: FleetScopeKind.FLEET,
           param: 'fleetId',

@@ -194,7 +194,16 @@ export class FleetAudienceService {
     );
 
     if (scope.fleetAudience === null) {
-      return canViewCommunity;
+      // A site admin looking into one of its Fleets may open the Community
+      // on the way (FC-036).
+      return (
+        canViewCommunity ||
+        (userId !== null &&
+          scope.kind === FleetScopeKind.COMMUNITY &&
+          (await this._authorisationService.isInvestigating(userId, {
+            communityId: scope.communityId,
+          })))
+      );
     }
 
     if (
@@ -208,7 +217,10 @@ export class FleetAudienceService {
       return true;
     }
 
-    return this.isInvitedTo(scope.id, userId);
+    return (
+      (await this.isInvitedTo(scope.id, userId)) ||
+      authorisation.capabilities.has(FLEET_CAPABILITIES.ROSTER_INVESTIGATE_READ)
+    );
   }
 
   /**

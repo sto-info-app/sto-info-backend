@@ -11,4 +11,8 @@ export enum ScopeMembershipActionKind {
   LEFT = 'LEFT',
   /** Somebody holding `members.manage` removed them, with a reason. */
   REMOVED = 'REMOVED',
+  /** Somebody holding `members.manage` suspended them, with a reason (FC-036). */
+  SUSPENDED = 'SUSPENDED',
+  /** Somebody holding `members.manage` lifted the suspension, with a reason. */
+  REINSTATED = 'REINSTATED',
 }

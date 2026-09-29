@@ -55,7 +55,11 @@ export class RosterProjectionController {
   @Get()
   @UseGuards(JwtAuthGuard, ScopeCapabilityGuard)
   @RequiresScopeCapability(
-    [FLEET_CAPABILITIES.ROSTER_IMPORT, FLEET_CAPABILITIES.ROSTER_INVESTIGATE],
+    [
+      FLEET_CAPABILITIES.ROSTER_IMPORT,
+      FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+      FLEET_CAPABILITIES.ROSTER_INVESTIGATE_READ,
+    ],
     {
       kind: FleetScopeKind.FLEET,
       param: 'fleetId',

@@ -80,7 +80,13 @@ export class RosterIdentitiesController {
    */
   @Get('candidates')
   @UseGuards(JwtAuthGuard, ScopeCapabilityGuard)
-  @RequiresScopeCapability(FLEET_CAPABILITIES.ROSTER_INVESTIGATE, FLEET_SCOPE)
+  @RequiresScopeCapability(
+    [
+      FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+      FLEET_CAPABILITIES.ROSTER_INVESTIGATE_READ,
+    ],
+    FLEET_SCOPE,
+  )
   @ApiOperation({ summary: "List this Fleet's rename candidates" })
   @ApiOkResponse({ type: RosterIdentityCandidatePageDto })
   async list(

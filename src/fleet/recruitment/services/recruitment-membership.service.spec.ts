@@ -39,6 +39,7 @@ describe('RecruitmentMembershipService', () => {
   let holdsRole: boolean;
   let manager: {
     findOne: jest.Mock;
+    findOneOrFail: jest.Mock;
     find: jest.Mock;
     exists: jest.Mock;
     create: jest.Mock;
@@ -51,6 +52,7 @@ describe('RecruitmentMembershipService', () => {
   let bump: jest.Mock;
   let raiseWithin: jest.Mock;
   let withdrawRecruitedWithin: jest.Mock;
+  let createNotification: jest.Mock;
   let service: RecruitmentMembershipService;
 
   beforeEach(() => {
@@ -58,10 +60,19 @@ describe('RecruitmentMembershipService', () => {
     recorded = false;
     holdsRole = false;
     placement = null;
+    activity = insertRecorder();
     manager = {
+      createQueryBuilder: activity.createQueryBuilder,
       findOne: jest.fn((entity: unknown) =>
         Promise.resolve(
           entity === ArmadaFleetMembershipEntity ? placement : membership,
+        ),
+      ),
+      findOneOrFail: jest.fn((entity: unknown) =>
+        Promise.resolve(
+          entity === StoFleetEntity
+            ? { ...FLEET, exactGameName: 'Kell Fleet' }
+            : { ...membership },
         ),
       ),
       find: jest.fn(() => Promise.resolve([])),
@@ -93,6 +104,7 @@ describe('RecruitmentMembershipService', () => {
         raiseWithin,
         withdrawRecruitedWithin,
       } as unknown as CharacterFleetProposalService,
+      { createNotification } as unknown as NotificationService,
     );
   });
 
@@ -183,6 +195,18 @@ describe('RecruitmentMembershipService', () => {
           applicationId: 'application-1',
         },
       ]);
+      expect(activity.recorded()).toEqual([
+        expect.objectContaining({
+          communityId: 'community-1',
+          fleetId: 'fleet-1',
+          type: ActivityType.MEMBER_JOINED,
+          actorUserId: 'officer-1',
+          subjectUserId: 'member-1',
+          sourceId: 'membership-new',
+          idempotencyKey: 'MEMBER_JOINED:membership-new',
+          occurredAt: NOW,
+        }),
+      ]);
       expect(bump).toHaveBeenCalledWith(FleetScopeKind.FLEET, 'fleet-1', em());
     });
 
@@ -268,7 +292,6 @@ describe('RecruitmentMembershipService', () => {
 
     it('touches no Armada when the Fleet is in none', async () => {
       membership = member(ScopeMembershipStatus.APPROVED);
-
       await service.leave('community-1', 'fleet-1', 'member-1');
 
       expect(manager.increment).not.toHaveBeenCalled();
@@ -395,6 +418,114 @@ describe('RecruitmentMembershipService', () => {
     });
   });
 
+  describe('suspend and reinstate (FC-036)', () => {
+    const suspend = (actor = 'owner-1') =>
+      service.suspend(
+        'community-1',
+        'fleet-1',
+        'membership-1',
+        '  Repeated spam  ',
+        actor,
+      );
+    const reinstate = () =>
+      service.reinstate(
+        'community-1',
+        'fleet-1',
+        'membership-1',
+        ' Sorted ',
+        'owner-1',
+      );
+
+    it('refuses a membership that is not current, or not suspended', async () => {
+      await expect(suspend()).rejects.toThrow(NotFoundException);
+
+      membership = member(ScopeMembershipStatus.SUSPENDED);
+      await expect(suspend()).rejects.toThrow(NotFoundException);
+
+      membership = member(ScopeMembershipStatus.APPROVED);
+      await expect(reinstate()).rejects.toThrow(NotFoundException);
+    });
+
+    it('refuses to suspend yourself, or somebody holding a role', async () => {
+      membership = member(ScopeMembershipStatus.APPROVED);
+      await expect(suspend('member-1')).rejects.toThrow(BadRequestException);
+
+      holdsRole = true;
+      await expect(suspend()).rejects.toThrow(ConflictException);
+      expect(manager.save).not.toHaveBeenCalled();
+    });
+
+    it('suspends a member, logged with the reason, and tells them without it', async () => {
+      membership = member(ScopeMembershipStatus.APPROVED);
+
+      await suspend();
+
+      expect(savedTo(ScopeMembershipEntity)).toEqual([
+        expect.objectContaining({
+          status: ScopeMembershipStatus.SUSPENDED,
+          decidedByUserId: 'owner-1',
+          decisionReason: 'Repeated spam',
+        }),
+      ]);
+      expect(savedTo(ScopeMembershipActionEntity)).toEqual([
+        {
+          membershipId: 'membership-1',
+          action: ScopeMembershipActionKind.SUSPENDED,
+          actorUserId: 'owner-1',
+          reason: 'Repeated spam',
+        },
+      ]);
+      expect(bump).toHaveBeenCalledWith(
+        FleetScopeKind.FLEET,
+        'fleet-1',
+        manager,
+      );
+      // Nothing it holds changes: no role or grant is ended.
+      expect(manager.update).not.toHaveBeenCalled();
+      expect(createNotification).toHaveBeenCalledWith({
+        target: NotificationTarget.USER,
+        userId: 'member-1',
+        title: 'Fleet membership suspended',
+        body: expect.not.stringContaining('spam'),
+        severity: NotificationSeverity.WARNING,
+      });
+    });
+
+    it('reinstates a suspended member, and tells them', async () => {
+      membership = member(ScopeMembershipStatus.SUSPENDED);
+
+      await reinstate();
+
+      expect(savedTo(ScopeMembershipEntity)).toEqual([
+        expect.objectContaining({
+          status: ScopeMembershipStatus.APPROVED,
+          decisionReason: 'Sorted',
+        }),
+      ]);
+      expect(savedTo(ScopeMembershipActionEntity)).toEqual([
+        expect.objectContaining({
+          action: ScopeMembershipActionKind.REINSTATED,
+          reason: 'Sorted',
+        }),
+      ]);
+      expect(createNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Fleet membership reinstated',
+          body: 'Your membership of Kell Fleet has been reinstated.',
+          severity: NotificationSeverity.SUCCESS,
+        }),
+      );
+    });
+
+    it('keeps the change when the notice cannot be sent', async () => {
+      membership = member(ScopeMembershipStatus.APPROVED);
+      createNotification.mockRejectedValue(new Error('No database'));
+
+      await expect(suspend()).resolves.toBeUndefined();
+      expect(savedTo(ScopeMembershipActionEntity)).toHaveLength(1);
+    });
+  });
+
   describe('list', () => {
     it('lists nobody for a Fleet without members', async () => {
       await expect(service.list('fleet-1')).resolves.toEqual([]);
@@ -412,7 +543,8 @@ describe('RecruitmentMembershipService', () => {
                 ...member(ScopeMembershipStatus.SUSPENDED),
                 id: 'membership-2',
                 userId: 'member-2',
-                decidedAt: since,
+                decidedAt: new Date('2026-09-25T10:00:00Z'),
+                decisionReason: 'Repeated spam',
               },
               {
                 ...member(ScopeMembershipStatus.APPROVED),
@@ -427,7 +559,12 @@ describe('RecruitmentMembershipService', () => {
             return Promise.resolve([
               { membershipId: 'membership-1', applicationId: 'application-2' },
               { membershipId: 'membership-1', applicationId: 'application-1' },
-              { membershipId: 'membership-2', applicationId: null },
+              // A suspension moves the decision; the grant says since when.
+              {
+                membershipId: 'membership-2',
+                applicationId: null,
+                createdAt: since,
+              },
             ]);
           case FleetApplicationEntity:
             return Promise.resolve([
@@ -454,6 +591,7 @@ describe('RecruitmentMembershipService', () => {
           memberSince: since,
           route: FleetApplicationRoute.INVITATION,
           characterName: 'Kell Marr@kell',
+          suspensionReason: null,
         },
         {
           membershipId: 'membership-2',
@@ -462,6 +600,7 @@ describe('RecruitmentMembershipService', () => {
           memberSince: since,
           route: null,
           characterName: null,
+          suspensionReason: 'Repeated spam',
         },
         {
           membershipId: 'membership-3',
@@ -470,6 +609,7 @@ describe('RecruitmentMembershipService', () => {
           memberSince: since,
           route: null,
           characterName: null,
+          suspensionReason: null,
         },
       ]);
     });

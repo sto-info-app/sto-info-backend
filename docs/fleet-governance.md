@@ -1,8 +1,9 @@
 # Fleet governance
 
 Who governs a Community or Fleet: role labels, delegated capabilities, ownership and closure
-(FC-022). The code is in `src/fleet/governance`. The decisions below are Steve's, from
-27 September 2026.
+(FC-022), and a site administrator's disputes, suspensions and looks into a Fleet (FC-036). The
+code is in `src/fleet/governance`. The decisions below are Steve's, from 27 and 29 September
+2026.
 
 An Armada has roles and delegation too (FC-025): the Community's Owner appoints its Admins and
 Officers from the approved members of the Fleets placed in it, and a role there ends when its
@@ -100,7 +101,8 @@ that Fleet with the membership.
 
 `scope_governance_action` records every change here, with who made it and why, in the
 transaction that makes it: role assignments and withdrawals, capability grants, denials and
-clearings, ownership offers and their answers, dispute actions and closures. It is append-only
+clearings, ownership offers and their answers, dispute actions, suspensions, reinstatements and
+closures. It is append-only
 (`TR_scope_governance_action_guard`); the one change it accepts is a named person's account, or
 the offer it cites, going. The Manage pages show the newest 50.
 
@@ -126,6 +128,11 @@ the offer it cites, going. The Manage pages show the newest 50.
 | `GET  /admin/fleet-communities/:c/dispute` | Site ADMIN |
 | `POST /admin/fleet-communities/:c/owner` | Site ADMIN |
 | `POST /admin/fleet-communities/:c/close` | Site ADMIN |
+| `POST /admin/fleet-communities/:c/suspend` and `…/reinstate` | Site ADMIN, with a reason |
+| `POST /admin/fleet-communities/:c/fleets/:f/suspend`, `…/reinstate` and `…/close` | Site ADMIN, with a reason |
+| `POST /admin/fleet-communities/:c/armadas/:a/suspend`, `…/reinstate` and `…/close` | Site ADMIN, with a reason |
+| `POST /admin/fleet-communities/:c/fleets/:f/investigations` | Site ADMIN, with a purpose: a 24-hour read-only look |
+| `GET  /admin/fleet-investigations` and `…/mine` | Site ADMIN |
 
 The Community and Fleet close routes replace the earlier `DELETE` routes, which took no reason.
 Every route is behind the Fleet Community switch.

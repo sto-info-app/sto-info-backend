@@ -60,6 +60,8 @@ describe('FleetRecruitmentController', () => {
       leave: jest.fn(() => Promise.resolve()),
       list: jest.fn(() => Promise.resolve([])),
       remove: jest.fn(() => Promise.resolve()),
+      suspend: jest.fn(() => Promise.resolve()),
+      reinstate: jest.fn(() => Promise.resolve()),
     };
     controller = new FleetRecruitmentController(
       feature as unknown as FleetFeatureService,
@@ -83,6 +85,8 @@ describe('FleetRecruitmentController', () => {
     ['withdrawInvitation', FLEET_CAPABILITIES.APPLICATIONS_DECIDE],
     ['members', FLEET_CAPABILITIES.MEMBERS_MANAGE],
     ['removeMember', FLEET_CAPABILITIES.MEMBERS_MANAGE],
+    ['suspendMember', FLEET_CAPABILITIES.MEMBERS_MANAGE],
+    ['reinstateMember', FLEET_CAPABILITIES.MEMBERS_MANAGE],
   ] as const)('keeps %s to holders of %s at the Fleet', (route, capability) => {
     expect(
       Reflect.getMetadata(
@@ -226,6 +230,33 @@ describe('FleetRecruitmentController', () => {
       'invitation-1',
     );
   });
+
+  it.each([
+    ['suspendMember', 'suspend'],
+    ['reinstateMember', 'reinstate'],
+  ] as const)(
+    '%s passes the member and reason on (FC-036)',
+    async (route, call) => {
+      await controller[route](
+        'community-1',
+        'fleet-1',
+        'membership-1',
+        'officer-1',
+        {
+          reason: 'Spam',
+        },
+      );
+
+      expect(feature.assertEnabled).toHaveBeenCalled();
+      expect(membership[call]).toHaveBeenCalledWith(
+        'community-1',
+        'fleet-1',
+        'membership-1',
+        'Spam',
+        'officer-1',
+      );
+    },
+  );
 
   it('lists and removes members', async () => {
     await controller.members('fleet-1');

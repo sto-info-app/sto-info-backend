@@ -96,7 +96,19 @@ membership with the source `APPLICATION`.
 A member may leave (`LEFT`). A holder of `members.manage` may remove a member (`REVOKED`), with a
 reason; somebody holding a role at the Fleet is not removed until the role goes. Both drop any
 role held at the Fleet and advance the authorisation revision. Because a membership row is
-updated in place, every grant, departure and removal is logged in `scope_membership_action`.
+updated in place, every grant, departure, removal, suspension and reinstatement is logged in
+`scope_membership_action`.
+
+**Suspension (FC-036).** A holder of `members.manage` may suspend a member (`SUSPENDED`), with a
+reason, and reinstate them (`APPROVED` again), with another.
+
+- A suspended member keeps the membership and loses everything it gives, as if they were not a
+  member: the resolver gives them no role and no capability there, and chat drops them at once.
+- Somebody holding a role at the Fleet is not suspended until the role goes, and nobody suspends
+  themselves.
+- The members list shows the suspension and its reason to the Fleet's admins. The member is told
+  by an in-app notice, never why.
+- "Member since" is when they joined, which a suspension does not move.
 
 Either way, a proposal the member's accepted application raised and that is still unanswered is
 withdrawn (`WITHDRAWN`, the other status the site writes rather than a person): it asked them to
@@ -135,6 +147,7 @@ so every route that asks whether somebody may see a Fleet gives the same answer.
 | `POST …/recruitment/invitations/:id/withdraw` | `applications.decide` |
 | `GET  …/recruitment/members` | `members.manage` |
 | `POST …/recruitment/members/:id/remove` | `members.manage` |
+| `POST …/recruitment/members/:id/suspend` and `…/reinstate` | `members.manage`, with a reason |
 | `POST …/recruitment/leave` | A member |
 | `GET  /fleet-recruitment/applications` | The applicant |
 | `POST /fleet-recruitment/applications/:id/withdraw` | The applicant |

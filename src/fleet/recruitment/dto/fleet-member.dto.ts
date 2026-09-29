@@ -39,9 +39,16 @@ export class FleetMemberDto {
     nullable: true,
   })
   characterName: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Why they are suspended, for the Fleet’s admins (FC-036).',
+    nullable: true,
+  })
+  suspensionReason: string | null;
 }
 
 /** Why a member is being removed. */
+/** Why a member is removed, suspended or reinstated. */
 export class RemoveFleetMemberDto {
   @ApiProperty({ description: 'Why, for the Fleet’s record. Required.' })
   @IsString()

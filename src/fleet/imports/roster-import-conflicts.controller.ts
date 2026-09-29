@@ -60,11 +60,17 @@ export class RosterImportConflictsController {
    */
   @Get()
   @UseGuards(JwtAuthGuard, ScopeCapabilityGuard)
-  @RequiresScopeCapability(FLEET_CAPABILITIES.ROSTER_INVESTIGATE, {
-    kind: FleetScopeKind.FLEET,
-    param: 'fleetId',
-    communityParam: 'communityId',
-  })
+  @RequiresScopeCapability(
+    [
+      FLEET_CAPABILITIES.ROSTER_INVESTIGATE,
+      FLEET_CAPABILITIES.ROSTER_INVESTIGATE_READ,
+    ],
+    {
+      kind: FleetScopeKind.FLEET,
+      param: 'fleetId',
+      communityParam: 'communityId',
+    },
+  )
   @ApiOperation({ summary: "List this Fleet's conflicting roster exports" })
   @ApiOkResponse({ type: RosterImportConflictPageDto })
   async list(

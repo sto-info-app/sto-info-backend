@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { NotificationModule } from 'src/notification/notification.module';
 import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 import { FactionEntity } from 'src/sto/character/entities/faction.entity';
@@ -38,6 +39,7 @@ import { RecruitmentSettingsService } from './services/recruitment-settings.serv
   imports: [
     FleetModule,
     FleetRosterModule,
+    NotificationModule,
     TypeOrmModule.forFeature([
       FleetRecruitmentSettingsEntity,
       FleetApplicationEntity,

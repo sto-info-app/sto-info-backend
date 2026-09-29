@@ -51,7 +51,7 @@ describe('RosterController', () => {
   });
 
   // The private roster: following a Community never confers roster.view.
-  it.each(['roster', 'history', 'timeline', 'rankOrder'] as const)(
+  it.each(['roster', 'history', 'timeline'] as const)(
     'keeps %s to roster.view holders',
     route => {
       expect(
@@ -69,6 +69,26 @@ describe('RosterController', () => {
       });
     },
   );
+
+  // FC-036: a site admin looking in reads the rank order too, and only reads.
+  it('keeps rankOrder to roster.view holders and a site admin looking in', () => {
+    expect(
+      Reflect.getMetadata(
+        REQUIRES_SCOPE_CAPABILITY_KEY,
+        RosterController.prototype.rankOrder,
+      ),
+    ).toEqual({
+      capability: [
+        FLEET_CAPABILITIES.ROSTER_VIEW,
+        FLEET_CAPABILITIES.ROSTER_INVESTIGATE_READ,
+      ],
+      source: {
+        kind: FleetScopeKind.FLEET,
+        param: 'fleetId',
+        communityParam: 'communityId',
+      },
+    });
+  });
 
   describe('roster', () => {
     it('reads the roster as a reader', async () => {
@@ -148,6 +168,19 @@ describe('RosterController', () => {
       await expect(controller.rankOrder('fleet-1', 'user-1')).resolves.toEqual({
         tiers: [],
       });
+      expect(rankOrderService.view).toHaveBeenCalledWith('fleet-1', true);
+    });
+
+    it('is read in full by a site admin looking in (FC-036)', async () => {
+      authorisationService.hasCapability.mockImplementation(
+        (_user: string, _ref: unknown, capability: string) =>
+          Promise.resolve(
+            capability === FLEET_CAPABILITIES.ROSTER_INVESTIGATE_READ,
+          ),
+      );
+
+      await controller.rankOrder('fleet-1', 'user-1');
+
       expect(rankOrderService.view).toHaveBeenCalledWith('fleet-1', true);
     });
 
