@@ -83,8 +83,14 @@ export class CommunityDisputeViewDto {
   @ApiProperty({ enum: FleetScopeStatus })
   status: FleetScopeStatus;
 
-  @ApiProperty({ type: GovernancePersonDto, description: 'Its Owner.' })
-  owner: GovernancePersonDto;
+  @ApiProperty({
+    type: GovernancePersonDto,
+    nullable: true,
+    description:
+      'Its Owner, or null for a closed Community whose Owner’s account was ' +
+      'erased (FC-038).',
+  })
+  owner: GovernancePersonDto | null;
 
   @ApiProperty({
     type: [GovernancePersonDto],

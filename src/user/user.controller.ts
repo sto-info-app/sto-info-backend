@@ -46,6 +46,7 @@ import {
 } from 'src/shared/constants/file-upload.constants';
 import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
 
+import { OwnedCommunityOutcomeDto } from './dto/owned-community-outcome.dto';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 import { UpdateUserSettingsDto } from './dto/update-user-settings.dto';
 import { UpdatedUserProfileResultDto } from './dto/updated-user-profile-result.dto';
@@ -151,12 +152,36 @@ export class UserController {
   }
 
   /**
+   * What closing the account would do to the Fleet Communities the user
+   * owns (FC-038).
+   *
+   * @param userId - Authenticated user ID (injected).
+   * @returns Each open Community they own, and what would become of it.
+   */
+  @ApiOperation({
+    summary: 'What closing the account does to the Communities it owns',
+    description:
+      'Each open Fleet Community the user owns goes to its longest-serving ' +
+      'Admin who can take it, or is closed when none can.',
+  })
+  @ApiOkResponse({ type: [OwnedCommunityOutcomeDto] })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid access token.' })
+  @Get('close-account/communities')
+  closurePreview(
+    @UserId() userId: string,
+  ): Promise<OwnedCommunityOutcomeDto[]> {
+    return this._userService.closurePreview(userId);
+  }
+
+  /**
    * Closes the authenticated user's account.
    *
    * Marks user-linked data as deleted immediately and schedules permanent
-   * deletion via retention cron jobs.
+   * deletion via retention cron jobs. Each open Fleet Community they own goes
+   * to an Admin, or is closed, first (FC-038).
    *
    * @param userId Authenticated user ID (injected).
+   * @returns Success.
    */
   @ApiOperation({
     summary: 'Close the current user account',

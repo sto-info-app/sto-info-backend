@@ -26,12 +26,12 @@ import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
  * `src/fleet` means the social graph, and this class is deliberately called
  * `FleetCommunity` so the two cannot be confused at an import.
  *
- * Exactly one owner is maintained by the column being single-valued, and the
- * owner reference is `RESTRICT` rather than `CASCADE`: deleting the account
- * behind a live Community must fail loudly and force an ownership transfer
- * first, rather than quietly taking every Fleet, Armada and roster history with
- * it. Account erasure therefore has to transfer or close first, which is
- * FC-038's problem and is intentional.
+ * Exactly one owner is maintained by the column being single-valued. The
+ * owner reference is `SET NULL` rather than `CASCADE`, and a CHECK lets only
+ * a closed Community have none (FC-038): deleting the account behind a live
+ * Community fails loudly rather than quietly taking every Fleet, Armada and
+ * roster history with it, so an Owner who closes their account hands each
+ * open Community to an Admin, or closes it, first.
  *
  * Instants are `timestamptz` throughout — ADR-0007.
  */
@@ -46,9 +46,15 @@ export class FleetCommunityEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ApiProperty({ description: 'The user who owns this Community.' })
-  @Column({ type: 'uuid', nullable: false })
-  ownerUserId: string;
+  @ApiProperty({
+    description:
+      'The user who owns this Community, or null for a closed one whose ' +
+      'Owner’s account has been erased (FC-038).',
+    nullable: true,
+    type: String,
+  })
+  @Column({ type: 'uuid', nullable: true })
+  ownerUserId: string | null;
 
   @ApiProperty({ description: 'Display name, as the owner wrote it.' })
   @Column({ type: 'varchar', length: 120, nullable: false })
@@ -167,7 +173,7 @@ export class FleetCommunityEntity {
   @DeleteDateColumn({ type: 'timestamptz' })
   deletedAt: Date | null;
 
-  @ManyToOne(() => UserEntity, { onDelete: 'RESTRICT' })
+  @ManyToOne(() => UserEntity, { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'ownerUserId' })
-  owner: UserEntity;
+  owner: UserEntity | null;
 }

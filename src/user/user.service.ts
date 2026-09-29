@@ -1,4 +1,11 @@
-import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Inject,
+  Injectable,
+  Logger,
+  Optional,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import * as bcrypt from 'bcrypt';
@@ -19,6 +26,11 @@ import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
 
+import {
+  ACCOUNT_DEPARTURE,
+  AccountDeparture,
+  OwnedCommunityOutcome,
+} from './account-departure';
 import { PROFILE_IMAGE_ENTITY_TAG } from './constants/profile-image.constants';
 import { resolveSessionTimeoutMinutes } from './constants/session-timeout.constants';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -56,7 +68,21 @@ export class UserService {
     private readonly _imageIngress: ImageIngressService,
     private readonly _mailService: MailService,
     private readonly _userPreferenceService: UserPreferenceService,
+    @Optional()
+    @Inject(ACCOUNT_DEPARTURE)
+    private readonly _departure?: AccountDeparture,
   ) {}
+
+  /**
+   * What closing the account would do to each open Fleet Community the user
+   * owns (FC-038), for the closure dialog to say before they confirm.
+   *
+   * @param userId - The authenticated user's UUID.
+   * @returns Each, with whether it goes to an Admin or is closed.
+   */
+  async closurePreview(userId: string): Promise<OwnedCommunityOutcome[]> {
+    return this._departure ? this._departure.preview(userId) : [];
+  }
 
   /**
    * Retrieves the authenticated user's application settings.
@@ -247,6 +273,10 @@ export class UserService {
 
     const closureEmail = user.email;
     const closureFirstName = user.profile?.firstName || 'Captain!';
+
+    // Each open Community they own goes to an Admin, or is closed, first
+    // (FC-038): nothing open may be left without an Owner.
+    await this._departure?.depart(userId);
 
     await this._userRepository.manager.transaction(async manager => {
       await manager.update(

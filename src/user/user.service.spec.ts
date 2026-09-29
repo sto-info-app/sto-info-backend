@@ -1164,4 +1164,53 @@ describe('UserService', () => {
       });
     });
   });
+
+  // FC-038: an Owner's Communities are handed on, or closed, first.
+  describe('with the Fleet there to ask', () => {
+    const outcome = {
+      communityId: 'c1',
+      name: 'Fixture Community',
+      outcome: 'TRANSFER' as const,
+      toUserId: 'u2',
+      toUsername: 'Deputy',
+    };
+    let departure: {
+      preview: jest.Mock<(userId: string) => Promise<unknown[]>>;
+      depart: jest.Mock<(userId: string) => Promise<unknown[]>>;
+    };
+
+    beforeEach(() => {
+      departure = {
+        preview: jest.fn(async () => [outcome]),
+        depart: jest.fn(async () => [outcome]),
+      };
+    });
+
+    it('says what closing would do to each Community, or nothing without it', async () => {
+      await expect(service.closurePreview('1')).resolves.toEqual([]);
+
+      Object.assign(service, { _departure: departure });
+
+      await expect(service.closurePreview('1')).resolves.toEqual([outcome]);
+      expect(departure.preview).toHaveBeenCalledWith('1');
+    });
+
+    it('hands each Community on before the account closes', async () => {
+      Object.assign(service, { _departure: departure });
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: '1', email: 'captain@example.com' });
+      (
+        (userRepository as any).manager.transaction as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockImplementation(async () => {
+        expect(departure.depart).toHaveBeenCalledWith('1');
+      });
+
+      await service.closeAccount('1');
+
+      expect((userRepository as any).manager.transaction).toHaveBeenCalled();
+    });
+  });
 });

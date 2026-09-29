@@ -37,6 +37,7 @@ describe('UserController', () => {
             updateUserProfile: updateUserProfileMock,
             uploadProfilePicture: uploadProfilePictureMock,
             closeAccount: closeAccountMock,
+            closurePreview: jest.fn(async () => []),
             getSettings: getSettingsMock,
             updateSettings: updateSettingsMock,
           },
@@ -210,5 +211,9 @@ describe('UserController', () => {
       );
       expect(cb).toHaveBeenCalledWith(expect.any(BadRequestException), false);
     });
+  });
+
+  it('says what closing would do to the Communities owned (FC-038)', async () => {
+    await expect(controller.closurePreview('user-1')).resolves.toEqual([]);
   });
 });

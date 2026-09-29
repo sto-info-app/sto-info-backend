@@ -52,7 +52,8 @@ export interface ResolvedScope {
   /** The Armada, when this scope is an Armada. */
   readonly armadaId: string | null;
   /** The owning Community's owner, who holds Owner over everything in it. */
-  readonly communityOwnerUserId: string;
+  /** Null only for a closed Community whose Owner's account was erased. */
+  readonly communityOwnerUserId: string | null;
   /** The scope's own lifecycle status. */
   readonly status: FleetScopeStatus;
   /** The owning Community's lifecycle status. */
