@@ -489,6 +489,13 @@ who may call it.
 A Community's, a Fleet's and an Armada's activity, and each person's own feed. See
 [Fleet activity](fleet-activity.md#routes) for every route and who may call it.
 
+### Chat
+
+A Community's, a Fleet's and an Armada's chat channels, conversations between friends, and the
+messages in each; a scope admin's transcripts, members' reports of messages, and the site admins'
+queue of those reports (`/admin/chat-reports`). See [Fleet chat](fleet-chat.md#routes) for every
+route and who may call it.
+
 ### POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports
 
 Upload an STO roster export for a Fleet.

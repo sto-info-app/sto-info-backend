@@ -30,6 +30,7 @@ import { FileAssetsModule } from './file-assets/file-assets.module';
 import { FileScanningModule } from './file-scanning/file-scanning.module';
 import { ActivityModule } from './fleet/activity/activity.module';
 import { FleetArmadasModule } from './fleet/armadas/fleet-armadas.module';
+import { ChatModule } from './fleet/chat/chat.module';
 import { ScopeEventsModule } from './fleet/events/scope-events.module';
 import { FleetModule } from './fleet/fleet.module';
 import { FleetGovernanceModule } from './fleet/governance/fleet-governance.module';
@@ -150,6 +151,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     ScopeNewsModule,
     ScopeEventsModule,
     ActivityModule,
+    ChatModule,
     RegistryModule,
     ModerationModule,
   ],

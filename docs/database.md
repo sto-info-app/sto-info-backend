@@ -56,6 +56,10 @@ The database uses PostgreSQL with TypeORM for object-relational mapping.
 | `NotificationOutboxEntity` | `notification_outbox` | The outbox every targeted in-app notice goes through — event reminders, proposals, chat mentions, replies and direct messages — each sent once |
 | `ScopeEventActionEntity` | `scope_event_action` | An event's change log, write-once |
 | `ActivityEventEntity` | `activity_event` | One thing that happened in a Community, Fleet or Armada, by reference, for its activity feed — see [Fleet activity](fleet-activity.md) |
+| `ChatChannelEntity` | `chat_channel` | A Community's, a Fleet's or an Armada's chat channel: its standard one, or up to three custom ones — see [Fleet chat](fleet-chat.md) |
+| `ChatDirectConversationEntity` | `chat_direct_conversation` | The one conversation between a pair of friends |
+| `ChatMessageEntity` | `chat_message` | One chat message, in a channel or a conversation, once per client ID |
+| `ChatActionEntity` | `chat_action` | What chat moderators and transcript exporters did, write-once |
 
 ### Platform Launcher Image Mapping
 
