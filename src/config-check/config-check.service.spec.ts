@@ -64,6 +64,7 @@ describe('ConfigCheckService', () => {
       CLOUDFLARE_CDN_ROOT_URL: 'https://cdn.test.com',
       CLOUDFLARE_IMAGES_HASH: 'test-hash',
       CLOUDFLARE_R2_QUARANTINE_BUCKET_NAME: 'sto-info-quarantine-test',
+      CLOUDFLARE_R2_EXPORTS_BUCKET_NAME: 'sto-info-exports-test',
       MAX_IMAGE_SIZE_IN_BYTES: '5242880',
       AUDIT_DATA_NUKE_THRESHOLD_DAYS: '90',
       AUDIT_IP_NUKE_THRESHOLD_DAYS: '30',

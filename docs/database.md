@@ -60,6 +60,9 @@ The database uses PostgreSQL with TypeORM for object-relational mapping.
 | `ChatDirectConversationEntity` | `chat_direct_conversation` | The one conversation between a pair of friends |
 | `ChatMessageEntity` | `chat_message` | One chat message, in a channel or a conversation, once per client ID |
 | `ChatActionEntity` | `chat_action` | What chat moderators and transcript exporters did, write-once |
+| `ChatTranscriptEntity` | `chat_transcript` | A scope admin's transcript of one channel, over at most the last seven days, with its purpose |
+| `ChatMessageReportEntity` | `chat_message_report` | A reader's report of a chat message, once per person, for the site's admins |
+| `ChatReportEvidenceEntity` | `chat_report_evidence` | The reported message and the twenty before it, copied when reported |
 
 ### Platform Launcher Image Mapping
 

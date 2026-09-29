@@ -238,6 +238,17 @@ class EnvironmentVariables {
   @IsString()
   CLOUDFLARE_R2_QUARANTINE_BUCKET_NAME: string;
 
+  /**
+   * The private bucket chat transcripts wait in for their 24-hour link
+   * (FC-035). Like quarantine, it must not be served publicly — no custom
+   * domain, no `r2.dev` subdomain — and has its own credentials. It reuses
+   * `CLOUDFLARE_R2_ENDPOINT`. Nothing here can check it is private; FC-052
+   * does, live.
+   */
+  @IsNotEmpty()
+  @IsString()
+  CLOUDFLARE_R2_EXPORTS_BUCKET_NAME: string;
+
   @IsNotEmpty()
   @IsNumber()
   MAX_IMAGE_SIZE_IN_BYTES: number;

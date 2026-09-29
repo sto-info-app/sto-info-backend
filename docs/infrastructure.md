@@ -433,6 +433,28 @@ environment; it attempts every public route to a known quarantined object and re
 See [File assets](file-assets.md) for the full inventory of delivery paths and what withdrawing an
 object costs on each one.
 
+### The exports bucket
+
+A **third, private R2 bucket**, named by `CLOUDFLARE_R2_EXPORTS_BUCKET_NAME`, holding chat
+transcripts (FC-035) for the 24 hours their requester may download them. Steve chose a bucket of
+its own on 29 September 2026: the delivery bucket is served publicly through the CDN, and a prefix
+in it would be private only for as long as nobody pointed a rule at it.
+
+- **Layout.** Keys are `<environment>/chat-transcripts/<transcript ID>.txt`, and nothing a person
+  typed ever reaches a key. Objects are written `Cache-Control: no-store`.
+- **Reach.** They are read only by the backend, after it has asked again whether the requester may
+  export the channel, and are served from the API, never from a bucket URL.
+- **Lifetime.** An hourly sweep deletes each object once its 24 hours are up. A lifecycle rule
+  deleting anything older than two days is a sensible backstop, but the application does not rely
+  on one.
+- **Credentials.** `cloudflareR2ExportsAccessKey` / `cloudflareR2ExportsSecret` in the AWS secret:
+  Object Read & Write, scoped to this bucket alone, with no Admin permission. The delivery and
+  quarantine keys cannot reach it, and it cannot reach them.
+- **Settings.** Like quarantine, it must have no public access, no custom domain, no `r2.dev`
+  subdomain and no Cloudflare Images variant. Nothing in the application can check that; FC-052
+  checks it live.
+- **Locally**, it is the MinIO bucket `stoi-exports`, private, reached with the MinIO credentials.
+
 ### Two objects in R2 that must not be deleted
 
 | Bucket | Key |

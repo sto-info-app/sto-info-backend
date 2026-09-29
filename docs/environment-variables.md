@@ -74,6 +74,7 @@ connection budget to be sized and monitored separately from the limiter's.
 - `CLOUDFLARE_CDN_ROOT_URL`: Base Cloudflare URL used to construct delivery URLs
 - `CLOUDFLARE_IMAGES_HASH`: Cloudflare Images account hash
 - `CLOUDFLARE_R2_QUARANTINE_BUCKET_NAME`: The private bucket uploaded bytes land in before they are scanned
+- `CLOUDFLARE_R2_EXPORTS_BUCKET_NAME`: The private bucket chat transcripts are kept in for their 24 hours (FC-035). Locally, the MinIO bucket `stoi-exports`
 
 That bucket name is the **only** variable quarantine adds. R2's S3 endpoint is scoped to the
 account, not to a bucket, so `CLOUDFLARE_R2_ENDPOINT` reaches the quarantine bucket as well — the
@@ -94,6 +95,10 @@ it is checked by running `npm run probe:asset-delivery` against the environment.
 `CLOUDFLARE_R2_BUCKET_NAME` is laid out. `CLOUDFLARE_R2_QUARANTINE_BUCKET_NAME` therefore holds the
 same value in every environment; it stays a configuration value rather than a constant so that a
 future split needs no code change. See [File assets](file-assets.md) for the full bucket settings.
+
+The exports bucket follows the same rules for the same reason: a transcript is somebody's
+conversation, and the delivery bucket is served publicly through the CDN. See
+[Infrastructure](infrastructure.md#the-exports-bucket).
 
 ### Upload limits
 
@@ -182,6 +187,10 @@ The secret referenced by `AWS_SECRET_NAME` is expected to be JSON with at least:
 - `cloudflareImagesApiKey`: Used for Cloudflare Images uploads
 - `cloudflareR2QuarantineAccessKey`: Reads and writes the private quarantine bucket
 - `cloudflareR2QuarantineSecret`: Reads and writes the private quarantine bucket
+- `cloudflareR2ExportsAccessKey`: Reads, writes and deletes the private exports bucket (FC-035)
+- `cloudflareR2ExportsSecret`: Reads, writes and deletes the private exports bucket (FC-035)
+
+Locally, the two exports keys are the MinIO credentials, as the quarantine keys are.
 
 `cloudmersiveApiKey` is **no longer read**. FC-012 removed the synchronous scanner call along
 with the last caller that used it; malware scanning is ClamAV in the file scan worker, whose
