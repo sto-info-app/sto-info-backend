@@ -1,7 +1,7 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsString, MaxLength } from 'class-validator';
 
 /** Trims a string value, leaving anything else for the validators. */
 const trim = ({ value }: { value: unknown }) =>
@@ -20,13 +20,15 @@ export class DecideAppealDto {
   @IsBoolean()
   readonly uphold: boolean;
 
-  @ApiPropertyOptional({
-    description: 'What the creator is told, shown to them word for word.',
+  @ApiProperty({
+    description:
+      'What the creator is told, shown to them word for word. Required, and ' +
+      'kept in the site admin log (FC-039).',
     maxLength: 1000,
   })
-  @IsOptional()
   @Transform(trim)
   @IsString()
+  @IsNotEmpty()
   @MaxLength(1000)
-  readonly reviewNotes?: string;
+  readonly reviewNotes: string;
 }

@@ -9,6 +9,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { IsNull, Repository } from 'typeorm';
 
+import { SiteAdminActionKind } from 'src/audit/site-admin/site-admin-action.enum';
+import { recordSiteAdminAction } from 'src/audit/site-admin/site-admin-action.utility';
+
 import { UserEntity } from '../user/entities/user.entity';
 import { ASSIGNABLE_USER_ROLES, UserRole } from '../user/enums/user-role.enum';
 import { AccessControlService } from './access-control.service';
@@ -35,7 +38,8 @@ import { UserPermissionOverrideEntity } from './entities/user-permission-overrid
  *
  * Every change is logged with the acting administrator, because an override is
  * a decision about a specific person and needs to remain reviewable long after
- * whoever made it has forgotten.
+ * whoever made it has forgotten. Since FC-039 every change also needs a reason
+ * and writes the site admin log in the same transaction.
  */
 @Injectable()
 export class AccessControlAdminService {
@@ -150,25 +154,38 @@ export class AccessControlAdminService {
       where: { userId, permissionId: permission.id, deletedAt: IsNull() },
     });
 
-    if (existing) {
-      await this._permissionOverrideRepository.update(existing.id, {
-        effect: dto.effect,
-        reason: dto.reason,
-        grantedByUserId: actingUserId,
-        expiresAt: dto.expiresAt ?? null,
-      });
-    } else {
-      await this._permissionOverrideRepository.save(
-        this._permissionOverrideRepository.create({
+    await this._userRepository.manager.transaction(async manager => {
+      if (existing) {
+        await manager.update(UserPermissionOverrideEntity, existing.id, {
+          effect: dto.effect,
+          reason: dto.reason,
+          grantedByUserId: actingUserId,
+          expiresAt: dto.expiresAt ?? null,
+        });
+      } else {
+        await manager.save(UserPermissionOverrideEntity, {
           userId,
           permissionId: permission.id,
           effect: dto.effect,
           reason: dto.reason,
           grantedByUserId: actingUserId,
           expiresAt: dto.expiresAt ?? null,
-        }),
-      );
-    }
+        });
+      }
+
+      await recordSiteAdminAction(manager, {
+        action: SiteAdminActionKind.PERMISSION_OVERRIDE_SET,
+        actorUserId: actingUserId,
+        targetUserId: userId,
+        reason: dto.reason,
+        detail: {
+          permissionCode: dto.permissionCode,
+          effect: dto.effect,
+          expiresAt: dto.expiresAt?.toISOString() ?? null,
+          ...(existing ? { replaced: existing.effect } : {}),
+        },
+      });
+    });
 
     this._logger.log(
       `Permission override ${dto.effect} '${dto.permissionCode}' applied to user ${userId} by ${actingUserId}`,
@@ -182,6 +199,7 @@ export class AccessControlAdminService {
    *
    * @param userId - The user the override applies to.
    * @param permissionCode - The permission code to stop overriding.
+   * @param reason - Why (FC-039).
    * @param actingUserId - The administrator making the change.
    * @returns The user's updated access summary.
    * @throws NotFoundException when the user, permission or override does not exist.
@@ -189,6 +207,7 @@ export class AccessControlAdminService {
   async removePermissionOverride(
     userId: string,
     permissionCode: string,
+    reason: string,
     actingUserId: string,
   ): Promise<UserAccessSummaryDto> {
     await this.assertUserExists(userId);
@@ -209,7 +228,16 @@ export class AccessControlAdminService {
       throw new NotFoundException('Permission override not found');
     }
 
-    await this._permissionOverrideRepository.softDelete(existing.id);
+    await this._userRepository.manager.transaction(async manager => {
+      await manager.softDelete(UserPermissionOverrideEntity, existing.id);
+      await recordSiteAdminAction(manager, {
+        action: SiteAdminActionKind.PERMISSION_OVERRIDE_REMOVED,
+        actorUserId: actingUserId,
+        targetUserId: userId,
+        reason,
+        detail: { permissionCode, effect: existing.effect },
+      });
+    });
 
     this._logger.log(
       `Permission override '${permissionCode}' withdrawn from user ${userId} by ${actingUserId}`,
@@ -268,7 +296,16 @@ export class AccessControlAdminService {
     }
 
     if (user.role !== dto.role) {
-      await this._userRepository.update(userId, { role: dto.role });
+      await this._userRepository.manager.transaction(async manager => {
+        await manager.update(UserEntity, userId, { role: dto.role });
+        await recordSiteAdminAction(manager, {
+          action: SiteAdminActionKind.USER_ROLE_CHANGED,
+          actorUserId: actingUserId,
+          targetUserId: userId,
+          reason: dto.reason,
+          detail: { from: user.role, to: dto.role },
+        });
+      });
 
       this._logger.log(
         `Role changed from '${user.role}' to '${dto.role}' for user ${userId} by ${actingUserId}`,
@@ -300,25 +337,38 @@ export class AccessControlAdminService {
       where: { userId, limitKey: dto.limitKey, deletedAt: IsNull() },
     });
 
-    if (existing) {
-      await this._limitOverrideRepository.update(existing.id, {
-        limitValue: dto.limitValue,
-        reason: dto.reason,
-        grantedByUserId: actingUserId,
-        expiresAt: dto.expiresAt ?? null,
-      });
-    } else {
-      await this._limitOverrideRepository.save(
-        this._limitOverrideRepository.create({
+    await this._userRepository.manager.transaction(async manager => {
+      if (existing) {
+        await manager.update(UserLimitOverrideEntity, existing.id, {
+          limitValue: dto.limitValue,
+          reason: dto.reason,
+          grantedByUserId: actingUserId,
+          expiresAt: dto.expiresAt ?? null,
+        });
+      } else {
+        await manager.save(UserLimitOverrideEntity, {
           userId,
           limitKey: dto.limitKey,
           limitValue: dto.limitValue,
           reason: dto.reason,
           grantedByUserId: actingUserId,
           expiresAt: dto.expiresAt ?? null,
-        }),
-      );
-    }
+        });
+      }
+
+      await recordSiteAdminAction(manager, {
+        action: SiteAdminActionKind.LIMIT_OVERRIDE_SET,
+        actorUserId: actingUserId,
+        targetUserId: userId,
+        reason: dto.reason,
+        detail: {
+          limitKey: dto.limitKey,
+          limitValue: dto.limitValue,
+          expiresAt: dto.expiresAt?.toISOString() ?? null,
+          ...(existing ? { replaced: existing.limitValue } : {}),
+        },
+      });
+    });
 
     this._logger.log(
       `Limit override ${dto.limitKey}=${dto.limitValue} applied to user ${userId} by ${actingUserId}`,
@@ -346,12 +396,14 @@ export class AccessControlAdminService {
    *
    * @param userId - The user the exemption applies to.
    * @param limitKey - The configuration key to stop overriding.
+   * @param reason - Why (FC-039).
    * @param actingUserId - The administrator making the change.
    * @throws NotFoundException when the user or exemption does not exist.
    */
   async removeLimitOverride(
     userId: string,
     limitKey: string,
+    reason: string,
     actingUserId: string,
   ): Promise<void> {
     await this.assertUserExists(userId);
@@ -364,7 +416,16 @@ export class AccessControlAdminService {
       throw new NotFoundException('Limit override not found');
     }
 
-    await this._limitOverrideRepository.softDelete(existing.id);
+    await this._userRepository.manager.transaction(async manager => {
+      await manager.softDelete(UserLimitOverrideEntity, existing.id);
+      await recordSiteAdminAction(manager, {
+        action: SiteAdminActionKind.LIMIT_OVERRIDE_REMOVED,
+        actorUserId: actingUserId,
+        targetUserId: userId,
+        reason,
+        detail: { limitKey, limitValue: existing.limitValue },
+      });
+    });
 
     this._logger.log(
       `Limit override '${limitKey}' withdrawn from user ${userId} by ${actingUserId}`,

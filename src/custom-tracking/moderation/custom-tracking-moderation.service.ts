@@ -2,6 +2,9 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 
 import { DataSource, IsNull } from 'typeorm';
 
+import { SiteAdminActionKind } from 'src/audit/site-admin/site-admin-action.enum';
+import { recordSiteAdminAction } from 'src/audit/site-admin/site-admin-action.utility';
+
 import { CustomTrackingSuppressionDto } from '../dto/custom-tracking-moderation.dto';
 import { CustomTrackingFieldEntity } from '../entities/custom-tracking-field.entity';
 import { CustomTrackingSectionEntity } from '../entities/custom-tracking-section.entity';
@@ -26,6 +29,8 @@ type CustomTrackingSuppressibleRow = {
   suppressedByUserId: string | null;
   /** When its owner deleted it, or null while it is live. */
   deletedAt: Date | null;
+  /** Its owner, on a Section or Field; a Tab has none of its own. */
+  userId?: string;
 };
 
 /**
@@ -68,6 +73,7 @@ export class CustomTrackingModerationService {
    * @param level - Which level is being acted on.
    * @param id - The row.
    * @param adminUserId - The administrator acting.
+   * @param reason - Why, kept in the site admin log (FC-039).
    * @returns Its state afterwards.
    * @throws NotFoundException when there is no such live row.
    */
@@ -75,15 +81,22 @@ export class CustomTrackingModerationService {
     level: CustomTrackingModerationLevel,
     id: string,
     adminUserId: string,
+    reason: string,
   ): Promise<CustomTrackingSuppressionDto> {
     this._logger.warn(
       `[moderation] Suppressing - Level: ${level}, Id: ${id}, AdminUserId: ${adminUserId}`,
     );
 
-    return this.write(level, id, {
-      suppressedAt: new Date(),
-      suppressedByUserId: adminUserId,
-    });
+    return this.write(
+      level,
+      id,
+      { suppressedAt: new Date(), suppressedByUserId: adminUserId },
+      {
+        action: SiteAdminActionKind.CUSTOM_TRACKING_SUPPRESSED,
+        adminUserId,
+        reason,
+      },
+    );
   }
 
   /**
@@ -97,6 +110,7 @@ export class CustomTrackingModerationService {
    * @param level - Which level is being acted on.
    * @param id - The row.
    * @param adminUserId - The administrator acting.
+   * @param reason - Why, kept in the site admin log (FC-039).
    * @returns Its state afterwards.
    * @throws NotFoundException when there is no such live row.
    */
@@ -104,15 +118,22 @@ export class CustomTrackingModerationService {
     level: CustomTrackingModerationLevel,
     id: string,
     adminUserId: string,
+    reason: string,
   ): Promise<CustomTrackingSuppressionDto> {
     this._logger.warn(
       `[moderation] Restoring - Level: ${level}, Id: ${id}, AdminUserId: ${adminUserId}`,
     );
 
-    return this.write(level, id, {
-      suppressedAt: null,
-      suppressedByUserId: null,
-    });
+    return this.write(
+      level,
+      id,
+      { suppressedAt: null, suppressedByUserId: null },
+      {
+        action: SiteAdminActionKind.CUSTOM_TRACKING_RESTORED,
+        adminUserId,
+        reason,
+      },
+    );
   }
 
   /**
@@ -125,6 +146,11 @@ export class CustomTrackingModerationService {
    * @param level - Which level is being acted on.
    * @param id - The row.
    * @param change - The new suppression state.
+   * @param logged - What the site admin log records, in the same
+   *   transaction (FC-039).
+   * @param logged.action - Suppressed or restored.
+   * @param logged.adminUserId - The administrator acting.
+   * @param logged.reason - Why.
    * @returns Its state afterwards.
    * @throws NotFoundException when there is no such live row.
    */
@@ -135,26 +161,42 @@ export class CustomTrackingModerationService {
       CustomTrackingSuppressibleRow,
       'suppressedAt' | 'suppressedByUserId'
     >,
+    logged: {
+      readonly action: SiteAdminActionKind;
+      readonly adminUserId: string;
+      readonly reason: string;
+    },
   ): Promise<CustomTrackingSuppressionDto> {
     const entity = this.entityFor(level);
-    const manager = this._dataSource.manager;
 
-    // Deleted rows are matched out, so a Section its owner removed last week
-    // cannot be suppressed. It is already invisible, and acting on it would
-    // record a decision that changed nothing.
-    const written = await manager.update(
-      entity,
-      { id, deletedAt: IsNull() },
-      change,
-    );
+    const updated = await this._dataSource.transaction(async manager => {
+      // Deleted rows are matched out, so a Section its owner removed last
+      // week cannot be suppressed. It is already invisible, and acting on it
+      // would record a decision that changed nothing.
+      const written = await manager.update(
+        entity,
+        { id, deletedAt: IsNull() },
+        change,
+      );
 
-    if (!written.affected) {
-      throw new NotFoundException('There is no such section, tab or field.');
-    }
+      if (!written.affected) {
+        throw new NotFoundException('There is no such section, tab or field.');
+      }
 
-    const updated = (await manager.findOne(entity, {
-      where: { id },
-    })) as CustomTrackingSuppressibleRow;
+      const row = (await manager.findOne(entity, {
+        where: { id },
+      })) as CustomTrackingSuppressibleRow;
+
+      await recordSiteAdminAction(manager, {
+        action: logged.action,
+        actorUserId: logged.adminUserId,
+        targetUserId: row.userId ?? null,
+        subject: { kind: `CUSTOM_TRACKING_${level}`, id },
+        reason: logged.reason,
+      });
+
+      return row;
+    });
 
     return {
       level,

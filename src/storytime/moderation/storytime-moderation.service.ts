@@ -8,6 +8,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { Repository } from 'typeorm';
 
+import { SiteAdminActionKind } from 'src/audit/site-admin/site-admin-action.enum';
+import { recordSiteAdminAction } from 'src/audit/site-admin/site-admin-action.utility';
+
 import { NotificationSeverity } from '../../notification/enums/notification-severity.enum';
 import { NotificationTarget } from '../../notification/enums/notification-target.enum';
 import { NotificationService } from '../../notification/notification.service';
@@ -33,6 +36,22 @@ import {
  * notification, because the record of what an administrator did is the part
  * that must not be lost.
  */
+/** What the site admin log calls each Storytime act (FC-039). */
+const SITE_ADMIN_ACTIONS: Readonly<
+  Record<StorytimeModerationAction, SiteAdminActionKind>
+> = {
+  [StorytimeModerationAction.REMOVED]:
+    SiteAdminActionKind.STORYTIME_CONTENT_REMOVED,
+  [StorytimeModerationAction.RESTORED]:
+    SiteAdminActionKind.STORYTIME_CONTENT_RESTORED,
+  [StorytimeModerationAction.REPORT_RESOLVED]:
+    SiteAdminActionKind.STORYTIME_REPORT_DECIDED,
+  [StorytimeModerationAction.APPEAL_UPHELD]:
+    SiteAdminActionKind.STORYTIME_APPEAL_DECIDED,
+  [StorytimeModerationAction.APPEAL_REJECTED]:
+    SiteAdminActionKind.STORYTIME_APPEAL_DECIDED,
+};
+
 @Injectable()
 export class StorytimeModerationService {
   private readonly _logger = new Logger(StorytimeModerationService.name);
@@ -183,16 +202,32 @@ export class StorytimeModerationService {
     reasonCode: string | null = null,
     message: string | null = null,
   ): Promise<StorytimeModerationActionEntity> {
-    return this._actionRepository.save(
-      this._actionRepository.create({
-        targetType,
-        targetId,
-        action,
+    // The site admin log records each act too (FC-039), in the same
+    // transaction: this trail loses its rows with the actor's account, and
+    // the site admin log does not.
+    return this._actionRepository.manager.transaction(async manager => {
+      const saved = await manager.save(
+        StorytimeModerationActionEntity,
+        manager.create(StorytimeModerationActionEntity, {
+          targetType,
+          targetId,
+          action,
+          actorUserId,
+          reasonCode,
+          message,
+        }),
+      );
+
+      await recordSiteAdminAction(manager, {
+        action: SITE_ADMIN_ACTIONS[action],
         actorUserId,
-        reasonCode,
-        message,
-      }),
-    );
+        subject: { kind: `STORYTIME_${targetType}`, id: targetId },
+        reason: message ?? reasonCode ?? action,
+        detail: { action, reasonCode },
+      });
+
+      return saved;
+    });
   }
 
   /**

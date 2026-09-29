@@ -200,7 +200,7 @@ export class StorytimeAppealService {
     appeal.status = dto.uphold ? AppealStatus.UPHELD : AppealStatus.REJECTED;
     appeal.reviewedByUserId = actingUserId;
     appeal.reviewedAt = new Date();
-    appeal.reviewNotes = dto.reviewNotes ?? null;
+    appeal.reviewNotes = dto.reviewNotes;
 
     const saved = await this._appealRepository.save(appeal);
 
@@ -213,8 +213,7 @@ export class StorytimeAppealService {
           targetType: appeal.targetType,
           targetId: appeal.targetId,
           reasonCode: null,
-          message:
-            dto.reviewNotes ?? 'Your appeal was upheld and this was restored.',
+          message: dto.reviewNotes,
         },
         actingUserId,
       );
@@ -228,7 +227,7 @@ export class StorytimeAppealService {
         : StorytimeModerationAction.APPEAL_REJECTED,
       actingUserId,
       null,
-      dto.reviewNotes ?? null,
+      dto.reviewNotes,
     );
 
     await this.notifyDecision(saved, dto.uphold);
@@ -283,9 +282,8 @@ export class StorytimeAppealService {
         title: upheld ? 'Your appeal was upheld' : 'Your appeal was not upheld',
         body: upheld
           ? `Your ${kind} has been restored.`
-          : `The removal of your ${kind} stands.${
-              appeal.reviewNotes ? ` ${appeal.reviewNotes}` : ''
-            }`,
+          : // A decision always says why (FC-039).
+            `The removal of your ${kind} stands. ${appeal.reviewNotes as string}`,
       });
     } catch (error) {
       this._logger.error(

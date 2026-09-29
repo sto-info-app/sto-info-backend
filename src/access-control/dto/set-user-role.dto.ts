@@ -2,6 +2,8 @@ import { ApiProperty } from '@nestjs/swagger';
 
 import { IsIn, IsString } from 'class-validator';
 
+import { AdminReasonDto } from 'src/shared/dto/admin-reason.dto';
+
 import {
   ASSIGNABLE_USER_ROLES,
   UserRole,
@@ -13,9 +15,10 @@ import {
  * The accepted values are {@link ASSIGNABLE_USER_ROLES} rather than the whole
  * of {@link UserRole}: ADMIN is granted outside the application, so a request
  * naming it is rejected before it reaches the service rather than relying on
- * the service alone to notice.
+ * the service alone to notice. The reason is kept in the site admin log
+ * (FC-039).
  */
-export class SetUserRoleDto {
+export class SetUserRoleDto extends AdminReasonDto {
   @ApiProperty({
     description: 'The role to give the member.',
     enum: ASSIGNABLE_USER_ROLES,

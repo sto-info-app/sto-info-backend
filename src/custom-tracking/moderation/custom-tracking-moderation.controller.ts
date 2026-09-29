@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
@@ -20,6 +21,7 @@ import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { Roles } from 'src/auth/roles.decorator';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { UserId } from 'src/auth/user-id.decorator';
+import { AdminReasonDto } from 'src/shared/dto/admin-reason.dto';
 import { UserRole } from 'src/user/enums/user-role.enum';
 
 import { CustomTrackingDefinitionTreeService } from '../definitions/custom-tracking-definition-tree.service';
@@ -110,8 +112,9 @@ export class CustomTrackingModerationController {
     @Param('level', new ParseEnumPipe(CustomTrackingModerationLevel))
     level: CustomTrackingModerationLevel,
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AdminReasonDto,
   ): Promise<CustomTrackingSuppressionDto> {
-    return this._moderation.suppress(level, id, adminUserId);
+    return this._moderation.suppress(level, id, adminUserId, dto.reason);
   }
 
   /**
@@ -135,7 +138,8 @@ export class CustomTrackingModerationController {
     @Param('level', new ParseEnumPipe(CustomTrackingModerationLevel))
     level: CustomTrackingModerationLevel,
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AdminReasonDto,
   ): Promise<CustomTrackingSuppressionDto> {
-    return this._moderation.restore(level, id, adminUserId);
+    return this._moderation.restore(level, id, adminUserId, dto.reason);
   }
 }

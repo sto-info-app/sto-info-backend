@@ -9,6 +9,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { Repository } from 'typeorm';
 
+import { SiteAdminActionKind } from 'src/audit/site-admin/site-admin-action.enum';
+import { recordSiteAdminAction } from 'src/audit/site-admin/site-admin-action.utility';
+
 import { UserRefreshTokenService } from '../user-refresh-token/user-refresh-token.service';
 import { UserEntity } from '../user/entities/user.entity';
 import { UserRole } from '../user/enums/user-role.enum';
@@ -146,16 +149,29 @@ export class UserModerationService {
 
     user.isAccountDisabled = true;
     user.disabledAt = new Date();
-    user.disabledReason = dto.reason ?? null;
+    user.disabledReason = dto.reason;
     user.disabledById = adminUserId;
 
-    await this._userRepository.save(user);
-    await this._refreshTokenService.revokeAllTokensForUser(user.id);
+    const actioned = await this._userRepository.manager.transaction(
+      async manager => {
+        await manager.save(UserEntity, user);
+        await recordSiteAdminAction(manager, {
+          action: SiteAdminActionKind.USER_DISABLED,
+          actorUserId: adminUserId,
+          targetUserId: user.id,
+          reason: dto.reason,
+        });
 
-    const actioned = await this._reportService.actionReportsAgainst(
-      user.id,
-      adminUserId,
+        return this._reportService.actionReportsAgainst(
+          manager,
+          user.id,
+          adminUserId,
+          dto.reason,
+        );
+      },
     );
+
+    await this._refreshTokenService.revokeAllTokensForUser(user.id);
 
     this._logger.log(
       `[disableUser] Account disabled - User: ${user.id}, ` +
@@ -174,6 +190,7 @@ export class UserModerationService {
    *
    * @param userId - The member to restore.
    * @param adminUserId - The acting administrator's user ID.
+   * @param reason - Why, kept in the site admin log (FC-039).
    * @returns The updated member.
    * @throws {BadRequestException} When an administrator targets themselves.
    * @throws {ForbiddenException} When the target is another administrator.
@@ -182,6 +199,7 @@ export class UserModerationService {
   async enableUser(
     userId: string,
     adminUserId: string,
+    reason: string,
   ): Promise<ModeratedUserDto> {
     const user = await this.requireModeratableUser(userId, adminUserId);
 
@@ -190,7 +208,15 @@ export class UserModerationService {
     user.disabledReason = null;
     user.disabledById = null;
 
-    await this._userRepository.save(user);
+    await this._userRepository.manager.transaction(async manager => {
+      await manager.save(UserEntity, user);
+      await recordSiteAdminAction(manager, {
+        action: SiteAdminActionKind.USER_ENABLED,
+        actorUserId: adminUserId,
+        targetUserId: user.id,
+        reason,
+      });
+    });
 
     this._logger.log(
       `[enableUser] Account restored - User: ${user.id}, Admin: ${adminUserId}`,

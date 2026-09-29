@@ -243,11 +243,24 @@ describe('SetUserRoleDto Validation', () => {
   it.each([UserRole.USER, UserRole.STORYTIME_CURATOR])(
     'should accept the assignable role %s',
     async role => {
-      const { errors } = await validateDto(SetUserRoleDto, { role });
+      const { errors } = await validateDto(SetUserRoleDto, {
+        role,
+        reason: ' Runs the anthology ',
+      });
 
       expect(errors).toHaveLength(0);
     },
   );
+
+  // FC-039: every role change is kept in the site admin log with its reason.
+  it('should require a reason', async () => {
+    const { errors } = await validateDto(SetUserRoleDto, {
+      role: UserRole.USER,
+      reason: '   ',
+    });
+
+    expect(errors.map(error => error.property)).toEqual(['reason']);
+  });
 
   // The administrator role is granted outside the application, so a request
   // naming it is refused before it can reach the service.

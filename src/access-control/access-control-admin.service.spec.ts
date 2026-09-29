@@ -7,6 +7,8 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
+import { SiteAdminActionEntity } from '../audit/site-admin/site-admin-action.entity';
+import { SiteAdminActionKind } from '../audit/site-admin/site-admin-action.enum';
 import { UserEntity } from '../user/entities/user.entity';
 import { UserRole } from '../user/enums/user-role.enum';
 import { AccessControlAdminService } from './access-control-admin.service';
@@ -41,7 +43,10 @@ describe('AccessControlAdminService', () => {
     exists: jest.Mock;
     findOne: jest.Mock;
     update: jest.Mock;
+    manager: { transaction: jest.Mock };
   };
+  /** Every row the site admin log was given (FC-039). */
+  let logged: jest.Mock;
   let accessControlService: { getPermissionCodes: jest.Mock };
 
   const userId = 'e6d3a1b2-0000-4000-8000-000000000001';
@@ -74,11 +79,36 @@ describe('AccessControlAdminService', () => {
       update: jest.fn().mockResolvedValue(undefined),
       softDelete: jest.fn().mockResolvedValue(undefined),
     };
+    logged = jest.fn().mockResolvedValue(undefined);
     userRepository = {
       exists: jest.fn().mockResolvedValue(true),
       findOne: jest.fn().mockResolvedValue({ id: userId, role: UserRole.USER }),
       update: jest.fn().mockResolvedValue(undefined),
+      manager: { transaction: jest.fn() },
     };
+
+    // The transaction hands each write to the repository that owns it, so
+    // what each repository was asked still says what was written.
+    const owner = (entity: unknown) =>
+      entity === UserPermissionOverrideEntity
+        ? permissionOverrideRepository
+        : entity === UserLimitOverrideEntity
+          ? limitOverrideRepository
+          : userRepository;
+    const transaction = {
+      update: (entity: unknown, ...args: unknown[]) =>
+        (owner(entity).update as jest.Mock)(...args),
+      save: (entity: unknown, value: unknown) =>
+        (owner(entity) as { save: jest.Mock }).save(value),
+      softDelete: (entity: unknown, ...args: unknown[]) =>
+        (owner(entity) as { softDelete: jest.Mock }).softDelete(...args),
+      insert: logged,
+    };
+
+    userRepository.manager.transaction.mockImplementation(
+      (work: (manager: typeof transaction) => Promise<unknown>) =>
+        work(transaction),
+    );
     accessControlService = {
       getPermissionCodes: jest.fn().mockResolvedValue(new Set<string>()),
     };
@@ -285,11 +315,21 @@ describe('AccessControlAdminService', () => {
       await service.removePermissionOverride(
         userId,
         PERMISSION_CODES.STORYTIME_STORY_CREATE,
+        'No longer needed',
         adminId,
       );
 
       expect(permissionOverrideRepository.softDelete).toHaveBeenCalledWith(
         'override-1',
+      );
+      expect(logged).toHaveBeenCalledWith(
+        SiteAdminActionEntity,
+        expect.objectContaining({
+          action: SiteAdminActionKind.PERMISSION_OVERRIDE_REMOVED,
+          actorUserId: adminId,
+          targetUserId: userId,
+          reason: 'No longer needed',
+        }),
       );
     });
 
@@ -297,7 +337,7 @@ describe('AccessControlAdminService', () => {
       permissionRepository.findOne.mockResolvedValue(null);
 
       await expect(
-        service.removePermissionOverride(userId, 'nope', adminId),
+        service.removePermissionOverride(userId, 'nope', 'Why', adminId),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -308,6 +348,7 @@ describe('AccessControlAdminService', () => {
         service.removePermissionOverride(
           userId,
           PERMISSION_CODES.STORYTIME_STORY_CREATE,
+          'Why',
           adminId,
         ),
       ).rejects.toThrow(NotFoundException);
@@ -320,6 +361,7 @@ describe('AccessControlAdminService', () => {
         service.removePermissionOverride(
           userId,
           PERMISSION_CODES.STORYTIME_STORY_CREATE,
+          'Why',
           adminId,
         ),
       ).rejects.toThrow(NotFoundException);
@@ -330,19 +372,27 @@ describe('AccessControlAdminService', () => {
     it('promotes a member to Storytime curator', async () => {
       await service.setUserRole(
         userId,
-        { role: UserRole.STORYTIME_CURATOR },
+        { role: UserRole.STORYTIME_CURATOR, reason: 'Runs the anthology' },
         adminId,
       );
 
       expect(userRepository.update).toHaveBeenCalledWith(userId, {
         role: UserRole.STORYTIME_CURATOR,
       });
+      expect(logged).toHaveBeenCalledWith(
+        SiteAdminActionEntity,
+        expect.objectContaining({
+          action: SiteAdminActionKind.USER_ROLE_CHANGED,
+          reason: 'Runs the anthology',
+          detail: { from: UserRole.USER, to: UserRole.STORYTIME_CURATOR },
+        }),
+      );
     });
 
     it('returns the summary without writing when the role is unchanged', async () => {
       const summary = await service.setUserRole(
         userId,
-        { role: UserRole.USER },
+        { role: UserRole.USER, reason: 'Why' },
         adminId,
       );
 
@@ -352,14 +402,22 @@ describe('AccessControlAdminService', () => {
 
     it("refuses to change the acting administrator's own role", async () => {
       await expect(
-        service.setUserRole(adminId, { role: UserRole.USER }, adminId),
+        service.setUserRole(
+          adminId,
+          { role: UserRole.USER, reason: 'Why' },
+          adminId,
+        ),
       ).rejects.toThrow(BadRequestException);
       expect(userRepository.update).not.toHaveBeenCalled();
     });
 
     it('refuses to assign the administrator role', async () => {
       await expect(
-        service.setUserRole(userId, { role: UserRole.ADMIN }, adminId),
+        service.setUserRole(
+          userId,
+          { role: UserRole.ADMIN, reason: 'Why' },
+          adminId,
+        ),
       ).rejects.toThrow(ForbiddenException);
       expect(userRepository.update).not.toHaveBeenCalled();
     });
@@ -371,7 +429,11 @@ describe('AccessControlAdminService', () => {
       });
 
       await expect(
-        service.setUserRole(userId, { role: UserRole.USER }, adminId),
+        service.setUserRole(
+          userId,
+          { role: UserRole.USER, reason: 'Why' },
+          adminId,
+        ),
       ).rejects.toThrow(ForbiddenException);
       expect(userRepository.update).not.toHaveBeenCalled();
     });
@@ -380,7 +442,11 @@ describe('AccessControlAdminService', () => {
       userRepository.findOne.mockResolvedValue(null);
 
       await expect(
-        service.setUserRole(userId, { role: UserRole.USER }, adminId),
+        service.setUserRole(
+          userId,
+          { role: UserRole.USER, reason: 'Why' },
+          adminId,
+        ),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -462,6 +528,7 @@ describe('AccessControlAdminService', () => {
       await service.removeLimitOverride(
         userId,
         'STORYTIME_MAX_STORIES_PER_USER',
+        'Back to normal',
         adminId,
       );
 
@@ -472,7 +539,7 @@ describe('AccessControlAdminService', () => {
 
     it('throws when no exemption is in force', async () => {
       await expect(
-        service.removeLimitOverride(userId, 'NOPE', adminId),
+        service.removeLimitOverride(userId, 'NOPE', 'Why', adminId),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -480,7 +547,7 @@ describe('AccessControlAdminService', () => {
       userRepository.exists.mockResolvedValue(false);
 
       await expect(
-        service.removeLimitOverride(userId, 'NOPE', adminId),
+        service.removeLimitOverride(userId, 'NOPE', 'Why', adminId),
       ).rejects.toThrow(NotFoundException);
     });
   });

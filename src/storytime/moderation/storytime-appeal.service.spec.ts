@@ -241,7 +241,11 @@ describe('StorytimeAppealService', () => {
     // Agreeing with somebody and then leaving their work down is the failure
     // this workflow exists to prevent.
     it('restores the content as part of upholding it', async () => {
-      await service.decide(appealId, { uphold: true }, adminId);
+      await service.decide(
+        appealId,
+        { uphold: true, reviewNotes: 'You are right.' },
+        adminId,
+      );
 
       expect(moderationService.restore).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -267,7 +271,11 @@ describe('StorytimeAppealService', () => {
       [true, StorytimeModerationAction.APPEAL_UPHELD],
       [false, StorytimeModerationAction.APPEAL_REJECTED],
     ])('records the decision in the history', async (uphold, action) => {
-      await service.decide(appealId, { uphold }, adminId);
+      await service.decide(
+        appealId,
+        { uphold, reviewNotes: 'Decided.' },
+        adminId,
+      );
 
       expect(moderationService.record).toHaveBeenCalledWith(
         StorytimeTargetType.STORY,
@@ -275,12 +283,16 @@ describe('StorytimeAppealService', () => {
         action,
         adminId,
         null,
-        null,
+        'Decided.',
       );
     });
 
     it('tells the creator what was decided', async () => {
-      await service.decide(appealId, { uphold: true }, adminId);
+      await service.decide(
+        appealId,
+        { uphold: true, reviewNotes: 'You are right.' },
+        adminId,
+      );
 
       expect(notificationService.createNotification).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -313,7 +325,11 @@ describe('StorytimeAppealService', () => {
         notificationService.createNotification.mockRejectedValue(failure);
 
         await expect(
-          service.decide(appealId, { uphold: true }, adminId),
+          service.decide(
+            appealId,
+            { uphold: true, reviewNotes: 'You are right.' },
+            adminId,
+          ),
         ).resolves.toBeDefined();
       },
     );
@@ -326,7 +342,11 @@ describe('StorytimeAppealService', () => {
       appealRepository.findOne.mockResolvedValue(buildAppeal({ status }));
 
       await expect(
-        service.decide(appealId, { uphold: true }, adminId),
+        service.decide(
+          appealId,
+          { uphold: true, reviewNotes: 'You are right.' },
+          adminId,
+        ),
       ).rejects.toThrow(/already been answered or withdrawn/);
     });
 
@@ -334,7 +354,11 @@ describe('StorytimeAppealService', () => {
       appealRepository.findOne.mockResolvedValue(null);
 
       await expect(
-        service.decide(appealId, { uphold: true }, adminId),
+        service.decide(
+          appealId,
+          { uphold: true, reviewNotes: 'You are right.' },
+          adminId,
+        ),
       ).rejects.toThrow(NotFoundException);
     });
   });

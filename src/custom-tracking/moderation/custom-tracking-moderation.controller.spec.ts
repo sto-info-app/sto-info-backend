@@ -88,6 +88,7 @@ describe('CustomTrackingModerationController', () => {
         'admin-1',
         CustomTrackingModerationLevel.FIELD,
         'field-1',
+        { reason: 'Offensive name' },
       ),
     ).resolves.toEqual(outcome);
 
@@ -95,6 +96,7 @@ describe('CustomTrackingModerationController', () => {
       CustomTrackingModerationLevel.FIELD,
       'field-1',
       'admin-1',
+      'Offensive name',
     );
   });
 
@@ -104,6 +106,7 @@ describe('CustomTrackingModerationController', () => {
         'admin-1',
         CustomTrackingModerationLevel.SECTION,
         'section-1',
+        { reason: 'Changed now' },
       ),
     ).resolves.toEqual(expect.objectContaining({ suppressed: false }));
 
@@ -111,6 +114,7 @@ describe('CustomTrackingModerationController', () => {
       CustomTrackingModerationLevel.SECTION,
       'section-1',
       'admin-1',
+      'Changed now',
     );
   });
 });

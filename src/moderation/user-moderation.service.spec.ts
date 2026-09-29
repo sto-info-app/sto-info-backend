@@ -8,6 +8,9 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { jest } from '@jest/globals';
 
+import { SiteAdminActionEntity } from 'src/audit/site-admin/site-admin-action.entity';
+import { SiteAdminActionKind } from 'src/audit/site-admin/site-admin-action.enum';
+
 import { UserRefreshTokenService } from '../user-refresh-token/user-refresh-token.service';
 import { UserEntity } from '../user/entities/user.entity';
 import { UserRole } from '../user/enums/user-role.enum';
@@ -85,7 +88,10 @@ describe('UserModerationService', () => {
     findOne: jest.Mock<() => Promise<UserEntity | null>>;
     save: jest.Mock<(entity: unknown) => Promise<UserEntity>>;
     createQueryBuilder: jest.Mock;
+    manager: { transaction: jest.Mock };
   };
+  /** The disabling's or restoring's transaction, as the service sees it. */
+  let transaction: { save: jest.Mock; insert: jest.Mock };
   let refreshTokenService: { revokeAllTokensForUser: jest.Mock };
   let reportService: {
     countUnresolvedByReportedUser: jest.Mock<
@@ -101,7 +107,17 @@ describe('UserModerationService', () => {
       findOne: jest.fn(() => Promise.resolve(buildUser())),
       save: jest.fn((entity: unknown) => Promise.resolve(entity as UserEntity)),
       createQueryBuilder: jest.fn(() => queryBuilder),
+      manager: { transaction: jest.fn() },
     };
+    transaction = {
+      save: jest.fn((_entity: unknown, user: unknown) =>
+        userRepository.save(user),
+      ),
+      insert: jest.fn(() => Promise.resolve(undefined)),
+    };
+    userRepository.manager.transaction.mockImplementation(((
+      work: (manager: typeof transaction) => Promise<unknown>,
+    ) => work(transaction)) as never);
     refreshTokenService = {
       revokeAllTokensForUser: jest.fn(() => Promise.resolve(undefined)),
     };
@@ -225,9 +241,9 @@ describe('UserModerationService', () => {
 
   describe('disableUser', () => {
     it('should refuse an administrator disabling themselves', async () => {
-      await expect(service.disableUser(ADMIN_ID, ADMIN_ID, {})).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.disableUser(ADMIN_ID, ADMIN_ID, { reason: 'Spamming' }),
+      ).rejects.toThrow(BadRequestException);
       expect(userRepository.save).not.toHaveBeenCalled();
     });
 
@@ -237,7 +253,7 @@ describe('UserModerationService', () => {
       );
 
       await expect(
-        service.disableUser(MEMBER_ID, ADMIN_ID, {}),
+        service.disableUser(MEMBER_ID, ADMIN_ID, { reason: 'Spamming' }),
       ).rejects.toThrow(ForbiddenException);
       expect(userRepository.save).not.toHaveBeenCalled();
     });
@@ -246,7 +262,7 @@ describe('UserModerationService', () => {
       userRepository.findOne.mockResolvedValue(null);
 
       await expect(
-        service.disableUser(MEMBER_ID, ADMIN_ID, {}),
+        service.disableUser(MEMBER_ID, ADMIN_ID, { reason: 'Spamming' }),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -263,16 +279,23 @@ describe('UserModerationService', () => {
       );
     });
 
-    it('should default the reason to null when none is given', async () => {
-      await service.disableUser(MEMBER_ID, ADMIN_ID, {});
+    // FC-039: the disabling is kept in the site admin log with its reason.
+    it('should log the disabling with its reason', async () => {
+      await service.disableUser(MEMBER_ID, ADMIN_ID, { reason: 'Spamming' });
 
-      expect(userRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({ disabledReason: null }),
+      expect(transaction.insert).toHaveBeenCalledWith(
+        SiteAdminActionEntity,
+        expect.objectContaining({
+          action: SiteAdminActionKind.USER_DISABLED,
+          actorUserId: ADMIN_ID,
+          targetUserId: MEMBER_ID,
+          reason: 'Spamming',
+        }),
       );
     });
 
     it('should end the member live sessions', async () => {
-      await service.disableUser(MEMBER_ID, ADMIN_ID, {});
+      await service.disableUser(MEMBER_ID, ADMIN_ID, { reason: 'Spamming' });
 
       expect(refreshTokenService.revokeAllTokensForUser).toHaveBeenCalledWith(
         MEMBER_ID,
@@ -282,20 +305,22 @@ describe('UserModerationService', () => {
     it('should close the reports that led there', async () => {
       reportService.actionReportsAgainst.mockResolvedValue(2);
 
-      await service.disableUser(MEMBER_ID, ADMIN_ID, {});
+      await service.disableUser(MEMBER_ID, ADMIN_ID, { reason: 'Spamming' });
 
       expect(reportService.actionReportsAgainst).toHaveBeenCalledWith(
+        transaction,
         MEMBER_ID,
         ADMIN_ID,
+        'Spamming',
       );
     });
   });
 
   describe('enableUser', () => {
     it('should refuse an administrator restoring themselves', async () => {
-      await expect(service.enableUser(ADMIN_ID, ADMIN_ID)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.enableUser(ADMIN_ID, ADMIN_ID, 'Appeal upheld'),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should refuse restoring another administrator', async () => {
@@ -303,9 +328,9 @@ describe('UserModerationService', () => {
         buildUser({ role: UserRole.ADMIN }),
       );
 
-      await expect(service.enableUser(MEMBER_ID, ADMIN_ID)).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(
+        service.enableUser(MEMBER_ID, ADMIN_ID, 'Appeal upheld'),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should clear the lock and everything recorded with it', async () => {
@@ -318,7 +343,7 @@ describe('UserModerationService', () => {
         }),
       );
 
-      await service.enableUser(MEMBER_ID, ADMIN_ID);
+      await service.enableUser(MEMBER_ID, ADMIN_ID, 'Appeal upheld');
 
       expect(userRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -330,8 +355,20 @@ describe('UserModerationService', () => {
       );
     });
 
+    it('should log the restoring with its reason (FC-039)', async () => {
+      await service.enableUser(MEMBER_ID, ADMIN_ID, 'Appeal upheld');
+
+      expect(transaction.insert).toHaveBeenCalledWith(
+        SiteAdminActionEntity,
+        expect.objectContaining({
+          action: SiteAdminActionKind.USER_ENABLED,
+          reason: 'Appeal upheld',
+        }),
+      );
+    });
+
     it('should leave closed reports closed', async () => {
-      await service.enableUser(MEMBER_ID, ADMIN_ID);
+      await service.enableUser(MEMBER_ID, ADMIN_ID, 'Appeal upheld');
 
       expect(reportService.actionReportsAgainst).not.toHaveBeenCalled();
     });
