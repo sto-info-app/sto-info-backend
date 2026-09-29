@@ -11,6 +11,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+import { AuditIdentifiersOnly } from 'src/audit/audit-redaction';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
 
@@ -39,6 +40,7 @@ import { FleetRecruitmentSettingsEntity } from './fleet-recruitment-settings.ent
  * application's ID asks them to confirm that once the in-game invitation has
  * happened, which STO Info cannot do for them.
  */
+@AuditIdentifiersOnly()
 @Entity({ name: 'fleet_application' })
 @Index('UX_fleet_application_pending', ['fleetId', 'characterId'], {
   unique: true,

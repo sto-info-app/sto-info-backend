@@ -2,6 +2,43 @@ import * as Sentry from '@sentry/nestjs';
 
 import { getAppVersion } from '../../shared/utilities/version.utility';
 
+/** What a request may carry that must never reach Sentry. */
+interface SentryRequest {
+  headers?: Record<string, string>;
+  data?: unknown;
+  query_string?: unknown;
+  cookies?: unknown;
+}
+
+/**
+ * Takes out of an event's request everything a person sent: credentials,
+ * the body and the query (FC-038). A roster, a chat message or a form's
+ * content travels in one of those, and none of it may reach a provider.
+ *
+ * @param event - The event.
+ * @param event.request - Its request, if any.
+ * @returns The event.
+ */
+export function stripRequest<T extends { request?: SentryRequest }>(
+  event: T,
+): T {
+  const request = event.request;
+
+  if (request?.headers) {
+    delete request.headers['authorization'];
+    delete request.headers['cookie'];
+    delete request.headers['set-cookie'];
+  }
+
+  if (request) {
+    delete request.data;
+    delete request.query_string;
+    delete request.cookies;
+  }
+
+  return event;
+}
+
 if (process.env.SENTRY_DSN) {
   Sentry.init({
     dsn: process.env.SENTRY_DSN,
@@ -26,7 +63,7 @@ if (process.env.SENTRY_DSN) {
     beforeSendTransaction(event) {
       const url = event.request?.url ?? '';
       if (url.includes('/health') || url.includes('/metrics')) return null;
-      return event;
+      return stripRequest(event);
     },
 
     // Error Filtering
@@ -40,20 +77,7 @@ if (process.env.SENTRY_DSN) {
      * @returns The result of the operation.
      */
     beforeSend(event) {
-      // Strip sensitive headers if present
-      if (event.request?.headers) {
-        const h = event.request.headers;
-        delete h['authorization'];
-        delete h['cookie'];
-        delete h['set-cookie'];
-      }
-
-      // Remove request bodies
-      if (event.request?.data) {
-        delete event.request.data;
-      }
-
-      return event;
+      return stripRequest(event);
     },
   });
 }

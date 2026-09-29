@@ -10,6 +10,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+import { AuditIdentifiersOnly } from 'src/audit/audit-redaction';
 import { FleetAudience } from 'src/fleet/enums/fleet-audience.enum';
 
 import { NewsCategory } from '../enums/news-category.enum';
@@ -25,6 +26,7 @@ import { NewsStatus } from '../enums/news-status.enum';
  * cover image. `CHK_news_post_scope` holds both shapes, and every query for
  * the site's news asks for `communityId IS NULL` explicitly.
  */
+@AuditIdentifiersOnly()
 @Entity({ name: 'news_post' })
 export class NewsPostEntity {
   @ApiProperty({ description: 'Unique identifier.' })

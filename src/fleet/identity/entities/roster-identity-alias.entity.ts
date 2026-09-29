@@ -12,6 +12,8 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+import { AuditIdentifiersOnly } from 'src/audit/audit-redaction';
+
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { RosterIdentityEntity } from './roster-identity.entity';
 
@@ -41,6 +43,7 @@ import { RosterIdentityEntity } from './roster-identity.entity';
  * share the normalised key; which of them is shown is a display choice, and
  * the observations keep every spelling.
  */
+@AuditIdentifiersOnly()
 @Entity({ name: 'fleet_roster_identity_alias' })
 @Unique('UQ_roster_identity_alias_tenancy', ['id', 'fleetId'])
 @Unique('UQ_roster_identity_alias_origin', ['originIdentityId'])

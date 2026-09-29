@@ -129,4 +129,30 @@ describe('Sentry Initialization', () => {
     expect(result.request.headers).toBeUndefined();
     expect(result.request.data).toBeUndefined();
   });
+
+  // FC-038: a canary sent in a request never reaches Sentry, from an error
+  // or from a trace.
+  it('takes every body, query and cookie out of errors and traces', async () => {
+    process.env.SENTRY_DSN = 'https://example@sentry.io/123';
+
+    await jest.isolateModulesAsync(async () => {
+      await import('./sentry.init');
+    });
+
+    const initCall = (Sentry.init as jest.Mock<(...args: any[]) => any>).mock
+      .calls[0][0];
+    const canary = () => ({
+      request: {
+        url: '/fleet-communities/c/fleets/f/roster-imports',
+        headers: { authorization: 'bearer TELEMETRY-CANARY' },
+        data: 'Officer Note,TELEMETRY-CANARY',
+        query_string: 'q=TELEMETRY-CANARY',
+        cookies: { session: 'TELEMETRY-CANARY' },
+      },
+    });
+
+    for (const hook of [initCall.beforeSend, initCall.beforeSendTransaction]) {
+      expect(JSON.stringify(hook(canary()))).not.toContain('TELEMETRY-CANARY');
+    }
+  });
 });

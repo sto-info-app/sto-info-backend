@@ -11,6 +11,8 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+import { AuditIdentifiersOnly } from 'src/audit/audit-redaction';
+
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { RosterProfession } from '../enums/roster-profession.enum';
 import { RosterImportSourceEntity } from './roster-import-source.entity';
@@ -36,6 +38,7 @@ import { RosterImportSourceEntity } from './roster-import-source.entity';
  * accepted-not-yet-in-force and in-force, and every import is placed under
  * its own identifier.
  */
+@AuditIdentifiersOnly()
 @Entity({ name: 'fleet_roster_observation' })
 @Index('IDX_roster_observation_import_line', ['importSourceId', 'line'])
 @Index('IDX_roster_observation_fleet_account', [
