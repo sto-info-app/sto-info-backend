@@ -209,3 +209,49 @@ export class ScanDiagnosticsDto {
   })
   awaiting: ScanAwaitingDto;
 }
+
+/**
+ * One asset's scan outcome, for a site admin (FC-039): the rejection code
+ * and the engine that reached it, never a signature name, a filename or a
+ * byte of content. The user who uploaded it is only ever told the file was
+ * refused.
+ */
+export class ScanAssetDetailDto {
+  @ApiProperty() id: string;
+
+  @ApiProperty({ description: 'What the asset is for.' })
+  kind: string;
+
+  @ApiProperty() state: string;
+
+  @ApiPropertyOptional({ nullable: true, type: String })
+  rejectionCode: string | null;
+
+  @ApiPropertyOptional({ nullable: true, type: String })
+  scanEngine: string | null;
+
+  @ApiPropertyOptional({ nullable: true, type: String })
+  scanEngineVersion: string | null;
+
+  @ApiPropertyOptional({ nullable: true, type: String })
+  scanSignatureVersion: string | null;
+
+  @ApiProperty() policyVersion: number;
+
+  @ApiProperty() createdAt: Date;
+
+  @ApiPropertyOptional({ nullable: true, type: Date })
+  lastVerdictAt: Date | null;
+}
+
+/** A page of refused assets, newest verdict first. */
+export class ScanRejectionPageDto {
+  @ApiProperty({ type: [ScanAssetDetailDto] })
+  items: ScanAssetDetailDto[];
+
+  @ApiProperty() total: number;
+
+  @ApiProperty() page: number;
+
+  @ApiProperty() pageSize: number;
+}

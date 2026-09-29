@@ -17,13 +17,34 @@ describe('ScanDiagnosticsController', () => {
   } as ScanDiagnosticsDto;
 
   let read: jest.Mock<() => Promise<ScanDiagnosticsDto>>;
+  let rejections: jest.Mock<(page: number) => Promise<unknown>>;
+  let asset: jest.Mock<(assetId: string) => Promise<unknown>>;
   let controller: ScanDiagnosticsController;
 
   beforeEach(() => {
     read = jest.fn(() => Promise.resolve(diagnostics));
+    rejections = jest.fn(() => Promise.resolve('page'));
+    asset = jest.fn(() => Promise.resolve('detail'));
     controller = new ScanDiagnosticsController({
       read,
+      rejections,
+      asset,
     } as unknown as ScanDiagnosticsService);
+  });
+
+  // FC-039.
+  it.each([
+    [undefined, 1],
+    [0, 1],
+    [3, 3],
+  ])('reads page %s of refused assets as page %s', async (page, asked) => {
+    await expect(controller.rejections(page)).resolves.toBe('page');
+    expect(rejections).toHaveBeenCalledWith(asked);
+  });
+
+  it('reads one asset’s outcome', async () => {
+    await expect(controller.asset('asset-1')).resolves.toBe('detail');
+    expect(asset).toHaveBeenCalledWith('asset-1');
   });
 
   it('answers with what the service read', async () => {

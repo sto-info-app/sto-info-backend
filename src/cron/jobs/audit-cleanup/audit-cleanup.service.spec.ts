@@ -6,6 +6,7 @@ import { jest } from '@jest/globals';
 import { Repository } from 'typeorm';
 
 import { AuditEntity } from 'src/audit/entities/audit.entity';
+import { SiteAdminActionEntity } from 'src/audit/site-admin/site-admin-action.entity';
 
 import { AuditCleanupService } from './audit-cleanup.service';
 
@@ -23,6 +24,11 @@ describe('AuditCleanupService', () => {
           useValue: {
             delete: jest.fn(),
             update: jest.fn(),
+            // The site admin log, which follows the same policy (FC-039).
+            manager: {
+              delete: jest.fn(async () => ({ affected: 2 })),
+              update: jest.fn(async () => ({ affected: 1 })),
+            },
           },
         },
       ],
@@ -116,5 +122,35 @@ describe('AuditCleanupService', () => {
       expect(deleteCall.createdAt).toBeDefined();
       expect(updateCall.createdAt).toBeDefined();
     });
+  });
+
+  // FC-039: the site admin log keeps a row 180 days and its IP address 90.
+  it('holds the site admin log to the same policy', async () => {
+    (
+      repository.delete as jest.Mock<(...args: any[]) => Promise<any>>
+    ).mockResolvedValue({ affected: 0 });
+    (
+      repository.update as jest.Mock<(...args: any[]) => Promise<any>>
+    ).mockResolvedValue({ affected: 0 });
+
+    await service.cleanup();
+
+    const manager = (
+      repository as unknown as {
+        manager: { delete: jest.Mock; update: jest.Mock };
+      }
+    ).manager;
+
+    expect(manager.delete).toHaveBeenCalledWith(SiteAdminActionEntity, {
+      createdAt: expect.anything(),
+    });
+    expect(manager.update).toHaveBeenCalledWith(
+      SiteAdminActionEntity,
+      { createdAt: expect.anything(), ipAddress: expect.anything() },
+      { ipAddress: null },
+    );
+    expect(loggerLogSpy).toHaveBeenCalledWith(
+      'Site admin log: deleted 2 record(s), and forgot the IP address of 1.',
+    );
   });
 });

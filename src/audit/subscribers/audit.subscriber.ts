@@ -14,6 +14,7 @@ import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-ref
 import { redactForAudit } from '../audit-redaction';
 import { AuditLoginAttemptEntity } from '../entities/audit-login-attempt.entity';
 import { AuditEntity } from '../entities/audit.entity';
+import { SiteAdminActionEntity } from '../site-admin/site-admin-action.entity';
 
 // Define the type alias
 type AuditEventType = InsertEvent<any> | UpdateEvent<any> | RemoveEvent<any>;
@@ -77,6 +78,8 @@ export class AuditSubscriber implements EntitySubscriberInterface {
       AuditEntity,
       AuditLoginAttemptEntity,
       UserRefreshTokenEntity,
+      // An audit record itself (FC-039).
+      SiteAdminActionEntity,
     ];
     if (
       excludedEntitiesFromAuditing.includes(
