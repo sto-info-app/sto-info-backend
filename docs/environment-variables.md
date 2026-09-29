@@ -193,6 +193,10 @@ The secret referenced by `AWS_SECRET_NAME` is expected to be JSON with at least:
   random string, kept for good: without it the suppression list can't be matched, erasure answers
   503, and once anybody is erased a roster upload is refused. See
   [Privacy: erasure](privacy-erasure.md#verified-roster-erasure)
+- `cloudflareImagesSigningKey`: Signs every picture address the API sends (FC-040), from
+  Cloudflare's R2 and Images → Images → Keys. Without it nothing is signed, new pictures go up
+  public and the estate cannot be copied to private; with it, a private picture shows only to a
+  signed address. See [Private image delivery](image-delivery.md)
 
 Locally, the two exports keys are the MinIO credentials, as the quarantine keys are.
 

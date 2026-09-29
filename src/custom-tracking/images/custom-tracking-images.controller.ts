@@ -29,6 +29,7 @@ import {
 
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
+import { customTrackingImageUrl } from 'src/custom-tracking/constants/custom-tracking-image.constants';
 import { AssetScanStatusDto } from 'src/file-assets/dto/asset-scan-status.dto';
 // Reused rather than restated. How a cropped image and its description are
 // parsed off the wire is the same problem here as in Storytime, and a second
@@ -160,6 +161,7 @@ export class CustomTrackingImagesController {
       imageId: stored.cloudflareImageId,
       altText: stored.altText,
       shape: stored.shape,
+      imageUrl: customTrackingImageUrl(stored.cloudflareImageId, stored.shape),
     };
   }
 

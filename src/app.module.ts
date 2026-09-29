@@ -27,6 +27,7 @@ import { CronModule } from './cron/cron.module';
 import { CustomTrackingModule } from './custom-tracking/custom-tracking.module';
 import { DatabaseModule } from './database/database.module';
 import { DiagnosticsModule } from './diagnostics/diagnostics.module';
+import { ImageUrlSigningInterceptor } from './file-assets/delivery/image-url-signing.interceptor';
 import { FileAssetsModule } from './file-assets/file-assets.module';
 import { FileScanningModule } from './file-scanning/file-scanning.module';
 import { ActivityModule } from './fleet/activity/activity.module';
@@ -172,6 +173,12 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     {
       provide: APP_FILTER,
       useClass: TypeOrmExceptionFilter,
+    },
+    // Registered before the serialiser, so it wraps it and signs the
+    // picture addresses in what the serialiser produced (FC-040).
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: ImageUrlSigningInterceptor,
     },
     {
       provide: APP_INTERCEPTOR,

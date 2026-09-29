@@ -227,6 +227,7 @@ describe('ScopeNewsService', () => {
             updatedAt: CREATED,
             coverImageId: null,
             coverImageAlt: null,
+            coverImageUrl: null,
             author: { username: 'Writer', linksToProfile: true },
           },
         ],

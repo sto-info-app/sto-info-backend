@@ -5,7 +5,9 @@ import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service'
 import { FileAssetPlacementState } from '../enums/file-asset-placement-state.enum';
 import { FileAssetSlot } from '../enums/file-asset-slot.enum';
 import { FileAssetState } from '../enums/file-asset-state.enum';
+import { FileAssetStorage } from '../enums/file-asset-storage.enum';
 import { FileAssetSubject } from '../enums/file-asset-subject.enum';
+import { ImageEstateService } from '../estate/image-estate.service';
 import { FileAssetPlacementService } from './file-asset-placement.service';
 import { FileAssetService } from './file-asset.service';
 
@@ -49,11 +51,13 @@ export class AssetWithdrawalService {
    * @param _fileAssets - The asset registry.
    * @param _placements - Which picture is in which slot.
    * @param _images - Cloudflare Images.
+   * @param _estate - The image estate's copies (FC-040).
    */
   constructor(
     private readonly _fileAssets: FileAssetService,
     private readonly _placements: FileAssetPlacementService,
     private readonly _images: ImageUploadsService,
+    private readonly _estate: ImageEstateService,
   ) {}
 
   /**
@@ -87,13 +91,29 @@ export class AssetWithdrawalService {
       );
     }
 
-    const deleted = await this.deleteFromCloudflare(deliveryReference);
+    const deleted = await this.deleteFromCloudflare(
+      deliveryReference,
+      asset?.storage === FileAssetStorage.LEGACY_PUBLIC_R2,
+    );
 
     if (deleted && revoked && asset !== null) {
       const purged = await this._fileAssets.findById(asset.id);
 
       if (purged !== null && purged.purgeRequiredAt !== null) {
         await this._fileAssets.confirmPurged(asset.id);
+      }
+    }
+
+    // A picture copied to private delivery still has its old public copy
+    // until that is retired; withdrawing it takes that down too (FC-040).
+    if (asset !== null) {
+      try {
+        await this._estate.retireFor(asset.id);
+      } catch (error: unknown) {
+        this._logger.error(
+          `[withdrawByReference] Old copy not retired - AssetId: ${asset.id}, ` +
+            `Reason: ${error instanceof Error ? error.message : 'unknown'}`,
+        );
       }
     }
 
@@ -165,14 +185,20 @@ export class AssetWithdrawalService {
    * pointing at the picture by the time this runs, so what the reader sees
    * is already correct, and the outstanding purge is recorded on the row.
    *
-   * @param deliveryReference - The image identifier.
+   * @param deliveryReference - The image identifier, or an R2 key.
+   * @param r2 - Whether it is a legacy R2 object rather than an image.
    * @returns True when Cloudflare agreed it has gone.
    */
   private async deleteFromCloudflare(
     deliveryReference: string,
+    r2: boolean,
   ): Promise<boolean> {
     try {
-      await this._images.deleteImageFromCloudflareImages(deliveryReference);
+      if (r2) {
+        await this._images.deleteR2Object(deliveryReference);
+      } else {
+        await this._images.deleteImageFromCloudflareImages(deliveryReference);
+      }
 
       return true;
     } catch (error: unknown) {

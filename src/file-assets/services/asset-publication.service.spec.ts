@@ -160,7 +160,10 @@ describe('AssetPublicationService', () => {
         requireRestricted,
       } as unknown as AssetPublisherRegistry,
       { getStream, remove } as unknown as QuarantineStorageService,
-      { publishImageToCloudflareImages } as unknown as ImageUploadsService,
+      {
+        publishImageToCloudflareImages,
+        publishesPrivate: true,
+      } as unknown as ImageUploadsService,
       { withdrawByReference } as unknown as AssetWithdrawalService,
       { transaction } as unknown as DataSource,
     );
@@ -191,10 +194,12 @@ describe('AssetPublicationService', () => {
         entityId: 'story-1',
       }),
     );
+    // FC-040: sent while addresses can be signed, so it is private.
     expect(publishAsset).toHaveBeenCalledWith(
       'asset-1',
       FileAssetStorage.PUBLIC_IMAGES,
       'cf-image-1',
+      true,
     );
   });
 

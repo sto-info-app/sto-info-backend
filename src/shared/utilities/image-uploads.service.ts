@@ -3,11 +3,14 @@ import { ConfigService } from '@nestjs/config';
 
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
 import axios from 'axios';
 import FormData from 'form-data';
+
+import { ImageSigningService } from 'src/file-assets/delivery/image-signing.service';
 
 import {
   SAFE_FILENAME_PATTERN,
@@ -30,6 +33,26 @@ export interface PublishImageInput {
   readonly entityType: string | null;
   /** What it belongs to, as Cloudflare records it. */
   readonly entityId: string | null;
+  /**
+   * Whether it is private, reachable only by a signed address (FC-040).
+   * Private by default whenever addresses can be signed.
+   */
+  readonly private?: boolean;
+}
+
+/** One image in Cloudflare's listing (FC-040). */
+export interface CloudflareImageListing {
+  readonly id: string;
+  readonly requireSignedURLs: boolean;
+  /** What the uploader recorded with it, such as the environment. */
+  readonly meta: Record<string, unknown>;
+}
+
+/** A page of Cloudflare's listing. */
+export interface CloudflareImagePage {
+  readonly images: readonly CloudflareImageListing[];
+  /** Where the next page starts, or null after the last. */
+  readonly continuationToken: string | null;
 }
 
 /**
@@ -55,11 +78,13 @@ export class ImageUploadsService {
    * @param _secretsService - The secrets service.
    * @param _configService - The config service.
    * @param _s3Client - The s3 client.
+   * @param _signing - Whether pictures can be private (FC-040).
    */
   constructor(
     private readonly _secretsService: SecretsService,
     private readonly _configService: ConfigService,
     private readonly _s3Client: S3Client,
+    private readonly _signing: ImageSigningService,
   ) {
     this._bucketName = this._configService.get<string>(
       'CLOUDFLARE_R2_BUCKET_NAME',
@@ -260,23 +285,16 @@ export class ImageUploadsService {
       contentType: input.contentType ?? 'application/octet-stream',
     });
 
-    const customId = this.buildCloudflareCustomId(
-      userId,
-      input.entityType ?? undefined,
-      input.entityId ?? undefined,
+    // FC-040: Cloudflare generates the ID. It will not make a custom-ID image
+    // private, and a custom ID also put the uploader's user ID in every
+    // address the site served.
+    formData.append(
+      'requireSignedURLs',
+      String(input.private ?? this.publishesPrivate),
     );
 
-    this._logger.debug(
-      `[publishImageToCloudflareImages] Generated custom ID: ${customId}`,
-    );
-
-    // Append the custom ID
-    formData.append('id', customId);
-
-    // Append metadata as a JSON string for additional context
+    // What the inventory reads back: which environment, and what for.
     const metadata = {
-      userId,
-      originalFileName: safeFileName,
       env: this._environment,
       uploadedAt: new Date().toISOString(),
       ...(input.entityType && { entityType: input.entityType }),
@@ -326,29 +344,145 @@ export class ImageUploadsService {
   }
 
   /**
-   * Builds the Cloudflare custom identifier.
+   * Whether a picture published now is private (FC-040): whenever the
+   * addresses the API sends can be signed.
    *
-   * @param userId - The user id.
-   * @param entityType - The entity type.
-   * @param entityId - The entity id.
-   * @returns The result of the operation.
+   * @returns True when new pictures are private.
    */
-  private buildCloudflareCustomId(
-    userId: string,
-    entityType?: string,
-    entityId?: string,
-  ): string {
-    // Format: env-userId-entityType-entityId-timestamp
-    const timestamp = Date.now();
-    const parts = [this._environment, userId];
-    if (entityType) {
-      parts.push(entityType);
+  get publishesPrivate(): boolean {
+    return this._signing.enabled;
+  }
+
+  /**
+   * The environment pictures are recorded against.
+   *
+   * @returns Its name, as `NODE_ENV` gives it.
+   */
+  get environment(): string {
+    return this._environment;
+  }
+
+  /**
+   * Makes an image need a signed address, or no longer need one (FC-040).
+   * Cloudflare refuses this for a custom-ID image, which has to be copied.
+   *
+   * @param imageId - The image.
+   * @param required - Whether it needs one.
+   */
+  async setImageRequiresSignature(
+    imageId: string,
+    required: boolean,
+  ): Promise<void> {
+    await axios.patch(
+      `${this.imagesApi}/v1/${encodeURIComponent(imageId)}`,
+      { requireSignedURLs: required },
+      { headers: this.imagesAuth },
+    );
+  }
+
+  /**
+   * Reads an image's original bytes back from Cloudflare (FC-040).
+   *
+   * @param imageId - The image.
+   * @returns The bytes, as uploaded.
+   */
+  async readImage(imageId: string): Promise<Buffer> {
+    const response = await axios.get<ArrayBuffer>(
+      `${this.imagesApi}/v1/${encodeURIComponent(imageId)}/blob`,
+      { headers: this.imagesAuth, responseType: 'arraybuffer' },
+    );
+
+    return Buffer.from(response.data);
+  }
+
+  /**
+   * Reads a page of the account's images (FC-040).
+   *
+   * @param continuationToken - Where the page starts, or null for the first.
+   * @param perPage - How many to a page.
+   * @returns The page.
+   */
+  async listImages(
+    continuationToken: string | null,
+    perPage = 1000,
+  ): Promise<CloudflareImagePage> {
+    const response = await axios.get<{
+      result: {
+        images: {
+          id: string;
+          requireSignedURLs?: boolean;
+          meta?: Record<string, unknown> | null;
+        }[];
+        continuation_token?: string | null;
+      };
+    }>(`${this.imagesApi}/v2`, {
+      headers: this.imagesAuth,
+      params: {
+        per_page: perPage,
+        ...(continuationToken === null
+          ? {}
+          : { continuation_token: continuationToken }),
+      },
+    });
+    const { images, continuation_token } = response.data.result;
+
+    return {
+      images: images.map(image => ({
+        id: image.id,
+        requireSignedURLs: image.requireSignedURLs === true,
+        meta: image.meta ?? {},
+      })),
+      continuationToken: continuation_token ?? null,
+    };
+  }
+
+  /**
+   * Reads an object from the public R2 bucket (FC-040): a legacy Character
+   * portrait on its way into Cloudflare Images.
+   *
+   * @param key - The object key.
+   * @returns Its bytes.
+   */
+  async readR2Object(key: string): Promise<Buffer> {
+    const response = await this._s3Client.send(
+      new GetObjectCommand({ Bucket: this._bucketName, Key: key }),
+    );
+    const chunks: Buffer[] = [];
+
+    for await (const chunk of response.Body as AsyncIterable<Uint8Array>) {
+      chunks.push(Buffer.from(chunk));
     }
-    if (entityId) {
-      parts.push(entityId);
-    }
-    parts.push(String(timestamp));
-    return parts.join('-');
+
+    return Buffer.concat(chunks);
+  }
+
+  /**
+   * Deletes an object from the public R2 bucket (FC-040).
+   *
+   * @param key - The object key.
+   */
+  async deleteR2Object(key: string): Promise<void> {
+    await this._s3Client.send(
+      new DeleteObjectCommand({ Bucket: this._bucketName, Key: key }),
+    );
+  }
+
+  /**
+   * The account's Cloudflare Images API.
+   *
+   * @returns Its base address.
+   */
+  private get imagesApi(): string {
+    return `https://api.cloudflare.com/client/v4/accounts/${this.cloudflareImagesAccountId}/images`;
+  }
+
+  /**
+   * The Images API's authorisation header.
+   *
+   * @returns The header.
+   */
+  private get imagesAuth(): { Authorization: string } {
+    return { Authorization: `Bearer ${this.cloudflareImagesApiKey}` };
   }
 
   /**

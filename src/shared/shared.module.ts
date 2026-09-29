@@ -3,6 +3,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 
 import { S3Client } from '@aws-sdk/client-s3';
 
+import { ImageSigningService } from 'src/file-assets/delivery/image-signing.service';
+
 import { ImageSlotService } from './images/image-slot.service';
 import { SecretsService } from './secrets/secrets.service';
 import { ImageUploadsService } from './utilities/image-uploads.service';
@@ -11,6 +13,7 @@ import { ImageUploadsService } from './utilities/image-uploads.service';
   imports: [ConfigModule],
   providers: [
     SecretsService,
+    ImageSigningService,
     ImageUploadsService,
     ImageSlotService,
     {
@@ -34,6 +37,11 @@ import { ImageUploadsService } from './utilities/image-uploads.service';
       inject: [ConfigService, SecretsService],
     },
   ],
-  exports: [SecretsService, ImageUploadsService, ImageSlotService],
+  exports: [
+    SecretsService,
+    ImageSigningService,
+    ImageUploadsService,
+    ImageSlotService,
+  ],
 })
 export class SharedModule {}

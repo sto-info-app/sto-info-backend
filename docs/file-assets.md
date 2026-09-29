@@ -156,6 +156,11 @@ quarantine too, and the separation the bucket exists for is not there.
 
 Ten ways a stored object can currently be fetched, and what it takes to stop each one.
 
+**Since FC-040, paths 1 and 2 need a signature for every private picture**, and path 3 onwards
+serves nothing once the R2 portraits are copied and the bucket's public access is closed. The
+table below is what each path is, and what stops it; see
+[Private image delivery](image-delivery.md) for the signing.
+
 ### Public, through Cloudflare Images
 
 | #   | Path                           | Shape                                                         | Revoked by                                                                      |

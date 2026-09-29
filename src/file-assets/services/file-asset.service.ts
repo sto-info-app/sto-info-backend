@@ -275,12 +275,15 @@ export class FileAssetService {
    *   were quarantined under. Null leaves the asset addressed by its
    *   {@link FileAssetEntity.objectKey}, which is what a privately delivered
    *   asset wants.
+   * @param deliveryPrivate - Whether that reference is a private Cloudflare
+   *   Images object, served only by a signed address (FC-040).
    * @returns The asset, in `AVAILABLE`.
    */
   async publish(
     assetId: string,
     storage: FileAssetStorage = FileAssetStorage.QUARANTINE,
     deliveryReference: string | null = null,
+    deliveryPrivate = false,
   ): Promise<FileAssetEntity> {
     const asset = await this.requireAsset(assetId);
 
@@ -292,6 +295,7 @@ export class FileAssetService {
 
     if (deliveryReference !== null) {
       asset.deliveryReference = deliveryReference;
+      asset.deliveryPrivate = deliveryPrivate;
     }
 
     return this._repository.save(asset);

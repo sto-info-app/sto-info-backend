@@ -66,6 +66,9 @@ The database uses PostgreSQL with TypeORM for object-relational mapping.
 | `ModerationHoldEntity` | `moderation_hold` | A site admin's hold on a chat report's evidence, or on everything one member wrote in chat, with its review date — see [Fleet chat](fleet-chat.md#holds) |
 | `ModerationHoldActionEntity` | `moderation_hold_action` | Each placing, extension, release and reading of a hold, with its reason or purpose, and the system's notices and releases past review, write-once |
 | `RosterErasureEntity` | `roster_erasure` | A verified erasure of a Character name and @handle from every roster: a keyed hash, never the pair, and the pseudonym replacing it; the suppression list — see [Privacy: erasure](privacy-erasure.md) |
+| `ImageEstateRunEntity` | `image_estate_run` | One checkpointed run moving the image estate to private delivery: a copy, an undo or a retirement; one open at a time — see [Private image delivery](image-delivery.md) |
+| `ImageEstateStepEntity` | `image_estate_step` | One picture's copy to a private one: what it was, what it became, every row it repointed, and whether its old public copy is retired |
+| `ImageInventoryRunEntity` | `image_inventory_run` | One reconciliation of the image columns, the registry and Cloudflare's listing; a report, nothing deleted |
 | `SiteAdminActionEntity` | `site_admin_action` | Every site-level admin action, with its reason, write-once and kept under the audit policy — see [Admin audit](admin-audit.md) |
 | `RetentionRunEntity` | `retention_run` | One run of a Fleet retention job: when, what it deleted, whether that was all, and any failure; write-once once finished — see [Fleet retention jobs](fleet-retention.md) |
 | `FleetInvestigationGrantEntity` | `fleet_investigation_grant` | A site admin's 24-hour read-only look into a Fleet's imports, with its purpose, write-once — see [Fleet governance](fleet-governance.md) |

@@ -253,13 +253,18 @@ Two further things are easy to miss:
 - **The CDN hostname differs per environment** (`cdn.` and `dev-cdn.`), while the R2 buckets behind
   the estate are single buckets with the environment as a key prefix. Domain is per environment;
   bucket is not.
+- **Pictures are private since FC-040.** A published picture is a private Cloudflare Images object
+  under a generated ID, and both hostnames refuse it without a signature the API adds with
+  `cloudflareImagesSigningKey`. The site's own artwork stays public. Once no legacy R2 portrait is
+  left, the delivery bucket's custom domain binding comes off (FC-052, on the live account). See
+  [Private image delivery](image-delivery.md).
 
 ### What writes where, as of FC-008
 
 | Store | Written by | Read by |
 | --- | --- | --- |
 | **Cloudflare Images** | `ImageUploadsService.uploadImageToCloudflareImages` — every upload the site accepts | The custom domain and `imagedelivery.net` |
-| **Public R2 bucket** | **Nothing.** `uploadImageToCloudflareR2` and `deleteImageFromCloudflareR2` have no callers | Legacy Character portraits, via the two `cdn-cgi` paths above |
+| **Public R2 bucket** | **Nothing.** `uploadImageToCloudflareR2` and `deleteImageFromCloudflareR2` have no callers; FC-040's copy reads each legacy portrait out and its retirement deletes it | Legacy Character portraits, via the two `cdn-cgi` paths above, until they are copied |
 | **Quarantine R2 bucket** | `QuarantineStorageService.put` | `FileAssetDeliveryService`, and the scan worker |
 
 The public R2 bucket is kept rather than retired because document uploads are a likely future

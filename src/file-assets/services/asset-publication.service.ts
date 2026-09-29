@@ -305,6 +305,12 @@ export class AssetPublicationService {
     const publisher = this._publishers.require(placement.subject);
     const detail = readAssetPlacementDetail(placement.detail);
 
+    // Whether what is sent now is private (FC-040): it is whenever the API
+    // can sign addresses for it.
+    const deliveryPrivate =
+      asset.deliveryReference === null
+        ? this._images.publishesPrivate
+        : asset.deliveryPrivate;
     const deliveryReference =
       asset.deliveryReference ?? (await this.sendToCloudflare(asset, detail));
 
@@ -317,6 +323,7 @@ export class AssetPublicationService {
         asset.id,
         FileAssetStorage.PUBLIC_IMAGES,
         deliveryReference,
+        deliveryPrivate,
       );
     }
 

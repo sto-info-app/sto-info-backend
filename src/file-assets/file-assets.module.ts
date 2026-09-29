@@ -14,6 +14,14 @@ import { AssetStatusController } from './asset-status.controller';
 import { FILE_ASSET_PUBLICATION_QUEUE } from './constants/file-asset-publication.constants';
 import { FileAssetPlacementEntity } from './entities/file-asset-placement.entity';
 import { FileAssetEntity } from './entities/file-asset.entity';
+import { ImageEstateRunEntity } from './estate/image-estate-run.entity';
+import { ImageEstateStepEntity } from './estate/image-estate-step.entity';
+import { IMAGE_ESTATE_QUEUE } from './estate/image-estate.constants';
+import { ImageEstateController } from './estate/image-estate.controller';
+import { ImageEstateProcessor } from './estate/image-estate.processor';
+import { ImageEstateService } from './estate/image-estate.service';
+import { ImageInventoryRunEntity } from './estate/image-inventory-run.entity';
+import { ImageInventoryService } from './estate/image-inventory.service';
 import { FileAssetDeliveryController } from './file-asset-delivery.controller';
 import { AssetPublicationProcessor } from './processors/asset-publication.processor';
 import { AssetPublicationQueueService } from './services/asset-publication-queue.service';
@@ -57,11 +65,22 @@ import { StaleUploadSweepService } from './services/stale-upload-sweep.service';
     ConfigModule,
     SharedModule,
     FleetModule,
-    TypeOrmModule.forFeature([FileAssetEntity, FileAssetPlacementEntity]),
+    TypeOrmModule.forFeature([
+      FileAssetEntity,
+      FileAssetPlacementEntity,
+      ImageEstateRunEntity,
+      ImageEstateStepEntity,
+      ImageInventoryRunEntity,
+    ]),
     QueueModule,
     BullModule.registerQueue({ name: FILE_ASSET_PUBLICATION_QUEUE }),
+    BullModule.registerQueue({ name: IMAGE_ESTATE_QUEUE }),
   ],
-  controllers: [FileAssetDeliveryController, AssetStatusController],
+  controllers: [
+    FileAssetDeliveryController,
+    AssetStatusController,
+    ImageEstateController,
+  ],
   providers: [
     FileAssetService,
     FileAssetDeliveryService,
@@ -74,6 +93,9 @@ import { StaleUploadSweepService } from './services/stale-upload-sweep.service';
     AssetWithdrawalService,
     AssetStatusService,
     StaleUploadSweepService,
+    ImageEstateService,
+    ImageInventoryService,
+    ImageEstateProcessor,
     {
       provide: QUARANTINE_S3_CLIENT,
       useFactory: async (

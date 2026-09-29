@@ -8,7 +8,9 @@ import { FileAssetEntity } from '../entities/file-asset.entity';
 import { FileAssetPlacementState } from '../enums/file-asset-placement-state.enum';
 import { FileAssetSlot } from '../enums/file-asset-slot.enum';
 import { FileAssetState } from '../enums/file-asset-state.enum';
+import { FileAssetStorage } from '../enums/file-asset-storage.enum';
 import { FileAssetSubject } from '../enums/file-asset-subject.enum';
+import { ImageEstateService } from '../estate/image-estate.service';
 import { AssetWithdrawalService } from './asset-withdrawal.service';
 import { FileAssetPlacementService } from './file-asset-placement.service';
 import { FileAssetService } from './file-asset.service';
@@ -38,6 +40,8 @@ describe('AssetWithdrawalService', () => {
   let deleteImageFromCloudflareImages: jest.Mock<
     (...args: any[]) => Promise<any>
   >;
+  let deleteR2Object: jest.Mock<(...args: any[]) => Promise<void>>;
+  let retireFor: jest.Mock<(...args: any[]) => Promise<void>>;
   let service: AssetWithdrawalService;
 
   beforeEach(() => {
@@ -58,6 +62,12 @@ describe('AssetWithdrawalService', () => {
     deleteImageFromCloudflareImages = jest
       .fn<(...args: any[]) => Promise<any>>()
       .mockResolvedValue('image-1');
+    deleteR2Object = jest
+      .fn<(...args: any[]) => Promise<void>>()
+      .mockResolvedValue(undefined);
+    retireFor = jest
+      .fn<(...args: any[]) => Promise<void>>()
+      .mockResolvedValue(undefined);
 
     service = new AssetWithdrawalService(
       {
@@ -70,7 +80,11 @@ describe('AssetWithdrawalService', () => {
         findActiveForSlot,
         settle,
       } as unknown as FileAssetPlacementService,
-      { deleteImageFromCloudflareImages } as unknown as ImageUploadsService,
+      {
+        deleteImageFromCloudflareImages,
+        deleteR2Object,
+      } as unknown as ImageUploadsService,
+      { retireFor } as unknown as ImageEstateService,
     );
 
     jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
@@ -92,7 +106,42 @@ describe('AssetWithdrawalService', () => {
       expect(revoke).toHaveBeenCalledWith('asset-1', 'Replaced');
       expect(deleteImageFromCloudflareImages).toHaveBeenCalledWith('image-1');
       expect(confirmPurged).toHaveBeenCalledWith('asset-1');
+      // FC-040: its old public copy, if it was copied, goes too.
+      expect(retireFor).toHaveBeenCalledWith('asset-1');
     });
+
+    // FC-040: a legacy R2 portrait is an object in the R2 bucket, not an
+    // image, and is deleted there.
+    it('deletes a legacy R2 portrait from R2', async () => {
+      findByDeliveryReference.mockResolvedValue(
+        asset({
+          deliveryReference: 'user/character/portrait.png',
+          storage: FileAssetStorage.LEGACY_PUBLIC_R2,
+        }),
+      );
+
+      await expect(
+        service.withdrawByReference('user/character/portrait.png', 'Removed'),
+      ).resolves.toEqual({ deleted: true, revoked: true });
+      expect(deleteR2Object).toHaveBeenCalledWith(
+        'user/character/portrait.png',
+      );
+      expect(deleteImageFromCloudflareImages).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['an error', new Error('no')],
+      ['something that is not an error', 'no'],
+    ])(
+      'still answers when the old copy cannot be retired, with %s',
+      async (_name, failure) => {
+        retireFor.mockRejectedValue(failure);
+
+        await expect(
+          service.withdrawByReference('image-1', 'Replaced'),
+        ).resolves.toEqual({ deleted: true, revoked: true });
+      },
+    );
 
     // The estate is served from UNVERIFIED, so deleting a picture uploaded
     // years ago withdraws its asset exactly as a new one would.
@@ -125,6 +174,7 @@ describe('AssetWithdrawalService', () => {
         service.withdrawByReference('image-1', 'Removed'),
       ).resolves.toEqual({ deleted: true, revoked: false });
       expect(deleteImageFromCloudflareImages).toHaveBeenCalledWith('image-1');
+      expect(retireFor).not.toHaveBeenCalled();
     });
 
     // The interval between a revocation and a purge is the window in which

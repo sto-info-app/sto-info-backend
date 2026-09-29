@@ -6,6 +6,8 @@ import { S3Client } from '@aws-sdk/client-s3';
 import { jest } from '@jest/globals';
 import axios from 'axios';
 
+import { ImageSigningService } from 'src/file-assets/delivery/image-signing.service';
+
 import { SecretsService } from '../secrets/secrets.service';
 import {
   ImageUploadsService,
@@ -19,6 +21,7 @@ jest.mock('@aws-sdk/client-s3', () => ({
   })),
   PutObjectCommand: jest.fn().mockImplementation(args => args),
   DeleteObjectCommand: jest.fn().mockImplementation(args => args),
+  GetObjectCommand: jest.fn().mockImplementation(args => args),
 }));
 jest.mock('axios');
 
@@ -64,6 +67,8 @@ describe('ImageUploadsService', () => {
     return await Test.createTestingModule({
       providers: [
         ImageUploadsService,
+        // FC-040: public unless addresses can be signed.
+        { provide: ImageSigningService, useValue: { enabled: false } },
         {
           provide: SecretsService,
           useValue: {
@@ -189,6 +194,139 @@ describe('ImageUploadsService', () => {
       process.env.AWS_SECRET_NAME = 'another-secret';
       await service.onModuleInit();
       expect(secretsService.getSecret).toHaveBeenCalledWith('another-secret');
+    });
+  });
+
+  // FC-040: pictures go up private under a Cloudflare-generated ID, and the
+  // estate is read, listed, made private and moved.
+  describe('private delivery (FC-040)', () => {
+    const axiosMock = axios as jest.Mocked<typeof axios>;
+    const api = 'https://api.cloudflare.com/client/v4/accounts/acc-id/images';
+    const auth = { Authorization: 'Bearer cf-key' };
+
+    it('publishes public while it cannot sign, with no custom ID or user ID', async () => {
+      axiosMock.post.mockResolvedValue({
+        status: 200,
+        data: { result: { id: 'generated-1' } },
+      });
+
+      await service.publishImageToCloudflareImages(publishInput());
+
+      const form = axiosMock.post.mock.calls[0][1] as {
+        getBuffer: () => Buffer;
+      };
+      const body = form.getBuffer().toString();
+
+      expect(service.publishesPrivate).toBe(false);
+      expect(service.environment).toBe('test');
+      expect(body).toContain('name="requireSignedURLs"\r\n\r\nfalse');
+      expect(body).not.toContain('name="id"');
+      expect(body).not.toContain('user-1');
+    });
+
+    it('publishes private when asked', async () => {
+      axiosMock.post.mockResolvedValue({
+        status: 200,
+        data: { result: { id: 'generated-1' } },
+      });
+
+      await service.publishImageToCloudflareImages(
+        publishInput({ private: true }),
+      );
+
+      const form = axiosMock.post.mock.calls[0][1] as {
+        getBuffer: () => Buffer;
+      };
+
+      expect(form.getBuffer().toString()).toContain(
+        'name="requireSignedURLs"\r\n\r\ntrue',
+      );
+    });
+
+    it('makes an image need a signature, or no longer need one', async () => {
+      axiosMock.patch.mockResolvedValue({ status: 200 });
+
+      await service.setImageRequiresSignature('image/1', true);
+
+      expect(axiosMock.patch).toHaveBeenCalledWith(
+        `${api}/v1/image%2F1`,
+        { requireSignedURLs: true },
+        { headers: auth },
+      );
+    });
+
+    it('reads an image’s original bytes', async () => {
+      axiosMock.get.mockResolvedValue({
+        data: new Uint8Array([1, 2, 3]).buffer,
+      });
+
+      await expect(service.readImage('image-1')).resolves.toEqual(
+        Buffer.from([1, 2, 3]),
+      );
+      expect(axiosMock.get).toHaveBeenCalledWith(`${api}/v1/image-1/blob`, {
+        headers: auth,
+        responseType: 'arraybuffer',
+      });
+    });
+
+    it('lists the account a page at a time', async () => {
+      axiosMock.get
+        .mockResolvedValueOnce({
+          data: {
+            result: {
+              images: [
+                { id: 'a', requireSignedURLs: true, meta: { env: 'test' } },
+                { id: 'b', meta: null },
+              ],
+              continuation_token: 'next',
+            },
+          },
+        })
+        .mockResolvedValueOnce({
+          data: { result: { images: [] } },
+        });
+
+      await expect(service.listImages(null)).resolves.toEqual({
+        images: [
+          { id: 'a', requireSignedURLs: true, meta: { env: 'test' } },
+          { id: 'b', requireSignedURLs: false, meta: {} },
+        ],
+        continuationToken: 'next',
+      });
+      await expect(service.listImages('next', 10)).resolves.toEqual({
+        images: [],
+        continuationToken: null,
+      });
+      expect(axiosMock.get).toHaveBeenNthCalledWith(1, `${api}/v2`, {
+        headers: auth,
+        params: { per_page: 1000 },
+      });
+      expect(axiosMock.get).toHaveBeenNthCalledWith(2, `${api}/v2`, {
+        headers: auth,
+        params: { per_page: 10, continuation_token: 'next' },
+      });
+    });
+
+    it('reads and deletes a legacy R2 object', async () => {
+      mockS3Send.mockResolvedValueOnce({
+        Body: (async function* () {
+          yield new Uint8Array([4, 5]);
+          yield new Uint8Array([6]);
+        })(),
+      });
+
+      await expect(service.readR2Object('user/portrait.png')).resolves.toEqual(
+        Buffer.from([4, 5, 6]),
+      );
+
+      mockS3Send.mockResolvedValueOnce({});
+
+      await service.deleteR2Object('user/portrait.png');
+
+      expect(mockS3Send).toHaveBeenLastCalledWith({
+        Bucket: 'bucket',
+        Key: 'user/portrait.png',
+      });
     });
   });
 

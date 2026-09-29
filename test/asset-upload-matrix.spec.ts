@@ -386,7 +386,13 @@ describe('every upload caller, end to end', () => {
       registry,
       quarantine,
       images,
-      new AssetWithdrawalService(fileAssets, placementService, images),
+      new AssetWithdrawalService(
+        fileAssets,
+        placementService,
+        images,
+        // No picture here has been copied to private delivery (FC-040).
+        { retireFor: () => Promise.resolve() } as never,
+      ),
       // Pictures are never activated in a transaction; only a restricted
       // placement is, and there is none here.
       {} as never,

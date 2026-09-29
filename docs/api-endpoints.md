@@ -368,6 +368,20 @@ control routes above:
 
 All three require the `ADMIN` role. See [Admin audit](admin-audit.md).
 
+### Private image delivery (FC-040)
+
+| Method | Path | Purpose |
+| ------ | ---- | ------- |
+| GET | `/admin/image-estate` | Whether addresses are signed, how many pictures are still public, the copies by state, and the last run and inventory |
+| POST | `/admin/image-estate/inventory` | Reconcile the image columns, the registry and Cloudflare's listing; changes nothing |
+| POST | `/admin/image-estate/runs` | `{ kind: COPY \| UNDO \| RETIRE, reason }`; 409 while another run is open, without the signing key, or with nothing to undo or retire |
+| POST | `/admin/image-estate/runs/pause`, `/resume` | `{ reason }` |
+
+All require the `ADMIN` role. Every response's picture addresses are signed on the way out, and
+Community, Fleet, Armada, news and Custom Tracking responses now carry addresses
+(`bannerImageUrl`, `emblemImageUrls`, `coverImageUrl`, `imageUrl`) beside the IDs. See
+[Private image delivery](image-delivery.md).
+
 ### PATCH /admin/storytime/configuration
 
 Switch Storytime on or off at runtime. `GET` on the same path reports the current state. Both require the `ADMIN` role.

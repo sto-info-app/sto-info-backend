@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 import { jest } from '@jest/globals';
 
+import { customTrackingImageUrl } from 'src/custom-tracking/constants/custom-tracking-image.constants';
 import { AcceptedAsset } from 'src/file-assets/services/asset-ingress.service';
 
 import { CUSTOM_TRACKING_FEATURE_FLAGS } from '../constants/custom-tracking-feature.constants';
@@ -139,6 +140,10 @@ describe('CustomTrackingImagesController', () => {
         imageId: 'image-1',
         altText: 'The USS Ares at warp',
         shape: CustomTrackingImageShape.LANDSCAPE,
+        imageUrl: customTrackingImageUrl(
+          'image-1',
+          CustomTrackingImageShape.LANDSCAPE,
+        ),
       });
     });
 

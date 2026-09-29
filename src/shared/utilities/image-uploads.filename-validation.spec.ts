@@ -35,6 +35,8 @@ describe('ImageUploadsService SAFE_FILENAME_PATTERN branch', () => {
     const { SecretsService } = await import('../secrets/secrets.service');
     const { S3Client } = await import('@aws-sdk/client-s3');
     const { ImageUploadsService } = await import('./image-uploads.service');
+    const { ImageSigningService } =
+      await import('src/file-assets/delivery/image-signing.service');
     const { Logger } = await import('@nestjs/common');
 
     jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
@@ -48,6 +50,8 @@ describe('ImageUploadsService SAFE_FILENAME_PATTERN branch', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         ImageUploadsService,
+        // FC-040: public unless addresses can be signed.
+        { provide: ImageSigningService, useValue: { enabled: false } },
         {
           provide: SecretsService,
           useValue: {
