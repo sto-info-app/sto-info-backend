@@ -29,6 +29,7 @@ import { DiagnosticsModule } from './diagnostics/diagnostics.module';
 import { FileAssetsModule } from './file-assets/file-assets.module';
 import { FileScanningModule } from './file-scanning/file-scanning.module';
 import { FleetArmadasModule } from './fleet/armadas/fleet-armadas.module';
+import { ScopeEventsModule } from './fleet/events/scope-events.module';
 import { FleetModule } from './fleet/fleet.module';
 import { FleetGovernanceModule } from './fleet/governance/fleet-governance.module';
 import { FleetHoldingsModule } from './fleet/holdings/fleet-holdings.module';
@@ -146,6 +147,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     FleetArmadasModule,
     FleetImagesModule,
     ScopeNewsModule,
+    ScopeEventsModule,
     RegistryModule,
     ModerationModule,
   ],

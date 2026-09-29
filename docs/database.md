@@ -47,6 +47,14 @@ The database uses PostgreSQL with TypeORM for object-relational mapping.
 | `FleetHoldingChangeEntity` | `fleet_holding_change` | One save of one holding, with who and why, write-once |
 | `FleetHoldingHistoryEntity` | `fleet_holding_history` | Each track a change moved, from what tier to what, write-once |
 | `NewsPostEntity` | `news_post` | The site's news, and a Community's, a Fleet's or an Armada's with its audience and cover — see [Fleet news](fleet-news.md) |
+| `ScopeEventEntity` | `scope_event` | A Community's, a Fleet's or an Armada's event, its rule and timezone — see [Fleet events](fleet-events.md) |
+| `ScopeEventAudienceMemberEntity` | `scope_event_audience_member` | Each Fleet or role an event with a chosen audience is for |
+| `ScopeEventOccurrenceEntity` | `scope_event_occurrence` | Each occurrence, a year ahead, keyed by the day its rule names |
+| `ScopeEventRsvpEntity` | `scope_event_rsvp` | Each answer, and each place on a waitlist |
+| `ScopeEventAttendanceEntity` | `scope_event_attendance` | Who a manager recorded came, kept apart from answers |
+| `ScopeEventReminderEntity` | `scope_event_reminder` | Who asked to be reminded of an event, and how long before |
+| `NotificationOutboxEntity` | `notification_outbox` | The outbox every targeted in-app notice goes through — event reminders, proposals, chat mentions, replies and direct messages — each sent once |
+| `ScopeEventActionEntity` | `scope_event_action` | An event's change log, write-once |
 
 ### Platform Launcher Image Mapping
 

@@ -3,6 +3,7 @@ import {
   isKnownTimezone,
   LocalTimeResolution,
   resolveLocalDateTime,
+  scheduleLocalDateTime,
   toLocalDateTime,
   toUtcInstant,
 } from './timezone.utility';
@@ -326,5 +327,65 @@ describe('toLocalDateTime', () => {
       expect(instant).not.toBeNull();
       expect(toLocalDateTime(instant as Date, timezone)).toBe(local);
     }
+  });
+
+  describe('scheduleLocalDateTime', () => {
+    it('places an ordinary time exactly', () => {
+      expect(
+        scheduleLocalDateTime('2026-07-03T20:00', 'Europe/London'),
+      ).toEqual({
+        instant: new Date('2026-07-03T19:00:00Z'),
+        resolution: LocalTimeResolution.EXACT,
+      });
+    });
+
+    it('takes the earlier of a time the clock repeats', () => {
+      expect(
+        scheduleLocalDateTime('2026-10-25T01:30', 'Europe/London'),
+      ).toEqual({
+        instant: new Date('2026-10-25T00:30:00Z'),
+        resolution: LocalTimeResolution.AMBIGUOUS,
+      });
+    });
+
+    it('moves a time the clock jumps over forward by the jump', () => {
+      const scheduled = scheduleLocalDateTime(
+        '2026-03-29T01:30',
+        'Europe/London',
+      );
+
+      expect(scheduled).toEqual({
+        instant: new Date('2026-03-29T01:30:00Z'),
+        resolution: LocalTimeResolution.NONEXISTENT,
+      });
+      expect(
+        toLocalDateTime(
+          (scheduled as { instant: Date }).instant,
+          'Europe/London',
+        ),
+      ).toBe('2026-03-29T02:30:00');
+    });
+
+    it('moves forward by a jump of half an hour too', () => {
+      // Lord Howe Island moves its clock forward thirty minutes at 02:00.
+      const scheduled = scheduleLocalDateTime(
+        '2026-10-04T02:10',
+        'Australia/Lord_Howe',
+      );
+
+      expect(
+        toLocalDateTime(
+          (scheduled as { instant: Date }).instant,
+          'Australia/Lord_Howe',
+        ),
+      ).toBe('2026-10-04T02:40:00');
+    });
+
+    it('refuses a malformed time or an unknown zone', () => {
+      expect(scheduleLocalDateTime('2026-13-01T10:00', 'UTC')).toBeNull();
+      expect(
+        scheduleLocalDateTime('2026-07-03T20:00', 'Mars/Olympus'),
+      ).toBeNull();
+    });
   });
 });

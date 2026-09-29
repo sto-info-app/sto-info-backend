@@ -26,7 +26,12 @@ const OWNER_ID = '22000000-0000-4000-8000-000000000003';
 
 describe('ScopeClosureService', () => {
   let stored: { status: FleetScopeStatus; closedAt: Date | null } | null;
-  let manager: { findOne: jest.Mock; save: jest.Mock; update: jest.Mock };
+  let manager: {
+    find: jest.Mock;
+    findOne: jest.Mock;
+    save: jest.Mock;
+    update: jest.Mock;
+  };
   let bump: jest.Mock;
   let record: jest.Mock;
   let endAllWithin: jest.Mock;
@@ -36,6 +41,8 @@ describe('ScopeClosureService', () => {
   beforeEach(() => {
     stored = { status: FleetScopeStatus.ACTIVE, closedAt: null };
     manager = {
+      // No events to end.
+      find: jest.fn(() => Promise.resolve([])),
       // A Fleet in no Armada: the placement read finds nothing.
       findOne: jest.fn((entity: unknown) =>
         Promise.resolve(entity === ArmadaFleetMembershipEntity ? null : stored),
@@ -98,6 +105,11 @@ describe('ScopeClosureService', () => {
         scope,
         closed.closedAt,
       );
+      // Its events, and every Fleet's and Armada's in it (FC-028).
+      expect(manager.find).toHaveBeenCalledWith(ScopeEventEntity, {
+        where: { communityId: COMMUNITY_ID, status: ScopeEventStatus.ACTIVE },
+        lock: { mode: 'pessimistic_write' },
+      });
       expect(cancelOpenWithin).toHaveBeenCalledWith(manager, COMMUNITY_ID, {
         actorUserId: OWNER_ID,
         asSiteAdmin: undefined,
@@ -175,6 +187,15 @@ describe('ScopeClosureService', () => {
         scope,
         closed.closedAt,
       );
+      // Its own events (FC-028).
+      expect(manager.find).toHaveBeenCalledWith(ScopeEventEntity, {
+        where: {
+          communityId: COMMUNITY_ID,
+          fleetId: FLEET_ID,
+          status: ScopeEventStatus.ACTIVE,
+        },
+        lock: { mode: 'pessimistic_write' },
+      });
       expect(cancelOpenWithin).not.toHaveBeenCalled();
       expect(record).toHaveBeenCalledWith(manager, {
         scope,

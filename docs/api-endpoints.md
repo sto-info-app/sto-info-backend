@@ -478,6 +478,12 @@ A Community's, a Fleet's and an Armada's own news, its audiences and covers, and
 administrator's takedowns. See [Fleet news](fleet-news.md#routes) for every route and who may
 call it. The site's own `/news` routes never return a scoped post.
 
+### Events
+
+A Community's, a Fleet's and an Armada's events: their rules and occurrences, answers and the
+waitlist, attendance and reminders. See [Fleet events](fleet-events.md#routes) for every route and
+who may call it.
+
 ### POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports
 
 Upload an STO roster export for a Fleet.

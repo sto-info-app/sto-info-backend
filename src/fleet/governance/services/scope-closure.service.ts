@@ -103,6 +103,14 @@ export class ScopeClosureService {
       const saved = await manager.save(FleetCommunityEntity, community);
 
       await this._roles.endAllWithin(manager, scope, now);
+      // Its events, and its Fleets' and Armadas', have nothing ahead of them
+      // (FC-028).
+      await endEventsForClosure(
+        manager,
+        { communityId, fleetId: null, armadaId: null },
+        request.actorUserId,
+        now,
+      );
       await this._transfers.cancelOpenWithin(manager, communityId, {
         actorUserId: request.actorUserId,
         asSiteAdmin: request.asSiteAdmin,
