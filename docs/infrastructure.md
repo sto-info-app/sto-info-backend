@@ -121,6 +121,7 @@ Redis is used for:
 
 - one for rate limiting;
 - two for the chat adapter, one to publish and one to subscribe;
+- one for chat presence (FC-034): short-lived keys, `chat:presence:<user>`, 60 seconds each.
 
 The file scan worker holds about four. That was measured locally on 28 September 2026, when the
 two-instance chat rehearsal peaked at 42 clients across everything running. The Starter plan's 250
