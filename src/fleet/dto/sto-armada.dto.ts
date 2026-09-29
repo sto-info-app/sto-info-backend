@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+import { EmblemImageUrls } from 'src/shared/constants/image.constants';
+
 import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
 import { FleetScopeViewerDto } from './fleet-scope-viewer.dto';
 
@@ -77,6 +79,13 @@ export class StoArmadaDto {
   bannerImageAlt: string | null;
 
   @ApiProperty({
+    description: 'The banner’s signed address, for the browser (FC-040).',
+    nullable: true,
+    type: String,
+  })
+  bannerImageUrl: string | null;
+
+  @ApiProperty({
     description: 'Delivery reference of the square emblem.',
     nullable: true,
   })
@@ -87,6 +96,15 @@ export class StoArmadaDto {
     nullable: true,
   })
   emblemImageAlt: string | null;
+
+  @ApiProperty({
+    description:
+      'The emblem’s signed addresses, by variant (square100, square300), ' +
+      'for the browser to draw (FC-040).',
+    nullable: true,
+    type: Object,
+  })
+  emblemImageUrls: EmblemImageUrls | null;
 
   @ApiProperty({ description: 'Authorisation revision counter.' })
   revision: number;

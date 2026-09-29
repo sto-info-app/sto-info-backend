@@ -187,6 +187,13 @@ export class ScopeNewsPostSummaryDto {
 
   @ApiProperty({ nullable: true, type: String }) coverImageAlt: string | null;
 
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description: 'The cover’s signed address, for the browser (FC-040).',
+  })
+  coverImageUrl: string | null;
+
   @ApiProperty({ nullable: true, type: ScopeNewsAuthorDto })
   author: ScopeNewsAuthorDto | null;
 }

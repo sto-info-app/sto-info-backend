@@ -1,5 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 
+import { emblemUrlsOf, imageUrlOf } from 'src/shared/constants/image.constants';
+
 import { FleetCommunityEntity } from '../entities/fleet-community.entity';
 import { StoFleetEntity } from '../entities/sto-fleet.entity';
 import { FleetAudience } from '../enums/fleet-audience.enum';
@@ -77,8 +79,10 @@ describe('StoFleetMapper', () => {
         closedAt: null,
         bannerImageId: 'banner-ref',
         bannerImageAlt: 'A fleet yard at dusk',
+        bannerImageUrl: imageUrlOf('banner-ref', 'public'),
         emblemImageId: 'emblem-ref',
         emblemImageAlt: 'A crossed-sabres badge',
+        emblemImageUrls: emblemUrlsOf('emblem-ref'),
         revision: 3,
         createdAt,
         updatedAt,
@@ -207,6 +211,7 @@ describe('StoFleetMapper', () => {
         createdAt,
         emblemImageId: 'emblem-ref',
         emblemImageAlt: 'A crossed-sabres badge',
+        emblemImageUrls: emblemUrlsOf('emblem-ref'),
         exactGameName: ' Omega Command',
         communityId: 'd0000000-0000-4000-8000-000000000002',
         communityName: 'Jupiter Force',

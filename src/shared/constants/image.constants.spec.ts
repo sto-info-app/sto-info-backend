@@ -1,7 +1,9 @@
 import {
   buildCloudflareImageUrl,
   CLOUDFLARE_IMAGES_DEFAULT_ROOT_URL,
+  emblemUrlsOf,
   getCloudflareImagesRootUrl,
+  imageUrlOf,
   isValidCloudflareImageUrl,
 } from './image.constants';
 
@@ -110,6 +112,30 @@ describe('Image Constants', () => {
           'https://example.com/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/8ab52131-6f11-408a-d9df-3c1acaa46d00/public',
         ),
       ).toBe(false);
+    });
+  });
+
+  // FC-040: the API builds every address, so it can sign them.
+  describe('addresses for a response', () => {
+    beforeEach(() => {
+      process.env.CLOUDFLARE_CDN_ROOT_URL = 'https://cdn.example.test';
+      process.env.CLOUDFLARE_IMAGES_HASH = 'hash-1';
+    });
+
+    const root = 'https://cdn.example.test/cdn-cgi/imagedelivery/hash-1';
+
+    it('builds a picture’s address, or none without a picture', () => {
+      expect(imageUrlOf('image-1', 'public')).toBe(`${root}/image-1/public`);
+      expect(imageUrlOf(null, 'public')).toBeNull();
+      expect(imageUrlOf(undefined, 'public')).toBeNull();
+    });
+
+    it('builds an emblem’s address at each size, or none', () => {
+      expect(emblemUrlsOf('emblem-1')).toEqual({
+        square100: `${root}/emblem-1/square100`,
+        square300: `${root}/emblem-1/square300`,
+      });
+      expect(emblemUrlsOf(null)).toBeNull();
     });
   });
 });

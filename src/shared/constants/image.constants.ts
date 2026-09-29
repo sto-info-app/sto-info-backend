@@ -168,3 +168,41 @@ export function isValidCloudflareImageUrl(
 
 export const CLOUDFLARE_IMAGES_ROOT_URL = getCloudflareImagesRootUrl();
 export const CLOUDFLARE_R2_CDN_ROOT_URL = process.env.CLOUDFLARE_CDN_ROOT_URL;
+
+/** The variants a Fleet emblem is drawn at: a listing's row and a page's head. */
+export const EMBLEM_VARIANTS = ['square100', 'square300'] as const;
+
+/** An emblem's addresses, by variant. */
+export type EmblemImageUrls = Record<(typeof EMBLEM_VARIANTS)[number], string>;
+
+/**
+ * A picture's address, for a response (FC-040). The API signs it on the way
+ * out, so the browser never builds one itself.
+ *
+ * @param imageId - The image, or null.
+ * @param variant - The variant.
+ * @returns The address, or null when there is no picture.
+ */
+export function imageUrlOf(
+  imageId: string | null | undefined,
+  variant: string,
+): string | null {
+  return imageId ? buildCloudflareImageUrl(imageId, variant) : null;
+}
+
+/**
+ * An emblem's addresses at each size the site draws one (FC-040).
+ *
+ * @param imageId - The emblem, or null.
+ * @returns Its addresses by variant, or null when there is no emblem.
+ */
+export function emblemUrlsOf(
+  imageId: string | null | undefined,
+): EmblemImageUrls | null {
+  return imageId
+    ? {
+        square100: buildCloudflareImageUrl(imageId, 'square100'),
+        square300: buildCloudflareImageUrl(imageId, 'square300'),
+      }
+    : null;
+}

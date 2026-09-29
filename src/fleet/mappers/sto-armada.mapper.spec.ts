@@ -1,5 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 
+import { emblemUrlsOf, imageUrlOf } from 'src/shared/constants/image.constants';
+
 import { FleetCommunityEntity } from '../entities/fleet-community.entity';
 import { StoArmadaEntity } from '../entities/sto-armada.entity';
 import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
@@ -73,8 +75,10 @@ describe('StoArmadaMapper', () => {
         closedAt: null,
         bannerImageId: 'banner-ref',
         bannerImageAlt: 'A fleet yard at dusk',
+        bannerImageUrl: imageUrlOf('banner-ref', 'public'),
         emblemImageId: 'emblem-ref',
         emblemImageAlt: 'A crossed-sabres badge',
+        emblemImageUrls: emblemUrlsOf('emblem-ref'),
         revision: 2,
         createdAt,
         updatedAt,
@@ -135,6 +139,7 @@ describe('StoArmadaMapper', () => {
         createdAt,
         emblemImageId: 'emblem-ref',
         emblemImageAlt: 'A crossed-sabres badge',
+        emblemImageUrls: emblemUrlsOf('emblem-ref'),
         exactGameName: 'Sol Armada ',
         communityId: 'a0000000-0000-4000-8000-000000000002',
         communityName: 'Jupiter Force',

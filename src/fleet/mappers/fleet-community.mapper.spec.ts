@@ -1,3 +1,5 @@
+import { emblemUrlsOf, imageUrlOf } from 'src/shared/constants/image.constants';
+
 import { FleetCommunityEntity } from '../entities/fleet-community.entity';
 import { FleetAudience } from '../enums/fleet-audience.enum';
 import { FleetRecruitmentState } from '../enums/fleet-recruitment-state.enum';
@@ -42,8 +44,10 @@ describe('FleetCommunityMapper', () => {
       closedAt: null,
       bannerImageId: 'banner-ref',
       bannerImageAlt: 'A fleet yard at dusk',
+      bannerImageUrl: imageUrlOf('banner-ref', 'public'),
       emblemImageId: 'emblem-ref',
       emblemImageAlt: 'A crossed-sabres badge',
+      emblemImageUrls: emblemUrlsOf('emblem-ref'),
       revision: 3,
       createdAt: community.createdAt,
       updatedAt: community.updatedAt,
@@ -68,6 +72,7 @@ describe('FleetCommunityMapper', () => {
         createdAt: community.createdAt,
         emblemImageId: 'emblem-ref',
         emblemImageAlt: 'A crossed-sabres badge',
+        emblemImageUrls: emblemUrlsOf('emblem-ref'),
         name: 'Jupiter Force',
         description: 'A PC Community.',
         recruitmentState: FleetRecruitmentState.APPLICATION,

@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+import { EmblemImageUrls } from 'src/shared/constants/image.constants';
+
 import { FleetRecruitmentState } from '../enums/fleet-recruitment-state.enum';
 import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
 
@@ -43,6 +45,15 @@ export class FleetDirectoryCardDto {
     nullable: true,
   })
   emblemImageAlt: string | null;
+
+  @ApiProperty({
+    description:
+      'The emblem’s signed addresses, by variant (square100, square300), ' +
+      'for the browser to draw (FC-040).',
+    nullable: true,
+    type: Object,
+  })
+  emblemImageUrls: EmblemImageUrls | null;
 }
 
 /**

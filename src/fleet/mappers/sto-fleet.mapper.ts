@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
+import { emblemUrlsOf, imageUrlOf } from 'src/shared/constants/image.constants';
+
 import { StoFleetCardDto } from '../dto/fleet-directory.dto';
 import { FleetDuplicateDto, StoFleetDto } from '../dto/sto-fleet.dto';
 import { StoFleetEntity } from '../entities/sto-fleet.entity';
@@ -45,8 +47,10 @@ export class StoFleetMapper {
       closedAt: fleet.closedAt,
       bannerImageId: fleet.bannerImageId,
       bannerImageAlt: fleet.bannerImageAlt,
+      bannerImageUrl: imageUrlOf(fleet.bannerImageId, 'public'),
       emblemImageId: fleet.emblemImageId,
       emblemImageAlt: fleet.emblemImageAlt,
+      emblemImageUrls: emblemUrlsOf(fleet.emblemImageId),
       revision: fleet.revision,
       createdAt: fleet.createdAt,
       updatedAt: fleet.updatedAt,
@@ -103,6 +107,7 @@ export class StoFleetMapper {
       createdAt: fleet.createdAt,
       emblemImageId: fleet.emblemImageId,
       emblemImageAlt: fleet.emblemImageAlt,
+      emblemImageUrls: emblemUrlsOf(fleet.emblemImageId),
       exactGameName: fleet.exactGameName,
       communityId: fleet.communityId,
       communityName: fleet.community?.name ?? null,

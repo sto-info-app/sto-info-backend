@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
+import { emblemUrlsOf, imageUrlOf } from 'src/shared/constants/image.constants';
+
 import { StoArmadaCardDto } from '../dto/fleet-directory.dto';
 import { ArmadaDuplicateDto, StoArmadaDto } from '../dto/sto-armada.dto';
 import { StoArmadaEntity } from '../entities/sto-armada.entity';
@@ -40,8 +42,10 @@ export class StoArmadaMapper {
       closedAt: armada.closedAt,
       bannerImageId: armada.bannerImageId,
       bannerImageAlt: armada.bannerImageAlt,
+      bannerImageUrl: imageUrlOf(armada.bannerImageId, 'public'),
       emblemImageId: armada.emblemImageId,
       emblemImageAlt: armada.emblemImageAlt,
+      emblemImageUrls: emblemUrlsOf(armada.emblemImageId),
       revision: armada.revision,
       createdAt: armada.createdAt,
       updatedAt: armada.updatedAt,
@@ -93,6 +97,7 @@ export class StoArmadaMapper {
       createdAt: armada.createdAt,
       emblemImageId: armada.emblemImageId,
       emblemImageAlt: armada.emblemImageAlt,
+      emblemImageUrls: emblemUrlsOf(armada.emblemImageId),
       exactGameName: armada.exactGameName,
       communityId: armada.communityId,
       communityName: armada.community.name,

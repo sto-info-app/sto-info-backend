@@ -1,3 +1,4 @@
+import { buildCloudflareImageUrl } from 'src/shared/constants/image.constants';
 import { STORYTIME_IMAGE_VARIANTS } from 'src/storytime/constants/storytime-image.constants';
 
 import { CustomTrackingImageShape } from '../enums/custom-tracking-image-shape.enum';
@@ -128,3 +129,21 @@ export const CUSTOM_TRACKING_IMAGE_SHAPES: readonly CustomTrackingImageShapeDesc
     outputFormat: spec.outputFormat,
     variant: spec.variant,
   }));
+
+/**
+ * A Custom Tracking picture's address, in its shape's variant (FC-040). The
+ * API signs it on the way out, so the browser never builds one.
+ *
+ * @param imageId - The Cloudflare Images ID.
+ * @param shape - The shape it was cropped to.
+ * @returns The address.
+ */
+export function customTrackingImageUrl(
+  imageId: string,
+  shape: CustomTrackingImageShape,
+): string {
+  return buildCloudflareImageUrl(
+    imageId,
+    CUSTOM_TRACKING_IMAGE_SPECS[shape].variant,
+  );
+}

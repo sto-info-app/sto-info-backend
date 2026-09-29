@@ -1,3 +1,5 @@
+import { customTrackingImageUrl } from 'src/custom-tracking/constants/custom-tracking-image.constants';
+
 import { CustomTrackingFieldEntity } from '../entities/custom-tracking-field.entity';
 import { CustomTrackingImageValueEntity } from '../entities/custom-tracking-image-value.entity';
 import { CustomTrackingOptionEntity } from '../entities/custom-tracking-option.entity';
@@ -198,6 +200,10 @@ describe('CustomTrackingPublicMapper', () => {
       imageId: 'image-1',
       altText: 'A ship at speed',
       shape: CustomTrackingImageShape.SQUARE,
+      imageUrl: customTrackingImageUrl(
+        'image-1',
+        CustomTrackingImageShape.SQUARE,
+      ),
     });
   });
 
