@@ -8,6 +8,7 @@ import {
 } from 'src/file-assets/services/file-asset.service';
 
 import { ScanVerdictMessage } from '../contract/file-scan-contract';
+import { RescanVerdictService } from '../rescan/rescan-verdict.service';
 
 /** Why a verdict was not acted on. */
 export type VerdictRefusal =
@@ -58,8 +59,12 @@ export class ScanVerdictService {
    * Creates an instance of ScanVerdictService.
    *
    * @param _fileAssetService - The asset registry.
+   * @param _rescans - Rescan verdicts, settled on their own path (FC-041).
    */
-  constructor(private readonly _fileAssetService: FileAssetService) {}
+  constructor(
+    private readonly _fileAssetService: FileAssetService,
+    private readonly _rescans: RescanVerdictService,
+  ) {}
 
   /**
    * Applies one verdict.
@@ -68,6 +73,12 @@ export class ScanVerdictService {
    * @returns Whether the registry moved, and why not when it did not.
    */
   async apply(verdict: ScanVerdictMessage): Promise<VerdictOutcome> {
+    // A rescan's verdict names its staged copy, never the upload's object,
+    // and is settled on its own path (FC-041).
+    if (await this._rescans.apply(verdict)) {
+      return { applied: true, refusal: null };
+    }
+
     const asset = await this._fileAssetService.findById(verdict.assetId);
 
     if (asset === null) {

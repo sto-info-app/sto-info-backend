@@ -302,6 +302,60 @@ export class FileAssetService {
   }
 
   /**
+   * Records a clean rescan of a published picture (FC-041).
+   *
+   * The picture stays on the site: its verdict is brought up to date, and
+   * the hash and type the rescan measured fill in what a legacy row never
+   * had. A legacy picture cleared by today's scanner and policy is verified
+   * at last, and becomes `AVAILABLE`.
+   *
+   * @param assetId - The picture.
+   * @param verdict - Who cleared it, and under what.
+   * @param measured - What the rescan read.
+   * @param measured.sha256 - The bytes' hash.
+   * @param measured.detectedContentType - What they read as.
+   * @returns The asset.
+   */
+  async recordRescanClean(
+    assetId: string,
+    verdict: FileAssetVerdict,
+    measured: { sha256: string; detectedContentType: string },
+  ): Promise<FileAssetEntity> {
+    const asset = await this.requireAsset(assetId);
+
+    this.applyVerdict(asset, verdict);
+    asset.sha256 ??= measured.sha256;
+    asset.detectedContentType ??= measured.detectedContentType;
+
+    if (asset.state === FileAssetState.UNVERIFIED) {
+      asset.state = FileAssetState.AVAILABLE;
+      asset.availableAt = new Date();
+    }
+
+    return this._repository.save(asset);
+  }
+
+  /**
+   * Records why a rescan took a picture down (FC-041). The withdrawal that
+   * took it down has already moved it to `REVOKED`.
+   *
+   * @param assetId - The picture.
+   * @param rejectionCode - The scanner's code.
+   * @param verdict - Who found it, and under what.
+   */
+  async recordRescanRejection(
+    assetId: string,
+    rejectionCode: string,
+    verdict: FileAssetVerdict,
+  ): Promise<void> {
+    const asset = await this.requireAsset(assetId);
+
+    this.applyVerdict(asset, verdict);
+    asset.rejectionCode = rejectionCode;
+    await this._repository.save(asset);
+  }
+
+  /**
    * Abandons an asset that will never be published.
    *
    * The end of a superseded upload and of one the nightly sweep gave up on.

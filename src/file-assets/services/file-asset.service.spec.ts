@@ -234,6 +234,66 @@ describe('FileAssetService', () => {
     });
   });
 
+  // FC-041: a rescan leaves a picture on the site, and verifies a legacy one.
+  describe('recordRescanClean', () => {
+    it('verifies a legacy picture, filling in what it never had', async () => {
+      repository.findOne.mockResolvedValue(
+        assetIn({
+          state: FileAssetState.UNVERIFIED,
+          sha256: null,
+          detectedContentType: null,
+        }),
+      );
+
+      const asset = await service.recordRescanClean('asset-1', verdict, {
+        sha256: 'a'.repeat(64),
+        detectedContentType: 'image/png',
+      });
+
+      expect(asset.state).toBe(FileAssetState.AVAILABLE);
+      expect(asset.availableAt).not.toBeNull();
+      expect(asset.sha256).toBe('a'.repeat(64));
+      expect(asset.detectedContentType).toBe('image/png');
+      expect(asset.scanEngine).toBe('clamav');
+    });
+
+    it('leaves a published picture as it is, but for its verdict', async () => {
+      repository.findOne.mockResolvedValue(
+        assetIn({
+          state: FileAssetState.AVAILABLE,
+          sha256: 'b'.repeat(64),
+          detectedContentType: 'image/jpeg',
+        }),
+      );
+
+      const asset = await service.recordRescanClean('asset-1', verdict, {
+        sha256: 'a'.repeat(64),
+        detectedContentType: 'image/png',
+      });
+
+      expect(asset.state).toBe(FileAssetState.AVAILABLE);
+      expect(asset.sha256).toBe('b'.repeat(64));
+      expect(asset.detectedContentType).toBe('image/jpeg');
+      expect(asset.lastVerdictAt).not.toBeNull();
+    });
+
+    it('records why a rescan took a picture down', async () => {
+      repository.findOne.mockResolvedValue(
+        assetIn({ state: FileAssetState.REVOKED }),
+      );
+
+      await service.recordRescanRejection('asset-1', 'INFECTED', verdict);
+
+      expect(repository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          rejectionCode: 'INFECTED',
+          scanEngine: 'clamav',
+          state: FileAssetState.REVOKED,
+        }),
+      );
+    });
+  });
+
   describe('recordCleanVerdict', () => {
     it('records what the scanner said about itself', async () => {
       repository.findOne.mockResolvedValue(

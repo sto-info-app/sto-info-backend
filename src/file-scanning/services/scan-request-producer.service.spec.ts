@@ -59,6 +59,52 @@ describe('ScanRequestProducerService', () => {
     return (add.mock.calls[0] as unknown[])[1];
   }
 
+  // FC-041: a rescan leaves the picture alone and queues behind uploads.
+  describe('a rescan', () => {
+    it('asks for a scan of the staged copy, with a priority and the campaign', async () => {
+      await service.requestRescan({
+        rescanId: 'rescan-1',
+        assetId: 'asset-1',
+        objectKey: 'test/rescans/rescan-1',
+        objectVersion: null,
+        sha256: 'a'.repeat(64),
+        declaredContentType: 'image/png',
+        policyVersion: 1,
+        campaignId: 'campaign-1',
+        priority: 100,
+      });
+
+      expect(markScanning).not.toHaveBeenCalled();
+      expect(add).toHaveBeenCalledWith(
+        'scan-asset',
+        expect.objectContaining({
+          assetId: 'asset-1',
+          objectKey: 'test/rescans/rescan-1',
+          expectedSha256: 'a'.repeat(64),
+          declaredContentType: 'image/png',
+          campaignId: 'campaign-1',
+        }),
+        expect.objectContaining({ jobId: 'rescan_rescan-1', priority: 100 }),
+      );
+    });
+
+    it('counts what is waiting, prioritised or not', async () => {
+      const getJobCounts = jest.fn(() =>
+        Promise.resolve({ waiting: 3, prioritized: 4 }),
+      );
+      const counting = new ScanRequestProducerService(
+        { getJobCounts } as unknown as Queue,
+        {} as FileAssetService,
+      );
+
+      await expect(counting.waiting()).resolves.toBe(7);
+
+      getJobCounts.mockResolvedValue({} as never);
+
+      await expect(counting.waiting()).resolves.toBe(0);
+    });
+  });
+
   describe('the message it sends', () => {
     it('matches the contract', async () => {
       await service.requestScan(asset());

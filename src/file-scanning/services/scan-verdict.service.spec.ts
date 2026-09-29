@@ -6,6 +6,7 @@ import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
 import { FileAssetService } from 'src/file-assets/services/file-asset.service';
 
 import { ScanVerdictMessage } from '../contract/file-scan-contract';
+import { RescanVerdictService } from '../rescan/rescan-verdict.service';
 import { ScanVerdictService } from './scan-verdict.service';
 
 const ASSET_ID = '4f1a0e2c-8b3d-4a59-9c21-6f7e5d4c3b2a';
@@ -67,6 +68,7 @@ describe('ScanVerdictService', () => {
   let reject: jest.Mock;
   let markRetryPending: jest.Mock;
   let publish: jest.Mock;
+  let rescans: jest.Mock;
   let service: ScanVerdictService;
 
   beforeEach(() => {
@@ -76,13 +78,29 @@ describe('ScanVerdictService', () => {
     markRetryPending = jest.fn(() => Promise.resolve(asset()));
     publish = jest.fn(() => Promise.resolve(asset()));
 
-    service = new ScanVerdictService({
-      findById,
-      recordCleanVerdict,
-      reject,
-      markRetryPending,
-      publish,
-    } as unknown as FileAssetService);
+    rescans = jest.fn(() => Promise.resolve(false));
+
+    service = new ScanVerdictService(
+      {
+        findById,
+        recordCleanVerdict,
+        reject,
+        markRetryPending,
+        publish,
+      } as unknown as FileAssetService,
+      { apply: rescans } as unknown as RescanVerdictService,
+    );
+  });
+
+  // FC-041: a rescan's verdict is settled on its own path.
+  it('leaves a rescan’s verdict to the rescans, and touches the upload not at all', async () => {
+    rescans.mockResolvedValue(true as never);
+
+    await expect(service.apply(verdict())).resolves.toEqual({
+      applied: true,
+      refusal: null,
+    });
+    expect(findById).not.toHaveBeenCalled();
   });
 
   describe('a clean verdict', () => {

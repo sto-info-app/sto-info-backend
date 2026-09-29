@@ -18,6 +18,7 @@ import {
   ScanRejectionPageDto,
   ScanUsageWindowDto,
 } from '../dto/scan-diagnostics.dto';
+import { UNKNOWN_DEFINITION_EPOCH } from '../rescan/rescan.constants';
 
 /**
  * The scan worker's schema.

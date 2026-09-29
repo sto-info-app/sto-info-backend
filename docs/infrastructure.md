@@ -114,12 +114,16 @@ Redis is used for:
 
 1. **Rate Limiting State**: All rate limiting categories (Read, Write, Auth, Expensive) store their state in Redis with unique key prefixes (`rl:read:`, `rl:write:`, `rl:auth:`, `rl:expensive:`)
 2. **Refresh Token Revocation**: Revoked refresh token tracking (future implementation)
+3. **Queues**: BullMQ, for the file scan worker's requests and verdicts, asset publication,
+   roster replays, the image estate's runs (FC-040) and rescan campaigns (FC-041)
 4. **Chat sockets** (FC-032): the socket.io Redis adapter, which carries chat's rooms and messages
    between backend instances
 
 **Connections:** each backend instance holds about fourteen:
 
 - one for rate limiting;
+- about ten for BullMQ's queues and workers. The image estate (FC-040) and rescan campaigns
+  (FC-041) each add a worker, and with it one blocking connection, after this was measured;
 - two for the chat adapter, one to publish and one to subscribe;
 - one for chat presence (FC-034): short-lived keys, `chat:presence:<user>`, 60 seconds each.
 

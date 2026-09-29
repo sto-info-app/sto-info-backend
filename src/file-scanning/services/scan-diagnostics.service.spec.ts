@@ -191,6 +191,19 @@ describe('ScanDiagnosticsService', () => {
   });
 
   describe('engine status', () => {
+    // FC-041: a rescan is deduplicated against the worker's signatures.
+    it('reads the definition epoch, or the worker’s own unknown', async () => {
+      await expect(service.currentDefinitionEpoch()).resolves.toBe('27500');
+
+      query.mockResolvedValue([]);
+
+      await expect(service.currentDefinitionEpoch()).resolves.toBe('unknown');
+
+      query.mockResolvedValue([{ ...ENGINE_ROW, signatureVersion: null }]);
+
+      await expect(service.currentDefinitionEpoch()).resolves.toBe('unknown');
+    });
+
     it('reports the latest attempt’s engine and how old its signatures are', async () => {
       const result = await service.read();
 

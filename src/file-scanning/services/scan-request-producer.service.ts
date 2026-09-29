@@ -132,6 +132,70 @@ export class ScanRequestProducerService {
   }
 
   /**
+   * Asks the worker to scan a copy of a published picture (FC-041).
+   *
+   * The asset's state is left alone: a picture on the site stays on the
+   * site while it is rescanned. The copy is staged in quarantine under its
+   * own key, which is how the verdict finds its way back to the rescan
+   * rather than to the upload. Queued with a priority, so every new upload,
+   * which has none, is taken first.
+   *
+   * @param rescan - The copy, and what it is asked against.
+   * @param rescan.rescanId - The rescan, which names the job.
+   * @param rescan.assetId - The picture.
+   * @param rescan.objectKey - Where the copy is staged.
+   * @param rescan.objectVersion - The copy's version, when the store gave one.
+   * @param rescan.sha256 - The copy's hash.
+   * @param rescan.declaredContentType - What its bytes read as.
+   * @param rescan.policyVersion - The policy it is scanned under.
+   * @param rescan.campaignId - The campaign.
+   * @param rescan.priority - Its BullMQ priority.
+   */
+  async requestRescan(rescan: {
+    readonly rescanId: string;
+    readonly assetId: string;
+    readonly objectKey: string;
+    readonly objectVersion: string | null;
+    readonly sha256: string;
+    readonly declaredContentType: string;
+    readonly policyVersion: number;
+    readonly campaignId: string;
+    readonly priority: number;
+  }): Promise<void> {
+    const request: ScanRequestMessage = {
+      schemaVersion: FILE_SCAN_CONTRACT_VERSION,
+      assetId: rescan.assetId,
+      objectKey: rescan.objectKey,
+      objectVersion: rescan.objectVersion,
+      expectedSha256: rescan.sha256,
+      declaredContentType: rescan.declaredContentType,
+      policyVersion: rescan.policyVersion,
+      campaignId: rescan.campaignId,
+      traceId: randomUUID(),
+    };
+
+    await this._queue.add(FILE_SCAN_REQUEST_JOB, request, {
+      jobId: `rescan_${rescan.rescanId}`,
+      priority: rescan.priority,
+      attempts: DELIVERY_ATTEMPTS,
+      backoff: { type: 'exponential', delay: 1_000 },
+      removeOnComplete: true,
+      removeOnFail: false,
+    });
+  }
+
+  /**
+   * How many scan requests are waiting for the worker.
+   *
+   * @returns Waiting and prioritised jobs together.
+   */
+  async waiting(): Promise<number> {
+    const counts = await this._queue.getJobCounts('waiting', 'prioritized');
+
+    return (counts.waiting ?? 0) + (counts.prioritized ?? 0);
+  }
+
+  /**
    * Refuses to queue an asset that is not ready to be scanned.
    *
    * @param asset - The asset.

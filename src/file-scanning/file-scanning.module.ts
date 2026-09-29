@@ -6,12 +6,23 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetsModule } from 'src/file-assets/file-assets.module';
 import { QueueModule } from 'src/shared/queue/queue.module';
+import { SharedModule } from 'src/shared/shared.module';
 
 import {
   FILE_SCAN_REQUEST_QUEUE,
   FILE_SCAN_VERDICT_QUEUE,
 } from './contract/file-scan-contract';
 import { ScanVerdictProcessor } from './processors/scan-verdict.processor';
+import { FileRescanCampaignEntity } from './rescan/file-rescan-campaign.entity';
+import { FileRescanEntity } from './rescan/file-rescan.entity';
+import { RescanCampaignController } from './rescan/rescan-campaign.controller';
+import {
+  RescanCampaignProcessor,
+  RescanScheduler,
+} from './rescan/rescan-campaign.processor';
+import { RescanCampaignService } from './rescan/rescan-campaign.service';
+import { RescanVerdictService } from './rescan/rescan-verdict.service';
+import { RESCAN_CAMPAIGN_QUEUE } from './rescan/rescan.constants';
 import { ScanDiagnosticsController } from './scan-diagnostics.controller';
 import { ScanDiagnosticsService } from './services/scan-diagnostics.service';
 import { ScanRequestProducerService } from './services/scan-request-producer.service';
@@ -43,18 +54,28 @@ import { ScanVerdictService } from './services/scan-verdict.service';
     ConfigModule,
     FileAssetsModule,
     QueueModule,
-    TypeOrmModule.forFeature([FileAssetEntity]),
+    SharedModule,
+    TypeOrmModule.forFeature([
+      FileAssetEntity,
+      FileRescanCampaignEntity,
+      FileRescanEntity,
+    ]),
     BullModule.registerQueue(
       { name: FILE_SCAN_REQUEST_QUEUE },
       { name: FILE_SCAN_VERDICT_QUEUE },
+      { name: RESCAN_CAMPAIGN_QUEUE },
     ),
   ],
-  controllers: [ScanDiagnosticsController],
+  controllers: [ScanDiagnosticsController, RescanCampaignController],
   providers: [
     ScanDiagnosticsService,
     ScanRequestProducerService,
     ScanVerdictService,
     ScanVerdictProcessor,
+    RescanCampaignService,
+    RescanVerdictService,
+    RescanCampaignProcessor,
+    RescanScheduler,
   ],
   exports: [ScanRequestProducerService, ScanVerdictService],
 })

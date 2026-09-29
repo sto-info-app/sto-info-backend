@@ -69,6 +69,8 @@ The database uses PostgreSQL with TypeORM for object-relational mapping.
 | `ImageEstateRunEntity` | `image_estate_run` | One checkpointed run moving the image estate to private delivery: a copy, an undo or a retirement; one open at a time — see [Private image delivery](image-delivery.md) |
 | `ImageEstateStepEntity` | `image_estate_step` | One picture's copy to a private one: what it was, what it became, every row it repointed, and whether its old public copy is retired |
 | `ImageInventoryRunEntity` | `image_inventory_run` | One reconciliation of the image columns, the registry and Cloudflare's listing; a report, nothing deleted |
+| `FileRescanCampaignEntity` | `file_rescan_campaign` | One campaign rescanning a selection of published pictures, with its cursor and counts; a site admin's, or the one legacy campaign — see [Rescan campaigns](rescan-campaigns.md) |
+| `FileRescanEntity` | `file_rescan` | One picture's rescan: the staged copy, its hash and declared type, the policy and definition epoch, and the verdict; once per asset, policy and epoch unless it failed |
 | `SiteAdminActionEntity` | `site_admin_action` | Every site-level admin action, with its reason, write-once and kept under the audit policy — see [Admin audit](admin-audit.md) |
 | `RetentionRunEntity` | `retention_run` | One run of a Fleet retention job: when, what it deleted, whether that was all, and any failure; write-once once finished — see [Fleet retention jobs](fleet-retention.md) |
 | `FleetInvestigationGrantEntity` | `fleet_investigation_grant` | A site admin's 24-hour read-only look into a Fleet's imports, with its purpose, write-once — see [Fleet governance](fleet-governance.md) |

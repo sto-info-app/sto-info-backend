@@ -38,7 +38,19 @@ FC-012 found it could not, and [ADR-0021](../../../Plans/Fleets/ADR/0021-asynchr
 records why: R26's rescans need a hash and a declared type that these rows do not have, so gating
 them now would take every existing profile picture off the site with nothing able to clear it.
 The count of `UNVERIFIED` rows is therefore the measure of how much of the estate is still
-unproven, and it falls only when W10 runs.
+unproven, and it falls only as rescans clear it.
+
+**FC-040 gates their delivery, and still does not call them clean.** Every published picture,
+`UNVERIFIED` included, is copied to a private Cloudflare Images object that only a signed address
+reaches, and the API signs one only while the asset may be shown. Steve's decision of 29 September
+2026 keeps an `UNVERIFIED` picture on the site until FC-041 scans it. The copy records each
+picture's SHA-256, size and type for that scan. See [Private image delivery](image-delivery.md).
+
+**FC-041 scans them.** After release, a legacy rescan campaign stages a copy of every `UNVERIFIED`
+published picture in quarantine and has the worker scan it like an upload. A clean picture becomes
+`AVAILABLE`, an infected one is taken down, and one refused for policy keeps showing and is
+reported to site admins. Site admins can rescan any selection of published pictures the same way.
+See [Rescan campaigns](rescan-campaigns.md).
 
 ### Reaching `AVAILABLE`
 
@@ -599,9 +611,9 @@ counted in the log line and found again only by W10's inventory.
 - **Nothing purges a public route on a schedule.** A replacement or a delete purges the one
   picture it touched, and `confirmPurged` records it; sweeping for purges that never happened is
   W10's, with the rescan campaigns.
-- **Legacy assets are counted, not gated.** Every one of them is `UNVERIFIED` and still served by
-  its existing public URL. FC-012 confirmed the deferral rather than ending it — see the states
-  section above.
+- **A picture refused for policy on rescan keeps showing.** FC-041 reports it on Scan
+  Diagnostics and leaves the decision to a site admin; nothing takes it down automatically — see
+  [Rescan campaigns](rescan-campaigns.md).
 - **Nothing alerts on a publication that failed for good.** An asset that reaches `CLEAN` and
   whose publication job exhausts its attempts is scanned, paid for and invisible. The job is kept
   in BullMQ's failed set so that it is findable; FC-042 should alert on it.

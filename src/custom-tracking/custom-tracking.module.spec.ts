@@ -11,11 +11,18 @@ import { DataSource } from 'typeorm';
 import { FILE_ASSET_PUBLICATION_QUEUE } from '../file-assets/constants/file-asset-publication.constants';
 import { FileAssetPlacementEntity } from '../file-assets/entities/file-asset-placement.entity';
 import { FileAssetEntity } from '../file-assets/entities/file-asset.entity';
+import { ImageEstateRunEntity } from '../file-assets/estate/image-estate-run.entity';
+import { ImageEstateStepEntity } from '../file-assets/estate/image-estate-step.entity';
+import { IMAGE_ESTATE_QUEUE } from '../file-assets/estate/image-estate.constants';
+import { ImageInventoryRunEntity } from '../file-assets/estate/image-inventory-run.entity';
 import { QUARANTINE_S3_CLIENT } from '../file-assets/services/quarantine-storage.service';
 import {
   FILE_SCAN_REQUEST_QUEUE,
   FILE_SCAN_VERDICT_QUEUE,
 } from '../file-scanning/contract/file-scan-contract';
+import { FileRescanCampaignEntity } from '../file-scanning/rescan/file-rescan-campaign.entity';
+import { FileRescanEntity } from '../file-scanning/rescan/file-rescan.entity';
+import { RESCAN_CAMPAIGN_QUEUE } from '../file-scanning/rescan/rescan.constants';
 import { ArmadaFleetMembershipEntity } from '../fleet/entities/armada-fleet-membership.entity';
 import { CharacterFleetMembershipEntity } from '../fleet/entities/character-fleet-membership.entity';
 import { CharacterFleetProposalEntity } from '../fleet/entities/character-fleet-proposal.entity';
@@ -136,6 +143,11 @@ describe('CustomTrackingModule', () => {
     UserEntity,
     FileAssetEntity,
     FileAssetPlacementEntity,
+    ImageEstateRunEntity,
+    ImageEstateStepEntity,
+    ImageInventoryRunEntity,
+    FileRescanCampaignEntity,
+    FileRescanEntity,
     FleetCommunityEntity,
     StoFleetEntity,
     StoArmadaEntity,
@@ -181,13 +193,17 @@ describe('CustomTrackingModule', () => {
       .useValue({})
       .overrideProvider(SecretsService)
       .useValue({ getSecret: jest.fn() })
-      // Three queues, none of which should open a Redis connection to
+      // Five queues, none of which should open a Redis connection to
       // prove that this module's providers can be constructed.
       .overrideProvider(getQueueToken(FILE_SCAN_REQUEST_QUEUE))
       .useValue({ add: jest.fn() })
       .overrideProvider(getQueueToken(FILE_SCAN_VERDICT_QUEUE))
       .useValue({ add: jest.fn() })
       .overrideProvider(getQueueToken(FILE_ASSET_PUBLICATION_QUEUE))
+      .useValue({ add: jest.fn() })
+      .overrideProvider(getQueueToken(IMAGE_ESTATE_QUEUE))
+      .useValue({ add: jest.fn() })
+      .overrideProvider(getQueueToken(RESCAN_CAMPAIGN_QUEUE))
       .useValue({ add: jest.fn() })
       .overrideProvider(ConfigService)
       .useValue({ get: jest.fn() });

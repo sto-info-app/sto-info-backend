@@ -382,6 +382,16 @@ Community, Fleet, Armada, news and Custom Tracking responses now carry addresses
 (`bannerImageUrl`, `emblemImageUrls`, `coverImageUrl`, `imageUrl`) beside the IDs. See
 [Private image delivery](image-delivery.md).
 
+### Rescan campaigns (FC-041)
+
+| Method | Path | Purpose |
+| ------ | ---- | ------- |
+| GET | `/admin/rescan-campaigns` | The 20 latest campaigns with their counts, how many rescans are waiting, how many legacy pictures have never been scanned, and the 50 latest pictures found infected or refused (asset ID and code only) |
+| POST | `/admin/rescan-campaigns` | `{ selection: { kinds?, uploadedFrom?, uploadedBefore?, notScannedForDays?, unverifiedOnly?, priority?: HIGH \| LOW }, reason }`; starts a campaign |
+| POST | `/admin/rescan-campaigns/:id/pause`, `/resume`, `/cancel` | `{ reason }`; 409 when the campaign cannot do that now |
+
+All require the `ADMIN` role. See [Rescan campaigns](rescan-campaigns.md).
+
 ### PATCH /admin/storytime/configuration
 
 Switch Storytime on or off at runtime. `GET` on the same path reports the current state. Both require the `ADMIN` role.
