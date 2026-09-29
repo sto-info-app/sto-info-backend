@@ -30,6 +30,8 @@ import { DEFAULT_MULTER_LIMITS } from 'src/shared/constants/file-upload.constant
 import { normaliseToSlug } from 'src/shared/utilities/slug.utility';
 import { escapeSqlLikeTerm } from 'src/shared/utilities/sql-like.utility';
 
+import { ActivityType } from '../../activity/enums/activity.enums';
+import { recordActivity } from '../../activity/utilities/record-activity.utility';
 import { FleetAudienceService } from '../../authorisation/fleet-audience.service';
 import { FleetAuthorisationService } from '../../authorisation/fleet-authorisation.service';
 import { FLEET_CAPABILITIES } from '../../authorisation/fleet-capability.constants';
@@ -37,6 +39,7 @@ import {
   ScopeAuthorisation,
   ScopeRef,
 } from '../../authorisation/scope-authorisation.interface';
+import { SOFT_DELETE_RETENTION_DAYS } from '../../constants/fleet-policy.constants';
 import { FleetAudience } from '../../enums/fleet-audience.enum';
 import { FleetScopeKind } from '../../enums/fleet-scope-kind.enum';
 import { FleetScopeStatus } from '../../enums/fleet-scope-status.enum';
@@ -45,6 +48,8 @@ import {
   toScopeRef,
 } from '../../governance/utilities/governance-scope.utility';
 import { usernamesFor } from '../../recruitment/utilities/recruitment-names.utility';
+import { purgeInBatches } from '../../retention/purge-in-batches.utility';
+import { RetentionOutcome } from '../../retention/retention-run.service';
 import {
   DEFAULT_SCOPE_NEWS_AUDIENCE,
   SCOPE_NEWS_AUDIENCES,
@@ -62,6 +67,9 @@ import {
   ScopeNewsQueryDto,
   UpdateScopeNewsPostDto,
 } from '../dto/scope-news.dto';
+
+/** One day, in milliseconds. */
+const DAY = 86_400_000;
 
 /** How each kind of scope is named in a sentence. */
 const SCOPE_NOUNS: Readonly<Record<FleetScopeKind, string>> = {
@@ -296,6 +304,10 @@ export class ScopeNewsService {
   /**
    * Publishes a post now. One already published keeps its date.
    *
+   * A draft published goes on the scope's activity feed (FC-029), where
+   * whoever may read the post sees it. One published again after going back
+   * to a draft is dated afresh, and so is a new item.
+   *
    * @param scope - The scope, at which the caller holds `news.write`.
    * @param postId - The post.
    * @param userId - The caller.
@@ -312,10 +324,29 @@ export class ScopeNewsService {
 
     await this.assertOpen(scope, userId);
 
-    post.status = NewsStatus.PUBLISHED;
-    post.publishedAt = post.publishedAt ?? new Date();
+    if (post.status === NewsStatus.PUBLISHED) {
+      return this.saveAndShow(post, userId);
+    }
 
-    return this.saveAndShow(post, userId);
+    const publishedAt = post.publishedAt ?? new Date();
+
+    post.status = NewsStatus.PUBLISHED;
+    post.publishedAt = publishedAt;
+
+    return this.saveAndShow(post, userId, manager =>
+      recordActivity(manager, [
+        {
+          communityId: post.communityId as string,
+          fleetId: post.fleetId,
+          armadaId: post.armadaId,
+          type: ActivityType.NEWS_PUBLISHED,
+          actorUserId: userId,
+          sourceId: post.id,
+          idempotencyKey: `${ActivityType.NEWS_PUBLISHED}:${post.id}:${publishedAt.toISOString()}`,
+          occurredAt: publishedAt,
+        },
+      ]),
+    );
   }
 
   /**
@@ -476,6 +507,32 @@ export class ScopeNewsService {
    * @returns What they may do.
    * @throws NotFoundException when they may not see the scope.
    */
+  /**
+   * Forgets scoped posts deleted more than 30 days ago, a batch at a time
+   * (FC-037). The site's own news is not touched. Daily, by the Fleet's
+   * retention schedule.
+   *
+   * Each cover was withdrawn when its post was deleted, and its registry
+   * entry outlives the post as every withdrawn asset's does.
+   *
+   * @returns How many were forgotten, and whether that was all that is due.
+   */
+  async purgeDeleted(): Promise<RetentionOutcome> {
+    const tally = await purgeInBatches(
+      this._posts.manager,
+      NewsPostEntity,
+      {
+        communityId: Not(IsNull()),
+        deletedAt: LessThan(
+          new Date(Date.now() - SOFT_DELETE_RETENTION_DAYS * DAY),
+        ),
+      },
+      { withDeleted: true },
+    );
+
+    return { counts: { posts: tally.deleted }, complete: tally.complete };
+  }
+
   private async readAccess(
     scope: GovernanceScope,
     viewerId: string | null,
@@ -729,17 +786,28 @@ export class ScopeNewsService {
    *
    * @param post - The post.
    * @param userId - Who changed it.
+   * @param alongside - Anything written with it, in the same transaction.
    * @returns The post as it now is.
    * @throws ConflictException in the unlikely event its slug is taken.
    */
   private async saveAndShow(
     post: NewsPostEntity,
     userId: string,
+    alongside?: (manager: EntityManager) => Promise<void>,
   ): Promise<ScopeNewsPostDto> {
     let saved: NewsPostEntity;
 
     try {
-      saved = await this._posts.save(post);
+      saved =
+        alongside === undefined
+          ? await this._posts.save(post)
+          : await this._posts.manager.transaction(async manager => {
+              const row = await manager.save(NewsPostEntity, post);
+
+              await alongside(manager);
+
+              return row;
+            });
     } catch (error) {
       if (
         error instanceof QueryFailedError &&

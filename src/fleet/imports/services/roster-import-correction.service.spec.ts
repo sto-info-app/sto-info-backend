@@ -186,6 +186,15 @@ describe('RosterImportCorrectionService', () => {
       expect(manager.insert).not.toHaveBeenCalled();
     });
 
+    it('refuses one retired when its file expired (FC-037)', async () => {
+      placementState = FileAssetPlacementState.WITHDRAWN;
+
+      await expect(
+        service.select(FLEET_ID, IMPORT_ID, USER_ID, { reason: REASON }),
+      ).rejects.toThrow(/file has been deleted/);
+      expect(manager.insert).not.toHaveBeenCalled();
+    });
+
     it('corrects one waiting on a conflicting export', async () => {
       placementState = FileAssetPlacementState.HELD;
 

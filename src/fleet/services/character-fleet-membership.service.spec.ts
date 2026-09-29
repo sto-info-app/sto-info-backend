@@ -10,11 +10,14 @@ import { DataSource, EntityTarget } from 'typeorm';
 import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 
+import { InMemoryManager } from '../../../test/in-memory-manager';
 import { CharacterFleetMembershipEntity } from '../entities/character-fleet-membership.entity';
 import { StoFleetEntity } from '../entities/sto-fleet.entity';
 import { CharacterFleetMembershipSource } from '../enums/character-fleet-membership-source.enum';
 import { FleetAudience } from '../enums/fleet-audience.enum';
 import { CharacterFleetMembershipService } from './character-fleet-membership.service';
+
+const DAY = 86_400_000;
 
 describe('CharacterFleetMembershipService', () => {
   let service: CharacterFleetMembershipService;
@@ -461,6 +464,23 @@ describe('CharacterFleetMembershipService', () => {
           where: { id: 'somebody-elses', characterId },
         }),
       );
+    });
+  });
+
+  describe('forgetting retracted memberships (FC-037)', () => {
+    it('deletes those retracted more than 30 days ago, and nothing else', async () => {
+      const db = new InMemoryManager().seed(CharacterFleetMembershipEntity, [
+        { id: 'old', deletedAt: new Date(Date.now() - 31 * DAY) },
+        { id: 'recent', deletedAt: new Date(Date.now() - 29 * DAY) },
+        { id: 'live', deletedAt: null },
+      ]);
+
+      await expect(
+        new CharacterFleetMembershipService(db.asDataSource()).purgeRetracted(),
+      ).resolves.toEqual({ counts: { memberships: 1 }, complete: true });
+      expect(
+        db.rows(CharacterFleetMembershipEntity).map(row => row.id),
+      ).toEqual(['recent', 'live']);
     });
   });
 

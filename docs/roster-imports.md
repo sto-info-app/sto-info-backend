@@ -322,6 +322,9 @@ a given file.
 - **Nothing scans the sanitised file.** FC-010 builds the job transport, FC-011 the adapter. Until
   then every roster asset sits in `QUARANTINED` forever.
 - **Nothing reads it back.** No list endpoint, no download. FC-017 and FC-037.
-- **Nothing deletes it.** `retainUntil` is set; the cleanup job is W09's.
+- ~~**Nothing deletes it.**~~ FC-037 deletes it when `retainUntil` passes, and retires a held
+  import whose file goes; see [Fleet retention jobs](fleet-retention.md#roster-files). A verified
+  erasure deletes every file naming the person at once, and every upload is scrubbed of erased
+  members before anything is stored; see [Privacy: erasure](privacy-erasure.md).
 - **No typed parse, no snapshot, no observations.** FC-016 and FC-017.
 - **No frontend.** FC-009 is backend only.

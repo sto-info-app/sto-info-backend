@@ -55,6 +55,7 @@ describe('UserAccountCleanupService', () => {
           useValue: {
             find: jest.fn(),
             createQueryBuilder: jest.fn(),
+            manager: { find: managerFind },
           },
         },
         {
@@ -205,6 +206,7 @@ describe('UserAccountCleanupService', () => {
       await service.cleanup();
 
       expect(purgeUsers).not.toHaveBeenCalled();
+      expect(managerFind).not.toHaveBeenCalled();
     });
   });
 });

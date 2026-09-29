@@ -105,3 +105,28 @@ export const MAX_FLEET_COMMUNITIES_PER_OWNER = 10;
  * proposal somebody has already been told about.
  */
 export const CHARACTER_FLEET_PROPOSAL_EXPIRY_DAYS = 90;
+
+/**
+ * How long a soft-deleted scoped news post, or a retracted Character Fleet
+ * membership, is kept before it is deleted for good, in days (FC-037).
+ *
+ * Steve's decision of 29 September 2026: long enough to undo a mistake or
+ * look into one, and no longer.
+ */
+export const SOFT_DELETE_RETENTION_DAYS = 30;
+
+/**
+ * How long after its review date a hold nobody has extended is released by
+ * the system, in days (FC-037).
+ *
+ * Steve's decision of 29 September 2026, so that no hold runs on unreviewed:
+ * its owner is told on the day, every site admin
+ * {@link MODERATION_HOLD_RELEASE_WARNING_DAYS} days before the release.
+ */
+export const MODERATION_HOLD_RELEASE_GRACE_DAYS = 14;
+
+/** How long before the system releases a hold every site admin is told. */
+export const MODERATION_HOLD_RELEASE_WARNING_DAYS = 7;
+
+/** How long a retention job's run is kept on record, in months (FC-037). */
+export const RETENTION_RUN_KEEP_MONTHS = 12;

@@ -39,6 +39,7 @@ import { FleetImagesModule } from './fleet/images/fleet-images.module';
 import { FleetRosterImportsModule } from './fleet/imports/fleet-roster-imports.module';
 import { ScopeNewsModule } from './fleet/news/scope-news.module';
 import { FleetRecruitmentModule } from './fleet/recruitment/fleet-recruitment.module';
+import { FleetRetentionModule } from './fleet/retention/fleet-retention.module';
 import { FleetRosterModule } from './fleet/roster/fleet-roster.module';
 import { HealthModule } from './health/health.module';
 import { MailModule } from './mail/mail.module';
@@ -152,6 +153,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     ScopeEventsModule,
     ActivityModule,
     ChatModule,
+    FleetRetentionModule,
     RegistryModule,
     ModerationModule,
   ],

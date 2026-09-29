@@ -65,6 +65,7 @@ The database uses PostgreSQL with TypeORM for object-relational mapping.
 | `ChatReportEvidenceEntity` | `chat_report_evidence` | The reported message and the twenty before it, copied when reported |
 | `ModerationHoldEntity` | `moderation_hold` | A site admin's hold on a chat report's evidence, or on everything one member wrote in chat, with its review date — see [Fleet chat](fleet-chat.md#holds) |
 | `ModerationHoldActionEntity` | `moderation_hold_action` | Each placing, extension, release and reading of a hold, with its reason or purpose, and the system's notices and releases past review, write-once |
+| `RetentionRunEntity` | `retention_run` | One run of a Fleet retention job: when, what it deleted, whether that was all, and any failure; write-once once finished — see [Fleet retention jobs](fleet-retention.md) |
 | `FleetInvestigationGrantEntity` | `fleet_investigation_grant` | A site admin's 24-hour read-only look into a Fleet's imports, with its purpose, write-once — see [Fleet governance](fleet-governance.md) |
 
 ### Platform Launcher Image Mapping
@@ -382,6 +383,15 @@ describes that table.
 | `user`, `user_profile`, `account`, `character` | Soft-deleted immediately on account closure; hard-deleted by cron after `CLOSED_ACCOUNT_RETENTION_DAYS` (validated to be >= `AUDIT_DATA_NUKE_THRESHOLD_DAYS`) |
 | `custom_tracking_*` | Soft-deleted immediately; hard-deleted after **180 days** by `CustomTrackingCleanupService`, except options still referenced by a retained value, which the `ON DELETE RESTRICT` foreign key protects for as long as the reference lasts. Purged in full, ahead of the user row, when a closed account is erased |
 | `custom_tracking_image_cleanup` | A queue, not a record: a row exists only between a Cloudflare picture losing its last reference and Cloudflare confirming the deletion. Drained nightly and after every change that orphans a picture |
+| `chat_message` | Deleted after `CHAT_RETENTION_DAYS` days (policy: **45 days**) by a daily job; never read by members after four hours, nor by a transcript after seven days. A member whose messages a site admin holds keeps theirs until the hold is released (FC-036) |
+| `chat_transcript` | The request row stays, as the record of the export; its text in the private exports bucket is deleted 24 hours after it is written, by an hourly sweep |
+| `chat_message_report`, `chat_report_evidence` | Kept while the report is open, and for **90 days** after it is resolved or dismissed, then deleted by a daily job. The evidence outlives the `chat_message` purge on purpose. A held report waits for its hold's release |
+| `moderation_hold`, `moderation_hold_action` | Kept: a hold is released, never deleted, so its record outlives what it held. Each hold is reviewed at least every **180 days**, and one nobody reviews is released by the system **14 days** after its review date (FC-037) |
+| Roster files (`file_asset` of kind `ROSTER_IMPORT_SOURCE`) | The bytes are deleted when `retainUntil` passes (policy: **180 days** after upload, or `IMPORT_SOURCE_RETENTION_DAYS`); the row stays, `DELETED`. The Fleet's history is kept, and a held import whose file goes is retired — see [Fleet retention jobs](fleet-retention.md#roster-files) |
+| `news_post` (scoped), `character_fleet_membership` | Soft-deleted first; hard-deleted **30 days** later by a daily job (FC-037). The site's own news is not purged |
+| `activity_event` | Deleted after **twelve months** by a daily job |
+| `retention_run` | One row per run of a Fleet retention job; deleted after **a year** (FC-037) |
+| `fleet_investigation_grant` | Kept as the record of each look; it goes with its Fleet |
 
 The Custom Tracking window is a constant rather than an environment variable,
 unlike every other row above. It is published — the content agreement and the

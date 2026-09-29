@@ -18,6 +18,9 @@ import { NewsStatus } from 'src/news/enums/news-status.enum';
 import { RegistryService } from 'src/registry/registry.service';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 
+import { InMemoryManager } from '../../../../test/in-memory-manager';
+import { ActivityEventEntity } from '../../activity/entities/activity-event.entity';
+import { ActivityType } from '../../activity/enums/activity.enums';
 import { FleetAudienceService } from '../../authorisation/fleet-audience.service';
 import { FleetAuthorisationService } from '../../authorisation/fleet-authorisation.service';
 import { FLEET_CAPABILITIES } from '../../authorisation/fleet-capability.constants';
@@ -51,6 +54,7 @@ const IN_FLEET = {
   armadaId: IsNull(),
 };
 const CREATED = new Date('2026-09-28T09:00:00Z');
+const DAY = 86_400_000;
 const PUBLISHED = new Date('2026-09-28T10:00:00Z');
 
 /**
@@ -92,8 +96,14 @@ describe('ScopeNewsService', () => {
     softRemove: jest.Mock<(value: NewsPostEntity) => Promise<NewsPostEntity>>;
     manager: {
       find: jest.Mock<(...args: unknown[]) => Promise<UserProfileEntity[]>>;
+      transaction: jest.Mock<
+        (
+          work: (manager: InMemoryManager) => Promise<unknown>,
+        ) => Promise<unknown>
+      >;
     };
   };
+  let db: InMemoryManager;
   let authorisation: {
     authorise: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
   };
@@ -144,8 +154,10 @@ describe('ScopeNewsService', () => {
         find: jest.fn(async () => [
           { userId: WRITER_ID, username: 'Writer' } as UserProfileEntity,
         ]),
+        transaction: jest.fn(async work => work(db)),
       },
     };
+    db = new InMemoryManager();
     authorisation = { authorise: jest.fn() };
     audience = {
       canViewScope: jest.fn(async () => true),
@@ -601,10 +613,32 @@ describe('ScopeNewsService', () => {
           publishedAt: now,
         }),
       );
+      expect(posts.save).not.toHaveBeenCalled();
+      expect(db.rows(NewsPostEntity)).toHaveLength(1);
+      expect(db.rows(ActivityEventEntity)).toEqual([
+        expect.objectContaining({
+          type: ActivityType.NEWS_PUBLISHED,
+          actorUserId: WRITER_ID,
+          sourceId: POST_ID,
+          idempotencyKey: `NEWS_PUBLISHED:${POST_ID}:2026-09-28T12:00:00.000Z`,
+          occurredAt: now,
+        }),
+      ]);
     });
 
-    it('keeps the date of a post already published', async () => {
+    it('keeps the date of a post already published, and adds no item', async () => {
       posts.findOne.mockResolvedValue(post());
+
+      const published = await service.publish(FLEET, POST_ID, WRITER_ID);
+
+      expect(published.publishedAt).toBe(PUBLISHED);
+      expect(posts.manager.transaction).not.toHaveBeenCalled();
+    });
+
+    it('keeps a draft’s date where it has one', async () => {
+      posts.findOne.mockResolvedValue(
+        post({ status: NewsStatus.DRAFT, publishedAt: PUBLISHED }),
+      );
 
       const published = await service.publish(FLEET, POST_ID, WRITER_ID);
 
@@ -774,6 +808,48 @@ describe('ScopeNewsService', () => {
       await expect(
         service.clearCover(FLEET, POST_ID, WRITER_ID),
       ).rejects.toThrow('There is no cover there to remove.');
+    });
+  });
+
+  describe('forgetting deleted posts (FC-037)', () => {
+    it('deletes scoped posts deleted more than 30 days ago, never the site’s', async () => {
+      db.seed(NewsPostEntity, [
+        {
+          id: 'old',
+          communityId: COMMUNITY_ID,
+          deletedAt: new Date(Date.now() - 31 * DAY),
+        },
+        {
+          id: 'recent',
+          communityId: COMMUNITY_ID,
+          deletedAt: new Date(Date.now() - 29 * DAY),
+        },
+        { id: 'live', communityId: COMMUNITY_ID, deletedAt: null },
+        {
+          id: 'site',
+          communityId: null,
+          deletedAt: new Date(Date.now() - 90 * DAY),
+        },
+      ]);
+
+      const purging = new ScopeNewsService(
+        { manager: db.asManager() } as never,
+        authorisation as unknown as FleetAuthorisationService,
+        audience as unknown as FleetAudienceService,
+        registry as unknown as RegistryService,
+        ingress as unknown as ImageIngressService,
+        withdrawal as unknown as AssetWithdrawalService,
+      );
+
+      await expect(purging.purgeDeleted()).resolves.toEqual({
+        counts: { posts: 1 },
+        complete: true,
+      });
+      expect(db.rows(NewsPostEntity).map(row => row.id)).toEqual([
+        'recent',
+        'live',
+        'site',
+      ]);
     });
   });
 

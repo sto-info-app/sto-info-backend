@@ -6,15 +6,21 @@ import {
 } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 
-import { DataSource, EntityManager, IsNull } from 'typeorm';
+import { DataSource, EntityManager, IsNull, LessThan } from 'typeorm';
 
 import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 
+import { SOFT_DELETE_RETENTION_DAYS } from '../constants/fleet-policy.constants';
 import { CharacterFleetMembershipEntity } from '../entities/character-fleet-membership.entity';
 import { StoFleetEntity } from '../entities/sto-fleet.entity';
 import { CharacterFleetMembershipSource } from '../enums/character-fleet-membership-source.enum';
 import { FleetAudience } from '../enums/fleet-audience.enum';
+import { purgeInBatches } from '../retention/purge-in-batches.utility';
+import { RetentionOutcome } from '../retention/retention-run.service';
+
+/** One day, in milliseconds. */
+const DAY = 86_400_000;
 
 /** What the owner is saying about their Character. */
 export interface RecordCharacterFleetInput {
@@ -368,6 +374,30 @@ export class CharacterFleetMembershipService {
    * @param options - Whether to take the write lock.
    * @returns The Character.
    */
+  /**
+   * Forgets memberships retracted more than 30 days ago, a batch at a time
+   * (FC-037). Daily, by the Fleet's retention schedule.
+   *
+   * @returns How many were forgotten, and whether that was all that is due.
+   */
+  async purgeRetracted(): Promise<RetentionOutcome> {
+    const tally = await purgeInBatches(
+      this._dataSource.manager,
+      CharacterFleetMembershipEntity,
+      {
+        deletedAt: LessThan(
+          new Date(Date.now() - SOFT_DELETE_RETENTION_DAYS * DAY),
+        ),
+      },
+      { withDeleted: true },
+    );
+
+    return {
+      counts: { memberships: tally.deleted },
+      complete: tally.complete,
+    };
+  }
+
   private async _requireOwned(
     manager: EntityManager,
     characterId: string,

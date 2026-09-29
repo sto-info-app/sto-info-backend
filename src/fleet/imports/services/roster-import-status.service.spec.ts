@@ -442,6 +442,49 @@ describe('RosterImportStatusService', () => {
       expect(warn).not.toHaveBeenCalled();
     });
 
+    it('is EXPIRED when its file went while it was held (FC-037)', async () => {
+      await expect(
+        report(
+          importOf({}, { state: FileAssetState.DELETED }),
+          FileAssetPlacementState.WITHDRAWN,
+        ),
+      ).resolves.toEqual({
+        status: RosterImportStatus.EXPIRED,
+        statusReason: null,
+      });
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('is ERASED when an erasure deleted its file while it was held (FC-038)', async () => {
+      await expect(
+        report(
+          importOf(
+            {},
+            {
+              state: FileAssetState.DELETED,
+              revocationReason: ROSTER_SOURCE_ERASED_REASON,
+            },
+          ),
+          FileAssetPlacementState.WITHDRAWN,
+        ),
+      ).resolves.toEqual({
+        status: RosterImportStatus.ERASED,
+        statusReason: null,
+      });
+    });
+
+    it('stays IMPORTED when the file of an import in force expires (FC-037)', async () => {
+      await expect(
+        report(
+          importOf({}, { state: FileAssetState.DELETED }),
+          FileAssetPlacementState.ACTIVE,
+        ),
+      ).resolves.toEqual({
+        status: RosterImportStatus.IMPORTED,
+        statusReason: null,
+      });
+    });
+
     it.each(['ROWS_UNREADABLE', 'EXPORT_TIMEZONE_MISSING', 'NOT_THIS_IMPORT'])(
       'names a refusal this feature made (%s)',
       async rejectionCode => {

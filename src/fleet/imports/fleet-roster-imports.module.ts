@@ -5,6 +5,7 @@ import { FileAssetsModule } from 'src/file-assets/file-assets.module';
 import { FileScanningModule } from 'src/file-scanning/file-scanning.module';
 
 import { FleetNameAliasEntity } from '../entities/fleet-name-alias.entity';
+import { FleetErasureCoreModule } from '../erasure/fleet-erasure-core.module';
 import { FleetModule } from '../fleet.module';
 import { FleetRosterIdentityModule } from '../identity/fleet-roster-identity.module';
 import { FleetRosterProjectionModule } from '../projection/fleet-roster-projection.module';
@@ -22,6 +23,7 @@ import { RosterImportIngressService } from './services/roster-import-ingress.ser
 import { RosterImportPreviewService } from './services/roster-import-preview.service';
 import { RosterImportStatusService } from './services/roster-import-status.service';
 import { RosterImportPublisher } from './services/roster-import.publisher';
+import { RosterSourceRetentionService } from './services/roster-source-retention.service';
 import { RosterTypedParserService } from './services/roster-typed-parser.service';
 
 /**
@@ -39,6 +41,7 @@ import { RosterTypedParserService } from './services/roster-typed-parser.service
 @Module({
   imports: [
     FleetModule,
+    FleetErasureCoreModule,
     FileAssetsModule,
     FileScanningModule,
     FleetRosterIdentityModule,
@@ -62,8 +65,10 @@ import { RosterTypedParserService } from './services/roster-typed-parser.service
     RosterImportPreviewService,
     RosterImportStatusService,
     RosterImportPublisher,
+    RosterSourceRetentionService,
   ],
   exports: [
+    RosterSourceRetentionService,
     RosterCsvPrivacyParserService,
     RosterTypedParserService,
     RosterExportIdentityService,
