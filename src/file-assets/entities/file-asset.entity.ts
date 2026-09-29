@@ -212,6 +212,15 @@ export class FileAssetEntity {
   @Column({ type: 'varchar', length: 255, nullable: true, default: null })
   deliveryReference: string | null;
 
+  /**
+   * Whether the published picture is a private Cloudflare Images object,
+   * reachable only by an address the API signs (FC-040). A custom-ID image
+   * cannot be private, so the estate from before is public until copied.
+   */
+  @ApiProperty({ description: 'Whether delivery needs a signed address.' })
+  @Column({ type: 'boolean', default: false })
+  deliveryPrivate: boolean;
+
   /** The SHA-256 of the stored bytes, lowercase hexadecimal. Write-once. */
   @ApiProperty({ description: 'SHA-256 of the stored bytes.', nullable: true })
   @Column({ type: 'char', length: 64, nullable: true, default: null })
