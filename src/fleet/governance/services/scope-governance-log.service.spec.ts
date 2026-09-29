@@ -2,6 +2,8 @@ import { DataSource, EntityManager, IsNull } from 'typeorm';
 
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 
+import { insertRecorder } from '../../../../test/insert-recorder';
+import { ActivityType } from '../../activity/enums/activity.enums';
 import { FleetScopeRole } from '../../enums/fleet-scope-role.enum';
 import { ScopeCapabilityEffect } from '../../enums/scope-capability-effect.enum';
 import { ScopeGovernanceActionEntity } from '../entities/scope-governance-action.entity';
@@ -22,13 +24,21 @@ const OWNER_ID = '21000000-0000-4000-8000-000000000003';
 const MEMBER_ID = '21000000-0000-4000-8000-000000000004';
 
 describe('ScopeGovernanceLogService', () => {
-  let manager: { find: jest.Mock; save: jest.Mock; create: jest.Mock };
+  let manager: {
+    find: jest.Mock;
+    save: jest.Mock;
+    create: jest.Mock;
+    createQueryBuilder: jest.Mock;
+  };
+  let activity: ReturnType<typeof insertRecorder>;
   let rows: Partial<ScopeGovernanceActionEntity>[];
   let service: ScopeGovernanceLogService;
 
   beforeEach(() => {
     rows = [];
+    activity = insertRecorder();
     manager = {
+      createQueryBuilder: activity.createQueryBuilder,
       find: jest.fn((entity: unknown) =>
         Promise.resolve(
           entity === UserProfileEntity
@@ -36,7 +46,9 @@ describe('ScopeGovernanceLogService', () => {
             : rows,
         ),
       ),
-      save: jest.fn((_entity: unknown, row: object) => Promise.resolve(row)),
+      save: jest.fn((_entity: unknown, row: object) =>
+        Promise.resolve({ id: 'action-1', ...row }),
+      ),
       create: jest.fn((_entity: unknown, data: object) => ({ ...data })),
     };
     service = new ScopeGovernanceLogService({
@@ -67,6 +79,70 @@ describe('ScopeGovernanceLogService', () => {
       reason: null,
       transferId: null,
     });
+    expect(activity.recorded()).toEqual([
+      expect.objectContaining({
+        communityId: COMMUNITY_ID,
+        fleetId: FLEET_ID,
+        armadaId: null,
+        type: ActivityType.ROLE_APPOINTED,
+        actorUserId: OWNER_ID,
+        subjectUserId: MEMBER_ID,
+        sourceId: 'action-1',
+        detail: { role: FleetScopeRole.OFFICER },
+        idempotencyKey: 'ROLE_APPOINTED:action-1',
+      }),
+    ]);
+  });
+
+  it('keeps grants and offers off the activity feed', async () => {
+    await service.record(manager as unknown as EntityManager, {
+      scope: communityScope(COMMUNITY_ID),
+      action: ScopeGovernanceActionKind.OWNERSHIP_OFFERED,
+      actorUserId: OWNER_ID,
+      subjectUserId: MEMBER_ID,
+    });
+
+    expect(activity.recorded()).toEqual([]);
+  });
+
+  it.each([
+    [ScopeGovernanceActionKind.OWNERSHIP_ACCEPTED, MEMBER_ID, OWNER_ID],
+    [ScopeGovernanceActionKind.OWNERSHIP_REASSIGNED, OWNER_ID, MEMBER_ID],
+  ])(
+    'names the new owner of a %s Community',
+    async (action, actorUserId, subjectUserId) => {
+      await service.record(manager as unknown as EntityManager, {
+        scope: communityScope(COMMUNITY_ID),
+        action,
+        actorUserId,
+        subjectUserId,
+      });
+
+      expect(activity.recorded()).toEqual([
+        expect.objectContaining({
+          type: ActivityType.OWNERSHIP_TRANSFERRED,
+          subjectUserId: MEMBER_ID,
+        }),
+      ]);
+    },
+  );
+
+  it('puts a closure on the feed, with nobody as its subject', async () => {
+    await service.record(manager as unknown as EntityManager, {
+      scope: armadaScope(COMMUNITY_ID, FLEET_ID),
+      action: ScopeGovernanceActionKind.CLOSED,
+      actorUserId: OWNER_ID,
+      reason: 'Winding down',
+    });
+
+    expect(activity.recorded()).toEqual([
+      expect.objectContaining({
+        armadaId: FLEET_ID,
+        type: ActivityType.SCOPE_CLOSED,
+        subjectUserId: null,
+        detail: null,
+      }),
+    ]);
   });
 
   it('keeps everything a change says about itself', async () => {

@@ -3,6 +3,8 @@ import { InjectDataSource } from '@nestjs/typeorm';
 
 import { DataSource, EntityManager, IsNull } from 'typeorm';
 
+import { ActivityType } from '../../activity/enums/activity.enums';
+import { recordActivity } from '../../activity/utilities/record-activity.utility';
 import { FleetScopeRole } from '../../enums/fleet-scope-role.enum';
 import { ScopeCapabilityEffect } from '../../enums/scope-capability-effect.enum';
 import { usernamesFor } from '../../recruitment/utilities/recruitment-names.utility';
@@ -13,6 +15,22 @@ import { GovernanceScope } from '../utilities/governance-scope.utility';
 
 /** The most history the Manage pages are shown. */
 export const GOVERNANCE_HISTORY_LIMIT = 50;
+
+/**
+ * Which governance changes go on the scope's activity feed (FC-029), for its
+ * members. Grants, offers and anything refused stay in the history alone.
+ */
+const GOVERNANCE_ACTIVITY: Partial<
+  Record<ScopeGovernanceActionKind, ActivityType>
+> = {
+  [ScopeGovernanceActionKind.ROLE_ASSIGNED]: ActivityType.ROLE_APPOINTED,
+  [ScopeGovernanceActionKind.ROLE_WITHDRAWN]: ActivityType.ROLE_WITHDRAWN,
+  [ScopeGovernanceActionKind.OWNERSHIP_ACCEPTED]:
+    ActivityType.OWNERSHIP_TRANSFERRED,
+  [ScopeGovernanceActionKind.OWNERSHIP_REASSIGNED]:
+    ActivityType.OWNERSHIP_TRANSFERRED,
+  [ScopeGovernanceActionKind.CLOSED]: ActivityType.SCOPE_CLOSED,
+};
 
 /** One change to record. */
 export interface GovernanceEntry {
@@ -57,13 +75,14 @@ export class ScopeGovernanceLogService {
   ) {}
 
   /**
-   * Records one change, in the caller's transaction.
+   * Records one change, in the caller's transaction, and puts it on the
+   * scope's activity feed where it belongs there, never with its reason.
    *
    * @param manager - The transaction making the change.
    * @param entry - The change.
    */
   async record(manager: EntityManager, entry: GovernanceEntry): Promise<void> {
-    await manager.save(
+    const action = await manager.save(
       ScopeGovernanceActionEntity,
       manager.create(ScopeGovernanceActionEntity, {
         communityId: entry.scope.communityId,
@@ -80,6 +99,30 @@ export class ScopeGovernanceLogService {
         transferId: entry.transferId ?? null,
       }),
     );
+    const type = GOVERNANCE_ACTIVITY[entry.action];
+
+    if (type === undefined) {
+      return;
+    }
+
+    await recordActivity(manager, [
+      {
+        communityId: entry.scope.communityId,
+        fleetId: entry.scope.fleetId,
+        armadaId: entry.scope.armadaId,
+        type,
+        actorUserId: entry.actorUserId,
+        // Whoever accepts an offer made it theirs; a reassignment names them.
+        subjectUserId:
+          entry.action === ScopeGovernanceActionKind.OWNERSHIP_ACCEPTED
+            ? entry.actorUserId
+            : (entry.subjectUserId ?? null),
+        sourceId: action.id,
+        detail: entry.role ? { role: entry.role } : null,
+        idempotencyKey: `${type}:${action.id}`,
+        occurredAt: new Date(),
+      },
+    ]);
   }
 
   /**
@@ -121,6 +164,7 @@ export class ScopeGovernanceLogService {
       capability: row.capability,
       clearedEffect: row.clearedEffect,
       reason: row.reason,
+      automatic: row.idempotencyKey !== null,
       createdAt: row.createdAt,
     }));
   }

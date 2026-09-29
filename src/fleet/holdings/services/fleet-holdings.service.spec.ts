@@ -8,6 +8,8 @@ import { DataSource } from 'typeorm';
 
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 
+import { insertRecorder } from '../../../../test/insert-recorder';
+import { ActivityType } from '../../activity/enums/activity.enums';
 import { FleetAuthorisationService } from '../../authorisation/fleet-authorisation.service';
 import { FLEET_CAPABILITIES } from '../../authorisation/fleet-capability.constants';
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
@@ -95,7 +97,9 @@ describe('FleetHoldingsService', () => {
     save: jest.Mock;
     insert: jest.Mock;
     upsert: jest.Mock;
+    createQueryBuilder: jest.Mock;
   };
+  let activity: ReturnType<typeof insertRecorder>;
   let authorise: jest.Mock;
   let service: FleetHoldingsService;
 
@@ -110,7 +114,9 @@ describe('FleetHoldingsService', () => {
     changes = [];
     moves = [];
     profiles = [];
+    activity = insertRecorder();
     manager = {
+      createQueryBuilder: activity.createQueryBuilder,
       find: jest.fn((entity: unknown) => {
         switch (entity) {
           case FleetHoldingTypeEntity:
@@ -464,6 +470,18 @@ describe('FleetHoldingsService', () => {
         ],
         ['fleetId', 'trackCode'],
       );
+      // On the feed, without the reason.
+      expect(activity.recorded()).toEqual([
+        expect.objectContaining({
+          communityId: COMMUNITY_ID,
+          fleetId: FLEET_ID,
+          type: ActivityType.HOLDINGS_RECORDED,
+          actorUserId: RECORDER_ID,
+          sourceId: 'change-1',
+          detail: { holdingCode: 'STARBASE' },
+          idempotencyKey: 'HOLDINGS_RECORDED:change-1',
+        }),
+      ]);
     });
 
     it('keeps no reason when none is given', async () => {

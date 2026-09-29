@@ -7,6 +7,8 @@ import { InjectDataSource } from '@nestjs/typeorm';
 
 import { DataSource, EntityManager, In } from 'typeorm';
 
+import { NotificationOutboxKind } from 'src/notification/outbox/notification-outbox-kind.enum';
+import { queueOutbox } from 'src/notification/outbox/notification-outbox.utility';
 import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 
@@ -465,6 +467,9 @@ export class CharacterFleetProposalService {
    * caller's transaction. The unique index counts only `PENDING` rows, so
    * writing the lapse first is what lets the replacement exist.
    *
+   * A new one is queued to tell its owner, once (FC-029): the outbox checks
+   * again at delivery that it is still open and still theirs to see.
+   *
    * @param manager - The transaction to write through.
    * @param characterId - The Character being asked about.
    * @param input - The Fleet, what the evidence says and who raised it.
@@ -521,8 +526,40 @@ export class CharacterFleetProposalService {
       applicationId: input.applicationId ?? null,
       replacesProposalId: open?.id ?? null,
     });
+    const saved = await manager.save(CharacterFleetProposalEntity, proposal);
+    const owner = await this._ownerOf(manager, characterId);
 
-    return manager.save(CharacterFleetProposalEntity, proposal);
+    if (owner !== null) {
+      await queueOutbox(manager, [
+        {
+          userId: owner,
+          kind: NotificationOutboxKind.ROSTER_ASSOCIATION_PROPOSED,
+          subjectId: saved.id,
+          dedupeKey: `${NotificationOutboxKind.ROSTER_ASSOCIATION_PROPOSED}:${saved.id}`,
+        },
+      ]);
+    }
+
+    return saved;
+  }
+
+  /**
+   * Finds who owns a Character, through its account.
+   *
+   * @param manager - The transaction to read through.
+   * @param characterId - The Character.
+   * @returns The owner's user ID, or null where either has gone.
+   */
+  private async _ownerOf(
+    manager: EntityManager,
+    characterId: string,
+  ): Promise<string | null> {
+    const character = await manager.findOne(CharacterEntity, {
+      where: { id: characterId },
+      relations: { account: true },
+    });
+
+    return character?.account?.userId ?? null;
   }
 
   /**

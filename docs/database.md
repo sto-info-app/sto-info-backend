@@ -55,6 +55,7 @@ The database uses PostgreSQL with TypeORM for object-relational mapping.
 | `ScopeEventReminderEntity` | `scope_event_reminder` | Who asked to be reminded of an event, and how long before |
 | `NotificationOutboxEntity` | `notification_outbox` | The outbox every targeted in-app notice goes through — event reminders, proposals, chat mentions, replies and direct messages — each sent once |
 | `ScopeEventActionEntity` | `scope_event_action` | An event's change log, write-once |
+| `ActivityEventEntity` | `activity_event` | One thing that happened in a Community, Fleet or Armada, by reference, for its activity feed — see [Fleet activity](fleet-activity.md) |
 
 ### Platform Launcher Image Mapping
 

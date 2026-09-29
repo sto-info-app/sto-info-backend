@@ -3,9 +3,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 
 import { DataSource, EntityManager, EntityTarget, In } from 'typeorm';
 
+import { NotificationOutboxKind } from 'src/notification/outbox/notification-outbox-kind.enum';
 import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 
+import { insertRecorder } from '../../../test/insert-recorder';
 import { FleetAudienceService } from '../authorisation/fleet-audience.service';
 import { CHARACTER_FLEET_PROPOSAL_EXPIRY_DAYS } from '../constants/fleet-policy.constants';
 import { CharacterFleetMembershipEntity } from '../entities/character-fleet-membership.entity';
@@ -26,7 +28,10 @@ describe('CharacterFleetProposalService', () => {
     create: jest.Mock;
     exists: jest.Mock;
     update: jest.Mock;
+    createQueryBuilder: jest.Mock;
   };
+  /** The notices queued, through the same insert the feed uses. */
+  let outbox: ReturnType<typeof insertRecorder>;
   let audienceService: { canViewScope: jest.Mock };
   let membershipService: {
     requireOwnedCharacter: jest.Mock;
@@ -72,10 +77,16 @@ describe('CharacterFleetProposalService', () => {
 
   beforeEach(async () => {
     stored = proposal();
-    character = { id: characterId, accountId: 'account-1' };
     account = { id: 'account-1', userId: ownerId };
+    character = {
+      id: characterId,
+      accountId: 'account-1',
+      account: account as AccountEntity,
+    };
+    outbox = insertRecorder();
 
     manager = {
+      createQueryBuilder: outbox.createQueryBuilder,
       find: jest.fn(() => Promise.resolve([])),
       findOne: jest.fn((entity: EntityTarget<unknown>) =>
         Promise.resolve(
@@ -252,6 +263,41 @@ describe('CharacterFleetProposalService', () => {
       });
     });
 
+    it('tells its owner, once, through the outbox (FC-029)', async () => {
+      stored = null;
+      manager.save.mockImplementationOnce((_entity, row) =>
+        Promise.resolve({ ...row, id: 'proposal-2' }),
+      );
+
+      await service.raise(characterId, { fleetId }, now);
+
+      expect(manager.findOne).toHaveBeenCalledWith(CharacterEntity, {
+        where: { id: characterId },
+        relations: { account: true },
+      });
+      expect(outbox.recorded()).toEqual([
+        {
+          userId: ownerId,
+          kind: NotificationOutboxKind.ROSTER_ASSOCIATION_PROPOSED,
+          subjectId: 'proposal-2',
+          detail: null,
+          dedupeKey: 'ROSTER_ASSOCIATION_PROPOSED:proposal-2',
+        },
+      ]);
+    });
+
+    it.each([
+      ['its Character has gone', () => (character = null)],
+      ['its account has gone', () => (character = { id: characterId })],
+    ])('tells nobody when %s', async (_label, arrange) => {
+      stored = null;
+      arrange();
+
+      await service.raise(characterId, { fleetId }, now);
+
+      expect(outbox.recorded()).toEqual([]);
+    });
+
     it('leaves both blank for an import nobody raised by hand', async () => {
       stored = null;
 
@@ -275,6 +321,7 @@ describe('CharacterFleetProposalService', () => {
         open,
       );
       expect(manager.save).not.toHaveBeenCalled();
+      expect(outbox.recorded()).toEqual([]);
     });
 
     it('cites the accepted application that raised it', async () => {

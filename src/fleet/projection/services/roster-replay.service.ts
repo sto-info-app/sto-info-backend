@@ -5,6 +5,8 @@ import { DataSource, EntityManager, In, IsNull, LessThan } from 'typeorm';
 
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 
+import { ActivityType } from '../../activity/enums/activity.enums';
+import { recordActivity } from '../../activity/utilities/record-activity.utility';
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { rosterIdentityLockKey } from '../../identity/constants/roster-identity.constants';
 import { RosterIdentityAliasEntity } from '../../identity/entities/roster-identity-alias.entity';
@@ -32,6 +34,7 @@ import {
   RosterProjector,
 } from '../utilities/roster-projector';
 import {
+  RosterEvidenceSnapshot,
   RosterReplayEvidence,
   RosterReplayEvidenceService,
 } from './roster-replay-evidence.service';
@@ -237,6 +240,14 @@ export class RosterReplayService {
       { id: fleetId },
       { lastEffectiveImportAt: latest?.exportedAt ?? null },
     );
+    await this.recordImport(
+      manager,
+      fleetId,
+      projection.latestImportId,
+      latest,
+      projected,
+      published.publishedAt,
+    );
 
     return {
       projection: { ...projection, ...published },
@@ -249,6 +260,69 @@ export class RosterReplayService {
         identities,
       },
     };
+  }
+
+  /**
+   * Puts a new latest export on the Fleet's activity feed (FC-029), for its
+   * members only, in counts: never a name from the roster. Recorded once per
+   * export, so a replay that changes nothing at the top adds nothing, and an
+   * earlier export filled in behind it is no news.
+   *
+   * @param manager - The transaction.
+   * @param fleetId - The Fleet.
+   * @param before - The latest export the last revision was built from.
+   * @param latest - The latest export now.
+   * @param projected - What the exports amount to.
+   * @param occurredAt - When the revision was published.
+   */
+  private async recordImport(
+    manager: EntityManager,
+    fleetId: string,
+    before: string | null,
+    latest: RosterEvidenceSnapshot | null,
+    projected: RosterProjection,
+    occurredAt: Date,
+  ): Promise<void> {
+    if (latest === null || latest.importId === before) {
+      return;
+    }
+
+    const fleet = await manager.findOne(StoFleetEntity, {
+      where: { id: fleetId },
+      select: { id: true, communityId: true },
+    });
+
+    if (!fleet?.communityId) {
+      return;
+    }
+
+    const source = await manager.findOne(RosterImportSourceEntity, {
+      where: { id: latest.importId },
+      select: { id: true, uploadedByUserId: true },
+    });
+    const interval = projected.intervals.find(
+      candidate => candidate.to.importId === latest.importId,
+    );
+
+    await recordActivity(manager, [
+      {
+        communityId: fleet.communityId,
+        fleetId,
+        type: ActivityType.ROSTER_IMPORTED,
+        actorUserId: source?.uploadedByUserId ?? null,
+        sourceId: latest.importId,
+        detail: {
+          members:
+            interval?.membersAtEnd ??
+            latest.rows.filter(row => !row.excluded).length,
+          joined:
+            interval === undefined ? 0 : interval.joined + interval.rejoined,
+          left: interval?.left ?? 0,
+        },
+        idempotencyKey: `${ActivityType.ROSTER_IMPORTED}:${latest.importId}`,
+        occurredAt,
+      },
+    ]);
   }
 
   /**

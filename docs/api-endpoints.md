@@ -484,6 +484,11 @@ A Community's, a Fleet's and an Armada's events: their rules and occurrences, an
 waitlist, attendance and reminders. See [Fleet events](fleet-events.md#routes) for every route and
 who may call it.
 
+### Activity
+
+A Community's, a Fleet's and an Armada's activity, and each person's own feed. See
+[Fleet activity](fleet-activity.md#routes) for every route and who may call it.
+
 ### POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports
 
 Upload an STO roster export for a Fleet.

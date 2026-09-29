@@ -8,6 +8,8 @@ import { InjectDataSource } from '@nestjs/typeorm';
 
 import { DataSource, EntityManager, In, IsNull } from 'typeorm';
 
+import { ActivityType } from '../../activity/enums/activity.enums';
+import { recordActivity } from '../../activity/utilities/record-activity.utility';
 import { FleetAuthorisationService } from '../../authorisation/fleet-authorisation.service';
 import { FLEET_CAPABILITIES } from '../../authorisation/fleet-capability.constants';
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
@@ -192,7 +194,8 @@ export class FleetHoldingsService {
    * Records the tiers of one of a Fleet's holdings.
    *
    * The Fleet's row is locked first, so two recorders are taken one at a
-   * time, and each history row says truly what the track moved from.
+   * time, and each history row says truly what the track moved from. The
+   * change goes on the Fleet's activity feed (FC-029), without its reason.
    *
    * @param communityId - The Community named in the route.
    * @param fleetId - The Fleet.
@@ -285,6 +288,18 @@ export class FleetHoldingsService {
         })),
         ['fleetId', 'trackCode'],
       );
+      await recordActivity(manager, [
+        {
+          communityId,
+          fleetId,
+          type: ActivityType.HOLDINGS_RECORDED,
+          actorUserId: userId,
+          sourceId: change.id,
+          detail: { holdingCode },
+          idempotencyKey: `${ActivityType.HOLDINGS_RECORDED}:${change.id}`,
+          occurredAt: now,
+        },
+      ]);
     });
   }
 

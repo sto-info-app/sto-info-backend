@@ -4,6 +4,8 @@ import { DataSource, EntityTarget, FindOperator } from 'typeorm';
 
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 
+import { insertRecorder } from '../../../../test/insert-recorder';
+import { ActivityType } from '../../activity/enums/activity.enums';
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { RosterIdentityAliasEntity } from '../../identity/entities/roster-identity-alias.entity';
 import { RosterIdentityRecomputeService } from '../../identity/services/roster-identity-recompute.service';
@@ -104,6 +106,9 @@ describe('RosterReplayService', () => {
   let proposals: { raiseFromEvidence: jest.Mock };
   let latestRows: Row[];
   let characters: Row[];
+  let fleet: Row | null;
+  let source: Row | null;
+  let activity: ReturnType<typeof insertRecorder>;
   let service: RosterReplayService;
   let log: jest.SpyInstance;
 
@@ -123,16 +128,28 @@ describe('RosterReplayService', () => {
     inserted = new Map();
     latestRows = [];
     characters = [];
+    fleet = { id: FLEET_ID, communityId: 'community-1' };
+    source = { id: 'i2', uploadedByUserId: 'uploader-1' };
+    activity = insertRecorder();
 
     manager = {
       query: jest.fn(() => Promise.resolve([])),
-      findOne: jest.fn((entity: EntityTarget<unknown>) =>
-        Promise.resolve(
+      createQueryBuilder: activity.createQueryBuilder,
+      findOne: jest.fn((entity: EntityTarget<unknown>) => {
+        if (entity === StoFleetEntity) {
+          return Promise.resolve(fleet);
+        }
+
+        if (entity === RosterImportSourceEntity) {
+          return Promise.resolve(source);
+        }
+
+        return Promise.resolve(
           entity === RosterProjectionEntity && projection !== null
             ? { ...projection }
             : null,
-        ),
-      ),
+        );
+      }),
       findOneOrFail: jest.fn((_entity: EntityTarget<unknown>, options: Row) =>
         Promise.resolve({
           id: (options.where as Row).id,
@@ -418,6 +435,74 @@ describe('RosterReplayService', () => {
         { id: FLEET_ID },
         { lastEffectiveImportAt: new Date('2024-02-01T00:00:00Z') },
       );
+    });
+
+    describe('on the activity feed', () => {
+      it('counts who joined and left at a new latest export, naming nobody', async () => {
+        await service.replay(FLEET_ID);
+
+        expect(activity.recorded()).toEqual([
+          expect.objectContaining({
+            communityId: 'community-1',
+            fleetId: FLEET_ID,
+            type: ActivityType.ROSTER_IMPORTED,
+            actorUserId: 'uploader-1',
+            sourceId: 'i2',
+            detail: { members: 1, joined: 0, left: 1 },
+            idempotencyKey: 'ROSTER_IMPORTED:i2',
+            occurredAt: expect.any(Date),
+          }),
+        ]);
+        expect(manager.findOne).toHaveBeenCalledWith(RosterImportSourceEntity, {
+          where: { id: 'i2' },
+          select: { id: true, uploadedByUserId: true },
+        });
+      });
+
+      it('counts the counted rows of a first export, with nobody joining or leaving', async () => {
+        source = null;
+        evidence.read.mockResolvedValue(
+          evidenceOf(
+            snapshot('i1', '2024-01-01T00:00:00Z', [
+              row('Kira', '@one'),
+              row('Odo', '@two', { excluded: true }),
+            ]),
+          ),
+        );
+
+        await service.replay(FLEET_ID);
+
+        expect(activity.recorded()).toEqual([
+          expect.objectContaining({
+            actorUserId: null,
+            detail: { members: 1, joined: 0, left: 0 },
+          }),
+        ]);
+      });
+
+      it('adds nothing when the latest export has not changed', async () => {
+        projection!.latestImportId = 'i2';
+
+        await service.replay(FLEET_ID);
+
+        expect(activity.recorded()).toEqual([]);
+      });
+
+      it('adds nothing when no export is effective', async () => {
+        evidence.read.mockResolvedValue(evidenceOf());
+
+        await service.replay(FLEET_ID);
+
+        expect(activity.recorded()).toEqual([]);
+      });
+
+      it('adds nothing for a roster held outside any Community', async () => {
+        fleet = { id: FLEET_ID, communityId: null };
+
+        await service.replay(FLEET_ID);
+
+        expect(activity.recorded()).toEqual([]);
+      });
     });
 
     // Steve's decision of 25 September 2026: the date follows the revision,
