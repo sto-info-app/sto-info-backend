@@ -1,12 +1,20 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectDataSource } from '@nestjs/typeorm';
+
+import { DataSource } from 'typeorm';
 
 import { FleetAudienceService } from '../../authorisation/fleet-audience.service';
 import { FleetAuthorisationService } from '../../authorisation/fleet-authorisation.service';
 import { FLEET_CAPABILITIES } from '../../authorisation/fleet-capability.constants';
 import { ScopeRef } from '../../authorisation/scope-authorisation.interface';
+import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { FleetAudience } from '../../enums/fleet-audience.enum';
 import { FleetReportView } from '../enums/fleet-report-view.enum';
-import { FleetReport } from '../enums/fleet-report.enum';
+import {
+  FleetReport,
+  PUBLIC_REPORTS,
+  ROSTER_REPORTS,
+} from '../enums/fleet-report.enum';
 import { FleetReportAudienceService } from './fleet-report-audience.service';
 
 /**
@@ -24,6 +32,15 @@ import { FleetReportAudienceService } from './fleet-report-audience.service';
  *   roster it is built from already.
  * - The Community's followers see a `COMMUNITY` or `PUBLIC` report, and
  *   anybody else a `PUBLIC` one, as aggregates only.
+ *
+ * And of 28 September 2026 (FC-030):
+ *
+ * - Attendance is shown per person to `reports.view` holders alone; its
+ *   members, like anybody else it is shown to, see counts and rates.
+ * - Holdings are public, like the Holdings page: anybody who may see the
+ *   Fleet sees them.
+ * - The roster's reports are offered only where imports are on and the
+ *   Fleet's game writes a roster.
  */
 @Injectable()
 export class FleetReportAccessService {
@@ -33,11 +50,14 @@ export class FleetReportAccessService {
    * @param _authorisationService - Resolves a viewer's capabilities.
    * @param _audienceService - Decides who may see a scope and its content.
    * @param _reportAudiences - Reads each report's audience.
+   * @param _dataSource - Reads whether the Fleet's game writes a roster.
    */
   constructor(
     private readonly _authorisationService: FleetAuthorisationService,
     private readonly _audienceService: FleetAudienceService,
     private readonly _reportAudiences: FleetReportAudienceService,
+    @InjectDataSource()
+    private readonly _dataSource: DataSource,
   ) {}
 
   /**
@@ -45,12 +65,15 @@ export class FleetReportAccessService {
    *
    * @param ref - The Fleet, as the route named it.
    * @param userId - The viewer, or null when signed out.
+   * @param importsOn - Whether imports are switched on, and with them the
+   *   roster's reports.
    * @returns Each report they may see, with how much. Empty when they may
    *   see none, or not the Fleet.
    */
   async visible(
     ref: ScopeRef,
     userId: string | null,
+    importsOn = true,
   ): Promise<Map<FleetReport, FleetReportView>> {
     const views = new Map<FleetReport, FleetReportView>();
 
@@ -64,15 +87,23 @@ export class FleetReportAccessService {
     );
     const capabilities = authorisation?.capabilities ?? new Set();
     const chosen = await this._reportAudiences.chosen(ref.id);
+    const rosterOpen = importsOn && (await this.providesRoster(ref.id));
     let follower: boolean | undefined;
 
     for (const [report, audience] of chosen) {
-      if (capabilities.has(FLEET_CAPABILITIES.REPORTS_VIEW)) {
+      if (ROSTER_REPORTS.has(report) && !rosterOpen) {
+        continue;
+      } else if (capabilities.has(FLEET_CAPABILITIES.REPORTS_VIEW)) {
         views.set(report, FleetReportView.FULL);
       } else if (audience === FleetAudience.PRIVATE) {
         continue;
       } else if (capabilities.has(FLEET_CAPABILITIES.ROSTER_VIEW)) {
-        views.set(report, FleetReportView.FULL);
+        views.set(
+          report,
+          report === FleetReport.ATTENDANCE
+            ? FleetReportView.AGGREGATE
+            : FleetReportView.FULL,
+        );
       } else if (audience === FleetAudience.PUBLIC) {
         views.set(report, FleetReportView.AGGREGATE);
       } else if (audience === FleetAudience.COMMUNITY) {
@@ -88,7 +119,26 @@ export class FleetReportAccessService {
       }
     }
 
+    for (const report of PUBLIC_REPORTS) {
+      views.set(report, FleetReportView.FULL);
+    }
+
     return views;
+  }
+
+  /**
+   * Whether a Fleet's game writes a roster the site can read.
+   *
+   * @param fleetId - The Fleet.
+   * @returns True when it does.
+   */
+  private async providesRoster(fleetId: string): Promise<boolean> {
+    const fleet = await this._dataSource.manager.findOne(StoFleetEntity, {
+      where: { id: fleetId },
+      relations: { platform: true },
+    });
+
+    return fleet?.platform?.providesRosterExport === true;
   }
 
   /**

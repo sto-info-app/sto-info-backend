@@ -12,6 +12,7 @@ import { FleetReport } from './enums/fleet-report.enum';
 import { FleetReportsController } from './fleet-reports.controller';
 import { FleetContributionReportService } from './services/fleet-contribution-report.service';
 import { FleetGrowthReportService } from './services/fleet-growth-report.service';
+import { FleetRecordReportsService } from './services/fleet-record-reports.service';
 import { FleetReportAccessService } from './services/fleet-report-access.service';
 import { FleetReportAudienceService } from './services/fleet-report-audience.service';
 import { FleetReportContextService } from './services/fleet-report-context.service';
@@ -33,7 +34,17 @@ describe('FleetReportsController', () => {
   let contributionService: { contribution: jest.Mock };
   let csvService: { render: jest.Mock };
   let fleetService: { findByIdOrFail: jest.Mock };
-  let featureService: { assertFlagEnabled: jest.Mock };
+  let featureService: {
+    assertEnabled: jest.Mock;
+    assertFlagEnabled: jest.Mock;
+    isFlagEnabled: jest.Mock;
+  };
+  let recordReports: {
+    open: jest.Mock;
+    attendance: jest.Mock;
+    recruitment: jest.Mock;
+    holdings: jest.Mock;
+  };
   let controller: FleetReportsController;
 
   beforeEach(() => {
@@ -76,7 +87,15 @@ describe('FleetReportsController', () => {
       ),
     };
     featureService = {
+      assertEnabled: jest.fn(() => Promise.resolve()),
       assertFlagEnabled: jest.fn(() => Promise.resolve()),
+      isFlagEnabled: jest.fn(() => Promise.resolve(true)),
+    };
+    recordReports = {
+      open: jest.fn(() => ({ fleetId: 'fleet-1' })),
+      attendance: jest.fn(() => Promise.resolve({ occurrences: [] })),
+      recruitment: jest.fn(() => Promise.resolve({ months: [] })),
+      holdings: jest.fn(() => Promise.resolve({ changes: [] })),
     };
     controller = new FleetReportsController(
       audienceService as unknown as FleetReportAudienceService,
@@ -88,6 +107,7 @@ describe('FleetReportsController', () => {
       csvService as unknown as FleetReportCsvService,
       fleetService as unknown as StoFleetService,
       featureService as unknown as FleetFeatureService,
+      recordReports as unknown as FleetRecordReportsService,
     );
   });
 
@@ -127,7 +147,62 @@ describe('FleetReportsController', () => {
         withinCommunityId: 'community-1',
       },
       null,
+      true,
     );
+    expect(featureService.assertEnabled).toHaveBeenCalled();
+  });
+
+  // FC-030: the Fleet's own records are reported whether imports are on or not.
+  it('lists the roster’s reports only while imports are on', async () => {
+    featureService.isFlagEnabled.mockResolvedValue(false);
+
+    await controller.list('community-1', 'fleet-1', 'user-1');
+
+    expect(featureService.isFlagEnabled).toHaveBeenCalledWith(
+      FLEET_FEATURE_FLAGS.IMPORTS_ENABLED,
+    );
+    expect(accessService.visible).toHaveBeenCalledWith(
+      expect.anything(),
+      'user-1',
+      false,
+    );
+  });
+
+  describe.each([
+    ['attendance', FleetReport.ATTENDANCE, { occurrences: [] }],
+    ['recruitment', FleetReport.RECRUITMENT, { months: [] }],
+    ['holdings', FleetReport.HOLDINGS, { changes: [] }],
+  ] as const)('the %s report (FC-030)', (route, report, answer) => {
+    it('is opened over the Fleet’s own records, as much as the viewer is shown', async () => {
+      const query = { from: '2026-01-01T00:00:00Z' };
+
+      await expect(
+        controller[route]('community-1', 'fleet-1', query, 'user-1'),
+      ).resolves.toEqual(answer);
+      expect(featureService.assertEnabled).toHaveBeenCalled();
+      expect(featureService.assertFlagEnabled).not.toHaveBeenCalled();
+      expect(accessService.require).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'fleet-1' }),
+        report,
+        'user-1',
+      );
+      expect(recordReports.open).toHaveBeenCalledWith(
+        'fleet-1',
+        report,
+        FleetReportView.AGGREGATE,
+        query,
+      );
+      expect(recordReports[route]).toHaveBeenCalledWith({ fleetId: 'fleet-1' });
+    });
+
+    it('asks no capability of its viewer', () => {
+      expect(
+        Reflect.getMetadata(
+          REQUIRES_SCOPE_CAPABILITY_KEY,
+          FleetReportsController.prototype[route],
+        ),
+      ).toBeUndefined();
+    });
   });
 
   // Open to anybody: the list itself decides what to show.
@@ -264,6 +339,36 @@ describe('FleetReportsController', () => {
       },
     );
 
+    it.each([
+      [FleetReport.ATTENDANCE, () => recordReports.attendance],
+      [FleetReport.RECRUITMENT, () => recordReports.recruitment],
+      [FleetReport.HOLDINGS, () => recordReports.holdings],
+    ])(
+      'writes the %s report from the Fleet’s own records',
+      async (report, builder) => {
+        recordReports.open.mockReturnValue({
+          fleetId: 'fleet-1',
+          header: { report },
+        });
+
+        await expect(
+          controller.csv(
+            'community-1',
+            'fleet-1',
+            report,
+            {},
+            null,
+            response as never,
+          ),
+        ).resolves.toBe('csv text');
+        expect(builder()).toHaveBeenCalledWith({
+          fleetId: 'fleet-1',
+          header: { report },
+        });
+        expect(contextService.open).not.toHaveBeenCalled();
+      },
+    );
+
     it('offers it as a download named for the Fleet, report and day', async () => {
       contextService.open.mockResolvedValue({
         fleetId: 'fleet-1',
@@ -312,9 +417,7 @@ describe('FleetReportsController', () => {
       reports: [],
       changes: [],
     });
-    expect(featureService.assertFlagEnabled).toHaveBeenCalledWith(
-      FLEET_FEATURE_FLAGS.IMPORTS_ENABLED,
-    );
+    expect(featureService.assertEnabled).toHaveBeenCalled();
     expect(audienceService.audiences).toHaveBeenCalledWith('fleet-1');
   });
 
@@ -331,8 +434,22 @@ describe('FleetReportsController', () => {
     );
   });
 
-  it('is hidden while imports are switched off', async () => {
+  it('hides the roster’s reports while imports are switched off', async () => {
     featureService.assertFlagEnabled.mockRejectedValue(
+      new NotFoundException('Not found'),
+    );
+
+    await expect(
+      controller.growth('community-1', 'fleet-1', {}, null),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(accessService.require).not.toHaveBeenCalled();
+    expect(featureService.assertFlagEnabled).toHaveBeenCalledWith(
+      FLEET_FEATURE_FLAGS.IMPORTS_ENABLED,
+    );
+  });
+
+  it('is hidden while the Fleet feature is switched off', async () => {
+    featureService.assertEnabled.mockRejectedValue(
       new NotFoundException('Not found'),
     );
 
@@ -344,7 +461,7 @@ describe('FleetReportsController', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(accessService.visible).not.toHaveBeenCalled();
     await expect(
-      controller.growth('community-1', 'fleet-1', {}, null),
+      controller.attendance('community-1', 'fleet-1', {}, null),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(accessService.require).not.toHaveBeenCalled();
     await expect(

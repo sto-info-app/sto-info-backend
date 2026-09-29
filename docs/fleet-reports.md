@@ -1,6 +1,6 @@
 # Fleet reports
 
-Who may see a Fleet's reports, and what each audience is shown (FC-020).
+Who may see a Fleet's reports, and what each audience is shown (FC-020, FC-030).
 
 See also [Roster history](roster-history.md), which the reports are built from.
 
@@ -28,6 +28,19 @@ audience a report already has is refused.
 
 The Owner and Admins can read every report's audience and change. Anybody else learns only
 whether a report is shown to them.
+
+Steve's decisions of 28 September 2026 (FC-030) add three more:
+
+- **Attendance** has an audience the Owner chooses, but only `reports.view` holders see it per
+  person. Its members, like anybody else it is shown to, see counts and rates.
+- **Recruitment** has an audience the Owner chooses, as the roster's reports do. Even in full it
+  is counts, never a name.
+- **Holdings** are public, like the Holdings page: anybody who may see the Fleet sees them, and
+  there is no audience to choose. Setting one is refused.
+
+The roster's reports are offered only while imports are switched on and the Fleet's game writes
+a roster. The other three are offered on every Fleet, console ones included, so every Fleet has
+a Reports tab.
 
 Nothing of a report is shown to anybody who may not see the Fleet itself. The Fleet's and its
 Community's own audiences come first, so a public report on a Fleet visible only to its Community
@@ -58,9 +71,8 @@ A full view also draws detail at one export: the latest in the span, or the one 
 
 ## The reports
 
-The roster history's five: `GROWTH`, `TENURE`, `RANKS`, `ACTIVITY` and `CONTRIBUTION`. Recruitment
-and event attendance join them with their own stories. Holdings are public, so they have no
-audience to choose and are not a report here: see [Fleet holdings](fleet-holdings.md).
+The roster history's five: `GROWTH`, `TENURE`, `RANKS`, `ACTIVITY` and `CONTRIBUTION`. Then, from
+the Fleet's own records (FC-030): `ATTENDANCE`, `RECRUITMENT` and `HOLDINGS`, below.
 
 Every count is taken in the database, grouped by export, so a Fleet with hundreds of exports is
 read a row per export and band rather than a row per member. None reads a row an investigator
@@ -124,6 +136,44 @@ the interval is listed, marked, and is in no interval's total.
 For an aggregate audience the four counts are one group, since they account for every member at
 either end exactly once, and the total is hidden when fewer than five members' deltas make it up.
 
+### Reports from the Fleet's own records
+
+Attendance, recruitment and holdings are read from the Fleet's own records, not the roster, so
+they have no revision or exports. Each says its span and view instead. The span is the last
+twelve months unless `from` and `to` ask for another. An aggregate view hides a figure counting
+one to four people, as the roster's reports do. `fleet_report_enum` names all three. Only
+attendance and recruitment ever have an audience stored.
+
+### Attendance
+
+The Fleet's own events only (Steve's decision of 28 September 2026); a Community's and an
+Armada's have no attendance report in v1, and their managers see attendance on each occurrence.
+Each occurrence that started in the span and was not cancelled gives:
+
+- how many are Going with a place, as it stands now;
+- how many were recorded as coming and as not coming;
+- the rate: came out of everybody recorded.
+
+Totals sum the span. A full view also lists each person: how often they came and did not, most
+often there first, then by username, with anybody whose account has gone last. In an aggregate
+view, came and not came are one group; the rate is shown only when both are.
+
+### Recruitment
+
+Month by month (UTC) and route by route: applications, open joins, and invitations, each counted
+once. An accepted invitation is counted as the invitation it was, not again as an application.
+Each row gives how many came in, and how many were accepted, declined (an application rejected
+or an invitation declined), withdrawn, lapsed, or are still pending. An invitation left pending
+past its deadline counts as lapsed. It also gives the median days from asking to a decision, over
+those accepted or declined. In an aggregate view the outcomes are one group, since they account
+for every request, and the median is hidden when fewer than five were decided.
+
+### Holdings
+
+Every tier a holding's track moved in the span, newest first, in track order within a change:
+when, the holding, the track, and the tier before and after. Never who recorded it, and never
+the reason.
+
 ## CSV export
 
 Each report can be downloaded as CSV. It holds the tables exactly as the viewer is shown them
@@ -133,7 +183,7 @@ own tables, after a blank line.
 
 Comment lines starting `#` come first. They name the report and the Fleet, the revision and when
 it was published, the span and how many exports it covers, and the view, and say when the file
-was made. The file is UTF-8 with a byte order mark, so a spreadsheet reads it as such. Every
+was made. A report from the Fleet's own records gives its span and view, with no revision. The file is UTF-8 with a byte order mark, so a spreadsheet reads it as such. Every
 instant is ISO 8601 UTC, and every line ends with CRLF, as RFC 4180 has it.
 
 A cell a spreadsheet would run as a formula — text starting `=`, `+`, `-`, `@`, a tab or a

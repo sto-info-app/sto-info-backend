@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { getMetadataArgsStorage, QueryRunner } from 'typeorm';
 
 import { CreateFleetReportAudiences1794700000000 } from '../../../database/migrations/1794700000000-CreateFleetReportAudiences';
+import { AddRecordReports1795900000000 } from '../../../database/migrations/1795900000000-AddRecordReports';
 import { FleetReport } from '../enums/fleet-report.enum';
 import { FleetReportAudienceChangeEntity } from './fleet-report-audience-change.entity';
 import { FleetReportAudienceEntity } from './fleet-report-audience.entity';
@@ -117,13 +118,37 @@ describe('Fleet report audience schema alignment', () => {
     });
   });
 
-  it('gives the report type exactly the reports the code knows', () => {
-    const values = Object.values(FleetReport)
-      .map(value => `'${value}'`)
-      .join(', ');
+  // The roster's five, then those FC-030 added in a migration of its own.
+  it('gives the report type exactly the reports the code knows', async () => {
+    const added = await capture(queryRunner =>
+      new AddRecordReports1795900000000().up(queryRunner),
+    );
+    const created = /ENUM \((.*)\)/.exec(
+      statements.find(statement =>
+        statement.startsWith('CREATE TYPE "sto_info_app"."fleet_report_enum"'),
+      ) as string,
+    )?.[1];
+    const values = [
+      ...(created as string).split(', '),
+      ...added.map(statement => /'([A-Z]+)'$/.exec(statement)?.[0]),
+    ].map(value => (value as string).replaceAll("'", ''));
 
-    expect(statements).toContainEqual(
-      `CREATE TYPE "sto_info_app"."fleet_report_enum" AS ENUM (${values})`,
+    expect(values).toEqual(Object.values(FleetReport));
+  });
+
+  it('takes the added reports out again, with any audience given them', async () => {
+    const reverted = await capture(queryRunner =>
+      new AddRecordReports1795900000000().down(queryRunner),
+    );
+
+    expect(reverted).toContainEqual(
+      `DELETE FROM "sto_info_app"."fleet_report_audience" WHERE "report"::text IN ('ATTENDANCE', 'RECRUITMENT', 'HOLDINGS')`,
+    );
+    expect(reverted).toContainEqual(
+      `CREATE TYPE "sto_info_app"."fleet_report_enum" AS ENUM ('GROWTH', 'TENURE', 'RANKS', 'ACTIVITY', 'CONTRIBUTION')`,
+    );
+    expect(reverted[reverted.length - 1]).toBe(
+      'DROP TYPE "sto_info_app"."fleet_report_enum_old"',
     );
   });
 

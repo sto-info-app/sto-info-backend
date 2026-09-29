@@ -1,9 +1,9 @@
 /**
- * The reports a Fleet has, each with an audience of its own (FC-020).
+ * The reports a Fleet has (FC-020, FC-030).
  *
- * The five built from the roster history. Recruitment and event attendance
- * join them with their stories. Holdings are public, so they have no
- * audience to choose and are not among them (FC-023).
+ * The five built from the roster history, then event attendance and
+ * recruitment, each with an audience of its own the Owner chooses. Holdings
+ * are public, like the Holdings page, so theirs is never chosen or stored.
  */
 export enum FleetReport {
   /** Who joined and who left, interval by interval. */
@@ -16,4 +16,24 @@ export enum FleetReport {
   ACTIVITY = 'ACTIVITY',
   /** What was contributed between exports. */
   CONTRIBUTION = 'CONTRIBUTION',
+  /** Who came to the Fleet's own events (FC-030). */
+  ATTENDANCE = 'ATTENDANCE',
+  /** How applications and invitations turned out, month by month (FC-030). */
+  RECRUITMENT = 'RECRUITMENT',
+  /** How the Fleet's holdings changed (FC-030). Public. */
+  HOLDINGS = 'HOLDINGS',
 }
+
+/** The reports read from the roster history, for a Fleet whose game exports one. */
+export const ROSTER_REPORTS: ReadonlySet<FleetReport> = new Set([
+  FleetReport.GROWTH,
+  FleetReport.TENURE,
+  FleetReport.RANKS,
+  FleetReport.ACTIVITY,
+  FleetReport.CONTRIBUTION,
+]);
+
+/** The reports shown to everybody who may see the Fleet, with no audience. */
+export const PUBLIC_REPORTS: ReadonlySet<FleetReport> = new Set([
+  FleetReport.HOLDINGS,
+]);

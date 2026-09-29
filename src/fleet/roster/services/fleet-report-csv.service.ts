@@ -8,6 +8,12 @@ import {
   FleetActivityReportDto,
   FleetGrowthReportDto,
 } from '../dto/fleet-growth-report.dto';
+import {
+  FleetAttendanceReportDto,
+  FleetHoldingsReportDto,
+  FleetRecordReportHeaderDto,
+  FleetRecruitmentReportDto,
+} from '../dto/fleet-record-report.dto';
 import { FleetReportHeaderDto } from '../dto/fleet-report.dto';
 import {
   FleetRanksReportDto,
@@ -18,13 +24,16 @@ import { FleetReport } from '../enums/fleet-report.enum';
 import { RosterActivityBand } from '../enums/roster-activity-band.enum';
 import { RosterTenureBand } from '../enums/roster-tenure-band.enum';
 
-/** Any of the five reports, as its route gives it. */
+/** Any report, as its route gives it. */
 export type FleetReportDto =
   | FleetGrowthReportDto
   | FleetActivityReportDto
   | FleetTenureReportDto
   | FleetRanksReportDto
-  | FleetContributionReportDto;
+  | FleetContributionReportDto
+  | FleetAttendanceReportDto
+  | FleetRecruitmentReportDto
+  | FleetHoldingsReportDto;
 
 /** What a hidden figure is written as. */
 const HIDDEN = '< 5';
@@ -36,6 +45,9 @@ const TITLES: Readonly<Record<FleetReport, string>> = {
   [FleetReport.RANKS]: 'Ranks',
   [FleetReport.ACTIVITY]: 'Imported activity',
   [FleetReport.CONTRIBUTION]: 'Contribution',
+  [FleetReport.ATTENDANCE]: 'Event attendance',
+  [FleetReport.RECRUITMENT]: 'Recruitment',
+  [FleetReport.HOLDINGS]: 'Holdings',
 };
 
 /** Each activity band's column heading. */
@@ -98,10 +110,14 @@ export class FleetReportCsvService {
  * @returns The heading's rows.
  */
 function heading(
-  report: FleetReportHeaderDto,
+  report: FleetReportHeaderDto | FleetRecordReportHeaderDto,
   fleetName: string,
   now: Date,
 ): CsvValue[][] {
+  if (!('revision' in report)) {
+    return recordHeading(report, fleetName, now);
+  }
+
   const { range, coverage } = report;
   const lines = [
     `# ${TITLES[report.report]}: ${fleetName}`,
@@ -123,6 +139,30 @@ function heading(
 }
 
 /**
+ * Writes the heading of a report built from the Fleet's own records
+ * (FC-030): its span and view, with no roster revision or exports.
+ *
+ * @param report - The report.
+ * @param fleetName - The Fleet's name.
+ * @param now - When it is being made.
+ * @returns The heading's rows.
+ */
+function recordHeading(
+  report: FleetRecordReportHeaderDto,
+  fleetName: string,
+  now: Date,
+): CsvValue[][] {
+  return [
+    `# ${TITLES[report.report]}: ${fleetName}`,
+    `# Span: ${report.range.from.toISOString()} to ${report.range.to.toISOString()}`,
+    report.view === FleetReportView.AGGREGATE
+      ? `# Aggregates only: figures counting fewer than ${report.minimumCohort} people (or revealing one) are written ${HIDDEN}`
+      : '# Full detail',
+    `# Generated ${now.toISOString()}`,
+  ].map(line => [line]);
+}
+
+/**
  * Lays a report out as tables.
  *
  * @param report - The report.
@@ -140,7 +180,109 @@ function tables(report: FleetReportDto): CsvValue[][][] {
       return ranks(report as FleetRanksReportDto);
     case FleetReport.CONTRIBUTION:
       return contribution(report as FleetContributionReportDto);
+    case FleetReport.ATTENDANCE:
+      return attendance(report as FleetAttendanceReportDto);
+    case FleetReport.RECRUITMENT:
+      return [recruitment(report as FleetRecruitmentReportDto)];
+    case FleetReport.HOLDINGS:
+      return [holdings(report as FleetHoldingsReportDto)];
   }
+}
+
+/**
+ * Lays out the attendance report (FC-030).
+ *
+ * @param report - The report.
+ * @returns Its tables: each occurrence with the totals, and for a full view
+ *   each person.
+ */
+function attendance(report: FleetAttendanceReportDto): CsvValue[][][] {
+  const occurrences: CsvValue[][] = [
+    ['Starts', 'Event', 'Going', 'Came', 'Did not come', 'Rate'],
+    ...report.occurrences.map(row => [
+      row.startsAt,
+      row.title,
+      count(row.going),
+      count(row.attended),
+      count(row.absent),
+      row.rate ?? '',
+    ]),
+    [
+      `All ${report.totals.occurrences}`,
+      '',
+      '',
+      count(report.totals.attended),
+      count(report.totals.absent),
+      report.totals.rate ?? '',
+    ],
+  ];
+
+  return report.members === null
+    ? [occurrences]
+    : [
+        occurrences,
+        [
+          ['# Each person'],
+          ['Username', 'Came', 'Did not come'],
+          ...report.members.map(row => [
+            row.username ?? '',
+            row.attended,
+            row.absent,
+          ]),
+        ],
+      ];
+}
+
+/**
+ * Lays out the recruitment report (FC-030).
+ *
+ * @param report - The report.
+ * @returns Its table.
+ */
+function recruitment(report: FleetRecruitmentReportDto): CsvValue[][] {
+  return [
+    [
+      'Month',
+      'Route',
+      'Received',
+      'Accepted',
+      'Declined',
+      'Withdrawn',
+      'Lapsed',
+      'Pending',
+      'Median days to a decision',
+    ],
+    ...report.months.map(row => [
+      row.month,
+      row.route,
+      count(row.received),
+      count(row.accepted),
+      count(row.declined),
+      count(row.withdrawn),
+      count(row.lapsed),
+      count(row.pending),
+      row.medianDaysToDecision ?? '',
+    ]),
+  ];
+}
+
+/**
+ * Lays out the holdings report (FC-030).
+ *
+ * @param report - The report.
+ * @returns Its table.
+ */
+function holdings(report: FleetHoldingsReportDto): CsvValue[][] {
+  return [
+    ['When', 'Holding', 'Track', 'From tier', 'To tier'],
+    ...report.changes.map(row => [
+      row.at,
+      row.holding,
+      row.track,
+      row.from,
+      row.to,
+    ]),
+  ];
 }
 
 /**

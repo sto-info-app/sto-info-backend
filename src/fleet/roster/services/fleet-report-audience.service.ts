@@ -7,7 +7,12 @@ import { FleetAudience } from '../../enums/fleet-audience.enum';
 import { FleetReportAudiencesDto } from '../dto/fleet-report-audience.dto';
 import { FleetReportAudienceChangeEntity } from '../entities/fleet-report-audience-change.entity';
 import { FleetReportAudienceEntity } from '../entities/fleet-report-audience.entity';
-import { FleetReport } from '../enums/fleet-report.enum';
+import { FleetReport, PUBLIC_REPORTS } from '../enums/fleet-report.enum';
+
+/** The reports with an audience to choose, in the reports' order. */
+const AUDIENCED_REPORTS: readonly FleetReport[] = Object.values(
+  FleetReport,
+).filter(report => !PUBLIC_REPORTS.has(report));
 
 /**
  * Who may see each of a Fleet's reports (FC-020).
@@ -69,7 +74,7 @@ export class FleetReportAudienceService {
     const byReport = new Map(rows.map(row => [row.report, row.audience]));
 
     return new Map(
-      Object.values(FleetReport).map(report => [
+      AUDIENCED_REPORTS.map(report => [
         report,
         byReport.get(report) ?? FleetAudience.PRIVATE,
       ]),
@@ -97,7 +102,7 @@ export class FleetReportAudienceService {
     });
 
     return {
-      reports: Object.values(FleetReport).map(report => ({
+      reports: AUDIENCED_REPORTS.map(report => ({
         report,
         audience: chosen.get(report)?.audience ?? FleetAudience.PRIVATE,
         updatedAt: chosen.get(report)?.updatedAt ?? null,
@@ -124,7 +129,8 @@ export class FleetReportAudienceService {
    * @param audience - Who may see it now.
    * @param actorUserId - The Owner.
    * @returns Every report's audience and change, as after it.
-   * @throws BadRequestException when it already has that audience.
+   * @throws BadRequestException when it already has that audience, or is
+   *   public and has none to choose.
    */
   async set(
     fleetId: string,
@@ -132,6 +138,12 @@ export class FleetReportAudienceService {
     audience: FleetAudience,
     actorUserId: string,
   ): Promise<FleetReportAudiencesDto> {
+    if (PUBLIC_REPORTS.has(report)) {
+      throw new BadRequestException(
+        'That report is public, so it has no audience to choose.',
+      );
+    }
+
     await this._dataSource.transaction(async manager => {
       await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
         `fleet-report-audience:${fleetId}:${report}`,

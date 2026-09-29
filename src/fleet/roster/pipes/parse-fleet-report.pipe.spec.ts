@@ -16,10 +16,11 @@ describe('ParseFleetReportPipe', () => {
   });
 
   it('refuses a name that is no report, listing the ones there are', () => {
-    expect(() => pipe.transform('holdings')).toThrow(
+    expect(() => pipe.transform('treasury')).toThrow(
       new BadRequestException(
-        'There is no report called "holdings". The reports are growth, ' +
-          'tenure, ranks, activity, contribution.',
+        'There is no report called "treasury". The reports are growth, ' +
+          'tenure, ranks, activity, contribution, attendance, recruitment, ' +
+          'holdings.',
       ),
     );
   });

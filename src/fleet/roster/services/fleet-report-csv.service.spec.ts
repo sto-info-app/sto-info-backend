@@ -1,9 +1,11 @@
 import { RosterChangeKind } from '../../projection/enums/roster-change-kind.enum';
+import { FleetApplicationRoute } from '../../recruitment/enums/fleet-application-route.enum';
 import { FleetContributionReportDto } from '../dto/fleet-contribution-report.dto';
 import {
   FleetActivityReportDto,
   FleetGrowthReportDto,
 } from '../dto/fleet-growth-report.dto';
+import { FleetRecordReportHeaderDto } from '../dto/fleet-record-report.dto';
 import { FleetReportHeaderDto } from '../dto/fleet-report.dto';
 import {
   FleetRanksReportDto,
@@ -312,6 +314,193 @@ describe('FleetReportCsvService', () => {
 
       expect(csv).toHaveLength(8);
       expect(csv[7]).toContain(',false,< 5,30,');
+    });
+  });
+
+  describe('reports from the Fleet’s own records (FC-030)', () => {
+    /**
+     * Builds such a report's header.
+     *
+     * @param report - The report.
+     * @param view - How much the viewer is shown.
+     * @returns The header.
+     */
+    const recordHeader = (
+      report: FleetReport,
+      view = FleetReportView.FULL,
+    ): FleetRecordReportHeaderDto => ({
+      report,
+      view,
+      range: { from: NOV_15, to: DEC_1 },
+      minimumCohort: 5,
+    });
+
+    it('heads them with their span and view, and no revision', () => {
+      const csv = lines(
+        service.render(
+          {
+            ...recordHeader(FleetReport.HOLDINGS),
+            changes: [],
+          },
+          'Fixture Basic Fleet',
+          NOW,
+        ),
+      );
+
+      expect(csv.slice(0, 4)).toEqual([
+        '# Holdings: Fixture Basic Fleet',
+        '# Span: 2024-11-15T12:00:00.000Z to 2024-12-01T12:00:00.000Z',
+        '# Full detail',
+        '# Generated 2026-09-25T12:00:00.000Z',
+      ]);
+    });
+
+    it('writes attendance, with each person for a full view', () => {
+      const csv = lines(
+        service.render(
+          {
+            ...recordHeader(FleetReport.ATTENDANCE),
+            occurrences: [
+              {
+                occurrenceId: 'o1',
+                eventId: 'e1',
+                title: 'Refit night',
+                startsAt: NOV_15,
+                going: 6,
+                attended: 5,
+                absent: 1,
+                rate: 0.83,
+              },
+            ],
+            totals: { occurrences: 1, attended: 5, absent: 1, rate: 0.83 },
+            members: [
+              { username: 'Kira', attended: 1, absent: 0 },
+              { username: null, attended: 0, absent: 1 },
+            ],
+          },
+          'Fleet',
+          NOW,
+        ),
+      );
+
+      expect(csv.slice(5)).toEqual([
+        'Starts,Event,Going,Came,Did not come,Rate',
+        '2024-11-15T12:00:00.000Z,Refit night,6,5,1,0.83',
+        'All 1,,,5,1,0.83',
+        '',
+        '# Each person',
+        'Username,Came,Did not come',
+        'Kira,1,0',
+        ',0,1',
+      ]);
+    });
+
+    it('writes attendance as counts alone for an aggregate view, hiding small ones', () => {
+      const csv = lines(
+        service.render(
+          {
+            ...recordHeader(FleetReport.ATTENDANCE, FleetReportView.AGGREGATE),
+            occurrences: [
+              {
+                occurrenceId: 'o1',
+                eventId: 'e1',
+                title: 'Refit night',
+                startsAt: NOV_15,
+                going: null,
+                attended: null,
+                absent: null,
+                rate: null,
+              },
+            ],
+            totals: {
+              occurrences: 1,
+              attended: null,
+              absent: null,
+              rate: null,
+            },
+            members: null,
+          },
+          'Fleet',
+          NOW,
+        ),
+      );
+
+      expect(csv[2]).toBe(
+        '# Aggregates only: figures counting fewer than 5 people (or revealing one) are written < 5',
+      );
+      expect(csv.slice(5)).toEqual([
+        'Starts,Event,Going,Came,Did not come,Rate',
+        '2024-11-15T12:00:00.000Z,Refit night,< 5,< 5,< 5,',
+        'All 1,,,< 5,< 5,',
+      ]);
+    });
+
+    it('writes recruitment a month and route to a row', () => {
+      const csv = lines(
+        service.render(
+          {
+            ...recordHeader(FleetReport.RECRUITMENT, FleetReportView.AGGREGATE),
+            months: [
+              {
+                month: '2024-11',
+                route: FleetApplicationRoute.APPLICATION,
+                received: 12,
+                accepted: 8,
+                declined: null,
+                withdrawn: null,
+                lapsed: 0,
+                pending: null,
+                medianDaysToDecision: 2.5,
+              },
+              {
+                month: '2024-11',
+                route: FleetApplicationRoute.INVITATION,
+                received: null,
+                accepted: null,
+                declined: null,
+                withdrawn: null,
+                lapsed: null,
+                pending: null,
+                medianDaysToDecision: null,
+              },
+            ],
+          },
+          'Fleet',
+          NOW,
+        ),
+      );
+
+      expect(csv.slice(5)).toEqual([
+        'Month,Route,Received,Accepted,Declined,Withdrawn,Lapsed,Pending,Median days to a decision',
+        '2024-11,APPLICATION,12,8,< 5,< 5,0,< 5,2.5',
+        '2024-11,INVITATION,< 5,< 5,< 5,< 5,< 5,< 5,',
+      ]);
+    });
+
+    it('writes holdings a tier change to a row', () => {
+      const csv = lines(
+        service.render(
+          {
+            ...recordHeader(FleetReport.HOLDINGS),
+            changes: [
+              {
+                at: DEC_1,
+                holding: 'Starbase',
+                track: 'Military',
+                from: 2,
+                to: 3,
+              },
+            ],
+          },
+          'Fleet',
+          NOW,
+        ),
+      );
+
+      expect(csv.slice(5)).toEqual([
+        'When,Holding,Track,From tier,To tier',
+        '2024-12-01T12:00:00.000Z,Starbase,Military,2,3',
+      ]);
     });
   });
 });

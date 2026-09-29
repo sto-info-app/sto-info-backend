@@ -21,6 +21,7 @@ import { FleetReportsController } from './fleet-reports.controller';
 import { RosterController } from './roster.controller';
 import { FleetContributionReportService } from './services/fleet-contribution-report.service';
 import { FleetGrowthReportService } from './services/fleet-growth-report.service';
+import { FleetRecordReportsService } from './services/fleet-record-reports.service';
 import { FleetReportAccessService } from './services/fleet-report-access.service';
 import { FleetReportAudienceService } from './services/fleet-report-audience.service';
 import { FleetReportContextService } from './services/fleet-report-context.service';
@@ -72,6 +73,7 @@ import { RosterViewService } from './services/roster-view.service';
     FleetGrowthReportService,
     FleetReportContextService,
     FleetReportCsvService,
+    FleetRecordReportsService,
     FleetReportQueryService,
     FleetTenureReportService,
     PublishedRosterRevisionService,

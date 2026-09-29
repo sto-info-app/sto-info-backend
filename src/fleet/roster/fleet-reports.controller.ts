@@ -38,6 +38,11 @@ import {
   FleetGrowthReportDto,
 } from './dto/fleet-growth-report.dto';
 import {
+  FleetAttendanceReportDto,
+  FleetHoldingsReportDto,
+  FleetRecruitmentReportDto,
+} from './dto/fleet-record-report.dto';
+import {
   FleetReportAudiencesDto,
   SetFleetReportAudienceDto,
 } from './dto/fleet-report-audience.dto';
@@ -47,10 +52,14 @@ import {
   FleetRanksReportDto,
   FleetTenureReportDto,
 } from './dto/fleet-tenure-report.dto';
-import { FleetReport } from './enums/fleet-report.enum';
+import { FleetReport, ROSTER_REPORTS } from './enums/fleet-report.enum';
 import { ParseFleetReportPipe } from './pipes/parse-fleet-report.pipe';
 import { FleetContributionReportService } from './services/fleet-contribution-report.service';
 import { FleetGrowthReportService } from './services/fleet-growth-report.service';
+import {
+  FleetRecordReportContext,
+  FleetRecordReportsService,
+} from './services/fleet-record-reports.service';
 import { FleetReportAccessService } from './services/fleet-report-access.service';
 import { FleetReportAudienceService } from './services/fleet-report-audience.service';
 import {
@@ -71,7 +80,11 @@ const FLEET_SOURCE = {
 } as const;
 
 /**
- * A Fleet's reports and who may see each (FC-020).
+ * A Fleet's reports and who may see each (FC-020, FC-030).
+ *
+ * The roster's reports are there while imports are switched on and the
+ * Fleet's game writes a roster; the reports built from its own records —
+ * attendance, recruitment and holdings — whenever the Fleet feature is.
  */
 @ApiTags('Fleet')
 @ApiBearerAuth()
@@ -89,6 +102,8 @@ export class FleetReportsController {
    * @param _csvService - Writes a report as CSV.
    * @param _fleetService - Names the Fleet in an export.
    * @param _featureService - Reports whether imports are switched on.
+   * @param _recordReports - Builds the reports read from the Fleet's own
+   *   records (FC-030).
    */
   constructor(
     private readonly _audienceService: FleetReportAudienceService,
@@ -100,6 +115,7 @@ export class FleetReportsController {
     private readonly _csvService: FleetReportCsvService,
     private readonly _fleetService: StoFleetService,
     private readonly _featureService: FleetFeatureService,
+    private readonly _recordReports: FleetRecordReportsService,
   ) {}
 
   /**
@@ -125,7 +141,7 @@ export class FleetReportsController {
     @Param('fleetId', ParseUUIDPipe) fleetId: string,
     @OptionalUserId() userId: string | null,
   ): Promise<FleetReportAccessDto[]> {
-    await this.assertEnabled();
+    await this._featureService.assertEnabled();
 
     const views = await this._accessService.visible(
       {
@@ -134,6 +150,9 @@ export class FleetReportsController {
         withinCommunityId: communityId,
       },
       userId,
+      await this._featureService.isFlagEnabled(
+        FLEET_FEATURE_FLAGS.IMPORTS_ENABLED,
+      ),
     );
 
     return [...views].map(([report, view]) => ({ report, view }));
@@ -157,7 +176,7 @@ export class FleetReportsController {
   async audiences(
     @Param('fleetId', ParseUUIDPipe) fleetId: string,
   ): Promise<FleetReportAudiencesDto> {
-    await this.assertEnabled();
+    await this._featureService.assertEnabled();
 
     return this._audienceService.audiences(fleetId);
   }
@@ -188,7 +207,7 @@ export class FleetReportsController {
     @UserId() userId: string,
     @Body() body: SetFleetReportAudienceDto,
   ): Promise<FleetReportAudiencesDto> {
-    await this.assertEnabled();
+    await this._featureService.assertEnabled();
 
     return this._audienceService.set(fleetId, report, body.audience, userId);
   }
@@ -332,6 +351,99 @@ export class FleetReportsController {
   }
 
   /**
+   * Reads the attendance report (FC-030).
+   *
+   * @param communityId - The Community, as the path names it.
+   * @param fleetId - The Fleet.
+   * @param query - The span.
+   * @param userId - The viewer, or null when signed out.
+   * @returns The report, as much of it as the viewer is shown.
+   */
+  @Get('attendance')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({ summary: "Read this Fleet's attendance report" })
+  @ApiOkResponse({ type: FleetAttendanceReportDto })
+  @ApiNotFoundResponse({ description: 'The viewer may not see it.' })
+  async attendance(
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('fleetId', ParseUUIDPipe) fleetId: string,
+    @Query() query: FleetReportQueryDto,
+    @OptionalUserId() userId: string | null,
+  ): Promise<FleetAttendanceReportDto> {
+    return this._recordReports.attendance(
+      await this.openRecords(
+        communityId,
+        fleetId,
+        FleetReport.ATTENDANCE,
+        query,
+        userId,
+      ),
+    );
+  }
+
+  /**
+   * Reads the recruitment report (FC-030).
+   *
+   * @param communityId - The Community, as the path names it.
+   * @param fleetId - The Fleet.
+   * @param query - The span.
+   * @param userId - The viewer, or null when signed out.
+   * @returns The report, as much of it as the viewer is shown.
+   */
+  @Get('recruitment')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({ summary: "Read this Fleet's recruitment report" })
+  @ApiOkResponse({ type: FleetRecruitmentReportDto })
+  @ApiNotFoundResponse({ description: 'The viewer may not see it.' })
+  async recruitment(
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('fleetId', ParseUUIDPipe) fleetId: string,
+    @Query() query: FleetReportQueryDto,
+    @OptionalUserId() userId: string | null,
+  ): Promise<FleetRecruitmentReportDto> {
+    return this._recordReports.recruitment(
+      await this.openRecords(
+        communityId,
+        fleetId,
+        FleetReport.RECRUITMENT,
+        query,
+        userId,
+      ),
+    );
+  }
+
+  /**
+   * Reads the holdings report (FC-030).
+   *
+   * @param communityId - The Community, as the path names it.
+   * @param fleetId - The Fleet.
+   * @param query - The span.
+   * @param userId - The viewer, or null when signed out.
+   * @returns The report, as much of it as the viewer is shown.
+   */
+  @Get('holdings')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({ summary: "Read this Fleet's holdings report" })
+  @ApiOkResponse({ type: FleetHoldingsReportDto })
+  @ApiNotFoundResponse({ description: 'The viewer may not see it.' })
+  async holdings(
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('fleetId', ParseUUIDPipe) fleetId: string,
+    @Query() query: FleetReportQueryDto,
+    @OptionalUserId() userId: string | null,
+  ): Promise<FleetHoldingsReportDto> {
+    return this._recordReports.holdings(
+      await this.openRecords(
+        communityId,
+        fleetId,
+        FleetReport.HOLDINGS,
+        query,
+        userId,
+      ),
+    );
+  }
+
+  /**
    * Exports a report as CSV: the tables exactly as the viewer is shown them.
    *
    * @param communityId - The Community, as the path names it.
@@ -356,9 +468,13 @@ export class FleetReportsController {
     @OptionalUserId() userId: string | null,
     @Res({ passthrough: true }) response: Response,
   ): Promise<string> {
-    const built = await this.build(
-      await this.open(communityId, fleetId, report, query, userId),
-    );
+    const built = ROSTER_REPORTS.has(report)
+      ? await this.build(
+          await this.open(communityId, fleetId, report, query, userId),
+        )
+      : await this.buildRecords(
+          await this.openRecords(communityId, fleetId, report, query, userId),
+        );
     const fleet = await this._fleetService.findByIdOrFail(communityId, fleetId);
     const now = new Date();
 
@@ -390,9 +506,64 @@ export class FleetReportsController {
         return this._tenureService.tenure(context);
       case FleetReport.RANKS:
         return this._tenureService.ranks(context);
-      case FleetReport.CONTRIBUTION:
+      default:
         return this._contributionService.contribution(context);
     }
+  }
+
+  /**
+   * Builds whichever report from the Fleet's own records a context was
+   * opened for.
+   *
+   * @param context - The span and view.
+   * @returns The report.
+   */
+  private buildRecords(
+    context: FleetRecordReportContext,
+  ): Promise<FleetReportDto> {
+    switch (context.header.report) {
+      case FleetReport.ATTENDANCE:
+        return this._recordReports.attendance(context);
+      case FleetReport.RECRUITMENT:
+        return this._recordReports.recruitment(context);
+      default:
+        return this._recordReports.holdings(context);
+    }
+  }
+
+  /**
+   * Opens a report built from the Fleet's own records for a viewer, as much
+   * of it as they are shown. Needs the Fleet feature, not imports.
+   *
+   * @param communityId - The Community, as the path names it.
+   * @param fleetId - The Fleet.
+   * @param report - The report.
+   * @param query - The span.
+   * @param userId - The viewer, or null when signed out.
+   * @returns What it is built from.
+   * @throws NotFoundException when the feature is off or the viewer may not
+   *   see it.
+   */
+  private async openRecords(
+    communityId: string,
+    fleetId: string,
+    report: FleetReport,
+    query: FleetReportQueryDto,
+    userId: string | null,
+  ): Promise<FleetRecordReportContext> {
+    await this._featureService.assertEnabled();
+
+    const view = await this._accessService.require(
+      {
+        kind: FleetScopeKind.FLEET,
+        id: fleetId,
+        withinCommunityId: communityId,
+      },
+      report,
+      userId,
+    );
+
+    return this._recordReports.open(fleetId, report, view, query);
   }
 
   /**

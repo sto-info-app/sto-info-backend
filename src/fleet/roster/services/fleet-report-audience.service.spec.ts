@@ -109,6 +109,8 @@ describe('FleetReportAudienceService', () => {
           [FleetReport.RANKS, FleetAudience.PRIVATE],
           [FleetReport.ACTIVITY, FleetAudience.PRIVATE],
           [FleetReport.CONTRIBUTION, FleetAudience.PRIVATE],
+          [FleetReport.ATTENDANCE, FleetAudience.PRIVATE],
+          [FleetReport.RECRUITMENT, FleetAudience.PRIVATE],
         ]),
       );
       expect(audiences.find).toHaveBeenCalledWith(
@@ -146,6 +148,16 @@ describe('FleetReportAudienceService', () => {
             audience: FleetAudience.PRIVATE,
             updatedAt: null,
           },
+          {
+            report: FleetReport.ATTENDANCE,
+            audience: FleetAudience.PRIVATE,
+            updatedAt: null,
+          },
+          {
+            report: FleetReport.RECRUITMENT,
+            audience: FleetAudience.PRIVATE,
+            updatedAt: null,
+          },
         ],
         changes: [
           {
@@ -169,6 +181,20 @@ describe('FleetReportAudienceService', () => {
   });
 
   describe('set', () => {
+    it('refuses to give the public holdings report an audience', async () => {
+      await expect(
+        service.set(
+          FLEET_ID,
+          FleetReport.HOLDINGS,
+          FleetAudience.PRIVATE,
+          'owner-1',
+        ),
+      ).rejects.toThrow(
+        'That report is public, so it has no audience to choose.',
+      );
+      expect(manager.upsert).not.toHaveBeenCalled();
+    });
+
     it('changes a report from private under its lock, recording the move', async () => {
       await service.set(
         FLEET_ID,

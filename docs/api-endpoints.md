@@ -768,12 +768,14 @@ has listed, which the message names.
 
 ### GET /fleet-communities/:communityId/fleets/:fleetId/reports
 
-The reports of a Fleet the caller may see, and how much of each (FC-020). See
+The reports of a Fleet the caller may see, and how much of each (FC-020, FC-030). See
 [Fleet reports](fleet-reports.md#who-may-see-a-report).
 
 **Authentication Optional.** Signed-out callers are shown the public reports of a public Fleet.
 
-**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+**Feature flag:** the Fleet Community switch. The roster's reports are listed only while
+`FLEET_IMPORTS_ENABLED` is on and the Fleet's game writes a roster; holdings, and attendance and
+recruitment where the caller may see them, are listed on every Fleet.
 
 **Response (200):** a list of `{ report, view }`, where `view` is `FULL` or `AGGREGATE`. A caller
 who may see none of them, or not the Fleet, or who names the wrong Community, is given an empty
@@ -882,15 +884,63 @@ aggregate view.
 
 **Response (404):** the caller may not see it.
 
+### GET /fleet-communities/:communityId/fleets/:fleetId/reports/attendance
+
+Who came to a Fleet's own events (FC-030). See [Fleet reports](fleet-reports.md#attendance).
+
+**Authentication Optional.** As much of it as the caller is shown: per person for `reports.view`
+holders, counts and rates for anybody else its audience lets see it, members included.
+
+**Feature flag:** the Fleet Community switch.
+
+**Query:** optionally `from` and `to`, ISO 8601 instants; the last twelve months by default.
+
+**Response (200):** `report`, `view`, `range`, `minimumCohort`; `occurrences`, each occurrence that
+started in the span with its event's title and how many were going, came and did not come, and
+the rate; `totals`; and `members`, each person's attendance, for a full view, otherwise null.
+
+**Response (400):** the span ends before it starts.
+
+**Response (404):** the caller may not see it.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/reports/recruitment
+
+How a Fleet's applications and invitations turned out (FC-030). See
+[Fleet reports](fleet-reports.md#recruitment).
+
+**Authentication Optional**, as for growth.
+
+**Feature flag:** the Fleet Community switch.
+
+**Query:** as for attendance.
+
+**Response (200):** the header and `months`, oldest first, one row per month and route
+(`APPLICATION`, `OPEN_JOIN`, `INVITATION`): how many came in, were accepted, declined, withdrawn,
+lapsed or are pending, and the median days to a decision. Never a name.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/reports/holdings
+
+How a Fleet's holdings changed (FC-030). See [Fleet reports](fleet-reports.md#holdings).
+
+**Authentication Optional.** Public: anybody who may see the Fleet.
+
+**Feature flag:** the Fleet Community switch.
+
+**Query:** as for attendance.
+
+**Response (200):** the header and `changes`, newest first: when, the holding, the track, and the
+tier it moved from and to. Never who recorded it.
+
 ### GET /fleet-communities/:communityId/fleets/:fleetId/reports/:report/csv
 
-One of a Fleet's reports as CSV (FC-020). See [Fleet reports](fleet-reports.md#csv-export).
+One of a Fleet's reports as CSV (FC-020, FC-030). See [Fleet reports](fleet-reports.md#csv-export).
 
 **Authentication Optional**, as for the report itself.
 
-**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+**Feature flag:** as for the report itself.
 
-**Path:** `:report` is `growth`, `tenure`, `ranks`, `activity` or `contribution`, in any case.
+**Path:** `:report` is `growth`, `tenure`, `ranks`, `activity`, `contribution`, `attendance`,
+`recruitment` or `holdings`, in any case.
 
 **Query:** as for the report.
 
@@ -910,10 +960,10 @@ Who may see each of a Fleet's reports (FC-020). See [Fleet reports](fleet-report
 
 **Authentication Required.** `reports.view` at that Fleet: its Owner and Admins.
 
-**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+**Feature flag:** the Fleet Community switch.
 
 **Response (200):** `{ reports, changes }`. `reports` gives each of `GROWTH`, `TENURE`, `RANKS`,
-`ACTIVITY` and `CONTRIBUTION` with its audience, and when that was last changed or null. A report
+`ACTIVITY`, `CONTRIBUTION`, `ATTENDANCE` and `RECRUITMENT` with its audience, and when that was last changed or null. A report
 never changed is `PRIVATE`. `changes` lists every change, newest first: the report, the audience
 before and after, and who made it by STO Info username.
 
@@ -923,15 +973,16 @@ Change who may see one of a Fleet's reports.
 
 **Authentication Required.** `scope.settings.manage` at that Fleet: its Owner.
 
-**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+**Feature flag:** the Fleet Community switch.
 
-**Path:** `:report` is `growth`, `tenure`, `ranks`, `activity` or `contribution`, in any case.
+**Path:** any report but `holdings`, which is public, in any case.
 
 **Request:** `{ "audience": "PRIVATE" | "FLEET_MEMBERS" | "COMMUNITY" | "PUBLIC" }`.
 
 **Response (200):** every report's audience and change, as after it.
 
-**Response (400):** the report has that audience already, or `:report` is not a report.
+**Response (400):** the report has that audience already, is `holdings`, or `:report` is not a
+report.
 
 ### GET /fleet-communities/:communityId/fleets/:fleetId/roster-identities/candidates
 
