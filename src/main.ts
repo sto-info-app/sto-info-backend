@@ -12,6 +12,7 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
+import { createAdapter } from '@socket.io/redis-adapter';
 import { json, NextFunction, Request, Response, urlencoded } from 'express';
 import rateLimit, {
   ipKeyGenerator,
@@ -26,6 +27,7 @@ import { NonceMiddleware } from './auth/nonce.middleware';
 import { clientIpMiddleware } from './common/http/client-ip.middleware';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { ConfigCheckService } from './config-check/config-check.service';
+import { ChatIoAdapter } from './fleet/chat/realtime/chat-io.adapter';
 import { getLogLevelsForEnvironment } from './shared/constants/logging.constants';
 import {
   AUTH_RATE_LIMITED_ROUTES,
@@ -239,6 +241,12 @@ async function bootstrap() {
     methods: allowedMethods,
     allowedHeaders: allowedHeaders,
   });
+
+  // Chat's socket (FC-032): WebSocket only, from the same origins, with rooms
+  // shared between instances through two more Redis connections.
+  app.useWebSocketAdapter(
+    new ChatIoAdapter(app, allowedOrigins, redis.duplicate(), createAdapter),
+  );
 
   // Trust only the first proxy (Cloudflare used as a proxy) - needed for rate limiting
   const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 1);

@@ -3,5 +3,9 @@
   "compilerOptions": {
     "noEmit": true
   },
-  "include": ["scripts/**/*.ts"]
+  "include": ["scripts/**/*.ts"],
+  "ts-node": {
+    "transpileOnly": true,
+    "compilerOptions": { "rootDir": "." }
+  }
 }

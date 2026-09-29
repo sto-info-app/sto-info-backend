@@ -103,7 +103,8 @@ Optional (seed user):
 
 - **Service Type:** Redis (Managed)
 - **Version:** Redis 7.x
-- **Plan:** Starter (256MB memory, 10 connections)
+- **Plan:** Starter (256MB memory, 250 connections, per Render's pricing page on 28 September
+  2026; this said 10 before)
 - **Persistence:** AOF (Append-Only File) enabled for data durability
 - **Eviction Policy:** `noeviction` (fails writes when memory limit reached)
 
@@ -113,6 +114,17 @@ Redis is used for:
 
 1. **Rate Limiting State**: All rate limiting categories (Read, Write, Auth, Expensive) store their state in Redis with unique key prefixes (`rl:read:`, `rl:write:`, `rl:auth:`, `rl:expensive:`)
 2. **Refresh Token Revocation**: Revoked refresh token tracking (future implementation)
+4. **Chat sockets** (FC-032): the socket.io Redis adapter, which carries chat's rooms and messages
+   between backend instances
+
+**Connections:** each backend instance holds about fourteen:
+
+- one for rate limiting;
+- two for the chat adapter, one to publish and one to subscribe;
+
+The file scan worker holds about four. That was measured locally on 28 September 2026, when the
+two-instance chat rehearsal peaked at 42 clients across everything running. The Starter plan's 250
+leaves room for many instances.
 
 **Connection String:**
 
@@ -170,6 +182,11 @@ GET /health/live
 
 - **Instances:** One
 - **Auto-Scaling:** Disabled
+
+More instances need nothing further for chat (FC-032). Its socket is WebSocket only, so a
+connection needs no sticky session, and the Redis adapter carries rooms and messages between
+instances. A deploy or a crash closes an instance's sockets. The browser reconnects to whichever
+instance takes it and reads what it missed from the database. See [Fleet chat](fleet-chat.md#the-socket).
 
 ### Render Dashboard
 
@@ -261,6 +278,10 @@ an upload should reach it — through the asset registry, not through the old im
 - Cloudflare supports IPv6 by default
 - Backend should handle both IPv4 and IPv6 addresses
 - Backend normalises IPv6-mapped IPv4 values like `::ffff:192.0.2.1` to `192.0.2.1`
+
+**WebSockets:** chat's socket (`/chat/socket`, FC-032) goes through the same proxy. Cloudflare's
+Network setting "WebSockets" must stay on. socket.io pings every 25 seconds, well inside the time
+Cloudflare lets an idle WebSocket stay open. Checking both live is FC-052's.
 
 ### SSL/TLS Settings
 
