@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { EntityManager, In, Not, Repository } from 'typeorm';
+import { EntityManager, In, IsNull, Not, Repository } from 'typeorm';
 
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
 
@@ -87,7 +87,14 @@ export class RosterImportConflictService {
 
     const others = (
       await imports.find({
-        where: { fleetId: record.fleetId, exportedAt, id: Not(record.id) },
+        where: {
+          fleetId: record.fleetId,
+          exportedAt,
+          id: Not(record.id),
+          // An abandoned import the same file replaced was never read, and
+          // is no longer anybody's answer for this moment.
+          replacedAt: IsNull(),
+        },
         relations: { asset: true },
       })
     ).filter(other => other.asset.state !== FileAssetState.REJECTED);

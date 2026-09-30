@@ -33,6 +33,7 @@ import { RosterImportActionEntity } from '../entities/roster-import-action.entit
 import { RosterImportConflictEntity } from '../entities/roster-import-conflict.entity';
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
 import { RosterObservationEntity } from '../entities/roster-observation.entity';
+import { RosterImportStatus } from '../enums/roster-import-status.enum';
 import { RosterImportsController } from '../roster-imports.controller';
 import { RosterCsvPrivacyParserService } from '../services/roster-csv-privacy-parser.service';
 import { RosterExportIdentityService } from '../services/roster-export-identity.service';
@@ -279,6 +280,9 @@ describe('Officer canary sinks', () => {
           Promise.resolve((row: readonly string[]) => [...row]),
         ),
       } as unknown as RosterSuppressionService,
+      {
+        statusOf: jest.fn(() => Promise.resolve(RosterImportStatus.IMPORTED)),
+      } as unknown as RosterImportStatusService,
     );
 
     // On a platform the game exports rosters from, because this sweep is

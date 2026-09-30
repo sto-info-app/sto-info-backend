@@ -8,7 +8,7 @@ import {
   it,
   jest,
 } from '@jest/globals';
-import { EntityManager, In, Not, Repository } from 'typeorm';
+import { EntityManager, In, IsNull, Not, Repository } from 'typeorm';
 
 import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
@@ -115,7 +115,12 @@ describe('RosterImportConflictService', () => {
       await group(member('new', 'b'));
 
       expect(imports.find).toHaveBeenCalledWith({
-        where: { fleetId: FLEET_ID, exportedAt: EXPORTED_AT, id: Not('new') },
+        where: {
+          fleetId: FLEET_ID,
+          exportedAt: EXPORTED_AT,
+          id: Not('new'),
+          replacedAt: IsNull(),
+        },
         relations: { asset: true },
       });
     });

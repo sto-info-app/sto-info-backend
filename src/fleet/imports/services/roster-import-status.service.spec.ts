@@ -111,6 +111,9 @@ describe('RosterImportStatusService', () => {
     findByAssetIds: jest.Mock<
       (...args: unknown[]) => Promise<FileAssetPlacementEntity[]>
     >;
+    findByAssetId: jest.Mock<
+      (...args: unknown[]) => Promise<FileAssetPlacementEntity | null>
+    >;
   };
   let observations: {
     find: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
@@ -153,6 +156,7 @@ describe('RosterImportStatusService', () => {
     };
     placements = {
       findByAssetIds: jest.fn(() => Promise.resolve([])),
+      findByAssetId: jest.fn(() => Promise.resolve(null)),
     };
 
     observations = {
@@ -236,6 +240,33 @@ describe('RosterImportStatusService', () => {
         ['import-1', RosterImportStatus.SCANNING],
         ['import-2', RosterImportStatus.IMPORTED],
       ]);
+    });
+  });
+
+  // For the upload that asks whether an earlier import of the same file was
+  // abandoned, and so may be replaced (FC-050).
+  describe('statusOf', () => {
+    it('asks about the one import’s placement', async () => {
+      const record = importOf();
+      placements.findByAssetId.mockResolvedValue(
+        placementOf(record, FileAssetPlacementState.ABANDONED),
+      );
+
+      await expect(service.statusOf(record)).resolves.toBe(
+        RosterImportStatus.ABANDONED,
+      );
+      expect(placements.findByAssetId).toHaveBeenCalledWith(record.assetId);
+    });
+
+    it('says an import in force is imported', async () => {
+      const record = importOf();
+      placements.findByAssetId.mockResolvedValue(
+        placementOf(record, FileAssetPlacementState.ACTIVE),
+      );
+
+      await expect(service.statusOf(record)).resolves.toBe(
+        RosterImportStatus.IMPORTED,
+      );
     });
   });
 

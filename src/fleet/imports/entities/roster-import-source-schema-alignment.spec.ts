@@ -7,6 +7,7 @@ import { RecordRosterExportTime1793400000000 } from '../../../database/migration
 import { PublishRosterImports1793600000000 } from '../../../database/migrations/1793600000000-PublishRosterImports';
 import { GroupConflictingRosterImports1793900000000 } from '../../../database/migrations/1793900000000-GroupConflictingRosterImports';
 import { RecordRosterImportCorrections1794300000000 } from '../../../database/migrations/1794300000000-RecordRosterImportCorrections';
+import { ReplaceAbandonedRosterImports1796900000000 } from '../../../database/migrations/1796900000000-ReplaceAbandonedRosterImports';
 import { RosterImportSourceEntity } from './roster-import-source.entity';
 
 /**
@@ -45,6 +46,7 @@ describe('Roster import source schema alignment', () => {
     await new PublishRosterImports1793600000000().up(queryRunner);
     await new GroupConflictingRosterImports1793900000000().up(queryRunner);
     await new RecordRosterImportCorrections1794300000000().up(queryRunner);
+    await new ReplaceAbandonedRosterImports1796900000000().up(queryRunner);
     statements = captured;
   });
 

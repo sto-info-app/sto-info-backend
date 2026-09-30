@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { BadRequestException, ConflictException, Logger } from '@nestjs/common';
 
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { QueryFailedError, Repository } from 'typeorm';
+import { IsNull, QueryFailedError, Repository } from 'typeorm';
 
 import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetAudience } from 'src/file-assets/enums/file-asset-audience.enum';
@@ -28,6 +28,7 @@ import {
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
 import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum';
 import { RosterFilenameRejectionCode } from '../enums/roster-filename-rejection-code.enum';
+import { RosterImportStatus } from '../enums/roster-import-status.enum';
 import { RosterRepeatRejectionCode } from '../enums/roster-repeat-rejection-code.enum';
 import { RosterRowRejectionCode } from '../enums/roster-row-rejection-code.enum';
 import { RosterSourceHeaderShape } from '../enums/roster-source-header-shape.enum';
@@ -35,6 +36,7 @@ import { RosterCsvPrivacyParserService } from './roster-csv-privacy-parser.servi
 import { RosterExportIdentityService } from './roster-export-identity.service';
 import { RosterImportConflictService } from './roster-import-conflict.service';
 import { RosterImportIngressService } from './roster-import-ingress.service';
+import { RosterImportStatusService } from './roster-import-status.service';
 import { RosterTypedParserService } from './roster-typed-parser.service';
 
 const CANARY = ['OFFICER', 'CANARY'].join('-');
@@ -130,8 +132,10 @@ describe('RosterImportIngressService', () => {
     create: jest.Mock;
     save: jest.Mock;
     findOne: jest.Mock;
+    update: jest.Mock;
     manager: { transaction: jest.Mock };
   };
+  let statuses: { statusOf: jest.Mock };
   let transactionManager: { getRepository: jest.Mock };
   let conflicts: { group: jest.Mock };
   let fileAssetService: {
@@ -171,6 +175,7 @@ describe('RosterImportIngressService', () => {
         return Promise.resolve({ id: 'record-1', ...saved });
       }),
       findOne: jest.fn(() => Promise.resolve(null)),
+      update: jest.fn(() => Promise.resolve({ affected: 1 })),
       manager: {
         transaction: jest.fn((work: unknown) =>
           (work as (manager: unknown) => Promise<unknown>)(transactionManager),
@@ -183,6 +188,10 @@ describe('RosterImportIngressService', () => {
     transactionManager = { getRepository: jest.fn(() => repository) };
 
     conflicts = { group: jest.fn(() => Promise.resolve(null)) };
+
+    statuses = {
+      statusOf: jest.fn(() => Promise.resolve(RosterImportStatus.IMPORTED)),
+    };
 
     fileAssetService = {
       register: jest.fn(() =>
@@ -245,6 +254,7 @@ describe('RosterImportIngressService', () => {
           Promise.resolve((row: readonly string[]) => [...row]),
         ),
       } as unknown as RosterSuppressionService,
+      statuses as unknown as RosterImportStatusService,
     );
   });
 
@@ -525,6 +535,13 @@ describe('RosterImportIngressService', () => {
       expect(accepted.record.conflictGroupId).toBeNull();
     });
 
+    it('replaces nothing when the file is new to the Fleet', async () => {
+      await accept(officerExport());
+
+      expect(statuses.statusOf).not.toHaveBeenCalled();
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+
     it('says which group in the log line', async () => {
       const logged = jest
         .spyOn(Logger.prototype, 'log')
@@ -570,9 +587,19 @@ describe('RosterImportIngressService', () => {
       await accept(source);
 
       expect(repository.findOne).toHaveBeenCalledWith({
-        where: { fleetId: FLEET_ID, sourceSha256: expected },
+        where: {
+          fleetId: FLEET_ID,
+          sourceSha256: expected,
+          replacedAt: IsNull(),
+        },
         relations: { asset: true },
       });
+    });
+
+    it('asks how far the earlier import got', async () => {
+      await accept(officerExport());
+
+      expect(statuses.statusOf).toHaveBeenCalledWith(earlierImport());
     });
 
     it('answers with the import the earlier upload made', async () => {
@@ -661,6 +688,56 @@ describe('RosterImportIngressService', () => {
         expect(source.every(byte => byte === 0)).toBe(true);
         expect(fileAssetService.register).not.toHaveBeenCalled();
       });
+    });
+  });
+
+  // Given up on before it was read, so answering with it would leave the
+  // export unimportable for good (FC-050).
+  describe('a file whose earlier import was abandoned', () => {
+    beforeEach(() => {
+      repository.findOne.mockImplementation(() =>
+        Promise.resolve(earlierImport()),
+      );
+      statuses.statusOf.mockImplementation(() =>
+        Promise.resolve(RosterImportStatus.ABANDONED),
+      );
+    });
+
+    it('imports it afresh', async () => {
+      const accepted = await accept(officerExport());
+
+      expect(accepted.repeated).toBe(false);
+      expect(accepted.record.id).toBe('record-1');
+      expect(repository.save).toHaveBeenCalled();
+      expect(scanRequestProducer.requestScan).toHaveBeenCalled();
+    });
+
+    // Kept as the record of its upload, never deleted, and marked only while
+    // it is still the answer, so a second racing upload marks nothing.
+    it('marks the abandoned import replaced, before recording the new one', async () => {
+      await accept(officerExport());
+
+      expect(repository.update).toHaveBeenCalledWith(
+        { id: 'earlier-1', replacedAt: IsNull() },
+        { replacedAt: expect.any(Date) },
+      );
+      expect(repository.update.mock.invocationCallOrder[0]).toBeLessThan(
+        repository.save.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('says which import it replaced', async () => {
+      const logged = jest
+        .spyOn(Logger.prototype, 'log')
+        .mockImplementation(() => undefined);
+
+      await accept(officerExport());
+
+      expect(logged).toHaveBeenCalledWith(
+        expect.stringContaining('Replaced: earlier-1'),
+      );
+
+      logged.mockRestore();
     });
   });
 

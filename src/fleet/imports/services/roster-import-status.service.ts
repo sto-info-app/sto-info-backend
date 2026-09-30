@@ -429,6 +429,20 @@ export class RosterImportStatusService {
   }
 
   /**
+   * Works out where one import has got to.
+   *
+   * @param record - The import, with its asset.
+   * @returns Its status.
+   */
+  async statusOf(
+    record: RosterImportSourceEntity,
+  ): Promise<RosterImportStatus> {
+    const placement = await this._placements.findByAssetId(record.assetId);
+
+    return this.derive(record, placement).status;
+  }
+
+  /**
    * Reports several imports, asking about their placements once.
    *
    * @param records - The imports, with their assets and uploaders.

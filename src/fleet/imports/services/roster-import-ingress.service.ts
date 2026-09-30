@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { QueryFailedError, Repository } from 'typeorm';
+import { IsNull, QueryFailedError, Repository } from 'typeorm';
 
 import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetAudience } from 'src/file-assets/enums/file-asset-audience.enum';
@@ -31,6 +31,7 @@ import {
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
 import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum';
 import { RosterFilenameRejectionCode } from '../enums/roster-filename-rejection-code.enum';
+import { RosterImportStatus } from '../enums/roster-import-status.enum';
 import { RosterRepeatRejectionCode } from '../enums/roster-repeat-rejection-code.enum';
 import { RosterSourceHeaderShape } from '../enums/roster-source-header-shape.enum';
 import { RosterCsvRejectedError } from '../errors/roster-csv-rejected.error';
@@ -38,6 +39,7 @@ import { assertRosterFilenameUsable } from '../utilities/roster-filename.utility
 import { RosterCsvPrivacyParserService } from './roster-csv-privacy-parser.service';
 import { RosterExportIdentityService } from './roster-export-identity.service';
 import { RosterImportConflictService } from './roster-import-conflict.service';
+import { RosterImportStatusService } from './roster-import-status.service';
 import { RosterTypedParserService } from './roster-typed-parser.service';
 
 /** What the controller knows about an arriving upload. */
@@ -167,6 +169,11 @@ const SOURCE_HASH_INDEX = 'UQ_roster_import_source_fleet_hash';
  * reading is the one that stands. Two copies arriving together are settled by
  * the unique index, and the one that loses gives back what it stored.
  *
+ * An abandoned import is the exception (FC-050). It was given up on before it
+ * was read, so answering with it would leave the export unimportable for
+ * good. The file is imported afresh instead, and the abandoned import is kept
+ * as the record of its upload, marked replaced in the same transaction.
+ *
  * ## The same moment, said differently
  *
  * An import is recorded in one transaction with its conflict group, so none
@@ -194,6 +201,7 @@ export class RosterImportIngressService {
    * @param _policyService - Supplies the published retention window.
    * @param _conflicts - Groups exports that claim the same moment.
    * @param _suppression - Rewrites rows naming somebody erased (FC-038).
+   * @param _statuses - Says whether an earlier import was abandoned.
    */
   constructor(
     @InjectRepository(RosterImportSourceEntity)
@@ -208,6 +216,7 @@ export class RosterImportIngressService {
     private readonly _policyService: FleetPolicyService,
     private readonly _conflicts: RosterImportConflictService,
     private readonly _suppression: RosterSuppressionService,
+    private readonly _statuses: RosterImportStatusService,
   ) {}
 
   /**
@@ -227,6 +236,7 @@ export class RosterImportIngressService {
     let sanitisedCsv: Buffer;
     let summary: SanitisedSummary;
     let settled: SettledExport;
+    let replacing: RosterImportSourceEntity | null = null;
 
     try {
       assertRosterFilenameUsable(input.originalFilename);
@@ -243,7 +253,14 @@ export class RosterImportIngressService {
       const earlier = await this.findEarlier(input.fleet.id, sourceSha256);
 
       if (earlier !== null) {
-        return this.repeat(earlier, input.timezone, settled);
+        if (
+          (await this._statuses.statusOf(earlier)) !==
+          RosterImportStatus.ABANDONED
+        ) {
+          return this.repeat(earlier, input.timezone, settled);
+        }
+
+        replacing = earlier;
       }
 
       // Erased members are rewritten before anything is stored, the
@@ -315,6 +332,17 @@ export class RosterImportIngressService {
     try {
       record = await this._repository.manager.transaction(async manager => {
         const imports = manager.getRepository(RosterImportSourceEntity);
+
+        // Before the insert, which the unique index would otherwise refuse.
+        // Only while it is still the answer: of two uploads racing to replace
+        // it, the second finds nothing to mark and loses at the insert.
+        if (replacing !== null) {
+          await imports.update(
+            { id: replacing.id, replacedAt: IsNull() },
+            { replacedAt: new Date() },
+          );
+        }
+
         const created = await imports.save(
           imports.create({
             assetId: asset.id,
@@ -385,6 +413,7 @@ export class RosterImportIngressService {
         `Header: ${summary.sourceHeaderShape}, ` +
         `ParserVersion: ${summary.parserVersion}, ` +
         `ConflictGroupId: ${record.conflictGroupId ?? 'none'}, ` +
+        `Replaced: ${replacing?.id ?? 'none'}, ` +
         `TraceId: ${scanning.traceId}`,
     );
 
@@ -397,7 +426,8 @@ export class RosterImportIngressService {
   }
 
   /**
-   * Finds the import this Fleet already made from a file.
+   * Finds the import this Fleet already made from a file, leaving out one
+   * a later upload has replaced.
    *
    * @param fleetId - The Fleet. Never omitted: a lookup by hash alone would
    *   say whether any Fleet had imported the file.
@@ -409,7 +439,7 @@ export class RosterImportIngressService {
     sourceSha256: string,
   ): Promise<RosterImportSourceEntity | null> {
     return this._repository.findOne({
-      where: { fleetId, sourceSha256 },
+      where: { fleetId, sourceSha256, replacedAt: IsNull() },
       relations: { asset: true },
     });
   }

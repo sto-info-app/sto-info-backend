@@ -62,6 +62,7 @@ import { RosterImportConflictEntity } from './roster-import-conflict.entity';
 @Index('IDX_roster_import_source_fleet_uploaded', ['fleetId', 'uploadedAt'])
 @Index('UQ_roster_import_source_fleet_hash', ['fleetId', 'sourceSha256'], {
   unique: true,
+  where: '"replacedAt" IS NULL',
 })
 @Index('IDX_roster_import_source_fleet_exported', ['fleetId', 'exportedAt'])
 @Index('IDX_roster_import_source_conflict', ['conflictGroupId'])
@@ -267,6 +268,16 @@ export class RosterImportSourceEntity {
   @ApiProperty({ description: 'When the upload was accepted.' })
   @Column({ type: 'timestamptz', nullable: false, default: () => 'now()' })
   uploadedAt: Date;
+
+  @ApiProperty({
+    description:
+      'When the same export, sent again, replaced this abandoned import, or ' +
+      'null. A replaced import is kept as the record of its upload and is ' +
+      'no longer the answer to that export.',
+    nullable: true,
+  })
+  @Column({ type: 'timestamptz', nullable: true, default: null })
+  replacedAt: Date | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
