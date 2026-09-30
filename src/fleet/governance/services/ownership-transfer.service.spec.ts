@@ -690,6 +690,59 @@ describe('OwnershipTransferService', () => {
         manager,
       );
     });
+
+    // Steve's decision of 30 September 2026: told, but not why.
+    it('tells the new Owner, linking to the Community and leaving out the reason', async () => {
+      await service.reassign(
+        COMMUNITY_ID,
+        ADMIN_ID,
+        'Owner vanished after a row',
+        SITE_ADMIN_ID,
+      );
+
+      expect(createNotification).toHaveBeenCalledTimes(1);
+      expect(createNotification).toHaveBeenCalledWith({
+        target: NotificationTarget.USER,
+        userId: ADMIN_ID,
+        severity: NotificationSeverity.INFO,
+        title: 'You are now the Owner of Fixture Community',
+        body:
+          'A site administrator moved ownership of Fixture Community to ' +
+          'you. Its former Owner keeps no role there.',
+        linkUrl: 'https://sto.example/fleets/communities/fixture-community',
+      });
+      expect(JSON.stringify(createNotification.mock.calls)).not.toContain(
+        'Owner vanished',
+      );
+    });
+
+    it('keeps the move when the notice cannot be sent', async () => {
+      createNotification.mockRejectedValue(new Error('down'));
+
+      await expect(
+        service.reassign(
+          COMMUNITY_ID,
+          ADMIN_ID,
+          'Owner vanished',
+          SITE_ADMIN_ID,
+        ),
+      ).resolves.toBeUndefined();
+      expect(community?.ownerUserId).toBe(ADMIN_ID);
+    });
+
+    it('tells nobody when the move is refused', async () => {
+      isAdmin = false;
+
+      await expect(
+        service.reassign(
+          COMMUNITY_ID,
+          OTHER_ID,
+          'Owner vanished',
+          SITE_ADMIN_ID,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(createNotification).not.toHaveBeenCalled();
+    });
   });
 
   it('describes a party whose account has gone as nobody in particular', async () => {

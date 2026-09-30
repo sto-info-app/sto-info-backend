@@ -1,11 +1,23 @@
+import { ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+
 import { ROLES_KEY } from 'src/auth/roles.decorator';
+import { RolesGuard } from 'src/auth/roles.guard';
 import { UserRole } from 'src/user/enums/user-role.enum';
 
+import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 import { FleetFeatureService } from '../fleet-feature.service';
+import { FleetCommunityMapper } from '../mappers/fleet-community.mapper';
+import { FleetCommunityService } from '../services/fleet-community.service';
+import { FleetScopeViewerService } from '../services/fleet-scope-viewer.service';
 import {
+  AdminFleetCommunityLookupController,
+  AdminFleetCommunitySearchController,
   AdminFleetGovernanceController,
   AdminFleetInvestigationsController,
 } from './admin-fleet-governance.controller';
+import { FleetGovernanceModule } from './fleet-governance.module';
+import { AdminCommunitySearchService } from './services/admin-community-search.service';
 import { DisputeRegistrationsService } from './services/dispute-registrations.service';
 import { FleetInvestigationService } from './services/fleet-investigation.service';
 import { OwnershipTransferService } from './services/ownership-transfer.service';
@@ -42,7 +54,7 @@ describe('AdminFleetGovernanceController', () => {
     closure = {
       closeCommunity: jest.fn(() => Promise.resolve()),
       closeFleet: jest.fn(() => Promise.resolve()),
-      closeArmadaAsSiteAdmin: jest.fn(() => Promise.resolve()),
+      closeArmada: jest.fn(() => Promise.resolve()),
     };
     suspension = {
       suspend: jest.fn(() => Promise.resolve()),
@@ -62,6 +74,8 @@ describe('AdminFleetGovernanceController', () => {
 
   it('is for site administrators only', () => {
     for (const type of [
+      AdminFleetCommunitySearchController,
+      AdminFleetCommunityLookupController,
       AdminFleetGovernanceController,
       AdminFleetInvestigationsController,
     ]) {
@@ -109,11 +123,10 @@ describe('AdminFleetGovernanceController', () => {
       ...request,
       asSiteAdmin: true,
     });
-    expect(closure.closeArmadaAsSiteAdmin).toHaveBeenCalledWith(
-      COMMUNITY_ID,
-      ARMADA_ID,
-      request,
-    );
+    expect(closure.closeArmada).toHaveBeenCalledWith(COMMUNITY_ID, ARMADA_ID, {
+      ...request,
+      asSiteAdmin: true,
+    });
     expect(assertEnabled).toHaveBeenCalledTimes(3);
   });
 
@@ -179,5 +192,143 @@ describe('AdminFleetInvestigationsController', () => {
     );
     expect(investigations.mine).toHaveBeenCalledWith(ADMIN_ID);
     expect(investigations.log).toHaveBeenCalledWith(2, 5);
+  });
+});
+
+// The Admin area's way to a Community's dispute page, whoever may see it
+// (FC-050).
+describe('AdminFleetCommunitySearchController', () => {
+  let assertEnabled: jest.Mock;
+  let search: jest.Mock;
+  let controller: AdminFleetCommunitySearchController;
+
+  beforeEach(() => {
+    assertEnabled = jest.fn(() => Promise.resolve());
+    search = jest.fn(() => Promise.resolve('page'));
+    controller = new AdminFleetCommunitySearchController(
+      { assertEnabled } as unknown as FleetFeatureService,
+      { search } as unknown as AdminCommunitySearchService,
+    );
+  });
+
+  it('finds Communities by the term, on the page asked for', async () => {
+    await expect(
+      controller.search({ search: 'hidden', page: 2, pageSize: 5 }),
+    ).resolves.toBe('page');
+    expect(assertEnabled).toHaveBeenCalled();
+    expect(search).toHaveBeenCalledWith('hidden', 2, 5);
+  });
+
+  it('answers nothing while the Fleet feature is off', async () => {
+    assertEnabled.mockRejectedValue(new Error('off'));
+
+    await expect(controller.search({})).rejects.toThrow('off');
+    expect(search).not.toHaveBeenCalled();
+  });
+
+  it('lets a site administrator in, and refuses everybody else', () => {
+    const guard = (role?: UserRole): boolean =>
+      new RolesGuard(new Reflector()).canActivate({
+        switchToHttp: () => ({
+          getRequest: () => ({ user: role ? { role } : undefined }),
+        }),
+        getHandler: () => AdminFleetCommunitySearchController.prototype.search,
+        getClass: () => AdminFleetCommunitySearchController,
+      } as unknown as ExecutionContext);
+
+    expect(guard(UserRole.ADMIN)).toBe(true);
+
+    for (const role of [UserRole.USER, UserRole.STORYTIME_CURATOR, undefined]) {
+      expect(() => guard(role)).toThrow(ForbiddenException);
+    }
+  });
+});
+
+// Steve's decision of 30 September 2026: a site administrator reaches every
+// Community's dispute page, whoever may see it; nobody else gains anything.
+describe('AdminFleetCommunityLookupController', () => {
+  const COMMUNITY = { id: COMMUNITY_ID, slug: 'hidden-fleet' };
+  const VIEWER = { roles: [], capabilities: [] };
+  let assertEnabled: jest.Mock;
+  let resolveBySlugOrFail: jest.Mock;
+  let forScope: jest.Mock;
+  let controller: AdminFleetCommunityLookupController;
+
+  beforeEach(() => {
+    assertEnabled = jest.fn(() => Promise.resolve());
+    resolveBySlugOrFail = jest.fn(() =>
+      Promise.resolve({ community: COMMUNITY, redirectedFrom: 'old-name' }),
+    );
+    forScope = jest.fn(() => Promise.resolve(VIEWER));
+    controller = new AdminFleetCommunityLookupController(
+      { assertEnabled } as unknown as FleetFeatureService,
+      { resolveBySlugOrFail } as unknown as FleetCommunityService,
+      { forScope } as unknown as FleetScopeViewerService,
+      {
+        toDto: (row: unknown) => ({ mapped: row }),
+      } as unknown as FleetCommunityMapper,
+    );
+  });
+
+  /**
+   * Asks the site-role guard whether a caller may reach the lookup.
+   *
+   * @param role - The caller's site-wide role, or none when signed out.
+   * @returns What the guard answered.
+   */
+  const guard = (role?: UserRole): boolean =>
+    new RolesGuard(new Reflector()).canActivate({
+      switchToHttp: () => ({
+        getRequest: () => ({ user: role ? { role } : undefined }),
+      }),
+      getHandler: () =>
+        AdminFleetCommunityLookupController.prototype.resolveBySlug,
+      getClass: () => AdminFleetCommunityLookupController,
+    } as unknown as ExecutionContext);
+
+  it('resolves any Community by its web address, with no audience check', async () => {
+    await expect(
+      controller.resolveBySlug('old-name', ADMIN_ID, UserRole.ADMIN),
+    ).resolves.toEqual({
+      community: { mapped: COMMUNITY },
+      redirectedFrom: 'old-name',
+      viewer: VIEWER,
+    });
+    expect(assertEnabled).toHaveBeenCalled();
+    expect(resolveBySlugOrFail).toHaveBeenCalledWith('old-name');
+    expect(forScope).toHaveBeenCalledWith(
+      { userId: ADMIN_ID, role: UserRole.ADMIN },
+      { kind: FleetScopeKind.COMMUNITY, id: COMMUNITY_ID },
+    );
+  });
+
+  it('answers nothing while the Fleet feature is off', async () => {
+    assertEnabled.mockRejectedValue(new Error('off'));
+
+    await expect(
+      controller.resolveBySlug('hidden-fleet', ADMIN_ID, UserRole.ADMIN),
+    ).rejects.toThrow('off');
+    expect(resolveBySlugOrFail).not.toHaveBeenCalled();
+  });
+
+  it('lets a site administrator in, and refuses everybody else', () => {
+    expect(guard(UserRole.ADMIN)).toBe(true);
+
+    for (const role of [UserRole.USER, UserRole.STORYTIME_CURATOR, undefined]) {
+      expect(() => guard(role)).toThrow(ForbiddenException);
+    }
+  });
+
+  // A Community whose slug is `dispute` must not reach the dispute route as
+  // the identifier `by-slug`.
+  it('is registered before the dispute routes', () => {
+    const controllers = Reflect.getMetadata(
+      'controllers',
+      FleetGovernanceModule,
+    ) as unknown[];
+
+    expect(controllers.indexOf(AdminFleetCommunityLookupController)).toBe(
+      controllers.indexOf(AdminFleetGovernanceController) - 1,
+    );
   });
 });

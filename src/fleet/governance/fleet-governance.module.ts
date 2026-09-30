@@ -10,7 +10,10 @@ import { ScopeMembershipEntity } from '../entities/scope-membership.entity';
 import { ScopeRoleAssignmentEntity } from '../entities/scope-role-assignment.entity';
 import { StoFleetEntity } from '../entities/sto-fleet.entity';
 import { FleetModule } from '../fleet.module';
+import { FleetCommunityMapper } from '../mappers/fleet-community.mapper';
 import {
+  AdminFleetCommunityLookupController,
+  AdminFleetCommunitySearchController,
   AdminFleetGovernanceController,
   AdminFleetInvestigationsController,
 } from './admin-fleet-governance.controller';
@@ -20,6 +23,7 @@ import { FleetInvestigationGrantEntity } from './entities/fleet-investigation-gr
 import { OwnershipTransferEntity } from './entities/ownership-transfer.entity';
 import { ScopeGovernanceActionEntity } from './entities/scope-governance-action.entity';
 import { FleetGovernanceController } from './fleet-governance.controller';
+import { AdminCommunitySearchService } from './services/admin-community-search.service';
 import { CommunityOwnerDepartureService } from './services/community-owner-departure.service';
 import { DisputeRegistrationsService } from './services/dispute-registrations.service';
 import { FleetInvestigationService } from './services/fleet-investigation.service';
@@ -57,10 +61,14 @@ import { ScopeSuspensionService } from './services/scope-suspension.service';
     CommunityGovernanceController,
     FleetGovernanceController,
     ArmadaGovernanceController,
+    AdminFleetCommunitySearchController,
+    // Before the dispute routes, so `by-slug` is never read as an identifier.
+    AdminFleetCommunityLookupController,
     AdminFleetGovernanceController,
     AdminFleetInvestigationsController,
   ],
   providers: [
+    AdminCommunitySearchService,
     CommunityOwnerDepartureService,
     OwnershipTransferService,
     ScopeClosureService,
@@ -69,6 +77,7 @@ import { ScopeSuspensionService } from './services/scope-suspension.service';
     ScopeSuspensionService,
     DisputeRegistrationsService,
     FleetInvestigationService,
+    FleetCommunityMapper,
   ],
   exports: [CommunityOwnerDepartureService],
 })

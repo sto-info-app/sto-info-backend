@@ -84,7 +84,7 @@ export class OwnershipTransferService {
    * @param _dataSource - The database.
    * @param _revisionService - Advertises changes to access.
    * @param _log - Records each change.
-   * @param _notificationService - Tells the Admin offered.
+   * @param _notificationService - Tells the Admin offered, and a new Owner.
    */
   constructor(
     @InjectDataSource()
@@ -431,6 +431,8 @@ export class OwnershipTransferService {
    * Moves ownership in a dispute, with a reason and no acceptance.
    *
    * The former Owner keeps no role; the new Owner may appoint them later.
+   * The new Owner is told, without the reason (Steve's decision of 30
+   * September 2026).
    *
    * @param communityId - The Community.
    * @param toUserId - The Admin who becomes the Owner.
@@ -448,7 +450,7 @@ export class OwnershipTransferService {
   ): Promise<void> {
     const why = requireReason(reason, 'Say why ownership is being moved.');
 
-    await this._dataSource.transaction(async manager => {
+    const moved = await this._dataSource.transaction(async manager => {
       const community = await this.lockCommunity(manager, communityId);
 
       if (!(await this.isAdmin(manager, communityId, toUserId))) {
@@ -475,11 +477,19 @@ export class OwnershipTransferService {
         communityId,
         manager,
       );
+
+      return community;
     });
 
     this._logger.log(
       `[reassign] Ownership moved by a site administrator - ` +
         `CommunityId: ${communityId}`,
+    );
+    await this.notifyNewOwner(
+      moved,
+      toUserId,
+      `A site administrator moved ownership of ${moved.name} to you. ` +
+        'Its former Owner keeps no role there.',
     );
   }
 
@@ -539,7 +549,12 @@ export class OwnershipTransferService {
       `[handToSuccessor] Ownership handed on as its Owner left - ` +
         `CommunityId: ${communityId}`,
     );
-    await this.notifySuccessor(handed.community, handed.toUserId);
+    await this.notifyNewOwner(
+      handed.community,
+      handed.toUserId,
+      `${handed.community.name}'s Owner closed their STO Info account, so ` +
+        'ownership passed to you as its longest-serving Admin.',
+    );
 
     return handed.toUserId;
   }
@@ -871,15 +886,18 @@ export class OwnershipTransferService {
   }
 
   /**
-   * Tells the new Owner of a Community whose Owner left, reporting rather
-   * than throwing: the change stands either way.
+   * Tells the new Owner of a Community whose Owner left, or whose ownership
+   * a site administrator moved, after the change is committed. Reports
+   * rather than throwing: the change stands either way.
    *
    * @param community - The Community.
    * @param toUserId - The new Owner.
+   * @param body - How it came to them.
    */
-  private async notifySuccessor(
+  private async notifyNewOwner(
     community: FleetCommunityEntity,
     toUserId: string,
+    body: string,
   ): Promise<void> {
     const frontendUrl = process.env.APP_FRONTEND_URL;
 
@@ -889,16 +907,14 @@ export class OwnershipTransferService {
         userId: toUserId,
         severity: NotificationSeverity.INFO,
         title: `You are now the Owner of ${community.name}`,
-        body:
-          `${community.name}'s Owner closed their STO Info account, so ` +
-          'ownership passed to you as its longest-serving Admin.',
+        body,
         ...(frontendUrl
           ? { linkUrl: `${frontendUrl}/fleets/communities/${community.slug}` }
           : {}),
       });
     } catch (error) {
       this._logger.warn(
-        `[notifySuccessor] The notification was not sent - CommunityId: ` +
+        `[notifyNewOwner] The notification was not sent - CommunityId: ` +
           `${community.id}, Reason: ${(error as Error).name}`,
       );
     }
