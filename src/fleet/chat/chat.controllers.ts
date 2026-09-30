@@ -399,10 +399,15 @@ export class ChatController {
   ): Promise<void> {
     await this.assertEnabled();
 
-    const place = await this._messages.remove(messageId, userId, dto);
+    const deletion = await this._messages.remove(messageId, userId, dto);
 
-    if (place !== null) {
-      void this._delivery.publish({ kind: 'deleted', place, messageId });
+    if (deletion !== null) {
+      void this._delivery.publish({
+        kind: 'deleted',
+        place: deletion.place,
+        messageId,
+        removed: deletion.removed,
+      });
     }
   }
 

@@ -172,6 +172,13 @@ export class ChatMessageDto {
 
   @ApiProperty() deleted: boolean;
 
+  @ApiProperty({
+    description:
+      'Whether it was deleted by somebody other than its author: a ' +
+      'moderator or a site admin removing it (FC-050).',
+  })
+  removed: boolean;
+
   @ApiProperty({ description: 'Whether the reader wrote it.' }) mine: boolean;
 
   @ApiProperty({

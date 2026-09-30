@@ -469,6 +469,7 @@ describe('ChatDeliveryService', () => {
         kind: 'deleted',
         place: { channelId: CHANNEL_ID },
         messageId: 'message',
+        removed: false,
       });
 
       expect(server.serverSideEmit).not.toHaveBeenCalled();
@@ -527,23 +528,28 @@ describe('ChatDeliveryService', () => {
       );
     });
 
-    it('tells readers of a deletion', async () => {
-      attached();
+    it.each([false, true])(
+      'tells readers of a deletion, and whether it was a removal (%s)',
+      async removed => {
+        attached();
 
-      const reader = socketOf(READER_ID);
+        const reader = socketOf(READER_ID);
 
-      sockets = [reader];
-      await delivery.publish({
-        kind: 'deleted',
-        place: { channelId: CHANNEL_ID },
-        messageId: 'message',
-      });
+        sockets = [reader];
+        await delivery.publish({
+          kind: 'deleted',
+          place: { channelId: CHANNEL_ID },
+          messageId: 'message',
+          removed,
+        });
 
-      expect(reader.emit).toHaveBeenCalledWith(CHAT_SERVER_EVENTS.DELETED, {
-        channelId: CHANNEL_ID,
-        messageId: 'message',
-      });
-    });
+        expect(reader.emit).toHaveBeenCalledWith(CHAT_SERVER_EVENTS.DELETED, {
+          channelId: CHANNEL_ID,
+          messageId: 'message',
+          removed,
+        });
+      },
+    );
 
     it('sends away a reader who may no longer read the place', async () => {
       attached();

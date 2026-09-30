@@ -36,6 +36,8 @@ export type ChatFanout =
       readonly kind: 'deleted';
       readonly place: ChatPlace;
       readonly messageId: string;
+      /** Whether somebody other than its author removed it (FC-050). */
+      readonly removed: boolean;
     }
   | {
       readonly kind: 'typing';
@@ -283,6 +285,7 @@ export class ChatDeliveryService {
           socket.emit(CHAT_SERVER_EVENTS.DELETED, {
             ...fanout.place,
             messageId: fanout.messageId,
+            removed: fanout.removed,
           });
         } else if (
           fanout.user.userId !== userId &&

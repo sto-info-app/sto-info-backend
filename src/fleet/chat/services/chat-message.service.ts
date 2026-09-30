@@ -77,6 +77,12 @@ const PEOPLE_OFFERED = 10;
 const PEOPLE_WEIGHED = 25;
 
 /** Where a message is: a channel or a conversation. */
+/** Where a deleted message was, and whether it was a removal (FC-050). */
+export interface ChatDeletion {
+  readonly place: ChatPlace;
+  readonly removed: boolean;
+}
+
 export type ChatPlace =
   | { readonly channelId: string; readonly conversationId?: undefined }
   | { readonly conversationId: string; readonly channelId?: undefined };
@@ -253,15 +259,15 @@ export class ChatMessageService {
    * @throws NotFoundException when it is older, or not theirs to read.
    * @throws ForbiddenException when it is somebody else's and they do not
    *   moderate its channel.
-   * @returns Where it was, to tell its readers; null when it was already
-   *   deleted.
+   * @returns Where it was, and whether it was removed rather than deleted
+   *   by its author, to tell its readers; null when it was already deleted.
    * @throws BadRequestException when a moderator gives no reason.
    */
   async remove(
     messageId: string,
     userId: string,
     dto: ChatRemoveDto,
-  ): Promise<ChatPlace | null> {
+  ): Promise<ChatDeletion | null> {
     const message = await this.readableMessage(messageId, userId);
 
     if (message.deletedAt !== null) {
@@ -271,7 +277,7 @@ export class ChatMessageService {
     if (message.authorUserId === userId) {
       await this.markDeleted(message, userId);
 
-      return placeOfMessage(message);
+      return { place: placeOfMessage(message), removed: false };
     }
 
     const standing =
@@ -303,7 +309,7 @@ export class ChatMessageService {
       });
     });
 
-    return placeOfMessage(message);
+    return { place: placeOfMessage(message), removed: true };
   }
 
   /**
@@ -473,6 +479,7 @@ export class ChatMessageService {
             clientMessageId: message.clientMessageId,
             createdAt: message.createdAt,
             deleted: message.deletedAt !== null,
+            removed: wasRemoved(message),
             mine: message.authorUserId === userId,
             hidden: false,
             mentions:
@@ -831,11 +838,30 @@ export function hiddenFrom(message: ChatMessageEntity): ChatMessageDto {
     clientMessageId: message.id,
     createdAt: message.createdAt,
     deleted: false,
+    removed: false,
     mine: false,
     hidden: true,
     mentions: [],
     replyTo: null,
   };
+}
+
+/**
+ * Whether a message was deleted by somebody other than its author: removed
+ * by a moderator or a site admin, which its readers are told as such
+ * (FC-050).
+ *
+ * An author who deleted their own and has since closed their account leaves
+ * no one on either side, and that is still their own deletion.
+ *
+ * @param message - The message.
+ * @returns True when somebody else deleted it.
+ */
+export function wasRemoved(message: ChatMessageEntity): boolean {
+  return (
+    message.deletedAt !== null &&
+    message.deletedByUserId !== message.authorUserId
+  );
 }
 
 /**

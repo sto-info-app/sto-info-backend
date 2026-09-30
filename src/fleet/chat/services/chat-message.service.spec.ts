@@ -241,6 +241,32 @@ describe('ChatMessageService', () => {
       ).resolves.toMatchObject({ id: idOf(1), body: null, deleted: true });
     });
 
+    // Its readers are told a moderator removed it, rather than that its
+    // author deleted it (FC-050).
+    it.each([
+      ['its author deleted', MEMBER_ID, false],
+      ['a moderator removed', MODERATOR_ID, true],
+    ])('says whether %s it', async (_label, deletedBy, removed) => {
+      seedMessage(world.db, {
+        id: idOf(1),
+        authorUserId: MEMBER_ID,
+        deletedAt: new Date(),
+        deletedByUserId: deletedBy,
+      });
+
+      await expect(
+        world.messages.readOne(idOf(1), MODERATOR_ID),
+      ).resolves.toMatchObject({ deleted: true, removed });
+    });
+
+    it('calls a message nobody deleted not removed', async () => {
+      seedMessage(world.db, { id: idOf(1) });
+
+      await expect(
+        world.messages.readOne(idOf(1), MODERATOR_ID),
+      ).resolves.toMatchObject({ deleted: false, removed: false });
+    });
+
     it('hides an older message', async () => {
       seedMessage(world.db, { id: idOf(1), createdAt: ago(5 * HOUR) });
 
@@ -419,7 +445,7 @@ describe('ChatMessageService', () => {
 
       await expect(
         world.messages.remove(idOf(1), MEMBER_ID, {}),
-      ).resolves.toEqual({ channelId: CHANNEL_ID });
+      ).resolves.toEqual({ place: { channelId: CHANNEL_ID }, removed: false });
 
       expect(removed()).toMatchObject({ deletedByUserId: MEMBER_ID });
       expect(world.db.rows(ChatActionEntity)).toEqual([]);
@@ -436,7 +462,7 @@ describe('ChatMessageService', () => {
 
       await expect(
         world.messages.remove(idOf(1), MEMBER_ID, {}),
-      ).resolves.toEqual({ conversationId: id });
+      ).resolves.toEqual({ place: { conversationId: id }, removed: false });
     });
 
     it('leaves a deleted message be', async () => {
@@ -487,7 +513,7 @@ describe('ChatMessageService', () => {
         world.messages.remove(idOf(1), MODERATOR_ID, {
           reason: 'Off topic',
         }),
-      ).resolves.toEqual({ channelId: CHANNEL_ID });
+      ).resolves.toEqual({ place: { channelId: CHANNEL_ID }, removed: true });
 
       expect(removed()).toMatchObject({ deletedByUserId: MODERATOR_ID });
       expect(world.db.rows(ChatActionEntity)).toEqual([

@@ -576,7 +576,20 @@ describe('ChatReportService', () => {
         kind: 'deleted',
         place: { channelId: CHANNEL_ID },
         messageId: idOf(1),
+        removed: true,
       });
+      // Where the Security Log reads it (FC-050).
+      expect(table(SiteAdminActionEntity)).toEqual([
+        expect.objectContaining({
+          action: SiteAdminActionKind.CHAT_MESSAGE_REMOVED,
+          actorUserId: OFFICER_ID,
+          targetUserId: MODERATOR_ID,
+          subjectKind: 'CHAT_REPORT',
+          subjectId: REPORT_ID,
+          reason: 'Harassment',
+          detail: { messageId: idOf(1) },
+        }),
+      ]);
     });
 
     it('removes a direct message, told to its conversation', async () => {

@@ -212,7 +212,10 @@ describe('chat controllers', () => {
         ANSWER,
       );
       expect(messages.readOne).toHaveBeenCalledWith(MESSAGE_ID, USER_ID);
-      messages.remove.mockResolvedValue({ channelId: CHANNEL_ID });
+      messages.remove.mockResolvedValue({
+        place: { channelId: CHANNEL_ID },
+        removed: true,
+      });
       await expect(
         controller().remove(MESSAGE_ID, USER_ID, { reason: 'Spam' }),
       ).resolves.toBeUndefined();
@@ -223,6 +226,7 @@ describe('chat controllers', () => {
         kind: 'deleted',
         place: { channelId: CHANNEL_ID },
         messageId: MESSAGE_ID,
+        removed: true,
       });
     });
 

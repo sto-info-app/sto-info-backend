@@ -71,7 +71,7 @@ export const FLEET_CAPABILITIES = {
 
   /** Post in the scope's channels. */
   CHAT_POST: 'chat.post',
-  /** Remove messages and act on reports within the scope. */
+  /** Remove messages in the scope's channels (chat reports are the site admins'). */
   CHAT_MODERATE: 'chat.moderate',
   /** Export a channel transcript under an audited reason. */
   CHAT_TRANSCRIPT_EXPORT: 'chat.transcript.export',
@@ -324,7 +324,7 @@ export const FLEET_CAPABILITY_DEFINITIONS: readonly FleetCapabilityDefinition[] 
     {
       code: FLEET_CAPABILITIES.CHAT_MODERATE,
       name: 'Moderate chat',
-      description: 'Remove messages and act on reports within the scope.',
+      description: 'Remove messages in its channels, with a reason.',
       mutating: true,
       delegable: true,
       scopeKinds: EVERY_SCOPE,

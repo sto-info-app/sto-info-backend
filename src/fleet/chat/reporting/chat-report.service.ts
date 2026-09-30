@@ -336,6 +336,16 @@ export class ChatReportService {
         reason: dto.reason,
         detail: { authorUserId: message.authorUserId, reportId },
       });
+      // Chat's own log keeps the moderation record; the site admin log is
+      // where the Security Log reads every site admin action (FC-050).
+      await recordSiteAdminAction(manager, {
+        action: SiteAdminActionKind.CHAT_MESSAGE_REMOVED,
+        actorUserId: adminId,
+        targetUserId: message.authorUserId,
+        subject: { kind: 'CHAT_REPORT', id: reportId },
+        reason: dto.reason,
+        detail: { messageId: message.id },
+      });
     });
 
     void this._delivery.publish({
@@ -345,6 +355,7 @@ export class ChatReportService {
           ? { conversationId: message.conversationId as string }
           : { channelId: message.channelId },
       messageId: message.id,
+      removed: true,
     });
 
     return this.detail(reportId);
