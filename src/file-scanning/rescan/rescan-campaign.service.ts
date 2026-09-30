@@ -10,6 +10,7 @@ import {
   Brackets,
   DataSource,
   In,
+  IsNull,
   LessThan,
   Not,
   QueryFailedError,
@@ -66,6 +67,8 @@ const OPEN_STATES = [
 
 /** A policy refusal or infection, for the page. IDs and codes only. */
 export interface RescanFinding {
+  /** The rescan, which a site admin decides a policy refusal by (FC-050). */
+  readonly id: string;
   readonly assetId: string;
   readonly state: RescanState;
   readonly rejectionCode: string | null;
@@ -79,7 +82,7 @@ export interface RescanOverview {
   readonly waiting: number;
   /** Legacy pictures still never scanned. */
   readonly unverified: number;
-  /** The latest refusals and infections. */
+  /** The latest infections, and policy refusals not yet decided. */
   readonly findings: RescanFinding[];
 }
 
@@ -150,11 +153,17 @@ export class RescanCampaignService {
           storage: In(PUBLIC_STORAGES),
         },
       }),
+      // A decided refusal leaves the list (FC-050); an infection was taken
+      // down when it was found, and stays as a record of that.
       manager.find(FileRescanEntity, {
-        where: { state: In([RescanState.INFECTED, RescanState.REFUSED]) },
+        where: [
+          { state: RescanState.INFECTED },
+          { state: RescanState.REFUSED, decision: IsNull() },
+        ],
         order: { verdictAt: 'DESC' },
         take: 50,
         select: {
+          id: true,
           assetId: true,
           state: true,
           rejectionCode: true,

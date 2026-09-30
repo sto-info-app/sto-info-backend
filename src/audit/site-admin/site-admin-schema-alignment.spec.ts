@@ -8,6 +8,7 @@ import {
 } from '../../database/migrations/1796600000000-AddSiteAdminLog';
 import { IMAGE_ESTATE_ACTIONS } from '../../database/migrations/1796700000000-AddPrivateImageDelivery';
 import { RESCAN_ACTIONS } from '../../database/migrations/1796800000000-AddRescanCampaigns';
+import { FC050_ACTIONS } from '../../database/migrations/1797100000000-DecideRescanFindings';
 import { ChatActionEntity } from '../../fleet/chat/entities/chat-action.entity';
 import { ChatActionKind } from '../../fleet/chat/enums/chat.enums';
 import { ModerationHoldActionEntity } from '../../fleet/chat/holds/moderation-hold-action.entity';
@@ -110,6 +111,7 @@ describe('Site admin log schema alignment (FC-039)', () => {
       ...SITE_ADMIN_ACTIONS,
       ...IMAGE_ESTATE_ACTIONS,
       ...RESCAN_ACTIONS,
+      ...FC050_ACTIONS,
     ]).toEqual(Object.values(SiteAdminActionKind));
     expect(up[0]).toBe(
       `CREATE TYPE "sto_info_app"."site_admin_action_enum" AS ENUM (${SITE_ADMIN_ACTIONS.map(

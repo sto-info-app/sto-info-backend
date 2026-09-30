@@ -6,6 +6,7 @@ import {
   AddPrivateImageDelivery1796700000000,
   IMAGE_ESTATE_ACTIONS,
 } from '../../database/migrations/1796700000000-AddPrivateImageDelivery';
+import { FC050_ACTIONS } from '../../database/migrations/1797100000000-DecideRescanFindings';
 import { FileAssetEntity } from '../entities/file-asset.entity';
 import { ImageEstateRunEntity } from './image-estate-run.entity';
 import { ImageEstateStepEntity } from './image-estate-step.entity';
@@ -123,8 +124,10 @@ describe('Image estate schema alignment (FC-040)', () => {
   });
 
   it('adds the image estate’s actions to the site admin log', () => {
-    const added = Object.values(SiteAdminActionKind).filter(value =>
-      value.startsWith('IMAGE_'),
+    // FC-050's picture decisions start the same way, and come later.
+    const later: readonly string[] = FC050_ACTIONS;
+    const added = Object.values(SiteAdminActionKind).filter(
+      value => value.startsWith('IMAGE_') && !later.includes(value),
     );
 
     expect([...IMAGE_ESTATE_ACTIONS]).toEqual(added);
@@ -137,9 +140,14 @@ describe('Image estate schema alignment (FC-040)', () => {
   });
 
   it('undoes it all, making the log’s type again without them', () => {
-    // FC-041's rescan actions come later, and are not in it either.
+    // FC-041's rescan actions and FC-050's come later, and are not in it
+    // either.
+    const later: readonly string[] = FC050_ACTIONS;
     const before = Object.values(SiteAdminActionKind).filter(
-      value => !value.startsWith('IMAGE_') && !value.startsWith('RESCAN_'),
+      value =>
+        !value.startsWith('IMAGE_') &&
+        !value.startsWith('RESCAN_') &&
+        !later.includes(value),
     );
 
     expect(down).toContain(

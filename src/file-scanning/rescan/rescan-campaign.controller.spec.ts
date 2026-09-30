@@ -27,8 +27,13 @@ import {
   declaredTypeOf,
   UNKNOWN_CONTENT_TYPE,
 } from './rescan-content-type.utility';
-import { StartRescanCampaignDto } from './rescan.dto';
-import { RescanCampaignKind, RescanCampaignState } from './rescan.enums';
+import { RescanVerdictService } from './rescan-verdict.service';
+import { DecideRescanFindingDto, StartRescanCampaignDto } from './rescan.dto';
+import {
+  RescanCampaignKind,
+  RescanCampaignState,
+  RescanDecision,
+} from './rescan.enums';
 
 type Fn = jest.Mock<(...args: any[]) => any>;
 
@@ -59,6 +64,7 @@ const CAMPAIGN_DTO = {
 
 describe('Rescan campaign routes, jobs and helpers (FC-041)', () => {
   let campaigns: Record<string, Fn>;
+  let verdicts: Record<string, Fn>;
 
   afterEach(() => {
     jest.restoreAllMocks();
@@ -82,13 +88,29 @@ describe('Rescan campaign routes, jobs and helpers (FC-041)', () => {
       startLegacyOnce: jest.fn(() => Promise.resolve(null)),
       sweepStale: jest.fn(() => Promise.resolve(0)),
     };
+    verdicts = { decide: jest.fn(() => Promise.resolve()) };
   });
 
   describe('RescanCampaignController', () => {
     const controller = () =>
       new RescanCampaignController(
         campaigns as unknown as RescanCampaignService,
+        verdicts as unknown as RescanVerdictService,
       );
+
+    it('passes a decision on a policy refusal on with the admin and reason', async () => {
+      await controller().decide('rescan-1', 'admin-1', {
+        decision: RescanDecision.TAKEN_DOWN,
+        reason: 'Breaks the rules',
+      } as DecideRescanFindingDto);
+
+      expect(verdicts.decide).toHaveBeenCalledWith(
+        'rescan-1',
+        'admin-1',
+        RescanDecision.TAKEN_DOWN,
+        'Breaks the rules',
+      );
+    });
 
     it('is for administrators only, at admin/rescan-campaigns', () => {
       expect(Reflect.getMetadata(ROLES_KEY, RescanCampaignController)).toEqual([

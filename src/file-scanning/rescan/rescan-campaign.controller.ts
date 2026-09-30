@@ -12,6 +12,8 @@ import {
   ApiBearerAuth,
   ApiConflictResponse,
   ApiForbiddenResponse,
+  ApiNoContentResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -26,7 +28,9 @@ import { UserRole } from 'src/user/enums/user-role.enum';
 
 import { FileRescanCampaignEntity } from './file-rescan-campaign.entity';
 import { RescanCampaignService } from './rescan-campaign.service';
+import { RescanVerdictService } from './rescan-verdict.service';
 import {
+  DecideRescanFindingDto,
   RescanCampaignDto,
   RescanOverviewDto,
   StartRescanCampaignDto,
@@ -66,8 +70,12 @@ export class RescanCampaignController {
    * Creates an instance of RescanCampaignController.
    *
    * @param _campaigns - The campaigns.
+   * @param _verdicts - Decides a policy refusal (FC-050).
    */
-  constructor(private readonly _campaigns: RescanCampaignService) {}
+  constructor(
+    private readonly _campaigns: RescanCampaignService,
+    private readonly _verdicts: RescanVerdictService,
+  ) {}
 
   /**
    * Where the campaigns stand.
@@ -172,6 +180,37 @@ export class RescanCampaignController {
   ): Promise<RescanCampaignDto> {
     return campaignDto(
       await this._campaigns.cancel(campaignId, adminUserId, dto.reason),
+    );
+  }
+
+  /**
+   * Decides a picture refused for policy on rescan: takes it down, telling
+   * its owner, or keeps it, with a reason for the site admin log (FC-050).
+   *
+   * @param rescanId - The rescan that refused it.
+   * @param adminUserId - The site admin.
+   * @param dto - The decision, and why.
+   */
+  @Post('findings/:rescanId/decision')
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'Take down or keep a picture refused for policy (admin)',
+  })
+  @ApiNoContentResponse({ description: 'Decided, and logged.' })
+  @ApiNotFoundResponse({ description: 'There is no such rescan.' })
+  @ApiConflictResponse({
+    description: 'It is not a policy refusal, or has already been decided.',
+  })
+  async decide(
+    @Param('rescanId', ParseUUIDPipe) rescanId: string,
+    @UserId() adminUserId: string,
+    @Body() dto: DecideRescanFindingDto,
+  ): Promise<void> {
+    await this._verdicts.decide(
+      rescanId,
+      adminUserId,
+      dto.decision,
+      dto.reason,
     );
   }
 }

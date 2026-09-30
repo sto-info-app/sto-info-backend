@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { Queue } from 'bullmq';
-import { DataSource, QueryFailedError } from 'typeorm';
+import { DataSource, IsNull, QueryFailedError } from 'typeorm';
 
 import { SiteAdminActionEntity } from 'src/audit/site-admin/site-admin-action.entity';
 import { SiteAdminActionKind } from 'src/audit/site-admin/site-admin-action.enum';
@@ -165,6 +165,18 @@ describe('RescanCampaignService (FC-041)', () => {
       unverified: 7,
       findings: [{ assetId: 'asset-1' }],
     });
+
+    // Infections stay listed; a policy refusal leaves once decided (FC-050).
+    expect(manager.find).toHaveBeenCalledWith(
+      FileRescanEntity,
+      expect.objectContaining({
+        where: [
+          { state: RescanState.INFECTED },
+          { state: RescanState.REFUSED, decision: IsNull() },
+        ],
+        select: expect.objectContaining({ id: true, assetId: true }),
+      }),
+    );
   });
 
   it('starts a campaign, logged with its selection, and queues it', async () => {

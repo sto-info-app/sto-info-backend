@@ -29,3 +29,11 @@ export enum RescanState {
   /** No verdict: gone missing, changed, or out of retries. Tried again later. */
   FAILED = 'FAILED',
 }
+
+/** A site admin's decision on a picture refused for policy (FC-050). */
+export enum RescanDecision {
+  /** No longer served, its image deleted, and its owner told. */
+  TAKEN_DOWN = 'TAKEN_DOWN',
+  /** Left up, and off the list of findings. */
+  KEPT = 'KEPT',
+}

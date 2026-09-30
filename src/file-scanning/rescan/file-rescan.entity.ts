@@ -1,6 +1,6 @@
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
-import { RescanState } from './rescan.enums';
+import { RescanDecision, RescanState } from './rescan.enums';
 
 /**
  * One picture's rescan (FC-041): the copy staged for the worker, what it was
@@ -59,4 +59,20 @@ export class FileRescanEntity {
 
   @Column({ type: 'timestamptz', nullable: true, default: null })
   verdictAt: Date | null;
+
+  /** A site admin's decision on a policy refusal (FC-050), or null. */
+  @Column({
+    type: 'enum',
+    enum: RescanDecision,
+    enumName: 'file_rescan_decision_enum',
+    nullable: true,
+    default: null,
+  })
+  decision: RescanDecision | null;
+
+  @Column({ type: 'timestamptz', nullable: true, default: null })
+  decidedAt: Date | null;
+
+  @Column({ type: 'uuid', nullable: true, default: null })
+  decidedByUserId: string | null;
 }

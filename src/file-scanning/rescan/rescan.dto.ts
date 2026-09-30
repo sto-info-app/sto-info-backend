@@ -4,6 +4,7 @@ import { Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
+  IsEnum,
   IsIn,
   IsInt,
   IsISO8601,
@@ -19,6 +20,7 @@ import { AdminReasonDto } from 'src/shared/dto/admin-reason.dto';
 import {
   RescanCampaignKind,
   RescanCampaignState,
+  RescanDecision,
   RescanState,
 } from './rescan.enums';
 
@@ -111,6 +113,11 @@ export class RescanCampaignDto {
 
 /** A refusal or infection, by asset and code. */
 export class RescanFindingDto {
+  @ApiProperty({
+    description: 'The rescan, which a policy refusal is decided by (FC-050).',
+  })
+  id: string;
+
   @ApiProperty() assetId: string;
 
   @ApiProperty({ enum: RescanState }) state: RescanState;
@@ -135,4 +142,11 @@ export class RescanOverviewDto {
 
   @ApiProperty({ type: [RescanFindingDto] })
   findings: RescanFindingDto[];
+}
+
+/** A site admin's decision on a picture refused for policy (FC-050). */
+export class DecideRescanFindingDto extends AdminReasonDto {
+  @ApiProperty({ enum: RescanDecision })
+  @IsEnum(RescanDecision)
+  readonly decision: RescanDecision;
 }

@@ -30,4 +30,10 @@ export enum SiteAdminActionKind {
   RESCAN_PAUSED = 'RESCAN_PAUSED',
   RESCAN_RESUMED = 'RESCAN_RESUMED',
   RESCAN_CANCELLED = 'RESCAN_CANCELLED',
+  /** A reported chat message removed by a site admin (FC-050). */
+  CHAT_MESSAGE_REMOVED = 'CHAT_MESSAGE_REMOVED',
+  /** A picture refused for policy on rescan, taken down (FC-050). */
+  IMAGE_TAKEN_DOWN = 'IMAGE_TAKEN_DOWN',
+  /** A picture refused for policy on rescan, kept (FC-050). */
+  IMAGE_KEPT = 'IMAGE_KEPT',
 }

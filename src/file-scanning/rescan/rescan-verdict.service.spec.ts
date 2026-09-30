@@ -1,9 +1,11 @@
-import { Logger } from '@nestjs/common';
+import { ConflictException, Logger, NotFoundException } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { DataSource } from 'typeorm';
 
+import { SiteAdminActionEntity } from 'src/audit/site-admin/site-admin-action.entity';
+import { SiteAdminActionKind } from 'src/audit/site-admin/site-admin-action.enum';
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
 import { AssetWithdrawalService } from 'src/file-assets/services/asset-withdrawal.service';
 import { FileAssetService } from 'src/file-assets/services/file-asset.service';
@@ -13,7 +15,7 @@ import { ScanVerdictMessage } from '../contract/file-scan-contract';
 import { FileRescanEntity } from './file-rescan.entity';
 import { RescanCampaignService } from './rescan-campaign.service';
 import { RescanVerdictService } from './rescan-verdict.service';
-import { RescanState } from './rescan.enums';
+import { RescanDecision, RescanState } from './rescan.enums';
 
 type Fn = jest.Mock<(...args: any[]) => any>;
 
@@ -73,6 +75,7 @@ describe('RescanVerdictService (FC-041)', () => {
       find: jest.fn(() =>
         Promise.resolve([{ id: 'admin-1' }, { id: 'admin-2' }]),
       ),
+      insert: jest.fn(() => Promise.resolve({})),
     };
     fileAssets = {
       recordRescanClean: jest.fn(() => Promise.resolve({})),
@@ -93,7 +96,11 @@ describe('RescanVerdictService (FC-041)', () => {
       dropCopy: jest.fn(() => Promise.resolve()),
     };
     service = new RescanVerdictService(
-      { manager } as unknown as DataSource,
+      {
+        manager,
+        transaction: (work: (inner: unknown) => Promise<unknown>) =>
+          work(manager),
+      } as unknown as DataSource,
       fileAssets as unknown as FileAssetService,
       withdrawal as unknown as AssetWithdrawalService,
       {
@@ -281,6 +288,179 @@ describe('RescanVerdictService (FC-041)', () => {
 
       await expect(infected()).resolves.toBe(true);
       expect(campaigns.count).toHaveBeenCalledWith('campaign-1', 'infected');
+    });
+  });
+
+  // Steve's decision of 30 September 2026: a picture refused for policy on
+  // rescan is taken down or kept by a site admin, with a reason (FC-050).
+  describe('deciding a policy refusal', () => {
+    const REFUSED = {
+      ...RESCAN,
+      state: RescanState.REFUSED,
+      rejectionCode: 'DIMENSIONS_EXCEEDED',
+      engine: 'clamav',
+      engineVersion: '1.5.4',
+      signatureVersion: '28138',
+      policyVersion: 3,
+      decision: null,
+    } as unknown as FileRescanEntity;
+
+    /** What the site admin log was given. */
+    const logged = () =>
+      manager.insert.mock.calls
+        .filter(([entity]) => entity === SiteAdminActionEntity)
+        .map(([, row]) => row);
+
+    beforeEach(() => {
+      manager.findOne.mockResolvedValue(REFUSED);
+      jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    });
+
+    it('takes it down, logs why, and tells its owner', async () => {
+      await service.decide(
+        'rescan-1',
+        'admin-1',
+        RescanDecision.TAKEN_DOWN,
+        'Breaks the rules',
+      );
+
+      expect(withdrawal.withdrawByReference).toHaveBeenCalledWith(
+        'image-1',
+        expect.stringContaining('DIMENSIONS_EXCEEDED'),
+      );
+      expect(fileAssets.recordRescanRejection).toHaveBeenCalledWith(
+        'asset-1',
+        'DIMENSIONS_EXCEEDED',
+        {
+          engine: 'clamav',
+          engineVersion: '1.5.4',
+          signatureVersion: '28138',
+          policyVersion: 3,
+        },
+      );
+      expect(manager.update).toHaveBeenCalledWith(
+        FileRescanEntity,
+        expect.objectContaining({ id: 'rescan-1', state: RescanState.REFUSED }),
+        {
+          decision: RescanDecision.TAKEN_DOWN,
+          decidedAt: expect.any(Date),
+          decidedByUserId: 'admin-1',
+        },
+      );
+      expect(logged()).toEqual([
+        expect.objectContaining({
+          action: SiteAdminActionKind.IMAGE_TAKEN_DOWN,
+          actorUserId: 'admin-1',
+          targetUserId: 'owner-1',
+          subjectKind: 'FILE_ASSET',
+          subjectId: 'asset-1',
+          reason: 'Breaks the rules',
+          detail: {
+            rescanId: 'rescan-1',
+            rejectionCode: 'DIMENSIONS_EXCEEDED',
+          },
+        }),
+      ]);
+      expect(createNotification).toHaveBeenCalledTimes(1);
+      expect(createNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'owner-1',
+          title: 'A picture was removed',
+          body: expect.stringContaining('rules for pictures'),
+        }),
+      );
+    });
+
+    it('keeps it, logged, touching nothing else', async () => {
+      await service.decide(
+        'rescan-1',
+        'admin-1',
+        RescanDecision.KEPT,
+        'Fine as it is',
+      );
+
+      expect(withdrawal.withdrawByReference).not.toHaveBeenCalled();
+      expect(fileAssets.recordRescanRejection).not.toHaveBeenCalled();
+      expect(createNotification).not.toHaveBeenCalled();
+      expect(logged()).toEqual([
+        expect.objectContaining({
+          action: SiteAdminActionKind.IMAGE_KEPT,
+          reason: 'Fine as it is',
+        }),
+      ]);
+    });
+
+    it('records a takedown of a picture no longer served, without withdrawing it again', async () => {
+      fileAssets.findById.mockResolvedValue({
+        id: 'asset-1',
+        state: FileAssetState.REJECTED,
+        deliveryReference: null,
+        ownerUserId: null,
+      });
+      manager.findOne.mockResolvedValue({ ...REFUSED, engine: null });
+
+      await service.decide(
+        'rescan-1',
+        'admin-1',
+        RescanDecision.TAKEN_DOWN,
+        'Breaks the rules',
+      );
+
+      expect(withdrawal.withdrawByReference).not.toHaveBeenCalled();
+      expect(fileAssets.recordRescanRejection).toHaveBeenCalledWith(
+        'asset-1',
+        'DIMENSIONS_EXCEEDED',
+        expect.objectContaining({ engine: 'unknown' }),
+      );
+      // Nobody to tell.
+      expect(createNotification).not.toHaveBeenCalled();
+      expect(logged()).toEqual([
+        expect.objectContaining({ targetUserId: null }),
+      ]);
+    });
+
+    it('decides a finding whose picture has gone from the registry', async () => {
+      fileAssets.findById.mockResolvedValue(null);
+
+      await service.decide(
+        'rescan-1',
+        'admin-1',
+        RescanDecision.TAKEN_DOWN,
+        'Breaks the rules',
+      );
+
+      expect(fileAssets.recordRescanRejection).not.toHaveBeenCalled();
+      expect(createNotification).not.toHaveBeenCalled();
+      expect(logged()).toHaveLength(1);
+    });
+
+    it('says there is no such rescan', async () => {
+      manager.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.decide('rescan-9', 'admin-1', RescanDecision.KEPT, 'Why'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it.each([
+      ['an infection', { state: RescanState.INFECTED }],
+      ['a decided refusal', { decision: RescanDecision.KEPT }],
+    ])('refuses to decide %s', async (_label, change) => {
+      manager.findOne.mockResolvedValue({ ...REFUSED, ...change });
+
+      await expect(
+        service.decide('rescan-1', 'admin-1', RescanDecision.KEPT, 'Why'),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(logged()).toEqual([]);
+    });
+
+    it('logs nothing when another site admin decided it first', async () => {
+      manager.update.mockResolvedValue({ affected: 0 });
+
+      await expect(
+        service.decide('rescan-1', 'admin-1', RescanDecision.KEPT, 'Why'),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(logged()).toEqual([]);
     });
   });
 });

@@ -1,9 +1,16 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { InjectDataSource } from '@nestjs/typeorm';
 
 import { DataSource, IsNull } from 'typeorm';
 
+import { SiteAdminActionKind } from 'src/audit/site-admin/site-admin-action.enum';
+import { recordSiteAdminAction } from 'src/audit/site-admin/site-admin-action.utility';
 import { SHOWABLE_IMAGE_STATES } from 'src/file-assets/delivery/image-url-signing.interceptor';
 import { AssetWithdrawalService } from 'src/file-assets/services/asset-withdrawal.service';
 import {
@@ -20,7 +27,7 @@ import { ScanVerdictMessage } from '../contract/file-scan-contract';
 import { FileRescanEntity } from './file-rescan.entity';
 import { RescanCampaignService } from './rescan-campaign.service';
 import { INFECTION_CODES, NO_VERDICT_CODES } from './rescan.constants';
-import { RescanState } from './rescan.enums';
+import { RescanDecision, RescanState } from './rescan.enums';
 
 /** Where a site admin reads about it. */
 const SCAN_DIAGNOSTICS_LINK = '/admin/scan-diagnostics';
@@ -31,6 +38,14 @@ const OWNER_NOTICE = {
   body:
     'One of your pictures was removed because it failed a security check. ' +
     'You can upload another.',
+};
+
+/** What the owner is told of a policy refusal taken down (FC-050). */
+const OWNER_POLICY_NOTICE = {
+  title: 'A picture was removed',
+  body:
+    'One of your pictures was removed because it breaks the site’s rules ' +
+    'for pictures. You can upload another.',
 };
 
 /**
@@ -46,7 +61,8 @@ const OWNER_NOTICE = {
  *   alerted with the asset and the code, and the owner is told, without
  *   detail, that a picture was removed.
  * - **Refused for policy:** the picture stays up, and the code is reported
- *   on Scan Diagnostics for a site admin to decide.
+ *   on Scan Diagnostics for a site admin to decide: take it down or keep it,
+ *   either with a reason for the site admin log (FC-050).
  * - **No verdict:** the rescan fails, and another campaign may try again.
  *
  * The staged copy is deleted whatever the outcome.
@@ -139,6 +155,110 @@ export class RescanVerdictService {
     await this._campaigns.dropCopy(rescan.stagingKey);
 
     return true;
+  }
+
+  /**
+   * Decides a picture refused for policy on rescan: takes it down, telling
+   * its owner, or keeps it. Either way it is logged with its reason and
+   * leaves the list of findings (FC-050).
+   *
+   * @param rescanId - The rescan that refused it.
+   * @param adminUserId - The site admin.
+   * @param decision - Take it down, or keep it.
+   * @param reason - Why, for the site admin log.
+   * @throws NotFoundException when there is no such rescan.
+   * @throws ConflictException when it is not a policy refusal, or has
+   *   already been decided.
+   */
+  async decide(
+    rescanId: string,
+    adminUserId: string,
+    decision: RescanDecision,
+    reason: string,
+  ): Promise<void> {
+    const rescan = await this._dataSource.manager.findOne(FileRescanEntity, {
+      where: { id: rescanId },
+    });
+
+    if (rescan === null) {
+      throw new NotFoundException('Not found');
+    }
+
+    if (rescan.state !== RescanState.REFUSED || rescan.decision !== null) {
+      throw new ConflictException('That finding has already been decided.');
+    }
+
+    const code = rescan.rejectionCode as string;
+    const asset = await this._fileAssets.findById(rescan.assetId);
+
+    // Taken down before the decision is written, so a decision on record
+    // never stands for a picture still up. A second site admin deciding at
+    // the same moment finds nothing left to decide below.
+    if (decision === RescanDecision.TAKEN_DOWN && asset !== null) {
+      if (
+        SHOWABLE_IMAGE_STATES.includes(asset.state) &&
+        asset.deliveryReference !== null
+      ) {
+        await this._withdrawal.withdrawByReference(
+          asset.deliveryReference,
+          `Refused for policy on rescan, taken down by a site admin: ${code}`,
+        );
+      }
+
+      await this._fileAssets.recordRescanRejection(asset.id, code, {
+        engine: rescan.engine ?? 'unknown',
+        engineVersion: rescan.engineVersion,
+        signatureVersion: rescan.signatureVersion,
+        policyVersion: rescan.policyVersion,
+      });
+    }
+
+    const decided = await this._dataSource.transaction(async manager => {
+      const claimed = await manager.update(
+        FileRescanEntity,
+        { id: rescan.id, state: RescanState.REFUSED, decision: IsNull() },
+        { decision, decidedAt: new Date(), decidedByUserId: adminUserId },
+      );
+
+      if (!claimed.affected) {
+        return false;
+      }
+
+      await recordSiteAdminAction(manager, {
+        action:
+          decision === RescanDecision.TAKEN_DOWN
+            ? SiteAdminActionKind.IMAGE_TAKEN_DOWN
+            : SiteAdminActionKind.IMAGE_KEPT,
+        actorUserId: adminUserId,
+        targetUserId: asset?.ownerUserId ?? null,
+        subject: { kind: 'FILE_ASSET', id: rescan.assetId },
+        reason,
+        detail: { rescanId: rescan.id, rejectionCode: code },
+      });
+
+      return true;
+    });
+
+    if (!decided) {
+      throw new ConflictException('That finding has already been decided.');
+    }
+
+    this._logger.log(
+      `[decide] Policy refusal decided - RescanId: ${rescan.id}, ` +
+        `AssetId: ${rescan.assetId}, Decision: ${decision}, ` +
+        `AdminId: ${adminUserId}`,
+    );
+
+    if (
+      decision === RescanDecision.TAKEN_DOWN &&
+      asset !== null &&
+      asset.ownerUserId !== null
+    ) {
+      await this.tell(asset.ownerUserId, {
+        ...OWNER_POLICY_NOTICE,
+        linkUrl: null,
+      });
+    }
   }
 
   /**

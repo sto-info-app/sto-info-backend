@@ -6,11 +6,16 @@ import {
   AddRescanCampaigns1796800000000,
   RESCAN_ACTIONS,
 } from '../../database/migrations/1796800000000-AddRescanCampaigns';
+import {
+  DecideRescanFindings1797100000000,
+  FC050_ACTIONS,
+} from '../../database/migrations/1797100000000-DecideRescanFindings';
 import { FileRescanCampaignEntity } from './file-rescan-campaign.entity';
 import { FileRescanEntity } from './file-rescan.entity';
 import {
   RescanCampaignKind,
   RescanCampaignState,
+  RescanDecision,
   RescanState,
 } from './rescan.enums';
 
@@ -43,6 +48,9 @@ async function capture(
  * PostgreSQL accepts them: the migration was run up, down and up again on
  * the local database.
  */
+/** The rescan columns FC-050 adds. */
+const LATER_RESCAN_COLUMNS = ['decision', 'decidedAt', 'decidedByUserId'];
+
 describe('Rescan campaign schema alignment (FC-041)', () => {
   const migration = new AddRescanCampaigns1796800000000();
   let up: string[];
@@ -69,7 +77,9 @@ describe('Rescan campaign schema alignment (FC-041)', () => {
       .map(line => line.slice(1, line.indexOf('"', 1)));
     const declared = getMetadataArgsStorage()
       .columns.filter(column => column.target === entity)
-      .map(column => column.options.name ?? column.propertyName);
+      .map(column => column.options.name ?? column.propertyName)
+      // Added by FC-050's migration, held below.
+      .filter(column => !LATER_RESCAN_COLUMNS.includes(column));
 
     expect([...created].sort()).toEqual([...declared].sort());
   });
@@ -117,7 +127,11 @@ describe('Rescan campaign schema alignment (FC-041)', () => {
       `CREATE TYPE "sto_info_app"."site_admin_action_enum" AS ENUM (${Object.values(
         SiteAdminActionKind,
       )
-        .filter(value => !value.startsWith('RESCAN_'))
+        .filter(
+          value =>
+            !value.startsWith('RESCAN_') &&
+            !(FC050_ACTIONS as readonly string[]).includes(value),
+        )
         .map(value => `'${value}'`)
         .join(', ')})`,
     );
@@ -125,5 +139,72 @@ describe('Rescan campaign schema alignment (FC-041)', () => {
       'DROP TYPE "sto_info_app"."file_rescan_campaign_state_enum"',
       'DROP TYPE "sto_info_app"."file_rescan_campaign_kind_enum"',
     ]);
+  });
+});
+
+/**
+ * Holds FC-050's decision on a policy refusal, and the site admin log's
+ * actions it adds, to the code.
+ */
+describe('Rescan decision schema alignment (FC-050)', () => {
+  const migration = new DecideRescanFindings1797100000000();
+  let up: string[];
+  let down: string[];
+
+  beforeAll(async () => {
+    up = await capture(queryRunner => migration.up(queryRunner));
+    down = await capture(queryRunner => migration.down(queryRunner));
+  });
+
+  it('adds exactly the columns the entity declares beyond FC-041’s', () => {
+    const added = up
+      .map(statement => /ADD COLUMN "([^"]+)"/.exec(statement)?.[1])
+      .filter(column => column !== undefined);
+
+    expect(added).toEqual(LATER_RESCAN_COLUMNS);
+    expect(
+      getMetadataArgsStorage()
+        .columns.filter(column => column.target === FileRescanEntity)
+        .map(column => column.propertyName),
+    ).toEqual(expect.arrayContaining(LATER_RESCAN_COLUMNS));
+  });
+
+  it('gives the decision type every value the code knows', () => {
+    expect(up).toContain(
+      `CREATE TYPE "sto_info_app"."file_rescan_decision_enum" AS ENUM (${Object.values(
+        RescanDecision,
+      )
+        .map(value => `'${value}'`)
+        .join(', ')})`,
+    );
+  });
+
+  it('lets only a policy refusal be decided, and always with a time', () => {
+    expect(up).toContainEqual(
+      expect.stringContaining(
+        `CHECK (("decision" IS NULL) = ("decidedAt" IS NULL) AND ("decision" IS NULL OR "state" = 'REFUSED'))`,
+      ),
+    );
+  });
+
+  it('adds its actions to the site admin log, and takes them out again', () => {
+    const all = Object.values(SiteAdminActionKind);
+
+    expect(all.slice(-FC050_ACTIONS.length)).toEqual([...FC050_ACTIONS]);
+    expect(up.slice(-FC050_ACTIONS.length)).toEqual(
+      FC050_ACTIONS.map(
+        value =>
+          `ALTER TYPE "sto_info_app"."site_admin_action_enum" ADD VALUE IF NOT EXISTS '${value}'`,
+      ),
+    );
+    expect(down).toContain(
+      `CREATE TYPE "sto_info_app"."site_admin_action_enum" AS ENUM (${all
+        .slice(0, -FC050_ACTIONS.length)
+        .map(value => `'${value}'`)
+        .join(', ')})`,
+    );
+    expect(down[down.length - 1]).toBe(
+      'DROP TYPE "sto_info_app"."file_rescan_decision_enum"',
+    );
   });
 });
