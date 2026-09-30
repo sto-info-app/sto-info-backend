@@ -8,10 +8,12 @@ import {
 import { DataSource, EntityTarget, FindOperator } from 'typeorm';
 
 import { FileAssetPlacementEntity } from 'src/file-assets/entities/file-asset-placement.entity';
+import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetPlacementState } from 'src/file-assets/enums/file-asset-placement-state.enum';
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
 import { FileAssetSubject } from 'src/file-assets/enums/file-asset-subject.enum';
 import { AssetPublicationQueueService } from 'src/file-assets/services/asset-publication-queue.service';
+import { QuarantineStorageService } from 'src/file-assets/services/quarantine-storage.service';
 
 import { RosterReplayQueueService } from '../../projection/services/roster-replay-queue.service';
 import { RosterImportActionEntity } from '../entities/roster-import-action.entity';
@@ -22,8 +24,10 @@ import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum'
 import { RosterFilenameRejectionCode } from '../enums/roster-filename-rejection-code.enum';
 import { RosterImportActionKind } from '../enums/roster-import-action-kind.enum';
 import { RosterRowRejectionCode } from '../enums/roster-row-rejection-code.enum';
+import { RosterImportConflictService } from './roster-import-conflict.service';
 import { RosterImportCorrectionService } from './roster-import-correction.service';
 import { RosterImportStatusService } from './roster-import-status.service';
+import { RosterTypedParserService } from './roster-typed-parser.service';
 
 const FLEET_ID = 'fleet-1';
 const IMPORT_ID = 'import-1';
@@ -41,6 +45,9 @@ describe('RosterImportCorrectionService', () => {
   let replays: { request: jest.Mock; enqueue: jest.Mock };
   let status: { detail: jest.Mock };
   let publications: { enqueue: jest.Mock };
+  let conflicts: { group: jest.Mock };
+  let quarantine: { read: jest.Mock };
+  let typedParser: { read: jest.Mock };
   let group: Row;
   let service: RosterImportCorrectionService;
 
@@ -89,7 +96,17 @@ describe('RosterImportCorrectionService', () => {
 
         return Promise.resolve();
       }),
-      findOneOrFail: jest.fn(() => Promise.resolve({ ...group })),
+      findOneOrFail: jest.fn((entity: EntityTarget<unknown>) =>
+        Promise.resolve(
+          entity === FileAssetEntity
+            ? {
+                id: 'asset-1',
+                objectKey: 'quarantine/asset-1',
+                objectVersion: 'v1',
+              }
+            : { ...group },
+        ),
+      ),
     };
     group = { id: 'group-1', selectedImportId: null, resolvedAt: null };
     publications = {
@@ -114,6 +131,9 @@ describe('RosterImportCorrectionService', () => {
     status = {
       detail: jest.fn(() => Promise.resolve({ id: IMPORT_ID })),
     };
+    conflicts = { group: jest.fn(() => Promise.resolve(null)) };
+    quarantine = { read: jest.fn(() => Promise.resolve(Buffer.from('csv'))) };
+    typedParser = { read: jest.fn(() => ({ rows: [], problems: [] })) };
 
     service = new RosterImportCorrectionService(
       {
@@ -124,6 +144,9 @@ describe('RosterImportCorrectionService', () => {
       replays as unknown as RosterReplayQueueService,
       status as unknown as RosterImportStatusService,
       publications as unknown as AssetPublicationQueueService,
+      conflicts as unknown as RosterImportConflictService,
+      quarantine as unknown as QuarantineStorageService,
+      typedParser as unknown as RosterTypedParserService,
     );
 
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
@@ -390,6 +413,10 @@ describe('RosterImportCorrectionService', () => {
   describe('correcting a timezone', () => {
     let observations: Row[];
     let claimants: Row[];
+    /** The other exports of the import's group. */
+    let members: Row[];
+    /** Each other export's placement, by import. */
+    let memberStates: Record<string, FileAssetPlacementState | null>;
 
     /** The refusal body a request met, or the result it got. */
     const correct = (timezone: string, exportedAt?: string) =>
@@ -440,11 +467,32 @@ describe('RosterImportCorrectionService', () => {
         },
       ];
       claimants = [];
+      members = [];
+      memberStates = {};
       manager.find.mockImplementation(
-        (entity: EntityTarget<unknown>) =>
-          Promise.resolve(
-            entity === RosterObservationEntity ? observations : claimants,
-          ) as never,
+        (entity: EntityTarget<unknown>, options: { where: Row }) => {
+          if (entity === RosterObservationEntity) {
+            return Promise.resolve(observations) as never;
+          }
+
+          return Promise.resolve(
+            'conflictGroupId' in options.where ? members : claimants,
+          ) as never;
+        },
+      );
+      manager.findOne.mockImplementation(
+        (entity: EntityTarget<unknown>, options: { where: Row }) => {
+          if (entity === RosterImportSourceEntity) {
+            return Promise.resolve({ ...record });
+          }
+
+          const state =
+            options.where.subjectId === IMPORT_ID
+              ? placementState
+              : memberStates[options.where.subjectId as string];
+
+          return Promise.resolve(state === null ? null : { state });
+        },
       );
       manager.query = jest.fn(() => Promise.resolve([]));
     });
@@ -459,6 +507,7 @@ describe('RosterImportCorrectionService', () => {
           exportTimezone: 'America/New_York',
           exportedAt: new Date('2024-11-01T16:00:00Z'),
           exportedAtAmbiguous: false,
+          conflictGroupId: null,
         },
       );
       expect(recorded()).toMatchObject({
@@ -542,11 +591,175 @@ describe('RosterImportCorrectionService', () => {
       });
     });
 
-    it('refuses an import in a conflict group', async () => {
-      record!.conflictGroupId = 'group-1';
+    // One group per moment, ever: a moment whose exports have all moved
+    // away keeps its group, and an export moving there joins it as an
+    // upload of that moment would.
+    it('puts it in whatever group its new moment has, as an upload would', async () => {
+      await correct('America/New_York');
 
-      await expect(correct('America/New_York')).rejects.toThrow(
-        /before correcting its timezone/,
+      expect(conflicts.group).toHaveBeenCalledWith(
+        manager,
+        expect.objectContaining({
+          id: IMPORT_ID,
+          exportedAt: new Date('2024-11-01T16:00:00Z'),
+        }),
+        new Date('2024-11-01T16:00:00Z'),
+      );
+      expect(replays.enqueue).toHaveBeenCalledWith(FLEET_ID);
+      expect(publications.enqueue).not.toHaveBeenCalled();
+    });
+
+    // Steve's decision of 30 September 2026: a held export is corrected at
+    // once. It has no rows yet, so its stored file is read through the new
+    // zone first, as the publisher will read it.
+    describe('a held export', () => {
+      beforeEach(() => {
+        placementState = FileAssetPlacementState.HELD;
+      });
+
+      it('reads its file through the new zone, then corrects it and queues it to be read', async () => {
+        await expect(correct('America/New_York')).resolves.toEqual({
+          id: IMPORT_ID,
+        });
+
+        expect(quarantine.read).toHaveBeenCalledWith(
+          'quarantine/asset-1',
+          'v1',
+        );
+        expect(typedParser.read).toHaveBeenCalledWith(
+          Buffer.from('csv'),
+          'America/New_York',
+        );
+        expect(manager.find).not.toHaveBeenCalledWith(
+          RosterObservationEntity,
+          expect.anything(),
+        );
+        expect(publications.enqueue).toHaveBeenCalledWith(record!.assetId);
+        expect(replays.enqueue).not.toHaveBeenCalled();
+      });
+
+      it('refuses when a date in its file never happened there, changing nothing', async () => {
+        const problem = {
+          code: RosterRowRejectionCode.DATE_NONEXISTENT,
+          line: 4,
+          column: 'Last Active Date',
+        };
+
+        typedParser.read.mockReturnValue({ rows: [], problems: [problem] });
+
+        await expect(refusal(correct('America/New_York'))).resolves.toEqual(
+          expect.objectContaining({
+            code: RosterCsvRejectionCode.ROWS_UNREADABLE,
+            problems: [problem],
+          }),
+        );
+        expect(manager.update).not.toHaveBeenCalled();
+        expect(publications.enqueue).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('in a conflict group', () => {
+      beforeEach(() => {
+        record!.conflictGroupId = 'group-1';
+        members = [
+          { id: 'import-2', assetId: 'asset-2' },
+          { id: 'import-3', assetId: 'asset-3' },
+        ];
+        memberStates = {
+          'import-2': FileAssetPlacementState.HELD,
+          'import-3': FileAssetPlacementState.ACTIVE,
+        };
+      });
+
+      it('locks the group, as a selection does', async () => {
+        await correct('America/New_York');
+
+        expect(manager.findOneOrFail).toHaveBeenCalledWith(
+          RosterImportConflictEntity,
+          { where: { id: 'group-1' }, lock: { mode: 'pessimistic_write' } },
+        );
+      });
+
+      // Steve's decision of 30 September 2026: a wrong clock is why it
+      // clashed, so correcting it is the answer, not something to wait for.
+      it('corrects it while nobody has chosen, and takes it out of the group', async () => {
+        await expect(correct('America/New_York')).resolves.toEqual({
+          id: IMPORT_ID,
+        });
+        expect(manager.update).toHaveBeenCalledWith(
+          RosterImportSourceEntity,
+          { id: IMPORT_ID },
+          expect.objectContaining({ conflictGroupId: null }),
+        );
+        expect(manager.update).not.toHaveBeenCalledWith(
+          RosterImportConflictEntity,
+          expect.anything(),
+          expect.anything(),
+        );
+      });
+
+      // The publisher decides afresh which of the rest stands now this one
+      // has gone; one already in force is left as it is.
+      it('publishes again the held exports it leaves behind', async () => {
+        await correct('America/New_York');
+
+        expect(manager.find).toHaveBeenCalledWith(RosterImportSourceEntity, {
+          where: { conflictGroupId: 'group-1', id: expect.any(FindOperator) },
+        });
+        expect(publications.enqueue).toHaveBeenCalledWith('asset-2');
+        expect(publications.enqueue).not.toHaveBeenCalledWith('asset-3');
+        expect(replays.enqueue).toHaveBeenCalledWith(FLEET_ID);
+      });
+
+      // Two exports never stand for one moment, and a group only selects its
+      // own: the selection goes before the export does, and the moment falls
+      // back to the first version the site saw.
+      it('takes the selection with it when it was the one selected', async () => {
+        group.resolvedAt = new Date();
+        group.selectedImportId = IMPORT_ID;
+
+        await correct('America/New_York');
+
+        expect(manager.update).toHaveBeenCalledWith(
+          RosterImportConflictEntity,
+          { id: 'group-1' },
+          { selectedImportId: null, resolvedAt: null },
+        );
+        expect(
+          (manager.update.mock.calls as Array<[unknown]>)
+            .map(([entity]) => entity)
+            .filter(entity => entity !== RosterObservationEntity),
+        ).toEqual([RosterImportConflictEntity, RosterImportSourceEntity]);
+      });
+
+      it('leaves another export’s selection standing', async () => {
+        group.resolvedAt = new Date();
+        group.selectedImportId = 'import-3';
+
+        await correct('America/New_York');
+
+        expect(manager.update).not.toHaveBeenCalledWith(
+          RosterImportConflictEntity,
+          expect.anything(),
+          expect.anything(),
+        );
+      });
+    });
+
+    it('asks after no group when it is in none', async () => {
+      await correct('America/New_York');
+
+      expect(manager.findOneOrFail).not.toHaveBeenCalledWith(
+        RosterImportConflictEntity,
+        expect.anything(),
+      );
+      expect(manager.find).not.toHaveBeenCalledWith(
+        RosterImportSourceEntity,
+        expect.objectContaining({
+          where: expect.objectContaining({
+            conflictGroupId: expect.anything(),
+          }),
+        }),
       );
     });
 

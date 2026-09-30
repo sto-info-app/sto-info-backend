@@ -636,9 +636,8 @@ export class RosterImportsController {
   @ApiNotFoundResponse({ description: 'The Fleet has no such import.' })
   @ApiConflictResponse({
     description:
-      'It is in a conflict group, is already read through that zone, the ' +
-      'new moment is claimed by another export, or it is neither in force ' +
-      'nor waiting.',
+      'It is already read through that zone, the new moment is claimed by ' +
+      'another export, or it is neither in force nor waiting.',
   })
   async correctTimezone(
     @Param('fleetId', ParseUUIDPipe) fleetId: string,

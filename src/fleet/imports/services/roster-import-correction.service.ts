@@ -10,10 +10,12 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Not } from 'typeorm';
 
 import { FileAssetPlacementEntity } from 'src/file-assets/entities/file-asset-placement.entity';
+import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetPlacementState } from 'src/file-assets/enums/file-asset-placement-state.enum';
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
 import { FileAssetSubject } from 'src/file-assets/enums/file-asset-subject.enum';
 import { AssetPublicationQueueService } from 'src/file-assets/services/asset-publication-queue.service';
+import { QuarantineStorageService } from 'src/file-assets/services/quarantine-storage.service';
 import {
   canonicaliseTimezone,
   LocalTimeResolution,
@@ -40,8 +42,12 @@ import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum'
 import { RosterFilenameRejectionCode } from '../enums/roster-filename-rejection-code.enum';
 import { RosterImportActionKind } from '../enums/roster-import-action-kind.enum';
 import { RosterRowRejectionCode } from '../enums/roster-row-rejection-code.enum';
+import { RosterImportConflictService } from './roster-import-conflict.service';
 import { RosterImportStatusService } from './roster-import-status.service';
-import { RosterRowProblem } from './roster-typed-parser.service';
+import {
+  RosterRowProblem,
+  RosterTypedParserService,
+} from './roster-typed-parser.service';
 
 /** The placement states an import can be corrected in. */
 const CORRECTABLE: readonly FileAssetPlacementState[] = [
@@ -71,10 +77,15 @@ interface Corrected {
   /** For a selection, the group it settled. */
   readonly conflictGroupId?: string;
   /**
-   * For a selection of a held export, true: it has to be read and put in
-   * force, and its going into force queues the replay.
+   * For a selection or correction of a held export, true: it has to be read
+   * and put in force, and its going into force queues the replay.
    */
   readonly release?: boolean;
+  /**
+   * For a correction, the held exports it left behind in its old moment,
+   * published again so the publisher decides afresh which stands.
+   */
+  readonly republish?: readonly string[];
 }
 
 /** What one correction does, inside its transaction. */
@@ -111,13 +122,25 @@ type Correction = (
  *
  * The export's stamp and every date in its rows are read again through the
  * corrected zone from the local text kept for exactly this (plan section
- * 3.4). Refused, changing nothing, when the import is in a conflict group —
- * Steve's decision of 25 September 2026 — when the new instant is one
- * another export of the Fleet already claims, when the stamp or any date
- * never happened in that zone, or when the stamp names two moments there and
- * the request did not say which, exactly as at upload. The Fleet-name match
- * made at upload is not redone: a former name's validity is measured in
- * months, and the stamp moves by hours.
+ * 3.4). Refused, changing nothing, when the new instant is one another
+ * export of the Fleet already claims, when the stamp or any date never
+ * happened in that zone, or when the stamp names two moments there and the
+ * request did not say which, exactly as at upload. The Fleet-name match made
+ * at upload is not redone: a former name's validity is measured in months,
+ * and the stamp moves by hours.
+ *
+ * An export in a conflict can be corrected at once (Steve's decision of 30
+ * September 2026): a wrong clock is usually why it clashed, and correcting it
+ * is the answer, not something to wait for. It leaves its old moment's group,
+ * which stays with the moment for anything that claims it later, and joins
+ * whatever group its new moment already has, as an upload of that moment
+ * would. If it was the export selected there, the selection goes with it and
+ * the moment falls back to the first version the site saw. Either way the
+ * exports it leaves behind that were held are published again, so the
+ * publisher decides afresh which of them stands. A held export has not been
+ * read, so its stored file is read through the new zone first: a date that
+ * never happened there refuses the correction, changing nothing, rather than
+ * leaving the publisher to refuse the file.
  *
  * ## Selecting an export
  *
@@ -141,6 +164,7 @@ export class RosterImportCorrectionService {
    * @param _replays - Asks for the Fleet's roster to be replayed.
    * @param _status - Reports the import as it now stands.
    * @param _publications - Queues a selected held export to be read.
+   * @param _conflicts - Groups a corrected export with its new moment's.
    */
   constructor(
     @InjectDataSource()
@@ -148,6 +172,9 @@ export class RosterImportCorrectionService {
     private readonly _replays: RosterReplayQueueService,
     private readonly _status: RosterImportStatusService,
     private readonly _publications: AssetPublicationQueueService,
+    private readonly _conflicts: RosterImportConflictService,
+    private readonly _quarantine: QuarantineStorageService,
+    private readonly _typedParser: RosterTypedParserService,
   ) {}
 
   /**
@@ -351,13 +378,6 @@ export class RosterImportCorrectionService {
       userId,
       body.reason,
       async (manager, record) => {
-        if (record.conflictGroupId !== null) {
-          throw new ConflictException(
-            'Another export claims this one’s moment. Select or exclude ' +
-              'between them before correcting its timezone.',
-          );
-        }
-
         // Validated by the DTO, so known; canonical so that two spellings of
         // one zone are not two zones.
         const timezone = canonicaliseTimezone(body.timezone)!;
@@ -371,8 +391,21 @@ export class RosterImportCorrectionService {
         const exportedAt = this.settleStamp(record, timezone, body.exportedAt);
 
         await this.requireMomentFree(manager, record, exportedAt.at);
-        await this.rereadRows(manager, record, timezone);
 
+        const held =
+          (await this.placementState(manager, record)) ===
+          FileAssetPlacementState.HELD;
+
+        if (held) {
+          await this.checkHeldRows(manager, record, timezone);
+        } else {
+          await this.rereadRows(manager, record, timezone);
+        }
+
+        const republish = await this.leaveGroup(manager, record);
+
+        // It no longer claims its old moment, so it leaves that moment's
+        // group, which stays with the moment.
         await manager.update(
           RosterImportSourceEntity,
           { id: record.id },
@@ -380,7 +413,17 @@ export class RosterImportCorrectionService {
             exportTimezone: timezone,
             exportedAt: exportedAt.at,
             exportedAtAmbiguous: exportedAt.ambiguous,
+            conflictGroupId: null,
           },
+        );
+
+        // One group per moment, ever: the moment it moves to may have one
+        // whose exports have all moved away, and it joins that as an upload
+        // would. Nothing still there claims the moment, so nothing reopens.
+        await this._conflicts.group(
+          manager,
+          { ...record, exportedAt: exportedAt.at },
+          exportedAt.at,
         );
 
         return {
@@ -391,6 +434,8 @@ export class RosterImportCorrectionService {
             fromExportedAt: record.exportedAt?.toISOString() ?? null,
             toExportedAt: exportedAt.at.toISOString(),
           },
+          release: held,
+          republish,
         };
       },
     );
@@ -518,6 +563,10 @@ export class RosterImportCorrectionService {
       await this._replays.enqueue(fleetId);
     }
 
+    for (const assetId of done.republish ?? []) {
+      await this._publications.enqueue(assetId);
+    }
+
     return this._status.detail(fleetId, importId, true);
   }
 
@@ -571,6 +620,91 @@ export class RosterImportCorrectionService {
     }
 
     return { at, ambiguous: resolved.candidates.length > 1 };
+  }
+
+  /**
+   * Takes an export out of its old moment's group.
+   *
+   * The group is locked as a selection locks it, so a selection made at the
+   * same time is seen. If the export was the one selected there, the
+   * selection goes with it, and the moment falls back to the first version
+   * the site saw until an investigator selects again. The group's other held
+   * exports are returned, to be published again once this commits, so that
+   * the publisher decides afresh which of them stands now this one has gone.
+   *
+   * @param manager - The transaction.
+   * @param record - The import being corrected, locked.
+   * @returns The assets of the held exports it leaves behind.
+   */
+  private async leaveGroup(
+    manager: EntityManager,
+    record: RosterImportSourceEntity,
+  ): Promise<string[]> {
+    if (record.conflictGroupId === null) {
+      return [];
+    }
+
+    const group = await manager.findOneOrFail(RosterImportConflictEntity, {
+      where: { id: record.conflictGroupId },
+      lock: { mode: 'pessimistic_write' },
+    });
+
+    // Before the export leaves, since a group only selects its own.
+    if (group.selectedImportId === record.id) {
+      await manager.update(
+        RosterImportConflictEntity,
+        { id: group.id },
+        { selectedImportId: null, resolvedAt: null },
+      );
+    }
+
+    const others = await manager.find(RosterImportSourceEntity, {
+      where: { conflictGroupId: group.id, id: Not(record.id) },
+    });
+    const left: string[] = [];
+
+    for (const other of others) {
+      if (
+        (await this.placementState(manager, other)) ===
+        FileAssetPlacementState.HELD
+      ) {
+        left.push(other.assetId);
+      }
+    }
+
+    return left;
+  }
+
+  /**
+   * Reads a held export's stored file through a zone, changing nothing.
+   *
+   * A held export has no rows yet: it is read when it is published. Reading
+   * its file now, as the publisher will, means a date that never happened in
+   * the new zone refuses the correction here, rather than having the
+   * publisher refuse the file after the correction is made.
+   *
+   * @param manager - The transaction.
+   * @param record - The import.
+   * @param timezone - The canonical zone.
+   * @throws BadRequestException carrying every row problem.
+   */
+  private async checkHeldRows(
+    manager: EntityManager,
+    record: RosterImportSourceEntity,
+    timezone: string,
+  ): Promise<void> {
+    const asset = await manager.findOneOrFail(FileAssetEntity, {
+      where: { id: record.assetId },
+    });
+    const bytes = await this._quarantine.read(
+      asset.objectKey as string,
+      asset.objectVersion,
+    );
+    const { problems } = this._typedParser.read(bytes, timezone);
+
+    if (problems.length > 0) {
+      throw this.unreadable(RosterCsvRejectionCode.ROWS_UNREADABLE, problems);
+    }
   }
 
   /**
