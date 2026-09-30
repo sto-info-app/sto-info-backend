@@ -533,6 +533,16 @@ describe('FleetHoldingsService', () => {
       );
     });
 
+    it('refuses a suspended Fleet, saying it is suspended', async () => {
+      fleet.status = FleetScopeStatus.SUSPENDED;
+
+      await expect(record([['STARBASE', 1]])).rejects.toThrow(
+        new ConflictException(
+          'This Fleet is suspended, so its holdings cannot change until it is reinstated.',
+        ),
+      );
+    });
+
     it('refuses a holding the catalogue does not have', async () => {
       await expect(record([['SPIRE', 1]], undefined, 'SPIRE')).rejects.toThrow(
         new NotFoundException('No such holding.'),

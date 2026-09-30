@@ -224,9 +224,13 @@ export class FleetHoldingsService {
         throw new NotFoundException('Not found');
       }
 
+      // A suspension is lifted and a closure is not, so each says which
+      // (FC-050).
       if (fleet.status !== FleetScopeStatus.ACTIVE) {
         throw new ConflictException(
-          'This Fleet is closed, so its holdings cannot change.',
+          fleet.status === FleetScopeStatus.SUSPENDED
+            ? 'This Fleet is suspended, so its holdings cannot change until it is reinstated.'
+            : 'This Fleet is closed, so its holdings cannot change.',
         );
       }
 

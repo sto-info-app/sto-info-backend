@@ -360,6 +360,12 @@ export class ScopeEventCalendarDto {
   mayManage: boolean;
 
   @ApiProperty({ description: 'Whether the scope is open.' }) isOpen: boolean;
+
+  @ApiProperty({
+    description:
+      'Whether the scope is suspended, so a reader is not told it is closed.',
+  })
+  isSuspended: boolean;
 }
 
 /** An event in full, with its rule and what lies ahead. */

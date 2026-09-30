@@ -99,6 +99,8 @@ interface NewsAccess {
   readonly mayWrite: boolean;
   /** Whether the scope is active, so its news may change. */
   readonly isOpen: boolean;
+  /** Whether it is suspended rather than closed, when it is not open. */
+  readonly isSuspended: boolean;
 }
 
 /**
@@ -207,6 +209,7 @@ export class ScopeNewsService {
       pageSize,
       mayWrite: access.mayWrite,
       isOpen: access.isOpen,
+      isSuspended: access.isSuspended,
     };
   }
 
@@ -238,6 +241,7 @@ export class ScopeNewsService {
       post: this.toPost(post, await this.authorsOf([post], viewerId)),
       mayWrite: access.mayWrite,
       isOpen: access.isOpen,
+      isSuspended: access.isSuspended,
     };
   }
 
@@ -556,6 +560,8 @@ export class ScopeNewsService {
       ref,
       mayWrite: authorisation.capabilities.has(FLEET_CAPABILITIES.NEWS_WRITE),
       isOpen: authorisation.scope.effectiveStatus === FleetScopeStatus.ACTIVE,
+      isSuspended:
+        authorisation.scope.effectiveStatus === FleetScopeStatus.SUSPENDED,
     };
   }
 

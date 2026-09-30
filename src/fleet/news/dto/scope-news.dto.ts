@@ -217,6 +217,12 @@ export class ScopeNewsPostViewDto {
       'Whether the scope is open. A closed or suspended scope’s news cannot change.',
   })
   isOpen: boolean;
+
+  @ApiProperty({
+    description:
+      'Whether the scope is suspended, so a reader is not told it is closed.',
+  })
+  isSuspended: boolean;
 }
 
 /** A page of a scope's posts. */
@@ -240,4 +246,10 @@ export class ScopeNewsPageDto {
       'Whether the scope is open. A closed or suspended scope’s news cannot change.',
   })
   isOpen: boolean;
+
+  @ApiProperty({
+    description:
+      'Whether the scope is suspended, so a reader is not told it is closed.',
+  })
+  isSuspended: boolean;
 }

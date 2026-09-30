@@ -146,6 +146,7 @@ describe('ScopeEventReadService', () => {
           to: new Date('2030-01-01T12:00:00Z'),
           mayManage: false,
           isOpen: true,
+          isSuspended: false,
         }),
       );
       expect(calendar.entries.map(entry => entry.occurrence.id)).toEqual([

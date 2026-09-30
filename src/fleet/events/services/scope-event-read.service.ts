@@ -164,6 +164,7 @@ export class ScopeEventReadService {
       })),
       mayManage: viewer.mayManage,
       isOpen: viewer.isOpen,
+      isSuspended: viewer.isSuspended,
     };
   }
 

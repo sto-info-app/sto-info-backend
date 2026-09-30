@@ -46,6 +46,7 @@ describe('ScopeEventAccessService', () => {
           mayManage: true,
           mayRsvp: true,
           isOpen: true,
+          isSuspended: false,
           seesNames: true,
           ref: {
             kind: FleetScopeKind.FLEET,
@@ -69,7 +70,7 @@ describe('ScopeEventAccessService', () => {
       world.status = FleetScopeStatus.SUSPENDED;
 
       await expect(world.access.viewerAt(FLEET, MEMBER_ID)).resolves.toEqual(
-        expect.objectContaining({ isOpen: false }),
+        expect.objectContaining({ isOpen: false, isSuspended: true }),
       );
     });
 

@@ -45,6 +45,8 @@ export interface EventViewer {
   readonly mayRsvp: boolean;
   /** Whether the scope is open, so its events may change. */
   readonly isOpen: boolean;
+  /** Whether it is suspended rather than closed, when it is not open. */
+  readonly isSuspended: boolean;
   /**
    * Whether they see who answered, not only how many: the scope's members
    * and its managers, by Steve's decision of 28 September 2026.
@@ -114,6 +116,8 @@ export class ScopeEventAccessService {
       mayManage,
       mayRsvp: authorisation.capabilities.has(FLEET_CAPABILITIES.EVENTS_RSVP),
       isOpen: authorisation.scope.effectiveStatus === FleetScopeStatus.ACTIVE,
+      isSuspended:
+        authorisation.scope.effectiveStatus === FleetScopeStatus.SUSPENDED,
       seesNames:
         mayManage ||
         (await this._audience.canView(

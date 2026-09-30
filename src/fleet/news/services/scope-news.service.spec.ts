@@ -236,6 +236,7 @@ describe('ScopeNewsService', () => {
         pageSize: 10,
         mayWrite: false,
         isOpen: true,
+        isSuspended: false,
       });
       expect(page.items[0]).not.toHaveProperty('body');
     });
@@ -315,6 +316,17 @@ describe('ScopeNewsService', () => {
       const page = await service.list(FLEET, READER_ID, {});
 
       expect(page.isOpen).toBe(false);
+      expect(page.isSuspended).toBe(false);
+    });
+
+    it('says when the scope is suspended rather than closed', async () => {
+      holding([], FleetScopeStatus.SUSPENDED);
+
+      const page = await service.list(FLEET, READER_ID, {});
+
+      expect(page).toEqual(
+        expect.objectContaining({ isOpen: false, isSuspended: true }),
+      );
     });
 
     it('names an author without linking a profile the reader may not open', async () => {
@@ -367,7 +379,11 @@ describe('ScopeNewsService', () => {
       );
       expect(view.post.body).toBe('Friday at eight.');
       expect(view).toEqual(
-        expect.objectContaining({ mayWrite: false, isOpen: true }),
+        expect.objectContaining({
+          mayWrite: false,
+          isOpen: true,
+          isSuspended: false,
+        }),
       );
     });
 
