@@ -24,7 +24,9 @@ Every way in leaves one `fleet_application` row, told apart by `route` (`APPLICA
 every membership recruitment grants has one record of how it came about.
 
 Applications go to Fleets only. A Community's recruitment state is shown in the directory and
-pre-fills new Fleets, but nobody applies to a Community itself.
+pre-fills new Fleets, but nobody applies to a Community itself. The Fleet registration form starts
+on it, and the registrant may change it before registering; a registration that names no state
+takes the Community's (FC-050).
 
 ## What a way in checks
 

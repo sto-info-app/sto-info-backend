@@ -56,9 +56,12 @@ delegated. A Community role reaches every Fleet and Armada in it.
 
 **Audiences.** Public; the Community's followers and members; the scope's own members; its Owner,
 Admins and Officers; or chosen Fleets and roles. Chosen Fleets must be in the Community, and a
-Fleet's own event chooses roles only. Managers see every event of their scope. An event is never
-shown to somebody who may not see its scope, and every answer is asked afresh, so leaving a Fleet
-hides its members' events at once.
+Fleet's own event chooses roles only. The Community's followers and members count the approved
+members of every Fleet in it, on a Fleet's or an Armada's event as on the Community's; at a
+Community, its own members do too, while a Fleet's own members stay that Fleet's (FC-050, see
+[Fleet governance](fleet-governance.md#who-a-communitys-audience-admits)). Managers see every event
+of their scope. An event is never shown to somebody who may not see its scope, and every answer
+is asked afresh, so leaving a Fleet hides its members' events at once.
 
 ## Answers and the waitlist
 

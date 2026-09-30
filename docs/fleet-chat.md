@@ -78,6 +78,10 @@ Only between two friends: there is no group route.
 - **Deleting.** Authors delete their own. A scope's `chat.moderate` holders remove anybody's in
   its channels, with a reason, logged as `MESSAGE_REMOVED`. Nobody removes the other person's in a
   conversation. A deleted message keeps its place with no text. There is no editing.
+- **Removed, not deleted (FC-050).** A message answers `removed: true` when somebody other than its
+  author deleted it, a moderator or a site admin, so that its readers see "Message removed by a
+  moderator" rather than "Message deleted". An author who deleted their own and then closed their
+  account still reads as a deletion.
 - **Kept 45 days**, or `CHAT_RETENTION_DAYS`. A daily job (04:23 UTC) forgets anything older, a
   batch at a time, and records each run; see [Fleet retention jobs](fleet-retention.md).
 
@@ -224,7 +228,8 @@ FC-035, with Steve's decisions of 28 and 29 September 2026.
     characters. The note is required (FC-039): it is the decision's reason in the site admin log.
     Chat reports never sit under review.
   - An admin may remove the reported message. That is logged (`MESSAGE_REMOVED`, naming the
-    report), readers are told live, and the evidence keeps what it said.
+    report), and in the site admin log as `CHAT_MESSAGE_REMOVED` so the Security Log shows it
+    (FC-050). Readers are told live, and the evidence keeps what it said.
 - **Retention.** A closed report and its evidence are deleted 90 days after it closed, daily,
   unless a site administrator holds it (FC-036).
 - **Linked queues (FC-036).** Each chat report says how many open member reports there are about
@@ -344,7 +349,8 @@ WebSocket only. The browser's side is `ChatSocketService` in the frontend.
   copy of each message ID.
 - **Events from the server:**
   - `message`: a message, with `mine` for that reader, `hidden` across a block;
-  - `deleted`: the place and `messageId`;
+  - `deleted`: the place, `messageId`, and `removed` when somebody other than its author deleted it
+    (FC-050);
   - `removed`: the place;
   - `typing`: the place and who (FC-034);
   - `notice`: a direct message or a mention for the reader, wherever they are (FC-034);

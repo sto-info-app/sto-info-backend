@@ -135,8 +135,8 @@ and the instant that export was taken.
 An unanswered proposal from a Fleet its owner can no longer see is left out of their list and
 answered 404 until they can see it again.
 
-The inbox notification for a proposal is W07's. Until then an owner sees proposals on their
-Character's Fleet panel.
+An owner is told of a proposal in their notifications (`ROSTER_ASSOCIATION_PROPOSED`, queued by
+`character-fleet-proposal.service.ts`), and answers it on their Character's Fleet panel.
 
 ## After deploying
 

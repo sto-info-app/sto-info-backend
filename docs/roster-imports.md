@@ -240,6 +240,40 @@ says plainly what it threw away.
 counts stay mutable: a recount is a correction to a derived figure, not to the record of the
 upload.
 
+## The same export twice
+
+One export is one import per Fleet (FC-017). The source hash is looked up by Fleet and hash
+together before anything else is read, and a file this Fleet has already sent is answered with the
+import it made. Sent with a different reading, another zone or another instant, it is refused
+instead, because the earlier reading stands. Two copies arriving together are settled by
+`UQ_roster_import_source_fleet_hash`.
+
+**An abandoned import is the exception (FC-050).** It was given up on before it was read, so
+answering with it would leave the export unimportable for good. The file is imported afresh, and
+the abandoned import is kept as the record of its upload, with `replacedAt` set in the same
+transaction as the new row. The unique index holds only where `replacedAt` is null, and a replaced
+import is no longer compared with other exports of its moment.
+
+## Former Fleet names
+
+An export's filename names the Fleet as the game called it when the export was taken, so a Fleet
+renamed in game would stop matching its own older exports. `fleet_name_alias` holds the names a
+Fleet was known by, each with the interval it was used, and an export matches one only when every
+instant its stamp could name lies inside that interval.
+
+**Recorded by people, never by files (FC-050).** Steve's decision of 30 September 2026: the Fleet's
+`roster.investigate` holders, its Owner and Admins by default, record a former name on the Fleet's
+Investigate tab with the dates it was used and a reason, and can remove one with a reason. Nothing
+learns a name from an upload: an importer that did could be told a Fleet's name by whoever uploaded
+next. A name cannot be the Fleet's current one, nor overlap the same name recorded for part of that
+time, and its interval has to have ended.
+
+**Removal keeps the record.** A removed name is soft-deleted with who removed it and why
+(`removedByUserId`, `removalReason`, `CHK_fleet_name_alias_removal`), so an import that matched it
+still says which name it matched. From then on it matches nothing new. The routes are
+`/fleet-communities/:communityId/fleets/:fleetId/former-names`; see
+[API endpoints](api-endpoints.md).
+
 ## When an upload is refused
 
 Nothing is kept. No registry row, no object, no provenance row, and **no raw sample** — not in the

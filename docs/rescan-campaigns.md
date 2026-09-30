@@ -13,7 +13,7 @@ Steve's decisions of 29 September 2026:
 | What a clean legacy picture becomes | `AVAILABLE` |
 | Who is told about an infection | Every site admin, in-app, with the asset and the code; the owner, without detail |
 | When the legacy estate is scanned | Once, automatically, after release; after that, when a site admin starts a campaign |
-| A picture refused for policy on rescan | Keeps showing, and is reported on Scan Diagnostics |
+| A picture refused for policy on rescan | Keeps showing, and is reported on Scan Diagnostics for a site admin to take down or keep, with a reason (FC-050) |
 
 ## How a picture is rescanned
 
@@ -38,7 +38,7 @@ rescan's verdict never reaches the upload path. A repeated delivery of a verdict
 | ------- | ------------ |
 | Clean, with the hash the copy was staged with | The picture stays. Its verdict fields are brought up to date, its hash and type filled in if missing, and a legacy picture becomes `AVAILABLE` |
 | `INFECTED` | The picture is taken down: delivery is revoked first, so it is never signed again, then its image is deleted. The asset records the code. Every enabled site admin gets an in-app warning with the asset ID and the code, linking to Scan Diagnostics; the owner is told only that a picture failed a security check and was removed |
-| A policy refusal (for example `CONTENT_TYPE_MISMATCH` or `SIZE_LIMIT_EXCEEDED`) | The picture keeps showing. The rescan records the code, and Scan Diagnostics lists it for a site admin to decide |
+| A policy refusal (for example `CONTENT_TYPE_MISMATCH` or `SIZE_LIMIT_EXCEEDED`) | The picture keeps showing. The rescan records the code, and Scan Diagnostics lists it for a site admin to decide — see [Deciding a policy refusal](#deciding-a-policy-refusal) |
 | `HASH_MISMATCH`, `OBJECT_MISSING`, `RETRY_BUDGET_EXHAUSTED`, a retry, or a clean verdict for different bytes | No verdict: the rescan fails, and a later campaign may try again |
 
 The staged copy is deleted whatever the verdict. A copy that cannot be deleted is left for the
@@ -88,13 +88,33 @@ At 04:41 UTC each night, `RescanScheduler`:
 `/admin/rescan-campaigns`, `ADMIN` only:
 
 - lists the 20 latest campaigns, how many rescans are waiting, how many legacy pictures have never
-  been scanned, and the 50 latest pictures found infected or refused, by asset ID and code only;
+  been scanned, and the 50 latest pictures found infected or refused for policy and not yet
+  decided, by rescan, asset ID and code only;
 - starts a campaign with a selection and a reason;
-- pauses, resumes and cancels a campaign with a reason.
+- pauses, resumes and cancels a campaign with a reason;
+- takes down or keeps a picture refused for policy, with a reason (FC-050).
 
 Each is written to the site admin log as `RESCAN_STARTED`, `RESCAN_PAUSED`, `RESCAN_RESUMED` or
 `RESCAN_CANCELLED`, with the campaign as its subject and the selection in `detail`. See
 [Admin audit](admin-audit.md).
+
+### Deciding a policy refusal
+
+Steve's decision of 30 September 2026 (FC-050). `POST
+/admin/rescan-campaigns/findings/:rescanId/decision` takes `{ decision: TAKEN_DOWN | KEPT, reason }`
+for a rescan that refused its picture for policy and has not been decided:
+
+- **Taken down.** As an infection is: delivery is revoked, then the image is deleted, and the asset
+  records the code. The owner is told, without the reason, that a picture was removed for breaking
+  the site's rules for pictures.
+- **Kept.** Nothing about the picture changes. A later rescan under a new policy or signature
+  version may refuse it again.
+
+Either way `file_rescan` records the decision, when and by whom, the site admin log records
+`IMAGE_TAKEN_DOWN` or `IMAGE_KEPT` with the reason, and the finding leaves the list. A rescan that
+is not a policy refusal, or has been decided, answers 409; the conditional update settles two site
+admins deciding at once. `CHK_file_rescan_decision` holds that only a policy refusal is decided,
+and always with a time.
 
 ## What this does not prove locally
 

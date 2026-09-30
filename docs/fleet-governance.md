@@ -7,9 +7,11 @@ code is in `src/fleet/governance`. The decisions below are Steve's, from 27 and 
 
 An Armada has roles and delegation too (FC-025): the Community's Owner appoints its Admins and
 Officers from the approved members of the Fleets placed in it, and a role there ends when its
-holder's Fleet leaves or they leave the Fleet. An Armada closes through its own route,
-`DELETE /fleet-communities/:c/armadas/:a`, which ends its placements. See
-[Fleet Armadas](fleet-armadas.md).
+holder's Fleet leaves or they leave the Fleet. Its Owner, the only
+holder of `scope.close` there, closes it from the Armada's Manage page with a reason,
+`POST …/armadas/:a/governance/close`, which ends its placements and records the closure in its
+governance history as a Fleet's does (FC-050). See
+[Fleet Armadas](fleet-armadas.md#closure).
 
 ## Ownership
 
@@ -42,8 +44,10 @@ the other, and the second sees what the first did. This was rehearsed against th
 with each pair run at once: exactly one of each pair succeeded every time, and the Community ended
 with one Owner.
 
-The ten-Communities-per-owner trigger applies to a transfer as to a registration. An Admin who
-owns ten already is told so and the transfer does not happen.
+The ten-Communities-per-owner trigger applies to a transfer as to a registration. A closed
+Community still counts towards the ten, because it still holds its web address and directory entry,
+and nothing in the app frees its place; somebody who needs more is told to use Contact us rather
+than to close one. An Admin who owns ten already is told so and the transfer does not happen.
 
 ### A site administrator's dispute action
 
@@ -59,6 +63,30 @@ For an Owner who has vanished or a Community that has been reported, a site admi
 
 Each needs a reason, or for a look a purpose, and each is logged as a site administrator's
 (`asSiteAdmin`).
+
+**Any Community (FC-050).** Steve's decision of 30 September 2026: a site administrator reaches
+every Community's dispute page, members-only and private ones included. The admin routes below
+never asked who may see the Community; the page now finds it through
+`GET /admin/fleet-communities/by-slug/:slug`, which resolves a web address without the audience
+check, for a site administrator alone. Everybody else, a site administrator included everywhere
+else, is still answered by the public `GET /fleet-communities/by-slug/:slug`, and the page shows
+anybody who is not a site administrator that it is not for them. What each action logs is
+unchanged.
+
+A site administrator reaches the page from the Admin area's Fleet Disputes, which finds
+Communities through `GET /admin/fleet-communities`: every live one whose name or web address holds
+`search` (case-insensitive, wildcards taken literally), whoever may see it and whatever its state,
+by name, a page of 20 by default and 50 at most. Each gives its identifier, name, web address,
+audience, state and its Owner's username, or null. It logs nothing, as the lookup does not. The
+Manage hub finds the Community for a site administrator the same way as the dispute page, so its
+Site administration entry is reached from the hub at a Community they cannot otherwise see; every
+other Manage page, and everybody else, still uses the public read.
+
+**The new Owner is told (FC-050).** Steve's decision of 30 September 2026: when a site
+administrator moves ownership, the new Owner gets an in-app notification that they now own the
+Community, linking to its page. It does not give the site administrator's reason, which stays in
+the governance history. It is sent once the move is committed, as the offer's and the departing
+Owner's notices are, and one that fails undoes nothing.
 
 **Competing registrations (FC-036).** The dispute view lists each of the Community's Fleets and
 Armadas with every other registration of the same exact name on the same platform, private ones
@@ -88,6 +116,13 @@ Armada, with a reason, and reinstates it with another (`ScopeSuspensionService`)
 - Only a site administrator suspends or reinstates a scope (`CHK_scope_governance_action_suspension`),
   and never a closed one. Suspending what is suspended, or reinstating what is active, changes
   nothing.
+- Its Owner and Admins are told in-app that it was suspended or reinstated, linking to its page,
+  without the reason (FC-050; Steve's decision of 30 September 2026). The Admins are those at the
+  scope and, at a Fleet or Armada, the Community's too, whose role reaches it. Each is told once,
+  the site administrator who made the change is not, and nothing goes in the activity feed. Whom to
+  tell is read in the same transaction as the change; the notices go once it is committed, and one
+  that fails undoes nothing. A Community's suspension tells the Community's Owner and Admins, not
+  each of its Fleets' and Armadas'.
 - Suspending a member, by a holder of `members.manage`, is recruitment's; see
   [Fleet recruitment](fleet-recruitment.md#leaving-and-removal).
 
@@ -107,6 +142,40 @@ nothing, and there is still no way to see a raw roster file.
 - The audience rules let them open that Fleet's pages, and its Community's, while it runs.
 - `GET /admin/fleet-investigations` lists every look, newest first, and `…/mine` the caller's
   open ones.
+
+## Who a Community's audience admits
+
+FC-050, Steve's decisions of 30 September 2026. A Community's visibility, and anything published
+at the Community to one of these audiences (news, events, activity, images), counts the approved
+members of every Fleet in it. A Fleet page asks its Community first, so without this a Fleet's
+members who did not follow their Community could not open their own Fleet.
+
+"Community members" means the same wherever it is set inside the Community: on a Fleet, on an
+Armada's content, and on anything published in either, it admits whom it admits on the Community.
+Otherwise a member of one Fleet who did not follow could not see a sibling Fleet set to "Community
+members", while somebody who merely followed could. "Fleet members" is the one audience that
+differs by scope.
+
+| Audience | At a Community it admits | At a Fleet or an Armada it admits |
+| --- | --- | --- |
+| Anyone (`PUBLIC`) | Everybody, signed in or not | Everybody, signed in or not |
+| Community members (`COMMUNITY`) | Its followers; the approved members of any of its Fleets; anybody holding a role, grant or approved membership at the Community itself | The Community's followers; the approved members of any of the Community's Fleets; anybody holding a role, grant or approved membership at the Fleet or Armada, including a Community role that reaches it |
+| Fleet members (`FLEET_MEMBERS`) | The approved members of any of its Fleets; an approved member of the Community itself; anybody holding `members.view` there — the Owner, Admins and whoever it is delegated to. Never a follower | The Fleet's own approved members, or an Armada's through its placed Fleets; anybody holding `members.view` there. Never a sibling Fleet's member, never a follower |
+| Only me (`PRIVATE`) | The Owner | The Community's Owner |
+
+Community content published to "Fleet members" reaching the members of every Fleet is intended
+(Steve, 30 September 2026).
+
+- **Approved means approved.** A pending, rejected, left, revoked, suspended or deleted Fleet
+  membership counts for nothing; one suspended in a Fleet still counts through another Fleet they
+  belong to, but cannot open the Fleet that suspended them. A suspension at the scope asked about,
+  at the Community, or a disabled account, refuses them whatever Fleets they are in.
+- **Visibility, not access.** Counting as a Community member opens only what is set to "Community
+  members". A sibling Fleet set to its own members stays closed to them, and nothing here grants a
+  capability. A standalone Fleet has no Community to ask.
+- **Asked afresh.** The answer is read from the memberships on every question and never cached, so
+  joining or leaving a Fleet counts at once. Only the Fleet's revision moves; the Community's is
+  left alone, since the Settings page uses it to refuse a stale save.
 
 ## Roles and delegation
 
@@ -186,7 +255,9 @@ Owner and Admins. A site admin's dispute actions also show in the Security Log; 
 | `POST …/governance/ownership/:id/decline` | The Admin offered it |
 | `POST …/governance/close` | `scope.close` |
 | `… /fleet-communities/:c/fleets/:f/governance/…` | The same, less ownership, at one Fleet |
-| `… /fleet-communities/:c/armadas/:a/governance/…` | The same, less ownership and closure, at one Armada |
+| `… /fleet-communities/:c/armadas/:a/governance/…` | The same, less ownership, at one Armada; its closure since FC-050 |
+| `GET  /admin/fleet-communities?search=&page=&pageSize=` | Site ADMIN: every live Community by name or web address, whoever may see it (FC-050) |
+| `GET  /admin/fleet-communities/by-slug/:slug` | Site ADMIN: any Community, whoever may see it, for the dispute page (FC-050) |
 | `GET  /admin/fleet-communities/:c/dispute` | Site ADMIN |
 | `POST /admin/fleet-communities/:c/owner` | Site ADMIN |
 | `POST /admin/fleet-communities/:c/close` | Site ADMIN |

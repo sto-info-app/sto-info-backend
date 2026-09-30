@@ -65,7 +65,11 @@ placement can only be ended (`TR_armada_fleet_membership_guard`).
 ## Closure
 
 - **Closing an Armada** ends every open placement and cancels every open request in the same
-  transaction, so its Fleets are free to join another.
+  transaction, so its Fleets are free to join another. Its Owner closes it with
+  `POST /fleet-communities/:c/armadas/:a/governance/close` and a reason (`scope.close`, which no
+  Admin holds), from the Armada's Manage page, and the reason is kept in its governance history
+  (FC-050). The reasonless `DELETE` it replaced is gone. A site administrator closes one with a
+  reason; see [Fleet governance](fleet-governance.md#routes).
 - **Closing a Fleet** ends its placement and cancels its open request. If it was a Beta, its
   Gammas become Betas where there is room, in the order they were placed, and otherwise leave;
   the history records the change with the reason "*Fleet* closed.".

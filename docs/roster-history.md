@@ -147,10 +147,23 @@ The local text of the export's stamp and of every date in its rows is kept for e
 section 3.4). A correction reads all of it again through the new zone, or none of it: a stamp or
 date that never happened there refuses it, as an upload would have been refused. A stamp naming two
 moments in the new zone needs one of them chosen, as at upload. The moment it moves to must be free
-— the lock an upload claiming that moment takes is taken first — and an import in a conflict group
-cannot be corrected until the group is settled another way (Steve's decision of 25 September 2026).
-The Fleet-name match made at upload is not redone: a former name's validity runs to months, and a
-correction moves the stamp by hours.
+— the lock an upload claiming that moment takes is taken first. The Fleet-name match made at upload
+is not redone: a former name's validity runs to months, and a correction moves the stamp by hours.
+
+An import in a conflict group can be corrected at once (Steve's decision of 30 September 2026): a
+wrong clock is usually why it clashed, and correcting it is the answer rather than something to
+wait for. A group belongs to its moment, not to its exports, so the corrected export leaves it and
+the group stays for anything that claims the moment later. If the export was the one selected
+there, the selection goes with it, and the moment falls back to the first version the site saw
+until an investigator selects again. The group's other held exports are published again, so the
+publisher decides afresh which of them stands. At its new moment the export joins whatever group is
+already there, as an upload of that moment would; the moment is free, so nothing there disagrees
+with it and nothing reopens.
+
+A held export has no rows yet: it is read when it is published. Its stored file is read through the
+new zone first, as the publisher will read it, so a date that never happened there refuses the
+correction rather than having the publisher refuse the file afterwards. Once corrected it is queued
+for publication, and goes into force at its new moment.
 
 ### Selecting between exports of one moment
 
@@ -167,8 +180,8 @@ settles it. An import that is merely held asks for no replay, so it appears amon
 inputs from the next one.
 
 An import's detail shows an investigator its excluded lines, its corrections newest first with the
-investigator's STO Info username, and its conflict group's selection. Everybody who can read it sees
-whether it is excluded or partial.
+investigator's STO Info username, and its conflict group's selection and when the group was last
+settled. Everybody who can read it sees whether it is excluded or partial.
 
 For the pages investigators correct from (FC-020), an import's rows can be listed a page at a
 time. A Fleet's conflict groups can be listed too — open, settled or all — read from the groups

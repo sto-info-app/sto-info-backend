@@ -386,9 +386,10 @@ Community, Fleet, Armada, news and Custom Tracking responses now carry addresses
 
 | Method | Path | Purpose |
 | ------ | ---- | ------- |
-| GET | `/admin/rescan-campaigns` | The 20 latest campaigns with their counts, how many rescans are waiting, how many legacy pictures have never been scanned, and the 50 latest pictures found infected or refused (asset ID and code only) |
+| GET | `/admin/rescan-campaigns` | The 20 latest campaigns with their counts, how many rescans are waiting, how many legacy pictures have never been scanned, and the 50 latest pictures found infected or refused for policy and not yet decided (rescan ID, asset ID and code only) |
 | POST | `/admin/rescan-campaigns` | `{ selection: { kinds?, uploadedFrom?, uploadedBefore?, notScannedForDays?, unverifiedOnly?, priority?: HIGH \| LOW }, reason }`; starts a campaign |
 | POST | `/admin/rescan-campaigns/:id/pause`, `/resume`, `/cancel` | `{ reason }`; 409 when the campaign cannot do that now |
+| POST | `/admin/rescan-campaigns/findings/:rescanId/decision` | `{ decision: TAKEN_DOWN \| KEPT, reason }`; takes down or keeps a picture refused for policy, answering 204; 404 for no such rescan, 409 when it is not a policy refusal or has been decided (FC-050) |
 
 All require the `ADMIN` role. See [Rescan campaigns](rescan-campaigns.md).
 
@@ -508,6 +509,10 @@ Joining, applying, invitations, decisions, leaving and removal. See
 
 Roles, delegated capabilities, ownership offers, a site administrator's dispute actions, and
 closure. See [Fleet governance](fleet-governance.md#routes) for every route and who may call it.
+A site administrator's dispute routes work at any Community, whoever may see it,
+`GET /admin/fleet-communities/by-slug/:slug` finds one for them by its web address, and
+`GET /admin/fleet-communities?search=&page=&pageSize=` finds them by name or web address, a page at
+a time (FC-050).
 
 ### Armadas
 
@@ -630,8 +635,14 @@ The response gives the new zone and instant, and the correction's detail records
 two moments and none, or neither, was given. The body is an upload refusal's: a `code` and every
 row `problem` as a line, a column and a code. Nothing is changed.
 
-**Response (409):** it is in a conflict group, it is already read through that zone, another
-export of the Fleet — named — already claims the new moment, or it is neither in force nor waiting.
+An export in a conflict group can be corrected at once (FC-050). It leaves the group, which stays
+with its moment, and joins any group its new moment already has. If it was the export selected for
+its moment, the selection goes with it. The group's other held exports are published again, so
+the publisher decides which of them stands. A held export's stored file is read through the new
+zone before anything changes, and once corrected it is queued to be read.
+
+**Response (409):** it is already read through that zone, another export of the Fleet — named —
+already claims the new moment, or it is neither in force nor waiting.
 
 ### POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports/:importId/selection
 
@@ -1084,6 +1095,56 @@ handle is changed by the request itself.
 **Response (409):** it changed since it was loaded, it is a collision and cannot be decided, or it
 is not in a state the action applies to — only an open candidate is confirmed or rejected, and only
 a decided one undone.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/former-names
+
+List a Fleet's former names, which older roster exports are matched against (FC-050). See
+[Roster imports](roster-imports.md#former-fleet-names).
+
+**Authentication Required.** `roster.investigate` at that Fleet, or `roster.investigate.read` for a
+site admin looking in. A caller who cannot see the Fleet is told it does not exist.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Response (200):** `{ items, removed, mayChange }`. `items` are the names in use, the most recent
+first; `removed` the names removed, the most recently removed first. Each carries its exact name,
+`validFrom`, `validTo`, the reason, who recorded it by STO Info username and when, when and by whom
+it was removed and why, and how many of the Fleet's imports matched it. `mayChange` is whether the
+caller holds `roster.investigate`.
+
+### POST /fleet-communities/:communityId/fleets/:fleetId/former-names
+
+Record a former name.
+
+**Authentication Required.** `roster.investigate` at that Fleet.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Request:** `{ "exactName": "...", "validFrom": "<ISO instant>", "validTo": "<ISO instant>",
+"reason": "..." }`. The name is not trimmed and follows the Fleet name's rules; the reason is
+trimmed, required, and at most 500 characters.
+
+**Response (201):** the name as recorded.
+
+**Response (400):** the name stops before it began, or has not stopped yet.
+
+**Response (409):** it is the Fleet's name now, or the same name is already recorded for part of
+that time.
+
+### POST /fleet-communities/:communityId/fleets/:fleetId/former-names/:aliasId/removal
+
+Remove a former name. It matches nothing new; imports that matched it keep their match.
+
+**Authentication Required.** `roster.investigate` at that Fleet.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Request:** `{ "reason": "..." }`, required, at most 500 characters.
+
+**Response (200):** the name as it now stands, removed.
+
+**Response (404):** the Fleet has no such name in use. One of another Fleet is reported the same
+way.
 
 ## Account Endpoints
 

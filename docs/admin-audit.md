@@ -46,6 +46,8 @@ records:
 | `STORYTIME_CONTENT_REMOVED`, `STORYTIME_CONTENT_RESTORED`, `STORYTIME_REPORT_DECIDED`, `STORYTIME_APPEAL_DECIDED` | Storytime moderation | What the creator is told, or the resolution; a resolution is required to close a report and review notes to decide an appeal |
 | `IMAGE_COPY_STARTED`, `IMAGE_UNDO_STARTED`, `IMAGE_RETIRE_STARTED`, `IMAGE_RUN_PAUSED`, `IMAGE_RUN_RESUMED` | The image estate's runs, on Scan Diagnostics (FC-040) | `reason` in the body; the subject is the run — see [Private image delivery](image-delivery.md) |
 | `RESCAN_STARTED`, `RESCAN_PAUSED`, `RESCAN_RESUMED`, `RESCAN_CANCELLED` | Rescan campaigns, on Scan Diagnostics (FC-041) | `reason` in the body; the subject is the campaign, and `detail` holds a new campaign's selection — see [Rescan campaigns](rescan-campaigns.md). The nightly legacy campaign is the system's, and is not logged here |
+| `IMAGE_TAKEN_DOWN`, `IMAGE_KEPT` | `POST /admin/rescan-campaigns/findings/:rescanId/decision`, on a picture refused for policy on rescan (FC-050) | `reason` in the body; the subject is the asset (`FILE_ASSET`), `targetUserId` its owner, and `detail` the rescan and its code |
+| `CHAT_MESSAGE_REMOVED` | `POST /admin/chat-reports/:reportId/remove-message` (FC-050) | `reason` in the body; the subject is the report, `targetUserId` the message's author, and `detail` the message. Chat's own log records it too, as `MESSAGE_REMOVED` |
 
 The row is written by `recordSiteAdminAction()` in the transaction that makes
 the change, so a change never lands without its entry and an entry never

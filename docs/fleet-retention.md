@@ -50,7 +50,7 @@ holds the scheduler to that.
     would take the process down.
   - A finished row is write-once, enforced by trigger.
   - Runs are kept a year.
-  - No page shows them yet. FC-039's diagnostics may.
+  - The Security Log shows them, as its `RETENTION` source (FC-039).
 
 ## Roster files
 

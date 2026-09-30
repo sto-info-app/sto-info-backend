@@ -70,7 +70,7 @@ The database uses PostgreSQL with TypeORM for object-relational mapping.
 | `ImageEstateStepEntity` | `image_estate_step` | One picture's copy to a private one: what it was, what it became, every row it repointed, and whether its old public copy is retired |
 | `ImageInventoryRunEntity` | `image_inventory_run` | One reconciliation of the image columns, the registry and Cloudflare's listing; a report, nothing deleted |
 | `FileRescanCampaignEntity` | `file_rescan_campaign` | One campaign rescanning a selection of published pictures, with its cursor and counts; a site admin's, or the one legacy campaign — see [Rescan campaigns](rescan-campaigns.md) |
-| `FileRescanEntity` | `file_rescan` | One picture's rescan: the staged copy, its hash and declared type, the policy and definition epoch, and the verdict; once per asset, policy and epoch unless it failed |
+| `FileRescanEntity` | `file_rescan` | One picture's rescan: the staged copy, its hash and declared type, the policy and definition epoch, and the verdict; once per asset, policy and epoch unless it failed. A policy refusal also records a site admin's decision to take it down or keep it, when and by whom (FC-050; `CHK_file_rescan_decision`) |
 | `SiteAdminActionEntity` | `site_admin_action` | Every site-level admin action, with its reason, write-once and kept under the audit policy — see [Admin audit](admin-audit.md) |
 | `RetentionRunEntity` | `retention_run` | One run of a Fleet retention job: when, what it deleted, whether that was all, and any failure; write-once once finished — see [Fleet retention jobs](fleet-retention.md) |
 | `FleetInvestigationGrantEntity` | `fleet_investigation_grant` | A site admin's 24-hour read-only look into a Fleet's imports, with its purpose, write-once — see [Fleet governance](fleet-governance.md) |
@@ -323,6 +323,8 @@ a replay cannot rebuild.
 | --- | --- | --- |
 | `TR_roster_import_source_guard` | `fleet_roster_import_source` | See below |
 | `UQ_roster_import_source_asset` | `fleet_roster_import_source` | One import record per stored object, so there is never more than one answer to which export produced a given file |
+| `UQ_roster_import_source_fleet_hash` | `fleet_roster_import_source` | One import per Fleet and received file (FC-017), among imports not replaced: an abandoned import sent again is marked `replacedAt` and a fresh one recorded (FC-050) |
+| `CHK_fleet_name_alias_removal` | `fleet_name_alias` | A removed former name always says why, and only a removed one has a reason for going (FC-050) |
 | `CHK_roster_import_source_source_hash` | `fleet_roster_import_source` | Lowercase hexadecimal. The source hash is the only surviving evidence of the uploaded file, and a malformed one looks like evidence while answering nothing |
 | `CHK_roster_import_source_officer_rows` | `fleet_roster_import_source` | The officer-tail count is between zero and the row count |
 | `CHK_roster_import_source_officer_shape` | `fleet_roster_import_source` | A twelve-column export discarded no officer notes, so a non-zero count against a `NORMAL` header means the parser and the record disagree about what arrived |

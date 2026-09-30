@@ -15,8 +15,11 @@ and its Open Graph images, all of which the frontend builds from those routes.
   Community's news is its own posts, not its Fleets' or Armadas'.
 - **Audience.** One of anyone (`PUBLIC`), the Community's followers and members (`COMMUNITY`), or
   the scope's own members (`FLEET_MEMBERS`: a Fleet's approved members, an Armada's through its
-  placed Fleets, or a Community's). `PUBLIC` is the default. `PRIVATE`, the Community's Owner
-  alone, is no audience for news.
+  placed Fleets, or a Community's, which counts the approved members of every Fleet in it —
+  FC-050, see [Fleet governance](fleet-governance.md#who-a-communitys-audience-admits)). A
+  Community's followers and members include every one of its Fleets' members too, on a Fleet's
+  or an Armada's post as on the Community's. `PUBLIC` is the default. `PRIVATE`, the Community's
+  Owner alone, is no audience for news.
 - **Capped by its scope.** Nobody reads a post of a scope they may not see, asked afresh on every
   read. Narrowing a Fleet's visibility narrows its posts without anything being rewritten.
 - **The audience may change** after publication, either way. It takes effect at the next read.
@@ -69,8 +72,9 @@ Every change is saved through the repository, so the audit log records it and wh
 | `DELETE /admin/fleet-news/:postId` | Site administrators |
 
 A post or scope the caller may not see answers 404, the same as one that does not exist. The list
-leaves out each post's body, and answers with `mayWrite` and `isOpen` so the page knows what to
-offer; so does a single post. Every route is behind the Fleet Community switch.
+leaves out each post's body, and answers with `mayWrite`, `isOpen` and `isSuspended` so the page
+knows what to offer, and says a suspended scope's news waits on its reinstatement rather than that
+it is closed (FC-050); so does a single post. Every route is behind the Fleet Community switch.
 
 ## The schema
 
