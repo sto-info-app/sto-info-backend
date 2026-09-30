@@ -6,11 +6,18 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
-import { IsNull, Not, QueryFailedError } from 'typeorm';
+import {
+  Brackets,
+  IsNull,
+  Not,
+  QueryFailedError,
+  WhereExpressionBuilder,
+} from 'typeorm';
 
 import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
 
 import { FleetAuthorisationRevisionService } from '../authorisation/fleet-authorisation-revision.service';
+import { FleetCommunityEntity } from '../entities/fleet-community.entity';
 import { StoFleetEntity } from '../entities/sto-fleet.entity';
 import { FleetAudience } from '../enums/fleet-audience.enum';
 import { FleetDirectorySort } from '../enums/fleet-directory-sort.enum';
@@ -28,6 +35,7 @@ interface MockQueryBuilder {
   addSelect: jest.Mock;
   innerJoinAndSelect: jest.Mock;
   leftJoinAndSelect: jest.Mock;
+  leftJoin: jest.Mock;
   where: jest.Mock;
   andWhere: jest.Mock;
   orderBy: jest.Mock;
@@ -69,6 +77,45 @@ function askedFor(builder: MockQueryBuilder, fragment: string): boolean {
   return builder.andWhere.mock.calls.some(([sql]: [unknown]) =>
     String(sql).includes(fragment),
   );
+}
+
+/** What a bracketed condition asked for, one level at a time. */
+interface BracketedCondition {
+  where: jest.Mock;
+  orWhere: jest.Mock;
+  andWhere: jest.Mock;
+}
+
+/**
+ * Runs the one bracketed condition a query was given against a recorder.
+ *
+ * @param builder - The query builder mock.
+ * @returns What the bracket asked for.
+ */
+function bracketed(builder: MockQueryBuilder): BracketedCondition {
+  const brackets = builder.andWhere.mock.calls.find(
+    ([clause]: [unknown]) => clause instanceof Brackets,
+  )?.[0] as Brackets;
+
+  return runBrackets(brackets);
+}
+
+/**
+ * Runs a bracket's condition against a recorder.
+ *
+ * @param brackets - The bracket.
+ * @returns What it asked for.
+ */
+function runBrackets(brackets: Brackets): BracketedCondition {
+  const inner = {} as BracketedCondition;
+
+  inner.where = jest.fn(() => inner);
+  inner.orWhere = jest.fn(() => inner);
+  inner.andWhere = jest.fn(() => inner);
+
+  brackets.whereFactory(inner as unknown as WhereExpressionBuilder);
+
+  return inner;
 }
 
 describe('StoFleetService', () => {
@@ -143,6 +190,7 @@ describe('StoFleetService', () => {
       'addSelect',
       'innerJoinAndSelect',
       'leftJoinAndSelect',
+      'leftJoin',
       'where',
       'andWhere',
       'orderBy',
@@ -412,13 +460,41 @@ describe('StoFleetService', () => {
 
       expect(fleet.recruitmentState).toBe(FleetRecruitmentState.OPEN);
       expect(fleet.visibility).toBe(FleetAudience.PUBLIC);
+      // A state it was given is not second-guessed by the Community's.
+      expect(fleetRepository.manager.findOne).not.toHaveBeenCalled();
+    });
+
+    // docs/fleet-recruitment.md: a Community's recruitment state pre-fills
+    // its new Fleets, and the form starts on it too.
+    it("starts on the Community's recruitment state when given none", async () => {
+      fleetRepository.manager.findOne.mockImplementationOnce(() =>
+        Promise.resolve({
+          id: communityId,
+          recruitmentState: FleetRecruitmentState.INVITE_ONLY,
+        }),
+      );
+
+      const { fleet } = await service.register(
+        communityId,
+        { exactGameName: 'Omega Command', platformId },
+        actingUserId,
+      );
+
+      expect(fleet.recruitmentState).toBe(FleetRecruitmentState.INVITE_ONLY);
+      expect(fleetRepository.manager.findOne).toHaveBeenCalledWith(
+        FleetCommunityEntity,
+        {
+          where: { id: communityId },
+          select: { id: true, recruitmentState: true },
+        },
+      );
     });
 
     /**
      * Left to the column defaults rather than restated here, so the answer to
      * "what does a Fleet start as" lives in one place.
      */
-    it('leaves recruitment and audience to the schema when neither is given', async () => {
+    it('leaves recruitment to the schema when the Community cannot be read, and audience whenever none is given', async () => {
       await service.register(
         communityId,
         { exactGameName: 'Omega Command', platformId },
@@ -778,6 +854,28 @@ describe('StoFleetService', () => {
       ]);
     });
 
+    /**
+     * The directory's rule: a public Fleet in a Community only its members
+     * may see would otherwise name that Community to a stranger registering
+     * the same name.
+     */
+    it('reports a public record only while its Community is live and public', async () => {
+      await service.findDuplicates(platformId, 'Omega Command');
+
+      expect(whereOf()[0]).toEqual(
+        expect.objectContaining({
+          community: { visibility: FleetAudience.PUBLIC, deletedAt: IsNull() },
+        }),
+      );
+    });
+
+    it('reports an unregistered record whatever its audience, having no Community to ask', async () => {
+      await service.findDuplicates(platformId, 'Omega Command');
+
+      expect(whereOf()[1]).not.toHaveProperty('community');
+      expect(whereOf()[1]).not.toHaveProperty('visibility');
+    });
+
     it('also reports the acting Community’s own records, whatever they hide', async () => {
       await service.findDuplicates(platformId, 'Omega Command', {
         withinCommunityId: communityId,
@@ -1021,6 +1119,41 @@ describe('StoFleetService', () => {
       expect(conditionParameters(listing(), 'fleet.visibility')).toStrictEqual({
         listedAudience: FleetAudience.PUBLIC,
       });
+    });
+
+    /**
+     * A public Fleet in a Community only its members may see would put that
+     * Community's name on a card and open onto a page saying there is no
+     * such record. The Armada listing asks the same of its Community.
+     */
+    it('lists a Fleet in a Community only when the Community is public and live', async () => {
+      await service.findDirectoryPage({});
+
+      const inCommunity = runBrackets(
+        bracketed(listing()).orWhere.mock.calls[0][0] as Brackets,
+      );
+
+      expect(inCommunity.where).toHaveBeenCalledWith(
+        'community.deletedAt IS NULL',
+      );
+      expect(inCommunity.andWhere).toHaveBeenCalledWith(
+        'community.visibility = :listedAudience',
+        { listedAudience: FleetAudience.PUBLIC },
+      );
+    });
+
+    // Nothing sits above a standalone Fleet to check, so the join is a left
+    // one and its own audience is the whole rule, as it was before.
+    it('lists a standalone Fleet on its own audience', async () => {
+      await service.findDirectoryPage({});
+
+      expect(bracketed(listing()).where).toHaveBeenCalledWith(
+        'fleet.communityId IS NULL',
+      );
+      expect(listing().leftJoinAndSelect).toHaveBeenCalledWith(
+        'fleet.community',
+        'community',
+      );
     });
 
     it('hides closed Fleets until they are asked for', async () => {
@@ -1277,6 +1410,24 @@ describe('StoFleetService', () => {
       expect(conditionParameters(counting(), 'fleet.visibility')).toStrictEqual(
         { listedAudience: FleetAudience.PUBLIC },
       );
+      expect(bracketed(counting()).where).toHaveBeenCalledWith(
+        'fleet.communityId IS NULL',
+      );
+    });
+
+    /**
+     * The count asks the Community's audience too, so it joins the Community
+     * without selecting it: a count that selected the rows it was counting
+     * would be reading a page in order to throw it away.
+     */
+    it('joins the Community for the count without loading anything', async () => {
+      await service.findDirectoryPage({});
+
+      expect(counting().leftJoin).toHaveBeenCalledWith(
+        'fleet.community',
+        'community',
+      );
+      expect(counting().leftJoinAndSelect).not.toHaveBeenCalled();
     });
 
     it('groups by platform as well as name, the two being one key', async () => {

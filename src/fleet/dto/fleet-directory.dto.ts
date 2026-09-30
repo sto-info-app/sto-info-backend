@@ -154,6 +154,14 @@ export class StoFleetCardDto extends InGameScopeCardDto {
 
   @ApiProperty({
     description:
+      'Whether the game provides a fleet roster export on this Fleet’s ' +
+      'platform. False means no roster can ever be imported for it, so a ' +
+      'null import date is the platform rather than neglect.',
+  })
+  platformProvidesRosterExport: boolean;
+
+  @ApiProperty({
+    description:
       'Export instant of its newest effective roster import, which is how ' +
       'fresh the record is. Null means nothing has ever been imported for ' +
       'it, which is itself the most useful thing to know about it.',

@@ -75,7 +75,9 @@ export class CreateStoFleetDto {
 
   @ApiPropertyOptional({
     enum: FleetRecruitmentState,
-    description: 'Whether and how the Fleet accepts applications.',
+    description:
+      'Whether and how the Fleet accepts applications. The Community’s own ' +
+      'recruitment state when omitted.',
   })
   @IsOptional()
   @IsEnum(FleetRecruitmentState)

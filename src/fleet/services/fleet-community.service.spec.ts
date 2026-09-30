@@ -276,7 +276,7 @@ describe('FleetCommunityService', () => {
         service.register({ name: 'One Too Many' }, ownerUserId),
       ).rejects.toThrow(
         new ConflictException(
-          `You may own at most ${MAX_FLEET_COMMUNITIES_PER_OWNER} Fleet Communities. Close one you no longer run before registering another.`,
+          `You may own at most ${MAX_FLEET_COMMUNITIES_PER_OWNER} Fleet Communities, closed ones included. If you need more, use Contact us.`,
         ),
       );
       expect(communityRepository.save).not.toHaveBeenCalled();

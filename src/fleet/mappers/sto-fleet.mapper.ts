@@ -78,6 +78,7 @@ export class StoFleetMapper {
       communitySlug: fleet.community?.slug ?? null,
       platformId: fleet.platformId,
       platformName: fleet.platform.name,
+      platformProvidesRosterExport: fleet.platform.providesRosterExport,
       lastEffectiveImportAt: fleet.lastEffectiveImportAt,
       status: fleet.status,
     };
@@ -118,6 +119,7 @@ export class StoFleetMapper {
       duplicateCount: entry.duplicateCount,
       recruitmentState: fleet.recruitmentState,
       allegianceFactionId: fleet.allegianceFactionId,
+      platformProvidesRosterExport: fleet.platform.providesRosterExport,
       lastEffectiveImportAt: fleet.lastEffectiveImportAt,
     };
   }

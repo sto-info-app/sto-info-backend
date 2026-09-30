@@ -155,9 +155,26 @@ describe('StoFleetMapper', () => {
         communitySlug: 'jupiter-force',
         platformId: 'd0000000-0000-4000-8000-000000000003',
         platformName: 'Windows',
+        platformProvidesRosterExport: true,
         lastEffectiveImportAt: importedAt,
         status: FleetScopeStatus.ACTIVE,
       });
+    });
+
+    // The warning says what the card and the page say: a console record has
+    // no import date because the game gives it no roster export, not neglect.
+    it('says when the record is on a platform with no export facility', () => {
+      const fleet = buildFleet();
+
+      fleet.platform = {
+        ...fleet.platform,
+        name: 'Xbox',
+        providesRosterExport: false,
+      };
+
+      expect(mapper.toDuplicateDto(fleet).platformProvidesRosterExport).toBe(
+        false,
+      );
     });
 
     /**
@@ -222,6 +239,7 @@ describe('StoFleetMapper', () => {
         duplicateCount: 2,
         recruitmentState: FleetRecruitmentState.OPEN,
         allegianceFactionId: 'd0000000-0000-4000-8000-000000000004',
+        platformProvidesRosterExport: true,
         lastEffectiveImportAt: importedAt,
       });
     });
@@ -250,6 +268,23 @@ describe('StoFleetMapper', () => {
       expect(card.communityId).toBeNull();
       expect(card.communityName).toBeNull();
       expect(card.communitySlug).toBeNull();
+    });
+
+    // The card says what the Fleet's own page says: a console Fleet has no
+    // import date because the game gives it no roster export, not neglect.
+    it('says when the Fleet is on a platform with no export facility', () => {
+      const fleet = buildFleet();
+
+      fleet.platform = {
+        ...fleet.platform,
+        name: 'Xbox',
+        providesRosterExport: false,
+      };
+
+      expect(
+        mapper.toCardDto({ record: fleet, duplicateCount: 0 })
+          .platformProvidesRosterExport,
+      ).toBe(false);
     });
 
     /**

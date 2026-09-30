@@ -38,6 +38,17 @@ import { FleetSlugScope, FleetSlugService } from './fleet-slug.service';
  */
 const OWNER_LIMIT_ERROR_FRAGMENT = 'live Fleet Communities';
 
+/**
+ * What an owner who has reached the limit is told.
+ *
+ * A closed Community still counts, because it still holds its web address and
+ * its directory entry; only a soft delete frees a place, and nothing in the
+ * app offers an owner one. Advising somebody to close one would therefore send
+ * them round in a circle, so the message says the number, that closed ones are
+ * included, and where to ask for more.
+ */
+const OWNER_LIMIT_MESSAGE = `You may own at most ${MAX_FLEET_COMMUNITIES_PER_OWNER} Fleet Communities, closed ones included. If you need more, use Contact us.`;
+
 /** Where a Community's own slug is unique: everywhere, so it has no parent. */
 const COMMUNITY_SLUG_SCOPE: FleetSlugScope = {
   targetType: FleetScopeKind.COMMUNITY,
@@ -375,9 +386,7 @@ export class FleetCommunityService {
     });
 
     if (held >= MAX_FLEET_COMMUNITIES_PER_OWNER) {
-      throw new ConflictException(
-        `You may own at most ${MAX_FLEET_COMMUNITIES_PER_OWNER} Fleet Communities. Close one you no longer run before registering another.`,
-      );
+      throw new ConflictException(OWNER_LIMIT_MESSAGE);
     }
   }
 
@@ -427,9 +436,7 @@ export class FleetCommunityService {
       }
 
       if (error.message.includes(OWNER_LIMIT_ERROR_FRAGMENT)) {
-        throw new ConflictException(
-          `You may own at most ${MAX_FLEET_COMMUNITIES_PER_OWNER} Fleet Communities. Close one you no longer run before registering another.`,
-        );
+        throw new ConflictException(OWNER_LIMIT_MESSAGE);
       }
 
       if (error.message.includes('duplicate key value')) {

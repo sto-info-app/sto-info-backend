@@ -36,10 +36,12 @@ import {
   StoFleetDto,
 } from './dto/sto-fleet.dto';
 import { UpdateStoFleetDto } from './dto/update-sto-fleet.dto';
+import { FleetCommunityEntity } from './entities/fleet-community.entity';
 import { StoFleetEntity } from './entities/sto-fleet.entity';
 import { FleetScopeKind } from './enums/fleet-scope-kind.enum';
 import { FleetFeatureService } from './fleet-feature.service';
 import { StoFleetMapper } from './mappers/sto-fleet.mapper';
+import { FleetCommunityService } from './services/fleet-community.service';
 import { StoFleetService } from './services/sto-fleet.service';
 
 /**
@@ -64,7 +66,9 @@ import { StoFleetService } from './services/sto-fleet.service';
  * routes use, held one level down.
  *
  * **Reading** is visibility rather than capability (ADR-0002). A signed-out
- * visitor may read a `PUBLIC` Fleet and do nothing to it.
+ * visitor may read a `PUBLIC` Fleet in a `PUBLIC` Community and do nothing to
+ * it. Both audiences, as the Fleet page asks them: a Fleet is seen no further
+ * than the Community holding it.
  *
  * ## The duplicate warning is a warning
  *
@@ -82,12 +86,14 @@ export class CommunityFleetsController {
    * Creates an instance of CommunityFleetsController.
    *
    * @param _fleetService - Registers, reads and changes Fleets.
+   * @param _communityService - Reads the Community a Fleet is held in.
    * @param _audienceService - Answers whether a caller may see a Fleet.
    * @param _featureService - Reports whether the feature is switched on.
    * @param _mapper - Turns a Fleet into its API shapes.
    */
   constructor(
     private readonly _fleetService: StoFleetService,
+    private readonly _communityService: FleetCommunityService,
     private readonly _audienceService: FleetAudienceService,
     private readonly _featureService: FleetFeatureService,
     private readonly _mapper: StoFleetMapper,
@@ -199,9 +205,9 @@ export class CommunityFleetsController {
   @ApiOkResponse({ type: StoFleetDto })
   @ApiNotFoundResponse({
     description:
-      'No such Fleet in that Community, or the caller may not see it. The ' +
-      'two are reported the same way so a probe cannot confirm that a ' +
-      'private Fleet exists.',
+      'No such Fleet in that Community, or the caller may not see it or the ' +
+      'Community holding it. These are reported the same way so a probe ' +
+      'cannot confirm that a private Fleet exists.',
   })
   async findOne(
     @Param('communityId', ParseUUIDPipe) communityId: string,
@@ -210,9 +216,10 @@ export class CommunityFleetsController {
   ): Promise<StoFleetDto> {
     await this._featureService.assertEnabled();
 
+    const community = await this._communityService.findByIdOrFail(communityId);
     const fleet = await this._fleetService.findByIdOrFail(communityId, fleetId);
 
-    await this.assertVisible(fleet, userId);
+    await this.assertVisible(fleet, community, userId);
 
     return this._mapper.toDto(fleet);
   }
@@ -262,14 +269,21 @@ export class CommunityFleetsController {
   /**
    * Requires that the caller may see a Fleet at all.
    *
+   * Its Community's audience as well as its own, the way the Fleet page's
+   * resolve route asks: a `PUBLIC` Fleet in a Community only its members may
+   * see would otherwise be readable here by ID when its own page says there
+   * is no such record. An open invitation to the Fleet still shows it.
+   *
    * @param fleet - The Fleet they asked for.
+   * @param community - The Community holding it.
    * @param userId - The viewer, or null when signed out.
    * @throws NotFoundException when they may not see it.
    */
   private async assertVisible(
     fleet: StoFleetEntity,
+    community: FleetCommunityEntity,
     userId: string | null,
   ): Promise<void> {
-    await this._audienceService.assertCanViewFleet(fleet, userId);
+    await this._audienceService.assertCanViewFleet(fleet, userId, community);
   }
 }

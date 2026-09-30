@@ -125,8 +125,9 @@ export class FleetCommunitiesController {
   @ApiCreatedResponse({ type: FleetCommunityDto })
   @ApiConflictResponse({
     description:
-      'The account already owns the maximum number of Fleet Communities, ' +
-      'or another registration took the web address first.',
+      'The account already owns the maximum number of Fleet Communities ' +
+      '(closed ones included), or another registration took the web address ' +
+      'first.',
   })
   async register(
     @UserId() userId: string,

@@ -8,6 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 
 import {
+  Brackets,
   FindOptionsWhere,
   IsNull,
   Not,
@@ -22,10 +23,12 @@ import { CreateStoFleetDto } from '../dto/create-sto-fleet.dto';
 import { CreateUnregisteredFleetDto } from '../dto/create-unregistered-fleet.dto';
 import { StoFleetDirectoryQueryDto } from '../dto/fleet-directory-query.dto';
 import { UpdateStoFleetDto } from '../dto/update-sto-fleet.dto';
+import { FleetCommunityEntity } from '../entities/fleet-community.entity';
 import { StoFleetEntity } from '../entities/sto-fleet.entity';
 import { FleetAudience } from '../enums/fleet-audience.enum';
 import { FleetDirectorySort } from '../enums/fleet-directory-sort.enum';
 import { FleetDirectoryStatusFilter } from '../enums/fleet-directory-status-filter.enum';
+import { FleetRecruitmentState } from '../enums/fleet-recruitment-state.enum';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 import {
   applyDirectoryStatus,
@@ -146,6 +149,13 @@ export class StoFleetService {
       name: dto.exactGameName,
     });
 
+    // A Community's recruitment state pre-fills its new Fleets, here as on
+    // the form, so a registration that says nothing starts where the form
+    // would have started it.
+    const recruitmentState =
+      dto.recruitmentState ??
+      (await this.communityRecruitmentState(communityId));
+
     const fleet = this._fleetRepository.create({
       communityId,
       platformId: platform.id,
@@ -153,9 +163,7 @@ export class StoFleetService {
       exactGameName: dto.exactGameName,
       exactGameNameNormalized: toNormalisedExactGameName(dto.exactGameName),
       slug,
-      ...(dto.recruitmentState === undefined
-        ? {}
-        : { recruitmentState: dto.recruitmentState }),
+      ...(recruitmentState === undefined ? {} : { recruitmentState }),
       ...(dto.visibility === undefined ? {} : { visibility: dto.visibility }),
     });
 
@@ -343,12 +351,16 @@ export class StoFleetService {
    * Finds the records that already answer to a name on a platform.
    *
    * **Who is reported, and why it is not everybody.** A record is included
-   * when it is `PUBLIC`, when it has no Community — an unregistered
-   * observation target is a directory stub by definition — or when it belongs
-   * to the Community the registrant is acting in. Anything else stays out:
-   * telling somebody that a private Fleet in a Community they have nothing to
-   * do with shares their name would answer, precisely, the question a private
-   * Fleet exists in order not to answer.
+   * when the directory would list it — `PUBLIC`, in a live `PUBLIC`
+   * Community — when it has no Community — an unregistered observation
+   * target is a directory stub by definition — or when it belongs to the
+   * Community the registrant is acting in. Anything else stays out: telling
+   * somebody that a private Fleet in a Community they have nothing to do with
+   * shares their name would answer, precisely, the question a private Fleet
+   * exists in order not to answer, and a `PUBLIC` Fleet in a members-only
+   * Community would name that Community to somebody who cannot see it. The
+   * rule is {@link listedFleetsQuery}'s, so the warning never reports a
+   * record the directory is hiding.
    *
    * @param platformId - The platform to look on.
    * @param name - The name being registered, exactly as it was typed.
@@ -368,7 +380,11 @@ export class StoFleetService {
     };
 
     const where: FindOptionsWhere<StoFleetEntity>[] = [
-      { ...common, visibility: FleetAudience.PUBLIC },
+      {
+        ...common,
+        visibility: FleetAudience.PUBLIC,
+        community: { visibility: FleetAudience.PUBLIC, deletedAt: IsNull() },
+      },
       { ...common, communityId: IsNull() },
     ];
 
@@ -392,7 +408,9 @@ export class StoFleetService {
    *
    * ## Who is listed
    *
-   * `PUBLIC` records, whoever is asking, and nothing else. A signed-in
+   * `PUBLIC` records in `PUBLIC` Communities, whoever is asking, and nothing
+   * else — a Fleet is seen no further than the Community holding it, so a
+   * card never names a Community its reader cannot open. A signed-in
    * member of a Community does **not** see its private Fleets here, which is
    * deliberate rather than a simplification: the alternative is a visibility
    * check per row, and a page of fifty would be fifty authorisation queries
@@ -400,9 +418,10 @@ export class StoFleetService {
    * Fleets are read through the Community's own routes, where the check is
    * made once against a scope named in the path.
    *
-   * Unregistered Fleets are listed, because they are `PUBLIC` and because a
-   * directory stub exists in order to be found. One shows an empty Community
-   * on its card, which is the honest answer: nobody holds it.
+   * Unregistered Fleets are listed on their own audience, because they are
+   * `PUBLIC`, have no Community to ask, and exist in order to be found. One
+   * shows an empty Community on its card, which is the honest answer: nobody
+   * holds it.
    *
    * ## What makes it duplicate-aware
    *
@@ -430,9 +449,7 @@ export class StoFleetService {
     const page = resolveDirectoryPage(query.page);
     const pageSize = resolveDirectoryPageSize(query.pageSize);
 
-    const builder = this.listedFleetsQuery()
-      .innerJoinAndSelect('fleet.platform', 'platform')
-      .leftJoinAndSelect('fleet.community', 'community');
+    const builder = this.listedFleetsQuery(true);
 
     this.applyDirectoryFilters(builder, query);
     this.applyDirectorySort(builder, query.sort);
@@ -537,15 +554,51 @@ export class StoFleetService {
    * behind it so the two cannot drift: a count taken over a wider set than
    * the list would tell a reader about records the list is hiding from them.
    *
-   * @returns A query restricted to live, public Fleets.
+   * The Fleet's own audience is not the whole of it. A `PUBLIC` Fleet in a
+   * Community only its members may see would otherwise put that Community's
+   * name on a card and open onto a page that says there is no such record,
+   * so the Community has to be public too — the rule the Armada listing
+   * applies, since the Fleet page reads the Community before the Fleet. A
+   * Fleet with no Community has nothing above it to check, so the join is a
+   * left one and a standalone Fleet is listed on its own audience as before.
+   *
+   * @param selecting - True to load the joined rows for mapping, false when
+   *   only the condition is wanted, as the count query needs.
+   * @returns A query restricted to live, public Fleets that are standalone or
+   *   in a live, public Community.
    */
-  private listedFleetsQuery(): SelectQueryBuilder<StoFleetEntity> {
-    return this._fleetRepository
+  private listedFleetsQuery(
+    selecting: boolean,
+  ): SelectQueryBuilder<StoFleetEntity> {
+    const builder = this._fleetRepository
       .createQueryBuilder('fleet')
-      .where('fleet.deletedAt IS NULL')
+      .where('fleet.deletedAt IS NULL');
+
+    if (selecting) {
+      builder
+        .innerJoinAndSelect('fleet.platform', 'platform')
+        .leftJoinAndSelect('fleet.community', 'community');
+    } else {
+      builder.leftJoin('fleet.community', 'community');
+    }
+
+    return builder
       .andWhere('fleet.visibility = :listedAudience', {
         listedAudience: FleetAudience.PUBLIC,
-      });
+      })
+      .andWhere(
+        new Brackets(where => {
+          where.where('fleet.communityId IS NULL').orWhere(
+            new Brackets(listed => {
+              listed
+                .where('community.deletedAt IS NULL')
+                .andWhere('community.visibility = :listedAudience', {
+                  listedAudience: FleetAudience.PUBLIC,
+                });
+            }),
+          );
+        }),
+      );
   }
 
   /**
@@ -653,7 +706,7 @@ export class StoFleetService {
       return [];
     }
 
-    const builder = this.listedFleetsQuery()
+    const builder = this.listedFleetsQuery(false)
       .select('fleet.platformId', 'platformId')
       .addSelect('fleet.exactGameNameNormalized', 'name')
       .addSelect('COUNT(*)', 'total')
@@ -738,6 +791,30 @@ export class StoFleetService {
     });
 
     return held > 0;
+  }
+
+  /**
+   * Reads the recruitment state a Community's new Fleets start on.
+   *
+   * Asked only when the registration named none. A Community the route guard
+   * found a moment ago and that has gone since answers nothing, which leaves
+   * the Fleet to the column default rather than refusing it here.
+   *
+   * @param communityId - The Community the Fleet is registered into.
+   * @returns Its recruitment state, or undefined when it cannot be read.
+   */
+  private async communityRecruitmentState(
+    communityId: string,
+  ): Promise<FleetRecruitmentState | undefined> {
+    const community = await this._fleetRepository.manager.findOne(
+      FleetCommunityEntity,
+      {
+        where: { id: communityId },
+        select: { id: true, recruitmentState: true },
+      },
+    );
+
+    return community?.recruitmentState;
   }
 
   /**

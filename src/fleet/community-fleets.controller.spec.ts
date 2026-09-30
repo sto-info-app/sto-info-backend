@@ -8,11 +8,13 @@ import {
 } from './authorisation/requires-scope-capability.decorator';
 import { CommunityFleetsController } from './community-fleets.controller';
 import { FLEET_FEATURE_FLAGS } from './constants/fleet-feature.constants';
+import { FleetCommunityEntity } from './entities/fleet-community.entity';
 import { StoFleetEntity } from './entities/sto-fleet.entity';
 import { FleetAudience } from './enums/fleet-audience.enum';
 import { FleetScopeKind } from './enums/fleet-scope-kind.enum';
 import { FleetFeatureService } from './fleet-feature.service';
 import { StoFleetMapper } from './mappers/sto-fleet.mapper';
+import { FleetCommunityService } from './services/fleet-community.service';
 import { StoFleetService } from './services/sto-fleet.service';
 
 const COMMUNITY_ID = '10000000-0000-4000-8000-000000000001';
@@ -29,6 +31,11 @@ const FLEET = {
   visibility: FleetAudience.PUBLIC,
 } as StoFleetEntity;
 
+const COMMUNITY = {
+  id: COMMUNITY_ID,
+  visibility: FleetAudience.COMMUNITY,
+} as FleetCommunityEntity;
+
 const RIVAL = {
   id: '10000000-0000-4000-8000-000000000005',
   exactGameName: 'Omega Command',
@@ -42,6 +49,7 @@ describe('CommunityFleetsController', () => {
     findDuplicates: jest.Mock;
     update: jest.Mock;
   };
+  let communityService: { findByIdOrFail: jest.Mock };
   let audienceService: { assertCanViewFleet: jest.Mock };
   let featureService: {
     assertEnabled: jest.Mock;
@@ -59,6 +67,10 @@ describe('CommunityFleetsController', () => {
       update: jest.fn(() => Promise.resolve(FLEET)),
     };
 
+    communityService = {
+      findByIdOrFail: jest.fn(() => Promise.resolve(COMMUNITY)),
+    };
+
     audienceService = { assertCanViewFleet: jest.fn(() => Promise.resolve()) };
 
     featureService = {
@@ -73,6 +85,7 @@ describe('CommunityFleetsController', () => {
 
     controller = new CommunityFleetsController(
       fleetService as unknown as StoFleetService,
+      communityService as unknown as FleetCommunityService,
       audienceService as unknown as FleetAudienceService,
       featureService as unknown as FleetFeatureService,
       mapper as unknown as StoFleetMapper,
@@ -176,7 +189,37 @@ describe('CommunityFleetsController', () => {
       expect(audienceService.assertCanViewFleet).toHaveBeenCalledWith(
         FLEET,
         null,
+        COMMUNITY,
       );
+    });
+
+    /**
+     * The Fleet page asks both audiences, so the same Fleet read by ID has to
+     * as well: a public Fleet in a members-only Community is no more visible
+     * here than on its own page.
+     */
+    it('asks the Community’s audience as well as the Fleet’s', async () => {
+      await controller.findOne(COMMUNITY_ID, FLEET_ID, USER_ID);
+
+      expect(communityService.findByIdOrFail).toHaveBeenCalledWith(
+        COMMUNITY_ID,
+      );
+      expect(audienceService.assertCanViewFleet).toHaveBeenCalledWith(
+        FLEET,
+        USER_ID,
+        COMMUNITY,
+      );
+    });
+
+    it('reports a Fleet in a Community that no longer exists as absent', async () => {
+      communityService.findByIdOrFail.mockRejectedValue(
+        new NotFoundException('Not found'),
+      );
+
+      await expect(
+        controller.findOne(COMMUNITY_ID, FLEET_ID, null),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(audienceService.assertCanViewFleet).not.toHaveBeenCalled();
     });
 
     /**

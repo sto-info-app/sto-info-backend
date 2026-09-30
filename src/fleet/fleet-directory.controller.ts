@@ -100,6 +100,9 @@ export class FleetDirectoryController {
   /**
    * Lists public Fleets, each with how many others answer to its name.
    *
+   * A Fleet in a Community is listed only when the Community is public too,
+   * so a card never names a Community its reader cannot open.
+   *
    * @param query - Search, filters, ordering and paging.
    * @returns A page of Fleet cards.
    */
@@ -107,8 +110,9 @@ export class FleetDirectoryController {
   @ApiOperation({
     summary: 'Browse Fleets',
     description:
-      'Ordered by name by default, so the records answering to one name are ' +
-      'read together, and each card says how many others do.',
+      'A Fleet is listed when it is public and so is the Community holding ' +
+      'it, if any. Ordered by name by default, so the records answering to ' +
+      'one name are read together, and each card says how many others do.',
   })
   @ApiOkResponse({ type: StoFleetDirectoryPageDto })
   async listFleets(
