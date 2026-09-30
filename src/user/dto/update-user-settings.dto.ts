@@ -66,7 +66,8 @@ export class UpdateUserSettingsDto {
   @IsOptional()
   @Validate(IsIanaTimezoneConstraint)
   @ApiPropertyOptional({
-    description: 'IANA timezone STO CSV exports are read as.',
+    description:
+      "IANA timezone STO CSV exports are read as. Null reads them in the importing device's zone.",
     nullable: true,
     example: 'America/New_York',
   })

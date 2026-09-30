@@ -103,11 +103,12 @@ describe('UserPreferenceService', () => {
     });
 
     /**
-     * Neither timezone is guessed. The display zone follows the viewer's device
-     * until they pin one, and the export zone stays unset until the first
-     * import asks — requirement R09 forbids inferring it from the uploader's
-     * browser without confirmation, and a wrong guess shifts every date in the
-     * file by hours.
+     * Neither timezone is stored until chosen. The display zone follows the
+     * viewer's device until they pin one, and the import page reads an export
+     * in the importing device's zone until one is chosen, showing a sample
+     * first — requirement R09 forbids reading it that way without
+     * confirmation, because a wrong zone shifts every date in the file by
+     * hours.
      */
     it('leaves both timezones unset', () => {
       expect(DEFAULT_USER_PREFERENCES.displayTimezone).toBeNull();
@@ -222,57 +223,6 @@ describe('UserPreferenceService', () => {
       await expect(
         service.isCategoryEnabled('user-1', NotificationCategory.MENTION),
       ).resolves.toBe(true);
-    });
-  });
-
-  describe('resolveExportTimezone', () => {
-    it('uses the stored default when no override is given', async () => {
-      repository.findOne.mockResolvedValue(
-        stored({ stoExportTimezone: 'America/New_York' }),
-      );
-
-      await expect(service.resolveExportTimezone('user-1')).resolves.toBe(
-        'America/New_York',
-      );
-    });
-
-    /**
-     * The zone belongs to the machine the export came from, not to the person
-     * uploading it, so a per-import answer beats the stored default rather than
-     * being merged with it (R09).
-     */
-    it('prefers the override for this import', async () => {
-      repository.findOne.mockResolvedValue(
-        stored({ stoExportTimezone: 'America/New_York' }),
-      );
-
-      await expect(
-        service.resolveExportTimezone('user-1', 'europe/london'),
-      ).resolves.toBe('Europe/London');
-    });
-
-    /**
-     * Refused rather than quietly replaced by the stored default. Reading an
-     * export in the wrong zone shifts every date in it by hours, and doing that
-     * silently is worse than failing.
-     */
-    it('refuses an unusable override rather than falling back', async () => {
-      repository.findOne.mockResolvedValue(
-        stored({ stoExportTimezone: 'America/New_York' }),
-      );
-
-      await expect(
-        service.resolveExportTimezone('user-1', 'EST'),
-      ).rejects.toThrow('is not an IANA timezone');
-    });
-
-    it('returns null when the user has never chosen one', async () => {
-      repository.findOne.mockResolvedValue(stored());
-
-      await expect(service.resolveExportTimezone('user-1')).resolves.toBeNull();
-      await expect(
-        service.resolveExportTimezone('user-1', null),
-      ).resolves.toBeNull();
     });
   });
 });

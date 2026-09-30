@@ -32,7 +32,7 @@ export class UserSettingsDto {
 
   @ApiProperty({
     description:
-      'IANA timezone STO CSV exports are read as. Null until the user chooses one.',
+      "IANA timezone STO CSV exports are read as. Null reads them in the importing device's zone.",
     nullable: true,
     example: 'America/New_York',
   })

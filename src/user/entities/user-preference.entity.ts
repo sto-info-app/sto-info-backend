@@ -65,17 +65,19 @@ export class UserPreferenceEntity {
   displayTimezone: string | null;
 
   /**
-   * The timezone STO roster exports are read as, or null when never chosen.
+   * The timezone STO roster exports are read as, or null for the zone of the
+   * device doing the import.
    *
-   * Deliberately not defaulted from {@link displayTimezone} or from the
-   * browser. The game client's zone is a fact about the machine the export came
-   * from, and guessing it wrong silently shifts every date in the file by
-   * hours, so the first import asks and this records the answer for the next
-   * one (R09).
+   * Deliberately not defaulted from {@link displayTimezone}. The game client's
+   * zone is a fact about the machine the export came from, not about how the
+   * reader likes dates shown. The import page starts on this zone, or on its
+   * own device's when this is null, and shows a sample of dates read through
+   * it before anything is imported, so the zone is always confirmed rather
+   * than assumed (R09).
    */
   @ApiProperty({
     description:
-      'IANA timezone STO CSV exports are read as. Null until the user chooses one.',
+      "IANA timezone STO CSV exports are read as. Null reads them in the importing device's zone.",
     nullable: true,
     example: 'America/New_York',
   })

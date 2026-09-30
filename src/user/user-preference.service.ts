@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { Repository } from 'typeorm';
@@ -54,8 +54,6 @@ export type UserPreferenceChanges = Partial<
  */
 @Injectable()
 export class UserPreferenceService {
-  private readonly _logger = new Logger(UserPreferenceService.name);
-
   /**
    * Creates an instance of UserPreferenceService.
    *
@@ -136,46 +134,6 @@ export class UserPreferenceService {
     const preference = await this.get(userId);
 
     return preference[NOTIFICATION_CATEGORY_COLUMNS[category]] === true;
-  }
-
-  /**
-   * Resolves the timezone an STO roster export should be read as.
-   *
-   * The override wins when one is supplied, because the zone belongs to the
-   * machine the file came from rather than to the person uploading it — someone
-   * importing a friend's export, or their own from a trip, is stating a fact
-   * about that file. An unusable override is refused rather than quietly
-   * replaced by the stored default: reading a file in the wrong zone shifts
-   * every date in it by hours, and doing that silently is worse than failing.
-   *
-   * Returns null when neither is set, which is the first-import case the upload
-   * form has to ask about (R09).
-   *
-   * @param userId - The uploading user.
-   * @param override - The zone chosen for this import, if any.
-   * @returns The canonical IANA zone to read the export as, or null.
-   * @throws Error when the override is not a usable IANA timezone.
-   */
-  async resolveExportTimezone(
-    userId: string,
-    override?: string | null,
-  ): Promise<string | null> {
-    if (override !== undefined && override !== null) {
-      const canonical = canonicaliseTimezone(override);
-
-      if (canonical === null) {
-        this._logger.warn(
-          `Rejected export timezone override '${override}' for user ${userId}`,
-        );
-        throw new Error(
-          `'${override}' is not an IANA timezone such as Europe/London.`,
-        );
-      }
-
-      return canonical;
-    }
-
-    return (await this.get(userId)).stoExportTimezone;
   }
 
   /**
