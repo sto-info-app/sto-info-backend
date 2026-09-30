@@ -1,11 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { IsNull, Repository } from 'typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
 
 import { CommunitySubscriptionEntity } from '../entities/community-subscription.entity';
+import { ScopeMembershipEntity } from '../entities/scope-membership.entity';
 import { FleetAudience } from '../enums/fleet-audience.enum';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
+import { ScopeMembershipStatus } from '../enums/scope-membership-status.enum';
 import { FleetInvitationEntity } from '../recruitment/entities/fleet-invitation.entity';
 import { FleetInvitationStatus } from '../recruitment/enums/fleet-invitation-status.enum';
 import { FleetAuthorisationService } from './fleet-authorisation.service';
@@ -27,6 +29,17 @@ import { ScopeAuthorisation, ScopeRef } from './scope-authorisation.interface';
  * consulted for `FLEET_MEMBERS`, which is FC-005's second acceptance criterion
  * — following a Community never opens a private roster (R07).
  *
+ * A Community's own audience counts the approved members of every Fleet in
+ * it, whether it is set to its followers and members or to its members alone
+ * — Steve's decision of 30 September 2026 (FC-050). Otherwise a Fleet's
+ * members who do not follow their Community could not open their own
+ * Fleet's pages, since a Fleet page asks about its Community first.
+ * "Community members" means the same wherever it is set inside the
+ * Community — on a Fleet, an Armada or anything published in either — so it
+ * counts them there too. "Fleet members" set on a Fleet or an Armada stays
+ * that scope's own members; a membership of one Fleet opens nothing a
+ * sibling keeps for its own.
+ *
  * An open invitation is the one other thing that shows somebody a Fleet
  * (FC-021). A Fleet only its Community can see has no other way to reach a
  * person, so while the invitation is open the invitee sees the Fleet as
@@ -46,6 +59,8 @@ export class FleetAudienceService {
    * @param _authorisationService - Resolves roles, capabilities and membership.
    * @param _subscriptionRepository - Repository of Community subscriptions.
    * @param _invitationRepository - Repository of invitations to join a Fleet.
+   * @param _membershipRepository - Repository of scope memberships, read for
+   *   a Community's Fleet members.
    */
   constructor(
     private readonly _authorisationService: FleetAuthorisationService,
@@ -53,6 +68,8 @@ export class FleetAudienceService {
     private readonly _subscriptionRepository: Repository<CommunitySubscriptionEntity>,
     @InjectRepository(FleetInvitationEntity)
     private readonly _invitationRepository: Repository<FleetInvitationEntity>,
+    @InjectRepository(ScopeMembershipEntity)
+    private readonly _membershipRepository: Repository<ScopeMembershipEntity>,
   ) {}
 
   /**
@@ -90,7 +107,13 @@ export class FleetAudienceService {
       case FleetAudience.COMMUNITY:
         return this.isInCommunity(authorisation, userId);
       case FleetAudience.FLEET_MEMBERS:
-        return this.isScopeMember(authorisation);
+        // At a Community its members are its Fleets' members; a Fleet or an
+        // Armada answers for its own.
+        return (
+          this.isScopeMember(authorisation) ||
+          (authorisation.scope.kind === FleetScopeKind.COMMUNITY &&
+            (await this.isCommunityFleetMember(authorisation, userId)))
+        );
       // Every audience is named, so one added to the enum without a branch here
       // is a compile error rather than content that quietly becomes visible.
       case FleetAudience.PRIVATE:
@@ -258,9 +281,12 @@ export class FleetAudienceService {
   /**
    * Reports whether somebody counts as part of the owning Community.
    *
-   * Following counts here and nowhere else. So does holding any role or any
-   * approved membership anywhere in the Community, because somebody who
-   * administers a Fleet is plainly part of the Community that owns it.
+   * Following counts here and nowhere else. So does holding any role, grant
+   * or approved membership at the scope, including one that reaches it from
+   * the Community, because somebody who administers a Fleet is plainly part
+   * of the Community that owns it. So does an approved membership of any of
+   * the Community's Fleets, whichever scope inside it is asked about, so that
+   * "Community members" on a Fleet admits whom it admits on its Community.
    *
    * @param authorisation - The resolved authorisation.
    * @param userId - The viewer.
@@ -273,7 +299,8 @@ export class FleetAudienceService {
     if (
       authorisation.roles.size > 0 ||
       authorisation.isApprovedMember ||
-      authorisation.capabilities.size > 0
+      authorisation.capabilities.size > 0 ||
+      (await this.isCommunityFleetMember(authorisation, userId))
     ) {
       return true;
     }
@@ -289,6 +316,38 @@ export class FleetAudienceService {
     });
 
     return subscription !== null;
+  }
+
+  /**
+   * Reports whether somebody is an approved member of one of the owning
+   * Community's Fleets (FC-050).
+   *
+   * Approved is what a Fleet's own member audience asks for, so a pending,
+   * suspended, rejected, left or revoked membership does not count, while an
+   * approved one of another Fleet still does. A suspension at the scope
+   * asked about or at its Community has already refused them before this is
+   * asked.
+   *
+   * @param authorisation - The resolved authorisation.
+   * @param userId - The viewer.
+   * @returns True when they are.
+   */
+  private async isCommunityFleetMember(
+    authorisation: ScopeAuthorisation,
+    userId: string,
+  ): Promise<boolean> {
+    const membership = await this._membershipRepository.findOne({
+      where: {
+        communityId: authorisation.scope.communityId,
+        userId,
+        fleetId: Not(IsNull()),
+        status: ScopeMembershipStatus.APPROVED,
+        deletedAt: IsNull(),
+      },
+      select: { id: true },
+    });
+
+    return membership !== null;
   }
 
   /**

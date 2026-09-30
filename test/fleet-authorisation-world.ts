@@ -301,6 +301,7 @@ export function createAuthorisationWorld(
       authorisation,
       repository(filled.subscriptions),
       repository(filled.invitations),
+      repository(filled.memberships),
     ),
     subscription,
     // No assets: the viewer service reads them only for a Fleet nobody has
