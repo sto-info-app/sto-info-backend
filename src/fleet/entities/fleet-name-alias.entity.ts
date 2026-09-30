@@ -80,6 +80,20 @@ export class FleetNameAliasEntity {
   @DeleteDateColumn({ type: 'timestamptz' })
   deletedAt: Date | null;
 
+  @ApiProperty({
+    description: 'Who removed it, once removed (FC-050).',
+    nullable: true,
+  })
+  @Column({ type: 'uuid', nullable: true, default: null })
+  removedByUserId: string | null;
+
+  @ApiProperty({
+    description: 'Why it was removed, once removed (FC-050).',
+    nullable: true,
+  })
+  @Column({ type: 'varchar', length: 500, nullable: true, default: null })
+  removalReason: string | null;
+
   @ManyToOne(() => StoFleetEntity, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'fleetId' })
   fleet: StoFleetEntity;
@@ -87,4 +101,8 @@ export class FleetNameAliasEntity {
   @ManyToOne(() => UserEntity, { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'recordedByUserId' })
   recordedBy: UserEntity | null;
+
+  @ManyToOne(() => UserEntity, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'removedByUserId' })
+  removedBy: UserEntity | null;
 }

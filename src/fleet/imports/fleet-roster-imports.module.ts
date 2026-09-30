@@ -5,6 +5,7 @@ import { FileAssetsModule } from 'src/file-assets/file-assets.module';
 import { FileScanningModule } from 'src/file-scanning/file-scanning.module';
 
 import { FleetNameAliasEntity } from '../entities/fleet-name-alias.entity';
+import { StoFleetEntity } from '../entities/sto-fleet.entity';
 import { FleetErasureCoreModule } from '../erasure/fleet-erasure-core.module';
 import { FleetModule } from '../fleet.module';
 import { FleetRosterIdentityModule } from '../identity/fleet-roster-identity.module';
@@ -13,8 +14,10 @@ import { RosterImportActionEntity } from './entities/roster-import-action.entity
 import { RosterImportConflictEntity } from './entities/roster-import-conflict.entity';
 import { RosterImportSourceEntity } from './entities/roster-import-source.entity';
 import { RosterObservationEntity } from './entities/roster-observation.entity';
+import { FleetFormerNamesController } from './fleet-former-names.controller';
 import { RosterImportConflictsController } from './roster-import-conflicts.controller';
 import { RosterImportsController } from './roster-imports.controller';
+import { FleetFormerNameService } from './services/fleet-former-name.service';
 import { RosterCsvPrivacyParserService } from './services/roster-csv-privacy-parser.service';
 import { RosterExportIdentityService } from './services/roster-export-identity.service';
 import { RosterImportConflictService } from './services/roster-import-conflict.service';
@@ -52,10 +55,16 @@ import { RosterTypedParserService } from './services/roster-typed-parser.service
       RosterImportActionEntity,
       RosterObservationEntity,
       FleetNameAliasEntity,
+      StoFleetEntity,
     ]),
   ],
-  controllers: [RosterImportsController, RosterImportConflictsController],
+  controllers: [
+    RosterImportsController,
+    RosterImportConflictsController,
+    FleetFormerNamesController,
+  ],
   providers: [
+    FleetFormerNameService,
     RosterCsvPrivacyParserService,
     RosterTypedParserService,
     RosterExportIdentityService,
