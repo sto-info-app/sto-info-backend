@@ -39,6 +39,7 @@ import {
   SetOfficerCapabilitiesDto,
   SetPersonalCapabilityDto,
 } from './dto/scope-governance.dto';
+import { ScopeClosureService } from './services/scope-closure.service';
 import { ScopeGovernanceLogService } from './services/scope-governance-log.service';
 import { ScopeRolesService } from './services/scope-roles.service';
 import { armadaScope } from './utilities/governance-scope.utility';
@@ -55,8 +56,9 @@ const ARMADA_SOURCE = {
  *
  * The same rules as a Fleet's, at one Armada. Its Community's Owner is its
  * Owner, and appoints its Admins and Officers from the approved members of
- * the Fleets placed in it; a role ends when its holder's Fleet leaves. An
- * Armada still closes through its own route, which ends its placements.
+ * the Fleets placed in it; a role ends when its holder's Fleet leaves. Its
+ * Owner closes it here with a reason, as a Fleet's closes a Fleet (FC-050);
+ * the closure ends its placements.
  */
 @ApiTags('Armada governance')
 @ApiBearerAuth()
@@ -68,11 +70,13 @@ export class ArmadaGovernanceController {
    * @param _featureService - Reports whether the Armada feature is on.
    * @param _roles - Roles and delegations.
    * @param _log - The history.
+   * @param _closure - Closes it (FC-050).
    */
   constructor(
     private readonly _featureService: FleetFeatureService,
     private readonly _roles: ScopeRolesService,
     private readonly _log: ScopeGovernanceLogService,
+    private readonly _closure: ScopeClosureService,
   ) {}
 
   /**
@@ -267,5 +271,38 @@ export class ArmadaGovernanceController {
     await this._roles.assertMayRead(scope, userId);
 
     return this._log.list(scope);
+  }
+
+  /**
+   * Closes the Armada, with a reason (FC-050).
+   *
+   * @param communityId - The Community.
+   * @param armadaId - The Armada.
+   * @param dto - Why.
+   * @param userId - The Owner.
+   */
+  @Post('close')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard, ScopeCapabilityGuard)
+  @RequiresScopeCapability(FLEET_CAPABILITIES.SCOPE_CLOSE, ARMADA_SOURCE)
+  @ApiOperation({
+    summary: 'Close an Armada',
+    description:
+      'Closure is a status change, not a deletion. Which Fleets were in it ' +
+      'and when stays readable; every placement, request, role and grant ' +
+      'there ends.',
+  })
+  @ApiNoContentResponse({ description: 'Closed.' })
+  async close(
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('armadaId', ParseUUIDPipe) armadaId: string,
+    @Body() dto: GovernanceReasonDto,
+    @UserId() userId: string,
+  ): Promise<void> {
+    await this._featureService.assertEnabled();
+    await this._closure.closeArmada(communityId, armadaId, {
+      reason: dto.reason,
+      actorUserId: userId,
+    });
   }
 }

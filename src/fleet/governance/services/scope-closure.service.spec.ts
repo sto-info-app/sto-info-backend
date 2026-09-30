@@ -260,12 +260,12 @@ describe('ScopeClosureService', () => {
     });
   });
 
-  describe('closing an Armada as a site admin (FC-036)', () => {
+  describe('closing an Armada (FC-036, FC-050)', () => {
     const ARMADA_ID = '22000000-0000-4000-8000-000000000004';
 
     it('requires a reason before touching anything', async () => {
       await expect(
-        service.closeArmadaAsSiteAdmin(COMMUNITY_ID, ARMADA_ID, {
+        service.closeArmada(COMMUNITY_ID, ARMADA_ID, {
           reason: ' ',
           actorUserId: OWNER_ID,
         }),
@@ -273,11 +273,27 @@ describe('ScopeClosureService', () => {
       expect(armadaClose).not.toHaveBeenCalled();
     });
 
+    it('closes it, and logs it as its Owner’s with the reason', async () => {
+      await service.closeArmada(COMMUNITY_ID, ARMADA_ID, {
+        reason: ' Wound up ',
+        actorUserId: OWNER_ID,
+      });
+
+      expect(record).toHaveBeenCalledWith(manager, {
+        scope: armadaScope(COMMUNITY_ID, ARMADA_ID),
+        action: ScopeGovernanceActionKind.CLOSED,
+        actorUserId: OWNER_ID,
+        asSiteAdmin: false,
+        reason: 'Wound up',
+      });
+    });
+
     it('closes it as its Owner would, and logs it as a site admin’s', async () => {
       await expect(
-        service.closeArmadaAsSiteAdmin(COMMUNITY_ID, ARMADA_ID, {
+        service.closeArmada(COMMUNITY_ID, ARMADA_ID, {
           reason: ' Abandoned ',
           actorUserId: OWNER_ID,
+          asSiteAdmin: true,
         }),
       ).resolves.toEqual(
         expect.objectContaining({ status: FleetScopeStatus.CLOSED }),

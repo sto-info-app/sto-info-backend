@@ -8,6 +8,7 @@ import { FleetScopeRole } from '../enums/fleet-scope-role.enum';
 import { ScopeCapabilityEffect } from '../enums/scope-capability-effect.enum';
 import { FleetFeatureService } from '../fleet-feature.service';
 import { ArmadaGovernanceController } from './armada-governance.controller';
+import { ScopeClosureService } from './services/scope-closure.service';
 import { ScopeGovernanceLogService } from './services/scope-governance-log.service';
 import { ScopeRolesService } from './services/scope-roles.service';
 import { armadaScope } from './utilities/governance-scope.utility';
@@ -24,6 +25,7 @@ describe('ArmadaGovernanceController', () => {
   let assertEnabled: jest.Mock;
   let roles: Record<string, jest.Mock>;
   let log: Record<string, jest.Mock>;
+  let closure: { closeArmada: jest.Mock };
   let controller: ArmadaGovernanceController;
 
   beforeEach(() => {
@@ -38,10 +40,12 @@ describe('ArmadaGovernanceController', () => {
       assertMayRead: jest.fn(() => Promise.resolve()),
     };
     log = { list: jest.fn(() => Promise.resolve(['entry'])) };
+    closure = { closeArmada: jest.fn(() => Promise.resolve()) };
     controller = new ArmadaGovernanceController(
       { assertEnabled } as unknown as FleetFeatureService,
       roles as unknown as ScopeRolesService,
       log as unknown as ScopeGovernanceLogService,
+      closure as unknown as ScopeClosureService,
     );
   });
 
@@ -104,6 +108,21 @@ describe('ArmadaGovernanceController', () => {
     expect(assertEnabled).toHaveBeenCalledTimes(7);
   });
 
+  it('closes the Armada with its Owner’s reason (FC-050)', async () => {
+    await controller.close(
+      COMMUNITY_ID,
+      ARMADA_ID,
+      { reason: 'Wound up' },
+      USER_ID,
+    );
+
+    expect(assertEnabled).toHaveBeenCalledTimes(1);
+    expect(closure.closeArmada).toHaveBeenCalledWith(COMMUNITY_ID, ARMADA_ID, {
+      reason: 'Wound up',
+      actorUserId: USER_ID,
+    });
+  });
+
   describe('the capabilities the routes require', () => {
     const requirementOf = (
       method: keyof ArmadaGovernanceController,
@@ -135,8 +154,11 @@ describe('ArmadaGovernanceController', () => {
       );
     });
 
-    it('has no route of its own to close', () => {
-      expect('close' in ArmadaGovernanceController.prototype).toBe(false);
+    // Its Owner closes it here, with a reason, as a Fleet's does (FC-050).
+    it('requires the closure capability at the Armada to close it', () => {
+      expect(requirementOf('close')).toEqual(
+        at(FLEET_CAPABILITIES.SCOPE_CLOSE),
+      );
     });
 
     it.each(['roles', 'history'] as const)(

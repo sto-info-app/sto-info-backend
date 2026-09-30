@@ -218,9 +218,10 @@ export class ScopeClosureService {
   }
 
   /**
-   * Closes an Armada as a site admin, with a reason (FC-036). Its own
-   * closure does the rest, as its Owner's would; this adds the governance
-   * entry, which its Owner's closure has never had.
+   * Closes an Armada, with a reason: by its Owner (FC-050) or by a site admin
+   * in a dispute (FC-036). The Armada's own closure ends its placements and
+   * the rest; this adds the governance entry, as a Community's and a Fleet's
+   * closures have.
    *
    * @param communityId - The Community holding it.
    * @param armadaId - The Armada.
@@ -229,7 +230,7 @@ export class ScopeClosureService {
    * @throws BadRequestException when no reason is given.
    * @throws NotFoundException when the Community holds no such Armada.
    */
-  async closeArmadaAsSiteAdmin(
+  async closeArmada(
     communityId: string,
     armadaId: string,
     request: ClosureRequest,
@@ -245,7 +246,7 @@ export class ScopeClosureService {
           scope: armadaScope(communityId, closed.id),
           action: ScopeGovernanceActionKind.CLOSED,
           actorUserId: request.actorUserId,
-          asSiteAdmin: true,
+          asSiteAdmin: request.asSiteAdmin === true,
           reason,
         }),
     );

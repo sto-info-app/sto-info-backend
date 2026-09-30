@@ -43,7 +43,6 @@ describe('CommunityArmadasController', () => {
     findByIdOrFail: jest.Mock;
     findDuplicates: jest.Mock;
     update: jest.Mock;
-    close: jest.Mock;
   };
   let audienceService: { assertCanView: jest.Mock };
   let featureService: {
@@ -60,7 +59,6 @@ describe('CommunityArmadasController', () => {
       findByIdOrFail: jest.fn(() => Promise.resolve(ARMADA)),
       findDuplicates: jest.fn(() => Promise.resolve([RIVAL])),
       update: jest.fn(() => Promise.resolve(ARMADA)),
-      close: jest.fn(() => Promise.resolve(ARMADA)),
     };
 
     audienceService = { assertCanView: jest.fn(() => Promise.resolve()) };
@@ -217,19 +215,6 @@ describe('CommunityArmadasController', () => {
     });
   });
 
-  describe('close', () => {
-    it('closes the Armada', async () => {
-      await expect(
-        controller.close(COMMUNITY_ID, ARMADA_ID, USER_ID),
-      ).resolves.toBe(ARMADA);
-      expect(armadaService.close).toHaveBeenCalledWith(
-        COMMUNITY_ID,
-        ARMADA_ID,
-        USER_ID,
-      );
-    });
-  });
-
   /**
    * Read back from the metadata rather than reviewed by eye. A mistyped
    * capability denies quietly and looks exactly like a working restriction.
@@ -264,15 +249,9 @@ describe('CommunityArmadasController', () => {
       });
     });
 
-    it('requires the closure capability at the Armada to close one', () => {
-      expect(requirementOf('close')).toEqual({
-        capability: FLEET_CAPABILITIES.SCOPE_CLOSE,
-        source: {
-          kind: FleetScopeKind.ARMADA,
-          param: 'armadaId',
-          communityParam: 'communityId',
-        },
-      });
+    // Closed through its governance routes, with a reason (FC-050).
+    it('offers no route to close one without a reason', () => {
+      expect('close' in CommunityArmadasController.prototype).toBe(false);
     });
 
     /**
@@ -280,7 +259,7 @@ describe('CommunityArmadasController', () => {
      * Fleets are in it is `armada.manage` against a different table, with
      * topology rules these routes know nothing about.
      */
-    it.each(['register', 'update', 'close'] as const)(
+    it.each(['register', 'update'] as const)(
       'does not let the %s route stand in for managing placements',
       method => {
         expect(requirementOf(method)?.capability).not.toBe(
