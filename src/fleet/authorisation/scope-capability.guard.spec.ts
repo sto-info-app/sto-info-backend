@@ -53,6 +53,23 @@ describe('ScopeCapabilityGuard', () => {
     jest.restoreAllMocks();
   });
 
+  it('reads the declaration from the handler, then its controller', async () => {
+    const handler = (): void => undefined;
+    const controller = class {};
+
+    reflector.getAllAndOverride.mockReturnValue(undefined);
+
+    await guard.canActivate({
+      getHandler: () => handler,
+      getClass: () => controller,
+    } as unknown as ExecutionContext);
+
+    expect(reflector.getAllAndOverride).toHaveBeenCalledWith(
+      expect.anything(),
+      [handler, controller],
+    );
+  });
+
   it('lets a request through when no capability is declared', async () => {
     reflector.getAllAndOverride.mockReturnValue(undefined);
 
@@ -193,9 +210,9 @@ describe('ScopeCapabilityGuard', () => {
   it('says which declaration was wrong when it refuses', async () => {
     reflector.getAllAndOverride.mockReturnValue(requirement);
 
-    await expect(
-      guard.canActivate(contextFor({ params: {} })),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(guard.canActivate(contextFor({ params: {} }))).rejects.toThrow(
+      new ForbiddenException('Insufficient permissions'),
+    );
 
     expect(Logger.prototype.error).toHaveBeenCalledWith(
       expect.stringContaining('fleetId'),
@@ -238,9 +255,9 @@ describe('ScopeCapabilityGuard', () => {
     it('tells somebody who may not see the scope that it does not exist', async () => {
       audience.canViewScope.mockResolvedValue(false);
 
-      await expect(
-        guard.canActivate(contextFor(request)),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(guard.canActivate(contextFor(request))).rejects.toThrow(
+        new NotFoundException('Not found'),
+      );
       expect(audience.canViewScope).toHaveBeenCalledWith(
         {
           kind: FleetScopeKind.FLEET,

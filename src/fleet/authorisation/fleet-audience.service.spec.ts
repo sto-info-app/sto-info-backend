@@ -7,8 +7,10 @@ import {
 import { FleetAudience } from '../enums/fleet-audience.enum';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
 import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
+import { ScopeCapabilityEffect } from '../enums/scope-capability-effect.enum';
 import { ScopeMembershipStatus } from '../enums/scope-membership-status.enum';
 import { FleetInvitationStatus } from '../recruitment/enums/fleet-invitation-status.enum';
+import { FLEET_CAPABILITIES } from './fleet-capability.constants';
 import { ScopeRef } from './scope-authorisation.interface';
 
 /**
@@ -278,6 +280,28 @@ describe('FleetAudienceService: seeing a scope', () => {
       },
     );
 
+    it('shows nothing at the instant the invitation lapses', async () => {
+      const lapse = new Date('2026-10-01T12:00:00.000Z');
+
+      jest.useFakeTimers({
+        now: lapse,
+        doNotFake: ['nextTick', 'queueMicrotask'],
+      });
+
+      try {
+        invite('fleet-community', FleetInvitationStatus.PENDING, lapse);
+
+        await expect(
+          world.audience.canViewScope(
+            scope(FleetScopeKind.FLEET, 'fleet-community'),
+            INVITEE,
+          ),
+        ).resolves.toBe(false);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
     it('shows no other Fleet', async () => {
       invite('fleet-community');
 
@@ -354,7 +378,7 @@ describe('FleetAudienceService: seeing a scope', () => {
           STRANGER,
           CLOSED,
         ),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      ).rejects.toThrow(new NotFoundException('Not found'));
     });
 
     it("refuses somebody the Fleet's audience shuts out", async () => {
@@ -866,6 +890,24 @@ describe('FleetAudienceService: "Community members" inside a Community', () => {
   it('still shows a follower a Fleet set to "Community members"', async () => {
     await expect(
       world.audience.canViewScope(sharedFleet, FOLLOWER),
+    ).resolves.toBe(true);
+  });
+
+  it('counts somebody granted a capability there, with no role or membership', async () => {
+    world.rows.grants.push({
+      communityId: COMMUNITY_ID,
+      fleetId: SHARED_FLEET,
+      armadaId: null,
+      subjectUserId: STRANGER,
+      subjectRole: null,
+      capability: FLEET_CAPABILITIES.ROSTER_VIEW,
+      effect: ScopeCapabilityEffect.GRANT,
+      validTo: null,
+      deletedAt: null,
+    });
+
+    await expect(
+      world.audience.canView(FleetAudience.COMMUNITY, sharedFleet, STRANGER),
     ).resolves.toBe(true);
   });
 

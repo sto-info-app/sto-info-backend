@@ -95,6 +95,32 @@ function matchesWhere(row: Row, where: Where | undefined): boolean {
   );
 }
 
+/** The columns a find asks for. */
+type Select = Record<string, boolean>;
+
+/**
+ * Keeps only the columns a find asked for, as the database does.
+ *
+ * Without this a service that reads a column it never selected would pass
+ * here and see `undefined` in production. An empty selection reads every
+ * column, which is what TypeORM does with one.
+ *
+ * @param row - The stored row.
+ * @param select - The columns asked for, if any.
+ * @returns The row as the query would return it.
+ */
+function project<T extends Row>(row: T, select: Select | undefined): T {
+  if (select === undefined || Object.keys(select).length === 0) {
+    return row;
+  }
+
+  return Object.fromEntries(
+    Object.entries(select)
+      .filter(([, wanted]) => wanted)
+      .map(([column]) => [column, row[column]]),
+  ) as T;
+}
+
 /** The repository surface the authorisation services actually use. */
 export class InMemoryRepository<T extends Row> {
   /**
@@ -110,9 +136,11 @@ export class InMemoryRepository<T extends Row> {
    * @param options - The find options.
    * @returns The matching rows.
    */
-  find(options?: { where?: Where }): Promise<T[]> {
+  find(options?: { where?: Where; select?: Select }): Promise<T[]> {
     return Promise.resolve(
-      this.rows.filter(row => matchesWhere(row, options?.where)),
+      this.rows
+        .filter(row => matchesWhere(row, options?.where))
+        .map(row => project(row, options?.select)),
     );
   }
 
@@ -122,9 +150,11 @@ export class InMemoryRepository<T extends Row> {
    * @param options - The find options.
    * @returns The row, or null.
    */
-  findOne(options: { where?: Where }): Promise<T | null> {
+  findOne(options: { where?: Where; select?: Select }): Promise<T | null> {
+    const found = this.rows.find(row => matchesWhere(row, options.where));
+
     return Promise.resolve(
-      this.rows.find(row => matchesWhere(row, options.where)) ?? null,
+      found === undefined ? null : project(found, options.select),
     );
   }
 
@@ -217,11 +247,21 @@ export function createAuthorisationWorld(
   rows: WorldRows,
   clsActive = false,
 ): AuthorisationWorld {
+  // Outside a request nestjs-cls reads nothing and refuses to write, so a
+  // service that forgets to ask whether a request is active fails here too.
   const store = new Map<string, unknown>();
   const cls = {
     isActive: () => clsActive,
-    get: (key: string) => store.get(key),
-    set: (key: string, value: unknown) => store.set(key, value),
+    get: (key: string) => (clsActive ? store.get(key) : undefined),
+    set: (key: string, value: unknown) => {
+      if (!clsActive) {
+        throw new Error(
+          `Cannot set the key "${key}". No CLS context available`,
+        );
+      }
+
+      store.set(key, value);
+    },
   } as unknown as ClsService;
 
   const filled: Required<WorldRows> = {

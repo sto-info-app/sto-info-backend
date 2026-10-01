@@ -1131,7 +1131,7 @@ describe('Fleet authorisation: role and audience matrix', () => {
           fleetScope,
           FOLLOWER,
         ),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      ).rejects.toThrow(new NotFoundException('Not found'));
     });
 
     it('raises nothing when the viewer may see it', async () => {

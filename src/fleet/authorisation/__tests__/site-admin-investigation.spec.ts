@@ -24,6 +24,7 @@ describe('Fleet authorisation: a site admin looking into a Fleet', () => {
   const COMMUNITY = 'community-1';
   const FLEET = 'fleet-1';
   const SIBLING = 'fleet-2';
+  const ARMADA = 'armada-1';
 
   const fleet: ScopeRef = { kind: FleetScopeKind.FLEET, id: FLEET };
   const sibling: ScopeRef = { kind: FleetScopeKind.FLEET, id: SIBLING };
@@ -58,6 +59,14 @@ describe('Fleet authorisation: a site admin looking into a Fleet', () => {
         visibility: FleetAudience.PRIVATE,
         revision: 1,
       })),
+      armadas: [
+        {
+          id: ARMADA,
+          communityId: COMMUNITY,
+          status: FleetScopeStatus.ACTIVE,
+          revision: 1,
+        },
+      ],
       investigations:
         expiresAt === undefined
           ? []
@@ -110,6 +119,17 @@ describe('Fleet authorisation: a site admin looking into a Fleet', () => {
     expect(await capabilitiesOf(world, ADMIN, sibling)).toEqual([]);
     expect(await world.audience.canViewScope(sibling, ADMIN)).toBe(false);
     expect(await capabilitiesOf(world, ADMIN, community)).toEqual([]);
+  });
+
+  it('opens the Community on the way, and none of its Armadas', async () => {
+    const world = buildWorld(new Date(Date.now() + HOUR));
+
+    expect(
+      await world.audience.canViewScope(
+        { kind: FleetScopeKind.ARMADA, id: ARMADA },
+        ADMIN,
+      ),
+    ).toBe(false);
   });
 
   it('ends with its 24 hours', async () => {
