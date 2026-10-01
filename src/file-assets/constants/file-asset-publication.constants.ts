@@ -24,6 +24,24 @@ export const FILE_ASSET_PUBLICATION_ATTEMPTS = 5;
 export const FILE_ASSET_PUBLICATION_BACKOFF_MS = 5_000;
 
 /**
+ * The `app_setting` that pauses publication (FC-042): a JSON object,
+ * `{"paused":false,"resumedAt":"<ISO instant>"}` when publication runs
+ * (`{"paused":false}` as seeded, never paused), and
+ * `{"paused":true,"pausedAt":"<ISO instant>","pausedByUserId":"<uuid>"}`
+ * while it is paused. One key, so the switch and who threw it when are
+ * written and read together.
+ */
+export const FILE_PUBLICATION_PAUSED_SETTING_KEY = 'FILE_PUBLICATION_PAUSED';
+
+/**
+ * How long a publication job that finds publication paused is put back for,
+ * in milliseconds. Only reached when the queue itself was not paused — Redis
+ * lost, or the pause not yet applied — since a paused queue hands out no
+ * jobs.
+ */
+export const PUBLICATION_PAUSED_RECHECK_MS = 60_000;
+
+/**
  * How long an upload may sit pending before the nightly sweep gives up on it.
  *
  * Generous on purpose. A scan takes seconds, but ADR-0020 makes a paused

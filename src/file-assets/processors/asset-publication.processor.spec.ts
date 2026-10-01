@@ -1,8 +1,10 @@
 import { Logger } from '@nestjs/common';
 
 import { jest } from '@jest/globals';
-import { Job } from 'bullmq';
+import { DelayedError, Job } from 'bullmq';
 
+import { PUBLICATION_PAUSED_RECHECK_MS } from '../constants/file-asset-publication.constants';
+import { PublicationPauseService } from '../publication/publication-pause.service';
 import { AssetPublicationService } from '../services/asset-publication.service';
 import { AssetPublicationProcessor } from './asset-publication.processor';
 
@@ -17,18 +19,26 @@ const job = (data: unknown): Job<unknown> =>
 
 describe('AssetPublicationProcessor', () => {
   let publish: jest.Mock<(...args: any[]) => Promise<any>>;
+  let isPaused: jest.Mock<() => Promise<boolean>>;
+  let apply: jest.Mock<(trigger: string) => Promise<boolean | null>>;
   let processor: AssetPublicationProcessor;
 
   beforeEach(() => {
     publish = jest
       .fn<(...args: any[]) => Promise<any>>()
       .mockResolvedValue({ published: true, refusal: null });
+    isPaused = jest.fn<() => Promise<boolean>>().mockResolvedValue(false);
+    apply = jest
+      .fn<(trigger: string) => Promise<boolean | null>>()
+      .mockResolvedValue(true);
 
-    processor = new AssetPublicationProcessor({
-      publish,
-    } as unknown as AssetPublicationService);
+    processor = new AssetPublicationProcessor(
+      { publish } as unknown as AssetPublicationService,
+      { isPaused, apply } as unknown as PublicationPauseService,
+    );
 
     jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
   });
 
   afterEach(() => {
@@ -58,6 +68,37 @@ describe('AssetPublicationProcessor', () => {
   // The usual reason publication fails is that Cloudflare Images did not
   // answer, which is exactly the kind of thing that works five minutes
   // later — so the job has to be retried rather than swallowed.
+  // FC-042: the switch in the database is the authority, so a job that
+  // reaches the processor while it is on publishes nothing and goes back.
+  it('puts a job back, unharmed, while publication is paused', async () => {
+    jest.useFakeTimers({ now: new Date('2026-09-30T12:00:00.000Z') });
+    isPaused.mockResolvedValue(true);
+    const moveToDelayed = jest
+      .fn<(timestamp: number, token?: string) => Promise<void>>()
+      .mockResolvedValue(undefined);
+    const paused = {
+      id: 'job-1',
+      data: { assetId: 'asset-1' },
+      moveToDelayed,
+    } as unknown as Job<unknown>;
+
+    try {
+      await expect(processor.process(paused, 'token-1')).rejects.toThrow(
+        DelayedError,
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+
+    expect(publish).not.toHaveBeenCalled();
+    expect(apply).toHaveBeenCalledWith('processor');
+    expect(moveToDelayed).toHaveBeenCalledWith(
+      new Date('2026-09-30T12:00:00.000Z').getTime() +
+        PUBLICATION_PAUSED_RECHECK_MS,
+      'token-1',
+    );
+  });
+
   it('lets a failure through so BullMQ retries it', async () => {
     publish.mockRejectedValue(new Error('Cloudflare said no'));
 

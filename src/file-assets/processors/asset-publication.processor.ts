@@ -1,9 +1,13 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 
-import { Job } from 'bullmq';
+import { DelayedError, Job } from 'bullmq';
 
-import { FILE_ASSET_PUBLICATION_QUEUE } from '../constants/file-asset-publication.constants';
+import {
+  FILE_ASSET_PUBLICATION_QUEUE,
+  PUBLICATION_PAUSED_RECHECK_MS,
+} from '../constants/file-asset-publication.constants';
+import { PublicationPauseService } from '../publication/publication-pause.service';
 import { AssetPublicationService } from '../services/asset-publication.service';
 
 /**
@@ -23,6 +27,12 @@ import { AssetPublicationService } from '../services/asset-publication.service';
  * behaviour that matters here: the usual reason publication fails is that
  * Cloudflare Images did not answer, which is exactly the kind of thing that
  * works five minutes later.
+ *
+ * **Nothing is published while publication is paused** (FC-042). A paused
+ * queue hands out no jobs, but the switch in the database is the authority:
+ * a job that reaches here while it is on — Redis lost, say, and the queue
+ * not yet paused again — puts the queue back in line and itself back for a
+ * minute, unharmed.
  */
 @Processor(FILE_ASSET_PUBLICATION_QUEUE)
 export class AssetPublicationProcessor extends WorkerHost {
@@ -32,8 +42,12 @@ export class AssetPublicationProcessor extends WorkerHost {
    * Creates an instance of AssetPublicationProcessor.
    *
    * @param _publication - What publishes a cleared asset.
+   * @param _pause - The publication pause.
    */
-  constructor(private readonly _publication: AssetPublicationService) {
+  constructor(
+    private readonly _publication: AssetPublicationService,
+    private readonly _pause: PublicationPauseService,
+  ) {
     super();
   }
 
@@ -41,8 +55,23 @@ export class AssetPublicationProcessor extends WorkerHost {
    * Handles one job.
    *
    * @param job - The job.
+   * @param token - The lock this worker holds the job by.
+   * @throws DelayedError when publication is paused, having put the job back.
    */
-  async process(job: Job<unknown>): Promise<void> {
+  async process(job: Job<unknown>, token?: string): Promise<void> {
+    if (await this._pause.isPaused()) {
+      this._logger.warn(
+        `[process] Publication paused; job put back - JobId: ${job.id}`,
+      );
+      await this._pause.apply('processor');
+      await job.moveToDelayed(
+        Date.now() + PUBLICATION_PAUSED_RECHECK_MS,
+        token,
+      );
+
+      throw new DelayedError();
+    }
+
     const assetId = this.assetIdOf(job.data);
 
     if (assetId === null) {
