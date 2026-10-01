@@ -26,6 +26,7 @@ import { RESCAN_CAMPAIGN_QUEUE } from './rescan/rescan.constants';
 import { ScanDiagnosticsController } from './scan-diagnostics.controller';
 import { ScanDiagnosticsService } from './services/scan-diagnostics.service';
 import { ScanRequestProducerService } from './services/scan-request-producer.service';
+import { ScanRequeueService } from './services/scan-requeue.service';
 import { ScanVerdictService } from './services/scan-verdict.service';
 
 /**
@@ -70,6 +71,7 @@ import { ScanVerdictService } from './services/scan-verdict.service';
   providers: [
     ScanDiagnosticsService,
     ScanRequestProducerService,
+    ScanRequeueService,
     ScanVerdictService,
     ScanVerdictProcessor,
     RescanCampaignService,
@@ -77,6 +79,10 @@ import { ScanVerdictService } from './services/scan-verdict.service';
     RescanCampaignProcessor,
     RescanScheduler,
   ],
-  exports: [ScanRequestProducerService, ScanVerdictService],
+  exports: [
+    ScanRequestProducerService,
+    ScanVerdictService,
+    ScanDiagnosticsService,
+  ],
 })
 export class FileScanningModule {}
