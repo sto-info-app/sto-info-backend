@@ -51,6 +51,8 @@ import { MailService } from './mail/mail.service';
 import { ModerationModule } from './moderation/moderation.module';
 import { NewsModule } from './news/news.module';
 import { NotificationModule } from './notification/notification.module';
+import { OperationsModule } from './operations/operations.module';
+import { RestoreModule } from './operations/restore/restore.module';
 import { RegistryModule } from './registry/registry.module';
 import { SettingsModule } from './settings/settings.module';
 import { DEFAULT_MULTER_LIMITS } from './shared/constants/file-upload.constants';
@@ -163,6 +165,8 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     SecurityLogModule,
     RegistryModule,
     ModerationModule,
+    RestoreModule,
+    OperationsModule,
   ],
   controllers: [AppController],
   providers: [

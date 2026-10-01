@@ -16,7 +16,6 @@ describe('RosterErasuresController (FC-038)', () => {
     erase: jest.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
       id: 'e1',
     })),
-    replayLedger: jest.fn(async () => ({ markers: 1, replayed: 0 })),
   };
   const controller = new RosterErasuresController(
     erasures as unknown as RosterErasureService,
@@ -33,10 +32,6 @@ describe('RosterErasuresController (FC-038)', () => {
     await expect(controller.list()).resolves.toEqual([]);
     await controller.preview(target);
     await controller.erase('admin-1', { ...target, reason: 'Verified' });
-    await expect(controller.replayLedger()).resolves.toEqual({
-      markers: 1,
-      replayed: 0,
-    });
 
     expect(erasures.preview).toHaveBeenCalledWith(target);
     expect(erasures.erase).toHaveBeenCalledWith('admin-1', {

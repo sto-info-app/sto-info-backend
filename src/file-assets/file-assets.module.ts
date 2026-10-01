@@ -23,7 +23,11 @@ import { ImageEstateService } from './estate/image-estate.service';
 import { ImageInventoryRunEntity } from './estate/image-inventory-run.entity';
 import { ImageInventoryService } from './estate/image-inventory.service';
 import { FileAssetDeliveryController } from './file-asset-delivery.controller';
+import { AssetDenyLedgerService } from './ledger/asset-deny-ledger.service';
+import { AssetDenyReconciliationService } from './ledger/asset-deny-reconciliation.service';
 import { AssetPublicationProcessor } from './processors/asset-publication.processor';
+import { PublicationPauseController } from './publication/publication-pause.controller';
+import { PublicationPauseService } from './publication/publication-pause.service';
 import { AssetPublicationQueueService } from './services/asset-publication-queue.service';
 import { AssetPublicationService } from './services/asset-publication.service';
 import { AssetPublisherRegistry } from './services/asset-publisher.registry';
@@ -80,6 +84,7 @@ import { StaleUploadSweepService } from './services/stale-upload-sweep.service';
     FileAssetDeliveryController,
     AssetStatusController,
     ImageEstateController,
+    PublicationPauseController,
   ],
   providers: [
     FileAssetService,
@@ -96,6 +101,9 @@ import { StaleUploadSweepService } from './services/stale-upload-sweep.service';
     ImageEstateService,
     ImageInventoryService,
     ImageEstateProcessor,
+    AssetDenyLedgerService,
+    AssetDenyReconciliationService,
+    PublicationPauseService,
     {
       provide: QUARANTINE_S3_CLIENT,
       useFactory: async (
@@ -129,6 +137,8 @@ import { StaleUploadSweepService } from './services/stale-upload-sweep.service';
     AssetPublicationQueueService,
     AssetWithdrawalService,
     StaleUploadSweepService,
+    AssetDenyReconciliationService,
+    PublicationPauseService,
   ],
 })
 export class FileAssetsModule {}

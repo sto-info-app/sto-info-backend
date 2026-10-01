@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 
-import { DataSource, EntityManager, In, Not } from 'typeorm';
+import { DataSource, EntityManager, In, MoreThan, Not } from 'typeorm';
 
 import { FileAssetPlacementEntity } from 'src/file-assets/entities/file-asset-placement.entity';
 import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
@@ -11,6 +11,14 @@ import { FileAssetPlacementState } from 'src/file-assets/enums/file-asset-placem
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
 import { FileAssetSubject } from 'src/file-assets/enums/file-asset-subject.enum';
 import { QuarantineStorageService } from 'src/file-assets/services/quarantine-storage.service';
+import {
+  eachLimited,
+  LEDGER_CHUNK_SIZE,
+  LEDGER_CONCURRENCY,
+  LedgerReconciliation,
+  noTimings,
+  timed,
+} from 'src/shared/ledger/ledger.utility';
 
 import { FleetCommunityEntity } from '../entities/fleet-community.entity';
 import { StoFleetEntity } from '../entities/sto-fleet.entity';
@@ -56,14 +64,6 @@ interface Scrubbed {
   readonly importIds: readonly string[];
 }
 
-/** What re-applying the ledger came to. */
-export interface LedgerReplay {
-  /** Markers the ledger holds. */
-  readonly markers: number;
-  /** Those the database had lost, and now has again. */
-  readonly replayed: number;
-}
-
 /**
  * Verified erasure of somebody's roster data (FC-038).
  *
@@ -81,8 +81,9 @@ export interface LedgerReplay {
  * - **Staying erased.** The keyed hash of the pair joins the suppression
  *   list every import is scrubbed against, and each affected Fleet is
  *   replayed from the scrubbed rows.
- * - **Restores.** Each erasure's marker is written to the ledger first; after
- *   a restore, {@link replayLedger} makes again any the database lost.
+ * - **Restores.** Each erasure's marker is written to the ledger first; at
+ *   every boot, before the API serves anything, the restore check (FC-042)
+ *   runs {@link reconcileLedger}, which makes again any the database lost.
  */
 @Injectable()
 export class RosterErasureService {
@@ -220,44 +221,116 @@ export class RosterErasureService {
   }
 
   /**
-   * Makes again every erasure in the ledger that the database has lost, as
-   * after a restore from a backup older than it.
+   * Checks the erasure ledger against the database, at boot (FC-042): makes
+   * again, oldest first, every erasure in the ledger that the database has
+   * lost, as after a restore from a backup older than it, and writes a
+   * marker for every erasure the ledger lacks, as for one made before the
+   * ledger was complete. Only the markers the database lacks are read.
    *
-   * @returns How many the ledger holds, and how many were made again.
+   * A marker whose pair the database already holds under another erasure is
+   * left: the pair is erased, and a second erasure of it cannot be written.
+   *
+   * @returns What the check came to.
    */
-  async replayLedger(): Promise<LedgerReplay> {
-    const markers = await this._ledger.list();
-    const known = new Set(
-      (
-        await this._dataSource.manager.find(RosterErasureEntity, {
-          select: { id: true },
-        })
-      ).map(erasure => erasure.id),
-    );
-    let replayed = 0;
+  async reconcileLedger(): Promise<LedgerReconciliation> {
+    const timings = noTimings();
+    const keys = await timed(timings, 'list', () => this._ledger.listKeys());
+    const { lost, unmarked, hashes } = await timed(
+      timings,
+      'compare',
+      async () => {
+        const known = await this.allErasures();
+        const marked = new Set(keys.map(key => key.id));
+        const ids = new Set(known.map(erasure => erasure.id));
 
-    for (const marker of markers) {
-      if (known.has(marker.id)) {
-        continue;
+        return {
+          lost: keys.filter(key => !ids.has(key.id)),
+          unmarked: known.filter(erasure => !marked.has(erasure.id)),
+          hashes: new Set(known.map(erasure => erasure.pairHash)),
+        };
+      },
+    );
+    let alreadyErased = 0;
+    const replayed = await timed(timings, 'replay', async () => {
+      if (lost.length === 0) {
+        return 0;
       }
 
-      const pairs = await this.pairsHashingTo(marker.pairHash);
-      const { scrubbed } = await this.record(marker, pairs, {
-        reason: REPLAYED_REASON,
-        adminUserId: null,
-        replayed: true,
-      });
+      const pairsOf = await this.pairsByHash();
+      let made = 0;
 
-      await this.eraseFiles(scrubbed.importIds, pairs);
-      replayed++;
-    }
+      for (const key of lost) {
+        const marker = await this._ledger.read(key.key);
+
+        if (hashes.has(marker.pairHash)) {
+          alreadyErased++;
+          continue;
+        }
+
+        const pairs = pairsOf.get(marker.pairHash) ?? [];
+        const { scrubbed } = await this.record(marker, pairs, {
+          reason: REPLAYED_REASON,
+          adminUserId: null,
+          replayed: true,
+        });
+
+        await this.eraseFiles(scrubbed.importIds, pairs);
+        hashes.add(marker.pairHash);
+        made++;
+      }
+
+      return made;
+    });
+    const backfilled = await timed(timings, 'backfill', async () => {
+      await eachLimited(unmarked, LEDGER_CONCURRENCY, erasure =>
+        this._ledger.write({
+          id: erasure.id,
+          pairHash: erasure.pairHash,
+          pseudonym: erasure.pseudonym,
+          createdAt: erasure.createdAt.toISOString(),
+        }),
+      );
+
+      return unmarked.length;
+    });
 
     this._logger.log(
-      `[replayLedger] Erasure ledger replayed - Markers: ${markers.length}, ` +
-        `Replayed: ${replayed}`,
+      `[reconcileLedger] Erasure ledger checked - Markers: ${keys.length}, ` +
+        `Replayed: ${replayed}, AlreadyErased: ${alreadyErased}, ` +
+        `Backfilled: ${backfilled}`,
     );
 
-    return { markers: markers.length, replayed };
+    return {
+      markers: keys.length,
+      replayed,
+      backfilled,
+      detail: { alreadyErased },
+      timings,
+    };
+  }
+
+  /**
+   * Every erasure's ID, hash, pseudonym and time, read a chunk at a time.
+   *
+   * @returns Each.
+   */
+  private async allErasures(): Promise<RosterErasureEntity[]> {
+    const all: RosterErasureEntity[] = [];
+    let page: RosterErasureEntity[];
+
+    do {
+      const after = all.length === 0 ? null : all[all.length - 1].id;
+
+      page = await this._dataSource.manager.find(RosterErasureEntity, {
+        where: after === null ? {} : { id: MoreThan(after) },
+        select: { id: true, pairHash: true, pseudonym: true, createdAt: true },
+        order: { id: 'ASC' },
+        take: LEDGER_CHUNK_SIZE,
+      });
+      all.push(...page);
+    } while (page.length === LEDGER_CHUNK_SIZE);
+
+    return all;
   }
 
   /**
@@ -480,13 +553,12 @@ export class RosterErasureService {
   }
 
   /**
-   * The stored pairs whose keyed hash is one given: how a marker, which holds
-   * no name, finds what it erased.
+   * The stored pairs by their keyed hash: how a marker, which holds no name,
+   * finds what it erased. Read once for every marker a check replays.
    *
-   * @param pairHash - The hash.
-   * @returns The pairs, one or none.
+   * @returns The pairs hashing to each hash: one, as a rule.
    */
-  private async pairsHashingTo(pairHash: string): Promise<NormalisedPair[]> {
+  private async pairsByHash(): Promise<Map<string, NormalisedPair[]>> {
     const manager = this._dataSource.manager;
     const seen = new Map<string, NormalisedPair>();
 
@@ -512,13 +584,18 @@ export class RosterErasureService {
       }
     }
 
-    return [...seen.values()].filter(
-      pair =>
-        this._suppression.hashOfNormalised(
-          pair.characterName,
-          pair.accountHandle,
-        ) === pairHash,
-    );
+    const byHash = new Map<string, NormalisedPair[]>();
+
+    for (const pair of seen.values()) {
+      const hash = this._suppression.hashOfNormalised(
+        pair.characterName,
+        pair.accountHandle,
+      );
+
+      byHash.set(hash, [...(byHash.get(hash) ?? []), pair]);
+    }
+
+    return byHash;
   }
 
   /**

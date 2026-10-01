@@ -15,6 +15,7 @@ import { FileAssetAudience } from '../enums/file-asset-audience.enum';
 import { FileAssetKind } from '../enums/file-asset-kind.enum';
 import { FileAssetState } from '../enums/file-asset-state.enum';
 import { FileAssetStorage } from '../enums/file-asset-storage.enum';
+import { AssetDenyLedgerService } from '../ledger/asset-deny-ledger.service';
 
 /** What a feature must say to register an asset. */
 export interface RegisterFileAssetInput {
@@ -85,6 +86,12 @@ export interface FileAssetVerdict {
  * section 6.1 is explicit that a clean verdict is necessary and not
  * sufficient, and keeping the two calls apart is what stops a future caller
  * from quietly treating them as the same thing.
+ *
+ * Every move into a denied state — {@link reject}, {@link revoke} and
+ * {@link discard} — is written to the asset-deny ledger first, outside the
+ * database, so a restore from an older backup cannot put a withdrawn picture
+ * back (FC-042). A marker whose database write then fails is denied again by
+ * the next boot's restore check, which fails closed.
  */
 @Injectable()
 export class FileAssetService {
@@ -94,10 +101,12 @@ export class FileAssetService {
    * Creates an instance of FileAssetService.
    *
    * @param _repository - Repository of file assets.
+   * @param _ledger - Keeps each deny outside the database (FC-042).
    */
   constructor(
     @InjectRepository(FileAssetEntity)
     private readonly _repository: Repository<FileAssetEntity>,
+    private readonly _ledger: AssetDenyLedgerService,
   ) {}
 
   /**
@@ -224,6 +233,7 @@ export class FileAssetService {
     const asset = await this.requireAsset(assetId);
 
     this.assertTransition(asset, FileAssetState.REJECTED);
+    await this._ledger.record(asset, FileAssetState.REJECTED);
 
     asset.state = FileAssetState.REJECTED;
     asset.rejectionCode = rejectionCode;
@@ -376,6 +386,7 @@ export class FileAssetService {
     const asset = await this.requireAsset(assetId);
 
     this.assertTransition(asset, FileAssetState.DELETED);
+    await this._ledger.record(asset, FileAssetState.DELETED);
 
     asset.state = FileAssetState.DELETED;
     asset.storage = FileAssetStorage.NONE;
@@ -406,6 +417,7 @@ export class FileAssetService {
     const asset = await this.requireAsset(assetId);
 
     this.assertTransition(asset, FileAssetState.REVOKED);
+    await this._ledger.record(asset, FileAssetState.REVOKED);
 
     const wasPubliclyDelivered =
       asset.storage === FileAssetStorage.PUBLIC_IMAGES ||

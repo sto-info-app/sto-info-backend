@@ -11,6 +11,7 @@ import { FileAssetAudience } from '../enums/file-asset-audience.enum';
 import { FileAssetKind } from '../enums/file-asset-kind.enum';
 import { FileAssetState } from '../enums/file-asset-state.enum';
 import { FileAssetStorage } from '../enums/file-asset-storage.enum';
+import { AssetDenyLedgerService } from '../ledger/asset-deny-ledger.service';
 import { FileAssetService } from './file-asset.service';
 
 /**
@@ -29,6 +30,17 @@ describe('FileAssetService', () => {
     save: jest.Mock<(...args: any[]) => any>;
     findOne: jest.Mock<(...args: any[]) => any>;
   };
+  let ledger: {
+    record: jest.Mock<
+      (asset: FileAssetEntity, state: FileAssetState) => Promise<void>
+    >;
+  };
+  /** What each marker was written from, as the asset stood then. */
+  let marked: Array<{
+    state: FileAssetState;
+    storage: FileAssetStorage;
+    to: FileAssetState;
+  }>;
 
   /** A verdict from a scanner that reports everything about itself. */
   const verdict = {
@@ -88,11 +100,18 @@ describe('FileAssetService', () => {
       save: jest.fn<(...args: any[]) => any>(async input => input),
       findOne: jest.fn<(...args: any[]) => any>().mockResolvedValue(null),
     };
+    marked = [];
+    ledger = {
+      record: jest.fn(async (asset: FileAssetEntity, to: FileAssetState) => {
+        marked.push({ state: asset.state, storage: asset.storage, to });
+      }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         FileAssetService,
         { provide: getRepositoryToken(FileAssetEntity), useValue: repository },
+        { provide: AssetDenyLedgerService, useValue: ledger },
       ],
     }).compile();
 
@@ -674,6 +693,69 @@ describe('FileAssetService', () => {
       expect(repository.findOne).toHaveBeenCalledWith({
         where: { id: 'asset-1' },
       });
+    });
+  });
+
+  // FC-042: a restore from an older backup must not put a denied asset back,
+  // so every move into a denied state is in the ledger before the database.
+  describe('the asset-deny ledger (FC-042)', () => {
+    it.each([
+      [
+        'a refusal',
+        FileAssetState.SCANNING,
+        FileAssetStorage.QUARANTINE,
+        FileAssetState.REJECTED,
+        (id: string) => service.reject(id, 'SIGNATURE_MATCH'),
+      ],
+      [
+        'a withdrawal',
+        FileAssetState.AVAILABLE,
+        FileAssetStorage.PUBLIC_IMAGES,
+        FileAssetState.REVOKED,
+        (id: string) => service.revoke(id, 'Later detection'),
+      ],
+      [
+        'an abandonment',
+        FileAssetState.CLEAN,
+        FileAssetStorage.QUARANTINE,
+        FileAssetState.DELETED,
+        (id: string) => service.discard(id, 'Superseded'),
+      ],
+    ])(
+      'writes %s to the ledger first, as the asset stood',
+      async (_what, state, storage, to, deny) => {
+        repository.findOne.mockResolvedValue(assetIn({ state, storage }));
+
+        await deny('asset-1');
+
+        expect(marked).toEqual([{ state, storage, to }]);
+        expect(ledger.record.mock.invocationCallOrder[0]).toBeLessThan(
+          repository.save.mock.invocationCallOrder[0],
+        );
+      },
+    );
+
+    it('writes nothing for a move the state machine refuses', async () => {
+      repository.findOne.mockResolvedValue(
+        assetIn({ state: FileAssetState.DELETED }),
+      );
+
+      await expect(service.discard('asset-1', 'Again')).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(ledger.record).not.toHaveBeenCalled();
+    });
+
+    it('writes nothing to the database when the ledger cannot be written', async () => {
+      repository.findOne.mockResolvedValue(
+        assetIn({ state: FileAssetState.AVAILABLE }),
+      );
+      ledger.record.mockRejectedValueOnce(new Error('Bucket unreachable'));
+
+      await expect(service.revoke('asset-1', 'Later')).rejects.toThrow(
+        'Bucket unreachable',
+      );
+      expect(repository.save).not.toHaveBeenCalled();
     });
   });
 });

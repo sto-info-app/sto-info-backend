@@ -8,6 +8,7 @@ import Redis from 'ioredis';
 
 import { AuthModule } from 'src/auth/auth.module';
 import { CommunityModule } from 'src/community/community.module';
+import { FileAssetsModule } from 'src/file-assets/file-assets.module';
 import { NotificationModule } from 'src/notification/notification.module';
 import { QueueModule } from 'src/shared/queue/queue.module';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
@@ -31,6 +32,8 @@ import { ChatMessageReportEntity } from './entities/chat-message-report.entity';
 import { ChatMessageEntity } from './entities/chat-message.entity';
 import { ChatReportEvidenceEntity } from './entities/chat-report-evidence.entity';
 import { ChatTranscriptEntity } from './entities/chat-transcript.entity';
+import { HoldLedgerReconciliationService } from './holds/hold-ledger-reconciliation.service';
+import { HoldLedgerService } from './holds/hold-ledger.service';
 import { ModerationHoldActionEntity } from './holds/moderation-hold-action.entity';
 import { ModerationHoldEntity } from './holds/moderation-hold.entity';
 import { ModerationHoldService } from './holds/moderation-hold.service';
@@ -61,7 +64,7 @@ import { ChatTranscriptService } from './transcripts/chat-transcript.service';
  * Chat for Communities, Fleets and Armadas, and between friends (FC-031),
  * its socket (FC-032), its notices (FC-033), blocks, presence and typing
  * (FC-034), transcripts and reports (FC-035), and site admins' holds on
- * its evidence (FC-036).
+ * its evidence (FC-036), kept in the hold ledger too (FC-042).
  *
  * The exports bucket gets its own `S3Client` under its own token, built from
  * its own credentials, as the quarantine bucket does: the key that publishes
@@ -72,6 +75,7 @@ import { ChatTranscriptService } from './transcripts/chat-transcript.service';
     AuthModule,
     FleetModule,
     CommunityModule,
+    FileAssetsModule,
     NotificationModule,
     SharedModule,
     QueueModule,
@@ -120,6 +124,8 @@ import { ChatTranscriptService } from './transcripts/chat-transcript.service';
     ChatTranscriptProcessor,
     ChatReportService,
     ModerationHoldService,
+    HoldLedgerService,
+    HoldLedgerReconciliationService,
     {
       provide: CHAT_EXPORTS_S3_CLIENT,
       useFactory: async (
@@ -150,6 +156,7 @@ import { ChatTranscriptService } from './transcripts/chat-transcript.service';
     ChatReportService,
     ChatTranscriptService,
     ModerationHoldService,
+    HoldLedgerReconciliationService,
   ],
 })
 export class ChatModule {}

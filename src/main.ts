@@ -16,6 +16,7 @@ import { createAdapter } from '@socket.io/redis-adapter';
 import { json, NextFunction, Request, Response, urlencoded } from 'express';
 import rateLimit, {
   ipKeyGenerator,
+  MemoryStore,
   RateLimitRequestHandler,
 } from 'express-rate-limit';
 import helmet from 'helmet';
@@ -25,9 +26,11 @@ import { RedisStore, type RedisReply } from 'rate-limit-redis';
 import { AppModule } from './app.module';
 import { NonceMiddleware } from './auth/nonce.middleware';
 import { clientIpMiddleware } from './common/http/client-ip.middleware';
+import { FallbackRateLimitStore } from './common/http/fallback-rate-limit.store';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { ConfigCheckService } from './config-check/config-check.service';
 import { ChatIoAdapter } from './fleet/chat/realtime/chat-io.adapter';
+import { RestoreCheckService } from './operations/restore/restore-check.service';
 import { getLogLevelsForEnvironment } from './shared/constants/logging.constants';
 import {
   AUTH_RATE_LIMITED_ROUTES,
@@ -115,11 +118,17 @@ function createRateLimiter(
       return ipKeyGenerator(ip, 64);
     },
 
-    store: new RedisStore({
-      sendCommand: (command: string, ...args: string[]) =>
-        redis.call(command, ...args) as Promise<RedisReply>,
-      prefix: `rl:${prefix}:`,
-    }),
+    // Counted in memory while Redis cannot answer, so an outage never holds
+    // every request up (FC-042).
+    store: new FallbackRateLimitStore(
+      new RedisStore({
+        sendCommand: (command: string, ...args: string[]) =>
+          redis.call(command, ...args) as Promise<RedisReply>,
+        prefix: `rl:${prefix}:`,
+      }),
+      new MemoryStore(),
+      prefix,
+    ),
   });
 }
 
@@ -206,6 +215,19 @@ async function bootstrap() {
   if (startupDiagnosticsEnabled) {
     logStartup(
       `after NestFactory.create (+${(performance.now() - startTime).toFixed(0)}ms)`,
+    );
+  }
+
+  // The restore check (FC-042), before anything serves. `create()` builds the
+  // providers — the database connection, the buckets' clients, the queues —
+  // but runs no lifecycle hook: no route or socket is bound, no queue worker
+  // started and no scheduled job registered until `app.init()`. It waits,
+  // retrying, until the ledgers have been read and the database agrees.
+  await app.get(RestoreCheckService).run();
+
+  if (startupDiagnosticsEnabled) {
+    logStartup(
+      `after the restore check (+${(performance.now() - startTime).toFixed(0)}ms)`,
     );
   }
 

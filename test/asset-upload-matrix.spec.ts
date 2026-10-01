@@ -16,6 +16,7 @@ import { FileAssetSlot } from 'src/file-assets/enums/file-asset-slot.enum';
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
 import { FileAssetStorage } from 'src/file-assets/enums/file-asset-storage.enum';
 import { FileAssetSubject } from 'src/file-assets/enums/file-asset-subject.enum';
+import { AssetDenyLedgerService } from 'src/file-assets/ledger/asset-deny-ledger.service';
 import { AssetIngressService } from 'src/file-assets/services/asset-ingress.service';
 import { AssetPublicationService } from 'src/file-assets/services/asset-publication.service';
 import { AssetPublisherRegistry } from 'src/file-assets/services/asset-publisher.registry';
@@ -317,6 +318,10 @@ describe('every upload caller, end to end', () => {
 
     fileAssets = new FileAssetService(
       assets as unknown as Repository<FileAssetEntity>,
+      // Each deny is in the ledger first (FC-042); nothing here reads it.
+      {
+        record: jest.fn(async () => undefined),
+      } as unknown as AssetDenyLedgerService,
     );
     placementService = new FileAssetPlacementService(
       placements as unknown as Repository<FileAssetPlacementEntity>,

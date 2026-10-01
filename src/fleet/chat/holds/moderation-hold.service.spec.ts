@@ -32,6 +32,7 @@ import { ChatDirectConversationEntity } from '../entities/chat-direct-conversati
 import { ChatMessageReportEntity } from '../entities/chat-message-report.entity';
 import { ChatReportEvidenceEntity } from '../entities/chat-report-evidence.entity';
 import { cursorOf } from '../services/chat-message.service';
+import { HoldLedgerService, HoldMarker } from './hold-ledger.service';
 import { ModerationHoldActionEntity } from './moderation-hold-action.entity';
 import { ModerationHoldEntity } from './moderation-hold.entity';
 import {
@@ -69,6 +70,9 @@ describe('ModerationHoldService', () => {
   let notifications: {
     createNotification: jest.Mock<(input: object) => Promise<unknown>>;
   };
+  let ledger: { write: jest.Mock<(marker: HoldMarker) => Promise<void>> };
+  /** What the hold ledger was given, in order. */
+  let marks: HoldMarker[];
 
   beforeEach(() => {
     world = chatWorld();
@@ -91,9 +95,16 @@ describe('ModerationHoldService', () => {
         },
       ]);
     notifications = { createNotification: jest.fn(async () => ({})) };
+    marks = [];
+    ledger = {
+      write: jest.fn(async (marker: HoldMarker) => {
+        marks.push(marker);
+      }),
+    };
     service = new ModerationHoldService(
       world.db.asDataSource(),
       notifications as unknown as NotificationService,
+      ledger as unknown as HoldLedgerService,
     );
   });
 
@@ -844,6 +855,13 @@ describe('ModerationHoldService', () => {
         }),
       ]);
       await expect(heldAuthors(world.db.asManager())).resolves.toEqual([]);
+      // The release nobody made is in the hold ledger too (FC-042).
+      expect(marks).toEqual([
+        expect.objectContaining({
+          actionId: log(holdId)[0].id,
+          kind: ModerationHoldActionKind.RELEASED,
+        }),
+      ]);
     });
 
     it('starts again when somebody extends it', async () => {
@@ -915,6 +933,64 @@ describe('ModerationHoldService', () => {
         expect.stringContaining('[tell] Hold notice not sent'),
       );
       warn.mockRestore();
+    });
+  });
+
+  // FC-042: a restore from an older backup must not lose a hold, so every
+  // placing, extension and release is in the ledger before the database.
+  describe('the hold ledger (FC-042)', () => {
+    beforeEach(stamping);
+
+    it('writes each placing, extension and release first, under the log entry’s own ID, with no reason', async () => {
+      const { id } = await holdMember();
+      const later = new Date(Date.now() + 170 * DAY);
+
+      await service.extend(id, ADMIN_ID, {
+        reviewAt: later,
+        reason: 'Still investigating',
+      });
+      await service.release(id, ADMIN_ID, 'Case closed');
+
+      const actions = table<ModerationHoldActionEntity>(
+        ModerationHoldActionEntity,
+      );
+
+      expect(marks).toEqual(
+        actions.map(action => ({
+          actionId: action.id,
+          holdId: id,
+          kind: action.action,
+          holdKind: ModerationHoldKind.MEMBER_MESSAGES,
+          chatReportId: null,
+          subjectUserId: MEMBER_ID,
+          ownerUserId: ADMIN_ID,
+          reviewAt: expect.any(String),
+          createdAt: expect.any(String),
+        })),
+      );
+      expect(marks.map(mark => mark.kind)).toEqual([
+        ModerationHoldActionKind.PLACED,
+        ModerationHoldActionKind.EXTENDED,
+        ModerationHoldActionKind.RELEASED,
+      ]);
+      expect(marks[1].reviewAt).toBe(later.toISOString());
+      expect(JSON.stringify(marks)).not.toMatch(/investigating|closed|case/i);
+    });
+
+    it('writes no reading, and no notice, to the ledger', async () => {
+      const { id } = await holdMember();
+
+      marks.length = 0;
+      await service.read(id, ADMIN_ID, { purpose: 'Review the case' });
+
+      expect(marks).toEqual([]);
+    });
+
+    it('writes nothing to the log when the ledger cannot be written', async () => {
+      ledger.write.mockRejectedValueOnce(new Error('Bucket unreachable'));
+
+      await expect(holdMember()).rejects.toThrow('Bucket unreachable');
+      expect(table(ModerationHoldActionEntity)).toEqual([]);
     });
   });
 });

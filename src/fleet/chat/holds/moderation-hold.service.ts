@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import {
   BadRequestException,
   ConflictException,
@@ -40,6 +42,10 @@ import { ChatMessageReportEntity } from '../entities/chat-message-report.entity'
 import { ChatMessageEntity } from '../entities/chat-message.entity';
 import { ChatReportEvidenceEntity } from '../entities/chat-report-evidence.entity';
 import { cursorOf } from '../services/chat-message.service';
+import {
+  HoldLedgerService,
+  LEDGERED_HOLD_ACTIONS,
+} from './hold-ledger.service';
 import { ModerationHoldActionEntity } from './moderation-hold-action.entity';
 import {
   HeldMessagePageDto,
@@ -92,6 +98,10 @@ const AUTOMATIC: ReadonlySet<ModerationHoldActionKind> = new Set([
  *   purpose, and every reading is logged. Nobody else — scope moderators
  *   included — ever sees it.
  * - Released, what it kept goes with the next purge, as if never held.
+ * - Each placing, extension and release is written to the hold ledger,
+ *   outside the database, before the database (FC-042), so a restore from
+ *   an older backup cannot lose it: the restore check at boot brings back
+ *   every event the database lacks.
  */
 @Injectable()
 export class ModerationHoldService {
@@ -102,11 +112,14 @@ export class ModerationHoldService {
    *
    * @param _dataSource - The database.
    * @param _notifications - Tells site admins of holds past review.
+   * @param _ledger - Keeps each placing, extension and release outside the
+   *   database (FC-042).
    */
   constructor(
     @InjectDataSource()
     private readonly _dataSource: DataSource,
     private readonly _notifications: NotificationService,
+    private readonly _ledger: HoldLedgerService,
   ) {}
 
   /**
@@ -151,11 +164,17 @@ export class ModerationHoldService {
           reviewAt,
         });
 
-        await log(transaction, saved.id, ModerationHoldActionKind.PLACED, {
-          actorUserId: adminId,
-          reason: dto.reason,
-          detail: { reviewAt: reviewAt.toISOString() },
-        });
+        await log(
+          transaction,
+          this._ledger,
+          saved,
+          ModerationHoldActionKind.PLACED,
+          {
+            actorUserId: adminId,
+            reason: dto.reason,
+            detail: { reviewAt: reviewAt.toISOString() },
+          },
+        );
 
         return saved;
       });
@@ -195,18 +214,25 @@ export class ModerationHoldService {
     assertReviewable(dto.reviewAt);
 
     await this._dataSource.transaction(async manager => {
-      const from = (await this.inForce(manager, holdId)).reviewAt;
+      const held = await this.inForce(manager, holdId);
+      const from = held.reviewAt;
 
       await manager.update(
         ModerationHoldEntity,
         { id: holdId },
         { reviewAt: dto.reviewAt },
       );
-      await log(manager, holdId, ModerationHoldActionKind.EXTENDED, {
-        actorUserId: adminId,
-        reason: dto.reason,
-        detail: { from: from.toISOString(), to: dto.reviewAt.toISOString() },
-      });
+      await log(
+        manager,
+        this._ledger,
+        { ...held, reviewAt: dto.reviewAt },
+        ModerationHoldActionKind.EXTENDED,
+        {
+          actorUserId: adminId,
+          reason: dto.reason,
+          detail: { from: from.toISOString(), to: dto.reviewAt.toISOString() },
+        },
+      );
     });
 
     return this.detail(holdId);
@@ -227,7 +253,8 @@ export class ModerationHoldService {
     reason: string,
   ): Promise<ModerationHoldDetailDto> {
     await this._dataSource.transaction(async manager => {
-      await this.inForce(manager, holdId);
+      const held = await this.inForce(manager, holdId);
+
       await manager.update(
         ModerationHoldEntity,
         { id: holdId },
@@ -237,10 +264,16 @@ export class ModerationHoldService {
           releaseReason: reason,
         },
       );
-      await log(manager, holdId, ModerationHoldActionKind.RELEASED, {
-        actorUserId: adminId,
-        reason,
-      });
+      await log(
+        manager,
+        this._ledger,
+        held,
+        ModerationHoldActionKind.RELEASED,
+        {
+          actorUserId: adminId,
+          reason,
+        },
+      );
     });
 
     this._logger.log(`[release] Moderation hold released - HoldId: ${holdId}`);
@@ -333,7 +366,7 @@ export class ModerationHoldService {
         ? await this.evidenceOf(manager, hold.chatReportId as string)
         : await this.messagesOf(manager, hold.subjectUserId, dto.before);
 
-    await log(manager, holdId, ModerationHoldActionKind.READ, {
+    await log(manager, this._ledger, hold, ModerationHoldActionKind.READ, {
       actorUserId: adminId,
       reason: dto.purpose,
       detail: {
@@ -389,12 +422,21 @@ export class ModerationHoldService {
             `it within ${MODERATION_HOLD_RELEASE_GRACE_DAYS} days, or it ` +
             'will be released automatically.',
         );
-        await log(manager, hold.id, ModerationHoldActionKind.REVIEW_DUE, {
-          actorUserId: null,
-          reason: 'Its review date passed.',
-          detail: { reviewAt: hold.reviewAt.toISOString(), told: owner.length },
-          idempotencyKey: `REVIEW_DUE:${hold.id}:${hold.reviewAt.toISOString()}`,
-        });
+        await log(
+          manager,
+          this._ledger,
+          hold,
+          ModerationHoldActionKind.REVIEW_DUE,
+          {
+            actorUserId: null,
+            reason: 'Its review date passed.',
+            detail: {
+              reviewAt: hold.reviewAt.toISOString(),
+              told: owner.length,
+            },
+            idempotencyKey: `REVIEW_DUE:${hold.id}:${hold.reviewAt.toISOString()}`,
+          },
+        );
         counts.told++;
       }
 
@@ -413,17 +455,23 @@ export class ModerationHoldService {
             `${MODERATION_HOLD_RELEASE_WARNING_DAYS} days unless somebody ` +
             'extends it.',
         );
-        await log(manager, hold.id, ModerationHoldActionKind.RELEASE_WARNED, {
-          actorUserId: null,
-          reason:
-            `To be released in ${MODERATION_HOLD_RELEASE_WARNING_DAYS} days ` +
-            'unless extended.',
-          detail: {
-            reviewAt: hold.reviewAt.toISOString(),
-            told: admins.length,
+        await log(
+          manager,
+          this._ledger,
+          hold,
+          ModerationHoldActionKind.RELEASE_WARNED,
+          {
+            actorUserId: null,
+            reason:
+              `To be released in ${MODERATION_HOLD_RELEASE_WARNING_DAYS} days ` +
+              'unless extended.',
+            detail: {
+              reviewAt: hold.reviewAt.toISOString(),
+              told: admins.length,
+            },
+            idempotencyKey: `RELEASE_WARNED:${hold.id}:${hold.reviewAt.toISOString()}`,
           },
-          idempotencyKey: `RELEASE_WARNED:${hold.id}:${hold.reviewAt.toISOString()}`,
-        });
+        );
         counts.warned++;
       }
     }
@@ -466,12 +514,18 @@ export class ModerationHoldService {
           releaseReason: reason,
         },
       );
-      await log(manager, hold.id, ModerationHoldActionKind.RELEASED, {
-        actorUserId: null,
-        reason,
-        detail: { automatic: true, reviewAt: hold.reviewAt.toISOString() },
-        idempotencyKey: `RELEASED:${hold.id}`,
-      });
+      await log(
+        manager,
+        this._ledger,
+        current,
+        ModerationHoldActionKind.RELEASED,
+        {
+          actorUserId: null,
+          reason,
+          detail: { automatic: true, reviewAt: hold.reviewAt.toISOString() },
+          idempotencyKey: `RELEASED:${hold.id}`,
+        },
+      );
 
       return true;
     });
@@ -755,11 +809,21 @@ function assertReviewable(reviewAt: Date): void {
   }
 }
 
+/** What the hold ledger needs to know of a hold. */
+type HeldAs = Pick<
+  ModerationHoldEntity,
+  'id' | 'kind' | 'chatReportId' | 'subjectUserId' | 'ownerUserId' | 'reviewAt'
+>;
+
 /**
- * Logs what was done to a hold.
+ * Logs what was done to a hold. A placing, an extension or a release is
+ * written to the hold ledger first, under the log entry's own ID (FC-042);
+ * should the transaction then fail, the next boot brings the event back,
+ * which errs towards keeping evidence.
  *
  * @param manager - The transaction.
- * @param holdId - The hold.
+ * @param ledger - The hold ledger.
+ * @param hold - The hold, as it is after the event.
  * @param action - What.
  * @param entry - Who, why and anything else.
  * @param entry.actorUserId - Who, or null for the system.
@@ -770,7 +834,8 @@ function assertReviewable(reviewAt: Date): void {
  */
 async function log(
   manager: EntityManager,
-  holdId: string,
+  ledger: HoldLedgerService,
+  hold: HeldAs,
   action: ModerationHoldActionKind,
   entry: {
     readonly actorUserId: string | null;
@@ -779,12 +844,29 @@ async function log(
     readonly idempotencyKey?: string;
   },
 ): Promise<void> {
+  const id = randomUUID();
+
+  if (LEDGERED_HOLD_ACTIONS.includes(action)) {
+    await ledger.write({
+      actionId: id,
+      holdId: hold.id,
+      kind: action,
+      holdKind: hold.kind,
+      chatReportId: hold.chatReportId,
+      subjectUserId: hold.subjectUserId,
+      ownerUserId: hold.ownerUserId,
+      reviewAt: hold.reviewAt.toISOString(),
+      createdAt: new Date().toISOString(),
+    });
+  }
+
   await manager
     .createQueryBuilder()
     .insert()
     .into(ModerationHoldActionEntity)
     .values({
-      holdId,
+      id,
+      holdId: hold.id,
       action,
       actorUserId: entry.actorUserId,
       reason: entry.reason,

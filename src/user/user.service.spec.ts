@@ -13,6 +13,10 @@ import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
 
+import {
+  AccountClosureEvent,
+  AccountClosureLedgerService,
+} from './closure/account-closure-ledger.service';
 import { UserProfileEntity } from './entities/user-profile.entity';
 import { UserEntity } from './entities/user.entity';
 import { UserRole } from './enums/user-role.enum';
@@ -26,6 +30,7 @@ jest.mock('bcrypt');
 
 describe('UserService', () => {
   let service: UserService;
+  let closures: { record: jest.Mock<(...args: unknown[]) => Promise<Date>> };
   let userRepository: Repository<UserEntity>;
   let userProfileRepository: Repository<UserProfileEntity>;
   let validatorsService: ValidatorsService;
@@ -113,6 +118,10 @@ describe('UserService', () => {
             update: jest.fn(),
           },
         },
+        {
+          provide: AccountClosureLedgerService,
+          useValue: { record: jest.fn(async () => new Date()) },
+        },
       ],
     }).compile();
 
@@ -128,6 +137,7 @@ describe('UserService', () => {
     mailService =
       module.get<Pick<MailService, 'sendAccountClosureEmail'>>(MailService);
     preferenceService = module.get(UserPreferenceService);
+    closures = module.get(AccountClosureLedgerService);
     preferenceService.get.mockResolvedValue(preferencesFor());
     preferenceService.update.mockImplementation(
       async (_userId: string, changes: Record<string, unknown>) =>
@@ -901,6 +911,61 @@ describe('UserService', () => {
       );
     });
 
+    // FC-042: in the account-closure ledger before the database, so a
+    // restore from an older backup cannot open it again.
+    it('writes the closure to the ledger first', async () => {
+      const manager = {
+        update: jest.fn(async () => ({ affected: 1 })),
+        find: jest.fn(async () => []),
+        softDelete: jest.fn(async () => ({ affected: 1 })),
+      };
+
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: '1', email: 'captain@example.com' });
+      (
+        (userRepository as any).manager.transaction as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockImplementation(
+        async (callback: (managerArg: any) => Promise<void>) => {
+          await callback(manager);
+        },
+      );
+
+      await service.closeAccount('1');
+
+      expect(closures.record).toHaveBeenCalledWith(
+        '1',
+        AccountClosureEvent.CLOSED,
+      );
+      expect(closures.record.mock.invocationCallOrder[0]).toBeLessThan(
+        ((userRepository as any).manager.transaction as jest.Mock).mock
+          .invocationCallOrder[0],
+      );
+      // Closed now: nothing moves the retention clock.
+      expect(manager.update).not.toHaveBeenCalledWith(
+        UserEntity,
+        '1',
+        expect.anything(),
+      );
+    });
+
+    it('closes nothing when the ledger cannot be written', async () => {
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: '1', email: 'captain@example.com' });
+      closures.record.mockRejectedValueOnce(new Error('Bucket unreachable'));
+
+      await expect(service.closeAccount('1')).rejects.toThrow(
+        'Bucket unreachable',
+      );
+      expect(
+        (userRepository as any).manager.transaction,
+      ).not.toHaveBeenCalled();
+      expect(mailService.sendAccountClosureEmail).not.toHaveBeenCalled();
+    });
+
     it('should throw if user id is invalid', async () => {
       (validatorsService.validateUuid as jest.Mock).mockReturnValue(false);
       await expect(service.closeAccount('invalid')).rejects.toThrow(
@@ -990,6 +1055,42 @@ describe('UserService', () => {
         'captain@example.com',
         'Captain',
       );
+    });
+  });
+
+  // FC-042: the restore check closes again an account a restore opened.
+  describe('closeAgain', () => {
+    it('closes it as of when it was first closed, writing no marker and sending no email', async () => {
+      const manager = {
+        update: jest.fn(async () => ({ affected: 1 })),
+        find: jest.fn(async () => [{ id: 'a1' }]),
+        softDelete: jest.fn(async () => ({ affected: 1 })),
+      };
+      const closedAt = new Date('2026-09-01T12:00:00.000Z');
+
+      (
+        (userRepository as any).manager.transaction as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockImplementation(
+        async (callback: (managerArg: any) => Promise<void>) => {
+          await callback(manager);
+        },
+      );
+
+      await service.closeAgain('1', closedAt);
+
+      expect(manager.update).toHaveBeenCalledWith(
+        UserRefreshTokenEntity,
+        { userId: '1', isRevoked: false },
+        { isRevoked: true },
+      );
+      expect(manager.softDelete).toHaveBeenCalledWith(UserEntity, '1');
+      expect(manager.update).toHaveBeenLastCalledWith(UserEntity, '1', {
+        deletedAt: closedAt,
+      });
+      expect(closures.record).not.toHaveBeenCalled();
+      expect(mailService.sendAccountClosureEmail).not.toHaveBeenCalled();
     });
   });
 

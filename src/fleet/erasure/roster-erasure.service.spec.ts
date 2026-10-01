@@ -15,6 +15,7 @@ import { FileAssetPlacementState } from 'src/file-assets/enums/file-asset-placem
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
 import { FileAssetSubject } from 'src/file-assets/enums/file-asset-subject.enum';
 import { QuarantineStorageService } from 'src/file-assets/services/quarantine-storage.service';
+import { LEDGER_CHUNK_SIZE, LedgerKey } from 'src/shared/ledger/ledger.utility';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 
 import { InMemoryManager, Row } from '../../../test/in-memory-manager';
@@ -70,7 +71,8 @@ describe('RosterErasureService (FC-038)', () => {
   let suppression: RosterSuppressionService;
   let ledger: {
     write: jest.Mock<(marker: ErasureMarker) => Promise<void>>;
-    list: jest.Mock<() => Promise<ErasureMarker[]>>;
+    listKeys: jest.Mock<() => Promise<LedgerKey[]>>;
+    read: jest.Mock<(key: string) => Promise<ErasureMarker>>;
   };
   let sources: {
     erase: jest.Mock<(ids: readonly string[]) => Promise<unknown>>;
@@ -136,7 +138,11 @@ describe('RosterErasureService (FC-038)', () => {
     suppression = new RosterSuppressionService(db.asDataSource(), {
       value: KEY,
     });
-    ledger = { write: jest.fn(async () => undefined), list: jest.fn() };
+    ledger = {
+      write: jest.fn(async () => undefined),
+      listKeys: jest.fn(async () => []),
+      read: jest.fn(),
+    };
     sources = {
       erase: jest.fn(async ids => ({
         deleted: ids.length,
@@ -410,12 +416,45 @@ describe('RosterErasureService (FC-038)', () => {
     ]);
   });
 
-  describe('replaying the ledger after a restore', () => {
-    it('makes again only what the database lost, finding the pair by its hash', async () => {
+  describe('checking the ledger at boot (FC-042)', () => {
+    /**
+     * A key the ledger lists for a marker.
+     *
+     * @param marker - The marker.
+     * @returns Its key.
+     */
+    const keyOf = (marker: ErasureMarker): LedgerKey => ({
+      key: `test/erasure-ledger/${marker.createdAt}_${marker.id}.json`,
+      createdAt: marker.createdAt,
+      id: marker.id,
+      kind: null,
+    });
+
+    /**
+     * Lists markers, and reads each back by its key.
+     *
+     * @param markers - What the ledger holds.
+     */
+    const holding = (...markers: ErasureMarker[]): void => {
+      ledger.listKeys.mockResolvedValue(markers.map(keyOf));
+      ledger.read.mockImplementation(async key => {
+        const found = markers.find(marker => keyOf(marker).key === key);
+
+        return found as ErasureMarker;
+      });
+    };
+
+    it('makes again only what the database lost, oldest first, finding the pair by its hash', async () => {
       db.seed(RosterErasureEntity, [
-        { id: 'known', pseudonym: '@erased-known', counts: {} },
+        {
+          id: 'known',
+          pairHash: 'f'.repeat(64),
+          pseudonym: '@erased-known',
+          counts: {},
+          createdAt: new Date('2026-09-01T00:00:00.000Z'),
+        },
       ]);
-      ledger.list.mockResolvedValue([
+      holding(
         {
           id: 'known',
           pairHash: 'f'.repeat(64),
@@ -434,11 +473,21 @@ describe('RosterErasureService (FC-038)', () => {
           pseudonym: '@erased-nothing',
           createdAt: '2026-09-21T00:00:00.000Z',
         },
-      ]);
+      );
 
-      await expect(service.replayLedger()).resolves.toEqual({
+      const outcome = await service.reconcileLedger();
+
+      expect(outcome).toEqual({
         markers: 3,
         replayed: 2,
+        backfilled: 0,
+        detail: { alreadyErased: 0 },
+        timings: {
+          list: expect.any(Number),
+          compare: expect.any(Number),
+          replay: expect.any(Number),
+          backfill: expect.any(Number),
+        },
       });
 
       const lost = db
@@ -457,7 +506,110 @@ describe('RosterErasureService (FC-038)', () => {
       expect(db.rows(RosterObservationEntity)[0].accountHandle).toBe(
         '@erased-lost',
       );
+      // Only the markers the database lacked were read.
+      expect(ledger.read.mock.calls.map(([key]) => key)).toEqual([
+        'test/erasure-ledger/2026-09-20T00:00:00.000Z_lost.json',
+        'test/erasure-ledger/2026-09-21T00:00:00.000Z_nothing-left.json',
+      ]);
       expect(ledger.write).not.toHaveBeenCalled();
+    });
+
+    it('leaves a marker whose pair is already erased under another erasure', async () => {
+      const pairHash = suppression.hashOf('Kira', '@Nerys');
+
+      db.seed(RosterErasureEntity, [
+        {
+          id: 'retried',
+          pairHash,
+          pseudonym: '@erased-retried',
+          counts: {},
+          createdAt: new Date('2026-09-02T00:00:00.000Z'),
+        },
+      ]);
+      holding(
+        {
+          id: 'retried',
+          pairHash,
+          pseudonym: '@erased-retried',
+          createdAt: '2026-09-02T00:00:00.000Z',
+        },
+        // One whose database write failed before the erasure was made again.
+        {
+          id: 'failed',
+          pairHash,
+          pseudonym: '@erased-failed',
+          createdAt: '2026-09-01T00:00:00.000Z',
+        },
+      );
+
+      await expect(service.reconcileLedger()).resolves.toMatchObject({
+        replayed: 0,
+        detail: { alreadyErased: 1 },
+      });
+      expect(db.rows(RosterErasureEntity)).toHaveLength(1);
+    });
+
+    it('makes a pair two markers name only once', async () => {
+      const pairHash = suppression.hashOf('Kira', '@Nerys');
+
+      holding(
+        {
+          id: 'first',
+          pairHash,
+          pseudonym: '@erased-first',
+          createdAt: '2026-09-01T00:00:00.000Z',
+        },
+        {
+          id: 'second',
+          pairHash,
+          pseudonym: '@erased-second',
+          createdAt: '2026-09-02T00:00:00.000Z',
+        },
+      );
+
+      await expect(service.reconcileLedger()).resolves.toMatchObject({
+        replayed: 1,
+        detail: { alreadyErased: 1 },
+      });
+      expect(db.rows<Row>(RosterErasureEntity).map(row => row.id)).toEqual([
+        'first',
+      ]);
+    });
+
+    it('writes a marker for every erasure the ledger lacks, reading the database a chunk at a time', async () => {
+      const erasures = Array.from(
+        { length: LEDGER_CHUNK_SIZE + 1 },
+        (_, n) => ({
+          id: `erasure-${String(n).padStart(4, '0')}`,
+          pairHash: String(n % 10).repeat(64),
+          pseudonym: `@erased-${n}`,
+          counts: {},
+          createdAt: new Date(Date.UTC(2026, 8, 1, 0, 0, n)),
+        }),
+      );
+
+      db.seed(RosterErasureEntity, erasures);
+      holding({
+        id: 'erasure-0000',
+        pairHash: '0'.repeat(64),
+        pseudonym: '@erased-0',
+        createdAt: '2026-09-01T00:00:00.000Z',
+      });
+
+      const outcome = await service.reconcileLedger();
+
+      expect(outcome).toMatchObject({
+        markers: 1,
+        replayed: 0,
+        backfilled: LEDGER_CHUNK_SIZE,
+      });
+      expect(ledger.write).toHaveBeenCalledWith({
+        id: 'erasure-0001',
+        pairHash: '1'.repeat(64),
+        pseudonym: '@erased-1',
+        createdAt: '2026-09-01T00:00:01.000Z',
+      });
+      expect(ledger.read).not.toHaveBeenCalled();
     });
   });
 });

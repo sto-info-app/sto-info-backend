@@ -7,6 +7,8 @@ import { MailModule } from 'src/mail/mail.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
 
+import { AccountClosureLedgerService } from './closure/account-closure-ledger.service';
+import { AccountClosureReconciliationService } from './closure/account-closure-reconciliation.service';
 import { UserPreferenceEntity } from './entities/user-preference.entity';
 import { UserProfileEntity } from './entities/user-profile.entity';
 import { UserEntity } from './entities/user.entity';
@@ -35,7 +37,16 @@ import { UserService } from './user.service';
     UserPreferenceService,
     ValidatorsService,
     UserProfileImagePublisher,
+    // Each closure kept outside the database, and checked at boot (FC-042).
+    AccountClosureLedgerService,
+    AccountClosureReconciliationService,
   ],
-  exports: [UserService, UserPreferenceService, TypeOrmModule],
+  exports: [
+    UserService,
+    UserPreferenceService,
+    TypeOrmModule,
+    AccountClosureLedgerService,
+    AccountClosureReconciliationService,
+  ],
 })
 export class UserModule {}

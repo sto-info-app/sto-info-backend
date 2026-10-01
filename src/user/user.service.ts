@@ -31,6 +31,10 @@ import {
   AccountDeparture,
   OwnedCommunityOutcome,
 } from './account-departure';
+import {
+  AccountClosureEvent,
+  AccountClosureLedgerService,
+} from './closure/account-closure-ledger.service';
 import { PROFILE_IMAGE_ENTITY_TAG } from './constants/profile-image.constants';
 import { resolveSessionTimeoutMinutes } from './constants/session-timeout.constants';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -56,6 +60,10 @@ export class UserService {
    * @param _imageIngress - Where an uploaded picture is checked and quarantined.
    * @param _mailService - The mail service.
    * @param _userPreferenceService - Reads and writes account preferences.
+   * @param _closures - Keeps each account closure outside the database
+   *   (FC-042).
+   * @param _departure - Hands on or closes each Community a closing account
+   *   owns (FC-038), when the Fleet is there to ask.
    */
   constructor(
     @InjectRepository(UserEntity)
@@ -68,6 +76,7 @@ export class UserService {
     private readonly _imageIngress: ImageIngressService,
     private readonly _mailService: MailService,
     private readonly _userPreferenceService: UserPreferenceService,
+    private readonly _closures: AccountClosureLedgerService,
     @Optional()
     @Inject(ACCOUNT_DEPARTURE)
     private readonly _departure?: AccountDeparture,
@@ -255,6 +264,10 @@ export class UserService {
    * STO accounts, and STO characters, and revokes active refresh tokens
    * immediately to terminate active sessions.
    *
+   * The closure is written to the account-closure ledger first (FC-042), so
+   * a restore from an older backup cannot open the account again: should
+   * anything after it fail, the next boot closes the account.
+   *
    * @param userId - The authenticated user's UUID.
    */
   async closeAccount(userId: string): Promise<void> {
@@ -274,6 +287,37 @@ export class UserService {
     const closureEmail = user.email;
     const closureFirstName = user.profile?.firstName || 'Captain!';
 
+    await this._closures.record(userId, AccountClosureEvent.CLOSED);
+    await this.close(userId, null);
+
+    await this._mailService.sendAccountClosureEmail(
+      closureEmail,
+      closureFirstName,
+    );
+  }
+
+  /**
+   * Closes again an account a restore opened (FC-042): everything closing it
+   * did — its Communities handed on or closed, its sessions ended, its data
+   * soft-deleted — as of when it was first closed, so the nightly clean-up
+   * erases it when it would have. No email: they were told when they closed
+   * it, and the ledger already has it.
+   *
+   * @param userId - The account, open in the database.
+   * @param closedAt - When it was first closed.
+   */
+  async closeAgain(userId: string, closedAt: Date): Promise<void> {
+    await this.close(userId, closedAt);
+  }
+
+  /**
+   * Closes an account: its Communities first, then its sessions and data,
+   * in one transaction.
+   *
+   * @param userId - The account.
+   * @param closedAt - When to record it as closed, or null for now.
+   */
+  private async close(userId: string, closedAt: Date | null): Promise<void> {
     // Each open Community they own goes to an Admin, or is closed, first
     // (FC-038): nothing open may be left without an Owner.
     await this._departure?.depart(userId);
@@ -301,12 +345,12 @@ export class UserService {
       await manager.softDelete(AccountEntity, { userId });
       await manager.softDelete(UserProfileEntity, { userId });
       await manager.softDelete(UserEntity, userId);
-    });
 
-    await this._mailService.sendAccountClosureEmail(
-      closureEmail,
-      closureFirstName,
-    );
+      // The clean-up's retention clock runs from the user's deletedAt.
+      if (closedAt !== null) {
+        await manager.update(UserEntity, userId, { deletedAt: closedAt });
+      }
+    });
   }
 
   /**

@@ -24,7 +24,6 @@ import { UserRole } from 'src/user/enums/user-role.enum';
 
 import {
   RosterErasureDto,
-  RosterErasureLedgerReplayDto,
   RosterErasurePreviewDto,
   RosterErasureRequestDto,
   RosterErasureResultDto,
@@ -75,18 +74,5 @@ export class RosterErasuresController {
     @Body() request: RosterErasureRequestDto,
   ): Promise<RosterErasureResultDto> {
     return this._erasures.erase(adminId, request);
-  }
-
-  @Post('replay-ledger')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Make again every erasure a database restore lost (admin)',
-    description:
-      'Reads the erasure ledger kept outside the database and re-applies ' +
-      'each erasure the database no longer has. Run after every restore.',
-  })
-  @ApiOkResponse({ type: RosterErasureLedgerReplayDto })
-  replayLedger(): Promise<RosterErasureLedgerReplayDto> {
-    return this._erasures.replayLedger();
   }
 }

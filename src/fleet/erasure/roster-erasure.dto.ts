@@ -115,12 +115,3 @@ export class RosterErasureResultDto extends RosterErasureDto {
   })
   filesPending: number;
 }
-
-/** What re-applying the erasure ledger came to. */
-export class RosterErasureLedgerReplayDto {
-  @ApiProperty({ description: 'Markers the ledger holds.' })
-  markers: number;
-
-  @ApiProperty({ description: 'Those the database had lost, made again.' })
-  replayed: number;
-}

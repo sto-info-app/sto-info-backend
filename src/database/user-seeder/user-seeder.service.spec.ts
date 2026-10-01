@@ -5,6 +5,10 @@ import { jest } from '@jest/globals';
 import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
 
+import {
+  AccountClosureEvent,
+  AccountClosureLedgerService,
+} from 'src/user/closure/account-closure-ledger.service';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
 
@@ -16,11 +20,13 @@ describe('UserSeederService', () => {
   let service: UserSeederService;
   let userRepository: Repository<UserEntity>;
   let userProfileRepository: Repository<UserProfileEntity>;
+  let closures: { record: jest.Mock<(...args: unknown[]) => Promise<Date>> };
 
   const originalEnv = process.env;
 
   beforeEach(async () => {
     process.env = { ...originalEnv };
+    closures = { record: jest.fn(async () => new Date()) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -40,6 +46,7 @@ describe('UserSeederService', () => {
             restore: jest.fn(),
           },
         },
+        { provide: AccountClosureLedgerService, useValue: closures },
       ],
     }).compile();
 
@@ -195,6 +202,14 @@ describe('UserSeederService', () => {
       await (service as any).seedUsers();
 
       expect(userRepository.restore).toHaveBeenCalledWith('deleted-user-id');
+      // In the closure ledger first, so the next boot leaves it open (FC-042).
+      expect(closures.record).toHaveBeenCalledWith(
+        'deleted-user-id',
+        AccountClosureEvent.REOPENED,
+      );
+      expect(closures.record.mock.invocationCallOrder[0]).toBeLessThan(
+        (userRepository.restore as jest.Mock).mock.invocationCallOrder[0],
+      );
       expect(userProfileRepository.restore).toHaveBeenCalledWith(
         'deleted-user-id',
       );
