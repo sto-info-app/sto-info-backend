@@ -12,13 +12,43 @@ import { AssetPublicationQueueService } from './asset-publication-queue.service'
 
 describe('AssetPublicationQueueService', () => {
   let add: jest.Mock<(...args: any[]) => Promise<any>>;
+  let getJob: jest.Mock<(jobId: string) => Promise<any>>;
   let service: AssetPublicationQueueService;
 
   beforeEach(() => {
     add = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({});
-    service = new AssetPublicationQueueService({ add } as unknown as Queue);
+    getJob = jest
+      .fn<(jobId: string) => Promise<any>>()
+      .mockResolvedValue(undefined);
+    service = new AssetPublicationQueueService({
+      add,
+      getJob,
+    } as unknown as Queue);
 
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+  });
+
+  // FC-042: the failed job used to swallow every later request for the
+  // same asset, silently, stranding it.
+  it('sends a failed publication of the same asset round again instead', async () => {
+    const retry = jest
+      .fn<(...args: any[]) => Promise<void>>()
+      .mockResolvedValue(undefined);
+
+    getJob.mockResolvedValue({ isFailed: () => Promise.resolve(true), retry });
+
+    await service.enqueue('asset-1');
+
+    expect(getJob).toHaveBeenCalledWith('asset-1');
+    expect(retry).toHaveBeenCalledWith('failed', {
+      resetAttemptsMade: true,
+      resetAttemptsStarted: true,
+    });
+    expect(add).not.toHaveBeenCalled();
+    expect(Logger.prototype.warn).toHaveBeenCalledWith(
+      '[enqueue] Failed publication sent round again - AssetId: asset-1',
+    );
   });
 
   afterEach(() => {

@@ -3,6 +3,8 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { Queue } from 'bullmq';
 
+import { reviveFailedJob } from 'src/shared/queue/revive-failed-job.utility';
+
 import {
   FILE_ASSET_PUBLICATION_ATTEMPTS,
   FILE_ASSET_PUBLICATION_BACKOFF_MS,
@@ -21,7 +23,11 @@ import {
  * an image library's credentials.
  *
  * The job is keyed by the asset, so a verdict delivered twice enqueues one
- * job rather than two.
+ * job rather than two. The same key used to strand an asset whose earlier
+ * publication had run out of attempts: the failed job is kept, and BullMQ
+ * silently ignored every later request with its identifier — a held roster
+ * file queued again once decided, say. A request that finds a failed job
+ * under the key now sends that job round again instead (FC-042).
  */
 @Injectable()
 export class AssetPublicationQueueService {
@@ -42,6 +48,14 @@ export class AssetPublicationQueueService {
    * @param assetId - The asset, already `CLEAN`.
    */
   async enqueue(assetId: string): Promise<void> {
+    if (await reviveFailedJob(this._queue, assetId)) {
+      this._logger.warn(
+        `[enqueue] Failed publication sent round again - AssetId: ${assetId}`,
+      );
+
+      return;
+    }
+
     await this._queue.add(
       FILE_ASSET_PUBLICATION_JOB,
       { assetId },
