@@ -482,6 +482,27 @@ describe('ChatGateway', () => {
       });
     });
 
+    // Plan §11.8 (FC-043): a payload naming its own author, sender or
+    // time is not believed. The author is the signed-in socket's, and
+    // anything the message type does not declare is dropped unread.
+    it('posts as the socket’s own user whatever the payload claims', async () => {
+      await signIn();
+
+      await gateway.send(asSocket(socket), {
+        ...post,
+        channelId: CHANNEL_ID,
+        userId: 'someone-else',
+        authorUserId: 'someone-else',
+        senderId: 'someone-else',
+        createdAt: '2020-01-01T00:00:00.000Z',
+      });
+
+      expect(messages.postToChannel).toHaveBeenCalledWith(CHANNEL_ID, USER_ID, {
+        body: 'Hail',
+        clientMessageId: CLIENT_ID,
+      });
+    });
+
     it('posts in a conversation', async () => {
       await signIn();
 

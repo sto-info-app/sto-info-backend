@@ -503,4 +503,87 @@ describe('FleetReportCsvService', () => {
       ]);
     });
   });
+
+  // Plan §11.1 (FC-043): every text a Fleet's members or officers chose —
+  // a rank label, a name, a handle, an event's title — can reach a
+  // spreadsheet, and every report's cells go through the same writer, so
+  // none of them may start a formula.
+  describe('formulas', () => {
+    const FORMULA = '=HYPERLINK("https://example.invalid","x")';
+    const recordRange = { from: NOV_15, to: DEC_1 };
+
+    /**
+     * Finds every cell that would start a formula.
+     *
+     * @param csv - A rendered report.
+     * @returns The lines holding one.
+     */
+    const live = (csv: string): string[] =>
+      lines(csv).filter(line => /(^|,)"?[=+\-@]/.test(line));
+
+    it.each([
+      [
+        'ranks',
+        {
+          ...header(FleetReport.RANKS),
+          exports: [
+            {
+              export: FROM,
+              partial: false,
+              labels: [{ label: FORMULA, tier: 1, members: 6 }],
+              changes: null,
+            },
+          ],
+        },
+      ],
+      [
+        'contribution',
+        {
+          ...header(FleetReport.CONTRIBUTION),
+          intervals: [],
+          at: TO,
+          members: [
+            {
+              identityId: 'identity-1',
+              member: { characterName: FORMULA, accountHandle: '+44 hack' },
+              kind: RosterChangeKind.CONTRIBUTION_CHANGED,
+              delta: '1',
+              fromContribution: '1',
+              toContribution: '2',
+              from: FROM,
+              acrossGap: false,
+            },
+          ],
+        },
+      ],
+      [
+        'attendance',
+        {
+          report: FleetReport.ATTENDANCE,
+          view: FleetReportView.FULL,
+          range: recordRange,
+          minimumCohort: 5,
+          occurrences: [
+            {
+              occurrenceId: 'o1',
+              eventId: 'e1',
+              title: FORMULA,
+              startsAt: NOV_15,
+              going: 6,
+              attended: 5,
+              absent: 1,
+              rate: 0.83,
+            },
+          ],
+          totals: { occurrences: 1, attended: 5, absent: 1, rate: 0.83 },
+          members: [{ username: '-1+1', attended: 1, absent: 0 }],
+        },
+      ],
+    ])('writes no live formula in %s', (_kind, report) => {
+      const csv = service.render(report as never, '@Fleet', NOW);
+
+      expect(live(csv)).toEqual([]);
+      expect(csv).toContain(`'${FORMULA.replaceAll('"', '""')}`);
+    });
+  });
 });

@@ -7,7 +7,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { beforeEach, describe, expect, it } from '@jest/globals';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from '@jest/globals';
 import { QueryFailedError } from 'typeorm';
 
 import { NotificationOutboxKind } from 'src/notification/outbox/notification-outbox-kind.enum';
@@ -525,6 +532,44 @@ describe('ChatMessageService', () => {
           reason: 'Off topic',
           detail: { authorUserId: MEMBER_ID },
         }),
+      ]);
+    });
+  });
+
+  // Plan §11.8 (FC-043): exactly four hours, and exactly forty-five days,
+  // with the clock stopped so the edge is the edge.
+  describe('the exact edges', () => {
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    beforeEach(() => {
+      jest.useFakeTimers({
+        now: new Date('2026-10-01T12:00:00.000Z'),
+        doNotFake: ['nextTick', 'setImmediate', 'setTimeout'],
+      });
+    });
+
+    it('shows a message exactly four hours old, and not one a moment older', async () => {
+      seedMessage(world.db, { id: idOf(1), createdAt: ago(4 * HOUR + 1) });
+      seedMessage(world.db, { id: idOf(2), createdAt: ago(4 * HOUR) });
+
+      const page = await world.messages.readChannel(CHANNEL_ID, MEMBER_ID, {});
+
+      expect(page.messages.map(message => message.id)).toEqual([idOf(2)]);
+    });
+
+    it('keeps a message exactly forty-five days old, and forgets one a moment older', async () => {
+      seedMessage(world.db, {
+        id: idOf(1),
+        createdAt: ago(45 * 24 * HOUR + 1),
+      });
+      seedMessage(world.db, { id: idOf(2), createdAt: ago(45 * 24 * HOUR) });
+
+      await world.messages.purge();
+
+      expect(world.db.rows<Row>(ChatMessageEntity).map(row => row.id)).toEqual([
+        idOf(2),
       ]);
     });
   });

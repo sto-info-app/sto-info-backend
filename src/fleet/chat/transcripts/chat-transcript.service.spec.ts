@@ -212,6 +212,34 @@ describe('ChatTranscriptService', () => {
       );
     });
 
+    // Plan §11.8 (FC-043): exactly seven days is allowed, with the clock
+    // stopped so the edge is the edge.
+    it('allows a range reaching back exactly seven days, and not a moment more', async () => {
+      jest.useFakeTimers({
+        now: new Date('2026-10-01T12:00:00.000Z'),
+        doNotFake: ['nextTick', 'setImmediate', 'setTimeout'],
+      });
+
+      try {
+        await expect(
+          service.request(
+            CHANNEL_ID,
+            MODERATOR_ID,
+            dto({ fromAt: ago(7 * DAY + 1) }),
+          ),
+        ).rejects.toThrow(BadRequestException);
+        await expect(
+          service.request(
+            CHANNEL_ID,
+            MODERATOR_ID,
+            dto({ fromAt: ago(7 * DAY) }),
+          ),
+        ).resolves.toBeDefined();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
     it('refuses a range that ends before it starts', async () => {
       await expect(
         service.request(

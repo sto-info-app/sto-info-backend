@@ -233,6 +233,34 @@ describe('armada arrangement', () => {
         ],
         'A Gamma has to sit under one of this Armada’s Betas.',
       ],
+      // Plan §11.4 (FC-043): no cycle can be built. A Fleet holds one slot,
+      // and a Gamma's parent has to be a Beta, so neither a Gamma under
+      // itself nor two under each other fits.
+      [
+        'a Gamma under itself',
+        [
+          ['b1', BETA],
+          ['g1', GAMMA, 'g1'],
+        ],
+        'A Gamma has to sit under one of this Armada’s Betas.',
+      ],
+      [
+        'two Gammas under each other',
+        [
+          ['b1', BETA],
+          ['g1', GAMMA, 'g2'],
+          ['g2', GAMMA, 'g1'],
+        ],
+        'A Gamma has to sit under one of this Armada’s Betas.',
+      ],
+      [
+        'a Gamma under a Fleet outside the Armada',
+        [
+          ['b1', BETA],
+          ['g1', GAMMA, 'elsewhere'],
+        ],
+        'A Gamma has to sit under one of this Armada’s Betas.',
+      ],
     ] as [string, [string, ArmadaPosition, string?][], string][])(
       'refuses %s',
       (_what, sketch, message) => {
