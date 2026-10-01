@@ -9,6 +9,15 @@ import {
 import { IMAGE_ESTATE_ACTIONS } from '../../database/migrations/1796700000000-AddPrivateImageDelivery';
 import { RESCAN_ACTIONS } from '../../database/migrations/1796800000000-AddRescanCampaigns';
 import { FC050_ACTIONS } from '../../database/migrations/1797100000000-DecideRescanFindings';
+import {
+  LEDGER_ACTIONS,
+  LEDGER_ACTIONS_DOWN_REFUSAL,
+  RecordLedgerReconciliation1797200000000,
+} from '../../database/migrations/1797200000000-RecordLedgerReconciliation';
+import {
+  AddOperationsAlerts1797500000000,
+  OPERATIONS_ACTIONS,
+} from '../../database/migrations/1797500000000-AddOperationsAlerts';
 import { ChatActionEntity } from '../../fleet/chat/entities/chat-action.entity';
 import { ChatActionKind } from '../../fleet/chat/enums/chat.enums';
 import { ModerationHoldActionEntity } from '../../fleet/chat/holds/moderation-hold-action.entity';
@@ -106,12 +115,15 @@ describe('Site admin log schema alignment (FC-039)', () => {
 
   it('gives the action type every action the code knows', () => {
     // FC-040's and FC-041's migrations add the image estate's and the
-    // rescan campaigns' actions; their specs hold that.
+    // rescan campaigns' actions, and FC-050's and FC-042's theirs; their
+    // specs hold that.
     expect([
       ...SITE_ADMIN_ACTIONS,
       ...IMAGE_ESTATE_ACTIONS,
       ...RESCAN_ACTIONS,
       ...FC050_ACTIONS,
+      ...LEDGER_ACTIONS,
+      ...OPERATIONS_ACTIONS,
     ]).toEqual(Object.values(SiteAdminActionKind));
     expect(up[0]).toBe(
       `CREATE TYPE "sto_info_app"."site_admin_action_enum" AS ENUM (${SITE_ADMIN_ACTIONS.map(
@@ -204,5 +216,103 @@ describe('Site admin log schema alignment (FC-039)', () => {
       'DROP FUNCTION "sto_info_app"."site_admin_action_guard"()',
       'DROP TYPE "sto_info_app"."site_admin_action_enum"',
     ]);
+  });
+});
+
+/**
+ * Holds the restore check's action (FC-042) to the code: added last, and
+ * taken out again by a down that makes the type again without it.
+ */
+describe('Ledger reconciliation schema alignment (FC-042)', () => {
+  const migration = new RecordLedgerReconciliation1797200000000();
+  let up: string[];
+  let down: string[];
+
+  beforeAll(async () => {
+    up = await capture(queryRunner => migration.up(queryRunner));
+    down = await capture(queryRunner => migration.down(queryRunner));
+  });
+
+  it('adds the action the restore check logs', () => {
+    expect([...LEDGER_ACTIONS]).toEqual([
+      SiteAdminActionKind.LEDGERS_RECONCILED,
+    ]);
+    expect(up).toEqual(
+      LEDGER_ACTIONS.map(
+        value =>
+          `ALTER TYPE "sto_info_app"."site_admin_action_enum" ADD VALUE IF NOT EXISTS '${value}'`,
+      ),
+    );
+  });
+
+  // Steve's decision: the Security Log's history is not rolled back; the
+  // down refuses first, with nothing changed, and says to roll forward.
+  it('refuses first while the log holds the action, deleting nothing', () => {
+    expect(down[0]).toContain('RAISE EXCEPTION');
+    expect(LEDGER_ACTIONS_DOWN_REFUSAL).toContain('roll forward instead');
+    expect(LEDGER_ACTIONS_DOWN_REFUSAL).not.toContain("'");
+    expect(down.some(statement => statement.startsWith('DELETE'))).toBe(false);
+  });
+
+  it('makes the type again without it, keeping every earlier action', () => {
+    // FC-042's operations actions come later.
+    const later: readonly string[] = [...LEDGER_ACTIONS, ...OPERATIONS_ACTIONS];
+    const before = Object.values(SiteAdminActionKind).filter(
+      value => !later.includes(value),
+    );
+
+    expect(down).toEqual([
+      `DO $$ BEGIN IF EXISTS (SELECT 1 FROM "sto_info_app"."site_admin_action" WHERE "action"::text IN ('LEDGERS_RECONCILED')) THEN RAISE EXCEPTION '${LEDGER_ACTIONS_DOWN_REFUSAL}'; END IF; END $$`,
+      'ALTER TYPE "sto_info_app"."site_admin_action_enum" RENAME TO "site_admin_action_enum_old"',
+      `CREATE TYPE "sto_info_app"."site_admin_action_enum" AS ENUM (${before.map(value => `'${value}'`).join(', ')})`,
+      'ALTER TABLE "sto_info_app"."site_admin_action" ALTER COLUMN "action" TYPE "sto_info_app"."site_admin_action_enum" USING "action"::text::"sto_info_app"."site_admin_action_enum"',
+      'DROP TYPE "sto_info_app"."site_admin_action_enum_old"',
+    ]);
+  });
+});
+
+/**
+ * Holds the operations controls' actions (FC-042) to the code: added last,
+ * and taken out again by a down that makes the type again without them.
+ */
+describe('Operations actions schema alignment (FC-042)', () => {
+  const migration = new AddOperationsAlerts1797500000000();
+  let up: string[];
+  let down: string[];
+
+  beforeAll(async () => {
+    up = await capture(queryRunner => migration.up(queryRunner));
+    down = await capture(queryRunner => migration.down(queryRunner));
+  });
+
+  it('adds the reads, retries, discards and pauses the site admin log records', () => {
+    expect([...OPERATIONS_ACTIONS]).toEqual([
+      SiteAdminActionKind.SCAN_DIAGNOSTICS_VIEWED,
+      SiteAdminActionKind.SCAN_JOB_RETRIED,
+      SiteAdminActionKind.PUBLICATION_PAUSED,
+      SiteAdminActionKind.PUBLICATION_RESUMED,
+      SiteAdminActionKind.SCAN_JOB_DISCARDED,
+    ]);
+    expect(
+      Object.values(SiteAdminActionKind).slice(-OPERATIONS_ACTIONS.length),
+    ).toEqual([...OPERATIONS_ACTIONS]);
+    for (const value of OPERATIONS_ACTIONS) {
+      expect(up).toContain(
+        `ALTER TYPE "sto_info_app"."site_admin_action_enum" ADD VALUE IF NOT EXISTS '${value}'`,
+      );
+    }
+  });
+
+  it('makes the type again without them, keeping every earlier action', () => {
+    const before = Object.values(SiteAdminActionKind).filter(
+      value => !(OPERATIONS_ACTIONS as readonly string[]).includes(value),
+    );
+
+    expect(down).toContain(
+      `CREATE TYPE "sto_info_app"."site_admin_action_enum" AS ENUM (${before.map(value => `'${value}'`).join(', ')})`,
+    );
+    expect(down).toContain(
+      'ALTER TABLE "sto_info_app"."site_admin_action" ALTER COLUMN "action" TYPE "sto_info_app"."site_admin_action_enum" USING "action"::text::"sto_info_app"."site_admin_action_enum"',
+    );
   });
 });

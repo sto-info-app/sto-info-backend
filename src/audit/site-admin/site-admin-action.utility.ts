@@ -8,8 +8,8 @@ import { SiteAdminActionKind } from './site-admin-action.enum';
 /** One site admin action, as its caller describes it. */
 export interface SiteAdminActionEntry {
   readonly action: SiteAdminActionKind;
-  /** The site admin. */
-  readonly actorUserId: string;
+  /** The site admin, or null for what the system does itself (FC-042). */
+  readonly actorUserId: string | null;
   /** The account it acted on, when it acted on one. */
   readonly targetUserId?: string | null;
   /** The record it acted on, when not an account: a kind and an ID. */

@@ -36,4 +36,19 @@ export enum SiteAdminActionKind {
   IMAGE_TAKEN_DOWN = 'IMAGE_TAKEN_DOWN',
   /** A picture refused for policy on rescan, kept (FC-050). */
   IMAGE_KEPT = 'IMAGE_KEPT',
+  /**
+   * The restore check at boot brought back records an older backup lacked,
+   * from the ledgers kept outside the database; no actor (FC-042).
+   */
+  LEDGERS_RECONCILED = 'LEDGERS_RECONCILED',
+  /** Scan Diagnostics, its refusals, an asset or the failed jobs read (FC-042). */
+  SCAN_DIAGNOSTICS_VIEWED = 'SCAN_DIAGNOSTICS_VIEWED',
+  /** A failed background job, or all of them, sent round again (FC-042). */
+  SCAN_JOB_RETRIED = 'SCAN_JOB_RETRIED',
+  /** Publication of scanned uploads paused (FC-042). */
+  PUBLICATION_PAUSED = 'PUBLICATION_PAUSED',
+  /** Publication of scanned uploads resumed (FC-042). */
+  PUBLICATION_RESUMED = 'PUBLICATION_RESUMED',
+  /** A failed background job, or those a retry cannot help, removed (FC-042). */
+  SCAN_JOB_DISCARDED = 'SCAN_JOB_DISCARDED',
 }

@@ -71,4 +71,25 @@ describe('recordSiteAdminAction (FC-039)', () => {
       ipAddress: null,
     });
   });
+
+  // FC-042: the restore check at boot logs what it brought back, and nobody
+  // asked for it.
+  it('records what the system did itself with no actor', async () => {
+    jest.spyOn(CurrentContextHelper, 'ip', 'get').mockReturnValue(null);
+    const { manager, insert } = transaction();
+
+    await recordSiteAdminAction(manager, {
+      action: SiteAdminActionKind.LEDGERS_RECONCILED,
+      actorUserId: null,
+      reason: 'The restore check brought back 1 erasure.',
+    });
+
+    expect(insert).toHaveBeenCalledWith(
+      SiteAdminActionEntity,
+      expect.objectContaining({
+        action: SiteAdminActionKind.LEDGERS_RECONCILED,
+        actorUserId: null,
+      }),
+    );
+  });
 });

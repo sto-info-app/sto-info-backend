@@ -10,6 +10,8 @@ import {
   DecideRescanFindings1797100000000,
   FC050_ACTIONS,
 } from '../../database/migrations/1797100000000-DecideRescanFindings';
+import { LEDGER_ACTIONS } from '../../database/migrations/1797200000000-RecordLedgerReconciliation';
+import { OPERATIONS_ACTIONS } from '../../database/migrations/1797500000000-AddOperationsAlerts';
 import { FileRescanCampaignEntity } from './file-rescan-campaign.entity';
 import { FileRescanEntity } from './file-rescan.entity';
 import {
@@ -130,7 +132,9 @@ describe('Rescan campaign schema alignment (FC-041)', () => {
         .filter(
           value =>
             !value.startsWith('RESCAN_') &&
-            !(FC050_ACTIONS as readonly string[]).includes(value),
+            !(FC050_ACTIONS as readonly string[]).includes(value) &&
+            !(LEDGER_ACTIONS as readonly string[]).includes(value) &&
+            !(OPERATIONS_ACTIONS as readonly string[]).includes(value),
         )
         .map(value => `'${value}'`)
         .join(', ')})`,
@@ -188,7 +192,11 @@ describe('Rescan decision schema alignment (FC-050)', () => {
   });
 
   it('adds its actions to the site admin log, and takes them out again', () => {
-    const all = Object.values(SiteAdminActionKind);
+    // FC-042's come later.
+    const later: readonly string[] = [...LEDGER_ACTIONS, ...OPERATIONS_ACTIONS];
+    const all = Object.values(SiteAdminActionKind).filter(
+      value => !later.includes(value),
+    );
 
     expect(all.slice(-FC050_ACTIONS.length)).toEqual([...FC050_ACTIONS]);
     expect(up.slice(-FC050_ACTIONS.length)).toEqual(
