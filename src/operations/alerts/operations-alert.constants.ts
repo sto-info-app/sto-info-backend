@@ -43,6 +43,13 @@ export const PUBLICATION_PAUSED_LONG_MINUTES = 60;
 export const QUEUES_UNREACHABLE_MINUTES = 2;
 
 /**
+ * How long a withdrawn picture's public copy may stay undeleted, in hours
+ * (FC-043). The owed-purge sweep tries again every hour, so a day is about
+ * twenty-four refusals from Cloudflare in a row.
+ */
+export const PURGE_OWED_HOURS = 24;
+
+/**
  * How long one alert run waits for Redis to answer, in milliseconds: the
  * limit every Redis read on the diagnostics side shares. A client with
  * nothing to talk to queues commands rather than failing them, so without a

@@ -7,6 +7,10 @@ import {
   OPERATIONS_ALERT_KINDS,
   PUBLICATION_SWITCH,
 } from '../../database/migrations/1797500000000-AddOperationsAlerts';
+import {
+  AddPurgeOwedAlert1797600000000,
+  PURGE_OWED_ALERT,
+} from '../../database/migrations/1797600000000-AddPurgeOwedAlert';
 import { FILE_PUBLICATION_PAUSED_SETTING_KEY } from '../../file-assets/constants/file-asset-publication.constants';
 import { OperationsAlertEntity } from './operations-alert.entity';
 import { OperationsAlertKind } from './operations-alert.enum';
@@ -73,7 +77,8 @@ describe('Operations alert schema alignment (FC-042)', () => {
   });
 
   it('gives the kind type every problem the code watches for', () => {
-    expect([...OPERATIONS_ALERT_KINDS]).toEqual(
+    // FC-043 added one after FC-042's migration had made the type.
+    expect([...OPERATIONS_ALERT_KINDS, PURGE_OWED_ALERT]).toEqual(
       Object.values(OperationsAlertKind),
     );
     expect(up[0]).toBe(
@@ -130,5 +135,38 @@ describe('Operations alert schema alignment (FC-042)', () => {
       'DROP TABLE "sto_info_app"."operations_alert"',
       'DROP TYPE "sto_info_app"."operations_alert_kind_enum"',
     ]);
+  });
+});
+
+/**
+ * Holds FC-043's alert kind to the code. Rehearsed up, refused down and
+ * plain down in a throwaway PostgreSQL 18 container.
+ */
+describe('Owed purge alert migration (FC-043)', () => {
+  const migration = new AddPurgeOwedAlert1797600000000();
+
+  it('names the migration after its own class', () => {
+    expect(migration.name).toBe('AddPurgeOwedAlert1797600000000');
+  });
+
+  it('adds the kind, and nothing else', async () => {
+    await expect(capture(runner => migration.up(runner))).resolves.toEqual([
+      `ALTER TYPE "sto_info_app"."operations_alert_kind_enum" ADD VALUE IF NOT EXISTS 'PURGE_OWED'`,
+    ]);
+  });
+
+  it('refuses to come down once an alert of the kind exists, first', async () => {
+    const [refusal, ...rest] = await capture(runner => migration.down(runner));
+
+    expect(refusal).toContain(`WHERE "kind"::text = 'PURGE_OWED'`);
+    expect(refusal).toContain('RAISE EXCEPTION');
+    expect(rest).toContain(
+      `CREATE TYPE "sto_info_app"."operations_alert_kind_enum" AS ENUM (${OPERATIONS_ALERT_KINDS.map(
+        kind => `'${kind}'`,
+      ).join(', ')})`,
+    );
+    expect(rest[rest.length - 1]).toBe(
+      'DROP TYPE "sto_info_app"."operations_alert_kind_enum_old"',
+    );
   });
 });

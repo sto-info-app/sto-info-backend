@@ -31,6 +31,7 @@ is a code change, reviewed like any other.
 | `FAILED_JOBS`             | Any job is in the failed set of `file-scan`, `file-scan-verdict`, `file-asset-publication`, `chat-transcript` or `fleet-roster-replay` | A queue gave up on something and it waits for a site admin  |
 | `PUBLICATION_PAUSED_LONG` | Publication has been paused for more than **an hour**                                                                                  | Somebody paused it and it is still paused                   |
 | `QUEUES_UNREACHABLE`      | Redis has not answered the alert run for **2 minutes** running                                                                         | Nothing is being queued, scanned or published               |
+| `PURGE_OWED`              | A withdrawn picture's public copy has waited more than **24 hours** to be deleted from Cloudflare (FC-043)                             | A withdrawn picture can still be reached at its old address |
 
 ### `SCAN_QUEUE_LAG`
 
@@ -124,6 +125,23 @@ background job runs. Notifications are database rows, so this one reaches you wi
 The two minutes are counted in the backend's memory across consecutive runs, so a backend restart
 during an outage starts them again. Readiness (`/health/ready`) does not depend on Redis and stays
 as it is.
+
+### `PURGE_OWED`
+
+Withdrawing a published picture revokes its row and then deletes it from Cloudflare (ADR-0016).
+When the delete fails, the purge is owed (`purgeRequiredAt` set, `purgedAt` empty) and the picture
+is still reachable at its old address, on every variant. Every hour the owed-purge sweep asks
+Cloudflare again for each, oldest first, 50 at a time, and an object Cloudflare no longer has counts
+as gone (`[sweep] Owed purges retried - Purged: p, Failed: f`). The alert opens once one has been
+owed for a day, and needs only the database, so it is judged while Redis is down too.
+
+1. Open Scan Diagnostics: under Publication it counts the withdrawn pictures still to be deleted,
+   how many are over a day, and how old the oldest is.
+2. Read the backend's log for `[deleteFromCloudflare] Could not delete - Reference: …, Reason: …`.
+   A 401 or 403 is the Cloudflare token (`cloudflareImagesGatedApiKey`, or the R2 pair for a legacy
+   picture): check it in AWS Secrets Manager and Cloudflare. A 5xx or a timeout is Cloudflare:
+   check its status page and wait for the next hourly run.
+3. The alert clears at the next minute's run once nothing has been owed for a day.
 
 ## What raises no alert
 

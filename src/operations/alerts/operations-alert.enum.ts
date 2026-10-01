@@ -22,4 +22,9 @@ export enum OperationsAlertKind {
   PUBLICATION_PAUSED_LONG = 'PUBLICATION_PAUSED_LONG',
   /** Redis, which carries every queue, has not answered for too long. */
   QUEUES_UNREACHABLE = 'QUEUES_UNREACHABLE',
+  /**
+   * A withdrawn picture's public copy has gone undeleted for too long
+   * (FC-043).
+   */
+  PURGE_OWED = 'PURGE_OWED',
 }

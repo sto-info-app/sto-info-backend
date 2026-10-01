@@ -611,6 +611,7 @@ into line with the pause switch, then checks for each of these, with thresholds 
 | `FAILED_JOBS` | Any job is in the failed set of a queue below. | `failed` |
 | `PUBLICATION_PAUSED_LONG` | Publication has been paused for more than an hour. | `pausedMinutes` |
 | `QUEUES_UNREACHABLE` | Redis has not answered the alert run for 2 minutes running (counted in memory from the first run that could not reach it; a restart starts again). | `minutesUnreachable` |
+| `PURGE_OWED` | A withdrawn picture's public copy has been owed a purge for more than 24 hours (FC-043; database only, so judged while Redis is down). | `overdue`, `oldestHours` |
 
 - **One alert per problem until it clears.** Each occurrence is a row in `operations_alert`
   (`openedAt`, `lastSeenAt`, `clearedAt`, all `timestamptz`), and a partial unique index keeps one

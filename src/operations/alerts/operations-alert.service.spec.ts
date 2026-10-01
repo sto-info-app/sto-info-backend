@@ -12,6 +12,7 @@ import {
 import { DataSource } from 'typeorm';
 
 import { PublicationPauseService } from 'src/file-assets/publication/publication-pause.service';
+import { OwedPurges } from 'src/file-assets/services/owed-purge-sweep.service';
 import { ScanWorkerHeartbeatDto } from 'src/file-scanning/dto/scan-diagnostics.dto';
 import { ScanDiagnosticsService } from 'src/file-scanning/services/scan-diagnostics.service';
 import { NotificationSeverity } from 'src/notification/enums/notification-severity.enum';
@@ -24,6 +25,7 @@ import { FailedJobsService } from '../failed-jobs/failed-jobs.service';
 import {
   OPERATIONS_ALERT_LOCK,
   PRIORITISED_SAMPLE,
+  PURGE_OWED_HOURS,
   QUEUE_PROBE_TIMEOUT_MS,
   SCAN_DIAGNOSTICS_LINK,
 } from './operations-alert.constants';
@@ -83,6 +85,8 @@ describe('OperationsAlertService', () => {
   >;
   let release: jest.Mock<() => Promise<void>>;
   let find: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
+  let owedPurges: jest.Mock<() => Promise<OwedPurges>>;
+  let owedParameters: Record<string, unknown>;
   let readHeartbeats: jest.Mock<() => Promise<ScanWorkerHeartbeatDto[] | null>>;
   let apply: jest.Mock<(trigger: string) => Promise<boolean | null>>;
   let state: jest.Mock<
@@ -181,6 +185,27 @@ describe('OperationsAlertService', () => {
     );
     release = jest.fn(() => Promise.resolve());
     find = jest.fn(() => Promise.resolve(ADMINS));
+    owedPurges = jest.fn(() =>
+      Promise.resolve({ owed: 0, overdue: 0, oldestHours: null }),
+    );
+    owedParameters = {};
+
+    // The owed-purge count (FC-043): one aggregate row.
+    const owedQuery = (): Record<string, unknown> => {
+      const chain: Record<string, unknown> = {};
+
+      for (const step of ['select', 'addSelect', 'where', 'andWhere']) {
+        chain[step] = () => chain;
+      }
+      chain.setParameters = (parameters: Record<string, unknown>) => {
+        owedParameters = parameters;
+
+        return chain;
+      };
+      chain.getRawOne = owedPurges;
+
+      return chain;
+    };
     readHeartbeats = jest.fn(() => Promise.resolve([worker()]));
     apply = jest.fn(() => Promise.resolve(false));
     state = jest.fn(() =>
@@ -209,7 +234,7 @@ describe('OperationsAlertService', () => {
 
           return { createQueryBuilder: builder };
         },
-        manager: { find },
+        manager: { find, createQueryBuilder: owedQuery },
       } as unknown as DataSource,
       { readHeartbeats } as unknown as ScanDiagnosticsService,
       { apply, state } as unknown as PublicationPauseService,
@@ -390,8 +415,8 @@ describe('OperationsAlertService', () => {
 
       await service.tick();
 
-      // The queue lag and the pause are judged; a heartbeat that cannot be
-      // read is silence. Nothing else is touched.
+      // The queue lag, the pause and the owed purges are judged; a
+      // heartbeat that cannot be read is silence. Nothing else is touched.
       expect(
         statements.map(
           statement =>
@@ -404,6 +429,7 @@ describe('OperationsAlertService', () => {
         OperationsAlertKind.WORKER_SILENT,
         OperationsAlertKind.PUBLICATION_PAUSED_LONG,
         OperationsAlertKind.QUEUES_UNREACHABLE,
+        OperationsAlertKind.PURGE_OWED,
       ]);
     });
   });
@@ -720,6 +746,42 @@ describe('OperationsAlertService', () => {
         ).toEqual(finding);
       },
     );
+  });
+
+  describe('owed purges (FC-043)', () => {
+    it.each([
+      [
+        { owed: 3, overdue: 2, oldestHours: 30 },
+        { open: true, detail: { overdue: 2, oldestHours: 30 } },
+      ],
+      [{ owed: 3, overdue: 0, oldestHours: 5 }, { open: false }],
+      [{ owed: 0, overdue: 0, oldestHours: null }, { open: false }],
+    ])('judges %o', async (outstanding, finding) => {
+      owedPurges.mockResolvedValue(outstanding);
+
+      expect((await findings()).get(OperationsAlertKind.PURGE_OWED)).toEqual(
+        finding,
+      );
+      expect(owedParameters).toEqual({ overdueHours: PURGE_OWED_HOURS });
+    });
+
+    // The database alone says so, so Redis being away changes nothing.
+    it('is judged while Redis cannot be reached', async () => {
+      owedPurges.mockResolvedValue({ owed: 1, overdue: 1, oldestHours: 25 });
+
+      const judged = new Map(await service.evaluate(null, false));
+
+      expect(judged.get(OperationsAlertKind.PURGE_OWED)).toEqual({
+        open: true,
+        detail: { overdue: 1, oldestHours: 25 },
+      });
+    });
+
+    it('leaves the alert as it was when the count fails', async () => {
+      owedPurges.mockRejectedValue(new Error('down'));
+
+      expect((await findings()).get(OperationsAlertKind.PURGE_OWED)).toBeNull();
+    });
   });
 
   it('words every notice plainly, pointing at Scan Diagnostics or the Admin page', () => {

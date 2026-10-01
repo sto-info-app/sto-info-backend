@@ -10,6 +10,7 @@ import { DataSource, IsNull } from 'typeorm';
 import { CRON_TIMEZONE } from 'src/cron/constants/cron.constants';
 import { FILE_ASSET_PUBLICATION_QUEUE } from 'src/file-assets/constants/file-asset-publication.constants';
 import { PublicationPauseService } from 'src/file-assets/publication/publication-pause.service';
+import { readOwedPurges } from 'src/file-assets/services/owed-purge-sweep.service';
 import { FILE_SCAN_REQUEST_QUEUE } from 'src/file-scanning/contract/file-scan-contract';
 import { ScanDiagnosticsService } from 'src/file-scanning/services/scan-diagnostics.service';
 import { NotificationSeverity } from 'src/notification/enums/notification-severity.enum';
@@ -25,6 +26,7 @@ import {
   PRIORITISED_SAMPLE,
   PUBLICATION_PAUSED_LONG_MINUTES,
   PUBLICATION_QUEUE_LAG_MINUTES,
+  PURGE_OWED_HOURS,
   QUEUE_PROBE_TIMEOUT_MS,
   QUEUES_UNREACHABLE_MINUTES,
   SCAN_DIAGNOSTICS_LINK,
@@ -143,6 +145,19 @@ export const OPERATIONS_ALERT_NOTICES: Readonly<
       body: 'Redis is answering again, and the queues are moving.',
     },
   },
+  [OperationsAlertKind.PURGE_OWED]: {
+    opened: {
+      title: 'Withdrawn pictures are still online',
+      body:
+        `A withdrawn picture's public copy has not been deleted for more ` +
+        `than ${PURGE_OWED_HOURS} hours, so it can still be reached at its ` +
+        'old address. The site retries every hour; look at Scan Diagnostics.',
+    },
+    cleared: {
+      title: 'Withdrawn pictures have been deleted',
+      body: `No withdrawn picture has waited more than ${PURGE_OWED_HOURS} hours to be deleted.`,
+    },
+  },
   [OperationsAlertKind.PUBLICATION_PAUSED_LONG]: {
     opened: {
       title: 'Publication is still paused',
@@ -176,6 +191,9 @@ const MINUTE_MS = 60_000;
  *   worker holds are more than {@link SIGNATURES_STALE_HOURS} hours old.
  * - **Failed jobs**, in any queue that keeps them.
  * - **Publication paused** for more than an hour.
+ * - **A withdrawn picture still online**: its public copy owed a purge for
+ *   more than {@link PURGE_OWED_HOURS} hours (FC-043). The database alone
+ *   says so, so this one is judged whatever Redis is doing.
  * - **Redis unreachable** for {@link QUEUES_UNREACHABLE_MINUTES} minutes
  *   running, measured across runs from the first that could not reach it.
  *   Notifications are database rows, so this one is told without Redis.
@@ -360,6 +378,10 @@ export class OperationsAlertService {
       [
         OperationsAlertKind.QUEUES_UNREACHABLE,
         this.checkReachability(reachable, now),
+      ],
+      [
+        OperationsAlertKind.PURGE_OWED,
+        await this.checked('owedPurges', () => this.checkOwedPurges()),
       ],
     ];
   }
@@ -606,6 +628,22 @@ export class OperationsAlertService {
 
     return pausedMinutes > PUBLICATION_PAUSED_LONG_MINUTES
       ? { open: true, detail: { pausedMinutes } }
+      : { open: false };
+  }
+
+  /**
+   * Judges the purges withdrawals left owed (FC-043).
+   *
+   * @returns Whether any has been owed too long, how many and how old.
+   */
+  private async checkOwedPurges(): Promise<OperationsFinding> {
+    const { overdue, oldestHours } = await readOwedPurges(
+      this._dataSource.manager,
+      PURGE_OWED_HOURS,
+    );
+
+    return overdue > 0
+      ? { open: true, detail: { overdue, oldestHours: oldestHours! } }
       : { open: false };
   }
 
