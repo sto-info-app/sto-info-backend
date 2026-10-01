@@ -114,6 +114,25 @@ describe('RosterTypedParserService', () => {
       expect(roster.rows[0].publicComment).toBe('Call me "Renn"');
     });
 
+    // Plan §3.4 and §11.1 (FC-043): 117 rank labels across the corpus and
+    // no ordering, so any label is kept exactly as the Fleet wrote it, and
+    // none means anything here — a formula included, which stays text.
+    it.each([
+      'Fleet Admiral',
+      'Grand Nagus of the Fleet',
+      'Rang ✦ Ehrenmitglied',
+      '=HYPERLINK("x")',
+      'Admin',
+    ])('keeps the rank label %s exactly', guildRank => {
+      const roster = service.read(
+        file(line({ 'Guild Rank': guildRank })),
+        LONDON,
+      );
+
+      expect(roster.problems).toEqual([]);
+      expect(roster.rows[0].guildRank).toBe(guildRank);
+    });
+
     it('keeps a comma inside a value', () => {
       const roster = service.read(
         file(line({ Status: 'Away, back Monday' })),
@@ -512,6 +531,19 @@ describe('RosterTypedParserService', () => {
       expect(roster.problems).toEqual([]);
     });
 
+    // Where the handle ends and the name begins is part of who it is.
+    it('does not run a handle into the name after it', () => {
+      const roster = service.read(
+        file(
+          line({ 'Account Handle': '@ab', 'Character Name': 'c' }),
+          line({ 'Account Handle': '@a', 'Character Name': 'bc' }),
+        ),
+        LONDON,
+      );
+
+      expect(roster.problems).toEqual([]);
+    });
+
     it('sees through a difference of case alone', () => {
       const roster = service.read(
         file(
@@ -561,6 +593,8 @@ describe('RosterTypedParserService', () => {
 
     it.each([
       ['a line that does not open with a quote', 'Vex Loran,@vexloran'],
+      ['a first value missing its opening quote', `x${line().slice(1)}`],
+      ['junk in place of a delimiter', line().replace('","', '"x"')],
       ['a field whose quote is never closed', '"Vex Loran'],
       ['junk where a delimiter should be', `${line()}x"extra"`],
       ['too few columns', '"one","two"'],

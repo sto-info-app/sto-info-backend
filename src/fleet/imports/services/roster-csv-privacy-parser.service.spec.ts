@@ -294,6 +294,23 @@ describe('RosterCsvPrivacyParserService', () => {
       );
     });
 
+    // At the limit it is read, and only then refused for what it holds.
+    it('reads an upload exactly at the size limit', () => {
+      expectRejection(
+        Buffer.alloc(ROSTER_CSV_LIMITS.maxSourceBytes, 0x41),
+        RosterCsvRejectionCode.LINE_TOO_LONG,
+        1,
+      );
+    });
+
+    it('refuses an upload holding nothing but a byte order mark', () => {
+      expectRejection(
+        Buffer.from([0xef, 0xbb, 0xbf]),
+        RosterCsvRejectionCode.HEADER_UNRECOGNISED,
+        1,
+      );
+    });
+
     it('refuses bytes that are not UTF-8', () => {
       expectRejection(
         Buffer.from([0xff, 0xfe, 0x41]),
@@ -359,6 +376,45 @@ describe('RosterCsvPrivacyParserService', () => {
       expectRejection(source, RosterCsvRejectionCode.HEADER_UNRECOGNISED, 1);
     });
 
+    // Plan §11.1 (FC-043): the header is matched exactly, so a file that
+    // changes the delimiter or repeats a column is refused at line one
+    // rather than read with its columns somewhere else.
+    it.each([
+      ['semicolons', ROSTER_NORMAL_HEADER_LINE.replaceAll(',', ';')],
+      [
+        'tabs',
+        ROSTER_NORMAL_HEADER_LINE.replaceAll(',', String.fromCharCode(9)),
+      ],
+      ['a repeated column', `${ROSTER_NORMAL_HEADER_LINE},Guild Rank`],
+      [
+        'its columns reordered',
+        ROSTER_NORMAL_HEADER_LINE.replace(
+          'Character Name,Account Handle',
+          'Account Handle,Character Name',
+        ),
+      ],
+      ['a quoted header', `"${ROSTER_NORMAL_HEADER_LINE}"`],
+    ])('refuses a header delimited or shaped with %s', (_case, header) => {
+      expectRejection(
+        Buffer.concat([Buffer.from(header, 'utf8'), Buffer.from([0x0a])]),
+        RosterCsvRejectionCode.HEADER_UNRECOGNISED,
+        1,
+      );
+    });
+
+    // The header is held to the line rules before it is compared, so a
+    // control character in it is named for what it is.
+    it('refuses a control character in the header as one', () => {
+      expectRejection(
+        Buffer.from(
+          `${ROSTER_NORMAL_HEADER_LINE}${String.fromCharCode(0)}\n`,
+          'utf8',
+        ),
+        RosterCsvRejectionCode.CONTROL_CHARACTER,
+        1,
+      );
+    });
+
     it('refuses more rows than the limit allows', () => {
       const tails = Array<string>(ROSTER_CSV_LIMITS.maxRows + 1).fill(
         '"Offline","",',
@@ -381,6 +437,15 @@ describe('RosterCsvPrivacyParserService', () => {
         RosterCsvRejectionCode.LINE_TOO_LONG,
         2,
       );
+    });
+
+    it('accepts a line exactly as long as the limit allows', () => {
+      const tail = (comment: string): string =>
+        `"Offline","",,"${comment}",Author,`;
+      const room =
+        ROSTER_CSV_LIMITS.maxLineLength - `${PREFIX},${tail('')}`.length;
+
+      expect(parser.sanitise(officer(tail('a'.repeat(room)))).rowCount).toBe(1);
     });
 
     it('refuses a carriage return that does not end a line', () => {
@@ -423,6 +488,14 @@ describe('RosterCsvPrivacyParserService', () => {
       );
     });
 
+    it('accepts a retained value exactly as long as the limit allows', () => {
+      const comment = 'a'.repeat(ROSTER_CSV_LIMITS.maxFieldLength);
+
+      expect(parser.sanitise(normal(`"Offline","${comment}",`)).rowCount).toBe(
+        1,
+      );
+    });
+
     it('refuses a retained value longer than the limit allows', () => {
       const comment = 'a'.repeat(ROSTER_CSV_LIMITS.maxFieldLength + 1);
 
@@ -453,11 +526,35 @@ describe('RosterCsvPrivacyParserService', () => {
 
       expect(parser.sanitise(source).rowCount).toBe(1);
     });
+
+    // Plan §11.1 (FC-043): a comma smuggled into a name does not quietly
+    // move every later column one place along; the row no longer reaches a
+    // quoted Status where one has to be, and it is refused.
+    it('refuses a row a comma in a name would shift', () => {
+      const source = Buffer.from(
+        `${ROSTER_NORMAL_HEADER_LINE}\n` +
+          `Kell, Vex,@h,65,C,R,5000,a,b,c,"Offline","",\n`,
+        'utf8',
+      );
+
+      expectRejection(source, RosterCsvRejectionCode.ROW_UNPARSEABLE, 2);
+    });
   });
 
   describe('the tail', () => {
     const DATE = '1/1/2024 1:00:00am';
     const OTHER_DATE = '2/2/2024 2:00:00pm';
+
+    it.each(['xm', 'ax', 'pp'])(
+      'refuses a date ending %s rather than am or pm',
+      meridiem => {
+        expectRejection(
+          normal(`"Offline","",1/1/2024 1:00:00${meridiem}`),
+          RosterCsvRejectionCode.ROW_UNPARSEABLE,
+          2,
+        );
+      },
+    );
 
     it('refuses a tail that does not open with a quoted Status', () => {
       expectRejection(

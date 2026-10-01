@@ -347,6 +347,18 @@ describe('RosterProjector', () => {
       );
     });
 
+    // Listed by the export taken at the very instant they joined: the same
+    // stay, not a departure and a return.
+    it('keeps the episode when a Join Date is the instant of the last export', () => {
+      const result = project([
+        snap('i1', 1, [row('a')]),
+        snap('i2', 2, [row('a', { joinedAt: day(1) })]),
+      ]);
+
+      expect(result.episodes).toHaveLength(1);
+      expect(kinds(result, 'a')).toEqual([RosterChangeKind.JOIN_DATE_CHANGED]);
+    });
+
     it('keeps the episode when a Join Date moves backwards', () => {
       const earlier = new Date(Date.UTC(2019, 1, 1, 9));
       const result = project([
@@ -547,6 +559,44 @@ describe('RosterProjector', () => {
       expect(result.intervals[0].renamed).toBe(1);
     });
 
+    // Plan §3.4 and §11.3 (FC-043): rank text is the Fleet's own, so a
+    // Fleet renaming its ranks is reported as rank changes and nothing more
+    // — no departure, no join, and no contribution moved.
+    it('reports a mass rank relabel as rank changes, and nothing else', () => {
+      const result = project([
+        snap('i1', 1, [
+          row('a', { guildRank: 'Captain' }),
+          row('b', { guildRank: 'Ensign' }),
+        ]),
+        snap('i2', 2, [
+          row('a', { guildRank: 'Fleet Captain' }),
+          row('b', { guildRank: 'Crew' }),
+        ]),
+      ]);
+
+      expect(result.episodes).toHaveLength(2);
+      expect(result.episodes.every(episode => episode.endKind === null)).toBe(
+        true,
+      );
+      expect(result.changes).toEqual([
+        expect.objectContaining({
+          identityId: 'a',
+          kind: RosterChangeKind.RANK_CHANGED,
+          detail: { fromRank: 'Captain', toRank: 'Fleet Captain' },
+        }),
+        expect.objectContaining({
+          identityId: 'b',
+          kind: RosterChangeKind.RANK_CHANGED,
+          detail: { fromRank: 'Ensign', toRank: 'Crew' },
+        }),
+      ]);
+      expect(result.intervals[0]).toMatchObject({
+        rankChanged: 2,
+        joined: 0,
+        left: 0,
+      });
+    });
+
     it('takes presence and no values from several rows of one identity', () => {
       const result = project([
         snap('i1', 1, [row('a', { contributionTotal: '100' })]),
@@ -636,6 +686,15 @@ describe('RosterProjector', () => {
       ]);
     });
 
+    it('reports no rename or rank change from an opening that knew neither', () => {
+      const result = project([
+        snap('i1', 1, [row('a', { aliasId: 'x' }), row('a', { aliasId: 'y' })]),
+        snap('i2', 2, [row('a')]),
+      ]);
+
+      expect(kinds(result, 'a')).toEqual([]);
+    });
+
     it('counts an arrival whose total is unknown as unknown', () => {
       const result = project([
         snap('i1', 1, []),
@@ -712,6 +771,19 @@ describe('RosterProjector', () => {
 
       // Excluding it again is projecting without it.
       expect(project([c, a])).toEqual(without);
+    });
+
+    // Import identifiers carry no order: an export imported later can
+    // describe an earlier moment.
+    it('orders exports by when they were taken, not by their identifiers', () => {
+      const result = project([snap('i9', 1, [row('a')]), snap('i1', 2, [])]);
+
+      expect(result.episodes[0]).toEqual(
+        expect.objectContaining({
+          first: { importId: 'i9', at: day(1) },
+          endKind: RosterEpisodeEnd.LEFT,
+        }),
+      );
     });
 
     it('refuses two effective exports of one instant', () => {

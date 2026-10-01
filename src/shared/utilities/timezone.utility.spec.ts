@@ -172,6 +172,28 @@ describe('resolveLocalDateTime', () => {
     expect(resolveLocalDateTime('2026-05-01T09:15', 'Middle/Earth')).toBeNull();
   });
 
+  // A field outside the calendar is a malformed request, not a gap in a
+  // clock: it must not come back as a time that does not exist.
+  it.each([
+    ['month zero', '2026-00-15T12:00'],
+    ['day zero', '2026-01-00T12:00'],
+    ['the thirty-first of a thirty-day month', '2026-04-31T12:00'],
+    ['hour twenty-four', '2026-01-01T24:00'],
+    ['minute sixty', '2026-01-01T12:60'],
+    ['second sixty', '2026-01-01T12:00:60'],
+  ])('refuses %s as malformed', (_description, localDateTime) => {
+    expect(resolveLocalDateTime(localDateTime, 'Europe/London')).toBeNull();
+  });
+
+  it('accepts the last second of a minute', () => {
+    expect(
+      resolveLocalDateTime('2026-01-01T12:00:59', 'Europe/London'),
+    ).toEqual({
+      resolution: LocalTimeResolution.EXACT,
+      candidates: [new Date('2026-01-01T12:00:59.000Z')],
+    });
+  });
+
   // Both readings of an ambiguous time are an hour apart, in that order. A
   // caller offering somebody the choice draws them in the order they happened.
   it('orders ambiguous candidates earliest first, an hour apart', () => {
