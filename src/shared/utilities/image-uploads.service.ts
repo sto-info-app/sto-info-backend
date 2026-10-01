@@ -64,6 +64,17 @@ export interface CloudflareImagePage {
  */
 const FALLBACK_IMAGE_FILENAME = 'upload';
 
+/**
+ * The secret keys that hold the credentials to publish pictures (FC-042):
+ * the public R2 bucket's key pair and the Cloudflare Images token. Every one
+ * is required at boot.
+ */
+export const GATED_CLOUDFLARE_SECRET_KEYS = [
+  'cloudflareR2GatedAccessKey',
+  'cloudflareR2GatedSecret',
+  'cloudflareImagesGatedApiKey',
+] as const;
+
 @Injectable()
 export class ImageUploadsService {
   private readonly _logger = new Logger(ImageUploadsService.name);
@@ -71,6 +82,8 @@ export class ImageUploadsService {
   private readonly _environment: string;
   private cloudflareImagesAccountId: string;
   private cloudflareImagesApiKey: string;
+  /** The secrets' one fetch, once something has asked for it. */
+  private _ready: Promise<void> | undefined;
 
   /**
    * Creates an instance of ImageUploadsService.
@@ -98,13 +111,36 @@ export class ImageUploadsService {
    * @returns A promise that resolves when the service is fully initialised.
    */
   async onModuleInit() {
-    await this.init();
+    await this.ready();
+  }
+
+  /**
+   * Fetches the Cloudflare secrets once, for whichever asks first: Nest's
+   * initialisation, or the restore check (FC-042), which withdraws pictures
+   * before the application is initialised. A failed fetch is tried again by
+   * the next caller.
+   *
+   * @returns A promise that resolves once the secrets are loaded.
+   */
+  ready(): Promise<void> {
+    this._ready ??= this.init().catch((error: unknown) => {
+      this._ready = undefined;
+      throw error;
+    });
+
+    return this._ready;
   }
 
   /**
    * Internal initialisation method that fetches secrets from AWS.
    *
-   * @throws BadRequestException if the Cloudflare R2 secrets are missing.
+   * The Cloudflare credentials are read only under the names FC-042 gave
+   * them. The old names are what a build from before FC-012 reads, and that
+   * build can publish pictures nobody scanned; once the old tokens are
+   * revoked, a rolled-back build finds nothing usable. There is deliberately
+   * no fallback to them.
+   *
+   * @throws BadRequestException naming every missing key, if any is missing.
    * @returns A promise that resolves when initialisation is complete.
    */
   private async init() {
@@ -112,24 +148,22 @@ export class ImageUploadsService {
       process.env.AWS_SECRET_NAME!,
     );
 
-    const errorMsgMissingCloudflareR2 =
-      'Missing Cloudflare R2 access key or secret';
+    const missing = GATED_CLOUDFLARE_SECRET_KEYS.filter(
+      key => !secretObject?.[key],
+    );
 
-    if (!secretObject) {
-      throw new BadRequestException(errorMsgMissingCloudflareR2);
-    }
-
-    if (!secretObject.cloudflareR2AccessKey) {
-      throw new BadRequestException(errorMsgMissingCloudflareR2);
-    }
-
-    if (!secretObject.cloudflareR2Secret) {
-      throw new BadRequestException(errorMsgMissingCloudflareR2);
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        `Missing Cloudflare secret keys: ${missing.join(', ')}. FC-042 ` +
+          'moved the Cloudflare credentials to new names, and the old ' +
+          'cloudflareR2AccessKey, cloudflareR2Secret and ' +
+          'cloudflareImagesApiKey are no longer read.',
+      );
     }
 
     // Set the variables from the AWS Secrets object
     this.cloudflareImagesAccountId = secretObject.cloudflareImagesAccountId;
-    this.cloudflareImagesApiKey = secretObject.cloudflareImagesApiKey;
+    this.cloudflareImagesApiKey = secretObject.cloudflareImagesGatedApiKey;
   }
 
   /**

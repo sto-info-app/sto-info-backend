@@ -55,17 +55,28 @@ function loadMigration(modulePath: string): MigrationConstructor {
   return candidates[0];
 }
 
+/** What one direction of a migration did. */
+interface Recording {
+  /** The statements it issued, in order. */
+  readonly statements: string[];
+  /** Why it refused, when it threw instead of finishing. */
+  readonly refusal: string | null;
+}
+
 /**
  * Runs one direction of a migration against a recording query runner.
  *
+ * A down may refuse to run (FC-042's guard is one), and that is recorded
+ * rather than fatal. An up that throws is still an error.
+ *
  * @param MigrationClass - The migration to run.
  * @param direction - Which direction to record.
- * @returns The statements the migration issued, in order.
+ * @returns The statements the migration issued, and its refusal if any.
  */
 async function record(
   MigrationClass: MigrationConstructor,
   direction: 'up' | 'down',
-): Promise<string[]> {
+): Promise<Recording> {
   const statements: string[] = [];
   const queryRunner = {
     query: (sql: string): Promise<void> => {
@@ -75,9 +86,20 @@ async function record(
     },
   };
 
-  await new MigrationClass()[direction](queryRunner);
+  try {
+    await new MigrationClass()[direction](queryRunner);
+  } catch (error: unknown) {
+    if (direction === 'up') {
+      throw error;
+    }
 
-  return statements;
+    return {
+      statements,
+      refusal: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  return { statements, refusal: null };
 }
 
 async function main(): Promise<void> {
@@ -95,7 +117,24 @@ async function main(): Promise<void> {
     ['up', upPath],
     ['down', downPath],
   ] as const) {
-    const statements = await record(MigrationClass, direction);
+    const { statements, refusal } = await record(MigrationClass, direction);
+
+    if (refusal !== null) {
+      // TypeORM would roll a partial down back; psql replaying it here would
+      // not. A down that refuses has to refuse before it changes anything.
+      if (statements.length > 0) {
+        fail(
+          `${modulePath} refused its down after issuing ${statements.length} statements; refuse before changing anything.`,
+        );
+      }
+
+      // The marker tells run-rehearsal.sh to stop the rollback here and
+      // prove the refusal holds, rather than skip past it.
+      writeFileSync(target, '', 'utf8');
+      writeFileSync(`${target}.refused`, `${refusal}\n`, 'utf8');
+      process.stdout.write(`${direction}: refuses -> ${target}.refused\n`);
+      continue;
+    }
 
     // Semicolon-separated, because psql needs terminators and TypeORM's
     // statements do not carry them.

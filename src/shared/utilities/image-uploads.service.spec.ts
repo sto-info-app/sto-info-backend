@@ -10,6 +10,7 @@ import { ImageSigningService } from 'src/file-assets/delivery/image-signing.serv
 
 import { SecretsService } from '../secrets/secrets.service';
 import {
+  GATED_CLOUDFLARE_SECRET_KEYS,
   ImageUploadsService,
   PublishImageInput,
 } from './image-uploads.service';
@@ -27,16 +28,19 @@ jest.mock('axios');
 
 describe('ImageUploadsService', () => {
   let service: ImageUploadsService;
-  let secretsService: SecretsService;
 
   type UploadR2FileParam = Parameters<
     ImageUploadsService['uploadImageToCloudflareR2']
   >[1];
 
   type SecretObject = {
+    cloudflareR2GatedAccessKey?: string;
+    cloudflareR2GatedSecret?: string;
+    cloudflareImagesAccountId?: string;
+    cloudflareImagesGatedApiKey?: string;
+    // FC-042: the names a build from before FC-012 reads.
     cloudflareR2AccessKey?: string;
     cloudflareR2Secret?: string;
-    cloudflareImagesAccountId?: string;
     cloudflareImagesApiKey?: string;
   };
 
@@ -57,10 +61,10 @@ describe('ImageUploadsService', () => {
       secretOverride === null
         ? null
         : {
-            cloudflareR2AccessKey: 'key',
-            cloudflareR2Secret: 'secret',
+            cloudflareR2GatedAccessKey: 'key',
+            cloudflareR2GatedSecret: 'secret',
             cloudflareImagesAccountId: 'acc-id',
-            cloudflareImagesApiKey: 'cf-key',
+            cloudflareImagesGatedApiKey: 'cf-key',
             ...secretOverride,
           };
 
@@ -129,7 +133,6 @@ describe('ImageUploadsService', () => {
     jest.clearAllMocks();
     const module = await createModule();
     service = module.get<ImageUploadsService>(ImageUploadsService);
-    secretsService = module.get<SecretsService>(SecretsService);
     await service.onModuleInit();
     jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
@@ -141,42 +144,72 @@ describe('ImageUploadsService', () => {
   });
 
   describe('init', () => {
-    it('should throw if secret is missing R2 keys', async () => {
+    /**
+     * The message a missing key produces, naming every key that is missing.
+     *
+     * @param keys - The missing keys.
+     * @returns The exception init throws.
+     */
+    const missingKeys = (...keys: string[]): BadRequestException =>
+      new BadRequestException(
+        `Missing Cloudflare secret keys: ${keys.join(', ')}. FC-042 ` +
+          'moved the Cloudflare credentials to new names, and the old ' +
+          'cloudflareR2AccessKey, cloudflareR2Secret and ' +
+          'cloudflareImagesApiKey are no longer read.',
+      );
+
+    it('names every missing key', async () => {
       const module = await createModule({
-        cloudflareR2AccessKey: undefined,
-        cloudflareR2Secret: undefined,
+        cloudflareR2GatedAccessKey: undefined,
+        cloudflareR2GatedSecret: undefined,
       });
       const localService = module.get<ImageUploadsService>(ImageUploadsService);
 
       await expect(localService.onModuleInit()).rejects.toThrow(
-        new BadRequestException('Missing Cloudflare R2 access key or secret'),
+        missingKeys('cloudflareR2GatedAccessKey', 'cloudflareR2GatedSecret'),
       );
     });
 
-    it('should throw if secret object is null', async () => {
+    it('names all three when there is no secret at all', async () => {
       const module = await createModule(null);
       const localService = module.get<ImageUploadsService>(ImageUploadsService);
 
       await expect(localService.onModuleInit()).rejects.toThrow(
-        new BadRequestException('Missing Cloudflare R2 access key or secret'),
+        missingKeys(...GATED_CLOUDFLARE_SECRET_KEYS),
       );
     });
 
-    it('should throw if secret is missing R2 access key', async () => {
-      const module = await createModule({ cloudflareR2AccessKey: undefined });
+    it.each(GATED_CLOUDFLARE_SECRET_KEYS.map(key => [key]))(
+      'refuses to start without %s',
+      async key => {
+        const module = await createModule({ [key]: undefined });
+        const localService =
+          module.get<ImageUploadsService>(ImageUploadsService);
+
+        await expect(localService.onModuleInit()).rejects.toThrow(
+          missingKeys(key),
+        );
+      },
+    );
+
+    /**
+     * FC-042: a secret that still carries only the old names is what a
+     * rolled-back build would find. This build must not read them either,
+     * or retiring them would retire nothing.
+     */
+    it('does not fall back to the names a build from before FC-012 reads', async () => {
+      const module = await createModule({
+        cloudflareR2GatedAccessKey: undefined,
+        cloudflareR2GatedSecret: undefined,
+        cloudflareImagesGatedApiKey: undefined,
+        cloudflareR2AccessKey: 'old-key',
+        cloudflareR2Secret: 'old-secret',
+        cloudflareImagesApiKey: 'old-cf-key',
+      });
       const localService = module.get<ImageUploadsService>(ImageUploadsService);
 
       await expect(localService.onModuleInit()).rejects.toThrow(
-        new BadRequestException('Missing Cloudflare R2 access key or secret'),
-      );
-    });
-
-    it('should throw if secret is missing R2 secret', async () => {
-      const module = await createModule({ cloudflareR2Secret: undefined });
-      const localService = module.get<ImageUploadsService>(ImageUploadsService);
-
-      await expect(localService.onModuleInit()).rejects.toThrow(
-        new BadRequestException('Missing Cloudflare R2 access key or secret'),
+        missingKeys(...GATED_CLOUDFLARE_SECRET_KEYS),
       );
     });
 
@@ -191,9 +224,42 @@ describe('ImageUploadsService', () => {
     });
 
     it('should read secret name from env', async () => {
+      const module = await createModule();
+      const localService = module.get<ImageUploadsService>(ImageUploadsService);
+
       process.env.AWS_SECRET_NAME = 'another-secret';
-      await service.onModuleInit();
-      expect(secretsService.getSecret).toHaveBeenCalledWith('another-secret');
+      await localService.onModuleInit();
+      expect(module.get(SecretsService).getSecret).toHaveBeenCalledWith(
+        'another-secret',
+      );
+    });
+
+    // FC-042: the restore check withdraws pictures before Nest initialises
+    // anything, so it asks for the secrets itself.
+    it('fetches the secrets once, whoever asks first', async () => {
+      const module = await createModule();
+      const localService = module.get<ImageUploadsService>(ImageUploadsService);
+
+      await localService.ready();
+      await localService.onModuleInit();
+
+      expect(module.get(SecretsService).getSecret).toHaveBeenCalledTimes(1);
+    });
+
+    it('tries a failed fetch again for the next caller', async () => {
+      const module = await createModule();
+      const localService = module.get<ImageUploadsService>(ImageUploadsService);
+      const getSecret = module.get(SecretsService).getSecret as jest.Mock<
+        (...args: any[]) => Promise<any>
+      >;
+
+      getSecret.mockRejectedValueOnce(new Error('Secrets Manager is down'));
+
+      await expect(localService.ready()).rejects.toThrow(
+        'Secrets Manager is down',
+      );
+      await expect(localService.ready()).resolves.toBeUndefined();
+      expect(getSecret).toHaveBeenCalledTimes(2);
     });
   });
 

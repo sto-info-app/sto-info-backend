@@ -58,10 +58,10 @@ describe('ImageUploadsService SAFE_FILENAME_PATTERN branch', () => {
             getSecret: jest
               .fn<(...args: any[]) => Promise<any>>()
               .mockResolvedValue({
-                cloudflareR2AccessKey: 'key',
-                cloudflareR2Secret: 'secret',
+                cloudflareR2GatedAccessKey: 'key',
+                cloudflareR2GatedSecret: 'secret',
                 cloudflareImagesAccountId: 'acc-id',
-                cloudflareImagesApiKey: 'cf-key',
+                cloudflareImagesGatedApiKey: 'cf-key',
               }),
           } satisfies { getSecret: (name: string) => Promise<unknown> },
         },

@@ -31,6 +31,13 @@
 # separated and in application order. The ups are applied in that order and the
 # downs in the reverse, so the rollback check still ends at the bare stubs.
 #
+# A migration whose down refuses (FC-042's published-picture guard) stops the
+# rollback there, as it would stop `migration:revert`. The rehearsal checks the
+# down threw before changing anything, runs sql/<name>-post-refusal.sql to prove
+# what it protects still holds with the data present, and re-applies only the
+# migrations after it. The rollback-to-stubs check does not apply to such a
+# chain, because the rollback is meant not to get there.
+#
 set -euo pipefail
 
 MIGRATIONS="${1:-src/database/migrations/1791600000000-CreateFleetCommunityDomainTables.ts}"
@@ -48,6 +55,7 @@ SEED="${HERE}/sql/${SUITE}-seed.sql"
 ASSERT="${HERE}/sql/${SUITE}-assert.sql"
 PRE_UP="${HERE}/sql/${SUITE}-pre-up.sql"
 POST_DOWN="${HERE}/sql/${SUITE}-post-down.sql"
+POST_REFUSAL="${HERE}/sql/${SUITE}-post-refusal.sql"
 
 cleanup() {
   docker rm -f "${CONTAINER}" >/dev/null 2>&1 || true
@@ -133,9 +141,36 @@ fi
 # Rolling back an empty schema proves very little. This rolls back over the
 # rows the assertions left behind, which is the case that actually goes wrong.
 step 'Rolling back (down) with data present'
+# The index of a migration whose down refused, or -1 when every down ran.
+refused=-1
 for ((index = ${#MIGRATION_LIST[@]} - 1; index >= 0; index--)); do
+  if [ -f "${WORK}/down.${index}.sql.refused" ]; then
+    refused="${index}"
+    echo "PASS: ${MIGRATION_LIST[${index}]} refuses its down, before changing anything:"
+    sed 's/^/  /' "${WORK}/down.${index}.sql.refused"
+    break
+  fi
   psql_file "${WORK}/down.${index}.sql"
 done
+
+if [ "${refused}" -ge 0 ]; then
+  if [ ! -f "${POST_REFUSAL}" ]; then
+    echo "FAIL: a down refused, and there is no ${POST_REFUSAL} to prove what it protects" >&2
+    exit 1
+  fi
+
+  step 'Asserting what the refused rollback kept'
+  psql_file "${POST_REFUSAL}"
+
+  step 'Re-applying the migrations the rollback did revert'
+  for ((index = refused + 1; index < ${#MIGRATION_LIST[@]}; index++)); do
+    psql_file "${WORK}/up.${index}.sql"
+  done
+
+  printf '\nREHEARSAL PASSED: up -> assert -> down (refused at %s, with data) -> up, on %s\n' \
+    "${MIGRATION_LIST[${refused}]}" "${PG_IMAGE}"
+  exit 0
+fi
 
 if [ -f "${POST_DOWN}" ]; then
   step 'Asserting what the rollback put back'

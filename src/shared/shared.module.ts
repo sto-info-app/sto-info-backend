@@ -25,12 +25,14 @@ import { ImageUploadsService } from './utilities/image-uploads.service';
         const secretName = configService.get<string>('AWS_SECRET_NAME')!;
         const secretObject = await secretsService.getSecret(secretName);
 
+        // FC-042's names only; ImageUploadsService refuses to start without
+        // them, and an old build reading the old names finds nothing usable.
         return new S3Client({
           region: 'auto',
           endpoint: configService.get<string>('CLOUDFLARE_R2_ENDPOINT')!,
           credentials: {
-            accessKeyId: secretObject.cloudflareR2AccessKey,
-            secretAccessKey: secretObject.cloudflareR2Secret,
+            accessKeyId: secretObject.cloudflareR2GatedAccessKey,
+            secretAccessKey: secretObject.cloudflareR2GatedSecret,
           },
         });
       },

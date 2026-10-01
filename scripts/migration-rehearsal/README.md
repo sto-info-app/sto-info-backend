@@ -41,6 +41,12 @@ registry, so its rehearsal replays all three:
 npm run rehearse:migration:roster-import-source
 ```
 
+FC-042's guard on every picture column, whose rollback is meant to refuse:
+
+```bash
+npm run rehearse:migration:published-image-guard
+```
+
 To rehearse a different migration:
 
 ```bash
@@ -58,6 +64,18 @@ npm run rehearse:migration -- src/database/migrations/<first>.ts,src/database/mi
 
 The ups are applied in that order and the downs in the reverse, so the rollback
 check still ends at the bare stub tables.
+
+### A down that refuses
+
+Some migrations must never be reverted: FC-042's published-picture guard throws from its `down`,
+because removing it would let a rolled-back build publish unscanned pictures. The rehearsal does
+not skip such a down; it proves it. `emit-migration-sql.ts` records the refusal in
+`<down.sql>.refused` instead of failing, and fails if the down issued any statement before
+throwing. `run-rehearsal.sh` then stops the rollback at that migration, as `migration:revert`
+would, prints the refusal, runs `sql/<suite>-post-refusal.sql` to show what the migration protects
+still holds with the data present, and re-applies only the migrations after it. A suite with a
+refusing down must have that file. The rollback-to-stubs check does not apply, because the
+rollback is meant not to get there.
 
 ## Why this exists alongside the unit specs
 
@@ -91,7 +109,8 @@ Two things in particular are not provable any other way:
 5. Applies `up`, seeds, and runs the assertion suite.
 6. Races concurrent writers against the invariants that are worded that way.
 7. Applies `down` **with data present**, runs `sql/<suite>-post-down.sql` when it exists, and
-   checks nothing but the stubs and no enum type survived.
+   checks nothing but the stubs and no enum type survived. A down that refuses stops the rollback
+   there instead, and `sql/<suite>-post-refusal.sql` runs in place of the stub check.
 8. Applies `up` again to the same database.
 
 ## Safety
