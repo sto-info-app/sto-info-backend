@@ -11,6 +11,7 @@ import { FileAssetPlacementState } from 'src/file-assets/enums/file-asset-placem
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
 import { FileAssetSubject } from 'src/file-assets/enums/file-asset-subject.enum';
 import { QuarantineStorageService } from 'src/file-assets/services/quarantine-storage.service';
+import { isMissingObject } from 'src/file-assets/utilities/missing-object.utility';
 import {
   eachLimited,
   LEDGER_CHUNK_SIZE,
@@ -44,6 +45,16 @@ import {
 } from './roster-erasure.dto';
 import { RosterErasureEntity } from './roster-erasure.entity';
 import { RosterSuppressionService } from './roster-suppression.service';
+
+/**
+ * Asset states whose file can never be imported, so cannot name anybody an
+ * erasure has to find: refused by the scanner, withdrawn, or gone (FC-043).
+ */
+const UNIMPORTABLE_STATES: readonly FileAssetState[] = [
+  FileAssetState.REJECTED,
+  FileAssetState.REVOKED,
+  FileAssetState.DELETED,
+];
 
 /** Why an erasure the database lost was made again. */
 export const REPLAYED_REASON =
@@ -509,9 +520,11 @@ export class RosterErasureService {
       (placements.length === 0
         ? []
         : await manager.find(FileAssetEntity, {
+            // Only a file that can still be imported can still bring
+            // anybody back: one refused, withdrawn or gone never will.
             where: {
               id: In(placements.map(placement => placement.assetId)),
-              state: Not(FileAssetState.DELETED),
+              state: Not(In(UNIMPORTABLE_STATES)),
             },
           })
       ).map(asset => [asset.id, asset]),
@@ -532,8 +545,14 @@ export class RosterErasureService {
         where: { id: placement.subjectId },
         select: { id: true, exportTimezone: true },
       });
+      const bytes = await this.readUnlessGone(asset);
+
+      if (bytes === null) {
+        continue;
+      }
+
       const { rows } = this._parser.read(
-        await this._storage.read(asset.objectKey, asset.objectVersion),
+        bytes,
         record?.exportTimezone ?? 'UTC',
       );
 
@@ -550,6 +569,36 @@ export class RosterErasureService {
     }
 
     return naming;
+  }
+
+  /**
+   * Reads a held or pending file, unless it is no longer there (FC-043).
+   *
+   * A file that has gone can bring nobody back, so it is passed over rather
+   * than allowed to stop the erasure; a bucket that cannot answer still
+   * stops it, because then the file may be there.
+   *
+   * @param asset - The file's asset.
+   * @returns Its bytes, or null when the object has gone.
+   * @throws Whatever else reading it threw.
+   */
+  private async readUnlessGone(asset: FileAssetEntity): Promise<Buffer | null> {
+    try {
+      return await this._storage.read(
+        asset.objectKey as string,
+        asset.objectVersion,
+      );
+    } catch (error: unknown) {
+      if (!isMissingObject(error)) {
+        throw error;
+      }
+
+      this._logger.warn(
+        `[unreadNaming] A held or pending file has gone; it names nobody - AssetId: ${asset.id}`,
+      );
+
+      return null;
+    }
   }
 
   /**

@@ -82,6 +82,7 @@ describe('RosterErasureService (FC-038)', () => {
     enqueue: jest.Mock<(fleetId: string) => Promise<void>>;
   };
   let parser: { read: jest.Mock<(bytes: Buffer, zone: string) => unknown> };
+  let storageRead: jest.Mock<(key: string) => Promise<Buffer>>;
   let service: RosterErasureService;
 
   beforeEach(() => {
@@ -155,6 +156,7 @@ describe('RosterErasureService (FC-038)', () => {
       request: jest.fn(async () => undefined),
       enqueue: jest.fn(async () => undefined),
     };
+    storageRead = jest.fn(async (key: string) => Buffer.from(key));
     parser = {
       read: jest.fn((bytes: Buffer) => ({
         rows:
@@ -170,9 +172,7 @@ describe('RosterErasureService (FC-038)', () => {
       ledger as unknown as ErasureLedgerService,
       sources as unknown as RosterSourceRetentionService,
       replays as unknown as RosterReplayQueueService,
-      {
-        read: jest.fn(async (key: string) => Buffer.from(key)),
-      } as unknown as QuarantineStorageService,
+      { read: storageRead } as unknown as QuarantineStorageService,
       parser as unknown as RosterTypedParserService,
     );
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
@@ -365,6 +365,54 @@ describe('RosterErasureService (FC-038)', () => {
       );
       expect(sources.erase).toHaveBeenCalledWith([]);
       expect(replays.enqueue).not.toHaveBeenCalled();
+    });
+
+    // FC-043: a file that can never be imported names nobody who has to be
+    // found, and one that has gone cannot bring anybody back; neither may
+    // stop an erasure.
+    it('reads no file the scanner refused, or one withdrawn', async () => {
+      for (const id of ['asset-3', 'asset-6']) {
+        db.rows<Row>(FileAssetEntity).find(row => row.id === id)!.state =
+          id === 'asset-3' ? FileAssetState.REJECTED : FileAssetState.REVOKED;
+      }
+
+      await service.erase(ADMIN_ID, { ...kira, reason: 'Verified in game' });
+
+      expect(storageRead).not.toHaveBeenCalled();
+      expect(sources.erase).toHaveBeenCalledWith(['import-1', 'import-2']);
+    });
+
+    it('passes over a held file that has gone, and erases', async () => {
+      storageRead.mockImplementation(async (key: string) => {
+        if (key === 'names-kira') {
+          throw Object.assign(new Error('The specified key does not exist.'), {
+            name: 'NoSuchKey',
+          });
+        }
+
+        return Buffer.from(key);
+      });
+      jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+      await expect(
+        service.erase(ADMIN_ID, { ...kira, reason: 'Verified in game' }),
+      ).resolves.toEqual(
+        expect.objectContaining({ fleets: expect.any(Number) }),
+      );
+      expect(sources.erase).toHaveBeenCalledWith(['import-1', 'import-2']);
+      expect(Logger.prototype.warn).toHaveBeenCalledWith(
+        expect.stringContaining('A held or pending file has gone'),
+      );
+    });
+
+    it('stops when the bucket cannot answer, since the file may be there', async () => {
+      storageRead.mockRejectedValue(
+        Object.assign(new Error('socket hang up'), { name: 'TimeoutError' }),
+      );
+
+      await expect(
+        service.erase(ADMIN_ID, { ...kira, reason: 'Verified in game' }),
+      ).rejects.toThrow('socket hang up');
     });
 
     it('reads no file when nothing is held or pending', async () => {
