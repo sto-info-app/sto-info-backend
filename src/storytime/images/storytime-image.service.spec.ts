@@ -7,6 +7,7 @@ import { FileAssetSubject } from 'src/file-assets/enums/file-asset-subject.enum'
 import { AssetIngressService } from 'src/file-assets/services/asset-ingress.service';
 import { AssetWithdrawalService } from 'src/file-assets/services/asset-withdrawal.service';
 import { ImageIngressService } from 'src/file-assets/services/image-ingress.service';
+import { ImageReencodeService } from 'src/shared/images/image-reencode.service';
 import { ImageSlotService } from 'src/shared/images/image-slot.service';
 import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
 
@@ -111,6 +112,13 @@ describe('StorytimeImageService', () => {
         // checks says that.
         ImageIngressService,
         ImageSlotService,
+        // The pixels are the re-encoder's concern and its own spec's
+        // (FC-043); these fixtures are headers, which is all a shape check
+        // reads.
+        {
+          provide: ImageReencodeService,
+          useValue: { reencode: (bytes: Buffer) => Promise.resolve(bytes) },
+        },
         { provide: AssetIngressService, useValue: ingress },
         { provide: AssetWithdrawalService, useValue: withdrawal },
         { provide: ImageUploadsService, useValue: imageUploads },

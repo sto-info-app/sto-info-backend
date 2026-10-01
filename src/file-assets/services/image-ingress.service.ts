@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { FleetAudience } from 'src/fleet/enums/fleet-audience.enum';
+import { ImageReencodeService } from 'src/shared/images/image-reencode.service';
 import {
   ImageSlotService,
   ImageSlotSpec,
@@ -79,6 +80,10 @@ export interface ImageUploadRequest {
  * never had a slot specification and still do not, but every picture now has
  * its encoding read out of its own bytes, so a PNG that is not a PNG is
  * refused rather than quarantined and scanned as an image.
+ *
+ * **And every picture is re-encoded before it is quarantined (FC-043)**, so
+ * what is scanned, stored and published is pixels and nothing else; see
+ * {@link ImageReencodeService} for why the scanner alone was not enough.
  */
 @Injectable()
 export class ImageIngressService {
@@ -87,10 +92,13 @@ export class ImageIngressService {
    *
    * @param _slots - The slot rules and the image reader.
    * @param _ingress - Registration, quarantine and the scan request.
+   * @param _reencoder - Writes every picture out again as pixels only
+   *   (FC-043).
    */
   constructor(
     private readonly _slots: ImageSlotService,
     private readonly _ingress: AssetIngressService,
+    private readonly _reencoder: ImageReencodeService,
   ) {}
 
   /**
@@ -108,6 +116,12 @@ export class ImageIngressService {
       sizeLimitLabel: request.sizeLimitLabel,
       file: request.file,
     });
+    // Only pixels go on from here (FC-043): whatever else the file carried,
+    // the scanner could not be relied on to see all of it.
+    const bytes = await this._reencoder.reencode(
+      inspected.bytes,
+      inspected.format,
+    );
 
     return this._ingress.accept({
       kind: request.kind,
@@ -120,7 +134,7 @@ export class ImageIngressService {
       fleetId: request.scope?.fleetId ?? null,
       armadaId: request.scope?.armadaId ?? null,
       scopeAudience: request.scope?.audience ?? null,
-      bytes: inspected.bytes,
+      bytes,
       // What the browser said, kept as a claim. The registry normalises it
       // and the worker checks it against the bytes — ADR-0020.
       declaredContentType: request.file.mimetype,

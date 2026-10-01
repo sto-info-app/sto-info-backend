@@ -68,6 +68,8 @@ export interface InspectedImage {
   readonly safeFileName: string;
   /** What the bytes actually are, whatever the request claimed. */
   readonly detectedContentType: string;
+  /** The encoding the bytes are in, as their header says. */
+  readonly format: 'png' | 'jpeg';
 }
 
 /**
@@ -164,6 +166,7 @@ export class ImageSlotService {
       bytes: fileBuffer,
       safeFileName,
       detectedContentType: `image/${content.format}`,
+      format: content.format,
     };
   }
 

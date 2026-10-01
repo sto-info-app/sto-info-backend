@@ -102,6 +102,7 @@ describe('ImageSlotService', () => {
       bytes: file.buffer,
       safeFileName: 'picture.png',
       detectedContentType: 'image/png',
+      format: 'png',
     });
   });
 

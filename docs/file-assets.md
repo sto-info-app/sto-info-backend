@@ -724,10 +724,25 @@ decision; this is the shape of it.
 | --- | --- | --- |
 | 1 | the feature | Applies its slot's rules and calls `ImageIngressService.accept`. |
 | 2 | `ImageSlotService` | Reads the encoding out of the bytes. A PNG that is not a PNG stops here. |
+| 2a | `ImageReencodeService` | Decodes the picture and writes it out again (FC-043): only pixels go on. |
 | 3 | `AssetIngressService` | Registers, quarantines, claims the slot, requests the scan. |
 | 4 | the worker | Scans, and puts a verdict on `file-scan-verdict`. |
 | 5 | `ScanVerdictProcessor` | Applies the verdict and, for a clean one, enqueues publication. |
 | 6 | `AssetPublicationService` | Pushes to Cloudflare Images, publishes the asset, tells the feature, withdraws what it replaced, drops the quarantined copy. |
+
+**Only pixels are quarantined (FC-043).** `clamd` reads an archive member only up to
+`MaxFileSize` and reports nothing about the rest, so a small PNG carrying an archive — still a
+PNG to every header check — could hide a payload past that point and come back clean; the worker's
+scan rehearsal shows it. Step 2a closes it before the scanner: sharp decodes every picture and
+writes it out again in the same encoding, so appended bytes, archives in ancillary chunks or APP
+segments, comments and every kind of metadata are gone before anything is hashed, stored, scanned
+or published. With Steve's choices of 1 October 2026, the orientation a camera recorded is applied
+first so a phone photograph is not published on its side; then all metadata goes, the location
+included; PNG stays lossless and JPEG is written at quality 90 with mozjpeg; and a picture of more
+than 50 megapixels (`IMAGE_MAX_PIXELS`) is refused before it is decoded, as "too large to
+process". A picture sharp cannot decode is refused as "not a readable PNG or JPEG image".
+`test/asset-upload-matrix.spec.ts` drives every caller through it with real pictures, and checks
+that what is quarantined carries nothing that was appended.
 
 **The owning feature's row is not written until step 6.** That is the third acceptance
 criterion: whatever picture a record shows goes on being shown until the replacement has been

@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 
 import { jest } from '@jest/globals';
 
+import { ImageReencodeService } from 'src/shared/images/image-reencode.service';
 import {
   ImageSlotService,
   ImageSlotSpec,
@@ -34,6 +35,7 @@ describe('ImageIngressService', () => {
   } as Express.Multer.File;
 
   let inspect: jest.Mock;
+  let reencode: jest.Mock<(...args: any[]) => Promise<Buffer>>;
   let accept: jest.Mock<(...args: any[]) => Promise<any>>;
   let service: ImageIngressService;
 
@@ -58,7 +60,11 @@ describe('ImageIngressService', () => {
       bytes: Buffer.from('a picture'),
       safeFileName: 'banner.jpg',
       detectedContentType: 'image/jpeg',
+      format: 'jpeg',
     }));
+    reencode = jest
+      .fn<(...args: any[]) => Promise<Buffer>>()
+      .mockResolvedValue(Buffer.from('only pixels'));
     accept = jest
       .fn<(...args: any[]) => Promise<any>>()
       .mockResolvedValue({ assetId: 'asset-1', status: 'SCANNING' });
@@ -66,6 +72,7 @@ describe('ImageIngressService', () => {
     service = new ImageIngressService(
       { inspect } as unknown as ImageSlotService,
       { accept } as unknown as AssetIngressService,
+      { reencode } as unknown as ImageReencodeService,
     );
   });
 
@@ -94,6 +101,28 @@ describe('ImageIngressService', () => {
         originalFilename: 'banner.jpg',
       }),
     );
+  });
+
+  // FC-043: what is quarantined, scanned and published is the picture
+  // written out again, never the bytes as uploaded.
+  it('registers the re-encoded picture, not the upload', async () => {
+    await service.accept(request());
+
+    expect(reencode).toHaveBeenCalledWith(Buffer.from('a picture'), 'jpeg');
+    expect(accept).toHaveBeenCalledWith(
+      expect.objectContaining({ bytes: Buffer.from('only pixels') }),
+    );
+  });
+
+  it('registers nothing when the picture cannot be re-encoded', async () => {
+    reencode.mockRejectedValue(
+      new BadRequestException('That image is too large to process.'),
+    );
+
+    await expect(service.accept(request())).rejects.toThrow(
+      'too large to process',
+    );
+    expect(accept).not.toHaveBeenCalled();
   });
 
   it('answers with the asset to ask about', async () => {

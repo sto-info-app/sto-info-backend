@@ -5,6 +5,7 @@ import { S3Client } from '@aws-sdk/client-s3';
 
 import { ImageSigningService } from 'src/file-assets/delivery/image-signing.service';
 
+import { ImageReencodeService } from './images/image-reencode.service';
 import { ImageSlotService } from './images/image-slot.service';
 import { SecretsService } from './secrets/secrets.service';
 import { ImageUploadsService } from './utilities/image-uploads.service';
@@ -15,6 +16,7 @@ import { ImageUploadsService } from './utilities/image-uploads.service';
     SecretsService,
     ImageSigningService,
     ImageUploadsService,
+    ImageReencodeService,
     ImageSlotService,
     {
       provide: S3Client,
@@ -43,6 +45,7 @@ import { ImageUploadsService } from './utilities/image-uploads.service';
     SecretsService,
     ImageSigningService,
     ImageUploadsService,
+    ImageReencodeService,
     ImageSlotService,
   ],
 })

@@ -1,8 +1,11 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { Readable } from 'node:stream';
 
-import { jest } from '@jest/globals';
-import { Repository } from 'typeorm';
+import { beforeAll, jest } from '@jest/globals';
+import sharp from 'sharp';
+import { FindOperator, Repository } from 'typeorm';
 
 import { CUSTOM_TRACKING_IMAGE_SPECS } from 'src/custom-tracking/constants/custom-tracking-image.constants';
 import { CustomTrackingImagePublisher } from 'src/custom-tracking/images/custom-tracking-image.publisher';
@@ -35,6 +38,10 @@ import {
   StoArmadaImagePublisher,
   StoFleetImagePublisher,
 } from 'src/fleet/images/fleet-scope-image.publishers';
+import { SCOPE_NEWS_COVER_SPEC } from 'src/fleet/news/constants/scope-news.constants';
+import { ScopeNewsCoverPublisher } from 'src/fleet/news/services/scope-news-cover.publisher';
+import { NewsPostEntity } from 'src/news/entities/news-post.entity';
+import { ImageReencodeService } from 'src/shared/images/image-reencode.service';
 import {
   ImageSlotService,
   ImageSlotSpec,
@@ -58,7 +65,7 @@ import { UserProfileImagePublisher } from 'src/user/images/user-profile-image.pu
  * picture.
  *
  * The integration matrix FC-012's validation line asks for. Each of the
- * sixteen callers is driven through the one path they now share — check, register,
+ * seventeen callers is driven through the one path they now share — check, register,
  * quarantine, scan, publish, withdraw what was there — against in-memory
  * repositories and a scanner faked at the queue boundary, which is the only
  * boundary a fake belongs at: everything on this side of it is the real
@@ -69,6 +76,24 @@ import { UserProfileImagePublisher } from 'src/user/images/user-profile-image.pu
  * proves that what comes out the far end lands in that feature's own column,
  * with its own description, and takes the previous picture down with it.
  */
+
+/**
+ * Compares one column with one criterion: a value, or the two TypeORM
+ * operators a publisher here uses, `IsNull()` and `Not(...)`.
+ *
+ * @param actual - The column's value.
+ * @param expected - The criterion.
+ * @returns Whether the column satisfies it.
+ */
+const matches = (actual: unknown, expected: unknown): boolean => {
+  if (expected instanceof FindOperator) {
+    return expected.type === 'not'
+      ? !matches(actual, expected.value)
+      : actual === null || actual === undefined;
+  }
+
+  return actual === expected;
+};
 
 /** A row any of the in-memory repositories can hold. */
 interface Row {
@@ -167,65 +192,69 @@ class InMemoryRepository<T extends Row> {
     return [...this.rows.values()].filter(row =>
       clauses.some(clause =>
         Object.entries(clause as Record<string, unknown>).every(
-          ([key, value]) => row[key] === value,
+          ([key, value]) => matches(row[key], value),
         ),
       ),
     );
   }
 }
 
-/**
- * Builds a PNG whose header claims the given dimensions.
- *
- * @param width - The width to declare.
- * @param height - The height to declare.
- * @returns The bytes.
- */
-const buildPng = (width: number, height: number): Buffer => {
-  const buffer = Buffer.alloc(24);
-
-  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(buffer);
-  buffer.writeUInt32BE(13, 8);
-  buffer.write('IHDR', 12, 'ascii');
-  buffer.writeUInt32BE(width, 16);
-  buffer.writeUInt32BE(height, 20);
-
-  return buffer;
-};
+/** Real pictures, drawn once each: they are decoded and re-encoded (FC-043). */
+const pictures = new Map<string, Buffer>();
 
 /**
- * Builds a JPEG whose frame header claims the given dimensions.
- *
- * @param width - The width to declare.
- * @param height - The height to declare.
- * @returns The bytes.
- */
-const buildJpeg = (width: number, height: number): Buffer => {
-  const buffer = Buffer.alloc(13);
-
-  Buffer.from([0xff, 0xd8, 0xff, 0xc0]).copy(buffer);
-  buffer.writeUInt16BE(8, 4);
-  buffer.writeUInt8(8, 6);
-  buffer.writeUInt16BE(height, 7);
-  buffer.writeUInt16BE(width, 9);
-
-  return buffer;
-};
-
-/**
- * Builds a crop that satisfies a slot, or a plain square where there is no
- * slot specification.
+ * Names the picture a slot needs.
  *
  * @param spec - The slot's rules, when it has any.
+ * @returns The key it is drawn under.
+ */
+const pictureKey = (spec: ImageSlotSpec | null): string =>
+  spec === null
+    ? 'png:512x512'
+    : `${spec.outputFormat}:${spec.recommendedWidth}x${spec.recommendedHeight}`;
+
+/**
+ * Draws a crop that satisfies a slot, or a plain square where there is no
+ * slot specification, unless it has been drawn already.
+ *
+ * @param spec - The slot's rules, when it has any.
+ */
+const drawPicture = async (spec: ImageSlotSpec | null): Promise<void> => {
+  const key = pictureKey(spec);
+
+  if (pictures.has(key)) {
+    return;
+  }
+
+  const image = sharp({
+    create: {
+      width: spec?.recommendedWidth ?? 512,
+      height: spec?.recommendedHeight ?? 512,
+      channels: 3,
+      background: { r: 20, g: 60, b: 160 },
+    },
+  });
+
+  pictures.set(
+    key,
+    await (
+      spec?.outputFormat === 'jpeg' ? image.jpeg() : image.png()
+    ).toBuffer(),
+  );
+};
+
+/**
+ * Builds the upload of a slot's picture.
+ *
+ * @param spec - The slot's rules, when it has any.
+ * @param tail - Bytes appended after the picture, as a polyglot carries them.
  * @returns The uploaded file.
  */
-const fileFor = (spec: ImageSlotSpec | null): Express.Multer.File => {
-  const bytes =
-    spec === null
-      ? buildPng(512, 512)
-      : spec.outputFormat === 'png'
-        ? buildPng(spec.recommendedWidth, spec.recommendedHeight)
-        : buildJpeg(spec.recommendedWidth, spec.recommendedHeight);
+const fileFor = (
+  spec: ImageSlotSpec | null,
+  tail: Buffer = Buffer.alloc(0),
+): Express.Multer.File => {
+  const bytes = Buffer.concat([pictures.get(pictureKey(spec))!, tail]);
 
   return {
     buffer: bytes,
@@ -314,6 +343,7 @@ describe('every upload caller, end to end', () => {
       fleetCommunity: new InMemoryRepository<Row>(),
       stoFleet: new InMemoryRepository<Row>(),
       stoArmada: new InMemoryRepository<Row>(),
+      newsPost: new InMemoryRepository<Row>(),
     };
 
     fileAssets = new FileAssetService(
@@ -383,6 +413,7 @@ describe('every upload caller, end to end', () => {
         quarantine,
         scanRequests,
       ),
+      new ImageReencodeService(),
     );
 
     publication = new AssetPublicationService(
@@ -442,6 +473,10 @@ describe('every upload caller, end to end', () => {
       ),
       new StoArmadaImagePublisher(
         owners.stoArmada as unknown as Repository<StoArmadaEntity>,
+        registry,
+      ),
+      new ScopeNewsCoverPublisher(
+        owners.newsPost as unknown as Repository<NewsPostEntity>,
         registry,
       ),
     ]) {
@@ -781,6 +816,26 @@ describe('every upload caller, end to end', () => {
       description: () => readOwner('stoArmada', 'emblemImageAlt'),
     },
     {
+      // FC-027: the Community, Fleet and Armada news controllers all set a
+      // cover through ScopeNewsService.setCover, onto one publisher.
+      name: 'a scoped news cover',
+      kind: FileAssetKind.FLEET_IMAGE,
+      subject: FileAssetSubject.NEWS_POST,
+      slot: FileAssetSlot.COVER,
+      spec: SCOPE_NEWS_COVER_SPEC,
+      entityTag: SCOPE_NEWS_COVER_SPEC.entityTag,
+      feature: { altText: 'A briefing room' },
+      seed: () =>
+        seedOwner('newsPost', {
+          id: recordId,
+          communityId: 'ba6b3a9e-0000-4000-8000-0000000000cc',
+          coverImageId: 'old-picture',
+          coverImageAlt: 'The old one',
+        }),
+      reference: () => readOwner('newsPost', 'coverImageId'),
+      description: () => readOwner('newsPost', 'coverImageAlt'),
+    },
+    {
       name: 'a Custom Tracking picture',
       kind: FileAssetKind.CUSTOM_TRACKING_IMAGE,
       subject: FileAssetSubject.CUSTOM_TRACKING_VALUE,
@@ -812,13 +867,19 @@ describe('every upload caller, end to end', () => {
     },
   ];
 
+  beforeAll(async () => {
+    for (const caller of callers) {
+      await drawPicture(caller.spec);
+    }
+  });
+
   /**
    * Sends one caller's upload through the shared path.
    *
    * @param caller - The caller.
    * @returns The asset the upload became.
    */
-  const upload = async (caller: Caller): Promise<string> => {
+  const upload = async (caller: Caller, tail?: Buffer): Promise<string> => {
     const accepted = await ingress.accept({
       spec: caller.spec,
       userId: uploaderId,
@@ -831,7 +892,7 @@ describe('every upload caller, end to end', () => {
       entityId: recordId,
       maximumBytes: 10_485_760,
       sizeLimitLabel: 'Images',
-      file: fileFor(caller.spec),
+      file: fileFor(caller.spec, tail),
       feature: caller.feature ?? null,
     });
 
@@ -872,6 +933,27 @@ describe('every upload caller, end to end', () => {
       );
     },
   );
+
+  // FC-043: clamd cannot see everything a picture can carry — an archive
+  // member inflated past its MaxFileSize is read only so far — so every
+  // caller quarantines pixels only. Whatever rode along after the picture,
+  // an archive included, is gone before the bytes are hashed or stored.
+  it.each(callers)('$name quarantines only pixels', async caller => {
+    await caller.seed();
+
+    const hidden = Buffer.concat([
+      Buffer.from([0x50, 0x4b, 0x03, 0x04]),
+      Buffer.from('FC043-HIDDEN-PAYLOAD', 'latin1'),
+    ]);
+    const asset = await fileAssets.findById(await upload(caller, hidden));
+    const stored = quarantined.get(asset?.objectKey as string) as Buffer;
+
+    expect(stored.includes(hidden)).toBe(false);
+    expect(stored.includes(Buffer.from('FC043', 'latin1'))).toBe(false);
+    expect(asset?.sha256).toBe(
+      createHash('sha256').update(stored).digest('hex'),
+    );
+  });
 
   it.each(callers)(
     '$name reaches its own column once a scanner clears it',
@@ -1052,5 +1134,72 @@ describe('every upload caller, end to end', () => {
       expect(asset?.declaredContentType).toBe('image/jpeg');
       expect(asset?.detectedContentType).toBe('image/jpeg');
     });
+  });
+});
+
+/**
+ * The matrix is the list of callers, so a publisher added later that it does
+ * not drive must fail here rather than pass unnoticed (FC-043): every
+ * concrete `…Publisher` class in `src` is either driven above or named below
+ * with where its own evidence is.
+ */
+describe('the matrix covers every publisher', () => {
+  /** The publishers the matrix drives. */
+  const DRIVEN: readonly string[] = [
+    UserProfileImagePublisher,
+    CharacterImagePublisher,
+    StorytimeArcImagePublisher,
+    StorytimeStoryImagePublisher,
+    StorytimeChapterImagePublisher,
+    StorytimeCastImagePublisher,
+    StorytimeSpotlightImagePublisher,
+    FleetCommunityImagePublisher,
+    StoFleetImagePublisher,
+    StoArmadaImagePublisher,
+    ScopeNewsCoverPublisher,
+    CustomTrackingImagePublisher,
+  ].map(publisher => publisher.name);
+
+  /** Publishers that are not pictures, and where they are proved instead. */
+  const ELSEWHERE: Readonly<Record<string, string>> = {
+    // A roster export is a restricted asset with its own front door, which
+    // rewrites it as sanitised text before it is stored.
+    RosterImportPublisher:
+      'roster-import-ingress.service.spec.ts, roster-import.publisher.spec.ts ' +
+      'and the operations rehearsal',
+  };
+
+  /**
+   * Lists every TypeScript source file under a directory.
+   *
+   * @param directory - Where to start.
+   * @returns The files.
+   */
+  const sources = (directory: string): string[] =>
+    readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
+      const path = join(directory, entry.name);
+
+      if (entry.isDirectory()) {
+        return sources(path);
+      }
+
+      return entry.name.endsWith('.ts') && !entry.name.endsWith('.spec.ts')
+        ? [path]
+        : [];
+    });
+
+  it('finds no publisher it does not drive or account for', () => {
+    const declared = sources(join(__dirname, '..', 'src')).flatMap(file =>
+      [
+        ...readFileSync(file, 'utf8').matchAll(
+          /export class (\w+Publisher)[\s<]/g,
+        ),
+      ].map(match => match[1]),
+    );
+
+    expect(declared.length).toBeGreaterThanOrEqual(DRIVEN.length);
+    expect(
+      declared.filter(name => !DRIVEN.includes(name) && !(name in ELSEWHERE)),
+    ).toEqual([]);
   });
 });
