@@ -20,6 +20,7 @@ import {
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { Roles } from 'src/auth/roles.decorator';
 import { RolesGuard } from 'src/auth/roles.guard';
+import { UserId } from 'src/auth/user-id.decorator';
 import { UserRole } from 'src/user/enums/user-role.enum';
 
 import {
@@ -33,7 +34,8 @@ import { ScanDiagnosticsService } from './services/scan-diagnostics.service';
  * The administrator's view of the file scanning pipeline (FC-003).
  *
  * Totals only. Nothing it returns names an asset, a file, an owner or a
- * signature, which is why it can be shown on a page at all.
+ * signature, which is why it can be shown on a page at all. ADMIN only, and
+ * every read is logged in the site admin log (FC-042).
  */
 @ApiTags('File scanning (admin)')
 @ApiBearerAuth()
@@ -49,8 +51,10 @@ export class ScanDiagnosticsController {
   constructor(private readonly _diagnostics: ScanDiagnosticsService) {}
 
   /**
-   * Reads the scan usage, engine status and backlog.
+   * Reads the scan usage, engine status and backlog, the workers'
+   * heartbeats, the open alerts and the publication pause.
    *
+   * @param adminUserId - The site admin reading them.
    * @returns The diagnostics.
    */
   @Get('diagnostics')
@@ -60,18 +64,20 @@ export class ScanDiagnosticsController {
   @ApiOkResponse({
     description:
       'Usage over three windows, the engine the latest attempt reported, the ' +
-      'request queue and the assets awaiting a verdict. A part is null when ' +
-      'its source could not be reached.',
+      'request queue, the assets awaiting a verdict, the workers’ heartbeats, ' +
+      'the open operations alerts and the publication pause. A part is null ' +
+      'when its source could not be reached. The read is logged.',
     type: ScanDiagnosticsDto,
   })
   @ApiForbiddenResponse({ description: 'The caller is not an administrator.' })
-  read(): Promise<ScanDiagnosticsDto> {
-    return this._diagnostics.read();
+  read(@UserId() adminUserId: string): Promise<ScanDiagnosticsDto> {
+    return this._diagnostics.read(adminUserId);
   }
 
   /**
    * The assets a scanner or policy refused, newest first (FC-039).
    *
+   * @param adminUserId - The site admin reading them.
    * @param page - Which page, from 1.
    * @returns The page: codes and engines, never a signature name.
    */
@@ -81,15 +87,17 @@ export class ScanDiagnosticsController {
   @ApiOkResponse({ type: ScanRejectionPageDto })
   @ApiForbiddenResponse({ description: 'The caller is not an administrator.' })
   rejections(
+    @UserId() adminUserId: string,
     @Query('page', new ParseIntPipe({ optional: true })) page?: number,
   ): Promise<ScanRejectionPageDto> {
-    return this._diagnostics.rejections(Math.max(1, page ?? 1));
+    return this._diagnostics.rejections(Math.max(1, page ?? 1), adminUserId);
   }
 
   /**
    * One asset's scan outcome (FC-039).
    *
    * @param assetId - The asset.
+   * @param adminUserId - The site admin reading it.
    * @returns Its rejection code and engine, never a signature name.
    */
   @Get('assets/:assetId')
@@ -99,7 +107,8 @@ export class ScanDiagnosticsController {
   @ApiForbiddenResponse({ description: 'The caller is not an administrator.' })
   asset(
     @Param('assetId', ParseUUIDPipe) assetId: string,
+    @UserId() adminUserId: string,
   ): Promise<ScanAssetDetailDto> {
-    return this._diagnostics.asset(assetId);
+    return this._diagnostics.asset(assetId, adminUserId);
   }
 }

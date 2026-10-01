@@ -3,10 +3,14 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { Queue } from 'bullmq';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, IsNull, Repository } from 'typeorm';
 
 import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
+import { PublicationPauseService } from 'src/file-assets/publication/publication-pause.service';
+import { OperationsAlertDto } from 'src/operations/alerts/operations-alert.dto';
+import { OperationsAlertEntity } from 'src/operations/alerts/operations-alert.entity';
+import { redisWithin } from 'src/shared/queue/redis-within.utility';
 
 import { FILE_SCAN_REQUEST_QUEUE } from '../contract/file-scan-contract';
 import {
@@ -17,17 +21,14 @@ import {
   ScanQueueDto,
   ScanRejectionPageDto,
   ScanUsageWindowDto,
+  ScanWorkerHeartbeatDto,
 } from '../dto/scan-diagnostics.dto';
 import { UNKNOWN_DEFINITION_EPOCH } from '../rescan/rescan.constants';
-
-/**
- * The scan worker's schema.
- *
- * Named here rather than configured, because it is part of the contract with
- * the worker: the worker refuses to start with any other, and its migrations
- * name it in their SQL.
- */
-export const SCAN_WORKER_SCHEMA = 'sto_info_worker';
+import { recordDiagnosticsRead } from './diagnostics-read.utility';
+import {
+  readWorkerHeartbeats,
+  SCAN_WORKER_SCHEMA,
+} from './worker-heartbeat.utility';
 
 /** The asset states that are waiting on a verdict. */
 const AWAITING_STATES = [
@@ -54,19 +55,23 @@ const TENTH_OF_AN_HOUR_MS = 360_000;
 /**
  * Reads the figures the admin scan diagnostics page shows (FC-003).
  *
- * Four sources, each read on its own so that one being down does not hide
- * the others:
+ * Its sources are each read on their own so that one being down does not
+ * hide the others:
  *
- * - **Usage and engine status** come from two views the worker grants this
- *   application in its own schema. They carry totals only, and this
- *   application has no read on the table beneath them.
+ * - **Usage, engine status and the workers' heartbeats** come from three
+ *   views the worker grants this application in its own schema. They carry
+ *   totals, versions and states only, and this application has no read on
+ *   the tables beneath them.
  * - **The queue** is the scan request queue's own job counts, which is where
  *   a backlog shows first.
  * - **Assets awaiting a verdict** come from the registry, which this
  *   application owns.
+ * - **Open operations alerts** and **the publication pause** are this
+ *   application's own (FC-042).
  *
  * Nothing here names an asset, a file, an owner or a signature. The worker's
- * views cannot, and the registry is only counted.
+ * views cannot, and the registry is only counted. Every read a site admin
+ * makes is logged in the site admin log (FC-042).
  */
 /** How many refused assets a page lists. */
 export const SCAN_REJECTION_PAGE_SIZE = 25;
@@ -78,47 +83,81 @@ export class ScanDiagnosticsService {
   /**
    * Creates an instance of ScanDiagnosticsService.
    *
-   * @param _dataSource - The database, for the worker's views.
+   * @param _dataSource - The database, for the worker's views, the open
+   *   alerts and the site admin log.
    * @param _queue - The scan request queue.
    * @param _assets - The asset registry.
+   * @param _publication - The publication pause (FC-042).
    */
   constructor(
     private readonly _dataSource: DataSource,
     @InjectQueue(FILE_SCAN_REQUEST_QUEUE) private readonly _queue: Queue,
     @InjectRepository(FileAssetEntity)
     private readonly _assets: Repository<FileAssetEntity>,
+    private readonly _publication: PublicationPauseService,
   ) {}
 
   /**
-   * One asset's scan outcome (FC-039).
+   * One asset's scan outcome (FC-039), logged as read (FC-042).
    *
    * @param assetId - The asset.
+   * @param adminUserId - The site admin reading it.
    * @returns What the scanner decided, and with what.
    * @throws NotFoundException when there is no such asset.
    */
-  async asset(assetId: string): Promise<ScanAssetDetailDto> {
+  async asset(
+    assetId: string,
+    adminUserId: string,
+  ): Promise<ScanAssetDetailDto> {
     const asset = await this._assets.findOne({ where: { id: assetId } });
 
     if (asset === null) {
       throw new NotFoundException('Not found');
     }
 
+    await recordDiagnosticsRead(
+      this._dataSource.manager,
+      adminUserId,
+      'ASSET',
+      asset.id,
+    );
+
     return detailOf(asset);
   }
 
   /**
    * The assets a scanner or policy refused, newest verdict first (FC-039).
+   * A page after the first is logged as read (FC-042); the first is read
+   * with the diagnostics, whose entry covers it.
    *
    * @param page - Which page, from 1.
+   * @param adminUserId - The site admin reading them.
    * @returns The page.
    */
-  async rejections(page = 1): Promise<ScanRejectionPageDto> {
+  async rejections(
+    page: number,
+    adminUserId: string,
+  ): Promise<ScanRejectionPageDto> {
     const [assets, total] = await this._assets.findAndCount({
       where: { state: FileAssetState.REJECTED },
       order: { lastVerdictAt: 'DESC', id: 'DESC' },
       skip: (page - 1) * SCAN_REJECTION_PAGE_SIZE,
       take: SCAN_REJECTION_PAGE_SIZE,
     });
+
+    // One entry per page view: the page reads the first page of refusals
+    // with the diagnostics whenever it opens, and that read is logged by
+    // `read()`. Only a later page, which a site admin turns to, is logged
+    // on its own.
+    if (page > 1) {
+      await recordDiagnosticsRead(
+        this._dataSource.manager,
+        adminUserId,
+        'REJECTIONS',
+        null,
+        { page },
+      );
+    }
 
     return {
       items: assets.map(detailOf),
@@ -141,21 +180,80 @@ export class ScanDiagnosticsService {
   }
 
   /**
-   * Reads everything the page shows.
+   * Reads everything the page shows, logged as read (FC-042).
    *
+   * @param adminUserId - The site admin reading it.
    * @returns The diagnostics, with a null part for each source that could
    *   not be reached.
    */
-  async read(): Promise<ScanDiagnosticsDto> {
+  async read(adminUserId: string): Promise<ScanDiagnosticsDto> {
     const generatedAt = new Date();
-    const [usage, engine, queue, awaiting] = await Promise.all([
-      this.readUsage(),
-      this.readEngine(generatedAt),
-      this.readQueue(),
-      this.readAwaiting(),
-    ]);
+    const [usage, engine, queue, awaiting, workers, alerts, publication] =
+      await Promise.all([
+        this.readUsage(),
+        this.readEngine(generatedAt),
+        this.readQueue(),
+        this.readAwaiting(),
+        this.readHeartbeats(),
+        this.readAlerts(),
+        this._publication.read(),
+      ]);
 
-    return { generatedAt, usage, engine, queue, awaiting };
+    await recordDiagnosticsRead(
+      this._dataSource.manager,
+      adminUserId,
+      'DIAGNOSTICS',
+    );
+
+    return {
+      generatedAt,
+      usage,
+      engine,
+      queue,
+      awaiting,
+      workers,
+      alerts,
+      publication,
+    };
+  }
+
+  /**
+   * Reads the worker's heartbeat view (FC-042): every worker process that
+   * has beaten in the last day, latest beat first.
+   *
+   * Every age is worked out by the database, against its own clock, which
+   * is the clock the worker wrote its timestamps on; this process's clock
+   * may differ from it.
+   *
+   * @returns One entry for each process, or null when the view cannot be
+   *   read — most likely because the worker's migrations have not run here.
+   */
+  async readHeartbeats(): Promise<ScanWorkerHeartbeatDto[] | null> {
+    try {
+      return await readWorkerHeartbeats(this._dataSource);
+    } catch (error) {
+      this.warn('readHeartbeats', error);
+
+      return null;
+    }
+  }
+
+  /**
+   * Reads the operations alerts that are open now (FC-042).
+   *
+   * @returns Them, oldest first.
+   */
+  private async readAlerts(): Promise<OperationsAlertDto[]> {
+    const open = await this._dataSource
+      .getRepository(OperationsAlertEntity)
+      .find({ where: { clearedAt: IsNull() }, order: { openedAt: 'ASC' } });
+
+    return open.map(alert => ({
+      kind: alert.kind,
+      openedAt: alert.openedAt,
+      lastSeenAt: alert.lastSeenAt,
+      detail: { ...alert.detail },
+    }));
   }
 
   /**
@@ -228,16 +326,19 @@ export class ScanDiagnosticsService {
    * Prioritised jobs are waiting jobs as far as a reader is concerned, so the
    * two are one figure.
    *
-   * @returns The counts, or null when Redis cannot be reached.
+   * @returns The counts, or null when Redis cannot be reached or does not
+   *   answer within {@link REDIS_TIMEOUT_MS} (FC-042).
    */
   private async readQueue(): Promise<ScanQueueDto | null> {
     try {
-      const counts = await this._queue.getJobCounts(
-        'waiting',
-        'prioritized',
-        'delayed',
-        'active',
-        'failed',
+      const counts = await redisWithin(() =>
+        this._queue.getJobCounts(
+          'waiting',
+          'prioritized',
+          'delayed',
+          'active',
+          'failed',
+        ),
       );
 
       return {

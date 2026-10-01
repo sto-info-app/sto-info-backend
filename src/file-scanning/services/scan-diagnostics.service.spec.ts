@@ -11,8 +11,14 @@ import {
 import { Queue } from 'bullmq';
 import { DataSource, Repository } from 'typeorm';
 
+import { SiteAdminActionEntity } from 'src/audit/site-admin/site-admin-action.entity';
+import { SiteAdminActionKind } from 'src/audit/site-admin/site-admin-action.enum';
 import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
+import { PublicationPauseDto } from 'src/file-assets/publication/publication-pause.dto';
+import { PublicationPauseService } from 'src/file-assets/publication/publication-pause.service';
+import { OperationsAlertEntity } from 'src/operations/alerts/operations-alert.entity';
+import { OperationsAlertKind } from 'src/operations/alerts/operations-alert.enum';
 
 import { ScanUsageWindowDto } from '../dto/scan-diagnostics.dto';
 import {
@@ -21,6 +27,33 @@ import {
 } from './scan-diagnostics.service';
 
 const NOW = new Date('2026-09-26T12:00:00.000Z');
+
+const ADMIN_ID = '11111111-1111-4111-8111-111111111111';
+
+/** One worker's heartbeat, as the query returns it. */
+const HEARTBEAT_ROW = {
+  workerId: 'worker-a',
+  state: 'PAUSED',
+  pauseReason: 'SIGNATURES_TOO_OLD',
+  definitionsVersion: '27500',
+  definitionsBuiltAt: new Date('2026-09-24T08:00:00.000Z'),
+  jobsInHand: 0,
+  startedAt: new Date('2026-09-26T09:00:00.000Z'),
+  beatAt: new Date('2026-09-26T11:59:40.000Z'),
+  pausedSince: new Date('2026-09-26T11:40:00.000Z'),
+  secondsSinceBeat: 20.4,
+  secondsPaused: 1_199.9,
+  secondsSinceDefinitions: 187_380,
+};
+
+const PUBLICATION: PublicationPauseDto = {
+  paused: false,
+  pausedAt: null,
+  pausedByUserId: null,
+  pausedByUsername: null,
+  queuePaused: false,
+  held: 0,
+};
 
 /**
  * Builds one window of the usage view, as PostgreSQL returns it.
@@ -77,6 +110,10 @@ describe('ScanDiagnosticsService', () => {
   let findOne: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
   let findAndCount: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
   let warn: jest.SpiedFunction<Logger['warn']>;
+  let insert: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
+  let findAlerts: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
+  let getRepository: jest.Mock<(entity: unknown) => unknown>;
+  let readPublication: jest.Mock<() => Promise<PublicationPauseDto>>;
   let service: ScanDiagnosticsService;
 
   beforeEach(() => {
@@ -87,7 +124,9 @@ describe('ScanDiagnosticsService', () => {
       Promise.resolve(
         sql.includes('scan_usage')
           ? [usageRow('24h', 1), usageRow('7d', 2), usageRow('30d', 3)]
-          : [ENGINE_ROW],
+          : sql.includes('worker_heartbeat_status')
+            ? [HEARTBEAT_ROW]
+            : [ENGINE_ROW],
       ),
     );
     getJobCounts = jest.fn(() =>
@@ -114,14 +153,24 @@ describe('ScanDiagnosticsService', () => {
     findOne = jest.fn(() => Promise.resolve(null));
     findAndCount = jest.fn(() => Promise.resolve([[], 0]));
 
+    insert = jest.fn(() => Promise.resolve(undefined));
+    findAlerts = jest.fn(() => Promise.resolve([]));
+    getRepository = jest.fn(() => ({ find: findAlerts }));
+    readPublication = jest.fn(() => Promise.resolve(PUBLICATION));
+
     service = new ScanDiagnosticsService(
-      { query } as unknown as DataSource,
+      {
+        query,
+        manager: { insert },
+        getRepository,
+      } as unknown as DataSource,
       { getJobCounts } as unknown as Queue,
       {
         createQueryBuilder: jest.fn(() => builder),
         findOne,
         findAndCount,
       } as unknown as Repository<FileAssetEntity>,
+      { read: readPublication } as unknown as PublicationPauseService,
     );
   });
 
@@ -132,7 +181,7 @@ describe('ScanDiagnosticsService', () => {
 
   describe('usage', () => {
     it('reads the worker’s usage view in window order', async () => {
-      const result = await service.read();
+      const result = await service.read(ADMIN_ID);
 
       expect(query).toHaveBeenCalledWith(
         'SELECT * FROM "sto_info_worker"."scan_usage" ORDER BY "position"',
@@ -145,7 +194,7 @@ describe('ScanDiagnosticsService', () => {
     });
 
     it('drops the view’s ordering column', async () => {
-      const result = await service.read();
+      const result = await service.read(ADMIN_ID);
 
       expect(result.usage?.[0]).not.toHaveProperty('position');
       expect(result.usage?.[0]).toEqual(
@@ -165,7 +214,7 @@ describe('ScanDiagnosticsService', () => {
           : Promise.resolve([ENGINE_ROW]),
       );
 
-      const result = await service.read();
+      const result = await service.read(ADMIN_ID);
 
       expect(result.usage).toBeNull();
       expect(result.engine).not.toBeNull();
@@ -179,7 +228,7 @@ describe('ScanDiagnosticsService', () => {
         Promise.reject(new Error('secret statement text')),
       );
 
-      await service.read();
+      await service.read(ADMIN_ID);
 
       for (const [message] of warn.mock.calls) {
         expect(String(message)).not.toContain('secret statement text');
@@ -205,7 +254,7 @@ describe('ScanDiagnosticsService', () => {
     });
 
     it('reports the latest attempt’s engine and how old its signatures are', async () => {
-      const result = await service.read();
+      const result = await service.read(ADMIN_ID);
 
       expect(result.engine).toEqual({
         ...ENGINE_ROW,
@@ -224,7 +273,7 @@ describe('ScanDiagnosticsService', () => {
         ),
       );
 
-      const result = await service.read();
+      const result = await service.read(ADMIN_ID);
 
       expect(result.engine?.signatureAgeHours).toBeNull();
     });
@@ -232,7 +281,7 @@ describe('ScanDiagnosticsService', () => {
     it('is null when nothing has been scanned', async () => {
       query.mockImplementation(() => Promise.resolve([]));
 
-      const result = await service.read();
+      const result = await service.read(ADMIN_ID);
 
       expect(result.engine).toBeNull();
       expect(result.usage).toEqual([]);
@@ -245,7 +294,7 @@ describe('ScanDiagnosticsService', () => {
           : Promise.resolve([]),
       );
 
-      const result = await service.read();
+      const result = await service.read(ADMIN_ID);
 
       expect(result.engine).toBeNull();
       expect(warn).toHaveBeenCalledWith(
@@ -256,7 +305,7 @@ describe('ScanDiagnosticsService', () => {
 
   describe('queue', () => {
     it('counts prioritised requests as waiting ones', async () => {
-      const result = await service.read();
+      const result = await service.read(ADMIN_ID);
 
       expect(getJobCounts).toHaveBeenCalledWith(
         'waiting',
@@ -276,7 +325,7 @@ describe('ScanDiagnosticsService', () => {
     it('treats a state the queue did not report as none', async () => {
       getJobCounts.mockImplementationOnce(() => Promise.resolve({}));
 
-      const result = await service.read();
+      const result = await service.read(ADMIN_ID);
 
       expect(result.queue).toEqual({
         waiting: 0,
@@ -286,12 +335,30 @@ describe('ScanDiagnosticsService', () => {
       });
     });
 
+    // FC-042: BullMQ holds a command while Redis is down; the page must not.
+    it('is null when Redis does not answer in time', async () => {
+      getJobCounts.mockImplementationOnce(
+        () => new Promise<Record<string, number>>(() => {}),
+      );
+
+      const reading = service.read(ADMIN_ID);
+
+      await jest.advanceTimersByTimeAsync(5_000);
+
+      const result = await reading;
+
+      expect(result.queue).toBeNull();
+      expect(warn).toHaveBeenCalledWith(
+        '[readQueue] Source unavailable - Error: RedisTimeoutError',
+      );
+    });
+
     it('is null when Redis cannot be reached', async () => {
       getJobCounts.mockImplementationOnce(() =>
         Promise.reject(Object.assign(new Error('down'), { code: 42 })),
       );
 
-      const result = await service.read();
+      const result = await service.read(ADMIN_ID);
 
       expect(result.queue).toBeNull();
       expect(warn).toHaveBeenCalledWith(
@@ -302,7 +369,7 @@ describe('ScanDiagnosticsService', () => {
 
   describe('assets awaiting a verdict', () => {
     it('counts each waiting state, with zero for one that has none', async () => {
-      const result = await service.read();
+      const result = await service.read(ADMIN_ID);
 
       expect(builder.where).toHaveBeenCalledWith(
         'asset.state IN (:...states)',
@@ -323,7 +390,7 @@ describe('ScanDiagnosticsService', () => {
   });
 
   it('stamps the figures with the moment they were read', async () => {
-    const result = await service.read();
+    const result = await service.read(ADMIN_ID);
 
     expect(result.generatedAt).toEqual(NOW);
   });
@@ -363,18 +430,31 @@ describe('ScanDiagnosticsService', () => {
     it('reads one asset’s outcome and nothing else about it', async () => {
       findOne.mockResolvedValue(REJECTED);
 
-      await expect(service.asset('asset-1')).resolves.toEqual(DETAIL);
+      await expect(service.asset('asset-1', ADMIN_ID)).resolves.toEqual(DETAIL);
       expect(findOne).toHaveBeenCalledWith({ where: { id: 'asset-1' } });
+      // FC-042: every read is logged, naming the asset read.
+      expect(insert).toHaveBeenCalledWith(
+        SiteAdminActionEntity,
+        expect.objectContaining({
+          action: SiteAdminActionKind.SCAN_DIAGNOSTICS_VIEWED,
+          actorUserId: ADMIN_ID,
+          subjectKind: 'ASSET',
+          subjectId: 'asset-1',
+        }),
+      );
     });
 
-    it('says when there is no such asset', async () => {
-      await expect(service.asset('asset-9')).rejects.toThrow('Not found');
+    it('says when there is no such asset, and logs nothing', async () => {
+      await expect(service.asset('asset-9', ADMIN_ID)).rejects.toThrow(
+        'Not found',
+      );
+      expect(insert).not.toHaveBeenCalled();
     });
 
     it('lists refused assets, newest verdict first, a page at a time', async () => {
       findAndCount.mockResolvedValue([[REJECTED], 26]);
 
-      await expect(service.rejections(2)).resolves.toEqual({
+      await expect(service.rejections(2, ADMIN_ID)).resolves.toEqual({
         items: [DETAIL],
         total: 26,
         page: 2,
@@ -386,14 +466,170 @@ describe('ScanDiagnosticsService', () => {
         skip: SCAN_REJECTION_PAGE_SIZE,
         take: SCAN_REJECTION_PAGE_SIZE,
       });
+      expect(insert).toHaveBeenCalledWith(
+        SiteAdminActionEntity,
+        expect.objectContaining({
+          action: SiteAdminActionKind.SCAN_DIAGNOSTICS_VIEWED,
+          subjectKind: 'REJECTIONS',
+          subjectId: 'ALL',
+          reason: 'Read the refused assets on Scan Diagnostics',
+          detail: { page: 2 },
+        }),
+      );
+    });
+  });
+
+  // FC-042.
+  describe('logging', () => {
+    // The page reads the first page of refusals with the diagnostics each
+    // time it opens; one entry stands for both.
+    it('does not log the first page of refusals on its own', async () => {
+      await service.rejections(1, ADMIN_ID);
+
+      expect(insert).not.toHaveBeenCalled();
     });
 
-    it('reads the first page when asked for none', async () => {
-      await service.rejections();
+    it('logs every read of the page', async () => {
+      await service.read(ADMIN_ID);
+      await service.read(ADMIN_ID);
 
-      expect(findAndCount).toHaveBeenCalledWith(
-        expect.objectContaining({ skip: 0 }),
+      expect(insert).toHaveBeenCalledTimes(2);
+      expect(insert).toHaveBeenCalledWith(SiteAdminActionEntity, {
+        action: SiteAdminActionKind.SCAN_DIAGNOSTICS_VIEWED,
+        actorUserId: ADMIN_ID,
+        targetUserId: null,
+        subjectKind: 'DIAGNOSTICS',
+        subjectId: 'ALL',
+        reason: 'Read Scan Diagnostics',
+        detail: null,
+        ipAddress: null,
+      });
+    });
+  });
+
+  // FC-042.
+  describe('worker heartbeats', () => {
+    it('reads every worker, with ages on the database’s clock', async () => {
+      const result = await service.read(ADMIN_ID);
+
+      const [sql] = query.mock.calls.find(([statement]) =>
+        statement.includes('worker_heartbeat_status'),
+      )!;
+
+      expect(sql).toContain('EXTRACT(EPOCH FROM now() - h."beatAt")');
+      expect(sql).toContain('ORDER BY h."beatAt" DESC');
+      expect(result.workers).toEqual([
+        {
+          workerId: 'worker-a',
+          state: 'PAUSED',
+          pauseReason: 'SIGNATURES_TOO_OLD',
+          definitionsVersion: '27500',
+          definitionsBuiltAt: HEARTBEAT_ROW.definitionsBuiltAt,
+          // 187,380 seconds is 52.05 hours.
+          signatureAgeHours: 52.1,
+          jobsInHand: 0,
+          startedAt: HEARTBEAT_ROW.startedAt,
+          beatAt: HEARTBEAT_ROW.beatAt,
+          secondsSinceBeat: 20,
+          live: true,
+          pausedSince: HEARTBEAT_ROW.pausedSince,
+          pausedMinutes: 19,
+        },
+      ]);
+    });
+
+    it('says a worker that has not beaten for two minutes is not live', async () => {
+      query.mockImplementation((sql: string) =>
+        Promise.resolve(
+          sql.includes('worker_heartbeat_status')
+            ? [
+                {
+                  ...HEARTBEAT_ROW,
+                  state: 'RUNNING',
+                  pauseReason: null,
+                  pausedSince: null,
+                  secondsPaused: null,
+                  definitionsBuiltAt: null,
+                  secondsSinceDefinitions: null,
+                  secondsSinceBeat: 120.5,
+                },
+                // A clock a little ahead of the database's.
+                {
+                  ...HEARTBEAT_ROW,
+                  workerId: 'worker-b',
+                  secondsSinceBeat: -1,
+                },
+              ]
+            : [],
+        ),
       );
+
+      const workers = await service.readHeartbeats();
+
+      expect(workers?.[0]).toEqual(
+        expect.objectContaining({
+          live: false,
+          secondsSinceBeat: 121,
+          pausedMinutes: null,
+          signatureAgeHours: null,
+        }),
+      );
+      expect(workers?.[1]).toEqual(
+        expect.objectContaining({ live: true, secondsSinceBeat: 0 }),
+      );
+    });
+
+    it('is null, not an error, when the view cannot be read', async () => {
+      query.mockImplementation((sql: string) =>
+        sql.includes('worker_heartbeat_status')
+          ? Promise.reject(
+              Object.assign(new Error('permission denied'), { code: '42501' }),
+            )
+          : Promise.resolve([]),
+      );
+
+      const result = await service.read(ADMIN_ID);
+
+      expect(result.workers).toBeNull();
+      expect(warn).toHaveBeenCalledWith(
+        '[readHeartbeats] Source unavailable - Error: Error, Code: 42501',
+      );
+    });
+  });
+
+  // FC-042.
+  describe('alerts and the publication pause', () => {
+    it('shows the open alerts, oldest first, and the pause', async () => {
+      const openedAt = new Date('2026-09-26T11:00:00.000Z');
+      const lastSeenAt = new Date('2026-09-26T11:59:00.000Z');
+
+      findAlerts.mockResolvedValue([
+        {
+          id: 'alert-1',
+          kind: OperationsAlertKind.WORKER_PAUSED,
+          openedAt,
+          lastSeenAt,
+          clearedAt: null,
+          detail: { pausedWorkers: 1, pausedMinutes: 19 },
+        },
+      ]);
+
+      const result = await service.read(ADMIN_ID);
+
+      expect(getRepository).toHaveBeenCalledWith(OperationsAlertEntity);
+      expect(findAlerts).toHaveBeenCalledWith({
+        where: { clearedAt: expect.anything() },
+        order: { openedAt: 'ASC' },
+      });
+      expect(result.alerts).toEqual([
+        {
+          kind: OperationsAlertKind.WORKER_PAUSED,
+          openedAt,
+          lastSeenAt,
+          detail: { pausedWorkers: 1, pausedMinutes: 19 },
+        },
+      ]);
+      expect(result.publication).toBe(PUBLICATION);
     });
   });
 });

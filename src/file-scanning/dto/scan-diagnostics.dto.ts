@@ -1,5 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+import { PublicationPauseDto } from 'src/file-assets/publication/publication-pause.dto';
+import { OperationsAlertDto } from 'src/operations/alerts/operations-alert.dto';
+
 /** The windows the scan usage figures are reported over. */
 export const SCAN_USAGE_WINDOWS = ['24h', '7d', '30d'] as const;
 
@@ -167,6 +170,90 @@ export class ScanAwaitingDto {
   retryPending: number;
 }
 
+/** The states a scan worker reports itself in. */
+export const SCAN_WORKER_STATES = ['RUNNING', 'PAUSED', 'STOPPING'] as const;
+
+/** A state a scan worker reports itself in. */
+export type ScanWorkerState = (typeof SCAN_WORKER_STATES)[number];
+
+/**
+ * One scan worker process, as its heartbeat last reported it (FC-042).
+ *
+ * Read from the worker's `worker_heartbeat_status` view. Every age is
+ * measured on the database's clock, which is the clock the worker's
+ * timestamps were written on.
+ */
+export class ScanWorkerHeartbeatDto {
+  @ApiProperty({ description: 'The identifier the process made at start.' })
+  workerId: string;
+
+  @ApiProperty({ enum: SCAN_WORKER_STATES })
+  state: ScanWorkerState;
+
+  @ApiPropertyOptional({
+    description:
+      'Why it is paused, as a code: SCANNER_NOT_ASKED, SCANNER_UNREACHABLE, ' +
+      'SIGNATURES_UNDATED, SIGNATURES_TOO_OLD or UNKNOWN. Null unless paused.',
+    nullable: true,
+    type: String,
+  })
+  pauseReason: string | null;
+
+  @ApiPropertyOptional({
+    description: 'The signature version it last saw, or null.',
+    nullable: true,
+    type: String,
+  })
+  definitionsVersion: string | null;
+
+  @ApiPropertyOptional({
+    description: 'When those signatures were built, or null.',
+    nullable: true,
+    type: Date,
+  })
+  definitionsBuiltAt: Date | null;
+
+  @ApiPropertyOptional({
+    description: 'How old those signatures are, in hours to one decimal.',
+    nullable: true,
+    type: Number,
+  })
+  signatureAgeHours: number | null;
+
+  @ApiProperty({ description: 'Scan requests it is working on.' })
+  jobsInHand: number;
+
+  @ApiProperty({ description: 'When the process started.' })
+  startedAt: Date;
+
+  @ApiProperty({ description: 'When it last beat. It beats every 30 s.' })
+  beatAt: Date;
+
+  @ApiProperty({ description: 'Seconds since it last beat.' })
+  secondsSinceBeat: number;
+
+  @ApiProperty({
+    description:
+      'Whether it beat in the last two minutes. A process that has gone ' +
+      'keeps its row for a day.',
+  })
+  live: boolean;
+
+  @ApiPropertyOptional({
+    description: 'When it paused, or null unless paused.',
+    nullable: true,
+    type: Date,
+  })
+  pausedSince: Date | null;
+
+  @ApiPropertyOptional({
+    description: 'Whole minutes it has been paused, or null unless paused.',
+    nullable: true,
+    type: Number,
+  })
+  pausedMinutes: number | null;
+}
+
 /**
  * Everything the admin scan diagnostics page shows.
  *
@@ -208,6 +295,30 @@ export class ScanDiagnosticsDto {
     type: ScanAwaitingDto,
   })
   awaiting: ScanAwaitingDto;
+
+  @ApiPropertyOptional({
+    description:
+      'Every scan worker process that has beaten in the last day, latest ' +
+      'beat first; empty when none has, and null when the worker’s ' +
+      'heartbeat view could not be read (FC-042).',
+    type: [ScanWorkerHeartbeatDto],
+    nullable: true,
+  })
+  workers: ScanWorkerHeartbeatDto[] | null;
+
+  @ApiProperty({
+    description:
+      'The operations problems open now, oldest first; each has told ' +
+      'every site admin once (FC-042).',
+    type: [OperationsAlertDto],
+  })
+  alerts: OperationsAlertDto[];
+
+  @ApiProperty({
+    description: 'Whether publication is paused (FC-042).',
+    type: PublicationPauseDto,
+  })
+  publication: PublicationPauseDto;
 }
 
 /**

@@ -7,6 +7,8 @@ import { ScanDiagnosticsDto } from './dto/scan-diagnostics.dto';
 import { ScanDiagnosticsController } from './scan-diagnostics.controller';
 import { ScanDiagnosticsService } from './services/scan-diagnostics.service';
 
+const ADMIN_ID = '11111111-1111-4111-8111-111111111111';
+
 describe('ScanDiagnosticsController', () => {
   const diagnostics = {
     generatedAt: new Date('2026-09-26T12:00:00.000Z'),
@@ -16,9 +18,13 @@ describe('ScanDiagnosticsController', () => {
     awaiting: { quarantined: 0, scanning: 0, retryPending: 0 },
   } as ScanDiagnosticsDto;
 
-  let read: jest.Mock<() => Promise<ScanDiagnosticsDto>>;
-  let rejections: jest.Mock<(page: number) => Promise<unknown>>;
-  let asset: jest.Mock<(assetId: string) => Promise<unknown>>;
+  let read: jest.Mock<(adminUserId: string) => Promise<ScanDiagnosticsDto>>;
+  let rejections: jest.Mock<
+    (page: number, adminUserId: string) => Promise<unknown>
+  >;
+  let asset: jest.Mock<
+    (assetId: string, adminUserId: string) => Promise<unknown>
+  >;
   let controller: ScanDiagnosticsController;
 
   beforeEach(() => {
@@ -38,18 +44,18 @@ describe('ScanDiagnosticsController', () => {
     [0, 1],
     [3, 3],
   ])('reads page %s of refused assets as page %s', async (page, asked) => {
-    await expect(controller.rejections(page)).resolves.toBe('page');
-    expect(rejections).toHaveBeenCalledWith(asked);
+    await expect(controller.rejections(ADMIN_ID, page)).resolves.toBe('page');
+    expect(rejections).toHaveBeenCalledWith(asked, ADMIN_ID);
   });
 
   it('reads one asset’s outcome', async () => {
-    await expect(controller.asset('asset-1')).resolves.toBe('detail');
-    expect(asset).toHaveBeenCalledWith('asset-1');
+    await expect(controller.asset('asset-1', ADMIN_ID)).resolves.toBe('detail');
+    expect(asset).toHaveBeenCalledWith('asset-1', ADMIN_ID);
   });
 
   it('answers with what the service read', async () => {
-    await expect(controller.read()).resolves.toBe(diagnostics);
-    expect(read).toHaveBeenCalledTimes(1);
+    await expect(controller.read(ADMIN_ID)).resolves.toBe(diagnostics);
+    expect(read).toHaveBeenCalledWith(ADMIN_ID);
   });
 
   it('is for administrators only', () => {
