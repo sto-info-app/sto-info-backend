@@ -13,6 +13,7 @@ import { FileAssetAudience } from '../enums/file-asset-audience.enum';
 import { FileAssetPlacementState } from '../enums/file-asset-placement-state.enum';
 import { FileAssetState } from '../enums/file-asset-state.enum';
 import { FileAssetStorage } from '../enums/file-asset-storage.enum';
+import { isMissingObject } from '../utilities/missing-object.utility';
 import { AssetPublisherRegistry } from './asset-publisher.registry';
 import { AssetWithdrawalService } from './asset-withdrawal.service';
 import { FileAssetPlacementService } from './file-asset-placement.service';
@@ -518,28 +519,4 @@ export class AssetPublicationService {
 
     return { published: false, refusal, deliveryReference: null };
   }
-}
-
-/**
- * Whether an S3 error says the object is not there: `NoSuchKey`, or a
- * `NotFound` or 404 from a request that carries no body to name it.
- *
- * @param error - What the client threw.
- * @returns True only for a missing object.
- */
-function isMissingObject(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null) {
-    return false;
-  }
-
-  const { name, $metadata } = error as {
-    name?: unknown;
-    $metadata?: { httpStatusCode?: unknown };
-  };
-
-  return (
-    name === 'NoSuchKey' ||
-    name === 'NotFound' ||
-    $metadata?.httpStatusCode === 404
-  );
 }

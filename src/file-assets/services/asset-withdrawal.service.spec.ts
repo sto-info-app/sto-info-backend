@@ -213,6 +213,84 @@ describe('AssetWithdrawalService', () => {
     });
   });
 
+  // FC-043: what a failed delete left owed is asked about again.
+  describe('settleOwedPurge', () => {
+    const owed = (overrides: Partial<FileAssetEntity> = {}): FileAssetEntity =>
+      asset({
+        state: FileAssetState.REVOKED,
+        purgeRequiredAt: new Date(),
+        storage: FileAssetStorage.PUBLIC_IMAGES,
+        ...overrides,
+      });
+
+    it('deletes the image again, confirms the purge and retires any old copy', async () => {
+      await expect(service.settleOwedPurge(owed())).resolves.toBe(true);
+
+      expect(deleteImageFromCloudflareImages).toHaveBeenCalledWith('image-1');
+      expect(confirmPurged).toHaveBeenCalledWith('asset-1');
+      expect(retireFor).toHaveBeenCalledWith('asset-1');
+    });
+
+    it('deletes a legacy R2 object from R2', async () => {
+      await service.settleOwedPurge(
+        owed({
+          deliveryReference: 'user/portrait.png',
+          storage: FileAssetStorage.LEGACY_PUBLIC_R2,
+        }),
+      );
+
+      expect(deleteR2Object).toHaveBeenCalledWith('user/portrait.png');
+      expect(deleteImageFromCloudflareImages).not.toHaveBeenCalled();
+    });
+
+    // The first delete may have worked with only its answer lost.
+    it('counts an image Cloudflare no longer has as gone', async () => {
+      deleteImageFromCloudflareImages.mockRejectedValue({
+        response: { status: 404 },
+      });
+      jest.mocked(Logger.prototype.error).mockClear();
+
+      await expect(service.settleOwedPurge(owed())).resolves.toBe(true);
+      expect(confirmPurged).toHaveBeenCalledWith('asset-1');
+      expect(Logger.prototype.error).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['a refusal', { response: { status: 403 } }],
+      ['no response', new Error('socket hang up')],
+      ['nothing at all', null],
+    ])('leaves the purge owed after %s', async (_name, failure) => {
+      deleteImageFromCloudflareImages.mockRejectedValue(failure);
+
+      await expect(service.settleOwedPurge(owed())).resolves.toBe(false);
+      expect(confirmPurged).not.toHaveBeenCalled();
+      expect(retireFor).toHaveBeenCalledWith('asset-1');
+    });
+
+    it('confirms a purge with nothing left to delete', async () => {
+      await expect(
+        service.settleOwedPurge(owed({ deliveryReference: null })),
+      ).resolves.toBe(true);
+      expect(deleteImageFromCloudflareImages).not.toHaveBeenCalled();
+      expect(confirmPurged).toHaveBeenCalledWith('asset-1');
+    });
+
+    it.each([
+      ['an error', new Error('no')],
+      ['something that is not an error', 'no'],
+    ])(
+      'still answers when the old copy cannot be retired, with %s',
+      async (_name, failure) => {
+        retireFor.mockRejectedValue(failure);
+
+        await expect(service.settleOwedPurge(owed())).resolves.toBe(true);
+        expect(Logger.prototype.error).toHaveBeenCalledWith(
+          expect.stringContaining('[settleOwedPurge] Old copy not retired'),
+        );
+      },
+    );
+  });
+
   describe('withdrawSlot', () => {
     it('settles the placement and withdraws the picture', async () => {
       const placement = { id: 'placement-1' };

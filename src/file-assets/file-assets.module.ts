@@ -36,6 +36,7 @@ import { AssetWithdrawalService } from './services/asset-withdrawal.service';
 import { FileAssetDeliveryService } from './services/file-asset-delivery.service';
 import { FileAssetPlacementService } from './services/file-asset-placement.service';
 import { FileAssetService } from './services/file-asset.service';
+import { OwedPurgeSweepService } from './services/owed-purge-sweep.service';
 import {
   QUARANTINE_S3_CLIENT,
   QuarantineStorageService,
@@ -97,6 +98,7 @@ import { StaleUploadSweepService } from './services/stale-upload-sweep.service';
     AssetPublicationProcessor,
     AssetWithdrawalService,
     AssetStatusService,
+    OwedPurgeSweepService,
     StaleUploadSweepService,
     ImageEstateService,
     ImageInventoryService,

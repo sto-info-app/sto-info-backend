@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
 
+import { FileAssetEntity } from '../entities/file-asset.entity';
 import { FileAssetPlacementState } from '../enums/file-asset-placement-state.enum';
 import { FileAssetSlot } from '../enums/file-asset-slot.enum';
 import { FileAssetState } from '../enums/file-asset-state.enum';
@@ -33,8 +34,9 @@ export interface WithdrawalOutcome {
  * So: revoke the row, which is what `purgeRequiredAt` records as owed;
  * delete the object, which is what actually stops the nine variants; and
  * only then confirm the purge. A delete that fails leaves the asset revoked
- * with a purge outstanding, which is a state W10 can find and act on rather
- * than a failure nobody hears about.
+ * with a purge outstanding, which `OwedPurgeSweepService` retries every
+ * hour and the operations alerts report once it is a day old (FC-043),
+ * rather than a failure nobody hears about.
  *
  * **Legacy images go through here too.** An estate row is `UNVERIFIED` and
  * still served, and the backfill gave it the same delivery reference the
@@ -163,6 +165,41 @@ export class AssetWithdrawalService {
   }
 
   /**
+   * Settles a purge an earlier withdrawal left owed (FC-043).
+   *
+   * Deletes the object again, confirms the purge once Cloudflare agrees it
+   * has gone, and retires any old public copy of it, as a withdrawal does.
+   * An object Cloudflare no longer has counts as gone: the first delete may
+   * have worked with only its answer lost.
+   *
+   * @param asset - A revoked asset with a purge outstanding.
+   * @returns True when the purge is now confirmed.
+   */
+  async settleOwedPurge(asset: FileAssetEntity): Promise<boolean> {
+    const deleted =
+      asset.deliveryReference === null ||
+      (await this.deleteFromCloudflare(
+        asset.deliveryReference,
+        asset.storage === FileAssetStorage.LEGACY_PUBLIC_R2,
+      ));
+
+    if (deleted) {
+      await this._fileAssets.confirmPurged(asset.id);
+    }
+
+    try {
+      await this._estate.retireFor(asset.id);
+    } catch (error: unknown) {
+      this._logger.error(
+        `[settleOwedPurge] Old copy not retired - AssetId: ${asset.id}, ` +
+          `Reason: ${error instanceof Error ? error.message : 'unknown'}`,
+      );
+    }
+
+    return deleted;
+  }
+
+  /**
    * Reports whether an asset is in a state a withdrawal may move it from.
    *
    * `UNVERIFIED` is here because the estate is served from it. Anything
@@ -202,6 +239,14 @@ export class AssetWithdrawalService {
 
       return true;
     } catch (error: unknown) {
+      if (isNotFound(error)) {
+        this._logger.log(
+          `[deleteFromCloudflare] Already gone - Reference: ${deliveryReference}`,
+        );
+
+        return true;
+      }
+
       this._logger.error(
         `[deleteFromCloudflare] Could not delete - ` +
           `Reference: ${deliveryReference}, ` +
@@ -211,4 +256,19 @@ export class AssetWithdrawalService {
       return false;
     }
   }
+}
+
+/**
+ * Reports whether a failed delete was Cloudflare saying there is nothing to
+ * delete. Read from the response's status rather than its message, which
+ * Cloudflare words differently on each API.
+ *
+ * @param error - What the delete threw.
+ * @returns True for a 404.
+ */
+function isNotFound(error: unknown): boolean {
+  const response = (error as { response?: { status?: unknown } } | null)
+    ?.response;
+
+  return response?.status === 404;
 }

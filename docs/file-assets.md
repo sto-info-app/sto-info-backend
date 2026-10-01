@@ -302,6 +302,15 @@ which the third acceptance criterion is not yet true of that asset, and a window
 is a window nobody notices growing. `IDX_file_asset_purge_outstanding` indexes exactly that
 population, and it is normally empty.
 
+**An owed purge is retried (FC-043).** Before FC-043 nothing ever asked again after a failed
+delete, so a withdrawn public or legacy picture could stay reachable at its old address for good.
+`OwedPurgeSweepService` runs every hour under PostgreSQL advisory lock `1797600000`, takes the 50
+oldest owed purges and calls `AssetWithdrawalService.settleOwedPurge` for each: the delete again
+(Cloudflare Images, or R2 for a legacy picture), the purge confirmed once Cloudflare agrees, and any
+old public copy from the image estate retired. A 404 from Cloudflare counts as gone, there and in
+every withdrawal, because the first delete may have worked with only its answer lost. One owed for
+a day opens the `PURGE_OWED` alert, and Scan Diagnostics counts what is owed under Publication.
+
 Downloads already in somebody's possession cannot be recalled. What must hold is that no _new_
 fetch succeeds.
 
