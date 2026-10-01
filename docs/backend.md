@@ -142,6 +142,8 @@ The master switch wins: with it off every capability reports as off, so callers 
 
 `CUSTOM_TRACKING_ENABLED` follows the same pattern and is likewise **seeded disabled**, with capability flags `CUSTOM_TRACKING_PUBLIC_READ_ENABLED`, `CUSTOM_TRACKING_DEFINITION_EDITING_ENABLED`, `CUSTOM_TRACKING_VALUE_EDITING_ENABLED`, `CUSTOM_TRACKING_IMAGES_ENABLED` and `CUSTOM_TRACKING_YOUTUBE_ENABLED`. Having its master switch in the database matters more here than anywhere else: the feature stores content users write themselves, so an incident may need it stopped in minutes rather than at the next deploy.
 
+`FILE_PUBLICATION_PAUSED` (FC-042) is a runtime switch of a different kind: an operations kill switch, not a feature switch, and **seeded running**. While it is on, uploads are still accepted and scanned and nothing is published; turned off, everything held publishes. It holds a small JSON value — `{"paused":false}`, or whether it is paused, since when and by whom — and is thrown only from the Admin page's `POST /admin/file-publication/pause` and `/resume`, each with a reason for the site admin log. No feature switch governs it, and it governs none. Because a paused queue lives in Redis, the switch is re-applied to the `file-asset-publication` queue at startup and every minute, reading past the ten-second cache; see [File assets](file-assets.md#pausing-publication).
+
 Custom Tracking adds a second gate in front of everything that writes. `CustomTrackingEditingGuard` requires the capability **and** the current content agreement to have been accepted, in that order — asking somebody to agree to terms for a feature that is switched off would be strange, and would reveal that it is coming. Reading is deliberately not guarded: a user whose acceptance has been superseded keeps full sight of what they have already recorded.
 
 ## Middleware Execution Order
@@ -275,6 +277,24 @@ Stricter limits are applied to specific route groups before the method-based lim
 - Each rate limiter creates a dedicated `RedisStore` instance to avoid store reuse errors
 - Store uses type-safe `sendCommand` implementation with proper TypeScript typing (`RedisReply`)
 - Redis commands are executed via `ioredis` client's `call` method
+
+#### When Redis cannot answer (FC-042)
+
+Each `RedisStore` is wrapped in a `FallbackRateLimitStore` (`src/common/http/fallback-rate-limit.store.ts`)
+with an in-memory `MemoryStore` behind it. Before this, a Redis outage held every request for about
+70 seconds (ioredis retrying the command twenty times) and then failed it with a 500, which took
+the whole API down, including the Scan Diagnostics page and the publication pause meant for that
+outage.
+
+- A count Redis has not answered within **1 second** is made in memory instead.
+- For the next **10 seconds** nothing asks Redis, so an outage costs one slow request every ten
+  seconds rather than a second on every request. After that, the next request asks Redis again.
+- Limits keep applying throughout, sign-in's included (Steve's decision of 1 October 2026: counting
+  locally rather than letting requests through). While Redis is away each instance keeps its own
+  count, so with several instances a client can make that many more requests.
+- The switch is logged once each way: a warning `Rate limits counted in memory while Redis cannot
+  answer - Limiter: <name>`, and `Rate limits counted in Redis again` when it answers. Counts made in
+  memory are not copied back to Redis.
 
 **Key Generation:**
 
@@ -466,7 +486,7 @@ The backend supports user-initiated account closure via `DELETE /user/close-acco
 
 ### Immediate actions (request-time)
 
-When account closure is requested for an authenticated user, the service performs a coordinated transactional soft-delete:
+When account closure is requested for an authenticated user, the service first writes the closure to the account-closure ledger (FC-042), then performs a coordinated transactional soft-delete:
 
 1. Revoke active refresh tokens for the user.
 2. Soft-delete owned STO characters.
@@ -476,6 +496,14 @@ When account closure is requested for an authenticated user, the service perform
 6. Send an account-closure confirmation email to the user with a support link in case the request was not made by them.
 
 This ensures account access is disabled immediately while preserving short-term referential consistency for retention/audit windows.
+
+### The account-closure ledger (FC-042)
+
+A restore from a backup taken before somebody closed their account would open it again. So each closure is also written, before the database, to `<NODE_ENV>/account-closure-ledger/<createdAt>_<userId>_CLOSED.json` in the private quarantine bucket: the account's ID, the event and when, and no name, email or reason. If the ledger cannot be written, nothing is closed; if the closure then fails, the next boot closes the account.
+
+At every boot the restore check (see [Privacy: erasure](privacy-erasure.md#the-restore-check-fc-042)) takes each account's latest marker. An account it says was closed and the database has open is closed again through `UserService.closeAgain()`: its Communities handed on or closed, its sessions revoked, its data soft-deleted, and the user's `deletedAt` set to when it was first closed, so the clean-up below erases it when it would have. No email is sent again. An account the database no longer has counts as gone. Every closed account with no marker gets one.
+
+Nothing in production reopens an account. Outside production the user seeder restores the soft-deleted seed user; it writes a `REOPENED` marker first, and the check leaves an account whose latest marker is `REOPENED` as the database has it. Disabling an account (`disabledAt`, `USER_DISABLED`) is not a closure and has no ledger.
 
 ### Delayed actions (scheduled cleanup)
 
@@ -543,6 +571,10 @@ This keeps primary user records at least as long as the general audit data reten
 - `npm run migration:generate -- -n <NameOfMigration>`: Generate a new migration from entity changes. Use when entity schemas change.
 - `npm run migration:run`: Execute all pending migrations. Use when deploying or setting up the database.
 - `npm run migration:revert`: Revert the last executed migration. Use to roll back a migration.
+  It cannot go below `1797300000000-GuardPublishedImageReferences` (FC-042): that migration's down
+  refuses, because removing the guard would let a rolled-back build publish unscanned pictures. Roll
+  forward with a new migration instead. See
+  [Rolling back the application](image-delivery.md#rolling-back-the-application).
 - `npm run migration:show`: Show which migrations have been run and which are pending. Use to check migration status.
 - `npm run typeorm`: Run TypeORM CLI commands directly with ts-node and path mapping. Use for advanced TypeORM operations.
 
@@ -558,3 +590,5 @@ every rule it claims to enforce. They need Docker and never touch a real databas
 - `npm run rehearse:migration:calendar-dates`: The entered-days column rewrite (ADR-0013).
 - `npm run rehearse:migration:file-assets`: FC-008's asset registry and its backfill.
 - `npm run rehearse:migration:roster-import-source`: FC-009's import provenance, on top of both.
+- `npm run rehearse:migration:published-image-guard`: FC-042's guard on every picture column, and
+  its refused rollback.

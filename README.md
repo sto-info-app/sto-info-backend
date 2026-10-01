@@ -66,6 +66,8 @@ Documentation is in [docs/](docs/).
 
 - [docs/environment-variables.md](docs/environment-variables.md)
 - [docs/infrastructure.md](docs/infrastructure.md)
+- [docs/operations/](docs/operations/README.md) — the operations runbooks: Render, secrets,
+  readiness, alerts, failed jobs, restore, rollback and incidents
 - [docs/security.md](docs/security.md)
 - [docs/database.md](docs/database.md)
 - [docs/backend.md](docs/backend.md)

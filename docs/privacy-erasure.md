@@ -7,6 +7,7 @@ below are Steve's, from 29 September 2026.
 - [Verified roster erasure](#verified-roster-erasure)
 - [Staying erased](#staying-erased)
 - [After a restore](#after-a-restore)
+  - [The restore check (FC-042)](#the-restore-check-fc-042)
 - [An Owner closing their account](#an-owner-closing-their-account)
 - [Erasing a closed account](#erasing-a-closed-account)
 - [Telemetry](#telemetry)
@@ -72,18 +73,75 @@ The erasures are also the suppression list.
 
 A database restored from a backup older than an erasure would bring back what it erased.
 
-Each erasure's marker is also written to a ledger outside the database. A marker is one object per
-erasure under `<NODE_ENV>/erasure-ledger/` in the private quarantine bucket, which has no expiry
-rule. It holds the erasure's ID, the hash, the pseudonym and when it was made; never the name, the
-handle or the reason.
+Each erasure's marker is also written to a ledger outside the database, before the database. A
+marker is one object per erasure, `<NODE_ENV>/erasure-ledger/<createdAt>_<erasureId>.json`, in the
+private quarantine bucket, which has no expiry rule. It holds the erasure's ID, the hash, the
+pseudonym and when it was made; never the name, the handle or the reason.
 
-**After every restore**, a site admin presses **Replay the erasure ledger…** on Admin › Roster
-Erasures (`POST /admin/roster-erasures/replay-ledger`). Each marker the database no longer has is
-made again:
+**At every boot**, before the API serves anything, the restore check below compares the ledger with
+the database. Each marker the database no longer has is made again, oldest first:
 
 - it finds the pair by hashing the stored pairs;
 - it anonymises them and deletes their files;
-- it records the erasure as replayed.
+- it records the erasure as replayed, with no admin and the reason "Re-applied from the erasure
+  ledger after a database restore."
+
+A marker whose pair the database already holds under another erasure is left alone: the pair is
+erased, and the hash is unique. Nobody has to press anything; FC-042 removed the manual
+"Replay the erasure ledger" button and its route.
+
+### The restore check (FC-042)
+
+Steve's decisions of 30 September 2026: the backend checks four ledgers kept outside the database
+against it at every boot, brings back whatever an older backup lacks, and serves nothing until it
+has.
+
+| Ledger | Key, under `<NODE_ENV>/` in the quarantine bucket | Written | Brought back |
+| --- | --- | --- | --- |
+| Erasures | `erasure-ledger/<createdAt>_<erasureId>.json` | By each erasure, before the database | The erasure, as above |
+| Hold events | `hold-ledger/<createdAt>_<actionId>_<PLACED\|EXTENDED\|RELEASED>.json` | By each placing, extension and release of a moderation hold, before the database — see [Fleet chat](fleet-chat.md#the-hold-ledger-fc-042) | The event, under its own ID |
+| Asset denies | `asset-deny-ledger/<createdAt>_<assetId>_<REJECTED\|REVOKED\|DELETED>.json` | By each move of a `file_asset` into a denied state, before the database — see [File assets](file-assets.md#the-asset-deny-ledger-fc-042) | The deny |
+| Account closures | `account-closure-ledger/<createdAt>_<userId>_<CLOSED\|REOPENED>.json` | By each account closure, before the database — see [Backend](backend.md#the-account-closure-ledger-fc-042) | The closure: the account closed again as of when it was closed |
+
+**When.** `main.ts` runs `RestoreCheckService.run()` after `NestFactory.create()` and before
+`app.init()`. `create()` builds the providers — the TypeORM connection, the buckets' S3 clients, the
+BullMQ queues — but calls no lifecycle hook. So no HTTP route or WebSocket is bound, no BullMQ worker
+has started (`@nestjs/bullmq` starts them in `onModuleInit`) and no scheduled job is registered
+(`@nestjs/schedule` mounts them in `onApplicationBootstrap`) until the check has finished. Only the
+Cloudflare Images credentials are normally loaded by a hook, `ImageUploadsService.onModuleInit()`;
+the check calls `ImageUploadsService.ready()` itself, which fetches them once for both.
+
+**Readiness.** `/health/ready` needs no change: the server does not listen until the check has
+finished, so nothing can ask it.
+
+**Cheap.** Each ledger is listed once, and the check compares the IDs in the keys with the
+database, read 500 rows at a time. It reads a marker's body only when the database lacks what the
+marker is about; an account closure's key holds everything, so none is ever read. The first boot
+after FC-042 was deployed also writes a marker for every erasure, hold event, denied asset and
+closed account that has none, eight at a time, so the ledgers are complete from then
+on.
+
+**One at a time.** The check holds the PostgreSQL advisory lock `1797200000` while it runs. A second
+instance starting at the same moment waits for it, then finds nothing left to do.
+
+**Fail closed.** If the bucket or the database cannot be reached, or anything else fails, the check
+logs `[run] Restore check failed; the API waits for it - Attempt: n, RetryInMs: t, Reason: …` and
+tries again after 1 second, doubling each time up to 60 seconds, for as long as it takes. The API
+never starts without the ledgers read, so a deploy's health check fails rather than going live.
+
+**Logged.** Each ledger logs one line of counts, and the check one summary line:
+`[reconcile] Restore check finished - Erasures: m/r/b, Holds: m/r/b, Assets: m/r/b, Closures: m/r/b,
+ListMs: …, CompareMs: …, ReplayMs: …, BackfillMs: …` (markers, replayed and backfilled). When it brought
+anything back, it writes a `LEDGERS_RECONCILED` entry to the site admin log with no actor, such as
+"The restore check brought back 2 erasures, 1 hold event, 3 denied uploads and 1 account
+closure.", with each ledger's counts in `detail` — see [Admin audit](admin-audit.md#the-site-admin-log).
+
+**Ledger first.** Every ledger is written before the database. A marker whose database write then
+failed is brought back at the next boot: an erasure, a deny or a closure is made after all, and a
+hold keeps its evidence. Each errs on the side of the ledger.
+
+**Restoring.** The procedure — what to do before, during and after a restore, what this check does
+not bring back, and how to check it worked — is the [restore runbook](operations/restore.md).
 
 ## An Owner closing their account
 
@@ -143,5 +201,4 @@ is kept out too.
 | `GET` | `/admin/roster-erasures` | Site admins: every erasure, newest first, never naming who |
 | `POST` | `/admin/roster-erasures/preview` | Site admins: `{ characterName, accountHandle }`, the Fleets naming them |
 | `POST` | `/admin/roster-erasures` | Site admins: `{ characterName, accountHandle, reason }` |
-| `POST` | `/admin/roster-erasures/replay-ledger` | Site admins: after a restore |
 | `GET` | `/user/close-account/communities` | The signed-in user: what closing does to each Community they own |

@@ -14,6 +14,7 @@ reports (`/admin/chat-reports`).
 - [Blocks, presence and typing](#blocks-presence-and-typing)
 - [Transcripts and reports](#transcripts-and-reports)
 - [Holds](#holds)
+  - [The hold ledger (FC-042)](#the-hold-ledger-fc-042)
 - [Routes](#routes)
 - [The socket](#the-socket)
 - [The schema](#the-schema)
@@ -262,6 +263,32 @@ FC-036, plan section 9 and Steve's decisions of 29 September 2026 (`src/fleet/ch
   Nobody else, scope moderators included, sees them.
 - **The log.** `moderation_hold_action` (write-once) records every placing, extension, release
   and reading, with its reason or purpose, who, and when.
+
+### The hold ledger (FC-042)
+
+Steve's decisions of 30 September 2026. A restore from a backup taken before a hold was placed
+would let the purge take what it keeps; one taken before a release would keep what should go. So
+every placing, extension and release — the system's automatic release included — is also written
+to a ledger outside the database, before the database, in the same step that logs it.
+
+- **Where.** One object per event in the private quarantine bucket:
+  `<NODE_ENV>/hold-ledger/<createdAt>_<actionId>_<PLACED|EXTENDED|RELEASED>.json`. The action ID is
+  the log row's own: the service makes it before it inserts the row.
+- **What.** `{ actionId, holdId, kind, holdKind, chatReportId, subjectUserId, ownerUserId,
+  reviewAt, createdAt }`: IDs, dates and the event, with `reviewAt` as the event left it. No
+  reason. Readings and the system's notices are not in it.
+- **Brought back.** At every boot, the restore check (see
+  [Privacy: erasure](privacy-erasure.md#the-restore-check-fc-042)) brings back, oldest first, each
+  event the log lacks, under its own ID and time, with no actor, marked automatic, and the reason
+  "Brought back from the hold ledger after a restore.":
+  - **Placed:** the hold is made again with its own ID and that reason, if its report or member is
+    still there; its owner too, if their account is. Otherwise there is nothing left to hold. A
+    hold still in the database, or another in force on the same report or member, counts as held.
+  - **Extended:** its review date is set, if it is still in force.
+  - **Released:** it is released, at the time it was, if it is still in force.
+- **Failures.** A marker whose transaction then failed is brought back at the next boot, so the
+  ledger errs towards keeping evidence. If the ledger cannot be written, the action fails and
+  nothing is logged.
 
 ## Routes
 

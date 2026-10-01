@@ -436,23 +436,22 @@ For full consistency with the privacy policy, ensure any CloudWatch Log Groups a
 - User account data: retained until deletion is requested, then soft-deleted immediately
 - Character/account/profile data: soft-deleted on account closure; hard-deleted after closed-account retention window
 - Uploaded images: define whether deletions remove the backing object from R2/Cloudflare Images
-- Backups: define Render backup retention and restoration expectations
+- Backups: see [Database Backup Strategy](#database-backup-strategy) and the
+  [restore runbook](operations/restore.md)
 
 > TODO: Decide and document the intended retention/deletion behaviour for uploaded images (DB references, Cloudflare Images, and any R2 objects).
-> TODO: Document the real backup retention, RPO/RTO expectations, and a restore runbook.
+> TODO: Decide the RPO/RTO expectations once the backup retention is known (FC-052).
 
 ## Connection Pool Settings
 
 **TypeORM Connection Configuration:**
 
-Review `ormconfig.ts` or database module configuration for:
-
-> TODO: Confirm where pool settings are configured in this repo (and document the actual values used in prod).
-
-- `maxConnections`: Maximum pool size
-- `minConnections`: Minimum pool size
-- `connectionTimeout`: Connection timeout in milliseconds
-- `idleTimeout`: Idle connection timeout
+None is set. `config/typeorm.config.ts` passes no `poolSize` and no `extra`, so node-postgres's
+defaults apply: at most **ten connections** per DataSource, opened as needed. The application has
+one DataSource (`TypeOrmModule.forRootAsync` in `app.module.ts`); `migration:run` opens its own, in a
+separate process that exits before the API starts. The file scan worker is configured the same way.
+The budget across both applications, with a deploy's overlap, is in
+[Render services](operations/render-services.md#connection-budgets).
 
 **Render.com Managed PostgreSQL:**
 
@@ -475,8 +474,16 @@ Review `ormconfig.ts` or database module configuration for:
 **Render.com Backups:**
 
 - Managed PostgreSQL includes automatic backups
-- Check Render dashboard for backup schedule and retention
-- Point-in-time recovery may be available depending on plan
+- The plan, its backup retention and whether point-in-time recovery is available are to confirm on
+  Render in FC-052; see [Render services](operations/render-services.md#to-confirm-on-render-fc-052)
+
+**Restoring:** follow the [restore runbook](operations/restore.md). The backend's schema and the
+file scan worker's are in the same database, so both go back together. At every boot, before the
+API serves anything, the restore check compares the four ledgers kept in the quarantine bucket —
+erasures, moderation hold events, asset denies and account closures — with the database and brings
+back whatever an older backup lacks (FC-042, see
+[Privacy: erasure](privacy-erasure.md#the-restore-check-fc-042)). Retention purges have no ledger:
+the next nightly runs purge again.
 
 **Manual Backups:**
 
@@ -484,15 +491,20 @@ Review `ormconfig.ts` or database module configuration for:
 pg_dump -h <host> -U <user> -d <database> > backup.sql
 ```
 
-> TODO: Replace `<host>`, `<user>`, and `<database>` with the real Render connection values (or document where to retrieve them safely).
+The connection values are on the database's page on Render. Never write the password into a
+command, a script or a file; let `psql` and `pg_dump` prompt for it. The exact values, and the SSL
+flags Render needs, are confirmed in FC-052.
 
-**Restore:**
+**Restore from a manual dump:**
 
 ```bash
 psql -h <host> -U <user> -d <database> < backup.sql
 ```
 
-> TODO: Document any required flags for SSL (`sslmode=require`) and the expected restore procedure for Render-managed Postgres.
+Always into a **new, empty** database, never over the live one, and then carry on from the
+[restore runbook](operations/restore.md#the-restore)'s step on roles and grants. Both roles must
+exist before it is loaded. A dump has to hold both schemas, so take it as a role that can read
+both: the backend's own role cannot read the worker's tables, only its views.
 
 **Backup Before Migrations:**
 

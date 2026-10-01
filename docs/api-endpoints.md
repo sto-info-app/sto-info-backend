@@ -341,8 +341,11 @@ Behind sign-in alone rather than a creator permission, matching Arcs: the four f
 ### GET /admin/file-scanning/diagnostics
 
 Scan usage over the last 24 hours, 7 days and 30 days, the engine and signatures the latest
-attempt reported, the scan request queue and the assets awaiting a verdict (FC-003). Totals only.
-A part whose source cannot be reached is `null`. See
+attempt reported, the scan request queue and the assets awaiting a verdict (FC-003). Since FC-042
+also each scan worker's heartbeat (`workers`), the operations alerts open now (`alerts`) and the
+publication pause (`publication`). Totals only. A part whose source cannot be reached is `null`.
+Every read is logged in the site admin log as `SCAN_DIAGNOSTICS_VIEWED`, one entry per page view.
+See
 [File assets](file-assets.md#watching-the-scanner-get-adminfile-scanningdiagnostics).
 
 **Authentication Required.** The `ADMIN` role.
@@ -363,8 +366,8 @@ control routes above:
 | Method | Path | Purpose |
 | ------ | ---- | ------- |
 | GET | `/admin/security-log?source=&page=` | What site admins and the retention jobs did, newest first, fifty to a page; `source` is one of `SITE_ADMIN`, `FLEET`, `HOLD`, `INVESTIGATION`, `ERASURE`, `RETENTION` |
-| GET | `/admin/file-scanning/rejections?page=` | Refused assets, newest verdict first, 25 to a page |
-| GET | `/admin/file-scanning/assets/:assetId` | One asset's scan outcome: code and engine, never a signature name |
+| GET | `/admin/file-scanning/rejections?page=` | Refused assets, newest verdict first, 25 to a page; a page after the first is logged (FC-042) |
+| GET | `/admin/file-scanning/assets/:assetId` | One asset's scan outcome: code and engine, never a signature name; the read is logged (FC-042) |
 
 All three require the `ADMIN` role. See [Admin audit](admin-audit.md).
 
@@ -392,6 +395,23 @@ Community, Fleet, Armada, news and Custom Tracking responses now carry addresses
 | POST | `/admin/rescan-campaigns/findings/:rescanId/decision` | `{ decision: TAKEN_DOWN \| KEPT, reason }`; takes down or keeps a picture refused for policy, answering 204; 404 for no such rescan, 409 when it is not a policy refusal or has been decided (FC-050) |
 
 All require the `ADMIN` role. See [Rescan campaigns](rescan-campaigns.md).
+
+### Failed jobs and the publication pause (FC-042)
+
+| Method | Path | Purpose |
+| ------ | ---- | ------- |
+| GET | `/admin/file-scanning/failed-jobs?queue=&page=` | Failed jobs of `file-scan`, `file-scan-verdict`, `file-asset-publication`, `chat-transcript` and `fleet-roster-replay`, queue by queue and newest first, 25 to a page: job ID, name, attempts, when it failed, the asset, transcript or Fleet ID, a failure code, and whether a retry could help. A page after the first, or one queue, is logged as `SCAN_DIAGNOSTICS_VIEWED` |
+| POST | `/admin/file-scanning/failed-jobs/:queue/:jobId/retry` | `{ reason }`; sends the job round again with its attempts back, answering 204. 404 for no such job; 409 when it has not failed, when a retry would change nothing (the message says why), or when somebody retried it first. Logged as `SCAN_JOB_RETRIED` |
+| POST | `/admin/file-scanning/failed-jobs/retry-all` | `{ reason, queue? }`; retries every failed job a retry can help, up to 500 a press, and answers `{ retried, skipped, remaining, byQueue }`. Logged once as `SCAN_JOB_RETRIED` |
+| POST | `/admin/file-scanning/failed-jobs/:queue/:jobId/discard` | `{ reason }`; removes any failed job from its queue, answering 204. 404 for no such job; 409 when it has not failed or somebody retried or discarded it first. Logged as `SCAN_JOB_DISCARDED` |
+| POST | `/admin/file-scanning/failed-jobs/discard-unretryable` | `{ reason, queue? }`; removes every failed job a retry cannot help, up to 500 a press, and answers `{ discarded, kept, remaining, byQueue }`. Logged once as `SCAN_JOB_DISCARDED` |
+| GET | `/admin/file-publication` | Whether publication is paused, since when and by whom (`pausedByUserId`, `pausedByUsername`), whether the queue is paused, and how many cleared uploads are held |
+| POST | `/admin/file-publication/pause`, `/resume` | `{ reason }`; 409 when it is already paused, or not paused. Logged as `PUBLICATION_PAUSED` and `PUBLICATION_RESUMED` |
+
+All require the `ADMIN` role. The failed-jobs routes answer 503 "The job queues cannot be reached."
+when Redis cannot be reached or does not answer within 5 seconds. A pause or resume while Redis is
+down still succeeds on the switch, answering with `queuePaused` and `held` null. See
+[File assets](file-assets.md#running-the-pipeline-fc-042).
 
 ### PATCH /admin/storytime/configuration
 
@@ -550,9 +570,9 @@ route and who may call it.
 
 ### Privacy
 
-The site admins' verified erasure of roster data (`/admin/roster-erasures`, with a preview and the
-ledger replay run after a restore), and what closing an account does to the Fleet Communities it
-owns (`GET /user/close-account/communities`). See
+The site admins' verified erasure of roster data (`/admin/roster-erasures`, with a preview; after a
+restore the backend brings lost erasures back by itself at boot), and what closing an account does
+to the Fleet Communities it owns (`GET /user/close-account/communities`). See
 [Privacy: erasure](privacy-erasure.md#routes) for every route and who may call it.
 
 ### POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports
@@ -1717,7 +1737,8 @@ The application automatically confirms the subscription by performing an HTTPS G
 
 ### GET /health/ready
 
-Application readiness check.
+Application readiness check. It cannot answer until the restore check has finished: the server
+does not listen before then (FC-042, see [Privacy: erasure](privacy-erasure.md#the-restore-check-fc-042)).
 
 **No Authentication Required**
 

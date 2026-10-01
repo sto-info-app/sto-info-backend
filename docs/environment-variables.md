@@ -181,10 +181,12 @@ The secret referenced by `AWS_SECRET_NAME` is expected to be JSON with at least:
 - `jwtSecret`: Used to sign JWT access tokens
 - `dbPassword`: Used as the PostgreSQL password for TypeORM
 - `sendGridApiKey`: Used by SendGrid for outbound email (fallback when SES fails)
-- `cloudflareR2AccessKey`: Used to write objects to Cloudflare R2
-- `cloudflareR2Secret`: Used to write objects to Cloudflare R2
+- `cloudflareR2GatedAccessKey`: Reads and deletes objects in the public R2 bucket (the legacy
+  Character portraits). Required: the API refuses to start without it
+- `cloudflareR2GatedSecret`: The secret half of that key pair. Required
 - `cloudflareImagesAccountId`: Used for Cloudflare Images uploads
-- `cloudflareImagesApiKey`: Used for Cloudflare Images uploads
+- `cloudflareImagesGatedApiKey`: The Cloudflare Images token: publishes, signs, lists and deletes
+  pictures. Required
 - `cloudflareR2QuarantineAccessKey`: Reads and writes the private quarantine bucket
 - `cloudflareR2QuarantineSecret`: Reads and writes the private quarantine bucket
 - `cloudflareR2ExportsAccessKey`: Reads, writes and deletes the private exports bucket (FC-035)
@@ -200,12 +202,19 @@ The secret referenced by `AWS_SECRET_NAME` is expected to be JSON with at least:
 
 Locally, the two exports keys are the MinIO credentials, as the quarantine keys are.
 
+`cloudflareR2AccessKey`, `cloudflareR2Secret` and `cloudflareImagesApiKey` are **no longer
+read** (FC-042). They are the names a build from before FC-012 reads, and such a build publishes
+uploads without scanning them. The credentials moved to the `Gated` names above, with new tokens in
+production, so that once the old tokens are revoked a rolled-back build has nothing that works. There
+is no fallback to the old names, and the API names every missing key when it refuses to start. See
+[Private image delivery](image-delivery.md#rolling-back-the-application).
+
 `cloudmersiveApiKey` is **no longer read**. FC-012 removed the synchronous scanner call along
 with the last caller that used it; malware scanning is ClamAV in the file scan worker, whose
 credentials are the worker's own. The key may be removed from the secret once nothing else in
 the estate refers to it.
 
-The quarantine credentials are deliberately separate from `cloudflareR2AccessKey`. The key that
+The quarantine credentials are deliberately separate from `cloudflareR2GatedAccessKey`. The key that
 publishes must not be able to read quarantine, and the key that reads quarantine must not be able to
 publish; a shared credential would put back exactly what the separate bucket exists to prevent.
 

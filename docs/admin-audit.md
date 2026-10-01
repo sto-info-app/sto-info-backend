@@ -26,7 +26,7 @@ records:
 | Column | What |
 | ------ | ---- |
 | `action` | What was done: `site_admin_action_enum` |
-| `actorUserId` | The site admin; `SET NULL` when their account goes |
+| `actorUserId` | The site admin; `SET NULL` when their account goes; null for what the system did itself (`LEDGERS_RECONCILED`) |
 | `targetUserId` | The account acted on, if any; `SET NULL` when it goes |
 | `subjectKind`, `subjectId` | The record acted on, when not an account: both or neither |
 | `reason` | Why, required and non-blank, up to 1,000 characters (a Storytime creator's message can be that long) |
@@ -48,6 +48,11 @@ records:
 | `RESCAN_STARTED`, `RESCAN_PAUSED`, `RESCAN_RESUMED`, `RESCAN_CANCELLED` | Rescan campaigns, on Scan Diagnostics (FC-041) | `reason` in the body; the subject is the campaign, and `detail` holds a new campaign's selection — see [Rescan campaigns](rescan-campaigns.md). The nightly legacy campaign is the system's, and is not logged here |
 | `IMAGE_TAKEN_DOWN`, `IMAGE_KEPT` | `POST /admin/rescan-campaigns/findings/:rescanId/decision`, on a picture refused for policy on rescan (FC-050) | `reason` in the body; the subject is the asset (`FILE_ASSET`), `targetUserId` its owner, and `detail` the rescan and its code |
 | `CHAT_MESSAGE_REMOVED` | `POST /admin/chat-reports/:reportId/remove-message` (FC-050) | `reason` in the body; the subject is the report, `targetUserId` the message's author, and `detail` the message. Chat's own log records it too, as `MESSAGE_REMOVED` |
+| `LEDGERS_RECONCILED` | The restore check at boot, when it brought anything back (FC-042) | No actor. The reason counts what came back, such as "The restore check brought back 2 erasures, 1 hold event and 3 denied uploads."; `detail` has each ledger's counts — see [Privacy: erasure](privacy-erasure.md#after-a-restore) |
+| `SCAN_DIAGNOSTICS_VIEWED` | Every view of Scan Diagnostics: `GET /admin/file-scanning/diagnostics`, `/rejections` after the first page, `/failed-jobs` after the first page or for one queue, and `/assets/:assetId` (FC-042) | A fixed sentence, such as "Read Scan Diagnostics"; the subject is `DIAGNOSTICS`, `REJECTIONS`, `ASSET` or `FAILED_JOBS`, with the asset's ID for `ASSET` and `ALL` otherwise; `detail` has the page, and the queue for failed jobs |
+| `SCAN_JOB_RETRIED` | `POST /admin/file-scanning/failed-jobs/:queue/:jobId/retry` and `/retry-all` (FC-042) | `reason` in the body; the subject is the queue and the job ID, with `detail` its attempts, or for "Retry all" the queue (or `ALL`) and `ALL`, with `detail` the counts retried and skipped by queue |
+| `SCAN_JOB_DISCARDED` | `POST /admin/file-scanning/failed-jobs/:queue/:jobId/discard` and `/discard-unretryable` (FC-042) | `reason` in the body; the subject is the queue and the job ID, with `detail` its attempts and whether a retry could have helped, or for "Discard unretryable" the queue (or `ALL`) and `ALL`, with `detail` the counts discarded and kept by queue |
+| `PUBLICATION_PAUSED`, `PUBLICATION_RESUMED` | `POST /admin/file-publication/pause` and `/resume` (FC-042) | `reason` in the body; no subject; a resume's `detail` has how many minutes it was paused |
 
 The row is written by `recordSiteAdminAction()` in the transaction that makes
 the change, so a change never lands without its entry and an entry never
@@ -138,6 +143,23 @@ and the policy version behind the verdict, and when it was uploaded and
 judged. There is no signature name: the worker never records one, because
 naming what matched tells somebody probing the scanner what gets through. The
 uploader is only ever told the file was not accepted.
+
+## Operations (FC-042)
+
+Steve's decisions of 30 September 2026: Scan Diagnostics stays `ADMIN` only, and every view of it
+is logged as `SCAN_DIAGNOSTICS_VIEWED` with a fixed reason — one entry per page view. The page
+reads the diagnostics, the first page of refused assets and the first page of failed jobs when it
+opens and on Refresh; it does not poll. So the diagnostics route logs, and the other two log only
+a deliberate read: a later page, or for failed jobs one queue chosen. One asset's outcome logs its
+own read; a read that finds no asset writes nothing.
+
+**Rolling back.** Migration `1797500000000` refuses its `down` once the log holds any of these
+five actions: removing them would lose Security Log history, so the answer is to roll forward.
+Nothing is deleted.
+
+Retrying or discarding a failed job and pausing or resuming publication each take a reason, like
+every other site admin action. They appear in the Security Log under `SITE_ADMIN` with the rest; no filter was added.
+See [File assets](file-assets.md#running-the-pipeline-fc-042).
 
 ## Not done here
 

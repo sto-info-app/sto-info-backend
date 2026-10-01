@@ -130,13 +130,47 @@ replacement never leaves one behind.
    domain binding from the delivery bucket and check `r2.dev` is off. This is done on the live
    account in FC-052.
 
-**Rolling back the application.** A release from before FC-040 signs nothing, so it can show no
-private picture.
+## Rolling back the application
+
+Render redeploys an older build with `npm run start:render`, which runs `migration:run` first. Against
+a newer database that finds nothing to do, so the old build starts on today's schema. Three rules
+follow.
+
+**Never roll back to a build from before FC-012.** Those builds upload a picture straight to
+Cloudflare Images, or the public R2 bucket, and write its ID into the feature row, with no scan and
+no registry row. FC-012 closed that path in the series `7b257d6c`…`da25348e` (20 September 2026); a
+build without `da25348e` still has it. On 30 September 2026 neither `production` (1.4.23) nor
+`development` (1.4.28) contains it, so every release before Fleet Community v1 has the path. FC-042
+added two defences so that a rollback done by mistake does not reopen it:
+
+- **The database refuses the write.** Migration `1797300000000-GuardPublishedImageReferences` puts a
+  trigger on every picture column (the 17 in [the inventory](#the-inventory)). A column takes a
+  value only when a `file_asset` holds that value as its `deliveryReference` and is `AVAILABLE`, or
+  `UNVERIFIED` for the legacy estate. NULL, and an update that leaves the value as it was, always
+  pass. A refusal raises SQLSTATE `IRG01`, "`<table>.<column>` may only hold a picture the asset
+  registry has published", and never includes the value. An old build never creates a
+  `file_asset` row, so it cannot make its own upload pass.
+- **The old credentials stop working.** The API reads the Cloudflare Images token and the public R2
+  key pair only as `cloudflareImagesGatedApiKey`, `cloudflareR2GatedAccessKey` and
+  `cloudflareR2GatedSecret`, which hold new tokens. The old names, `cloudflareImagesApiKey`,
+  `cloudflareR2AccessKey` and `cloudflareR2Secret`, hold tokens that are revoked, so an old build's
+  upload fails at Cloudflare before it reaches the database. This matters as well as the trigger:
+  an old build uploads before it writes the row, and the IDs it chooses are predictable.
+
+What an old build does, then: it starts, and serves what does not need a picture written. Every
+upload fails with a server error, because Cloudflare refuses the revoked token and, if it did not,
+the trigger would refuse the row. If the old keys are deleted from the secret rather than only
+revoked, an old build does not start at all ("Missing Cloudflare R2 access key or secret").
+
+**The guard cannot be rolled back.** Its down migration refuses, so `migration:revert` stops there
+and every migration before it stays in place. The way back from a bad migration is a new one that
+rolls forward. Removing the guard deliberately is a reviewed migration of its own, never a revert.
+
+**Before FC-040, nothing is signed.** A release from before FC-040 can show no private picture.
 
 - Before rolling back past FC-040, run Undo. That is possible only until the old copies are
   retired.
 - After retirement, the old public copies are gone. A rollback leaves pictures unshown until
   FC-040 is deployed again, so don't roll back past it then.
 
-Rolling back the database migration drops the estate's tables. Do that only after an Undo, while
-nothing is private.
+FC-040's migration can no longer be reverted, because the guard's sits above it and refuses.

@@ -282,9 +282,9 @@ what is stored and, for a quarantined file, confirm that the scanner rejected it
 
 | #   | Path                         | Credential                                                         | Notes                                                                         |
 | --- | ---------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| 7   | R2 S3 API, delivery bucket   | `cloudflareR2AccessKey` / `cloudflareR2Secret`                     | Writes public images                                                          |
+| 7   | R2 S3 API, delivery bucket   | `cloudflareR2GatedAccessKey` / `cloudflareR2GatedSecret`           | Writes public images                                                          |
 | 8   | R2 S3 API, quarantine bucket | `cloudflareR2QuarantineAccessKey` / `cloudflareR2QuarantineSecret` | Reads and writes quarantine. **Must not** carry access to the delivery bucket |
-| 9   | Cloudflare Images API        | `cloudflareImagesApiKey`                                           | Uploads and deletes images                                                    |
+| 9   | Cloudflare Images API        | `cloudflareImagesGatedApiKey`                                      | Uploads and deletes images                                                    |
 | 10  | Worker's R2 client           | The worker's own credentials                                       | Reads quarantine to scan it. Least privilege: read only                       |
 
 Separating 7 from 8 is the point of the separate bucket. The key that publishes must not be able to
@@ -304,6 +304,45 @@ population, and it is normally empty.
 
 Downloads already in somebody's possession cannot be recalled. What must hold is that no _new_
 fetch succeeds.
+
+### The asset-deny ledger (FC-042)
+
+Steve's decisions of 30 September 2026. A restore from a backup taken before a withdrawal, a rescan
+infection or a policy take-down would put the picture back. So every move of a `file_asset` into a
+denied state — `REJECTED` (`FileAssetService.reject`), `REVOKED` (`revoke`, which every withdrawal,
+rescan take-down and site admin take-down goes through) or `DELETED` (`discard`, which the
+superseded-upload, stale-upload and roster import paths use) — is also written to a ledger outside
+the database. The service checks the move against the state machine, writes the marker, and only
+then writes the row. A move the state machine refuses writes nothing.
+
+- **Where.** One object per move in the private quarantine bucket:
+  `<NODE_ENV>/asset-deny-ledger/<createdAt>_<assetId>_<REJECTED|REVOKED|DELETED>.json`, so the
+  boot check can compare it with the database from the keys alone.
+- **What.** `{ assetId, state, deliveryReference, storage, createdAt }`, with `storage` as it was
+  before the move. No reason, name or owner. The restore check adds `purgedAt` when it deletes the
+  delivered object of an asset the database does not have.
+- **Brought back.** At every boot, the restore check (see
+  [Privacy: erasure](privacy-erasure.md#the-restore-check-fc-042)) takes each asset's latest marker
+  and, when the database does not already have the asset denied:
+  - **Still served** (`AVAILABLE` or `UNVERIFIED`): withdraws it as a site admin's withdrawal would
+    — its placement settled `WITHDRAWN`, the row `REVOKED` and the Cloudflare delete tried again,
+    through `AssetWithdrawalService`; one with no delivery reference is revoked directly.
+  - **Not yet served** (being received, scanned or published): settles its placement `WITHDRAWN`
+    and refuses it (`REJECTED`, code `RESTORED_FROM_LEDGER`) when the marker says it was refused,
+    or discards it (`DELETED`) otherwise. `REVOKED` cannot be reached from those states, so it fails
+    closed to `DELETED` rather than leaving an asset that could still be published.
+  - **Unknown to the database**, as one uploaded after the backup was taken: deletes the delivered
+    object the marker names, if any — from Cloudflare Images, or from R2 for a legacy object — and
+    counts a missing object as deleted. A Cloudflare failure is logged and tried again at the next
+    boot; it does not stop the API starting, since nothing in the database can serve the asset.
+  The reason on each is "Brought back from the asset-deny ledger after a restore."
+- **Triggers.** `file_asset_guard` lets every one of these moves through: it guards only the
+  object's identity and the two ways into `AVAILABLE`.
+- **Failures.** If the ledger cannot be written, the move fails and the row is unchanged. A marker
+  whose database write then failed is denied again at the next boot: the ledger fails closed.
+- **Not yet.** The record that pointed at a picture withdrawn this way keeps its delivery
+  reference until somebody replaces it. Nothing is served from it — the Cloudflare object is
+  deleted, and the delivery endpoint refuses a revoked row — so it shows as a missing picture.
 
 ## Evidencing the two infrastructure criteria
 
@@ -503,7 +542,7 @@ duplicated byte for byte in both repositories and held together by a digest.
 ### Watching the scanner: `GET /admin/file-scanning/diagnostics`
 
 FC-003 asked for usage figures that tell initial scans, re-scans, retries, latency and backlog
-apart. This administrator-only route reads four sources, each on its own, and a part is `null`
+apart. This administrator-only route reads each of its sources on its own, and a part is `null`
 when its source cannot be reached. That way the page still shows the rest while something is down,
 which is when it is most needed.
 
@@ -513,6 +552,17 @@ which is when it is most needed.
 | `engine` | The worker's `scan_engine_status` view, plus the signature age worked out here. |
 | `queue` | The `file-scan` queue's own job counts, prioritised jobs counted as waiting. |
 | `awaiting` | The registry's assets in `QUARANTINED`, `SCANNING` and `RETRY_PENDING`. |
+| `workers` | The worker's `worker_heartbeat_status` view (FC-042): one entry per worker process, latest beat first, with `live`, `secondsSinceBeat`, `pausedMinutes` and `signatureAgeHours` worked out by the database against its own clock. `null` when the view cannot be read. |
+| `alerts` | The operations alerts open now (FC-042), oldest first. |
+| `publication` | The publication pause (FC-042): whether it is on, since when and by whom (`pausedByUserId`, and `pausedByUsername`, null for an account since gone), whether the queue itself is paused, and how many cleared uploads are held. |
+
+**Every read is logged** (FC-042, Steve's decision of 30 September 2026). The diagnostics stay
+ADMIN-only, and each page view writes one `SCAN_DIAGNOSTICS_VIEWED` entry to the site admin log —
+see [Admin audit](admin-audit.md#operations-fc-042). The Scan Diagnostics page does not poll: it
+reads this route, the first page of refusals and the first page of every queue's failed jobs when
+it opens and on Refresh. So this route logs each read, and the other two log only a deliberate
+read — a later page, or for the failed jobs one queue chosen; their first page is covered by the
+diagnostics entry it is read with. One asset's outcome logs its own read.
 
 **This application cannot read the worker's attempt table, and does not need to.** The worker's
 migration `1794800000000-RecordScanUsage` grants the two views, which carry totals only, to the
@@ -528,6 +578,139 @@ outcome. Both are administrator-only and answer the same shape: the asset's kind
 rejection code, the engine, engine version, signature version and policy version behind the
 verdict, and when it was uploaded and judged. Never a signature name, which is not recorded, and
 nothing else about the asset. See [Admin audit](admin-audit.md#why-an-upload-was-refused).
+
+## Running the pipeline (FC-042)
+
+Steve's decisions of 30 September 2026: every site admin is told in-app when the file pipeline
+needs a person, once per problem until it clears; a site admin can retry a failed job, with a
+reason; and publication can be paused without stopping uploads. The runbooks that use these are
+in [`docs/operations/`](operations/).
+
+### Alerts
+
+`OperationsAlertService` runs every minute (`@Cron`, UTC). It first brings the publication queue
+into line with the pause switch, then checks for each of these, with thresholds fixed in code in
+`src/operations/alerts/operations-alert.constants.ts`:
+
+| Alert | Opens when | Detail |
+| --- | --- | --- |
+| `SCAN_QUEUE_LAG` | The oldest waiting (waiting or prioritised) job on `file-scan` was queued more than 15 minutes ago. | `oldestMinutes` |
+| `PUBLICATION_QUEUE_LAG` | The same on `file-asset-publication` — never while publication is paused, when it clears. | `oldestMinutes` |
+| `WORKER_SILENT` | No worker has beaten in the last 2 minutes, or the heartbeat view cannot be read. | `liveWorkers`, `minutesSinceBeat` |
+| `WORKER_PAUSED` | Every live worker is `PAUSED`, and the most recent pause began 10 minutes ago or more. | `pausedWorkers`, `pausedMinutes` |
+| `SIGNATURES_STALE` | The newest signatures any live worker holds were built more than 36 hours ago (the worker stops at 48). | `signatureAgeHours` |
+| `FAILED_JOBS` | Any job is in the failed set of a queue below. | `failed` |
+| `PUBLICATION_PAUSED_LONG` | Publication has been paused for more than an hour. | `pausedMinutes` |
+| `QUEUES_UNREACHABLE` | Redis has not answered the alert run for 2 minutes running (counted in memory from the first run that could not reach it; a restart starts again). | `minutesUnreachable` |
+
+- **One alert per problem until it clears.** Each occurrence is a row in `operations_alert`
+  (`openedAt`, `lastSeenAt`, `clearedAt`, all `timestamptz`), and a partial unique index keeps one
+  of each kind open. When a problem opens, every site admin (role `ADMIN`, not disabled) gets one
+  `WARNING` notification linking to Scan Diagnostics; while it stays open the run only moves
+  `lastSeenAt` and the counts; when it goes, `clearedAt` is set and each gets one `INFO`
+  notification. A problem that comes back is a new row.
+- **Counts only.** The detail is minutes, hours and counts, and a CHECK refuses anything but
+  numbers in it: never a file name, a user or an error's text.
+- **Redis is asked first.** Each run asks Redis a one-field question through the scan queue's
+  connection and gives up after 5 seconds, because a client with nothing to talk to holds commands
+  rather than failing them (BullMQ's `maxRetriesPerRequest: null`). Every other Redis read on the
+  diagnostics side has the same limit (`redisWithin()` in `src/shared/queue/`): the diagnostics'
+  queue counts and the publication status come back `null`, the failed-jobs list and its actions
+  answer 503, and a pause or resume is written to the switch and answered with `queuePaused` null. When it does not answer, the queue lag and failed-job checks are not
+  run and their alerts stay as they were, and the pause is not re-applied until it answers.
+- **A check that cannot tell changes nothing.** Redis down leaves the queue alerts as they were;
+  a heartbeat view that cannot be read opens `WORKER_SILENT` and says nothing about the other two
+  worker alerts; with no live worker at all, only `WORKER_SILENT` is judged.
+- **Ages are measured on the right clock.** Queue waits compare BullMQ's `timestamp` (this
+  application's clock, which queued the job) with this application's clock; heartbeat ages are
+  worked out by PostgreSQL against `now()`, the clock the worker wrote them on.
+- **Runs do not overlap.** A run still going when the next is due is skipped, and a PostgreSQL
+  advisory lock (`1797500000`) keeps two instances from running at once.
+
+### Failed jobs
+
+`GET /admin/file-scanning/failed-jobs?queue=&page=` lists the jobs a queue gave up on, queue by
+queue and newest failure first, 25 to a page: the queue, job ID, job name, attempts made, when it
+failed, the asset, transcript or Fleet ID from its data, and the failure **reduced to a code** — a
+network error's code (`ECONNREFUSED`), `HTTP_<status>`, `TIMEOUT`, `STALLED`, or the thrown error's
+class name. Never the job's data or the error's text, which can quote a statement's values or a
+host. Each item also says whether a retry could help (`retryable`, `notRetryableBecause`).
+
+`POST /admin/file-scanning/failed-jobs/:queue/:jobId/retry` and
+`POST /admin/file-scanning/failed-jobs/retry-all` (optional `queue`) each take a reason and write
+a `SCAN_JOB_RETRIED` entry to the site admin log. A retried job gets its attempts back. "Retry all"
+looks at up to 500 failed jobs a press, retries those a retry can help, leaves the rest, and logs
+one entry with the counts.
+
+`POST /admin/file-scanning/failed-jobs/:queue/:jobId/discard` and
+`POST /admin/file-scanning/failed-jobs/discard-unretryable` (optional `queue`) each take a reason,
+remove failed jobs from BullMQ, and write a `SCAN_JOB_DISCARDED` entry (Steve's decision of 30
+September 2026). A single discard removes any failed job, whether or not a retry could help it;
+"Discard unretryable" removes only those the check below says a retry cannot help, up to 500 a
+press, and logs one entry with the counts. `retryable` on each listed job tells the page which to
+offer. `FAILED_JOBS` counts every failed job, so it clears once each has been retried or discarded.
+
+**A retry is only sent when it can change something.** Every job is read against its record when
+it runs, so one whose record has moved on would do nothing; retrying it is refused with a 409 that
+says why, and "Retry all" skips it:
+
+| Queue | Kept on failure | A retry is allowed while |
+| --- | --- | --- |
+| `file-scan` | yes | an upload's asset is still `SCANNING` the same object; a rescan's (`rescan_<id>`) rescan is still `REQUESTED`. The worker is idempotent: a finished attempt repeats its verdict, and a spent retry budget answers `RETRY_BUDGET_EXHAUSTED`, so a retry always ends in a verdict. An asset that has since been refused, published or swept cannot move again (`REJECTED` only goes to `DELETED`), so its retry is refused. |
+| `file-scan-verdict` | yes | the same: the rescan it answers (found by its staged copy) is still `REQUESTED`, or else the upload is still `SCANNING` the same object. |
+| `file-asset-publication` | yes | the asset is `CLEAN` or `AVAILABLE` and its placement still `PENDING`, or `CLEAN` with a `HELD` placement (the owning feature is asked again). While publication is paused, a retried job waits with the rest. |
+| `chat-transcript` | yes | the transcript is still `PENDING`; the retention sweep gives up on one after an hour. |
+| `fleet-roster-replay` | yes | the Fleet's projection is behind (`built < requested`); the ten-minute sweep queues a fresh replay anyway. |
+| `image-estate` | **no** (`removeOnFail: true`) | not listed: each run records its own failures and is resumed from its page. |
+| `file-rescan` | **no** (`removeOnFail: true`) | not listed: a campaign's batch that fails is resumed with the campaign. |
+
+The queues are found through the module graph rather than registered again, so the list opens no
+Redis connections of its own.
+
+**A job identifier never strands work.** BullMQ ignores an `add` whose `jobId` is already in the
+queue in any state, and a kept failed job used to swallow every later request for the same work.
+`AssetPublicationQueueService.enqueue`, the only producer of `file-asset-publication`, keys by
+asset, so an asset whose publication had failed could never be queued again — a held roster file
+queued once decided, say. It now sends the failed job round again instead, with its attempts
+back, and logs `[enqueue] Failed publication sent round again - AssetId: …`
+(`reviveFailedJob()` in `src/shared/queue/`). The other kept queues need no change:
+
+| Queue | Job ID | Why no fix |
+| --- | --- | --- |
+| `chat-transcript` | BullMQ's own | Every request is a new job. |
+| `fleet-roster-replay` | BullMQ's own | Every request is a new job. |
+| `file-scan` | `<assetId>_<policyVersion>`, or `rescan_<rescanId>` | A request is only made for a new asset or a new rescan, so the identifier is never reused. |
+| `file-scan-verdict` | The worker's attempt ID and the time of its answer (`<attemptId>_<scannedAt ms>`), so a reopened attempt's new answer is a new job | Produced by the worker, not here: see its [queues documentation](../../sto-info-file-scan-worker/docs/queues.md). |
+
+### Pausing publication
+
+A kill switch for everything a scanner clears: while it is on, uploads are still accepted and
+scanned, and nothing is published; when it is turned off, everything held publishes.
+
+- **One path.** Publication only happens in `AssetPublicationProcessor`, on
+  `file-asset-publication`. Pictures, restricted roster files (roster imports and their
+  corrections) and every clean verdict reach it through `AssetPublicationQueueService`; the image
+  estate's copies move pictures already published and are not publication. Pausing that queue
+  pauses exactly publication.
+- **The database is the authority.** The switch is the `app_setting` `FILE_PUBLICATION_PAUSED`: one
+  JSON value, `{"paused":false}` or `{"paused":true,"pausedAt":"…","pausedByUserId":"…"}`, so the
+  switch and who threw it when are always written and read together (the table's own `updatedAt`
+  is a zoneless timestamp). Seeded running by migration `1797500000000`. A value that cannot be
+  read counts as paused.
+- **Applied three ways.** `queue.pause()` or `queue.resume()` at once; again at startup; and again
+  at every minute's alert run, reading the switch afresh past the 10-second settings cache, because
+  a new Redis knows nothing of a pause. And the processor asks the switch before each job: a job
+  that reaches it while the switch is on re-applies the pause and puts itself back for a minute,
+  unharmed. A job already running when publication is paused finishes.
+- **Resumed when.** Resuming writes `{"paused":false,"resumedAt":"…"}`; the stale-upload sweep
+  counts its day from there.
+- **ADMIN only, with a reason.** `GET /admin/file-publication`, `POST /admin/file-publication/pause`
+  and `/resume`, logged as `PUBLICATION_PAUSED` and `PUBLICATION_RESUMED` in the same transaction as
+  the switch. Pausing a paused switch, or resuming a running one, is a 409.
+- **Independent of every feature switch**, like the file gate itself.
+- **Rolling back.** Migration `1797500000000`'s `down` refuses while publication is paused, since
+  the code before it cannot resume the queue, and once the Security Log holds any of its five
+  actions, since removing them would lose its history: roll forward instead. Nothing is deleted.
 
 ## Uploading a picture, since FC-012
 
@@ -579,6 +762,14 @@ Three things, and the first of them is the one that fails loudly if you forget i
    call `ImageUploadsService` directly: it no longer scans anything, and a route that reaches it
    without going through ingress is the bypass R24 forbids.
 
+The same bypass is what a build from before FC-012 still has, and a Render rollback would bring it
+back. So the database refuses it too (FC-042): a trigger on every picture column lets the column
+take a value only when a `file_asset` holds it as its `deliveryReference` and is `AVAILABLE` or
+`UNVERIFIED`. NULL, and an update that leaves the value as it was, always pass. A refusal raises
+SQLSTATE `IRG01` and names the table and column. A new picture column needs its own trigger in a
+new migration: the guard migration's spec fails until `IMAGE_REFERENCE_COLUMNS` and the guarded
+columns match. See [Private image delivery](image-delivery.md#rolling-back-the-application).
+
 ### `deliveryReference`, and why it is not `objectKey`
 
 `objectKey` is write-once, and for anything this application quarantined it holds the quarantine
@@ -598,6 +789,37 @@ anything else is the same 404 as an asset that does not exist.
 There is no rejection code, signature, engine or key in that response, which is how the fourth
 acceptance criterion is met: not by stripping fields but by there being none to strip.
 
+### Uploads made while Redis is down
+
+Steve's decision of 1 October 2026: accept, queue later (FC-042).
+
+- **Queueing a scan waits at most five seconds** (`redisWithin()`), because BullMQ holds a command
+  while Redis is away rather than failing it. If Redis does not take it, the asset goes back to
+  `RETRY_PENDING` — `AWAITING_SCAN`, "waiting to be scanned", to its uploader — the failure is
+  logged, and the upload is answered as usual. This is `ScanRequestProducerService.requestScan`,
+  which pictures (`AssetIngressService`) and roster imports (`RosterImportIngressService`) share.
+  The asset's and the placement's rows are written before it and do not depend on the job.
+- **A re-queue sweep every minute** (`ScanRequeueService`, with its own advisory lock and overlap
+  guard, like the alerts) finds uploads with bytes in quarantine and no verdict yet —
+  `QUARANTINED`, `SCANNING` or `RETRY_PENDING` — unchanged for more than two minutes, 50 at a time,
+  oldest first. For each whose job `<assetId>_<policyVersion>` is not on `file-scan` in any state
+  (waiting, prioritised, delayed, active, or kept after failing), and whose verdict is not in
+  `file-scan-verdict`'s failed set (the failed-jobs flow's), it sends the request again: an asset in
+  `QUARANTINED` or `RETRY_PENDING` is requested as a new upload is, and one in `SCANNING` — its job
+  lost with Redis's data, or never sent — has its request sent again with its state left alone. It
+  only runs when Redis answers, stops when Redis stops taking requests, and logs
+  `[requeue] Scan requests queued again - Count: n, Checked: m`.
+- **The worker's side.** Its attempt is keyed by asset, object version, policy and signature epoch,
+  not by job, so a request sent again finds whatever the lost one left: nothing, and it is a clean
+  first attempt; an attempt still leased, and it waits for the lease to lapse and takes it over; a
+  finished attempt, and the worker repeats that verdict. A verdict the backend had already applied
+  is refused as a duplicate. One consequence: an attempt that finished `FAILED` answers `RETRY`
+  again each time it is asked, until the signature epoch changes and a new attempt can be made,
+  so such an upload goes round every few minutes until then (a job each time, nothing more).
+- **Rescans are not included.** A campaign's requests are queued by its own batch job, which only
+  runs while Redis answers; a rescan that never gets a verdict fails after a day and a later
+  campaign asks again.
+
 ### Uploads nothing comes back for
 
 A placement left pending for a day is abandoned by the nightly sweep
@@ -605,6 +827,33 @@ A placement left pending for a day is abandoned by the nightly sweep
 bytes are dropped and the asset is `DELETED` — not `REJECTED`, because nobody refused it. An
 object the sweep cannot delete is an orphan in a private bucket with no route out of it; it is
 counted in the log line and found again only by W10's inventory.
+
+**Nothing the re-queue sweep would rescue is abandoned.** The re-queue sweep above sends an
+upload's lost request within minutes of Redis answering, while this sweep waits a whole day — and
+holds for a day after `QUEUES_UNREACHABLE` clears, so even an upload made just before a long
+outage is re-queued with the best part of a day to spare. An upload the worker keeps answering
+`RETRY` for is still abandoned after its day, as before.
+
+**Not while the pipeline is stopped** (FC-042, Steve's decision of 30 September 2026). The day
+counts from the later of the upload and the moment things started again, so the sweep abandons
+nothing at all while:
+
+- the worker is silent or paused now — no worker has beaten in two minutes, the heartbeat view
+  cannot be read, or every live worker is `PAUSED` (the alerts' definitions, without their grace
+  periods);
+- publication is paused now;
+- a `WORKER_SILENT`, `WORKER_PAUSED` or `QUEUES_UNREACHABLE` alert is open, or cleared less than a
+  day ago — the alert's `clearedAt` is when that problem ended; or
+- publication was resumed less than a day ago — the switch's `resumedAt`.
+
+A stop too short to open an alert is not counted, which a day's margin absorbs. The sweep then logs
+`[sweep] Stale uploads kept; the pipeline was stopped - Reason: …` and the nightly job says why.
+
+**A bucket that cannot be read is retried, not abandoned** (FC-042). Publication reads a picture's
+or a roster file's bytes out of quarantine; only a missing object (`NoSuchKey`, `NotFound` or a
+404) means the upload was already abandoned and is refused as `NO_BYTES`. Any other error fails
+the job, so BullMQ retries it and, after five attempts, keeps it in the failed set, where
+`FAILED_JOBS` alerts on it and a retry is allowed.
 
 ## What is not here yet
 
@@ -614,9 +863,6 @@ counted in the log line and found again only by W10's inventory.
 - **A picture refused for policy on rescan keeps showing.** FC-041 reports it on Scan
   Diagnostics and leaves the decision to a site admin; nothing takes it down automatically — see
   [Rescan campaigns](rescan-campaigns.md).
-- **Nothing alerts on a publication that failed for good.** An asset that reaches `CLEAN` and
-  whose publication job exhausts its attempts is scanned, paid for and invisible. The job is kept
-  in BullMQ's failed set so that it is findable; FC-042 should alert on it.
 - **Fleet scopes have specifications and no routes.** `FLEET_COMMUNITY`, `FLEET` and `ARMADA` are
   registered subjects with banner and emblem specifications, and no publisher and no endpoint
   until FC-013.

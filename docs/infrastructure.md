@@ -9,6 +9,10 @@ Both frontend and backend are hosted on Render.com as separate web services.
 - **Backend**: NestJS application (this repository)
 - **Frontend**: Client application (separate repository)
 - **Database**: Render.com managed PostgreSQL instance
+- **File scan worker**: a background worker, from the `sto-info-file-scan-worker` repository
+
+How to run them — secrets, connection budgets, readiness, alerts, failed jobs, restore, rollback
+and incidents — is in the [operations runbooks](operations/README.md).
 
 ### Backend Web Service Configuration
 
@@ -23,8 +27,13 @@ npm install && npm run build
 **Start Command:**
 
 ```bash
-npm run start:prod
+npm run start:render
 ```
+
+`start:render` runs `npm run migration:run` and then `npm run start:prod`, so every deploy applies
+pending migrations before the API starts. A rollback does the same with the older build's
+migrations, which against a newer database is a no-op; see
+[Rolling back the application](image-delivery.md#rolling-back-the-application).
 
 **Environment:** Node
 
@@ -98,6 +107,9 @@ Optional (seed user):
 - **Extensions:** No additional extensions enabled (e.g., `uuid-ossp`, `pg_trgm`).
 
 > TODO: Verify the managed Postgres version/plan/backup retention/extensions from the Render dashboard (and update this section if they differ).
+> The plan, its connection limit and its backup retention are to confirm on Render in FC-052; see
+> [Render services](operations/render-services.md#to-confirm-on-render-fc-052). The restore
+> procedure is [Restore](operations/restore.md).
 
 ### Redis Service Configuration
 
@@ -115,7 +127,11 @@ Redis is used for:
 1. **Rate Limiting State**: All rate limiting categories (Read, Write, Auth, Expensive) store their state in Redis with unique key prefixes (`rl:read:`, `rl:write:`, `rl:auth:`, `rl:expensive:`)
 2. **Refresh Token Revocation**: Revoked refresh token tracking (future implementation)
 3. **Queues**: BullMQ, for the file scan worker's requests and verdicts, asset publication,
-   roster replays, the image estate's runs (FC-040) and rescan campaigns (FC-041)
+   roster replays, the image estate's runs (FC-040) and rescan campaigns (FC-041). The publication
+   pause (FC-042) is a pause of the `file-asset-publication` queue, which lives in Redis; the
+   database holds the switch and re-applies it at startup and every minute, so a Redis that is
+   lost or replaced is put back in line within a minute. The failed-jobs list and the operations
+   alerts read the queues the application already holds and open no connections of their own
 4. **Chat sockets** (FC-032): the socket.io Redis adapter, which carries chat's rooms and messages
    between backend instances
 
@@ -181,6 +197,10 @@ GET /health/live
 - Health check path: `/health/ready`
 - Expected status: 200 OK
 - Used by Render to determine service health
+- Nothing answers until the boot's restore check has read the ledgers and brought back anything a
+  restored database lacks; while the bucket or database cannot be reached it waits, retrying, and
+  the instance never goes live (FC-042, see
+  [Privacy: erasure](privacy-erasure.md#the-restore-check-fc-042))
 - Unhealthy services may be restarted automatically
 
 ### Scaling Configuration
@@ -211,7 +231,10 @@ instance takes it and reads what it missed from the database. See [Fleet chat](f
 **Deployment History:**
 
 - View past deployments
-- Rollback to previous deployment if needed
+- Rollback to previous deployment if needed. **Never to a build from before FC-012**, which
+  published uploads without scanning them; the database and the retired credentials refuse it,
+  but don't rely on that. See
+  [Rolling back the application](image-delivery.md#rolling-back-the-application)
 
 ## Cloudflare
 
@@ -597,5 +620,7 @@ refused by every route exactly as a properly closed one is. See
 **Database Connection Limits:**
 
 - Managed PostgreSQL has connection limits based on plan
-- Ensure TypeORM pool size is within limits
+- Neither application sets a TypeORM pool size, so each instance may open node-postgres's default
+  of ten; the budget, deploy overlap included, is in
+  [Render services](operations/render-services.md#connection-budgets)
 - Monitor connection usage in Render dashboard
