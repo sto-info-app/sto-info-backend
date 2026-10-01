@@ -1,36 +1,20 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 
 import { jest } from '@jest/globals';
 
 import { AppService } from './app.service';
-import { SecretsService } from './shared/secrets/secrets.service';
 
 jest.mock('fs');
 jest.mock('path');
 
 describe('AppService', () => {
   let service: AppService;
-  let secretsServiceMock: {
-    getSecret: jest.Mock<(...args: any[]) => Promise<any>>;
-  };
-
   beforeEach(async () => {
-    secretsServiceMock = {
-      getSecret: jest.fn<(...args: any[]) => Promise<any>>(),
-    };
-
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        AppService,
-        {
-          provide: SecretsService,
-          useValue: secretsServiceMock,
-        },
-      ],
+      providers: [AppService],
     }).compile();
 
     service = module.get<AppService>(AppService);
@@ -38,49 +22,6 @@ describe('AppService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
-  });
-
-  it('getJwtSecret should return the jwt secret on success', async () => {
-    secretsServiceMock.getSecret.mockResolvedValue({
-      jwtSecret: 'test-secret',
-    });
-
-    const result = await service.getJwtSecret();
-
-    expect(secretsServiceMock.getSecret).toHaveBeenCalledWith('mySecret');
-    expect(result).toBe('test-secret');
-  });
-
-  it('getJwtSecret should log and rethrow on error', async () => {
-    const error = new Error('Failed');
-    secretsServiceMock.getSecret.mockRejectedValue(error);
-
-    const loggerErrorSpy = jest
-      .spyOn(Logger.prototype, 'error')
-      .mockImplementation(() => undefined as any);
-
-    await expect(service.getJwtSecret()).rejects.toThrow(error);
-
-    expect(loggerErrorSpy).toHaveBeenCalled();
-
-    loggerErrorSpy.mockRestore();
-  });
-
-  it('getJwtSecret should handle non-Error thrown values', async () => {
-    secretsServiceMock.getSecret.mockRejectedValue('boom');
-
-    const loggerErrorSpy = jest
-      .spyOn(Logger.prototype, 'error')
-      .mockImplementation(() => undefined as any);
-
-    await expect(service.getJwtSecret()).rejects.toBe('boom');
-
-    expect(loggerErrorSpy).toHaveBeenCalledWith(
-      'Failed to get JWT secret',
-      undefined,
-    );
-
-    loggerErrorSpy.mockRestore();
   });
 
   it('getHello should return greeting with NODE_ENV when set', () => {
