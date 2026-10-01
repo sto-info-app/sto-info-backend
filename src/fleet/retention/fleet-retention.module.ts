@@ -21,5 +21,7 @@ import { RetentionRunService } from './retention-run.service';
     ScopeNewsModule,
   ],
   providers: [RetentionRunService, FleetRetentionScheduler],
+  // The restore check catches every job up at boot (FC-043).
+  exports: [FleetRetentionScheduler],
 })
 export class FleetRetentionModule {}

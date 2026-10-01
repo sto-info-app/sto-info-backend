@@ -113,8 +113,15 @@ the database before the API serves anything. The detail is in
 Steve's decisions of 30 September 2026: only erasures, holds, asset denies and account closures
 have ledgers.
 
-- **Retention purges.** Rows purged after the backup come back. Every purge is by age, so the next
-  run of each job purges them again:
+- **Retention purges.** Rows purged after the backup come back, and are forgotten again before the
+  API serves (Steve's decision of 1 October 2026, FC-043). After the ledgers, the restore check runs
+  every Fleet retention job that forgets by age — roster files, scoped news, retracted Character
+  Fleet memberships, chat messages, chat reports, transcripts and activity — round after round until
+  each says it is done, each run recorded as on its schedule. Holds are replayed first, so what a
+  hold keeps is still kept. A job that fails fails the check, which waits and tries again like any
+  other failure. The summary line ends `RetentionMs: …, Forgotten: CHAT_MESSAGES messages=n; …`
+  (or `Forgotten: nothing`). The site-wide jobs below are not Fleet data and are left to their
+  schedules:
 
   | Job                                                                                                 | Runs (UTC)               |
   | --------------------------------------------------------------------------------------------------- | ------------------------ |
@@ -128,7 +135,7 @@ have ledgers.
   | Retention run records (a year)                                                                      | Daily at 05:11           |
   | Chat transcripts (24 hours)                                                                         | Hourly                   |
 
-  So everything is purged again within a day of the restore, and transcripts within the hour.
+  So what the site-wide jobs purged comes back for at most a day; nothing of the Fleet's does.
   The bytes those purges deleted from the buckets stay deleted: buckets are not restored.
 
 - **Account closures are brought back** (above), so they are not in this list. An account closed

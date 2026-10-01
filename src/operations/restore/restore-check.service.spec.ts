@@ -15,6 +15,10 @@ import { SiteAdminActionKind } from 'src/audit/site-admin/site-admin-action.enum
 import { AssetDenyReconciliationService } from 'src/file-assets/ledger/asset-deny-reconciliation.service';
 import { HoldLedgerReconciliationService } from 'src/fleet/chat/holds/hold-ledger-reconciliation.service';
 import { RosterErasureService } from 'src/fleet/erasure/roster-erasure.service';
+import {
+  FleetRetentionScheduler,
+  RetentionCatchUp,
+} from 'src/fleet/retention/fleet-retention.scheduler';
 import { LedgerReconciliation } from 'src/shared/ledger/ledger.utility';
 import { AccountClosureReconciliationService } from 'src/user/closure/account-closure-reconciliation.service';
 
@@ -59,7 +63,7 @@ class Recorded extends RestoreCheckService {
   }
 }
 
-describe('RestoreCheckService (FC-042)', () => {
+describe('RestoreCheckService (FC-042, FC-043)', () => {
   let runner: {
     connect: jest.Mock<() => Promise<void>>;
     query: jest.Mock<(sql: string, parameters: unknown[]) => Promise<unknown>>;
@@ -72,6 +76,7 @@ describe('RestoreCheckService (FC-042)', () => {
   let holds: { reconcile: jest.Mock<() => Promise<LedgerReconciliation>> };
   let assets: { reconcile: jest.Mock<() => Promise<LedgerReconciliation>> };
   let closures: { reconcile: jest.Mock<() => Promise<LedgerReconciliation>> };
+  let retention: { catchUp: jest.Mock<() => Promise<RetentionCatchUp>> };
   let service: Recorded;
   let log: jest.SpiedFunction<Logger['log']>;
   let error: jest.SpiedFunction<Logger['error']>;
@@ -87,6 +92,16 @@ describe('RestoreCheckService (FC-042)', () => {
     holds = { reconcile: jest.fn(async () => checked()) };
     assets = { reconcile: jest.fn(async () => checked()) };
     closures = { reconcile: jest.fn(async () => checked()) };
+    retention = {
+      catchUp: jest.fn(async () => ({
+        CHAT_MESSAGES: { messages: 0 },
+        ROSTER_SOURCES: { sources: 0, assets: 0 },
+      })),
+    };
+    jest
+      .spyOn(performance, 'now')
+      .mockReturnValueOnce(100)
+      .mockReturnValueOnce(130);
     service = new Recorded(
       {
         createQueryRunner: () => runner,
@@ -96,6 +111,7 @@ describe('RestoreCheckService (FC-042)', () => {
       holds as unknown as HoldLedgerReconciliationService,
       assets as unknown as AssetDenyReconciliationService,
       closures as unknown as AccountClosureReconciliationService,
+      retention as unknown as FleetRetentionScheduler,
     );
     log = jest
       .spyOn(Logger.prototype, 'log')
@@ -133,7 +149,7 @@ describe('RestoreCheckService (FC-042)', () => {
     expect(log).toHaveBeenCalledWith(
       '[reconcile] Restore check finished - Erasures: 4/0/1, Holds: 4/0/1, ' +
         'Assets: 4/0/1, Closures: 4/0/1, ListMs: 4, CompareMs: 8, ' +
-        'ReplayMs: 12, BackfillMs: 16',
+        'ReplayMs: 12, BackfillMs: 16, RetentionMs: 30, Forgotten: nothing',
     );
     // Nothing came back, so the site admin log is left alone.
     expect(insert).not.toHaveBeenCalled();
@@ -226,12 +242,71 @@ describe('RestoreCheckService (FC-042)', () => {
       holds as unknown as HoldLedgerReconciliationService,
       assets as unknown as AssetDenyReconciliationService,
       closures as unknown as AccountClosureReconciliationService,
+      retention as unknown as FleetRetentionScheduler,
     );
     const started = Date.now();
 
     await (real as unknown as { pause(ms: number): Promise<void> }).pause(20);
 
     expect(Date.now() - started).toBeGreaterThanOrEqual(15);
+  });
+
+  // FC-043: what a restore brought back that retention had already
+  // forgotten is forgotten again before anything serves.
+  describe('retention', () => {
+    it('is caught up after every ledger, holds included, and inside the lock', async () => {
+      const outcome = await service.run();
+
+      expect(retention.catchUp).toHaveBeenCalledTimes(1);
+      expect(holds.reconcile.mock.invocationCallOrder[0]).toBeLessThan(
+        retention.catchUp.mock.invocationCallOrder[0],
+      );
+      expect(closures.reconcile.mock.invocationCallOrder[0]).toBeLessThan(
+        retention.catchUp.mock.invocationCallOrder[0],
+      );
+      expect(retention.catchUp.mock.invocationCallOrder[0]).toBeLessThan(
+        runner.query.mock.invocationCallOrder[1],
+      );
+      expect(outcome.retention).toEqual({
+        CHAT_MESSAGES: { messages: 0 },
+        ROSTER_SOURCES: { sources: 0, assets: 0 },
+      });
+    });
+
+    it('says what it forgot again, job by job', async () => {
+      retention.catchUp.mockResolvedValue({
+        CHAT_MESSAGES: { messages: 120 },
+        ROSTER_SOURCES: { sources: 2, assets: 0 },
+        ACTIVITY: { activity: 0 },
+      });
+
+      await service.run();
+
+      expect(log).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'Forgotten: CHAT_MESSAGES messages=120; ROSTER_SOURCES sources=2',
+        ),
+      );
+      // Forgetting again is routine; only what came back is logged there.
+      expect(insert).not.toHaveBeenCalled();
+    });
+
+    it('fails the check, which waits and tries again, when a job fails', async () => {
+      retention.catchUp
+        .mockRejectedValueOnce(new Error('Retention job CHAT_MESSAGES failed'))
+        .mockResolvedValueOnce({});
+
+      await service.run();
+
+      expect(service.waits).toEqual([RESTORE_CHECK_FIRST_RETRY_MS]);
+      expect(error).toHaveBeenCalledWith(
+        expect.stringContaining('Reason: Retention job CHAT_MESSAGES failed'),
+      );
+      expect(runner.query).toHaveBeenCalledWith(
+        'SELECT pg_advisory_unlock($1::bigint)',
+        [RESTORE_CHECK_LOCK],
+      );
+    });
   });
 
   describe('reasonOf', () => {

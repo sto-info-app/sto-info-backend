@@ -11,6 +11,10 @@ import { AssetDenyReconciliationService } from 'src/file-assets/ledger/asset-den
 import { HoldLedgerReconciliationService } from 'src/fleet/chat/holds/hold-ledger-reconciliation.service';
 import { RosterErasureService } from 'src/fleet/erasure/roster-erasure.service';
 import {
+  FleetRetentionScheduler,
+  RetentionCatchUp,
+} from 'src/fleet/retention/fleet-retention.scheduler';
+import {
   LedgerReconciliation,
   LedgerTimings,
   noTimings,
@@ -38,6 +42,8 @@ export interface RestoreCheckOutcome {
   readonly closures: LedgerReconciliation;
   /** How long each part took, over every ledger. */
   readonly timings: LedgerTimings;
+  /** What the retention jobs forgot again, once caught up (FC-043). */
+  readonly retention: RetentionCatchUp;
 }
 
 /**
@@ -62,6 +68,13 @@ export interface RestoreCheckOutcome {
  * - **Logged.** Every check logs one summary line with its timings, and one
  *   that brought anything back writes a `LEDGERS_RECONCILED` entry to the
  *   site admin log, with no actor.
+ *
+ * And Steve's decision of 1 October 2026 (FC-043): **retention is caught up
+ * too**, after the ledgers and before anything serves. A restore brings
+ * back whatever the retention jobs forgot after the backup was taken, and it
+ * must not be readable even until their next run. Holds are replayed first,
+ * so what a hold keeps is still kept. A job that fails is a failed check,
+ * tried again like any other.
  */
 @Injectable()
 export class RestoreCheckService {
@@ -75,6 +88,7 @@ export class RestoreCheckService {
    * @param _holds - Checks the hold ledger.
    * @param _assets - Checks the asset-deny ledger.
    * @param _closures - Checks the account-closure ledger.
+   * @param _retention - Catches every retention job up (FC-043).
    */
   constructor(
     @InjectDataSource()
@@ -83,6 +97,7 @@ export class RestoreCheckService {
     private readonly _holds: HoldLedgerReconciliationService,
     private readonly _assets: AssetDenyReconciliationService,
     private readonly _closures: AccountClosureReconciliationService,
+    private readonly _retention: FleetRetentionScheduler,
   ) {}
 
   /**
@@ -156,6 +171,9 @@ export class RestoreCheckService {
     const holds = await this._holds.reconcile();
     const assets = await this._assets.reconcile();
     const closures = await this._closures.reconcile();
+    const retentionStarted = performance.now();
+    const retention = await this._retention.catchUp();
+    const retentionMs = performance.now() - retentionStarted;
     const timings = noTimings();
 
     for (const ledger of [erasures, holds, assets, closures]) {
@@ -171,7 +189,9 @@ export class RestoreCheckService {
         `ListMs: ${Math.round(timings.list)}, ` +
         `CompareMs: ${Math.round(timings.compare)}, ` +
         `ReplayMs: ${Math.round(timings.replay)}, ` +
-        `BackfillMs: ${Math.round(timings.backfill)}`,
+        `BackfillMs: ${Math.round(timings.backfill)}, ` +
+        `RetentionMs: ${Math.round(retentionMs)}, ` +
+        `Forgotten: ${forgottenOf(retention)}`,
     );
 
     if (
@@ -196,8 +216,31 @@ export class RestoreCheckService {
       });
     }
 
-    return { erasures, holds, assets, closures, timings };
+    return { erasures, holds, assets, closures, timings, retention };
   }
+}
+
+/**
+ * What catching retention up forgot, for the summary line: each job that
+ * forgot anything, with its counts.
+ *
+ * @param retention - What it came to.
+ * @returns The jobs and counts, or "nothing".
+ */
+function forgottenOf(retention: RetentionCatchUp): string {
+  const parts: string[] = [];
+
+  for (const [job, counts] of Object.entries(retention)) {
+    const forgotten = Object.entries(counts)
+      .filter(([, count]) => count > 0)
+      .map(([kind, count]) => `${kind}=${count}`);
+
+    if (forgotten.length > 0) {
+      parts.push(`${job} ${forgotten.join('/')}`);
+    }
+  }
+
+  return parts.length === 0 ? 'nothing' : parts.join('; ');
 }
 
 /**

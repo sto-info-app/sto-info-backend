@@ -15,6 +15,18 @@ import { RetentionJob } from './retention-job.enum';
 import { RetentionOutcome, RetentionRunService } from './retention-run.service';
 
 /**
+ * The most rounds the restore check gives one job, as a guard against a job
+ * that never says it is complete: at 40 batches of 500 a round, 20 million
+ * rows.
+ */
+export const CATCH_UP_MAX_ROUNDS = 1_000;
+
+/** What catching up came to: by job, what each forgot, by kind. */
+export type RetentionCatchUp = Readonly<
+  Record<string, Readonly<Record<string, number>>>
+>;
+
+/**
  * When each of the Fleet's retention jobs runs, all UTC (FC-037).
  *
  * Each job is its owning service's, bounded to a number of batches per run,
@@ -144,6 +156,70 @@ export class FleetRetentionScheduler {
     return this._runs.record(RetentionJob.MODERATION_HOLDS, () =>
       this._holds.review(),
     );
+  }
+
+  /**
+   * Runs every job that forgets by age until nothing due is left (FC-043).
+   *
+   * The restore check calls this at boot, after the ledgers: a database
+   * restored from an older backup holds again what the daily jobs had
+   * forgotten since — old chat messages, roster files, transcripts — and
+   * Steve's decision of 1 October 2026 is that none of it may be readable,
+   * not even for the day until the next run. Holds come back from their
+   * ledger first, so a message under hold is still kept.
+   *
+   * Each job runs, and is recorded, as on its schedule, round after round
+   * until it says it is complete. Reviewing holds and pruning this record
+   * forget nothing a restore could bring back, so they are left to their
+   * schedules.
+   *
+   * @returns What each job deleted.
+   * @throws Error when a job fails, or never finishes; the restore check
+   *   waits and tries again, and the API does not start meanwhile.
+   */
+  async catchUp(): Promise<RetentionCatchUp> {
+    const jobs: Array<[RetentionJob, () => Promise<RetentionOutcome | null>]> =
+      [
+        [RetentionJob.ROSTER_SOURCES, () => this.rosterSources()],
+        [RetentionJob.NEWS_POSTS, () => this.newsPosts()],
+        [
+          RetentionJob.CHARACTER_FLEET_MEMBERSHIPS,
+          () => this.characterFleetMemberships(),
+        ],
+        [RetentionJob.CHAT_MESSAGES, () => this.chatMessages()],
+        [RetentionJob.CHAT_REPORTS, () => this.chatReports()],
+        [RetentionJob.CHAT_TRANSCRIPTS, () => this.chatTranscripts()],
+        [RetentionJob.ACTIVITY, () => this.activity()],
+      ];
+    const caught: Record<string, Record<string, number>> = {};
+
+    for (const [job, run] of jobs) {
+      const totals: Record<string, number> = {};
+
+      for (let round = 1; ; round++) {
+        const outcome = await run();
+
+        if (outcome === null) {
+          throw new Error(`Retention job ${job} failed while catching up`);
+        }
+
+        for (const [kind, count] of Object.entries(outcome.counts)) {
+          totals[kind] = (totals[kind] ?? 0) + count;
+        }
+
+        if (outcome.complete) {
+          break;
+        }
+
+        if (round === CATCH_UP_MAX_ROUNDS) {
+          throw new Error(`Retention job ${job} did not finish catching up`);
+        }
+      }
+
+      caught[job] = totals;
+    }
+
+    return caught;
   }
 
   /**

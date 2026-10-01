@@ -1,7 +1,10 @@
 import { describe, expect, it, jest } from '@jest/globals';
 
 import { FleetFeatureService } from '../fleet-feature.service';
-import { FleetRetentionScheduler } from './fleet-retention.scheduler';
+import {
+  CATCH_UP_MAX_ROUNDS,
+  FleetRetentionScheduler,
+} from './fleet-retention.scheduler';
 import { RetentionJob } from './retention-job.enum';
 import { RetentionOutcome } from './retention-run.service';
 
@@ -60,7 +63,7 @@ describe('FleetRetentionScheduler (FC-037)', () => {
   it('schedules one job for every kind of run, in UTC', () => {
     const methods = Object.getOwnPropertyNames(
       FleetRetentionScheduler.prototype,
-    ).filter(name => name !== 'constructor');
+    ).filter(name => name !== 'constructor' && name !== 'catchUp');
     const schedules = methods.map(
       name =>
         Reflect.getMetadata(
@@ -78,6 +81,82 @@ describe('FleetRetentionScheduler (FC-037)', () => {
     expect(schedules.map(schedule => schedule.timeZone)).toEqual(
       methods.map(() => 'UTC'),
     );
+  });
+
+  // FC-043: the restore check's catch-up, after a restore.
+  describe('catchUp', () => {
+    /** Every job that forgets by age, in the order it is caught up. */
+    const forgetting = () => [
+      sources.expire,
+      news.purgeDeleted,
+      memberships.purgeRetracted,
+      messages.purge,
+      reports.purge,
+      transcripts.sweep,
+      activity.purge,
+    ];
+
+    it('runs every job that forgets by age until each says it is done', async () => {
+      messages.purge
+        .mockResolvedValueOnce({ counts: { messages: 500 }, complete: false })
+        .mockResolvedValueOnce({ counts: { messages: 20 }, complete: true });
+      sources.expire.mockResolvedValueOnce({
+        counts: { sources: 2, assets: 1 },
+        complete: true,
+      });
+
+      const caught = await scheduler.catchUp();
+
+      expect(caught).toEqual({
+        ROSTER_SOURCES: { sources: 2, assets: 1 },
+        NEWS_POSTS: {},
+        CHARACTER_FLEET_MEMBERSHIPS: {},
+        CHAT_MESSAGES: { messages: 520 },
+        CHAT_REPORTS: {},
+        CHAT_TRANSCRIPTS: {},
+        ACTIVITY: {},
+      });
+      for (const work of forgetting()) {
+        expect(work).toHaveBeenCalled();
+      }
+      // Each round is a recorded run, as on its schedule.
+      expect(runs.record).toHaveBeenCalledWith(
+        RetentionJob.CHAT_MESSAGES,
+        expect.any(Function),
+      );
+    });
+
+    // Reviewing holds tells people things, and pruning this record forgets
+    // nothing a restore could bring back.
+    it('leaves reviewing holds and pruning runs to their schedules', async () => {
+      holds.review.mockClear();
+      runs.prune.mockClear();
+
+      await scheduler.catchUp();
+
+      expect(holds.review).not.toHaveBeenCalled();
+      expect(runs.prune).not.toHaveBeenCalled();
+    });
+
+    it('fails when a job fails, so the restore check tries again', async () => {
+      runs.record.mockImplementationOnce(async () => null as never);
+
+      await expect(scheduler.catchUp()).rejects.toThrow(
+        'Retention job ROSTER_SOURCES failed while catching up',
+      );
+    });
+
+    it('fails rather than looping for ever on a job that never finishes', async () => {
+      reports.purge.mockClear();
+      reports.purge.mockResolvedValue({ counts: {}, complete: false });
+
+      await expect(scheduler.catchUp()).rejects.toThrow(
+        'Retention job CHAT_REPORTS did not finish catching up',
+      );
+      expect(reports.purge).toHaveBeenCalledTimes(CATCH_UP_MAX_ROUNDS);
+
+      reports.purge.mockResolvedValue(outcome);
+    });
   });
 
   // FleetFeatureService: retention is owed whether or not the feature is on,
