@@ -255,6 +255,30 @@ export class ScanWorkerHeartbeatDto {
 }
 
 /**
+ * Withdrawn pictures whose public copy is still to be deleted (FC-043).
+ */
+export class OwedPurgesDto {
+  @ApiProperty({
+    description:
+      'Withdrawn pictures whose public copy Cloudflare has not yet deleted. ' +
+      'The site asks again every hour.',
+  })
+  owed: number;
+
+  @ApiProperty({
+    description: 'How many of those have been owed for more than a day.',
+  })
+  overdue: number;
+
+  @ApiPropertyOptional({
+    description: 'Whole hours the oldest has been owed, or null when none is.',
+    nullable: true,
+    type: Number,
+  })
+  oldestHours: number | null;
+}
+
+/**
  * Everything the admin scan diagnostics page shows.
  *
  * Each part is read separately and is null when its source could not be
@@ -319,6 +343,13 @@ export class ScanDiagnosticsDto {
     type: PublicationPauseDto,
   })
   publication: PublicationPauseDto;
+
+  @ApiProperty({
+    description:
+      'Withdrawn pictures still to be deleted from Cloudflare (FC-043).',
+    type: OwedPurgesDto,
+  })
+  owedPurges: OwedPurgesDto;
 }
 
 /**

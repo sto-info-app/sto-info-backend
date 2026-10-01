@@ -564,6 +564,7 @@ which is when it is most needed.
 | `workers` | The worker's `worker_heartbeat_status` view (FC-042): one entry per worker process, latest beat first, with `live`, `secondsSinceBeat`, `pausedMinutes` and `signatureAgeHours` worked out by the database against its own clock. `null` when the view cannot be read. |
 | `alerts` | The operations alerts open now (FC-042), oldest first. |
 | `publication` | The publication pause (FC-042): whether it is on, since when and by whom (`pausedByUserId`, and `pausedByUsername`, null for an account since gone), whether the queue itself is paused, and how many cleared uploads are held. |
+| `owedPurges` | The registry's owed purges (FC-043): `owed`, how many of those are `overdue` (owed for more than a day, as `PURGE_OWED` judges), and `oldestHours`, null when none is owed. Counted by the database against its own clock. |
 
 **Every read is logged** (FC-042, Steve's decision of 30 September 2026). The diagnostics stay
 ADMIN-only, and each page view writes one `SCAN_DIAGNOSTICS_VIEWED` entry to the site admin log —

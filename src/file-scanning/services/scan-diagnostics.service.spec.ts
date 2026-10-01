@@ -17,6 +17,7 @@ import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
 import { PublicationPauseDto } from 'src/file-assets/publication/publication-pause.dto';
 import { PublicationPauseService } from 'src/file-assets/publication/publication-pause.service';
+import { PURGE_OWED_HOURS } from 'src/operations/alerts/operations-alert.constants';
 import { OperationsAlertEntity } from 'src/operations/alerts/operations-alert.entity';
 import { OperationsAlertKind } from 'src/operations/alerts/operations-alert.enum';
 
@@ -106,6 +107,7 @@ describe('ScanDiagnosticsService', () => {
     (...types: string[]) => Promise<Record<string, number>>
   >;
   let getRawMany: jest.Mock<() => Promise<unknown[]>>;
+  let owedQuery: Record<string, jest.Mock>;
   let builder: Record<string, jest.Mock>;
   let findOne: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
   let findAndCount: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
@@ -154,6 +156,19 @@ describe('ScanDiagnosticsService', () => {
     findAndCount = jest.fn(() => Promise.resolve([[], 0]));
 
     insert = jest.fn(() => Promise.resolve(undefined));
+    owedQuery = {};
+    for (const method of [
+      'select',
+      'addSelect',
+      'where',
+      'andWhere',
+      'setParameters',
+    ]) {
+      owedQuery[method] = jest.fn(() => owedQuery);
+    }
+    owedQuery.getRawOne = jest.fn(() =>
+      Promise.resolve({ owed: 2, overdue: 1, oldestHours: 26 }),
+    );
     findAlerts = jest.fn(() => Promise.resolve([]));
     getRepository = jest.fn(() => ({ find: findAlerts }));
     readPublication = jest.fn(() => Promise.resolve(PUBLICATION));
@@ -161,7 +176,7 @@ describe('ScanDiagnosticsService', () => {
     service = new ScanDiagnosticsService(
       {
         query,
-        manager: { insert },
+        manager: { insert, createQueryBuilder: () => owedQuery },
         getRepository,
       } as unknown as DataSource,
       { getJobCounts } as unknown as Queue,
@@ -630,6 +645,15 @@ describe('ScanDiagnosticsService', () => {
         },
       ]);
       expect(result.publication).toBe(PUBLICATION);
+      // FC-043: counted only, and judged by the alert's own threshold.
+      expect(result.owedPurges).toEqual({
+        owed: 2,
+        overdue: 1,
+        oldestHours: 26,
+      });
+      expect(owedQuery.setParameters).toHaveBeenCalledWith({
+        overdueHours: PURGE_OWED_HOURS,
+      });
     });
   });
 });

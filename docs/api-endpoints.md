@@ -343,7 +343,8 @@ Behind sign-in alone rather than a creator permission, matching Arcs: the four f
 Scan usage over the last 24 hours, 7 days and 30 days, the engine and signatures the latest
 attempt reported, the scan request queue and the assets awaiting a verdict (FC-003). Since FC-042
 also each scan worker's heartbeat (`workers`), the operations alerts open now (`alerts`) and the
-publication pause (`publication`). Totals only. A part whose source cannot be reached is `null`.
+publication pause (`publication`), and since FC-043 the withdrawn pictures Cloudflare has still to
+delete (`owedPurges`: `owed`, `overdue` past a day, `oldestHours`). Totals only. A part whose source cannot be reached is `null`.
 Every read is logged in the site admin log as `SCAN_DIAGNOSTICS_VIEWED`, one entry per page view.
 See
 [File assets](file-assets.md#watching-the-scanner-get-adminfile-scanningdiagnostics).

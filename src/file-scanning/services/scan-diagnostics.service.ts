@@ -8,6 +8,8 @@ import { DataSource, IsNull, Repository } from 'typeorm';
 import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
 import { PublicationPauseService } from 'src/file-assets/publication/publication-pause.service';
+import { readOwedPurges } from 'src/file-assets/services/owed-purge-sweep.service';
+import { PURGE_OWED_HOURS } from 'src/operations/alerts/operations-alert.constants';
 import { OperationsAlertDto } from 'src/operations/alerts/operations-alert.dto';
 import { OperationsAlertEntity } from 'src/operations/alerts/operations-alert.entity';
 import { redisWithin } from 'src/shared/queue/redis-within.utility';
@@ -67,7 +69,8 @@ const TENTH_OF_AN_HOUR_MS = 360_000;
  * - **Assets awaiting a verdict** come from the registry, which this
  *   application owns.
  * - **Open operations alerts** and **the publication pause** are this
- *   application's own (FC-042).
+ *   application's own (FC-042), and so are **the purges withdrawals left
+ *   owed**, counted only (FC-043).
  *
  * Nothing here names an asset, a file, an owner or a signature. The worker's
  * views cannot, and the registry is only counted. Every read a site admin
@@ -188,16 +191,25 @@ export class ScanDiagnosticsService {
    */
   async read(adminUserId: string): Promise<ScanDiagnosticsDto> {
     const generatedAt = new Date();
-    const [usage, engine, queue, awaiting, workers, alerts, publication] =
-      await Promise.all([
-        this.readUsage(),
-        this.readEngine(generatedAt),
-        this.readQueue(),
-        this.readAwaiting(),
-        this.readHeartbeats(),
-        this.readAlerts(),
-        this._publication.read(),
-      ]);
+    const [
+      usage,
+      engine,
+      queue,
+      awaiting,
+      workers,
+      alerts,
+      publication,
+      owedPurges,
+    ] = await Promise.all([
+      this.readUsage(),
+      this.readEngine(generatedAt),
+      this.readQueue(),
+      this.readAwaiting(),
+      this.readHeartbeats(),
+      this.readAlerts(),
+      this._publication.read(),
+      readOwedPurges(this._dataSource.manager, PURGE_OWED_HOURS),
+    ]);
 
     await recordDiagnosticsRead(
       this._dataSource.manager,
@@ -214,6 +226,7 @@ export class ScanDiagnosticsService {
       workers,
       alerts,
       publication,
+      owedPurges,
     };
   }
 
