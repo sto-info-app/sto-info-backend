@@ -102,3 +102,11 @@ export const ROSTER_PREVIEW_SAMPLE_ROWS = 10;
  * one.
  */
 export const ROSTER_STORED_TEXT_MAX_LENGTH = 255;
+
+/**
+ * How far past now a date may fall before the check warns of it, in minutes
+ * (FC-043). A little slack for clocks that disagree; past it, a stamp or a
+ * row in the future almost always means the export was read through the
+ * wrong timezone.
+ */
+export const ROSTER_FUTURE_TOLERANCE_MINUTES = 10;

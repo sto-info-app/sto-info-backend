@@ -32,6 +32,7 @@ interface RowInput {
   readonly className?: string;
   readonly contribution?: string;
   readonly joinDate?: string;
+  readonly lastActive?: string;
 }
 
 /**
@@ -51,6 +52,7 @@ function line(row: RowInput = {}): string {
     className = 'Starfleet Tactical Officer',
     contribution = '5000',
     joinDate = '4/1/2023 12:00:00pm',
+    lastActive = '1/5/2024 1:00:00pm',
   } = row;
 
   return [
@@ -62,7 +64,7 @@ function line(row: RowInput = {}): string {
     contribution,
     joinDate,
     '',
-    '1/5/2024 1:00:00pm',
+    lastActive,
     '"Offline"',
     '""',
     '',
@@ -170,6 +172,7 @@ describe('RosterImportPreviewService', () => {
         readableRowCount: 1,
         unknownClassCount: 0,
         ambiguousDateCount: 0,
+        futureDates: { exportStampAhead: false, rowCount: 0 },
         problems: [],
       });
     });
@@ -236,6 +239,94 @@ describe('RosterImportPreviewService', () => {
       await preview(source);
 
       expect(source.every(byte => byte === 0)).toBe(true);
+    });
+  });
+
+  // FC-043: a stamp or a row after now usually means the wrong timezone.
+  // Warned of in the check, never a reason to refuse.
+  describe('dates after now', () => {
+    /** An export taken at noon on 1 February 2024, London time (GMT). */
+    const FEBRUARY = `${FLEET_NAME}_20240201-120000.Csv`;
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    /**
+     * Stops the clock at an instant.
+     *
+     * @param iso - The instant.
+     */
+    const at = (iso: string): void => {
+      jest.useFakeTimers({
+        now: new Date(iso),
+        doNotFake: ['nextTick', 'setImmediate', 'setTimeout'],
+      });
+    };
+
+    it('warns of an export stamp ahead of now, and still allows the import', async () => {
+      at('2024-02-01T11:45:00.000Z');
+
+      const answer = await preview(exportFile(line()), {
+        originalFilename: FEBRUARY,
+      });
+
+      expect(answer.futureDates).toEqual({
+        exportStampAhead: true,
+        rowCount: 0,
+      });
+      expect(answer.canImport).toBe(true);
+    });
+
+    it('allows ten minutes for clocks that disagree', async () => {
+      at('2024-02-01T11:50:00.000Z');
+
+      await expect(
+        preview(exportFile(line()), { originalFilename: FEBRUARY }),
+      ).resolves.toMatchObject({
+        futureDates: { exportStampAhead: false, rowCount: 0 },
+      });
+    });
+
+    // A New York export read as London's runs five hours fast.
+    it('counts the rows carrying a date ahead of now', async () => {
+      at('2024-02-01T12:30:00.000Z');
+
+      const answer = await preview(
+        exportFile(
+          line({ lastActive: '2/1/2024 5:00:00pm' }),
+          line({ character: 'Tal Shiar', handle: '@talshiar' }),
+          line({
+            character: 'Rhea Kell',
+            handle: '@rheakell',
+            lastActive: '2/1/2024 12:35:00pm',
+          }),
+        ),
+        { originalFilename: FEBRUARY },
+      );
+
+      expect(answer.futureDates).toEqual({
+        exportStampAhead: false,
+        rowCount: 1,
+      });
+    });
+
+    // The morning a clock goes back is the ambiguity's question.
+    it('does not call a date ahead while one of its readings is not', async () => {
+      at('2023-10-29T00:50:00.000Z');
+
+      const answer = await preview(
+        exportFile(
+          line({
+            joinDate: '10/29/2023 1:30:00am',
+            lastActive: '10/29/2023 1:30:00am',
+          }),
+        ),
+        { originalFilename: `${FLEET_NAME}_20231028-120000.Csv` },
+      );
+
+      expect(answer.futureDates.rowCount).toBe(0);
+      expect(answer.ambiguousDateCount).toBe(1);
     });
   });
 

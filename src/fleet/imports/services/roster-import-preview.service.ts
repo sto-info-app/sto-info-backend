@@ -4,10 +4,14 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { RosterSuppressionService } from '../../erasure/roster-suppression.service';
-import { ROSTER_PREVIEW_SAMPLE_ROWS } from '../constants/roster-typed.constants';
+import {
+  ROSTER_FUTURE_TOLERANCE_MINUTES,
+  ROSTER_PREVIEW_SAMPLE_ROWS,
+} from '../constants/roster-typed.constants';
 import {
   RosterImportPreviewDto,
   RosterPreviewDateDto,
+  RosterPreviewFutureDatesDto,
   RosterPreviewRowDto,
 } from '../dto/roster-import-preview.dto';
 import { RosterCsvRejectedError } from '../errors/roster-csv-rejected.error';
@@ -174,6 +178,7 @@ export class RosterImportPreviewService {
       readableRowCount: typed.rows.length,
       unknownClassCount: typed.unknownClassCount,
       ambiguousDateCount: typed.ambiguousDateCount,
+      futureDates: futureDatesOf(identity.candidates, typed.rows),
       problems: typed.problems.map(problem => ({ ...problem })),
       sample: typed.rows
         .slice(0, ROSTER_PREVIEW_SAMPLE_ROWS)
@@ -221,4 +226,42 @@ export class RosterImportPreviewService {
       candidates: date.candidates.map(candidate => candidate.toISOString()),
     };
   }
+}
+
+/**
+ * Finds the dates that fall after now (FC-043).
+ *
+ * Steve's decision of 1 October 2026: a warning in the check, not a
+ * refusal. An export stamp or a row in the future is almost always a file
+ * read through the wrong timezone — a New York export read as London's runs
+ * five hours fast — and the check is where that is cheapest to notice. A
+ * date counts as future only when every instant it could name is: the
+ * morning a clock goes back, one reading may be ahead while the other is
+ * not, and that is the ambiguity's question rather than this one's.
+ *
+ * @param stamp - Every instant the export stamp could name.
+ * @param rows - The readable rows.
+ * @returns Whether the stamp is ahead, and how many rows carry a date that
+ *   is.
+ */
+function futureDatesOf(
+  stamp: readonly Date[],
+  rows: readonly RosterObservationRow[],
+): RosterPreviewFutureDatesDto {
+  const limit = Date.now() + ROSTER_FUTURE_TOLERANCE_MINUTES * 60_000;
+  const ahead = (candidates: readonly Date[]): boolean =>
+    candidates.length > 0 &&
+    candidates.every(candidate => candidate.getTime() > limit);
+
+  return {
+    exportStampAhead: ahead(stamp),
+    rowCount: rows.filter(row =>
+      [
+        row.joinedAt,
+        row.rankChangedAt,
+        row.lastActiveAt,
+        row.publicCommentEditedAt,
+      ].some(date => ahead(date.candidates)),
+    ).length,
+  };
 }

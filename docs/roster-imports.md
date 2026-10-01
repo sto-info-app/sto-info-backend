@@ -254,6 +254,21 @@ the abandoned import is kept as the record of its upload, with `replacedAt` set 
 transaction as the new row. The unique index holds only where `replacedAt` is null, and a replaced
 import is no longer compared with other exports of its moment.
 
+## Dates after now (FC-043)
+
+`POST …/roster-imports/preview` — the check, which keeps nothing — also reports `futureDates`:
+whether the export stamp, read through the chosen timezone, is more than ten minutes after now
+(`exportStampAhead`), and how many readable rows carry a date that is (`rowCount`). A New York
+export read as London's runs five hours fast, so a date in the future is almost always the wrong
+zone. Steve's decision of 1 October 2026: a warning, never a refusal, and never part of
+`canImport`; the import page asks the uploader to say the zone is right before it sends the file.
+A date counts only when every instant it could name is ahead: the morning a clock goes back is the
+ambiguity's question, not this one's. The ten minutes are `ROSTER_FUTURE_TOLERANCE_MINUTES`.
+
+The zone itself is never inferred here: the check and the import each refuse a request without
+an IANA zone, and the page starts on the zone chosen in Settings, or the device's, which the
+check then shows every date read through.
+
 ## Former Fleet names
 
 An export's filename names the Fleet as the game called it when the export was taken, so a Fleet

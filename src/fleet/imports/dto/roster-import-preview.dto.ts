@@ -84,6 +84,25 @@ export class RosterPreviewSourceDto {
   sourceByteSize: number;
 }
 
+/**
+ * Dates later than now, which usually mean the wrong timezone (FC-043).
+ * A warning, never a refusal: the import goes ahead if the uploader says so.
+ */
+export class RosterPreviewFutureDatesDto {
+  @ApiProperty({
+    description:
+      'Whether the export stamp, read through this timezone, is more than ' +
+      'ten minutes after now.',
+  })
+  exportStampAhead: boolean;
+
+  @ApiProperty({
+    description:
+      'How many readable rows carry a date more than ten minutes after now.',
+  })
+  rowCount: number;
+}
+
 /** Something about a row that stops the export being believed. */
 export class RosterPreviewProblemDto {
   @ApiProperty({
@@ -221,6 +240,14 @@ export class RosterImportPreviewDto {
       'stays ambiguous until something resolves it.',
   })
   ambiguousDateCount: number;
+
+  @ApiProperty({
+    description:
+      'Dates after now, which usually mean the wrong timezone (FC-043). ' +
+      'Never part of canImport.',
+    type: RosterPreviewFutureDatesDto,
+  })
+  futureDates: RosterPreviewFutureDatesDto;
 
   @ApiProperty({
     description: 'Everything that stopped a row being read, in file order.',
