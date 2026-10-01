@@ -387,8 +387,16 @@ export class AssetPublicationService {
    * superseding upload both delete quarantined bytes, so the honest reading
    * of an absent object is that this upload was already abandoned.
    *
+   * **Anything else is thrown** (FC-042). A bucket that is down, slow or
+   * refusing the key is the kind of thing that works later, so the job must
+   * fail and be retried — and, having run out of attempts, stay in the failed
+   * set where the alerts and a site admin can see it. Treating it as missing
+   * used to finish the job quietly and leave the upload for the nightly sweep
+   * to throw away.
+   *
    * @param asset - The asset.
    * @returns The bytes, or null when the object has gone.
+   * @throws Error when the bucket could not be read, for BullMQ to retry.
    */
   private async read(asset: FileAssetEntity): Promise<Buffer | null> {
     try {
@@ -405,12 +413,23 @@ export class AssetPublicationService {
 
       return Buffer.concat(chunks);
     } catch (error: unknown) {
+      const name = error instanceof Error ? error.name : typeof error;
+
+      if (isMissingObject(error)) {
+        this._logger.error(
+          `[read] Quarantined bytes have gone - AssetId: ${asset.id}, ` +
+            `Error: ${name}`,
+        );
+
+        return null;
+      }
+
       this._logger.error(
-        `[read] Quarantined bytes could not be read - AssetId: ${asset.id}, ` +
-          `Reason: ${error instanceof Error ? error.message : 'unknown'}`,
+        `[read] Quarantine could not be read; the job will be retried - ` +
+          `AssetId: ${asset.id}, Error: ${name}`,
       );
 
-      return null;
+      throw error;
     }
   }
 
@@ -499,4 +518,28 @@ export class AssetPublicationService {
 
     return { published: false, refusal, deliveryReference: null };
   }
+}
+
+/**
+ * Whether an S3 error says the object is not there: `NoSuchKey`, or a
+ * `NotFound` or 404 from a request that carries no body to name it.
+ *
+ * @param error - What the client threw.
+ * @returns True only for a missing object.
+ */
+function isMissingObject(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+
+  const { name, $metadata } = error as {
+    name?: unknown;
+    $metadata?: { httpStatusCode?: unknown };
+  };
+
+  return (
+    name === 'NoSuchKey' ||
+    name === 'NotFound' ||
+    $metadata?.httpStatusCode === 404
+  );
 }

@@ -381,8 +381,15 @@ describe('AssetPublicationService', () => {
     // The sweep and a superseding upload both delete quarantined bytes, so
     // an absent object means this upload was already abandoned.
     it.each([
-      ['an error', new Error('no such key')],
-      ['something that is not an error', 'no such key'],
+      ['NoSuchKey', Object.assign(new Error('gone'), { name: 'NoSuchKey' })],
+      ['NotFound', Object.assign(new Error('gone'), { name: 'NotFound' })],
+      [
+        'a 404',
+        Object.assign(new Error('gone'), {
+          name: 'Unknown',
+          $metadata: { httpStatusCode: 404 },
+        }),
+      ],
     ])(
       'refuses an asset whose bytes have gone, given %s',
       async (_name, failure) => {
@@ -393,6 +400,28 @@ describe('AssetPublicationService', () => {
         );
       },
     );
+
+    // FC-042: a bucket that is down is retried, and lands in the failed set
+    // when it stays down, rather than finishing the job quietly.
+    it.each([
+      [
+        'a bucket error',
+        Object.assign(new Error('slow'), { name: 'TimeoutError' }),
+      ],
+      [
+        'a 503',
+        Object.assign(new Error('busy'), {
+          name: 'ServiceUnavailable',
+          $metadata: { httpStatusCode: 503 },
+        }),
+      ],
+      ['something that is not an error', 'refused'],
+      ['nothing at all', null],
+    ])('throws %s, for BullMQ to retry', async (_name, failure) => {
+      getStream.mockRejectedValue(failure);
+
+      await expect(service.publish('asset-1')).rejects.toBe(failure);
+    });
 
     it('refuses an asset that never stored anything', async () => {
       findById.mockResolvedValue(asset({ objectKey: null }));
@@ -722,12 +751,26 @@ describe('AssetPublicationService', () => {
     });
 
     it('refuses an asset whose bytes have gone', async () => {
-      getStream.mockRejectedValue(new Error('no such key'));
+      getStream.mockRejectedValue(
+        Object.assign(new Error('gone'), { name: 'NoSuchKey' }),
+      );
 
       await expect(service.publish('asset-1')).resolves.toEqual(
         expect.objectContaining({ refusal: 'NO_BYTES' }),
       );
 
+      expect(receive).not.toHaveBeenCalled();
+    });
+
+    // FC-042: the same for a roster file as for a picture.
+    it('throws when the bucket cannot be read, for BullMQ to retry', async () => {
+      const failure = Object.assign(new Error('down'), {
+        name: 'InternalError',
+      });
+
+      getStream.mockRejectedValue(failure);
+
+      await expect(service.publish('asset-1')).rejects.toBe(failure);
       expect(receive).not.toHaveBeenCalled();
     });
 
