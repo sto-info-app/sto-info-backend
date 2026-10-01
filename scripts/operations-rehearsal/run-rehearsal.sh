@@ -21,7 +21,11 @@
 # rehearsal reports any attempt.
 #
 # Usage:
-#   bash scripts/operations-rehearsal/run-rehearsal.sh
+#   bash scripts/operations-rehearsal/run-rehearsal.sh [operations|adversarial]
+#
+# The argument chooses what runs on the stack: this rehearsal (the default),
+# or FC-043's adversarial rehearsal in scripts/adversarial-rehearsal/, which
+# needs no older release and so never builds one.
 #
 # Environment (all optional):
 #   REHEARSAL_WORKER_REPO   the worker checkout. Default: the sibling
@@ -46,6 +50,19 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "${HERE}/../.." && pwd)"
+
+SUITE="${1:-operations}"
+case "${SUITE}" in
+operations) SCRIPT="${HERE}/rehearse.ts" ;;
+adversarial)
+  SCRIPT="${REPO}/scripts/adversarial-rehearsal/rehearse.ts"
+  REHEARSAL_SKIP_OLD_BUILD=1
+  ;;
+*)
+  echo "Unknown rehearsal '${SUITE}'; choose operations or adversarial." >&2
+  exit 1
+  ;;
+esac
 WORKER_REPO="${REHEARSAL_WORKER_REPO:-${REPO}/../sto-info-file-scan-worker}"
 
 PG_IMAGE="${REHEARSAL_PG_IMAGE:-postgres:18-alpine}"
@@ -135,7 +152,7 @@ if [ ! -d "${REPO}/node_modules" ] || [ ! -d "${WORKER_REPO}/node_modules" ]; th
   exit 1
 fi
 
-RESULTS="${REHEARSAL_RESULTS:-$(dirname "${WORK}")/operations-rehearsal-$(date -u +%Y%m%dT%H%M%SZ).md}"
+RESULTS="${REHEARSAL_RESULTS:-$(dirname "${WORK}")/${SUITE}-rehearsal-$(date -u +%Y%m%dT%H%M%SZ).md}"
 
 # Credentials the containers are created with. Generated, never printed, and
 # gone with the containers.
@@ -200,14 +217,24 @@ build "${WORKER_REPO}" worker
 step "Creating containers on ${NETWORK} (started by the rehearsal, so the cold start is timed)"
 docker network create "${NETWORK}" >/dev/null
 
+# A signature of the rehearsal's own, so a real detection can go through
+# the real pipeline without EICAR: an antivirus on the machine running the
+# rehearsal can intercept EICAR in its own localhost traffic, between MinIO
+# and the worker, and the scan then never sees it (FC-043). Nothing but the
+# rehearsal ever writes this marker.
+TEST_SIGNATURE="FC043-ADVERSARIAL-REHEARSAL-MARKER-$(date -u +%Y%m%d)"
+TEST_SIGNATURE_HEX="$(printf '%s' "${TEST_SIGNATURE}" | od -An -tx1 | tr -d ' \n')"
+
 # The scanner, configured as deployed except that it listens beyond
-# loopback, baked into an image because Git Bash rewrites container-side
-# paths on a command line (see the worker's scan rehearsal).
+# loopback and knows the test signature, baked into an image because Git
+# Bash rewrites container-side paths on a command line (see the worker's
+# scan rehearsal).
 docker build -q -t "${CLAMD_IMAGE}" -f - "${WORKER_REPO}" >/dev/null <<DOCKERFILE
 FROM ${CLAMAV_IMAGE}
 COPY docker/clamd.conf /etc/clamav/clamd.conf
 RUN sed -i 's/^TCPAddr 127\.0\.0\.1\$/TCPAddr 0.0.0.0/' /etc/clamav/clamd.conf \\
- && grep -q '^TCPAddr 0\.0\.0\.0\$' /etc/clamav/clamd.conf
+ && grep -q '^TCPAddr 0\.0\.0\.0\$' /etc/clamav/clamd.conf \\
+ && echo 'FC043.Rehearsal.Marker:0:*:${TEST_SIGNATURE_HEX}' > /var/lib/clamav/fc043-rehearsal.ndb
 ENTRYPOINT ["/usr/sbin/clamd", "--config-file=/etc/clamav/clamd.conf"]
 DOCKERFILE
 
@@ -233,7 +260,7 @@ docker create --name "${PREFIX}-aws" --network "${NETWORK}" \
 
 echo 'The scanner will run with:'
 docker run --rm --entrypoint sh "${CLAMD_IMAGE}" -c \
-  "grep -E '^(TCPAddr|StreamMaxLength|MaxFileSize|MaxScanSize)' /etc/clamav/clamd.conf"
+  "grep -E '^(TCPAddr|StreamMaxLength|MaxFileSize|MaxScanSize|MaxRecursion|MaxFiles|MaxScanTime|AlertExceedsMax)' /etc/clamav/clamd.conf"
 
 if [ -n "${OLD_BUILD_PID}" ]; then
   step "Waiting for ${OLD_REF} to finish building"
@@ -258,8 +285,9 @@ REHEARSAL_WORK="$(native_path "${WORK}")" \
   REHEARSAL_PG_PASSWORD="${PG_PASSWORD}" REHEARSAL_MINIO_PASSWORD="${MINIO_PASSWORD}" \
   REHEARSAL_OLD_BACKEND_MAIN="${OLD_MAIN}" REHEARSAL_OLD_REF="${OLD_REF}" \
   REHEARSAL_OLD_SKIPPED="${OLD_SKIPPED}" \
+  REHEARSAL_TEST_SIGNATURE="${TEST_SIGNATURE}" \
   REHEARSAL_RESULTS="$(native_path "${RESULTS}")" \
   TS_NODE_PROJECT=tsconfig.scripts.json \
-  npx ts-node -r tsconfig-paths/register "${HERE}/rehearse.ts"
+  npx ts-node -r tsconfig-paths/register "${SCRIPT}"
 
-printf '\nOPERATIONS REHEARSAL COMPLETE. Results: %s\n' "$(native_path "${RESULTS}")"
+printf '\n%s REHEARSAL COMPLETE. Results: %s\n' "$(printf '%s' "${SUITE}" | tr '[:lower:]' '[:upper:]')" "$(native_path "${RESULTS}")"

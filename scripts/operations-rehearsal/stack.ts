@@ -671,6 +671,9 @@ export interface ApiAnswer<T = unknown> {
 export class Api {
   private _token: string | null = null;
 
+  /** The last answer's Cache-Control header, or null when it sent none. */
+  lastCacheControl: string | null = null;
+
   /**
    * Creates an instance of Api.
    *
@@ -743,6 +746,8 @@ export class Api {
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(timeoutMs),
     });
+
+    this.lastCacheControl = response.headers.get('cache-control');
 
     return { status: response.status, body: await readBody<T>(response) };
   }

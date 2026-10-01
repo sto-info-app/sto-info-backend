@@ -122,8 +122,17 @@ interface ResultRow {
 }
 
 /** What the rehearsal found, in order. */
-class Results {
+export class Results {
   readonly rows: ResultRow[] = [];
+
+  /**
+   * Creates an instance of Results.
+   *
+   * @param _title - The results page's heading.
+   */
+  constructor(
+    private readonly _title = 'Operations rehearsal results (FC-042)',
+  ) {}
 
   /**
    * Records a line and prints it.
@@ -189,7 +198,7 @@ class Results {
   write(path: string, preamble: string[]): void {
     const cell = (text: string) => text.replace(/\|/g, '\\|');
     const lines = [
-      '# Operations rehearsal results (FC-042)',
+      `# ${this._title}`,
       '',
       ...preamble,
       '',
@@ -214,15 +223,15 @@ class Results {
 }
 
 /** An upload the rehearsal made, and what it is watched by. */
-interface Upload {
+export interface Upload {
   readonly importId: string;
   readonly assetId: string;
 }
 
 /** Everything the scenarios share. */
-class Rehearsal {
+export class Rehearsal {
   readonly config: StackConfig = readConfig();
-  readonly results = new Results();
+  readonly results: Results;
   readonly containers = new Containers(this.config.prefix);
   readonly egress = new EgressGuard();
   readonly api = new Api(this.config.ports.backend);
@@ -243,8 +252,14 @@ class Rehearsal {
   private _variant = 0;
   private readonly _fixture: string;
 
-  /** Creates an instance of Rehearsal. */
-  constructor() {
+  /**
+   * Creates an instance of Rehearsal.
+   *
+   * @param title - The results page's heading; the adversarial rehearsal
+   *   (FC-043) runs on this one's stack under its own.
+   */
+  constructor(title?: string) {
+    this.results = new Results(title);
     this.db = new Database(this.config, this.databaseName);
     this.logs = join(this.config.work, 'logs');
     mkdirSync(this.logs, { recursive: true });
@@ -976,7 +991,7 @@ interface FailedJob {
  * @param output - What it printed.
  * @returns The first lines naming an error, or its last line.
  */
-function failureOf(output: string): string {
+export function failureOf(output: string): string {
   const lines = output.split(/\r?\n/).filter(line => line.trim() !== '');
   const thrown = lines.filter(line =>
     /^\s*(\w*Error\b|error:)|refuses/i.test(line),
@@ -996,7 +1011,7 @@ function failureOf(output: string): string {
  * @param blue - Its blue.
  * @returns The file.
  */
-function png(red: number, green: number, blue: number): Buffer {
+export function png(red: number, green: number, blue: number): Buffer {
   const size = 8;
   const chunk = (type: string, data: Buffer) => {
     const length = Buffer.alloc(4);
@@ -1039,7 +1054,7 @@ function png(red: number, green: number, blue: number): Buffer {
  * @param name - The scenario.
  * @param body - What it does.
  */
-async function scenario(
+export async function scenario(
   r: Rehearsal,
   name: string,
   body: () => Promise<void>,
@@ -1065,7 +1080,7 @@ async function scenario(
  *
  * @param r - The rehearsal.
  */
-async function coldStart(r: Rehearsal): Promise<void> {
+export async function coldStart(r: Rehearsal): Promise<void> {
   const name = 'S1 Cold start';
   const { ports } = r.config;
   const started = Date.now();
@@ -3248,7 +3263,11 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
-});
+// Run when started as a script, and not when the adversarial rehearsal
+// (FC-043) imports the stack's set-up from here.
+if (require.main === module) {
+  main().catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  });
+}

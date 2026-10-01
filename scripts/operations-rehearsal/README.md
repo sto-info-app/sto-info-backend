@@ -9,6 +9,14 @@ these checkouts — and records how long each step took (FC-042).
 npm run rehearse:operations
 ```
 
+The same stack runs FC-043's [adversarial rehearsal](../adversarial-rehearsal/README.md) with
+`npm run rehearse:adversarial` (`run-rehearsal.sh adversarial`), which never builds the older
+release.
+
+Its clamd also knows one signature of the rehearsal's own, `FC043.Rehearsal.Marker`, for a marker
+made for the run: the adversarial rehearsal plants it where EICAR cannot reach (see its README).
+Nothing here writes the marker, so the operations rehearsal is unaffected.
+
 ## What it needs
 
 - Docker, and the images below (pulled once; the defaults are what the developer stack already
