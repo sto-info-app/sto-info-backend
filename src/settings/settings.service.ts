@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 
 import { AppSettingEntity } from './entities/app-setting.entity';
 
@@ -80,25 +80,47 @@ export class SettingsService {
   }
 
   /**
+   * Reads a setting's value as it is stored, for a setting whose value is
+   * not a plain boolean.
+   *
+   * @param key - The setting key.
+   * @param fresh - True to read the database now rather than a cached value,
+   *   for a caller about to act on what it finds (FC-042).
+   * @returns The stored value, or null when the setting does not exist.
+   */
+  getString(key: string, fresh = false): Promise<string | null> {
+    if (fresh) {
+      this._cache.delete(key);
+    }
+
+    return this.getRaw(key);
+  }
+
+  /**
    * Replaces a setting's value.
    *
    * @param key - The setting key.
    * @param value - The new value.
    * @param actingUserId - The administrator making the change.
+   * @param manager - The caller's transaction, when the change must land
+   *   with something else — a site admin log entry, say (FC-042).
    * @throws NotFoundException when the setting does not exist.
    */
   async setValue(
     key: string,
     value: string,
     actingUserId: string,
+    manager?: EntityManager,
   ): Promise<void> {
-    const setting = await this._settingRepository.findOne({ where: { key } });
+    const repository =
+      manager?.getRepository(AppSettingEntity) ?? this._settingRepository;
+    const setting = await repository.findOne({ where: { key } });
 
     if (!setting) {
       throw new NotFoundException('Setting not found');
     }
 
-    await this._settingRepository.update(setting.id, {
+    await repository.update(setting.id, {
       value,
       updatedByUserId: actingUserId,
     });

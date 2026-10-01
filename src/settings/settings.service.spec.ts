@@ -2,6 +2,8 @@ import { Logger, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
+import { EntityManager } from 'typeorm';
+
 import { AppSettingEntity } from './entities/app-setting.entity';
 import { SETTING_CACHE_TTL_MS, SettingsService } from './settings.service';
 
@@ -149,6 +151,47 @@ describe('SettingsService', () => {
       await expect(service.setValue(key, 'true', adminId)).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    // FC-042: the publication pause lands with its site admin log entry.
+    it('writes in the caller’s transaction when given one', async () => {
+      const transactional = {
+        findOne: jest.fn().mockResolvedValue({ id: 'setting-2' }),
+        update: jest.fn().mockResolvedValue(undefined),
+      };
+      const manager = {
+        getRepository: jest.fn(() => transactional),
+      } as unknown as EntityManager;
+
+      await service.setValue(key, '{"paused":true}', adminId, manager);
+
+      expect(manager.getRepository).toHaveBeenCalledWith(AppSettingEntity);
+      expect(transactional.update).toHaveBeenCalledWith('setting-2', {
+        value: '{"paused":true}',
+        updatedByUserId: adminId,
+      });
+      expect(settingRepository.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getString', () => {
+    it('reads the stored value, reusing a fresh one', async () => {
+      settingRepository.findOne.mockResolvedValue({
+        value: '{"paused":false}',
+      });
+
+      await expect(service.getString(key)).resolves.toBe('{"paused":false}');
+      await expect(service.getString(key)).resolves.toBe('{"paused":false}');
+      expect(settingRepository.findOne).toHaveBeenCalledTimes(1);
+    });
+
+    it('goes to the database when asked for a fresh read', async () => {
+      settingRepository.findOne.mockResolvedValue({ value: 'a' });
+      await service.getString(key);
+      settingRepository.findOne.mockResolvedValue({ value: 'b' });
+
+      await expect(service.getString(key, true)).resolves.toBe('b');
+      expect(settingRepository.findOne).toHaveBeenCalledTimes(2);
     });
   });
 
