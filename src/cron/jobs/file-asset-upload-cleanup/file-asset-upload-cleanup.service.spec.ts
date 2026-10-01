@@ -14,7 +14,7 @@ describe('FileAssetUploadCleanupService', () => {
   beforeEach(() => {
     sweep = jest
       .fn<(...args: any[]) => Promise<any>>()
-      .mockResolvedValue({ abandoned: 2, undeleted: 1 });
+      .mockResolvedValue({ abandoned: 2, undeleted: 1, heldBy: null });
 
     service = new FileAssetUploadCleanupService({
       sweep,
@@ -35,6 +35,21 @@ describe('FileAssetUploadCleanupService', () => {
     expect(sweep).toHaveBeenCalled();
     expect(logSpy).toHaveBeenCalledWith(
       'Abandoned 2 stale upload(s); 1 left bytes in quarantine.',
+    );
+  });
+
+  // FC-042: nothing is given up on while the pipeline is stopped.
+  it('says why it kept every stale upload', async () => {
+    sweep.mockResolvedValue({
+      abandoned: 0,
+      undeleted: 0,
+      heldBy: 'WORKER_PAUSED',
+    });
+
+    await service.cleanup();
+
+    expect(logSpy).toHaveBeenCalledWith(
+      'Kept every stale upload: the pipeline was stopped (WORKER_PAUSED).',
     );
   });
 

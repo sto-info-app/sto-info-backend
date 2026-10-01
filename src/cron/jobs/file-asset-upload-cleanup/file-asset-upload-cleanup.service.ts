@@ -28,6 +28,14 @@ export class FileAssetUploadCleanupService {
   async cleanup(): Promise<void> {
     const report = await this._sweep.sweep();
 
+    if (report.heldBy !== null) {
+      this._logger.log(
+        `Kept every stale upload: the pipeline was stopped (${report.heldBy}).`,
+      );
+
+      return;
+    }
+
     this._logger.log(
       `Abandoned ${report.abandoned} stale upload(s); ` +
         `${report.undeleted} left bytes in quarantine.`,
