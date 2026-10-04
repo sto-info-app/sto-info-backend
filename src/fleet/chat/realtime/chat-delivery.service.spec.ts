@@ -454,6 +454,111 @@ describe('ChatDeliveryService', () => {
     });
   });
 
+  // FC-044: under load every reader's answer runs out together; a message
+  // must neither queue the database behind itself nor wait on one reader.
+  describe('under load (FC-044)', () => {
+    /**
+     * A promise settled from outside.
+     *
+     * @returns It, and how to settle it.
+     */
+    const deferred = <T>() => {
+      let settle: (value: T) => void = () => undefined;
+      const promise = new Promise<T>(resolve => (settle = resolve));
+
+      return { promise, settle };
+    };
+
+    it('looks a reader up once while several messages ask at once', async () => {
+      const readable = deferred<object>();
+      const blocks = deferred<Set<string>>();
+
+      messages.readableChannel.mockReturnValue(readable.promise);
+      direct.blockedFor.mockReturnValue(blocks.promise);
+
+      const asked = [
+        delivery.mayReceive(READER_ID, { channelId: CHANNEL_ID }),
+        delivery.mayReceive(READER_ID, { channelId: CHANNEL_ID }),
+      ];
+      const blocked = [
+        delivery.blockedFor(READER_ID),
+        delivery.blockedFor(READER_ID),
+      ];
+
+      readable.settle({});
+      blocks.settle(new Set());
+
+      await expect(Promise.all(asked)).resolves.toEqual([true, true]);
+      await expect(Promise.all(blocked)).resolves.toHaveLength(2);
+      expect(messages.readableChannel).toHaveBeenCalledTimes(1);
+      expect(direct.blockedFor).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps nothing it looked up across a change of access', async () => {
+      attached();
+
+      const readable = deferred<object>();
+      const blocks = deferred<Set<string>>();
+
+      messages.readableChannel.mockReturnValueOnce(readable.promise);
+      direct.blockedFor.mockReturnValueOnce(blocks.promise);
+
+      const asked = delivery.mayReceive(READER_ID, { channelId: CHANNEL_ID });
+      const blocked = delivery.blockedFor(READER_ID);
+
+      // Both lookups under way, past the account check, before the change.
+      await new Promise(resolve => setImmediate(resolve));
+      expect(messages.readableChannel).toHaveBeenCalledTimes(1);
+      await delivery.revoke({ kind: 'people', userIds: [READER_ID] });
+      readable.settle({});
+      blocks.settle(new Set());
+      await asked;
+      await blocked;
+
+      await delivery.mayReceive(READER_ID, { channelId: CHANNEL_ID });
+      await delivery.blockedFor(READER_ID);
+
+      expect(messages.readableChannel).toHaveBeenCalledTimes(2);
+      expect(direct.blockedFor).toHaveBeenCalledTimes(2);
+    });
+
+    it('tells each reader without waiting for another being looked up', async () => {
+      attached();
+
+      const slow = deferred<object>();
+      const waiting = socketOf(READER_ID);
+      const quick = socketOf(AUTHOR_ID);
+
+      sockets = [waiting, quick];
+      messages.readableChannel.mockImplementation(
+        async (_channelId: unknown, userId: unknown) =>
+          userId === READER_ID ? slow.promise : {},
+      );
+
+      const delivering = delivery.deliverLocally({
+        kind: 'message',
+        place: { channelId: CHANNEL_ID },
+        message: MESSAGE,
+      } as never);
+
+      await new Promise(resolve => setImmediate(resolve));
+
+      expect(quick.emit).toHaveBeenCalledWith(
+        CHAT_SERVER_EVENTS.MESSAGE,
+        expect.objectContaining({ id: MESSAGE.id }),
+      );
+      expect(waiting.emit).not.toHaveBeenCalled();
+
+      slow.settle({});
+      await delivering;
+
+      expect(waiting.emit).toHaveBeenCalledWith(
+        CHAT_SERVER_EVENTS.MESSAGE,
+        expect.objectContaining({ id: MESSAGE.id }),
+      );
+    });
+  });
+
   describe('roomOf', () => {
     it('names a channel’s room and a conversation’s', () => {
       expect(roomOf({ channelId: CHANNEL_ID })).toBe(`channel:${CHANNEL_ID}`);

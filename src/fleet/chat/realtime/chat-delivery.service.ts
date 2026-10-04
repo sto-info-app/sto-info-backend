@@ -138,6 +138,24 @@ export class ChatDeliveryService {
   >();
 
   /**
+   * Answers being looked up now, so a channel's readers checked by several
+   * messages at once are looked up once (FC-044): under load every reader's
+   * answer runs out together, and each message asking again for each of them
+   * queued the database behind itself.
+   */
+  private readonly _asking = new Map<string, Promise<boolean>>();
+  private readonly _blocksAsking = new Map<
+    string,
+    Promise<ReadonlySet<string>>
+  >();
+
+  /**
+   * Counts every forgetting, so an answer looked up across one is used once
+   * and not kept: it may be from before the change.
+   */
+  private _generation = 0;
+
+  /**
    * Creates an instance of ChatDeliveryService.
    *
    * @param _dataSource - The database.
@@ -265,44 +283,62 @@ export class ChatDeliveryService {
     try {
       const sockets = await server.local.in(room).fetchSockets();
 
-      for (const socket of sockets) {
-        const userId = socket.data.userId as string;
-
-        if (!(await this.mayReceive(userId, fanout.place))) {
-          socket.leave(room);
-          socket.emit(CHAT_SERVER_EVENTS.REMOVED, fanout.place);
-          continue;
-        }
-
-        const blocked = await this.blockedFor(userId);
-
-        if (fanout.kind === 'message') {
-          socket.emit(
-            CHAT_SERVER_EVENTS.MESSAGE,
-            this.asSeenBy(fanout.message, userId, blocked),
-          );
-        } else if (fanout.kind === 'deleted') {
-          socket.emit(CHAT_SERVER_EVENTS.DELETED, {
-            ...fanout.place,
-            messageId: fanout.messageId,
-            removed: fanout.removed,
-          });
-        } else if (
-          fanout.user.userId !== userId &&
-          !blocked.has(fanout.user.userId) &&
-          (await this._presence.typingEnabled(userId))
-        ) {
-          socket.emit(CHAT_SERVER_EVENTS.TYPING, {
-            ...fanout.place,
-            user: fanout.user,
-          });
-        }
-      }
+      // Each reader at once: one whose answer has to be looked up holds up
+      // nobody else (FC-044). A reader's own messages still read in order of
+      // sending, because the page sorts what it is told.
+      await Promise.all(sockets.map(socket => this.tell(socket, fanout, room)));
     } catch (error) {
       this._logger.error(
         `[deliver] Chat delivery failed - Room: ${room}`,
         (error as Error).stack,
       );
+    }
+  }
+
+  /**
+   * Tells one socket about a fanout, if its reader may still read the place;
+   * otherwise it leaves the room.
+   *
+   * @param socket - The socket.
+   * @param fanout - What to tell it.
+   * @param room - The place's room.
+   */
+  private async tell(
+    socket: Awaited<ReturnType<Namespace['fetchSockets']>>[number],
+    fanout: ChatFanout,
+    room: string,
+  ): Promise<void> {
+    const userId = socket.data.userId as string;
+
+    if (!(await this.mayReceive(userId, fanout.place))) {
+      socket.leave(room);
+      socket.emit(CHAT_SERVER_EVENTS.REMOVED, fanout.place);
+
+      return;
+    }
+
+    const blocked = await this.blockedFor(userId);
+
+    if (fanout.kind === 'message') {
+      socket.emit(
+        CHAT_SERVER_EVENTS.MESSAGE,
+        this.asSeenBy(fanout.message, userId, blocked),
+      );
+    } else if (fanout.kind === 'deleted') {
+      socket.emit(CHAT_SERVER_EVENTS.DELETED, {
+        ...fanout.place,
+        messageId: fanout.messageId,
+        removed: fanout.removed,
+      });
+    } else if (
+      fanout.user.userId !== userId &&
+      !blocked.has(fanout.user.userId) &&
+      (await this._presence.typingEnabled(userId))
+    ) {
+      socket.emit(CHAT_SERVER_EVENTS.TYPING, {
+        ...fanout.place,
+        user: fanout.user,
+      });
     }
   }
 
@@ -381,14 +417,34 @@ export class ChatDeliveryService {
       return known.value;
     }
 
-    const value = await this._direct.blockedFor(userId);
+    const pending = this._blocksAsking.get(userId);
 
-    this._blocks.set(userId, {
-      value,
-      until: Date.now() + CHAT_DELIVERY_CHECK_TTL_MS,
-    });
+    if (pending !== undefined) {
+      return pending;
+    }
 
-    return value;
+    const generation = this._generation;
+    const asking = this._direct
+      .blockedFor(userId)
+      .then(value => {
+        if (generation === this._generation) {
+          this._blocks.set(userId, {
+            value,
+            until: Date.now() + CHAT_DELIVERY_CHECK_TTL_MS,
+          });
+        }
+
+        return value;
+      })
+      .finally(() => {
+        if (this._blocksAsking.get(userId) === asking) {
+          this._blocksAsking.delete(userId);
+        }
+      });
+
+    this._blocksAsking.set(userId, asking);
+
+    return asking;
   }
 
   /**
@@ -484,6 +540,12 @@ export class ChatDeliveryService {
    * @param change - Whose right to read may have changed.
    */
   private forget(change: ChatAccessChange): void {
+    // Anything still being looked up may be from before the change: it is
+    // given to whoever is waiting for it, and kept by nobody.
+    this._generation += 1;
+    this._asking.clear();
+    this._blocksAsking.clear();
+
     if (change.kind === 'everyone') {
       this._checks.clear();
       this._blocks.clear();
@@ -520,18 +582,40 @@ export class ChatDeliveryService {
       return known.allowed;
     }
 
-    const allowed = await ask();
+    const pending = this._asking.get(key);
 
-    if (this._checks.size >= CHECKS_KEPT) {
-      for (const [each, check] of this._checks) {
-        if (check.until <= now) {
-          this._checks.delete(each);
-        }
-      }
+    if (pending !== undefined) {
+      return pending;
     }
 
-    this._checks.set(key, { allowed, until: now + CHAT_DELIVERY_CHECK_TTL_MS });
+    const generation = this._generation;
+    const asking = ask()
+      .then(allowed => {
+        if (generation === this._generation) {
+          if (this._checks.size >= CHECKS_KEPT) {
+            for (const [each, check] of this._checks) {
+              if (check.until <= now) {
+                this._checks.delete(each);
+              }
+            }
+          }
 
-    return allowed;
+          this._checks.set(key, {
+            allowed,
+            until: now + CHAT_DELIVERY_CHECK_TTL_MS,
+          });
+        }
+
+        return allowed;
+      })
+      .finally(() => {
+        if (this._asking.get(key) === asking) {
+          this._asking.delete(key);
+        }
+      });
+
+    this._asking.set(key, asking);
+
+    return asking;
   }
 }
