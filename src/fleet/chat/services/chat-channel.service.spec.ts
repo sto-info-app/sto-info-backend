@@ -28,8 +28,11 @@ import {
 } from '../../../../test/chat-world';
 import { Row } from '../../../../test/in-memory-manager';
 import { ArmadaFleetMembershipEntity } from '../../entities/armada-fleet-membership.entity';
+import { FleetCommunityEntity } from '../../entities/fleet-community.entity';
 import { ScopeMembershipEntity } from '../../entities/scope-membership.entity';
 import { ScopeRoleAssignmentEntity } from '../../entities/scope-role-assignment.entity';
+import { StoArmadaEntity } from '../../entities/sto-armada.entity';
+import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { FleetScopeKind } from '../../enums/fleet-scope-kind.enum';
 import { FleetScopeRole } from '../../enums/fleet-scope-role.enum';
 import { ScopeMembershipStatus } from '../../enums/scope-membership-status.enum';
@@ -191,6 +194,93 @@ describe('ChatChannelService', () => {
       const listed = await world.channels.mine(MEMBER_ID);
 
       expect(listed.map(scope => scope.kind)).toEqual([FleetScopeKind.ARMADA]);
+    });
+
+    describe('across a whole Community (FC-044)', () => {
+      const OWNER_ID = '31000000-0000-4000-8000-000000000015';
+      const OWNER: typeof MODERATOR = {
+        ...MODERATOR,
+        roles: [FleetScopeRole.OWNER],
+        member: false,
+      };
+
+      /**
+       * Puts the Fleet and the Armada in the Community, and makes it the
+       * Owner's.
+       */
+      const ownedCommunity = (): void => {
+        const [community] = world.db.rows(FleetCommunityEntity);
+        const [fleet] = world.db.rows(StoFleetEntity);
+        const [armada] = world.db.rows(StoArmadaEntity);
+
+        community.ownerUserId = OWNER_ID;
+        fleet.communityId = COMMUNITY_ID;
+        armada.communityId = COMMUNITY_ID;
+      };
+
+      it('lists the Owner the Community and every Fleet and Armada in it, with no row of their own', async () => {
+        ownedCommunity();
+
+        for (const scopeId of [COMMUNITY_ID, FLEET_ID, ARMADA_ID]) {
+          world.stand(OWNER_ID, scopeId, OWNER);
+        }
+
+        const listed = await world.channels.mine(OWNER_ID);
+
+        expect(listed.map(scope => [scope.kind, scope.target])).toEqual([
+          [
+            FleetScopeKind.COMMUNITY,
+            { communityId: COMMUNITY_ID, fleetId: null, armadaId: null },
+          ],
+          [
+            FleetScopeKind.ARMADA,
+            { communityId: COMMUNITY_ID, fleetId: null, armadaId: ARMADA_ID },
+          ],
+          [
+            FleetScopeKind.FLEET,
+            { communityId: COMMUNITY_ID, fleetId: FLEET_ID, armadaId: null },
+          ],
+        ]);
+        expect(listed.every(scope => scope.mayCreate)).toBe(true);
+      });
+
+      it('lists every Fleet and Armada to a role held across the Community', async () => {
+        ownedCommunity();
+        world.db.seed(ScopeRoleAssignmentEntity, [
+          {
+            communityId: COMMUNITY_ID,
+            fleetId: null,
+            armadaId: null,
+            userId: MEMBER_ID,
+            role: FleetScopeRole.OFFICER,
+            validTo: null,
+            deletedAt: null,
+          },
+        ]);
+
+        for (const scopeId of [COMMUNITY_ID, FLEET_ID, ARMADA_ID]) {
+          world.stand(MEMBER_ID, scopeId, OFFICER);
+        }
+
+        const listed = await world.channels.mine(MEMBER_ID);
+
+        expect(listed.map(scope => scope.kind)).toEqual([
+          FleetScopeKind.COMMUNITY,
+          FleetScopeKind.ARMADA,
+          FleetScopeKind.FLEET,
+        ]);
+      });
+
+      it('still skips a place the standing does not reach', async () => {
+        ownedCommunity();
+        world.stand(OWNER_ID, COMMUNITY_ID, OWNER);
+
+        const listed = await world.channels.mine(OWNER_ID);
+
+        expect(listed.map(scope => scope.kind)).toEqual([
+          FleetScopeKind.COMMUNITY,
+        ]);
+      });
     });
 
     it('asks no placements when they are in no Fleet', async () => {

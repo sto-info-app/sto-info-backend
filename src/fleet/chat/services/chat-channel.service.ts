@@ -17,8 +17,11 @@ import {
 } from 'typeorm';
 
 import { ArmadaFleetMembershipEntity } from '../../entities/armada-fleet-membership.entity';
+import { FleetCommunityEntity } from '../../entities/fleet-community.entity';
 import { ScopeMembershipEntity } from '../../entities/scope-membership.entity';
 import { ScopeRoleAssignmentEntity } from '../../entities/scope-role-assignment.entity';
+import { StoArmadaEntity } from '../../entities/sto-armada.entity';
+import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { FleetScopeKind } from '../../enums/fleet-scope-kind.enum';
 import { FleetScopeRole } from '../../enums/fleet-scope-role.enum';
 import { ScopeMembershipStatus } from '../../enums/scope-membership-status.enum';
@@ -113,13 +116,17 @@ export class ChatChannelService {
    * they belong to, each Armada their Fleets are placed in, and each Fleet,
    * as well as anywhere they hold a role.
    *
+   * A role held across a whole Community, and the Owner's standing, which
+   * lives on the Community rather than in a role row, reach every Fleet and
+   * Armada in it, so each of those is listed too (FC-044).
+   *
    * @param userId - The person.
    * @returns Each scope's channels, Communities first, then Armadas, then
    *   Fleets.
    */
   async mine(userId: string): Promise<ChatScopeChannelsDto[]> {
     const manager = this._dataSource.manager;
-    const [memberships, roles] = await Promise.all([
+    const [memberships, roles, owned] = await Promise.all([
       manager.find(ScopeMembershipEntity, {
         where: {
           userId,
@@ -130,7 +137,32 @@ export class ChatChannelService {
       manager.find(ScopeRoleAssignmentEntity, {
         where: { userId, validTo: IsNull(), deletedAt: IsNull() },
       }),
+      manager.find(FleetCommunityEntity, {
+        where: { ownerUserId: userId },
+        select: { id: true },
+      }),
     ]);
+    const wholeCommunities = [
+      ...new Set([
+        ...owned.map(community => community.id),
+        ...roles
+          .filter(role => role.fleetId === null && role.armadaId === null)
+          .map(role => role.communityId),
+      ]),
+    ];
+    const [wholeFleets, wholeArmadas] =
+      wholeCommunities.length === 0
+        ? [[], []]
+        : await Promise.all([
+            manager.find(StoFleetEntity, {
+              where: { communityId: In(wholeCommunities) },
+              select: { id: true, communityId: true },
+            }),
+            manager.find(StoArmadaEntity, {
+              where: { communityId: In(wholeCommunities) },
+              select: { id: true, communityId: true },
+            }),
+          ]);
     const fleetIds = memberships
       .map(membership => membership.fleetId)
       .filter((fleetId): fleetId is string => fleetId !== null);
@@ -160,6 +192,19 @@ export class ChatChannelService {
 
     for (const placement of placements) {
       add(armadaScope(placement.communityId, placement.armadaId));
+    }
+
+    for (const communityId of wholeCommunities) {
+      add(communityScope(communityId));
+    }
+
+    for (const fleet of wholeFleets) {
+      // Found by Community, so never a standalone Fleet.
+      add(fleetScope(fleet.communityId as string, fleet.id));
+    }
+
+    for (const armada of wholeArmadas) {
+      add(armadaScope(armada.communityId, armada.id));
     }
 
     const listed: ChatScopeChannelsDto[] = [];
