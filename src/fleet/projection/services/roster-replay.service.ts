@@ -61,6 +61,17 @@ export interface RosterReplaySummary {
 interface Published {
   readonly projection: RosterProjectionEntity | null;
   readonly counts: Omit<RosterReplaySummary, 'revision' | 'proposed'>;
+  /**
+   * How long each part of a replay that built something took, in
+   * milliseconds, for the log (FC-044): a replay's duration is one of the
+   * plan's operational measures, and where it goes is what tuning needs.
+   */
+  readonly timings?: Readonly<
+    Record<
+      'evidence' | 'identities' | 'projection' | 'write' | 'cleanUp',
+      number
+    >
+  >;
 }
 
 /** Counts for a replay that built nothing. */
@@ -162,12 +173,19 @@ export class RosterReplayService {
       proposed,
     };
 
+    const { timings } = published;
+
     this._logger.log(
       `[replay] Roster replayed - FleetId: ${fleetId}, ` +
         `Built: ${summary.built}, Revision: ${summary.revision}, ` +
         `Imports: ${summary.imports}, Episodes: ${summary.episodes}, ` +
         `Changes: ${summary.changes}, Intervals: ${summary.intervals}, ` +
-        `Proposed: ${summary.proposed}`,
+        `Proposed: ${summary.proposed}` +
+        (timings === undefined
+          ? ''
+          : `, Ms: evidence ${timings.evidence}, identities ${timings.identities}, ` +
+            `projection ${timings.projection}, write ${timings.write}, ` +
+            `clean-up ${timings.cleanUp}`),
     );
 
     return summary;
@@ -197,20 +215,34 @@ export class RosterReplayService {
     }
 
     const target = projection.requested;
+    let lap = performance.now();
+    const elapsed = (): number => {
+      const now = performance.now();
+      const taken = Math.round(now - lap);
+
+      lap = now;
+
+      return taken;
+    };
     const evidence = await this._evidence.read(manager, fleetId);
+    const evidenceMs = elapsed();
     const { aliases, summary: identities } =
       await this._identities.recomputeWithin(
         manager,
         fleetId,
         this.matcherSnapshots(evidence),
       );
+    const identitiesMs = elapsed();
     const projected = this._projector.project(
       this.projectorSnapshots(evidence, aliases),
     );
+    const projectionMs = elapsed();
     const revision = projection.revision + 1;
     const latest = evidence.snapshots[evidence.snapshots.length - 1] ?? null;
 
     await this.write(manager, fleetId, revision, evidence, projected);
+
+    const writeMs = elapsed();
 
     const published = {
       revision,
@@ -251,6 +283,13 @@ export class RosterReplayService {
 
     return {
       projection: { ...projection, ...published },
+      timings: {
+        evidence: evidenceMs,
+        identities: identitiesMs,
+        projection: projectionMs,
+        write: writeMs,
+        cleanUp: elapsed(),
+      },
       counts: {
         built: true,
         imports: evidence.snapshots.length,

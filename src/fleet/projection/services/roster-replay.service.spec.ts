@@ -553,9 +553,14 @@ describe('RosterReplayService', () => {
       await service.replay(FLEET_ID);
 
       expect(log).toHaveBeenCalledWith(
-        `[replay] Roster replayed - FleetId: ${FLEET_ID}, Built: true, ` +
-          'Revision: 5, Imports: 2, Episodes: 2, Changes: 2, Intervals: 1, ' +
-          'Proposed: 0',
+        expect.stringMatching(
+          new RegExp(
+            `^\\[replay\\] Roster replayed - FleetId: ${FLEET_ID}, Built: true, ` +
+              'Revision: 5, Imports: 2, Episodes: 2, Changes: 2, Intervals: 1, ' +
+              'Proposed: 0, Ms: evidence \\d+, identities \\d+, ' +
+              'projection \\d+, write \\d+, clean-up \\d+$',
+          ),
+        ),
       );
       expect(JSON.stringify(log.mock.calls)).not.toContain('Kira');
     });
