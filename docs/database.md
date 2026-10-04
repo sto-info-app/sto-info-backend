@@ -402,6 +402,7 @@ describes that table.
 | `retention_run` | One row per run of a Fleet retention job; deleted after **a year** (FC-037) |
 | `roster_erasure` | Kept: it is the suppression list, and its markers are also in the erasure ledger outside the database (FC-038) |
 | `_audit` for chat, roster, news and form content | Identifiers only (FC-038) |
+| `_audit` for derived roster rows | None written (FC-044): what an import or replay computes from an export — observations, identities and their aliases, episodes, changes, interval summaries and projection inputs (`DERIVED_ROSTER_ENTITIES` in `audit.subscriber.ts`) — is recomputed whole on every replay and records nothing anybody did. The import, its exclusions and corrections, and every decision about a roster are audited where they are made |
 | `fleet_investigation_grant` | Kept as the record of each look; it goes with its Fleet |
 | `site_admin_action` | Records deleted after `AUDIT_DATA_NUKE_THRESHOLD_DAYS` days; `ipAddress` nulled after `AUDIT_IP_NUKE_THRESHOLD_DAYS` days, like `_audit` (FC-039) |
 | `scope_governance_action`, `scope_membership_action`, `chat_action` | Kept for as long as their scope exists: they are its history (FC-039) |

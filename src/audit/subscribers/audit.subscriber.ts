@@ -8,6 +8,13 @@ import {
   UpdateEvent,
 } from 'typeorm';
 
+import { RosterIdentityAliasEntity } from 'src/fleet/identity/entities/roster-identity-alias.entity';
+import { RosterIdentityEntity } from 'src/fleet/identity/entities/roster-identity.entity';
+import { RosterObservationEntity } from 'src/fleet/imports/entities/roster-observation.entity';
+import { RosterChangeEntity } from 'src/fleet/projection/entities/roster-change.entity';
+import { RosterEpisodeEntity } from 'src/fleet/projection/entities/roster-episode.entity';
+import { RosterIntervalSummaryEntity } from 'src/fleet/projection/entities/roster-interval-summary.entity';
+import { RosterProjectionInputEntity } from 'src/fleet/projection/entities/roster-projection-input.entity';
 import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
 import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
 
@@ -15,6 +22,25 @@ import { redactForAudit } from '../audit-redaction';
 import { AuditLoginAttemptEntity } from '../entities/audit-login-attempt.entity';
 import { AuditEntity } from '../entities/audit.entity';
 import { SiteAdminActionEntity } from '../site-admin/site-admin-action.entity';
+
+/**
+ * What an import or a roster replay computes from an uploaded export, row by
+ * row, and recomputes whole on every replay (FC-044, Steve's decision of
+ * 2 October 2026). Auditing it recorded nothing anybody did: the import, its
+ * exclusions and corrections, and every decision about the roster are
+ * audited where they are made. It cost one INSERT per derived row — a
+ * long-history replay wrote a hundred and fifty thousand of them, took more
+ * than three minutes, and left `_audit` hundreds of megabytes larger.
+ */
+export const DERIVED_ROSTER_ENTITIES: readonly EntityTarget<unknown>[] = [
+  RosterObservationEntity,
+  RosterIdentityEntity,
+  RosterIdentityAliasEntity,
+  RosterEpisodeEntity,
+  RosterChangeEntity,
+  RosterIntervalSummaryEntity,
+  RosterProjectionInputEntity,
+];
 
 // Define the type alias
 type AuditEventType = InsertEvent<any> | UpdateEvent<any> | RemoveEvent<any>;
@@ -80,6 +106,7 @@ export class AuditSubscriber implements EntitySubscriberInterface {
       UserRefreshTokenEntity,
       // An audit record itself (FC-039).
       SiteAdminActionEntity,
+      ...DERIVED_ROSTER_ENTITIES,
     ];
     if (
       excludedEntitiesFromAuditing.includes(

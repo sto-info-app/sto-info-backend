@@ -14,7 +14,7 @@ import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-ref
 import { AUDIT_REDACTED, RedactFromAudit } from '../audit-redaction';
 import { AuditLoginAttemptEntity } from '../entities/audit-login-attempt.entity';
 import { AuditEntity } from '../entities/audit.entity';
-import { AuditSubscriber } from './audit.subscriber';
+import { AuditSubscriber, DERIVED_ROSTER_ENTITIES } from './audit.subscriber';
 
 // Mock class-validator to avoid decorator issues
 jest.mock('class-validator', () => ({
@@ -138,6 +138,22 @@ describe('AuditSubscriber', () => {
 
       expect(mockRepository.save).not.toHaveBeenCalled();
     });
+
+    // FC-044: what a replay or an import computes from an export, row by row.
+    it.each(DERIVED_ROSTER_ENTITIES.map(entity => [entity]))(
+      'should not audit a derived roster row (%p)',
+      async entity => {
+        const event: Partial<InsertEvent<any>> = {
+          entity: { id: '1' },
+          metadata: { target: entity, name: String(entity) } as any,
+          manager: mockManager as EntityManager,
+        };
+
+        await subscriber.afterInsert(event as InsertEvent<any>);
+
+        expect(mockRepository.save).not.toHaveBeenCalled();
+      },
+    );
 
     it('should not audit AuditLoginAttemptEntity', async () => {
       const event: Partial<InsertEvent<any>> = {
