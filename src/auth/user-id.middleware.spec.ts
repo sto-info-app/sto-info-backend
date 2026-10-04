@@ -67,7 +67,7 @@ describe('UserIdMiddleware', () => {
       headers?: {
         authorization?: string;
       };
-      ip?: string;
+      clientIp?: string;
       userUuid?: string;
       user?: { id?: string };
     };
@@ -81,7 +81,7 @@ describe('UserIdMiddleware', () => {
     beforeEach(() => {
       req = {
         headers: {},
-        ip: '127.0.0.1',
+        clientIp: '127.0.0.1',
       };
       res = {} as ResponseStub as Response;
       next = jest.fn();
@@ -130,8 +130,8 @@ describe('UserIdMiddleware', () => {
       spySet.mockRestore();
     });
 
-    it('should set IP to null if req.ip is missing', async () => {
-      req.ip = undefined;
+    it('should set IP to null if the request has no client address', async () => {
+      req.clientIp = undefined;
       const spy = jest.spyOn(CurrentContextHelper, 'ip', 'set');
       await middleware.use(req as unknown as Request, res, next);
       expect(spy).toHaveBeenCalledWith(null);

@@ -25,7 +25,7 @@ import { RedisStore, type RedisReply } from 'rate-limit-redis';
 
 import { AppModule } from './app.module';
 import { NonceMiddleware } from './auth/nonce.middleware';
-import { clientIpMiddleware } from './common/http/client-ip.middleware';
+import { CloudflareOrigin } from './common/http/cloudflare-origin';
 import { FallbackRateLimitStore } from './common/http/fallback-rate-limit.store';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { ConfigCheckService } from './config-check/config-check.service';
@@ -40,6 +40,7 @@ import {
   REGISTRY_RATE_LIMITED_ROUTES,
 } from './shared/constants/rate-limit.constants';
 import { SWAGGER_UI_DARK_THEME_CSS } from './shared/constants/swagger.constants';
+import { SecretsService } from './shared/secrets/secrets.service';
 import { getAppVersion } from './shared/utilities/version.utility';
 
 config({ path: 'config/environments/.env' });
@@ -264,13 +265,45 @@ async function bootstrap() {
     allowedHeaders: allowedHeaders,
   });
 
+  // Only what came through Cloudflare is served outside a developer's machine
+  // (FC-044): a request must carry the origin secret Cloudflare adds, and only
+  // then is its CF-Connecting-IP believed. Without the secret the backend
+  // would serve anybody who found the origin, keyed on whatever address they
+  // claimed, so it does not start.
+  const secrets = await app
+    .get(SecretsService)
+    .getSecret(configService.get<string>('AWS_SECRET_NAME')!);
+  const originSecret =
+    typeof secrets.cloudflareOriginVerifySecret === 'string'
+      ? secrets.cloudflareOriginVerifySecret
+      : null;
+
+  if (!inLocal && !originSecret) {
+    throw new Error(
+      'cloudflareOriginVerifySecret is not set: outside local the backend serves only what Cloudflare forwards (see docs/infrastructure.md#origin-proxy-trust).',
+    );
+  }
+
+  const cloudflareOrigin = new CloudflareOrigin(originSecret);
+
+  // Before anything reads a body, so a request that bypassed Cloudflare costs
+  // nothing more than its refusal.
+  app.use(cloudflareOrigin.middleware());
+
   // Chat's socket (FC-032): WebSocket only, from the same origins, with rooms
   // shared between instances through two more Redis connections.
   app.useWebSocketAdapter(
-    new ChatIoAdapter(app, allowedOrigins, redis.duplicate(), createAdapter),
+    new ChatIoAdapter(
+      app,
+      allowedOrigins,
+      redis.duplicate(),
+      createAdapter,
+      cloudflareOrigin,
+    ),
   );
 
-  // Trust only the first proxy (Cloudflare used as a proxy) - needed for rate limiting
+  // Express's own view of the proxies in front, for what Express derives from
+  // them. The client address is CloudflareOrigin's, never `req.ip` (FC-044).
   const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 1);
 
   // Set trust proxy if not in local environment
@@ -302,9 +335,6 @@ async function bootstrap() {
     }
     next();
   });
-
-  // Use the client IP middleware
-  app.use(clientIpMiddleware);
 
   // Use the nonce middleware
   app.use(new NonceMiddleware().use);

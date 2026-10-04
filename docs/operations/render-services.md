@@ -199,3 +199,10 @@ FC-052 rather than guessed here.
   Render's private network only if they share its region.
 - **The production secret's name**, and whether the worker has its own.
 - **The worker's plan name** for 2 GB.
+- **Only what comes through Cloudflare is served** (FC-044). Before the release: put a long random
+  `cloudflareOriginVerifySecret` in the production secret (and a different one in the dev
+  secret); add a Cloudflare Transform Rule on `api.startrekonline.info` (and `dev-api.`) that sets
+  `X-Origin-Verify` to it; check that the site, sign-in and chat's socket work through Cloudflare,
+  and that a request straight to the origin is refused `403` while `/health/ready` still answers;
+  then switch off the service's `onrender.com` subdomain. The backend refuses to start without the
+  secret. See [Infrastructure: origin proxy trust](../infrastructure.md#origin-proxy-trust).

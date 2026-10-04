@@ -164,31 +164,18 @@ Middleware executes in the following order:
 
 ### Client IP Middleware
 
-**Critical Implementation Detail:**
+`CloudflareOrigin` (`src/common/http/cloudflare-origin.ts`), mounted before the body parsers,
+decides once per request whether it came through Cloudflare and whose address it is (FC-044):
 
-The `clientIpMiddleware` extracts the real client IP address from Cloudflare headers, prioritising `CF-Connecting-IP` over `X-Forwarded-For`.
+- A request carrying the origin secret in `X-Origin-Verify` has `CF-Connecting-IP` as its address.
+- Any other request is refused `403`, except `/health/`, once the secret is set, which it must be
+  outside `local`. Chat's socket is held to the same rule.
+- No header the caller wrote is ever believed: `X-Forwarded-For` is not read for the address.
+- Without a secret, on a developer's machine, every request's address is its connection's own.
 
-**Why This Matters:**
-
-- Cloudflare proxies all requests, so `req.ip` would show Cloudflare's IP, not the actual client
-- `CF-Connecting-IP` is the authoritative header from Cloudflare containing the real client IP
-- `X-Forwarded-For` can be spoofed or contain multiple IPs; only trust it when from Cloudflare
-- Proper client IP is essential for rate limiting, logging, and security
-
-**Implementation:**
-
-```typescript
-// Extract in this priority order:
-1. CF-Connecting-IP (Cloudflare's authoritative header)
-2. X-Forwarded-For (fallback, take first IP)
-3. req.ip (last resort)
-```
-
-**Testing:**
-
-- In production, `CF-Connecting-IP` should always be present
-- In local development, fallback headers will be used
-- Verify logs show correct client IPs, not Cloudflare infrastructure IPs
+The address is `req.clientIp`. The rate limits key on it, and `UserIdMiddleware` puts it in
+`CurrentContextHelper.ip` for the login, audit and site admin logs. See
+[Infrastructure: origin proxy trust](infrastructure.md#origin-proxy-trust).
 
 ## Logging Strategy
 
@@ -301,15 +288,14 @@ outage.
 - Rate limit keys are generated from client IP addresses
 - IPv4 addresses: Used directly (e.g., `192.0.2.1`)
 - IPv6 addresses: `/64` subnet prefix used for keying (common recommendation for IPv6 subnetting)
-- IPv6-mapped IPv4 addresses (`:ffff:192.0.2.1`) are normalized to IPv4 by `clientIpMiddleware` before reaching rate limiter
+- IPv6-mapped IPv4 addresses (`:ffff:192.0.2.1`) are normalized to IPv4 by `CloudflareOrigin` before reaching the rate limiter
 
 **IP Address Resolution:**
 
-Client IP is extracted in priority order:
-
-1. `CF-Connecting-IP` (Cloudflare's authoritative header)
-2. First entry from `X-Forwarded-For`
-3. Express `req.ip`
+The key is `req.clientIp`, which `CloudflareOrigin` decides (FC-044): `CF-Connecting-IP` on a
+request proved to come through Cloudflare, otherwise the connection's own peer. A request that
+did not come through Cloudflare is refused before it reaches a limiter, so no header a caller
+writes can move them to a fresh bucket. See [Client IP Middleware](#client-ip-middleware).
 
 ### Rate Limit Headers
 

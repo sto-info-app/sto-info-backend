@@ -299,7 +299,11 @@ export class Rehearsal {
       cloudflareR2QuarantineReadSecret: this.config.minioPassword,
       cloudflareR2ExportsAccessKey: MINIO_USER,
       cloudflareR2ExportsSecret: this.config.minioPassword,
+      // The secret Cloudflare adds to what it forwards (FC-044): with it set,
+      // the backend serves only requests that carry it, as in production.
+      cloudflareOriginVerifySecret: generated(),
     };
+    Api.originSecret = this.secret.cloudflareOriginVerifySecret;
   }
 
   /**
@@ -1273,6 +1277,24 @@ export async function coldStart(r: Rehearsal): Promise<void> {
     (
       /Restore check finished - (.*)/.exec(log)?.[1] ?? 'no summary line'
     ).trim(),
+  );
+
+  // FC-044: only what came through Cloudflare is served, whatever address a
+  // request claims; Render's health checks are the exception.
+  const bypassed = await fetch(
+    `http://127.0.0.1:${r.config.ports.backend}/fleet/configuration`,
+    { headers: { 'CF-Connecting-IP': '203.0.113.9' } },
+  );
+  const health = await fetch(
+    `http://127.0.0.1:${r.config.ports.backend}/health/ready`,
+  );
+
+  r.results.check(
+    'S1 Cold start',
+    'A request that bypassed Cloudflare is refused, whatever address it claims; a health check is not',
+    bypassed.status === 403 && health.status === 200,
+    null,
+    `${bypassed.status}, health ${health.status}`,
   );
 
   // The local fixture Community, seeded for the admin by the migration that

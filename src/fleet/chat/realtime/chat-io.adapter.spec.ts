@@ -13,6 +13,11 @@ import {
 import type { Redis } from 'ioredis';
 import { Server, ServerOptions } from 'socket.io';
 
+import {
+  CLOUDFLARE_ORIGIN_HEADER,
+  CloudflareOrigin,
+} from 'src/common/http/cloudflare-origin';
+
 import { ChatAdapterFactory, ChatIoAdapter } from './chat-io.adapter';
 
 const SITE = 'https://startrekonline.info';
@@ -110,6 +115,28 @@ describe('ChatIoAdapter', () => {
     }
 
     expect(answers).toEqual([true, true, false]);
+  });
+
+  // FC-044: once the origin secret is set, a socket opens only through
+  // Cloudflare, whatever page it says it is from.
+  it('lets in only what came through Cloudflare, once that is required', () => {
+    const behindCloudflare = new ChatIoAdapter(
+      createServer() as never,
+      [SITE],
+      publisher as unknown as Redis,
+      redisAdapter,
+      new CloudflareOrigin('the-origin-secret'),
+    );
+    const through = {
+      headers: {
+        origin: SITE,
+        [CLOUDFLARE_ORIGIN_HEADER]: 'the-origin-secret',
+      },
+    } as unknown as IncomingMessage;
+
+    expect(behindCloudflare.allows(through)).toBe(true);
+    expect(behindCloudflare.allows(requestFrom(SITE))).toBe(false);
+    expect(behindCloudflare.allows(requestFrom())).toBe(false);
   });
 
   it('closes the server, then both Redis connections', async () => {

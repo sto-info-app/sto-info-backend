@@ -667,8 +667,27 @@ export interface ApiAnswer<T = unknown> {
   readonly body: T;
 }
 
+/**
+ * The header that proves a request came through Cloudflare, when the run's
+ * backend expects it (FC-044).
+ *
+ * @returns The header, or nothing.
+ */
+export function originHeaders(): Record<string, string> {
+  return Api.originSecret === null
+    ? {}
+    : { 'X-Origin-Verify': Api.originSecret };
+}
+
 /** The backend's HTTP API, as a signed-in site admin. */
 export class Api {
+  /**
+   * The origin secret this run's backend holds (FC-044). Every request
+   * carries it, as Cloudflare adds it to everything it forwards, or the
+   * backend refuses it.
+   */
+  static originSecret: string | null = null;
+
   private _token: string | null = null;
 
   /** The last answer's Cache-Control header, or null when it sent none. */
@@ -738,6 +757,7 @@ export class Api {
     const response = await fetch(`http://127.0.0.1:${this._port}${path}`, {
       method,
       headers: {
+        ...originHeaders(),
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
         ...(this._token === null
           ? {}
@@ -787,8 +807,12 @@ export class Api {
 
     const response = await fetch(`http://127.0.0.1:${this._port}${path}`, {
       method: 'POST',
-      headers:
-        this._token === null ? {} : { Authorization: `Bearer ${this._token}` },
+      headers: {
+        ...originHeaders(),
+        ...(this._token === null
+          ? {}
+          : { Authorization: `Bearer ${this._token}` }),
+      },
       body: form,
       signal: AbortSignal.timeout(timeoutMs),
     });

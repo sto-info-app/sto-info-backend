@@ -4,6 +4,9 @@ import { ConfigService } from '@nestjs/config';
 import { NextFunction, Request, Response } from 'express';
 import * as jwt from 'jsonwebtoken';
 
+// Declares req.clientIp, which CloudflareOrigin sets before this runs.
+import type {} from 'src/common/http/cloudflare-origin';
+
 import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
 
@@ -37,8 +40,9 @@ export class UserIdMiddleware implements NestMiddleware {
    * @param next - The next middleware function in the stack.
    */
   async use(req: Request, _res: Response, next: NextFunction) {
-    // Always capture IP for audit logging
-    CurrentContextHelper.ip = req.ip || null;
+    // Always capture IP for audit logging: the one address CloudflareOrigin
+    // decided for the request, never a header the caller wrote (FC-044).
+    CurrentContextHelper.ip = req.clientIp || null;
 
     if (!this.isUserUuidSet()) {
       const token = this.extractToken(req);

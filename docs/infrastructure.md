@@ -565,16 +565,45 @@ refused by every route exactly as a properly closed one is. See
 - `X-Forwarded-For`: Client IP chain (may include proxies)
 - `X-Forwarded-Proto`: Original protocol (http/https)
 
+**Cloudflare also adds**, by a Transform Rule: `X-Origin-Verify`, carrying the origin secret
+(FC-044). See [Origin proxy trust](#origin-proxy-trust).
+
 **Backend Should Use:**
 
-- `CF-Connecting-IP` for real client IP (most reliable)
+- `CF-Connecting-IP` for real client IP, and only on a request carrying `X-Origin-Verify`
 - `CF-Ray` for correlating logs with Cloudflare
 - `CF-IPCountry` for geo-blocking or analytics (if needed)
 
 ### Origin proxy trust
 
-- Backend sets Express `trust proxy` to `TRUST_PROXY_HOPS` (default 1) when not running in `local`
-- Client IP used for logging and rate limiting is derived in this order: `CF-Connecting-IP`, then the first `X-Forwarded-For` entry, then Express `req.ip`
+Only what comes through Cloudflare is served (FC-044, Steve's decision of 2 October 2026).
+`CF-Connecting-IP` and `X-Forwarded-For` are only headers: anybody who reaches the origin without
+Cloudflare, by its `onrender.com` address or by connecting to Render with the API's hostname, can
+write them, and every rate limit keyed on them could be dodged with a new value per request.
+
+- **Cloudflare proves it.** A Cloudflare Transform Rule on `api.startrekonline.info` (and on
+  `dev-api.` with the dev secret) sets the request header `X-Origin-Verify` to the secret's
+  `cloudflareOriginVerifySecret` on every request it forwards, WebSocket upgrades included.
+- **The backend checks it** (`src/common/http/cloudflare-origin.ts`), comparing in constant time.
+  A request carrying it has `CF-Connecting-IP` taken as its address; any other request is refused
+  `403`, except `/health/`, which Render's health checks reach directly. Chat's socket opens only
+  with it too. Refusals are logged as a count, at most once a minute.
+- **No other header is believed.** `X-Forwarded-For` is not read for the address at all; a request
+  Cloudflare did not name an address for is keyed on its connection's own peer.
+- **One address per request.** Rate limits, the login and audit logs, and the site admin log all
+  use the address this decided (`req.clientIp`), never `req.ip`.
+- **Outside `local` the secret is required.** Without it the backend does not start, so a deploy
+  that lacks it never goes healthy and the previous instance keeps serving. On a developer's
+  machine there is no secret: nothing is refused, no header is believed, and every request's
+  address is its connection's own. The rehearsals put one in their throwaway secret and send it,
+  as Cloudflare would, so they run the production path.
+- **Rotating it:** change the Transform Rule and the secret together and restart the backend;
+  requests in between are refused.
+- **`onrender.com`** is switched off on the service once the custom domain is in place (Render ›
+  Settings › Custom Domains › Render Subdomain), as one less way round Cloudflare. FC-052.
+
+Express's `trust proxy` is still set to `TRUST_PROXY_HOPS` (default 1) outside `local`, for what
+Express derives from the proxies in front; it no longer decides the client's address.
 
 ## Infrastructure Quirks
 

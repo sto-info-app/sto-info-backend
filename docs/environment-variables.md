@@ -153,7 +153,8 @@ The structural limits are fixed rather than configurable. They decide how large 
 
 ## Optional
 
-- `TRUST_PROXY_HOPS`: Express trust proxy hops (default is `1` when not provided)
+- `TRUST_PROXY_HOPS`: Express trust proxy hops (default is `1` when not provided). It no longer
+  decides the client's address, which is `CloudflareOrigin`'s (FC-044)
 - `STARTUP_DIAGNOSTICS`: `true` | `false` (default `false`). When `true`, logs process memory usage (RSS/heap/external) at key startup stages to help diagnose intermittent memory jumps.
 - `FUZZ_NUM_RUNS`: Number of iterations for property-based fuzz tests (default `100` for light tests, `1000` for full tests). Used by `fast-check`.
 
@@ -199,6 +200,13 @@ The secret referenced by `AWS_SECRET_NAME` is expected to be JSON with at least:
   Cloudflare's R2 and Images → Images → Keys. Without it nothing is signed, new pictures go up
   public and the estate cannot be copied to private; with it, a private picture shows only to a
   signed address. See [Private image delivery](image-delivery.md)
+
+- `cloudflareOriginVerifySecret`: The secret a Cloudflare Transform Rule adds, as
+  `X-Origin-Verify`, to every request it forwards to the API (FC-044). Required outside `local`:
+  the API refuses to start without it, and then refuses any request that lacks it, except
+  `/health/`. A long random string, set in Cloudflare and here together. Leave it out of the local
+  secret, or the local API will refuse your browser. See
+  [Infrastructure: origin proxy trust](infrastructure.md#origin-proxy-trust)
 
 Locally, the two exports keys are the MinIO credentials, as the quarantine keys are.
 

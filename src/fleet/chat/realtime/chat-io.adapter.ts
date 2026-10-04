@@ -6,6 +6,8 @@ import { IoAdapter } from '@nestjs/platform-socket.io';
 import type { Redis } from 'ioredis';
 import { Server, ServerOptions } from 'socket.io';
 
+import { CloudflareOrigin } from 'src/common/http/cloudflare-origin';
+
 /** Makes the socket.io adapter from a publishing and a subscribing client. */
 export type ChatAdapterFactory = (
   publisher: Redis,
@@ -35,6 +37,7 @@ export class ChatIoAdapter extends IoAdapter {
     private readonly _allowedOrigins: readonly string[],
     private readonly _publisher: Redis,
     private readonly _adapterFactory: ChatAdapterFactory,
+    private readonly _origin: CloudflareOrigin = new CloudflareOrigin(null),
   ) {
     super(app);
   }
@@ -62,9 +65,9 @@ export class ChatIoAdapter extends IoAdapter {
   }
 
   /**
-   * Whether a connection may open: from one of the site's pages, or from no
-   * page at all (a script, as the load test is). The token still decides
-   * who it is.
+   * Whether a connection may open: through Cloudflare, once that is required
+   * (FC-044), and from one of the site's pages or from no page at all (a
+   * script, as the load test is). The token still decides who it is.
    *
    * @param request - The upgrade request.
    * @returns True when it may.
@@ -72,7 +75,10 @@ export class ChatIoAdapter extends IoAdapter {
   allows(request: IncomingMessage): boolean {
     const origin = request.headers.origin;
 
-    return origin === undefined || this._allowedOrigins.includes(origin);
+    return (
+      this._origin.allowsSocket(request) &&
+      (origin === undefined || this._allowedOrigins.includes(origin))
+    );
   }
 
   /**

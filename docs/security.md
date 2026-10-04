@@ -711,10 +711,15 @@ Document current token expiry (e.g., 1 hour, 24 hours).
 
 ## Proxy, client IP, and IPv6
 
-- The backend runs behind Cloudflare; `req.ip` will reflect Cloudflare unless proxy trust is configured
-- The backend sets Express `trust proxy` to `TRUST_PROXY_HOPS` when not running in `local`
-- Client IP is derived in this order: `CF-Connecting-IP`, first `X-Forwarded-For`, then `req.ip`
+- The backend serves only what comes through Cloudflare (FC-044): a request must carry the origin
+  secret Cloudflare adds in `X-Origin-Verify`, or it is refused `403`, `/health/` aside. Chat's
+  socket too. Outside `local` the backend does not start without the secret
+- Only on such a request is `CF-Connecting-IP` believed; no other header the caller wrote is. A
+  request Cloudflare named no address for is keyed on its connection's own peer
+- That one address (`req.clientIp`) keys every rate limit and fills the login, audit and site
+  admin logs, so none of them can be steered by a forged header
 - IPv6-mapped IPv4 values like `::ffff:192.0.2.1` are normalised to IPv4
+- See [Infrastructure: origin proxy trust](infrastructure.md#origin-proxy-trust)
 
 ## Compliance & OpenSSF Best Practices
 
