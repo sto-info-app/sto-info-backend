@@ -318,6 +318,21 @@ If legitimate traffic is being throttled:
 3. Balance security (DDoS protection) with usability
 4. Monitor 429 error rates in production logs
 
+## Email
+
+`MailService` (`src/mail/mail.service.ts`) sends every email through Amazon SES and falls back to
+SendGrid when SES refuses one. Sign-up, verification, password changes, account closure, the
+contact form and **every successful sign-in** send one, in every environment; only the subject
+says which (`[local]`, for instance).
+
+**Reserved domains are never mailed (FC-044).** Before sending, `sendEmailWithFallback` skips any
+address at `example.com`, `example.net` or `example.org`, or under `.example`, `.invalid`, `.test`
+or `.localhost` (`src/mail/utilities/reserved-mail-domain.utility.ts`), and logs the domain and
+subject it skipped. RFC 2606 and RFC 6761 reserve those names, so no mailbox can exist there.
+Seeded demonstration members and the end-to-end journeys' disposable accounts live at them, and a
+sign-in of theirs would otherwise bounce, or reach SendGrid after SES refused it, at a cost to the
+sender's standing for real mail.
+
 ## File Upload Endpoints
 
 ### Upload Configuration

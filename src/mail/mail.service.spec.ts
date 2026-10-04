@@ -89,7 +89,7 @@ describe('MailService', () => {
 
   describe('sendVerificationEmail', () => {
     it('should send email successfully via SES', async () => {
-      await service.sendVerificationEmail('test@example.com', 'token');
+      await service.sendVerificationEmail('test@sto-info.app', 'token');
       expect(mockMailerService.sendMail).toHaveBeenCalled();
     });
 
@@ -103,7 +103,11 @@ describe('MailService', () => {
 
   describe('sendPasswordResetEmail', () => {
     it('should send email successfully via SES', async () => {
-      await service.sendPasswordResetEmail('test@example.com', 'token', 'John');
+      await service.sendPasswordResetEmail(
+        'test@sto-info.app',
+        'token',
+        'John',
+      );
       expect(mockMailerService.sendMail).toHaveBeenCalled();
     });
 
@@ -117,35 +121,35 @@ describe('MailService', () => {
 
   describe('sendPasswordChangedEmail', () => {
     it('should send email successfully via SES', async () => {
-      await service.sendPasswordChangedEmail('test@example.com', 'John');
+      await service.sendPasswordChangedEmail('test@sto-info.app', 'John');
       expect(mockMailerService.sendMail).toHaveBeenCalled();
     });
   });
 
   describe('sendAccountClosureEmail', () => {
     it('should send email successfully via SES', async () => {
-      await service.sendAccountClosureEmail('test@example.com', 'John');
+      await service.sendAccountClosureEmail('test@sto-info.app', 'John');
       expect(mockMailerService.sendMail).toHaveBeenCalled();
     });
   });
 
   describe('sendUserLoggedInNotification', () => {
     it('should send email successfully via SES', async () => {
-      await service.sendUserLoggedInNotification('test@example.com', 'John');
+      await service.sendUserLoggedInNotification('test@sto-info.app', 'John');
       expect(mockMailerService.sendMail).toHaveBeenCalled();
     });
   });
 
   describe('sendEmailToUser', () => {
     it('should send generic email successfully via SES', async () => {
-      await service.sendEmailToUser('test@example.com', 'Sub', 'Text', 'Html');
+      await service.sendEmailToUser('test@sto-info.app', 'Sub', 'Text', 'Html');
       expect(mockMailerService.sendMail).toHaveBeenCalled();
     });
   });
 
   describe('sendEmailWithFallback', () => {
     const sampleMessage: EmailMessage = {
-      to: 'test@example.com',
+      to: 'test@sto-info.app',
       from: { name: 'Test App', email: 'no-reply@test.local' },
       subject: 'Test Subject',
       text: 'Test text',
@@ -156,6 +160,28 @@ describe('MailService', () => {
       await service.sendEmailWithFallback(sampleMessage);
       expect(mockMailerService.sendMail).toHaveBeenCalledTimes(1);
       expect(sgMail.send).not.toHaveBeenCalled();
+    });
+
+    // FC-044: test and demonstration accounts live at reserved domains.
+    it('sends nothing to a domain reserved for testing, and says so', async () => {
+      const logSpy = jest
+        .spyOn(Logger.prototype, 'log')
+        .mockImplementation(() => undefined);
+
+      try {
+        await service.sendEmailWithFallback({
+          ...sampleMessage,
+          to: 'demo-user-014@example.com',
+        });
+
+        expect(mockMailerService.sendMail).not.toHaveBeenCalled();
+        expect(sgMail.send).not.toHaveBeenCalled();
+        expect(logSpy).toHaveBeenCalledWith(
+          'Email not sent: example.com is reserved for testing, and no mailbox exists there - Subject: Test Subject',
+        );
+      } finally {
+        logSpy.mockRestore();
+      }
     });
 
     it('should fall back to SendGrid when SES fails', async () => {
@@ -182,7 +208,7 @@ describe('MailService', () => {
         >
       ).mockResolvedValue({
         accepted: [],
-        rejected: ['test@example.com'],
+        rejected: ['test@sto-info.app'],
         response: '550 rejected',
       });
       const warnSpy = jest
@@ -193,7 +219,7 @@ describe('MailService', () => {
 
       expect(warnSpy).toHaveBeenCalledWith(
         'Amazon SES sending failed — falling back to SendGrid.',
-        'SES rejected recipient(s): test@example.com',
+        'SES rejected recipient(s): test@sto-info.app',
       );
       expect(sgMail.send).toHaveBeenCalled();
       warnSpy.mockRestore();
@@ -252,7 +278,7 @@ describe('MailService', () => {
     it('should omit ConfigurationSetName when AWS_SES_CONFIGURATION_SET is not set', async () => {
       delete process.env.AWS_SES_CONFIGURATION_SET;
       const message: EmailMessage = {
-        to: 'test@example.com',
+        to: 'test@sto-info.app',
         from: { name: 'Test App', email: 'no-reply@test.local' },
         subject: 'Test Subject',
         text: 'Test text',
@@ -273,10 +299,10 @@ describe('MailService', () => {
         mockMailerService.sendMail as jest.Mock<
           (...args: any[]) => Promise<any>
         >
-      ).mockResolvedValue({ accepted: ['test@example.com'], rejected: [] });
+      ).mockResolvedValue({ accepted: ['test@sto-info.app'], rejected: [] });
 
       const message: EmailMessage = {
-        to: 'test@example.com',
+        to: 'test@sto-info.app',
         from: { name: 'Test App', email: 'no-reply@test.local' },
         subject: 'Test Subject',
         text: 'Test text',
@@ -287,7 +313,7 @@ describe('MailService', () => {
 
       expect(mockMailerService.sendMail).toHaveBeenCalledWith(
         expect.objectContaining({
-          to: 'test@example.com',
+          to: 'test@sto-info.app',
           from: '"Test App" <no-reply@test.local>',
           subject: 'Test Subject',
           text: 'Test text',
@@ -306,18 +332,18 @@ describe('MailService', () => {
         >
       ).mockResolvedValue({
         accepted: [],
-        rejected: ['test@example.com'],
+        rejected: ['test@sto-info.app'],
       });
 
       await expect(
         service.sendEmailViaSES({
-          to: 'test@example.com',
+          to: 'test@sto-info.app',
           from: { name: 'Test App', email: 'no-reply@test.local' },
           subject: 'Test Subject',
           text: 'Test text',
           html: '<html>Test html</html>',
         }),
-      ).rejects.toThrow('SES rejected recipient(s): test@example.com');
+      ).rejects.toThrow('SES rejected recipient(s): test@sto-info.app');
     });
 
     it('should throw when SES leaves recipients pending without accepting any', async () => {
@@ -327,24 +353,24 @@ describe('MailService', () => {
         >
       ).mockResolvedValue({
         accepted: [],
-        pending: ['test@example.com'],
+        pending: ['test@sto-info.app'],
         rejected: [],
       });
 
       await expect(
         service.sendEmailViaSES({
-          to: 'test@example.com',
+          to: 'test@sto-info.app',
           from: { name: 'Test App', email: 'no-reply@test.local' },
           subject: 'Test Subject',
           text: 'Test text',
           html: '<html>Test html</html>',
         }),
-      ).rejects.toThrow('SES left recipient(s) pending: test@example.com');
+      ).rejects.toThrow('SES left recipient(s) pending: test@sto-info.app');
     });
 
     it('should include replyTo header when replyTo is provided', async () => {
       const message: EmailMessage = {
-        to: 'test@example.com',
+        to: 'test@sto-info.app',
         from: { name: 'Test App', email: 'no-reply@test.local' },
         subject: 'Test Subject',
         text: 'Test text',
@@ -363,7 +389,7 @@ describe('MailService', () => {
 
     it('should handle replyTo without a name', async () => {
       const message: EmailMessage = {
-        to: 'test@example.com',
+        to: 'test@sto-info.app',
         from: { name: 'Test App', email: 'no-reply@test.local' },
         subject: 'Test Subject',
         text: 'Test text',
@@ -455,7 +481,7 @@ describe('MailService', () => {
   describe('toSendGridMessage', () => {
     it('should convert an EmailMessage to a SendGrid MailDataRequired object', () => {
       const message: EmailMessage = {
-        to: 'test@example.com',
+        to: 'test@sto-info.app',
         from: { name: 'Test App', email: 'no-reply@test.local' },
         subject: 'Test Subject',
         text: 'Test text',
@@ -465,7 +491,7 @@ describe('MailService', () => {
       const result = service.toSendGridMessage(message);
 
       expect(result).toEqual({
-        to: 'test@example.com',
+        to: 'test@sto-info.app',
         from: { name: 'Test App', email: 'no-reply@test.local' },
         subject: 'Test Subject',
         text: 'Test text',
@@ -475,7 +501,7 @@ describe('MailService', () => {
 
     it('should include replyTo when provided', () => {
       const message: EmailMessage = {
-        to: 'test@example.com',
+        to: 'test@sto-info.app',
         from: { name: 'Test App', email: 'no-reply@test.local' },
         subject: 'Test Subject',
         text: 'Test text',
@@ -508,7 +534,7 @@ describe('MailService', () => {
     it('should append environment to subject when NODE_ENV is not prod', () => {
       process.env.NODE_ENV = 'development';
       const result = service.generateEmailMessageObject(
-        'test@example.com',
+        'test@sto-info.app',
         'Test Subject',
         'text',
         'html',
@@ -519,7 +545,7 @@ describe('MailService', () => {
     it('should not append environment to subject when NODE_ENV is prod', () => {
       process.env.NODE_ENV = 'prod';
       const result = service.generateEmailMessageObject(
-        'test@example.com',
+        'test@sto-info.app',
         'Test Subject',
         'text',
         'html',
@@ -529,12 +555,12 @@ describe('MailService', () => {
 
     it('should return correct message object structure', () => {
       const result = service.generateEmailMessageObject(
-        'test@example.com',
+        'test@sto-info.app',
         'Test Subject',
         'Test text',
         '<html>Test html</html>',
       );
-      expect(result).toHaveProperty('to', 'test@example.com');
+      expect(result).toHaveProperty('to', 'test@sto-info.app');
       expect(result).toHaveProperty('from');
       expect(result.from).toHaveProperty('name', 'Test App');
       expect(result.from).toHaveProperty('email', 'no-reply@test.local');

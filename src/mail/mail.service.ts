@@ -11,6 +11,8 @@ import { convert as htmlToText } from 'html-to-text';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
 
+import { reservedMailDomain } from './utilities/reserved-mail-domain.utility';
+
 /** Shape of an internal email message used for both SES and SendGrid */
 export interface EmailMessage {
   to: string;
@@ -287,6 +289,18 @@ export class MailService {
    * @returns A promise that resolves when the email has been sent (via either provider).
    */
   async sendEmailWithFallback(message: EmailMessage): Promise<void> {
+    // No mailbox can exist at a reserved domain, which is where test and
+    // demonstration accounts live (FC-044); sent, it would only bounce.
+    const reserved = reservedMailDomain(message.to);
+
+    if (reserved !== null) {
+      this._logger.log(
+        `Email not sent: ${reserved} is reserved for testing, and no mailbox exists there - Subject: ${message.subject}`,
+      );
+
+      return;
+    }
+
     try {
       await this.sendEmailViaSES(message);
     } catch (sesError) {
