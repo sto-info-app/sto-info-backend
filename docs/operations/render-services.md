@@ -31,6 +31,12 @@ its [infrastructure documentation](../../../sto-info-file-scan-worker/docs/infra
 - **Health check `/health/ready`.** A database ping. Because the server does not listen until the
   restore check has finished, a deploy whose check cannot finish never goes healthy, and the
   previous instance keeps serving. See [Readiness and heartbeats](readiness-and-heartbeats.md).
+- **Plan: 512 MB, with the heap capped at 384 MiB** (FC-044, Steve's decision of 4 October 2026).
+  Set `NODE_OPTIONS=--max-old-space-size=384` on the service. Uncapped, Node let the heap grow to
+  775 MiB after the launch load's longest replay and the process to about 1 GB; capped, every load
+  scenario still passed with the heap at most 322 MiB and about 550 MiB resident on Windows. The
+  resident set on Render's Linux is measured in FC-052; see
+  [FC-044's evidence](../release/fc-044-acceptance.md#load).
 - **Instances.** One, with auto-scaling off ([Infrastructure](../infrastructure.md#scaling-configuration)).
   More are safe: the restore check and the alert cron each hold a PostgreSQL advisory lock, and
   chat's socket.io traffic goes through the Redis adapter.
@@ -199,6 +205,9 @@ FC-052 rather than guessed here.
   Render's private network only if they share its region.
 - **The production secret's name**, and whether the worker has its own.
 - **The worker's plan name** for 2 GB.
+- **The backend on 512 MB with `NODE_OPTIONS=--max-old-space-size=384`** (FC-044): set it, then
+  run the launch load against Render and confirm the resident set stays inside the plan through a
+  long replay and the chat peak. If it does not, the next plan up, cap unchanged.
 - **Only what comes through Cloudflare is served** (FC-044). Before the release: put a long random
   `cloudflareOriginVerifySecret` in the production secret (and a different one in the dev
   secret); add a Cloudflare Transform Rule on `api.startrekonline.info` (and `dev-api.`) that sets

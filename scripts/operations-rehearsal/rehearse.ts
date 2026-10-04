@@ -248,6 +248,11 @@ export class Rehearsal {
   worker: AppProcess | null = null;
   /** When the older release ran, so what it tried is told apart. */
   oldReleaseWindow: [number, number] = [0, 0];
+  /**
+   * More for the backend's environment, over the template's: the load
+   * rehearsal (FC-044) turns on memory diagnostics, and can cap the heap.
+   */
+  backendExtra: Record<string, string> = {};
   private _launches = 0;
   private _variant = 0;
   private readonly _fixture: string;
@@ -366,6 +371,9 @@ export class Rehearsal {
       ...this.sharedVariables(),
       NODE_PATH: nodePath(build, checkout),
       APP_PORT: String(this.config.ports.backend),
+      // node-postgres names its connections after this, so the load
+      // rehearsal (FC-044) can count each application's.
+      PGAPPNAME: 'sto-info-backend',
       APP_FRONTEND_URL: 'http://localhost:4200',
       APP_TITLE: 'Operations rehearsal',
       AUTH_SALT_ROUNDS: '10',
@@ -398,6 +406,7 @@ export class Rehearsal {
       DATASEED_FLEET_APPLICANT_PASSWORD: this.applicantPassword,
       // Read by the local demo-account seed, which refuses to run without it.
       DATASEED_USER_PASSWORD: this.applicantPassword,
+      ...this.backendExtra,
     });
   }
 
@@ -414,6 +423,7 @@ export class Rehearsal {
         this.config.workerRepo,
       ),
       APP_PORT: String(this.config.ports.worker),
+      PGAPPNAME: 'sto-info-worker',
       APP_TITLE: 'Operations rehearsal worker',
       DB_SCHEMA: 'sto_info_worker',
       CLAMAV_HOST: '127.0.0.1',

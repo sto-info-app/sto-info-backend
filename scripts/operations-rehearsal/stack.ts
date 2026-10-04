@@ -622,6 +622,11 @@ export class AppProcess {
     return this._exitCode === undefined;
   }
 
+  /** Its process ID, for measuring it (FC-044). */
+  get pid(): number | undefined {
+    return this._child.pid;
+  }
+
   /** How it ended, if it has. */
   get exitCode(): number | null | undefined {
     return this._exitCode;

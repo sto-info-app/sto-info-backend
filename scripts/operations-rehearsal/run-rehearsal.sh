@@ -21,11 +21,12 @@
 # rehearsal reports any attempt.
 #
 # Usage:
-#   bash scripts/operations-rehearsal/run-rehearsal.sh [operations|adversarial]
+#   bash scripts/operations-rehearsal/run-rehearsal.sh [operations|adversarial|load]
 #
 # The argument chooses what runs on the stack: this rehearsal (the default),
-# or FC-043's adversarial rehearsal in scripts/adversarial-rehearsal/, which
-# needs no older release and so never builds one.
+# FC-043's adversarial rehearsal in scripts/adversarial-rehearsal/, or FC-044's
+# load rehearsal in scripts/load-rehearsal/. Neither needs an older release,
+# so neither builds one.
 #
 # Environment (all optional):
 #   REHEARSAL_WORKER_REPO   the worker checkout. Default: the sibling
@@ -58,8 +59,12 @@ adversarial)
   SCRIPT="${REPO}/scripts/adversarial-rehearsal/rehearse.ts"
   REHEARSAL_SKIP_OLD_BUILD=1
   ;;
+load)
+  SCRIPT="${REPO}/scripts/load-rehearsal/rehearse.ts"
+  REHEARSAL_SKIP_OLD_BUILD=1
+  ;;
 *)
-  echo "Unknown rehearsal '${SUITE}'; choose operations or adversarial." >&2
+  echo "Unknown rehearsal '${SUITE}'; choose operations, adversarial or load." >&2
   exit 1
   ;;
 esac
