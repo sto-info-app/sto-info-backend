@@ -85,6 +85,30 @@ export interface ImageUploadRequest {
  * what is scanned, stored and published is pixels and nothing else; see
  * {@link ImageReencodeService} for why the scanner alone was not enough.
  */
+/**
+ * The one scope column a picture names: the narrowest it was given.
+ *
+ * The registry holds exactly one of the three (a check constraint), and
+ * delivery reads them narrowest first. A Fleet's or an Armada's caller hands
+ * over its Community too, and naming both was refused by the database, so
+ * every Fleet news cover and Fleet picture upload failed (FC-044).
+ *
+ * @param scope - What the caller gave.
+ * @returns The three columns, at most one of them set.
+ */
+function namedScope(scope: ImageUploadRequest['scope']): {
+  communityId: string | null;
+  fleetId: string | null;
+  armadaId: string | null;
+} {
+  const fleetId = scope?.fleetId ?? null;
+  const armadaId = fleetId === null ? (scope?.armadaId ?? null) : null;
+  const communityId =
+    fleetId === null && armadaId === null ? (scope?.communityId ?? null) : null;
+
+  return { communityId, fleetId, armadaId };
+}
+
 @Injectable()
 export class ImageIngressService {
   /**
@@ -130,9 +154,7 @@ export class ImageIngressService {
       subjectId: request.subjectId,
       slot: request.slot,
       ownerUserId: request.userId,
-      communityId: request.scope?.communityId ?? null,
-      fleetId: request.scope?.fleetId ?? null,
-      armadaId: request.scope?.armadaId ?? null,
+      ...namedScope(request.scope),
       scopeAudience: request.scope?.audience ?? null,
       bytes,
       // What the browser said, kept as a claim. The registry normalises it

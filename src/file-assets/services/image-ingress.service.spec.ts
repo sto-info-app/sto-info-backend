@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 
 import { jest } from '@jest/globals';
 
+import { FleetAudience } from 'src/fleet/enums/fleet-audience.enum';
 import { ImageReencodeService } from 'src/shared/images/image-reencode.service';
 import {
   ImageSlotService,
@@ -73,6 +74,57 @@ describe('ImageIngressService', () => {
       { inspect } as unknown as ImageSlotService,
       { accept } as unknown as AssetIngressService,
       { reencode } as unknown as ImageReencodeService,
+    );
+  });
+
+  // FC-044: a Fleet's and an Armada's callers hand over the Community too,
+  // and the registry holds exactly one scope; naming two was refused.
+  it.each([
+    [
+      'a Fleet in a Community',
+      { communityId: 'c', fleetId: 'f', armadaId: null },
+      { communityId: null, fleetId: 'f', armadaId: null },
+    ],
+    [
+      'an Armada',
+      { communityId: 'c', fleetId: null, armadaId: 'a' },
+      { communityId: null, fleetId: null, armadaId: 'a' },
+    ],
+    [
+      'a Community',
+      { communityId: 'c', fleetId: null, armadaId: null },
+      { communityId: 'c', fleetId: null, armadaId: null },
+    ],
+    [
+      'a standalone Fleet',
+      { communityId: null, fleetId: 'f', armadaId: null },
+      { communityId: null, fleetId: 'f', armadaId: null },
+    ],
+  ])('names only the narrowest scope for %s', async (_what, given, named) => {
+    await service.accept({
+      ...request(),
+      audience: FileAssetAudience.SCOPE,
+      scope: { ...given, audience: FleetAudience.PUBLIC },
+    });
+
+    expect(accept).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ...named,
+        scopeAudience: FleetAudience.PUBLIC,
+      }),
+    );
+  });
+
+  it('names no scope for a picture that has none', async () => {
+    await service.accept(request());
+
+    expect(accept).toHaveBeenCalledWith(
+      expect.objectContaining({
+        communityId: null,
+        fleetId: null,
+        armadaId: null,
+        scopeAudience: null,
+      }),
     );
   });
 
