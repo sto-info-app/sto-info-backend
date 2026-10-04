@@ -34,6 +34,7 @@ import { AppModule } from '../src/app.module';
 import { CustomTrackingCleanupService } from '../src/cron/jobs/custom-tracking-cleanup/custom-tracking-cleanup.service';
 import { CustomTrackingImageCleanupService } from '../src/custom-tracking/retention/custom-tracking-image-cleanup.service';
 import { CustomTrackingPurgeService } from '../src/custom-tracking/retention/custom-tracking-purge.service';
+import { runFleetSupport } from './e2e-fleet-support';
 
 const SCHEMA = process.env.DB_SCHEMA ?? 'sto_info_app';
 
@@ -298,6 +299,17 @@ const COMMANDS: Record<
 
 async function main(): Promise<void> {
   const [name, ...args] = process.argv.slice(2);
+
+  // The Fleet journeys' people (FC-044) need only the database, so they are
+  // made without starting the application.
+  if (name?.startsWith('fleet-')) {
+    const result = await runFleetSupport(name, args);
+
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+
+    return;
+  }
+
   const command = COMMANDS[name];
 
   if (!command) {
