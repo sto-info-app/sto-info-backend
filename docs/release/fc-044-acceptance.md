@@ -145,6 +145,18 @@ Steve asked, with the help of new `e2e:support` commands (Steve's decisions, the
   appeal decided without a message (Storytime switched on for it by `fleet-storytime`, and put back
   as found); the Security Log a page at a time, after real reads of Scan Diagnostics.
 
+On 5 October 2026 Steve asked for FC-052's two Playwright criteria from FC-026 and FC-030 to be met
+here, so the journeys gained what they lacked, and both criteria are ticked on FC-052:
+
+- **FC-026:** the Fleet taken out of its Armada with the keyboard alone, through the reason and the
+  confirmation; the tree on the Armada page; the Armada's history reading the join, the move and the
+  removal with its reason; the Community's Armadas and Fleets before and after; axe on the Armada
+  page, its history and the Community page.
+- **FC-030:** Maybe, Can't go and taking an answer back with the keyboard alone; axe on the events
+  list, an event, an occurrence with its attendance sheet, and the attendance report.
+
+FC-033's live-session chat criterion stays open on FC-052: it is for the deployed services.
+
 ### Journey results
 
 The final run, on 5 October 2026: **222 passed and 1 flaky**, in 1.1 hours across both projects,
@@ -184,7 +196,8 @@ tests at 100% coverage, the dev build, type checks and lint; worker 387 tests at
 - axe, WCAG 2.0/2.1 A and AA, on every Fleet, chat, settings, Help and site admin page, with records
   in them. Defects 9 and 10 were its findings.
 - Keyboard: a Fleet's tab strip, a dialog that Escape closes with focus returned, and the chat
-  message actions (defect 8), reached by keyboard in journeys 01 and 03.
+  message actions (defect 8), reached by keyboard in journeys 01 and 03; an Armada's Fleet taken
+  out, and an event answered, by keyboard in the 04 journeys.
 - Reduced motion: one global rule, checked with and without the setting (defect 11).
 - Visible focus restored on checkboxes and radios, which a global rule had taken away.
 
