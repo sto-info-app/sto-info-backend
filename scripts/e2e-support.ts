@@ -34,7 +34,11 @@ import { AppModule } from '../src/app.module';
 import { CustomTrackingCleanupService } from '../src/cron/jobs/custom-tracking-cleanup/custom-tracking-cleanup.service';
 import { CustomTrackingImageCleanupService } from '../src/custom-tracking/retention/custom-tracking-image-cleanup.service';
 import { CustomTrackingPurgeService } from '../src/custom-tracking/retention/custom-tracking-purge.service';
-import { runFleetSupport } from './e2e-fleet-support';
+import {
+  isFleetAppCommand,
+  runFleetAppSupport,
+  runFleetSupport,
+} from './e2e-fleet-support';
 
 const SCHEMA = process.env.DB_SCHEMA ?? 'sto_info_app';
 
@@ -301,8 +305,9 @@ async function main(): Promise<void> {
   const [name, ...args] = process.argv.slice(2);
 
   // The Fleet journeys' people (FC-044) need only the database, so they are
-  // made without starting the application.
-  if (name?.startsWith('fleet-')) {
+  // made without starting the application; only the commands that run one
+  // of its jobs start it.
+  if (name?.startsWith('fleet-') && !isFleetAppCommand(name)) {
     const result = await runFleetSupport(name, args);
 
     process.stdout.write(`${JSON.stringify(result)}\n`);
@@ -310,7 +315,10 @@ async function main(): Promise<void> {
     return;
   }
 
-  const command = COMMANDS[name];
+  const command = isFleetAppCommand(name)
+    ? (context: SupportContext, ...rest: string[]) =>
+        runFleetAppSupport(context.app, name, rest)
+    : COMMANDS[name];
 
   if (!command) {
     throw new Error(
