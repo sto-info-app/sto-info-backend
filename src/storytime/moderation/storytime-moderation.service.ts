@@ -6,11 +6,12 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { Repository } from 'typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 
 import { SiteAdminActionKind } from 'src/audit/site-admin/site-admin-action.enum';
 import { recordSiteAdminAction } from 'src/audit/site-admin/site-admin-action.utility';
 
+import { ReportStatus } from '../../moderation/enums/report-status.enum';
 import { NotificationSeverity } from '../../notification/enums/notification-severity.enum';
 import { NotificationTarget } from '../../notification/enums/notification-target.enum';
 import { NotificationService } from '../../notification/notification.service';
@@ -19,6 +20,7 @@ import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.
 import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
 import { ModerateContentDto } from './dto/moderate-content.dto';
 import { StorytimeModerationActionEntity } from './entities/storytime-moderation-action.entity';
+import { StorytimeReportEntity } from './entities/storytime-report.entity';
 import {
   ModeratedTarget,
   StorytimeModerationTargetService,
@@ -71,7 +73,15 @@ export class StorytimeModerationService {
   ) {}
 
   /**
-   * Removes a piece of content from public view.
+   * Removes a piece of content from public view, and closes every report
+   * still open about it as actioned, with the creator's message as its
+   * resolution.
+   *
+   * One transaction (FC-044): the queue used to close the report it was
+   * acting on in a second request, which leaving the page cancelled, so
+   * content was removed with its report still open. Closing them all here is
+   * Steve's decision of 4 October 2026: once the content is gone, another
+   * report about it has nothing left to act on.
    *
    * @param dto - What to remove, why, and what to tell the creator.
    * @param actingUserId - The administrator.
@@ -95,15 +105,24 @@ export class StorytimeModerationService {
     target.content.restoredAt = null;
     target.content.restoredByUserId = null;
 
-    await this._targetService.save(dto.targetType, target.content);
+    const entry = await this._actionRepository.manager.transaction(
+      async manager => {
+        await this._targetService.save(dto.targetType, target.content, manager);
 
-    const entry = await this.record(
-      dto.targetType,
-      dto.targetId,
-      StorytimeModerationAction.REMOVED,
-      actingUserId,
-      dto.reasonCode,
-      dto.message,
+        const removed = await this.recordWithin(
+          manager,
+          dto.targetType,
+          dto.targetId,
+          StorytimeModerationAction.REMOVED,
+          actingUserId,
+          dto.reasonCode,
+          dto.message,
+        );
+
+        await this.closeReports(manager, dto, actingUserId);
+
+        return removed;
+      },
     );
 
     await this.notify(
@@ -202,32 +221,106 @@ export class StorytimeModerationService {
     reasonCode: string | null = null,
     message: string | null = null,
   ): Promise<StorytimeModerationActionEntity> {
+    return this._actionRepository.manager.transaction(manager =>
+      this.recordWithin(
+        manager,
+        targetType,
+        targetId,
+        action,
+        actorUserId,
+        reasonCode,
+        message,
+      ),
+    );
+  }
+
+  /**
+   * Writes one entry into the audit trail, and the site admin log's, in a
+   * transaction the caller holds.
+   *
+   * @param manager - The transaction.
+   * @param targetType - The kind of content.
+   * @param targetId - The content.
+   * @param action - What was done.
+   * @param actorUserId - Who did it.
+   * @param reasonCode - The policy code cited, if any.
+   * @param message - What was said, if anything.
+   * @returns The entry written.
+   */
+  private async recordWithin(
+    manager: EntityManager,
+    targetType: StorytimeTargetType,
+    targetId: string,
+    action: StorytimeModerationAction,
+    actorUserId: string,
+    reasonCode: string | null,
+    message: string | null,
+  ): Promise<StorytimeModerationActionEntity> {
     // The site admin log records each act too (FC-039), in the same
     // transaction: this trail loses its rows with the actor's account, and
     // the site admin log does not.
-    return this._actionRepository.manager.transaction(async manager => {
-      const saved = await manager.save(
-        StorytimeModerationActionEntity,
-        manager.create(StorytimeModerationActionEntity, {
-          targetType,
-          targetId,
-          action,
-          actorUserId,
-          reasonCode,
-          message,
-        }),
-      );
-
-      await recordSiteAdminAction(manager, {
-        action: SITE_ADMIN_ACTIONS[action],
+    const saved = await manager.save(
+      StorytimeModerationActionEntity,
+      manager.create(StorytimeModerationActionEntity, {
+        targetType,
+        targetId,
+        action,
         actorUserId,
-        subject: { kind: `STORYTIME_${targetType}`, id: targetId },
-        reason: message ?? reasonCode ?? action,
-        detail: { action, reasonCode },
-      });
+        reasonCode,
+        message,
+      }),
+    );
 
-      return saved;
+    await recordSiteAdminAction(manager, {
+      action: SITE_ADMIN_ACTIONS[action],
+      actorUserId,
+      subject: { kind: `STORYTIME_${targetType}`, id: targetId },
+      reason: message ?? reasonCode ?? action,
+      detail: { action, reasonCode },
     });
+
+    return saved;
+  }
+
+  /**
+   * Closes every report still open, or under review, about content that has
+   * just been removed, as actioned, and records each as decided.
+   *
+   * @param manager - The removal's transaction.
+   * @param dto - The removal.
+   * @param actingUserId - The administrator.
+   */
+  private async closeReports(
+    manager: EntityManager,
+    dto: ModerateContentDto,
+    actingUserId: string,
+  ): Promise<void> {
+    const open = await manager.find(StorytimeReportEntity, {
+      where: {
+        targetType: dto.targetType,
+        targetId: dto.targetId,
+        status: In([ReportStatus.OPEN, ReportStatus.UNDER_REVIEW]),
+      },
+    });
+    const now = new Date();
+
+    for (const report of open) {
+      report.status = ReportStatus.ACTIONED;
+      report.resolution = dto.message;
+      report.assignedToUserId = actingUserId;
+      report.resolvedAt = now;
+
+      await manager.save(StorytimeReportEntity, report);
+      await this.recordWithin(
+        manager,
+        report.targetType,
+        report.targetId,
+        StorytimeModerationAction.REPORT_RESOLVED,
+        actingUserId,
+        report.reasonCode,
+        dto.message,
+      );
+    }
   }
 
   /**

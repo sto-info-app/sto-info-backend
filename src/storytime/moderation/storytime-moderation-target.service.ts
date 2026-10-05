@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { Repository } from 'typeorm';
+import { EntityManager, EntityTarget, Repository } from 'typeorm';
 
 import { StorytimeArcEntity } from '../arcs/entities/storytime-arc.entity';
 import { StorytimeChapterEntity } from '../chapters/entities/storytime-chapter.entity';
@@ -44,6 +44,18 @@ export interface ModeratedTarget {
   /** What it is called, for the message sent to that person. */
   label: string;
 }
+
+/**
+ * The table each moderatable kind of content is kept in; anything else is an
+ * Arc, as {@link StorytimeModerationTargetService.save} has it.
+ */
+const TARGET_ENTITIES: Readonly<
+  Partial<Record<StorytimeTargetType, EntityTarget<ModeratableFields>>>
+> = {
+  [StorytimeTargetType.STORY]: StorytimeStoryEntity,
+  [StorytimeTargetType.CHAPTER]: StorytimeChapterEntity,
+  [StorytimeTargetType.CHARACTER]: StorytimeCharacterEntity,
+};
 
 /** The kinds of content an administrator may remove and restore. */
 export const MODERATABLE_TARGET_TYPES = [
@@ -152,11 +164,22 @@ export class StorytimeModerationTargetService {
    *
    * @param targetType - The kind of content.
    * @param content - The content to save.
+   * @param manager - A transaction to save it in, when the act saves more
+   *   than the content.
    */
   async save(
     targetType: StorytimeTargetType,
     content: ModeratableFields,
+    manager?: EntityManager,
   ): Promise<void> {
+    if (manager) {
+      await manager.save(
+        TARGET_ENTITIES[targetType] ?? StorytimeArcEntity,
+        content,
+      );
+      return;
+    }
+
     switch (targetType) {
       case StorytimeTargetType.STORY:
         await this._storyRepository.save(content as StorytimeStoryEntity);
