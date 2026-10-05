@@ -67,6 +67,7 @@ On 4 October 2026:
 | 13 | **A refused Community registration never said why.** At the ten-Community limit, or on any other refusal, "Registering the Community" stayed up for good: the OnPush page was never told to redraw. | The phone run, whose Owner reached the limit. | `CommunityRegisterComponent` marks the view on a refusal; a spec with a late answer fails without it. |
 | 14 | **The local schema was six migrations behind** (FC-042/043): `start:dev` never migrates. | The backend's own `42P01` errors. | Applied; noted for whoever runs the stack next. |
 | 15 | The [visual review](#visual-review)'s defects. | Screenshots. | Below. |
+| 16 | **Removed Storytime content could keep an open report.** The queue removed the content, then closed the report in a second request, which leaving the page cancelled. | The Storytime Moderation journey, which reloaded at once. | `StorytimeModerationService.remove` closes every open or under-review report about the content as actioned, in the removal's own transaction (Steve's decision of 4 October 2026); the queue sends nothing after it. |
 
 ## Load
 
@@ -120,39 +121,62 @@ file events that changed nothing). Results: see [Journey results](#journey-resul
 Still owed, for secrets the local stack does not hold: FC-035's transcript export, FC-038's erasure
 and FC-040's private images.
 
-Not yet automated, though the local stack could run them; each story's comment lists its own:
+The checks the first commit of this story had left unautomated were added on 4 October 2026, as
+Steve asked, with the help of new `e2e:support` commands (Steve's decisions, the same day):
 
-- **FC-027:** the Armada's News tab; the cover taken down when a post is deleted; `GET /news` itself
-  (the site's News page was checked).
-- **FC-029:** holdings recorded; a roster import's counts-only item, and a replay adding nothing; an
-  Armada placement's two items; the registered Character's notice; Older past 20 items.
-- **FC-030:** the 15-minute reminder (an hour and a day were checked); the attendance sheet's filter;
-  the recruitment counts and the audiences table's "counts only".
-- **FC-033:** one notice for a friend with every tab closed, and no more until they open it.
-- **FC-036:** a Community's duplicate Fleets and Armadas (the journeys' Fleet has none).
-- **FC-037:** the owner told when a hold's review is due; a retired export's "File expired".
-- **FC-039:** withdrawing an override; Reported Officers' Claim and Dismiss; Storytime Moderation's
-  refusals; the Security Log's paging.
+- **FC-027:** an Armada's news; the deleted post's cover `REVOKED` in Scan Diagnostics' lookup;
+  `GET /news` listing neither scoped post and `GET /news/<slug>` answering 404 for both.
+- **FC-029:** holdings recorded, seen signed out; an import's counts-only item, members only; a
+  replay (marking the import partial) adding no second item; a Fleet joining and moving within an
+  Armada, on both Activity pages; Older past 20 items; the registered Character's owner asked once,
+  and nobody asked who answered first — that notice held from the outbox while they answer
+  (`fleet-proposal-notices`), then set aside by the outbox.
+- **FC-030:** the 15-minute reminder (the attendance filter was already covered); the recruitment
+  report, counts only (`< 5`) to anyone shown it, and the audiences table's words.
+- **FC-033:** with no page of theirs open, a friend sent two messages is told once, and after
+  reading them is told again (counted by `fleet-dm-notices`, which opens no page).
+- **FC-036:** a same-named Fleet in a second Community on the dispute page.
+- **FC-037:** a hold brought to its review date, and the 05:03 review run on demand
+  (`fleet-review-holds`): its owner told, its log saying so; a held export brought to the end of
+  its retention, and the 04:11 job run (`fleet-expire-export`): shown "File expired", with nothing
+  to select.
+- **FC-039:** an override granted and withdrawn; Reported Officers claimed with no reason, closed
+  and dismissed each with one; Storytime Moderation refusing a dismissal without a note and an
+  appeal decided without a message (Storytime switched on for it by `fleet-storytime`, and put back
+  as found); the Security Log a page at a time, after real reads of Scan Diagnostics.
 
 ### Journey results
 
-The final run, on 4 October 2026: **173 passed, none flaky**, in 1.1 hours across both projects. The
-one skip is the sitemap journey on the phone, which runs on desktop alone.
+The final run, on 5 October 2026: **222 passed and 1 flaky**, in 1.1 hours across both projects,
+with the checks added on 4 October. The flaky test, switching Fleet Community off on desktop, timed
+out when its two support commands took 156 and 203 seconds instead of about 25, and passed on its
+retry in 53 seconds; it passed first time on the phone and in every other run. The one skip is the
+sitemap journey on the phone, which runs on desktop alone.
 
 | Project | Passed |
 | --- | --- |
 | `fleet-setup`, `fleet-teardown` | 2 |
-| `fleet-desktop` (1280 × 900) | 86 of 86, the sitemap included |
-| `fleet-mobile` (Pixel 7) | 85 of 86, the sitemap skipped |
+| `fleet-desktop` (1280 × 900) | 111 of 111, the sitemap included, one on its retry |
+| `fleet-mobile` (Pixel 7) | 110 of 111, the sitemap skipped |
 
-Earlier runs found defects 6 to 13 and 15, and four things about running them, each now handled by
-the harness and written up in the frontend's `e2e/README.md`: the dev server's watcher restarting
+Earlier runs found defects 6 to 13, 15 and 16, and seven things about running them, each now handled
+by the harness and written up in the frontend's `e2e/README.md`: the dev server's watcher restarting
 the API; an Owner's ten-Community limit across a desktop and phone run; a session saved once and
-retired by the first refresh an hour in; and the local `clamd` never loading `freshclam`'s
-signatures, which paused every scan once they were 48 hours old (production's image notifies
-`clamd` over TCP and is unaffected).
+retired by the first refresh an hour in; the local `clamd` never loading `freshclam`'s signatures,
+which paused every scan once they were 48 hours old (production's image notifies `clamd` over TCP
+and is unaffected); chat reports, moderation holds and rescan campaigns outliving the people who
+made them (the database nulls their names), until the open chat reports filled the site admin
+queue's first page and a run could not find its own, so `fleet-finish` now removes all three; and
+the Owner's 29 axe checks in one page, whose trace on the phone passed 200 MB (axe sends its whole
+script and its findings through every check) and could not be saved when the page closed, so the
+test timed out after every page had passed. They now run in four tests of up to eight pages, as the
+site admin's eight always had. Last, every full run ended with the phone's worker reported as not
+exiting, after all its tests had passed: the runner deletes a worker's artifacts before counting it
+gone, the worker had kept every trace's screencast frames, passed tests' included, and an hour of
+the phone's took more than the five minutes allowed. A CPU profile of the runner showed it deleting
+files. The Fleet traces now keep each step's snapshot without a screencast.
 
-The gates, the same day: backend 10,087 tests at 100% coverage and 50 fuzz tests; frontend 8,344
+The gates, on 4 and 5 October: backend 10,094 tests at 100% coverage and 50 fuzz tests; frontend 8,344
 tests at 100% coverage, the dev build, type checks and lint; worker 387 tests at 100% coverage.
 
 ## Accessibility
