@@ -20,11 +20,25 @@ Current overrides in `package.json`:
 
 ```json
 "overrides": {
+  "argparse": "^2.0.1",
   "qs": "^6.16.0"
 }
 ```
 
-As of **2026-09-11**, rechecked after the recent dependency refresh, `qs` is the only override the backend still needs. The `mailparser`, `nanoid`, `js-yaml`, and `typeorm.ioredis` entries were all verified redundant against the removal checklist above and dropped — see [Recently Removed Overrides](#recently-removed-overrides).
+As of **2026-10-06**, rechecked after the `@nestjs-modules/mailer@3` / `ejs@7` refresh, these are the only two overrides the backend needs. The `nodemailer` entry added on 2026-10-04 was dropped the same day `mailer@3` removed its reason to exist, and the `mailparser`, `nanoid`, `js-yaml`, and `typeorm.ioredis` entries were verified redundant earlier — see [Recently Removed Overrides](#recently-removed-overrides). Each remaining entry was re-confirmed on 2026-10-06 by removing it, reinstalling, and re-auditing: without it an advisory returns.
+
+#### `argparse`
+
+- **Vulnerability**: [GHSA-hp3w-g68c-fv3c](https://github.com/advisories/GHSA-hp3w-g68c-fv3c) — `sprintf-js` denial of service through unbounded precision specifiers. Moderate. **Every published `sprintf-js` release (`<=1.1.3`) is affected**, so there is nothing to pin to; `npm audit fix --force` can only offer a downgrade of `jest` to `25.0.0`.
+- **Root cause**: `ts-jest` → `@jest/transform` → `babel-plugin-istanbul@8.0.0` → `@istanbuljs/load-nyc-config@1.1.0` → `js-yaml@^3.13.1` → `argparse@^1.0.7` → `sprintf-js@1.0.3`. Development tree only; it is the sole `argparse@1` consumer.
+- **Override**: `"argparse": "^2.0.1"` — global. `argparse@2` has no dependencies at all, so this removes `sprintf-js` from the tree. It is safe because `js-yaml@3` only `require`s `argparse` from `bin/js-yaml.js`, its command-line tool, which nothing in this project runs; the library entry that `load-nyc-config` imports (`lib/`) never loads it. Every other `js-yaml` in the tree (`@nestjs/swagger` → `js-yaml@5`) already asks for `argparse@^2`, so nothing else changes.
+
+**When it can be removed**: When `@istanbuljs/load-nyc-config` publishes a release on `js-yaml@4` or later (every 4.x/5.x line uses `argparse@2`). Check with:
+
+```sh
+npm view @istanbuljs/load-nyc-config@latest dependencies.js-yaml
+npm ls sprintf-js
+```
 
 #### `qs`
 
@@ -33,19 +47,56 @@ As of **2026-09-11**, rechecked after the recent dependency refresh, `qs` is the
 - **Override**: `"qs": "^6.16.0"` — global pin; the whole tree dedupes to a single patched `qs` (currently `6.16.0`). A nested `"typed-rest-client": { "qs": ... }` form was tried first but npm did not reify it reliably, so the global form is used.
 - **Raised from `^6.15.2` on 2026-09-03**: the two later advisories extended the vulnerable range up to and including `6.15.3`, which the old caret range still permitted.
 
-**When it can be removed**: When `typed-rest-client` raises its `qs` pin to `>= 6.16.0` (or Stryker moves to `typed-rest-client@3`). Check with:
+**When it can be removed**: When Stryker moves to `typed-rest-client@3`. Re-checked 2026-10-06: `typed-rest-client@3.1.2` already depends on `qs@^6.16.0`, but `@stryker-mutator/core@10.0.0` still pins `typed-rest-client@~2.3.0`, whose newest release (`2.3.1`) keeps the exact `qs@6.15.1` pin. Check with:
 
 ```sh
-npm view typed-rest-client@latest dependencies.qs
+npm view @stryker-mutator/core@latest dependencies.typed-rest-client
+npm view typed-rest-client@2 dependencies.qs
 ```
+
+#### `@nestjs-modules/mailer@3` and `ejs@7` (2026-10-06)
+
+Both majors were taken together because the first one changes what the second
+one sits next to.
+
+- **`@nestjs-modules/mailer` `2.3.7` → `3.0.2`**: version 3 stops declaring every
+  template engine as an `optionalDependency`, so `ejs`, `handlebars`, `pug`,
+  `liquidjs`, `nunjucks`, `mjml` and `preview-email` are no longer installed
+  unless the application asks for them. The backend declares `ejs` itself and
+  renders every template through `ejs.renderFile` before handing finished HTML
+  to `MailerService.sendMail`; it never passes `template`, `context` or an
+  adapter, so the 3.0 behaviour changes (HTML-escaped `{{placeholders}}`,
+  `loadRemoteStylesheets: false`, the Pug compile change, the health indicator
+  no longer returning transporter error text) do not touch a code path the app
+  uses. Net effect on the tree: **311 packages removed**, including the whole
+  `mjml` / `mailparser` / `preview-email` family.
+- **`ejs` `6.0.1` → `7.0.1`**: the two breaking changes are a rewritten CLI
+  argument parser (the CLI is not used here) and the removal of the Express 2
+  "options in data" compatibility path, where keys such as `filename`, `cache`
+  or `delimiter` inside the data object were read as compiler options. The
+  backend's `renderFile` calls pass only template data (`user`, `appTitle`,
+  `firstName`, `verifyUrl`, `loginUrl`, `passwordResetUrl`, `contactUsUrl`,
+  `termsOfUseUrl`), none of which collides with an option name. `ejs@7` still
+  ships no type declarations, so `@types/ejs` stays.
+
+Two things stopped being needed as a direct result and were removed in the
+same change:
+
+- the **`nodemailer` override** (`"nodemailer": "$nodemailer"`, added
+  2026-10-04), which existed only to lift the nested
+  `preview-email/node_modules/nodemailer@9.1.1` copy onto the top-level
+  `10.x`; `preview-email` is no longer in the tree
+  (`npm ls preview-email mailparser mjml` → `(empty)`);
+- the **`postinstall` patch script** (`scripts/patch-nested-packages.js`) — see
+  [Postinstall patch script — removed](#postinstall-patch-script-removed-2026-10-06).
 
 #### `html-to-text`
 
 - **Vulnerability**: [GHSA-ggr8-5vv4-36mx](https://github.com/advisories/GHSA-ggr8-5vv4-36mx) — `deepmerge-ts` can stack-exhaust when recursively merging object graphs. Affected `deepmerge-ts` versions are patched from `8.0.0`.
-- **Current project state (2026-08-31)**: the app and `mailparser@3.9.18` both resolve `html-to-text@10.0.1`, which depends on `deepmerge-ts@^8.0.1` (currently `8.0.2`). No override is required.
+- **Current project state (2026-10-06)**: the app's own `html-to-text@10.0.1` is now the only copy (`mailparser` left the tree with `mailer@3`), and it depends on `deepmerge-ts@^8.0.1`. No override is required.
 - **Previously**: the app pinned `html-to-text@^9.0.5` and left a nested `10.0.0` copy under `preview-email`. That nested copy is gone after the mailparser / preview-email refresh.
 
-**When it can be re-checked**: If `html-to-text` or `mailparser` regresses onto `deepmerge-ts < 8`. Check with:
+**When it can be re-checked**: If `html-to-text` regresses onto `deepmerge-ts < 8`. Check with:
 
 ```sh
 npm ls deepmerge-ts html-to-text
@@ -82,54 +133,31 @@ makes a bare `npm install` / `npm update` resolve the same way CI does, which
 keeps the lockfile reproducible. **Do not remove it** while the Babel 7 / Babel 8
 split above persists.
 
-#### NestJS 12 — still deferred (re-checked 2026-09-03)
+#### NestJS 12 — adopted 2026-09-11
 
-`@nestjs/*` 12.x is available for every package the backend uses directly, but
-the upgrade remains blocked by **two ecosystem packages whose latest releases
-still refuse Nest 12 in their peer ranges**:
+The backend has run on `@nestjs/*` 12.x since 2026-09-11 (`chore(deps): upgrade
+NestJS and Node runtime`), when `nestjs-cls@7` (`@nestjs/core >= 10 < 13`) and
+`@sentry/nestjs@11` (`^8 || … || ^12`) published Nest 12-compatible peer
+ranges and removed the two blockers recorded here through 2026-09-03. Earlier
+revisions of this section described the upgrade as deferred; that is no longer
+true, and the text was corrected on 2026-10-06.
 
-| Package          | Latest    | Declared `@nestjs/core` peer range | Used by                                                  |
-| ---------------- | --------- | ---------------------------------- | -------------------------------------------------------- |
-| `nestjs-cls`     | `6.2.2`   | `>= 10 < 12`                       | `ClsModule` in [src/app.module.ts](../src/app.module.ts) |
-| `@sentry/nestjs` | `10.73.0` | `^8 \|\| ^9 \|\| ^10 \|\| ^11`     | Error reporting throughout `src/`                        |
+What the cutover did and did not involve:
 
-Two packages previously listed here are no longer blockers:
+- The whole `@nestjs/*` set (`common`, `core`, `config`, `jwt`, `passport`,
+  `platform-express`, `schedule`, `swagger`, `terminus`, `typeorm`, `cli`,
+  `schematics`, `testing`) moved together, with `@nestjs-modules/mailer@3`
+  following on 2026-10-06 (its first release to declare Nest 12 support).
+- The test runner stayed on Jest 30 + `ts-jest` under CommonJS. Nest 12
+  packages are native ESM, and Jest 30's `require(esm)` support is gated on
+  `vm.SourceTextModule`, so the Jest npm scripts and Stryker
+  `testRunnerNodeArgs` set `--experimental-vm-modules`. Runtime
+  (`node dist/src/main`) does not need the flag: Node 24 can `require()` the
+  ESM builds via their `default` export condition.
+- `@nestjs/cli@12` builds with plain `tsc` (it no longer bundles webpack);
+  `nest-cli.json` declares no builder, so nothing changed for `npm run build`.
 
-- **`@nestjs/terminus`** now publishes `12.0.0` with `@nestjs/core: ^11 || ^12`.
-  It is still used (`TerminusModule` in `src/health/health.module.ts`) but no
-  longer constrains the upgrade.
-- **`@nestjs/throttler`** was **removed from the project on 2026-09-03** — it was
-  declared in `dependencies` but never imported anywhere in `src/`. Request
-  throttling is done by the `express-rate-limit` + `rate-limit-redis` stack
-  configured in [src/main.ts](../src/main.ts), not by Nest's throttler. Earlier
-  revisions of this document described it as load-bearing; that was incorrect.
-
-The other reasons recorded on 2026-08-31 still stand:
-
-1. **Isolated ESM majors need Node VM modules.** Nest 12 packages are native
-   ESM. Jest 30 can `require()` ESM on Node 24.9+, but that path needs
-   `vm.SourceTextModule` (`--experimental-vm-modules`). The test scripts already
-   set that flag so `@nestjs/jwt@12` loads; a whole-framework ESM cutover is a
-   separate Jest/Vitest piece of work, not a lockfile bump.
-2. **CLI 12 is the Nest 12 toolchain.** `@nestjs/cli@12` stops bundling webpack,
-   defaults new apps to ESM / Vitest / oxlint / Rspack, and ships `nest upgrade`.
-   It belongs with the Nest 12 cutover, not a Nest 11 runtime.
-
-Take Nest 12 as its own change once `nestjs-cls` and `@sentry/nestjs` publish
-Nest 12-compatible peer ranges, then upgrade every `@nestjs/*` package together
-(the CLI's `nest upgrade` command is the intended path) and rework the Jest
-config for ESM.
-
-`@nestjs/jwt@12.0.1` is on the Nest 12 tree (its peer range includes Nest 8–12). It is a native ESM package with no `require` export condition. Jest 30's `require(esm)` support is gated on `vm.SourceTextModule.prototype.hasAsyncGraph`, which on Node 24.21 still needs `--experimental-vm-modules`. The Jest npm scripts and Stryker `testRunnerNodeArgs` therefore set that flag so auth specs can load `@nestjs/jwt`. Runtime (`node dist/src/main`) does not need the flag: Node 24 can `require()` the ESM build via the `default` export condition.
-
-**When it can be retried**:
-
-```sh
-npm view nestjs-cls@latest peerDependencies
-npm view @sentry/nestjs@latest peerDependencies
-```
-
-#### TypeScript compatibility gate (re-checked 2026-09-03)
+#### TypeScript compatibility gate (re-checked 2026-10-06)
 
 `typescript@7.0.2` is published, but the backend stays on `^6.0.3`. Two hard
 constraints block it:
@@ -256,6 +284,15 @@ and its spec (whose `jest.mock('crypto', ...)` became `jest.mock('node:crypto', 
 
 #### Recently Removed Overrides
 
+Override removed on **2026-10-06** with the `@nestjs-modules/mailer@3` upgrade:
+
+| Override     | Previously forced               | Resolves to without the override | Reason for removal                                                                                                                                                                                                                                                                                                                                                             |
+| ------------ | ------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `nodemailer` | `$nodemailer` (i.e. `^10.0.13`) | `nodemailer@10.0.15`, one copy   | Added 2026-10-04 to lift `preview-email/node_modules/nodemailer@9.1.1` (GHSA-p6gq-j5cr-w38f) onto the top-level `10.x`. `@nestjs-modules/mailer@3` no longer installs `preview-email` (or any other template engine) on the application's behalf, so the nested copy — and the override's only reason to exist — is gone. `npm ls nodemailer` shows the single top-level copy. |
+
+The same change retired the `postinstall` patch script; see
+[Postinstall patch script — removed](#postinstall-patch-script-removed-2026-10-06).
+
 Overrides removed on **2026-09-03** during dependency and audit maintenance. Each
 was verified against the removal checklist above: with the override deleted and
 the lockfile regenerated, `npm audit` reports **0 vulnerabilities** at every
@@ -269,9 +306,8 @@ severity, and `npm run lint`, `npm run test:cov`, `npm run test:fuzz`, and
 | `mailparser`      | `{ ".": "^3.9.10", "nodemailer": "^9.0.1" }` | `mailparser@3.9.17`, `nodemailer@9.1.1`     | `preview-email@3.4.0` now resolves a patched `mailparser`, and no nested `nodemailer` copy is installed anywhere in the tree.                                                            |
 | `typeorm.ioredis` | `^6.0.0`                                     | `ioredis@6.0.0`                             | `typeorm@1.1.1` resolves `ioredis@6.0.0` natively; the nested override no longer has any effect.                                                                                         |
 
-The postinstall patches in `scripts/patch-nested-packages.js` were **kept** —
-they are already no-ops (see below) and remain a cheap safety net if upstream
-re-resolution regresses.
+The postinstall patches in `scripts/patch-nested-packages.js` were kept at the
+time as no-op safety nets; they were removed outright on 2026-10-06 (see below).
 
 The `preview-email/node_modules/uuid` postinstall patch was removed on **2026-08-31**: `preview-email@3.4.0` no longer installs a nested `uuid`, and the top-level `uuid@14.0.2` is the only copy.
 
@@ -322,65 +358,51 @@ Overrides removed on **2026-05-30** and **2026-06-24** during dependency tree re
 #### `mjml-core` — no override available (known vulnerability, no upstream fix)
 
 - **Vulnerability**: [SNYK-JS-MJMLCORE-14417285](https://security.snyk.io/vuln/SNYK-JS-MJMLCORE-14417285) / CVE-2025-67898 — Directory Traversal via the `ignoreIncludes` parameter in `mjml-core`. CVSS Medium. **Fixed in: Not Fixed** (as of 2026-04-04).
-- **Root cause**: `@nestjs-modules/mailer` depends on `mjml`, which pulls in `mjml-core@5.0.0-beta.2`. No patched release exists in any branch.
-- **Risk assessment**: Exploitation requires an attacker to supply crafted input to the `ignoreIncludes` parameter. This project only processes internally authored email templates; no user-controlled content is passed to mjml. Practical exploitation risk is **low**.
-- **No override action**: A version override cannot help because there is no patched release. `npm audit` does not flag this advisory (it is Snyk-specific).
-
-**When it can be remediated**: When a patched `mjml-core` release is published. Monitor [CVE-2025-67898](https://www.cve.org/CVERecord?id=CVE-2025-67898) and the [mjml changelog](https://github.com/mjmlio/mjml/blob/master/CHANGELOG.md) for a fix. Verify with:
-
-```sh
-npm view mjml-core@latest version
-```
+- **Root cause (historical)**: `@nestjs-modules/mailer@2` depended on `mjml`, which pulled in `mjml-core@5.x`. No patched release exists in any branch.
+- **Resolved 2026-10-06 by removal**: `@nestjs-modules/mailer@3` no longer installs `mjml` (or any other template engine) unless the application declares it, and this backend renders with `ejs` only. `npm ls mjml mjml-core` reports `(empty)`, so the advisory no longer applies to this tree. If `mjml` is ever added as a direct dependency, re-read the Snyk entry first.
 
 ---
 
-### Postinstall Patch (`scripts/patch-nested-packages.js`)
+### Postinstall patch script — removed 2026-10-06
 
-This script runs automatically after every `npm install` and `npm ci` via the `postinstall` hook.
+Until 2026-10-06 `scripts/patch-nested-packages.js` ran from a `postinstall`
+hook after every local `npm install`. It existed to work around an npm 11.x
+bug where a nested override (`"A": { "B": "^x.y.z" }`) is not applied when `B`
+is also a direct top-level dependency: it copied the safe top-level copy of a
+package over a stale nested install and rewrote `package-lock.json` to match.
+Its four entries covered:
 
-**Why it exists**: npm 11.x has a bug where nested overrides (e.g. `"A": { "B": "^x.y.z" }`) are not applied when package `B` is also a direct top-level dependency. In these cases, npm installs the older nested version even though the override is declared. The script works around this by:
+- `@nestjs/platform-express/node_modules/multer` — a no-op since
+  `@nestjs/platform-express` moved to `multer@2.4.0`, which dedupes against the
+  app's own `^2.4.0`;
+- `mailparser/node_modules/nodemailer`, `preview-email/node_modules/nodemailer`
+  and `preview-email/node_modules/mailparser/node_modules/nodemailer`
+  ([GHSA-c7w3-x93f-qmm8](https://github.com/advisories/GHSA-c7w3-x93f-qmm8),
+  [GHSA-p6gq-j5cr-w38f](https://github.com/advisories/GHSA-p6gq-j5cr-w38f)) —
+  paths that can no longer exist, because `@nestjs-modules/mailer@3` stopped
+  installing `preview-email` and `mailparser` altogether.
 
-1. Detecting any nested package install that is behind the required version.
-2. Replacing it in `node_modules` by copying the safe top-level version.
-3. Updating `package-lock.json` so that `npm audit` reports the correct version.
+With every entry pointing at a path that is no longer in the tree, the script
+and its `postinstall` hook were deleted. Two further points made it safe to drop
+rather than keep as a "safety net":
 
-**Adding a new patch entry**: Edit the `patches` array in `scripts/patch-nested-packages.js`:
+1. CI never ran it: every workflow installs with `npm ci --ignore-scripts`, so
+   the lockfile CI audits was always the one npm produced on its own.
+2. The nodemailer advisories it guarded against are now handled by npm's own
+   resolution — `nodemailer@10.0.15` is the only copy in the tree
+   (`npm ls nodemailer` shows one top-level entry and no nested copies).
 
-```js
-const patches = [
-  // [ 'path/within/node_modules/to/nested/package', 'top-level-package-name' ]
-  ['@nestjs/platform-express/node_modules/multer', 'multer'],
-  ['mailparser/node_modules/nodemailer', 'nodemailer'],
-  ['preview-email/node_modules/nodemailer', 'nodemailer'],
-  [
-    'preview-email/node_modules/mailparser/node_modules/nodemailer',
-    'nodemailer',
-  ],
-];
-```
-
-**Removing a patch entry**: When the upstream package fixes its own dependency so the nested install no longer appears (or already uses the safe version), remove the corresponding entry from the `patches` array. Also remove the matching nested override from `package.json` if it is no longer needed.
-
-#### `nodemailer` (nested under `mailparser` / `preview-email`)
-
-- **Vulnerability**: [GHSA-c7w3-x93f-qmm8](https://github.com/advisories/GHSA-c7w3-x93f-qmm8) — SMTP command injection via unsanitised `envelope.size` parameter in `nodemailer < 8.0.4`. Severity: Low.
-- **Root cause**: `mailparser` and `preview-email` can install nested `nodemailer` versions behind the secure top-level dependency. npm 11.x nested-override behavior can leave those copies in place.
-- **Patch**: `['mailparser/node_modules/nodemailer', 'nodemailer']` and `['preview-email/node_modules/nodemailer', 'nodemailer']` copy the safe top-level `nodemailer` into nested installs after every `npm install` / `npm ci`.
-
-**Status (2026-09-03)**: The `mailparser` override has been removed. `preview-email@3.4.0` now resolves `mailparser@3.9.17` and `nodemailer@9.1.1` natively, and `npm ls nodemailer` shows a single hoisted copy — so both entries are no-ops, kept as a safety net against future re-resolution.
-
-**When it can be removed**: When `mailparser` and `preview-email` both resolve patched `nodemailer` natively and nested vulnerable copies are no longer installed. Verify with:
-
-```sh
-npm view mailparser@latest dependencies.nodemailer
-npm view preview-email@latest dependencies.nodemailer
-```
+If a nested, vulnerable copy of a direct dependency ever reappears, prefer a
+global `overrides` entry (which npm applies reliably) and record it in the
+active list above. The script can be recovered from git history (last present
+at `development` on 2026-10-05) if a nested override genuinely cannot be
+expressed that way.
 
 #### `uuid` (nested under `preview-email`) — removed 2026-08-31
 
 - **Vulnerability**: [GHSA-w5hq-g745-h8pq](https://github.com/advisories/GHSA-w5hq-g745-h8pq) — Missing buffer bounds check in UUID v3/v5/v6 when `buf` is provided (`uuid < 11.1.1`). Severity: Moderate.
 - **Previous patch**: `['preview-email/node_modules/uuid', 'uuid']` copied the safe top-level `uuid` into nested preview-email installs.
-- **Removed**: `preview-email@3.4.0` no longer installs a nested `uuid`. The tree has a single `uuid@14.0.2`. Restore the patch if `npm ls uuid` shows a nested copy below `11.1.1` again.
+- **Removed**: `preview-email@3.4.0` no longer installed a nested `uuid`, and since 2026-10-06 `preview-email` itself is no longer in the tree. The app has no direct `uuid` dependency; `npm ls uuid` shows only `jest-junit`'s copy.
 
 ## CORS Configuration
 
