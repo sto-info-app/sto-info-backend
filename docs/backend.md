@@ -595,3 +595,14 @@ every rule it claims to enforce. They need Docker and never touch a real databas
 - `npm run rehearse:migration:roster-import-source`: FC-009's import provenance, on top of both.
 - `npm run rehearse:migration:published-image-guard`: FC-042's guard on every picture column, and
   its refused rollback.
+
+The whole Fleet Community v1 release is rehearsed from production as it is, on the operations
+rehearsal's throwaway stack (FC-045):
+
+- `npm run rehearse:release`: builds `origin/production`, makes its schema with its own migrations
+  and fills it with production-shaped rows, then migrates to this release and checks that every
+  row and column survives, that Fleet Community starts off and can be switched on and off, the
+  ways back, and that each row the preflight looks for really would fail the release. See
+  `scripts/release-rehearsal/README.md`.
+- `scripts/release-preflight/preflight.sql`: read-only checks to run with `psql` against the
+  database a release is about to migrate. See the [release checklist](fleet-community-release.md).

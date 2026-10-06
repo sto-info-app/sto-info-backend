@@ -47,6 +47,7 @@
     "rehearse:operations": "bash scripts/operations-rehearsal/run-rehearsal.sh",
     "rehearse:adversarial": "bash scripts/operations-rehearsal/run-rehearsal.sh adversarial",
     "rehearse:load": "bash scripts/operations-rehearsal/run-rehearsal.sh load",
+    "rehearse:release": "bash scripts/operations-rehearsal/run-rehearsal.sh release",
     "rehearse:migration": "bash scripts/migration-rehearsal/run-rehearsal.sh",
     "rehearse:migration:fleet-authorisation": "bash scripts/migration-rehearsal/run-rehearsal.sh src/database/migrations/1791600000000-CreateFleetCommunityDomainTables.ts,src/database/migrations/1791700000000-CreateScopeCapabilityGrants.ts fleet-authorisation",
     "rehearse:migration:user-preferences": "bash scripts/migration-rehearsal/run-rehearsal.sh src/database/migrations/1791800000000-CreateUserPreference.ts,src/database/migrations/1791900000000-SeedFleetFeatureSwitch.ts user-preferences",
