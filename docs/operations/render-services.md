@@ -35,8 +35,8 @@ its [infrastructure documentation](../../../sto-info-file-scan-worker/docs/infra
   Set `NODE_OPTIONS=--max-old-space-size=384` on the service. Uncapped, Node let the heap grow to
   775 MiB after the launch load's longest replay and the process to about 1 GB; capped, every load
   scenario still passed with the heap at most 322 MiB and about 550 MiB resident on Windows. The
-  resident set on Render's Linux is measured in FC-052; see
-  [FC-044's evidence](../release/fc-044-acceptance.md#load).
+  resident set on Render's Linux is measured in FC-052; FC-044's acceptance evidence, kept with
+  the Fleet Community plans, has the load figures.
 - **Instances.** One, with auto-scaling off ([Infrastructure](../infrastructure.md#scaling-configuration)).
   More are safe: the restore check and the alert cron each hold a PostgreSQL advisory lock, and
   chat's socket.io traffic goes through the Redis adapter.
@@ -80,6 +80,17 @@ file safety: while it is down no upload can be scanned, so none is published.
 
 ## Deploy order
 
+0. **Once, before the worker's first deploy: grant its role what its foreign key needs.** Nothing
+   in either repository's migrations makes this grant, because neither knows the other's role. As
+   the database owner:
+
+   ```sql
+   GRANT USAGE ON SCHEMA sto_info_app TO <worker role>;
+   GRANT REFERENCES ON sto_info_app.file_asset TO <worker role>;
+   ```
+
+   Nothing else in `sto_info_app`: the worker does not read the registry and must not write it.
+   Without the grant, the worker's first migration fails and its container stops.
 1. **The backend first.** Its migrations must run before the worker's, because the worker's
    `file_scan_attempt` has a foreign key into `sto_info_app.file_asset`. The failure the other way
    round is loud: the worker's migration does not apply and its container stops.

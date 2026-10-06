@@ -47,4 +47,4 @@ proved against a real clamd by the worker's `npm run rehearse:scan`.
 
 As the operations rehearsal's: each check prints `PASS`, `FAIL` or `INFO` with its time, the table
 is written as Markdown to `REHEARSAL_RESULTS`, and the logs beside it. The results are not
-committed; [FC-043's acceptance evidence](../../docs/release/fc-043-acceptance.md) records a run.
+committed; FC-043's acceptance evidence, kept with the Fleet Community plans, records a run.
