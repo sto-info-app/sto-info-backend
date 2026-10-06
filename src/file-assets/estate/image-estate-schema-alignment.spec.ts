@@ -9,6 +9,7 @@ import {
 import { FC050_ACTIONS } from '../../database/migrations/1797100000000-DecideRescanFindings';
 import { LEDGER_ACTIONS } from '../../database/migrations/1797200000000-RecordLedgerReconciliation';
 import { OPERATIONS_ACTIONS } from '../../database/migrations/1797500000000-AddOperationsAlerts';
+import { FEATURE_SWITCH_ACTIONS } from '../../database/migrations/1797700000000-RecordFeatureSwitchChanges';
 import { FileAssetEntity } from '../entities/file-asset.entity';
 import { ImageEstateRunEntity } from './image-estate-run.entity';
 import { ImageEstateStepEntity } from './image-estate-step.entity';
@@ -142,12 +143,13 @@ describe('Image estate schema alignment (FC-040)', () => {
   });
 
   it('undoes it all, making the log’s type again without them', () => {
-    // FC-041's rescan actions, FC-050's and FC-042's come later, and are not
-    // in it either.
+    // FC-041's rescan actions, FC-050's, FC-042's and FC-045's come later,
+    // and are not in it either.
     const later: readonly string[] = [
       ...FC050_ACTIONS,
       ...LEDGER_ACTIONS,
       ...OPERATIONS_ACTIONS,
+      ...FEATURE_SWITCH_ACTIONS,
     ];
     const before = Object.values(SiteAdminActionKind).filter(
       value =>

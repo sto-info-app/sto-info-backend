@@ -12,6 +12,7 @@ import {
 } from '../../database/migrations/1797100000000-DecideRescanFindings';
 import { LEDGER_ACTIONS } from '../../database/migrations/1797200000000-RecordLedgerReconciliation';
 import { OPERATIONS_ACTIONS } from '../../database/migrations/1797500000000-AddOperationsAlerts';
+import { FEATURE_SWITCH_ACTIONS } from '../../database/migrations/1797700000000-RecordFeatureSwitchChanges';
 import { FileRescanCampaignEntity } from './file-rescan-campaign.entity';
 import { FileRescanEntity } from './file-rescan.entity';
 import {
@@ -134,7 +135,8 @@ describe('Rescan campaign schema alignment (FC-041)', () => {
             !value.startsWith('RESCAN_') &&
             !(FC050_ACTIONS as readonly string[]).includes(value) &&
             !(LEDGER_ACTIONS as readonly string[]).includes(value) &&
-            !(OPERATIONS_ACTIONS as readonly string[]).includes(value),
+            !(OPERATIONS_ACTIONS as readonly string[]).includes(value) &&
+            !(FEATURE_SWITCH_ACTIONS as readonly string[]).includes(value),
         )
         .map(value => `'${value}'`)
         .join(', ')})`,
@@ -192,8 +194,12 @@ describe('Rescan decision schema alignment (FC-050)', () => {
   });
 
   it('adds its actions to the site admin log, and takes them out again', () => {
-    // FC-042's come later.
-    const later: readonly string[] = [...LEDGER_ACTIONS, ...OPERATIONS_ACTIONS];
+    // FC-042's and FC-045's come later.
+    const later: readonly string[] = [
+      ...LEDGER_ACTIONS,
+      ...OPERATIONS_ACTIONS,
+      ...FEATURE_SWITCH_ACTIONS,
+    ];
     const all = Object.values(SiteAdminActionKind).filter(
       value => !later.includes(value),
     );
