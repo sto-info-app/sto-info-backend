@@ -56,6 +56,7 @@ import {
   EgressGuard,
   failedJobCounts,
   generated,
+  jobExists,
   MINIO_USER,
   nodePath,
   pingClamd,
@@ -2528,6 +2529,60 @@ async function rollback(r: Rehearsal): Promise<void> {
  * @param r - The rehearsal.
  * @param name - The scenario.
  */
+/** The newest migration this scenario's refusals were written against (FC-042). */
+const FC042_HEAD = 1797500000000;
+
+/**
+ * Reverts, on a copy, every migration newer than {@link FC042_HEAD}, so the
+ * FC-042 refusals below are asked for as they were written. FC-043's purge
+ * alert reverts cleanly, and so do FC-045's three while no feature switch has
+ * been thrown, as here; the release rehearsal proves the one that then
+ * refuses.
+ *
+ * @param r - The rehearsal.
+ * @param name - The scenario.
+ * @param db - The copy.
+ * @param label - Which copy, for the results.
+ */
+async function revertNewer(
+  r: Rehearsal,
+  name: string,
+  db: Database,
+  label: string,
+): Promise<void> {
+  const reverted: string[] = [];
+
+  for (;;) {
+    const newest = Number(
+      await db.value<string>(
+        `SELECT max("timestamp")::text AS "value" FROM "sto_info_app"."_migrations"`,
+      ),
+    );
+
+    if (newest <= FC042_HEAD) {
+      break;
+    }
+
+    const answer = await r.backendMigrations('migration:revert', db.name);
+
+    if (answer.code !== 0) {
+      throw new Error(
+        `${label}: ${newest} would not revert: ${failureOf(answer.output)}`,
+      );
+    }
+
+    reverted.push(String(newest));
+  }
+
+  r.results.record(
+    name,
+    `${label}: the migrations newer than FC-042's reverted first`,
+    'INFO',
+    null,
+    reverted.join(', ') || 'none',
+  );
+}
+
 async function revertProbe(r: Rehearsal, name: string): Promise<void> {
   const probe = DATABASES.probe;
   const db = new Database(r.config, probe);
@@ -2538,6 +2593,7 @@ async function revertProbe(r: Rehearsal, name: string): Promise<void> {
   );
 
   try {
+    await revertNewer(r, name, db, "Today's copy");
     await db.query(
       `UPDATE "sto_info_app"."app_setting" SET "value" = $1 WHERE "key" = 'FILE_PUBLICATION_PAUSED'`,
       [
@@ -2619,6 +2675,8 @@ async function revertProbe(r: Rehearsal, name: string): Promise<void> {
   );
 
   try {
+    await revertNewer(r, name, clean, 'Cold-start copy');
+
     const logged = await clean.value<number>(
       `SELECT count(*)::int AS "value" FROM "sto_info_app"."site_admin_action" WHERE "action"::text = ANY($1)`,
       [[...OPERATIONS_ACTIONS, 'LEDGERS_RECONCILED']],
@@ -3191,6 +3249,147 @@ async function transientScanFailure(r: Rehearsal): Promise<void> {
 }
 
 /**
+ * Empties Redis, as losing its data would: every queue, job and lock gone.
+ *
+ * @param r - The rehearsal.
+ */
+async function flushRedis(r: Rehearsal): Promise<void> {
+  await r.containers.exec('redis', 'redis-cli FLUSHALL');
+}
+
+/**
+ * Scenario 9: Redis loses its data (FC-045, closing ADR-0019's open point).
+ *
+ * Until now the recovery was proved only with Redis unreachable and its
+ * data kept (S3a). Here its data is lost twice:
+ *
+ * - **A scan request lost mid-scan.** clamd is frozen so the worker holds
+ *   the scan, Redis is emptied, and the worker is killed and started again.
+ *   The upload is left with no request anywhere; the backend's re-queue
+ *   sweep sends it again, and the new worker takes the attempt over once
+ *   the dead one's lease lapses.
+ * - **A verdict lost before the backend read it.** With the backend down,
+ *   the worker scans and sends its verdict, and Redis is emptied before the
+ *   backend returns. The sweep sends the request again, and the worker,
+ *   finding the attempt finished, repeats the verdict.
+ *
+ * @param r - The rehearsal.
+ */
+async function redisDataLoss(r: Rehearsal): Promise<void> {
+  const name = 'S9 Redis loses its data';
+
+  // A scan request lost while the worker holds it.
+  await r.containers.pause('clamd');
+
+  let held: Upload;
+
+  try {
+    held = await r.uploadRoster();
+    await waitFor(
+      'the worker to hold the scan',
+      async () =>
+        ['CLAIMED', 'SCANNING'].includes(
+          (await r.attemptState(held.assetId)) ?? '',
+        ),
+      60_000,
+    );
+    await flushRedis(r);
+    await r.worker?.kill();
+  } finally {
+    await r.containers.unpause('clamd');
+  }
+
+  r.results.record(
+    name,
+    'Redis emptied while the worker held a scan, and the worker killed',
+    'INFO',
+    null,
+    `asset ${await r.assetState(held.assetId)}, attempt ${await r.attemptState(held.assetId)}`,
+  );
+
+  let since = Date.now();
+
+  r.startWorker('after-flush');
+  await r.workerRunning(since);
+
+  const requeued = await waitFor(
+    'the scan request to be sent again',
+    () =>
+      // A scan request's ID is the asset's, then its policy version.
+      jobExists(r.config, 'file-scan', `${held.assetId}_*`),
+    240_000,
+    1_000,
+  ).catch(() => null);
+
+  r.results.check(
+    name,
+    'The re-queue sweep sends the lost request again',
+    requeued !== null,
+    requeued?.seconds ?? null,
+  );
+
+  const scanned = await r.imported(held, 600_000).catch(() => null);
+
+  r.results.check(
+    name,
+    'The new worker takes the abandoned attempt over, and the upload is in force',
+    scanned !== null,
+    secondsSince(since),
+    `attempt ${await r.attemptState(held.assetId)}`,
+  );
+
+  // A verdict lost before the backend read it.
+  await r.worker?.kill();
+
+  const lost = await r.uploadRoster();
+
+  await r.backend?.kill();
+  since = Date.now();
+  r.startWorker('verdict-loss');
+
+  const sent = await waitFor(
+    'the worker to send its verdict',
+    () =>
+      r.db.value<boolean>(
+        `SELECT "verdictPublishedAt" IS NOT NULL AS "value" FROM "sto_info_worker"."file_scan_attempt"
+          WHERE "assetId" = $1 ORDER BY "createdAt" DESC LIMIT 1`,
+        [lost.assetId],
+      ),
+    240_000,
+    1_000,
+  );
+
+  await flushRedis(r);
+  r.results.record(
+    name,
+    'Verdict sent while the backend was down, then Redis emptied',
+    'INFO',
+    sent.seconds,
+    `asset ${await r.assetState(lost.assetId)}, attempt ${await r.attemptState(lost.assetId)}`,
+  );
+
+  since = Date.now();
+  r.startBackend('verdict-loss');
+  await r.backendReady();
+  await r.api.signIn(r.adminEmail, r.adminPassword);
+
+  const repeated = await r.imported(lost, 420_000).catch(() => null);
+  const attempts = await r.db.value<number>(
+    `SELECT count(*)::int AS "value" FROM "sto_info_worker"."file_scan_attempt" WHERE "assetId" = $1`,
+    [lost.assetId],
+  );
+
+  r.results.check(
+    name,
+    'The request is sent again, the worker repeats its verdict, and the upload is in force',
+    repeated !== null && attempts === 1,
+    secondsSince(since),
+    `${attempts} attempt(s); asset ${await r.assetState(lost.assetId)}`,
+  );
+  await r.checkNothingUnscanned(name);
+}
+
+/**
  * Runs every scenario and writes the results.
  */
 async function main(): Promise<void> {
@@ -3223,6 +3422,7 @@ async function main(): Promise<void> {
     await scenario(r, 'S8 Transient scan failure', () =>
       transientScanFailure(r),
     );
+    await scenario(r, 'S9 Redis loses its data', () => redisDataLoss(r));
 
     const attempts = r.egress.attemptsSince();
     const counted = new Map<string, number>();

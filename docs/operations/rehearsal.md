@@ -32,7 +32,7 @@ The script lives in `scripts/operations-rehearsal/`; its
   only. Every upload is a roster export derived from the synthetic test fixtures. Both
   applications are given a proxy that refuses every outside call and records it, so nothing can
   reach Cloudflare.
-- **How long.** About 30 minutes: four or five to build, twenty-five to rehearse. Most of it is
+- **How long.** About 40 minutes: four or five to build, thirty-five to rehearse. Most of it is
   waiting on purpose: a crashed scan's five-minute lease, a frozen scan's two-minute timeout, Redis
   away until `QUEUES_UNREACHABLE` opens, a minute of bucket outage, one-minute alert ticks.
 - **Where the results go.** Each check prints `PASS`, `FAIL` or `INFO` with its time in seconds.
@@ -59,10 +59,12 @@ What it rehearses, runbook by runbook:
 | [Restore](restore.md)                                   | S4 restore                                                  | After restoring a backup taken before them, the boot brings back an erasure, a moderation hold, an asset deny and an account closure (with its date) before anything is served, and logs `LEDGERS_RECONCILED`                                                                                                                                                                                                                                                           |
 | [Rollback](rollback.md)                                 | S5 rollback                                                 | `migration:revert` refuses while publication is paused, at `1797500000000` once the Security Log holds its actions, at `1797200000000` once `LEDGERS_RECONCILED` is logged, and at the picture guard; a direct write of an unpublished picture reference is refused with `IRG01`; the production release cannot start without its retired secret names                                                                                                                  |
 | [Incidents](incidents.md)                               | S2, S3a, S5, S7 stale-upload sweep                          | Nothing is published unscanned through any outage; while Redis is away Scan Diagnostics still answers, publication can still be paused, and an upload is accepted and queued once Redis returns, across a backend restart; pausing publication holds a cleared upload across a rollback and roll-forward, and resuming publishes it; the stale-upload sweep keeps an old upload while the pipeline is stopped and for a day after, and abandons it once that has passed |
+| [Incidents](incidents.md) | S9 Redis loses its data | Redis emptied while the worker holds a scan (the worker then killed), and again after a verdict was sent but before the backend read it: the re-queue sweep sends each lost request again, the new worker takes the abandoned attempt over once its lease lapses, the worker repeats the verdict it had sent, and both uploads are in force with nothing published unscanned |
 
-Stranded verdicts (a scan finished while the verdict queue was unreachable) are not rehearsed:
-nothing on the local stack could time a Redis outage into the moment between a scan's end and
-its verdict's send.
+Stranded verdicts in the narrow sense (a scan finished while the verdict queue was unreachable,
+so the worker never sent it) are not rehearsed: nothing on the local stack could time a Redis
+outage into the moment between a scan's end and its verdict's send. A verdict that was sent and
+then lost with Redis's data is rehearsed, in S9 (FC-045).
 
 ## Timings
 
