@@ -130,6 +130,7 @@
     "typescript": "^6.0.3"
   },
   "overrides": {
+    "argparse": "^2.0.1",
     "qs": "^6.16.0"
   },
   "lint-staged": {
