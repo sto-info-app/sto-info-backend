@@ -149,7 +149,7 @@ All default to enabled, so once Custom Tracking itself is switched on its parts 
 
 The structural limits are fixed rather than configurable. They decide how large a hierarchy the value editor and the detail pages have to render in one go, so raising one for a single user would produce a page nobody can use on a phone rather than unlocking anything for them. See `custom-tracking.md`.
 
-> `CUSTOM_TRACKING_ENABLED` is **not** an environment variable. It is a runtime switch in the `app_setting` table, seeded off by the feature's first migration, so the feature can be taken offline without a redeployment — which matters here because it stores content users write themselves.
+> `CUSTOM_TRACKING_ENABLED` is **not** an environment variable. It is a runtime switch in the `app_setting` table, seeded off by the feature's first migration, so the feature can be taken offline without a redeployment — which matters here because it stores content users write themselves. It is thrown from the Admin page's Features panel, with a reason, as are `STORYTIME_ENABLED` and `FLEET_COMMUNITIES_ENABLED`.
 
 ## Optional
 

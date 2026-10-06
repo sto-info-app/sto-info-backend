@@ -51,4 +51,8 @@ export enum SiteAdminActionKind {
   PUBLICATION_RESUMED = 'PUBLICATION_RESUMED',
   /** A failed background job, or those a retry cannot help, removed (FC-042). */
   SCAN_JOB_DISCARDED = 'SCAN_JOB_DISCARDED',
+  /** A site feature switched on from the Admin page (FC-045). */
+  FEATURE_SWITCHED_ON = 'FEATURE_SWITCHED_ON',
+  /** A site feature switched off from the Admin page (FC-045). */
+  FEATURE_SWITCHED_OFF = 'FEATURE_SWITCHED_OFF',
 }

@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 
+import { FeatureSwitchesModule } from 'src/settings/feature-switches/feature-switches.module';
+
 import { AdminStorytimeConfigurationController } from './admin-storytime-configuration.controller';
 import { StorytimeArcsModule } from './arcs/storytime-arcs.module';
 import { StorytimeChaptersModule } from './chapters/storytime-chapters.module';
@@ -31,6 +33,7 @@ import { StorytimeTagsModule } from './tags/storytime-tags.module';
  */
 @Module({
   imports: [
+    FeatureSwitchesModule,
     StorytimeContentModule,
     StorytimeStoriesModule,
     StorytimeChaptersModule,

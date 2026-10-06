@@ -13,8 +13,8 @@ bypass. The detail of that defence is in
 ## In order of preference
 
 1. **A switch.** Most problems can be stopped without a deploy, and every switch is reversible:
-   - a feature switch in `app_setting` — `FLEET_COMMUNITIES_ENABLED`, `CUSTOM_TRACKING_ENABLED`,
-     or `STORYTIME_ENABLED` (also `PATCH /admin/storytime/configuration`). Every instance sees a
+   - a feature switch — Fleet Communities, Custom Tracking or Storytime — on the Admin page's
+     Features panel, with a reason (`PATCH /admin/feature-switches/:feature`). Every instance sees a
      change within the ten-second settings cache;
    - the publication pause, when what is wrong is what gets published
      ([Incidents](incidents.md#contain));

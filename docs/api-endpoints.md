@@ -414,11 +414,24 @@ when Redis cannot be reached or does not answer within 5 seconds. A pause or res
 down still succeeds on the switch, answering with `queuePaused` and `held` null. See
 [File assets](file-assets.md#running-the-pipeline-fc-042).
 
+### Feature switches (FC-045)
+
+| Method | Path | Purpose |
+| ------ | ---- | ------- |
+| GET | `/admin/feature-switches` | Fleet Communities, Storytime and Custom Tracking, in that order: whether each is on, when its switch was last written and by whom (`changedAt`, `changedByUsername`, null for a seeded or hand-set value), and the capability flags beneath it as the environment sets them (`subFlags`: `key`, `label`, `isEnabled`), read whether or not the feature is on |
+| PATCH | `/admin/feature-switches/:feature` | `{ isEnabled, reason }`, where `:feature` is `FLEET_COMMUNITIES`, `STORYTIME` or `CUSTOM_TRACKING` (400 otherwise); answers the switch as it now stands. 409 when it is already in that position; 404 when its `app_setting` row is missing. Logged as `FEATURE_SWITCHED_ON` or `FEATURE_SWITCHED_OFF` |
+
+All require the `ADMIN` role. Gated by the role rather than any feature's own permission: those
+permissions are only meaningful while the feature is on, so gating the switch behind one would let
+the control that recovers the feature become unreachable. The capability flags cannot be changed
+here; they are environment variables. Every instance sees a change within the ten-second settings
+cache.
+
 ### PATCH /admin/storytime/configuration
 
-Switch Storytime on or off at runtime. `GET` on the same path reports the current state. Both require the `ADMIN` role.
-
-Gated by the role rather than a Storytime permission: those permissions are only meaningful while Storytime is on, so gating the switch behind one would let the control that recovers the feature become unreachable.
+Switch Storytime on or off at runtime: `{ isEnabled, reason }`. It writes through the feature
+switches above, so it answers 409 when Storytime is already in that position and is logged the same
+way. `GET` on the same path reports Storytime's feature state. Both require the `ADMIN` role.
 
 ## User Endpoints
 

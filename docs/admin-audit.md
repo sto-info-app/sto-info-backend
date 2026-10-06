@@ -53,6 +53,7 @@ records:
 | `SCAN_JOB_RETRIED` | `POST /admin/file-scanning/failed-jobs/:queue/:jobId/retry` and `/retry-all` (FC-042) | `reason` in the body; the subject is the queue and the job ID, with `detail` its attempts, or for "Retry all" the queue (or `ALL`) and `ALL`, with `detail` the counts retried and skipped by queue |
 | `SCAN_JOB_DISCARDED` | `POST /admin/file-scanning/failed-jobs/:queue/:jobId/discard` and `/discard-unretryable` (FC-042) | `reason` in the body; the subject is the queue and the job ID, with `detail` its attempts and whether a retry could have helped, or for "Discard unretryable" the queue (or `ALL`) and `ALL`, with `detail` the counts discarded and kept by queue |
 | `PUBLICATION_PAUSED`, `PUBLICATION_RESUMED` | `POST /admin/file-publication/pause` and `/resume` (FC-042) | `reason` in the body; no subject; a resume's `detail` has how many minutes it was paused |
+| `FEATURE_SWITCHED_ON`, `FEATURE_SWITCHED_OFF` | `PATCH /admin/feature-switches/:feature`, and Storytime's `PATCH /admin/storytime/configuration` (FC-045) | `reason` in the body; the subject is `FEATURE_SWITCH` with the feature (`FLEET_COMMUNITIES`, `STORYTIME` or `CUSTOM_TRACKING`); no `detail`. Its migration refuses to revert once either is logged |
 
 The row is written by `recordSiteAdminAction()` in the transaction that makes
 the change, so a change never lands without its entry and an entry never

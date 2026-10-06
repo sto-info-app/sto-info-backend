@@ -18,6 +18,11 @@ import {
   AddOperationsAlerts1797500000000,
   OPERATIONS_ACTIONS,
 } from '../../database/migrations/1797500000000-AddOperationsAlerts';
+import {
+  FEATURE_SWITCH_ACTIONS,
+  FEATURE_SWITCH_ACTIONS_DOWN_REFUSAL,
+  RecordFeatureSwitchChanges1797700000000,
+} from '../../database/migrations/1797700000000-RecordFeatureSwitchChanges';
 import { ChatActionEntity } from '../../fleet/chat/entities/chat-action.entity';
 import { ChatActionKind } from '../../fleet/chat/enums/chat.enums';
 import { ModerationHoldActionEntity } from '../../fleet/chat/holds/moderation-hold-action.entity';
@@ -115,8 +120,8 @@ describe('Site admin log schema alignment (FC-039)', () => {
 
   it('gives the action type every action the code knows', () => {
     // FC-040's and FC-041's migrations add the image estate's and the
-    // rescan campaigns' actions, and FC-050's and FC-042's theirs; their
-    // specs hold that.
+    // rescan campaigns' actions, and FC-050's, FC-042's and FC-045's theirs;
+    // their specs hold that.
     expect([
       ...SITE_ADMIN_ACTIONS,
       ...IMAGE_ESTATE_ACTIONS,
@@ -124,6 +129,7 @@ describe('Site admin log schema alignment (FC-039)', () => {
       ...FC050_ACTIONS,
       ...LEDGER_ACTIONS,
       ...OPERATIONS_ACTIONS,
+      ...FEATURE_SWITCH_ACTIONS,
     ]).toEqual(Object.values(SiteAdminActionKind));
     expect(up[0]).toBe(
       `CREATE TYPE "sto_info_app"."site_admin_action_enum" AS ENUM (${SITE_ADMIN_ACTIONS.map(
@@ -255,8 +261,12 @@ describe('Ledger reconciliation schema alignment (FC-042)', () => {
   });
 
   it('makes the type again without it, keeping every earlier action', () => {
-    // FC-042's operations actions come later.
-    const later: readonly string[] = [...LEDGER_ACTIONS, ...OPERATIONS_ACTIONS];
+    // FC-042's operations actions and FC-045's feature switches come later.
+    const later: readonly string[] = [
+      ...LEDGER_ACTIONS,
+      ...OPERATIONS_ACTIONS,
+      ...FEATURE_SWITCH_ACTIONS,
+    ];
     const before = Object.values(SiteAdminActionKind).filter(
       value => !later.includes(value),
     );
@@ -293,8 +303,12 @@ describe('Operations actions schema alignment (FC-042)', () => {
       SiteAdminActionKind.PUBLICATION_RESUMED,
       SiteAdminActionKind.SCAN_JOB_DISCARDED,
     ]);
+    // FC-045's feature switches come after them.
     expect(
-      Object.values(SiteAdminActionKind).slice(-OPERATIONS_ACTIONS.length),
+      Object.values(SiteAdminActionKind).slice(
+        -OPERATIONS_ACTIONS.length - FEATURE_SWITCH_ACTIONS.length,
+        -FEATURE_SWITCH_ACTIONS.length,
+      ),
     ).toEqual([...OPERATIONS_ACTIONS]);
     for (const value of OPERATIONS_ACTIONS) {
       expect(up).toContain(
@@ -304,8 +318,12 @@ describe('Operations actions schema alignment (FC-042)', () => {
   });
 
   it('makes the type again without them, keeping every earlier action', () => {
+    const later: readonly string[] = [
+      ...OPERATIONS_ACTIONS,
+      ...FEATURE_SWITCH_ACTIONS,
+    ];
     const before = Object.values(SiteAdminActionKind).filter(
-      value => !(OPERATIONS_ACTIONS as readonly string[]).includes(value),
+      value => !later.includes(value),
     );
 
     expect(down).toContain(
@@ -314,5 +332,60 @@ describe('Operations actions schema alignment (FC-042)', () => {
     expect(down).toContain(
       'ALTER TABLE "sto_info_app"."site_admin_action" ALTER COLUMN "action" TYPE "sto_info_app"."site_admin_action_enum" USING "action"::text::"sto_info_app"."site_admin_action_enum"',
     );
+  });
+});
+
+/**
+ * Holds the feature switches' actions (FC-045) to the code: added last, and
+ * taken out again only by a down that refuses first while the log holds one.
+ */
+describe('Feature switch actions schema alignment (FC-045)', () => {
+  const migration = new RecordFeatureSwitchChanges1797700000000();
+  let up: string[];
+  let down: string[];
+
+  beforeAll(async () => {
+    up = await capture(queryRunner => migration.up(queryRunner));
+    down = await capture(queryRunner => migration.down(queryRunner));
+  });
+
+  it('adds switching a feature on and off, last', () => {
+    expect([...FEATURE_SWITCH_ACTIONS]).toEqual([
+      SiteAdminActionKind.FEATURE_SWITCHED_ON,
+      SiteAdminActionKind.FEATURE_SWITCHED_OFF,
+    ]);
+    expect(
+      Object.values(SiteAdminActionKind).slice(-FEATURE_SWITCH_ACTIONS.length),
+    ).toEqual([...FEATURE_SWITCH_ACTIONS]);
+    expect(up).toEqual(
+      FEATURE_SWITCH_ACTIONS.map(
+        value =>
+          `ALTER TYPE "sto_info_app"."site_admin_action_enum" ADD VALUE IF NOT EXISTS '${value}'`,
+      ),
+    );
+  });
+
+  it('refuses first while the log holds either action, deleting nothing', () => {
+    expect(down[0]).toBe(
+      `DO $$ BEGIN IF EXISTS (SELECT 1 FROM "sto_info_app"."site_admin_action" WHERE "action"::text IN ('FEATURE_SWITCHED_ON', 'FEATURE_SWITCHED_OFF')) THEN RAISE EXCEPTION '${FEATURE_SWITCH_ACTIONS_DOWN_REFUSAL}'; END IF; END $$`,
+    );
+    expect(FEATURE_SWITCH_ACTIONS_DOWN_REFUSAL).toContain(
+      'roll forward instead',
+    );
+    expect(FEATURE_SWITCH_ACTIONS_DOWN_REFUSAL).not.toContain("'");
+    expect(down.some(statement => statement.startsWith('DELETE'))).toBe(false);
+  });
+
+  it('makes the type again without them, keeping every earlier action', () => {
+    const before = Object.values(SiteAdminActionKind).filter(
+      value => !(FEATURE_SWITCH_ACTIONS as readonly string[]).includes(value),
+    );
+
+    expect(down.slice(1)).toEqual([
+      'ALTER TYPE "sto_info_app"."site_admin_action_enum" RENAME TO "site_admin_action_enum_old"',
+      `CREATE TYPE "sto_info_app"."site_admin_action_enum" AS ENUM (${before.map(value => `'${value}'`).join(', ')})`,
+      'ALTER TABLE "sto_info_app"."site_admin_action" ALTER COLUMN "action" TYPE "sto_info_app"."site_admin_action_enum" USING "action"::text::"sto_info_app"."site_admin_action_enum"',
+      'DROP TYPE "sto_info_app"."site_admin_action_enum_old"',
+    ]);
   });
 });

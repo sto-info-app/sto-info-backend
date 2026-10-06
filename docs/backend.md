@@ -134,6 +134,8 @@ Two mechanisms, deliberately different in kind.
 
 **Capability flags** live in environment variables. These stage a rollout and vary by environment, which is what environment variables are for.
 
+The three feature master switches — `FLEET_COMMUNITIES_ENABLED`, `STORYTIME_ENABLED` and `CUSTOM_TRACKING_ENABLED` — are thrown from the Admin page's Features panel (FC-045), through `GET /admin/feature-switches` and `PATCH /admin/feature-switches/:feature`. Each change takes a reason and is logged in the site admin log as `FEATURE_SWITCHED_ON` or `FEATURE_SWITCHED_OFF`, in the same transaction as the write. The panel shows each feature's capability flags as the environment sets them, but cannot change them. None of the switches needs SQL any more, and none reaches the file gate.
+
 `STORYTIME_ENABLED` is the runtime master switch and is **seeded disabled**. Storytime ships as one complete feature, so it stays off until the whole agreed scope is production-ready. The capability flags (`STORYTIME_PUBLIC_READ_ENABLED`, `STORYTIME_CREATION_ENABLED`, `STORYTIME_YOUTUBE_ENABLED`, `STORYTIME_SPOTLIGHT_ENABLED`) default to enabled, so once Storytime itself is on its parts work unless an environment deliberately disables one.
 
 The master switch wins: with it off every capability reports as off, so callers need only ask about the specific thing they are about to do.

@@ -54,6 +54,7 @@ import { NotificationModule } from './notification/notification.module';
 import { OperationsModule } from './operations/operations.module';
 import { RestoreModule } from './operations/restore/restore.module';
 import { RegistryModule } from './registry/registry.module';
+import { FeatureSwitchesModule } from './settings/feature-switches/feature-switches.module';
 import { SettingsModule } from './settings/settings.module';
 import { DEFAULT_MULTER_LIMITS } from './shared/constants/file-upload.constants';
 import { TypeOrmExceptionFilter } from './shared/filters/typeorm-exception.filter';
@@ -116,6 +117,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
       middleware: { mount: true },
     }),
     SettingsModule,
+    FeatureSwitchesModule,
     AccessControlModule,
     StorytimeModule,
     CustomTrackingModule,

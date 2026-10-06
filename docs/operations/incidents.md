@@ -51,11 +51,12 @@ unscanned is published.
    paused, and counts its 24 hours from when things started again (see
    [File assets](../file-assets.md#uploads-nothing-comes-back-for)), so a long stop costs no
    uploads — but people are waiting, so do not leave it stopped without a reason.
-3. **Switch a feature off** when the worry is one feature. `FLEET_COMMUNITIES_ENABLED`,
-   `CUSTOM_TRACKING_ENABLED` and `STORYTIME_ENABLED` are runtime switches in `app_setting`; each
-   instance sees a change within ten seconds. Storytime's has an admin route,
-   `PATCH /admin/storytime/configuration`; the others are an `UPDATE` in SQL, which is not in the
-   Security Log — record it. No feature switch touches the file gate, and none needs to.
+3. **Switch a feature off** when the worry is one feature: Admin › Operations › Features, with a
+   reason (FC-045). Fleet Communities, Storytime and Custom Tracking each have a switch there;
+   each instance sees a change within ten seconds, and the Security Log records it as
+   `FEATURE_SWITCHED_OFF`. Only when the API itself cannot be reached is it an `UPDATE` of
+   `app_setting` in SQL (see [Restore](restore.md)), which is not in the Security Log — record it.
+   No feature switch touches the file gate, and none needs to.
 4. **Take a picture down** through the feature that shows it: Custom Tracking and Storytime
    moderation, or a rescan finding (take down, with a reason). There is no site admin route to
    withdraw a picture by its ID alone.

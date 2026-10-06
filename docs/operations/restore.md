@@ -61,7 +61,8 @@ denies before anything is served. Account closures are reapplied too.
 
    A feature switch is `UPDATE "sto_info_app"."app_setting" SET "value" = 'false' WHERE "key" = '…'`
    (`FLEET_COMMUNITIES_ENABLED`, `STORYTIME_ENABLED`, `CUSTOM_TRACKING_ENABLED`). A change made in
-   SQL is not in the Security Log: record it in the incident record.
+   SQL is not in the Security Log: record it in the incident record. Once the API is serving again,
+   throw switches from the Admin page's Features panel instead, which logs them.
 
 7. **Point both services at the restored database**: `DB_HOST`, `DB_PORT`, `DB_NAME` and
    `DB_USERNAME` on the backend and on the worker. The passwords are in the AWS secrets, not on
