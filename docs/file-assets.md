@@ -13,7 +13,7 @@ flag in the database that leaves a CDN URL working looks exactly like a working 
 
 | State           | Meaning                                                                  | Served?                             |
 | --------------- | ------------------------------------------------------------------------ | ----------------------------------- |
-| `UNVERIFIED`    | Bytes that predate the registry. No verdict of any kind exists for them. | By their existing public route only |
+| `UNVERIFIED`    | Bytes that predate the registry. No verdict of any kind exists for them. | Yes, until rescanned; see below     |
 | `RECEIVING`     | The row exists; the bytes are still arriving.                            | No                                  |
 | `QUARANTINED`   | The bytes are in the private bucket, waiting for a scanner.              | No                                  |
 | `SCANNING`      | A scanner has the object and has not answered.                           | No                                  |
@@ -51,6 +51,13 @@ published picture in quarantine and has the worker scan it like an upload. A cle
 `AVAILABLE`, an infected one is taken down, and one refused for policy keeps showing and is
 reported to site admins. Site admins can rescan any selection of published pictures the same way.
 See [Rescan campaigns](rescan-campaigns.md).
+
+**A Character's name is not a picture (FC-045).** Two production migrations of January 2026 left
+every older Character's name in `character.profilePictureId`, so the backfill registered each as
+a legacy picture that Cloudflare would never have. `1797800000000-ClearCharacterNamesFromPictures`
+runs after it and sets to NULL every Character picture that has neither a `/` (an old R2 key) nor
+the shape of a Cloudflare Images ID, and deletes the `UNVERIFIED` rows made only for those values
+while nothing else holds or refers to them. The release preflight counts them beforehand.
 
 ### Reaching `AVAILABLE`
 
