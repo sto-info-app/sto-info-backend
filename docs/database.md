@@ -248,7 +248,7 @@ index over both target columns would let the same Account be answered twice.
 
 **Triggers:**
 
-`TR_file_asset_guard` is the only trigger in the schema. It runs `BEFORE UPDATE` on `file_asset`
+`TR_file_asset_guard` runs `BEFORE UPDATE` on `file_asset`
 and raises a check violation (`23514`) in four cases:
 
 1. `objectKey` changed once it held a value;
@@ -376,6 +376,18 @@ Three consequences for anybody working in this repository:
 
 The worker's own [database documentation](../../sto-info-file-scan-worker/docs/database.md)
 describes that table.
+
+### Platforms (FC-045)
+
+| Trigger | Table | What it guarantees |
+| --- | --- | --- |
+| `TR_platform_rename_guard` | `platform` | `platform.name` cannot change while any Fleet, Armada or old Fleet address (`sto_fleet`, `sto_armada`, `fleet_slug_history`) is on that platform |
+
+Every Fleet and Armada address carries its platform's name rather than a slug of its own, so
+renaming a platform would break every address on it with no redirect. The trigger refuses it with
+SQLSTATE `IRG02`; a platform nothing is on can still be renamed, and nothing else about a platform
+is guarded. Changing the name of a platform in use is a reviewed migration that also redirects the
+old addresses, never an `UPDATE`.
 
 ## Data Retention Policies
 
