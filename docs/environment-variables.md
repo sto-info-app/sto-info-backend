@@ -143,7 +143,7 @@ The secret referenced by `AWS_SECRET_NAME` is expected to be JSON with at least:
 
 - `jwtSecret`: Used to sign JWT access tokens
 - `dbPassword`: Used as the PostgreSQL password for TypeORM
-- `sendGridApiKey`: Used by SendGrid for outbound email (fallback when SES fails)
+- `sendGridApiKey`: Optional. Used by SendGrid for outbound email (fallback when SES fails). Without it the backend starts, logs once that SES is the only sender, and reports a failed SES send instead of retrying it.
 - `cloudflareR2AccessKey`: Used to write objects to Cloudflare R2
 - `cloudflareR2Secret`: Used to write objects to Cloudflare R2
 - `cloudflareImagesAccountId`: Used for Cloudflare Images uploads
