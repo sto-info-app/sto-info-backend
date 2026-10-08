@@ -26,6 +26,11 @@ import { NonceMiddleware } from './auth/nonce.middleware';
 import { clientIpMiddleware } from './common/http/client-ip.middleware';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { ConfigCheckService } from './config-check/config-check.service';
+import {
+  isOnMachineEnvironment,
+  isProductionEnvironment,
+  NODE_ENV_DEV,
+} from './shared/constants/environment.constants';
 import { getLogLevelsForEnvironment } from './shared/constants/logging.constants';
 import {
   AUTH_RATE_LIMITED_ROUTES,
@@ -211,9 +216,10 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
 
   const appEnv = configService.get('NODE_ENV') ?? 'dev';
-  const inProduction = appEnv === 'prod';
-  const inDevelopment = appEnv === 'dev';
-  const inLocal = appEnv === 'local';
+  const inProduction = isProductionEnvironment(appEnv);
+  const inDevelopment = appEnv === NODE_ENV_DEV;
+  // `local` and `e2etest`: the browser, server and database share a machine.
+  const inLocal = isOnMachineEnvironment(appEnv);
 
   const devAllowedOrigins = [
     'http://localhost:4200',
