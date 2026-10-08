@@ -21,6 +21,10 @@ import * as bcrypt from 'bcrypt';
 import { DataSource } from 'typeorm';
 
 import { PERMISSION_CODES } from '../src/access-control/constants/permission-codes.constants';
+import {
+  isProductionEnvironment,
+  normaliseEnvironment,
+} from '../src/shared/constants/environment.constants';
 import { UserRole } from '../src/user/enums/user-role.enum';
 
 const SCHEMA = process.env.DB_SCHEMA ?? 'sto_info_app';
@@ -244,9 +248,9 @@ export async function inspectEnvironment(
   publicSlug: string,
   privateSlug: string,
 ): Promise<EnvironmentReport> {
-  const nodeEnv = (process.env.NODE_ENV ?? '').trim().toLowerCase();
+  const nodeEnv = normaliseEnvironment(process.env.NODE_ENV);
 
-  if (nodeEnv === 'prod') {
+  if (isProductionEnvironment(nodeEnv)) {
     throw new Error(
       'Refusing to prepare end-to-end fixtures when NODE_ENV is prod.',
     );

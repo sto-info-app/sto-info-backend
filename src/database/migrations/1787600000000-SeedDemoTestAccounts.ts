@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import * as bcrypt from 'bcrypt';
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
+import { loadsDemoData } from '../../shared/constants/environment.constants';
+
 export class SeedDemoTestAccounts1787600000000 implements MigrationInterface {
   name = 'SeedDemoTestAccounts1787600000000';
 
@@ -558,9 +560,7 @@ export class SeedDemoTestAccounts1787600000000 implements MigrationInterface {
   }
 
   private shouldLoadTestData(): boolean {
-    const nodeEnv = process.env.NODE_ENV?.toLowerCase();
-
-    return nodeEnv === 'local' || nodeEnv === 'dev' || nodeEnv === 'staging';
+    return loadsDemoData(process.env.NODE_ENV);
   }
 
   private getSeedPassword(): string {

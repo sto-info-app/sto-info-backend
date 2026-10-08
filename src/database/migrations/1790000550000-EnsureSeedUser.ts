@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import * as bcrypt from 'bcrypt';
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
+import { isProductionEnvironment } from '../../shared/constants/environment.constants';
+
 /**
  * Makes the configured local seed user exist before later seeds record them
  * as an owner.
@@ -29,7 +31,7 @@ export class EnsureSeedUser1790000550000 implements MigrationInterface {
    * @param queryRunner - The TypeORM query runner.
    */
   public async up(queryRunner: QueryRunner): Promise<void> {
-    if (process.env.NODE_ENV?.trim().toLowerCase() === 'prod') {
+    if (isProductionEnvironment(process.env.NODE_ENV)) {
       return;
     }
 
