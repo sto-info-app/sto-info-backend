@@ -1,7 +1,7 @@
-import { join } from 'node:path';
+import { glob, stat } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 
 import { config as dotenvConfig } from 'dotenv';
-import fg from 'fast-glob';
 import { DataSourceOptions } from 'typeorm';
 
 import { AuditEntity } from 'src/audit/entities/audit.entity';
@@ -36,11 +36,16 @@ export async function getTypeOrmConfig(): Promise<DataSourceOptions> {
   const rootDir = join(__dirname, '../');
   const entitiesDir = join(rootDir, process.env.TYPEORM_ENTITIES!);
   const migrationsPattern = process.env.TYPEORM_MIGRATIONS!;
-  const migrations = await fg(migrationsPattern, {
+  const migrations: string[] = [];
+  for await (const file of glob(migrationsPattern, {
     cwd: rootDir,
-    absolute: true,
-    ignore: ['**/*.spec.ts', '**/*.test.ts', '**/*.d.ts'],
-  });
+  })) {
+    if (/\.(?:spec|test|d)\.ts(?:[/\\]|$)/.test(file)) continue;
+    const migrationPath = resolve(rootDir, file);
+    if ((await stat(migrationPath)).isFile()) {
+      migrations.push(migrationPath);
+    }
+  }
 
   return {
     type: getDbType(),
