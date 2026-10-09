@@ -5,6 +5,24 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 
 import { isProductionEnvironment } from '../../shared/constants/environment.constants';
 
+/** The seed user's details, as the environment names them. */
+interface SeedUser {
+  email: string;
+  username: string;
+  firstName: string;
+  lastName: string;
+  password: string;
+}
+
+/** Which environment variable carries each detail. */
+const SEED_VARIABLES: Record<keyof SeedUser, string> = {
+  email: 'DATASEED_USER_EMAIL',
+  username: 'DATASEED_USER_USERNAME',
+  firstName: 'DATASEED_USER_FIRSTNAME',
+  lastName: 'DATASEED_USER_LASTNAME',
+  password: 'DATASEED_USER_PASSWORD',
+};
+
 /**
  * Makes the configured local seed user exist before later seeds record them
  * as an owner.
@@ -20,13 +38,18 @@ import { isProductionEnvironment } from '../../shared/constants/environment.cons
  * addresses and this same password. This one is the account named in the
  * local environment, and it is left in place by `down` because that account
  * may already have been in use.
+ *
+ * An environment that does not set all five variables has no seed user to
+ * create, so the migration says so and does nothing. The application seeder
+ * is silent in the same case, and a deployment that never had the variables
+ * must still be able to run its migrations.
  */
 export class EnsureSeedUser1790000550000 implements MigrationInterface {
   name = 'EnsureSeedUser1790000550000';
 
   /**
-   * Inserts the seed user when the local environment names one and the
-   * database does not already have them.
+   * Inserts the seed user when the environment names one and the database
+   * does not already have them.
    *
    * @param queryRunner - The TypeORM query runner.
    */
@@ -35,11 +58,13 @@ export class EnsureSeedUser1790000550000 implements MigrationInterface {
       return;
     }
 
-    const email = this.required('DATASEED_USER_EMAIL');
-    const username = this.required('DATASEED_USER_USERNAME');
-    const firstName = this.required('DATASEED_USER_FIRSTNAME');
-    const lastName = this.required('DATASEED_USER_LASTNAME');
-    const password = this.required('DATASEED_USER_PASSWORD');
+    const seed = this.readSeedVariables();
+
+    if (!seed) {
+      return;
+    }
+
+    const { email, username, firstName, lastName, password } = seed;
     const rounds = Number.parseInt(process.env.AUTH_SALT_ROUNDS ?? '10', 10);
 
     const existing = (await queryRunner.query(
@@ -91,18 +116,38 @@ export class EnsureSeedUser1790000550000 implements MigrationInterface {
   }
 
   /**
-   * Reads one required seed variable.
+   * Reads the five seed variables, trimmed and without a surrounding pair of
+   * quotes.
    *
-   * @param name - The environment variable name.
-   * @returns The trimmed value, without a surrounding pair of quotes.
+   * @returns The seed user's details, or undefined with a notice on the
+   * console when any variable is unset or blank.
    */
-  private required(name: string): string {
-    const raw = process.env[name]?.trim().replace(/^['"]|['"]$/g, '');
+  private readSeedVariables(): SeedUser | undefined {
+    const read = (name: string): string =>
+      process.env[name]?.trim().replace(/^['"]|['"]$/g, '') ?? '';
 
-    if (!raw) {
-      throw new Error(`${name} must be set to create the local seed user`);
+    const seed: SeedUser = {
+      email: read('DATASEED_USER_EMAIL'),
+      username: read('DATASEED_USER_USERNAME'),
+      firstName: read('DATASEED_USER_FIRSTNAME'),
+      lastName: read('DATASEED_USER_LASTNAME'),
+      password: read('DATASEED_USER_PASSWORD'),
+    };
+
+    const missing = (Object.keys(SEED_VARIABLES) as Array<keyof SeedUser>)
+      .filter(key => seed[key] === '')
+      .map(key => SEED_VARIABLES[key]);
+
+    if (missing.length > 0) {
+      console.warn(
+        `${this.name}: no seed user to create, ${missing.join(', ')} ${
+          missing.length === 1 ? 'is' : 'are'
+        } not set.`,
+      );
+
+      return undefined;
     }
 
-    return raw;
+    return seed;
   }
 }

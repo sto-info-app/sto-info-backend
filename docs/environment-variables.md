@@ -129,7 +129,7 @@ The structural limits are fixed rather than configurable. They decide how large 
 
 ## Optional (dev-only seeding)
 
-These are read by seeders when `NODE_ENV` is not `prod`.
+These are read by seeders when `NODE_ENV` is not `prod`. The `EnsureSeedUser` migration creates this account on a fresh database before the Storytime tag vocabulary is attributed to it; when any of the five is unset or blank, the migration prints a notice naming the missing ones and creates nothing, so a deployment without a seed user still migrates.
 
 - `DATASEED_USER_EMAIL`
 - `DATASEED_USER_USERNAME`
