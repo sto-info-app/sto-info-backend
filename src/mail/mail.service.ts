@@ -25,6 +25,13 @@ export interface EmailMessage {
 export class MailService {
   private readonly _logger = new Logger('MailService');
 
+  /**
+   * Whether the AWS secret carried a SendGrid key. SES is the primary sender
+   * and the key is optional: without it there is no fallback, and a failed
+   * SES send is reported rather than retried.
+   */
+  private _sendGridConfigured = false;
+
   private readonly _noReplyEmailFromSender: { name: string; email: string } = {
     name: process.env.APP_TITLE!,
     email: process.env.EMAIL_NOREPLY_SENDER!,
@@ -74,7 +81,8 @@ export class MailService {
   }
 
   /**
-   * Initialise the mail service by setting the SendGrid API key.
+   * Initialise the mail service by setting the SendGrid API key, when the
+   * secret has one.
    *
    * @returns A promise that resolves when initialisation is complete.
    */
@@ -85,14 +93,28 @@ export class MailService {
   /**
    * Initialise the mail service — fetches secrets for the SendGrid fallback.
    *
+   * A secret without a `sendGridApiKey` is allowed: SES sends the mail, and
+   * the service records that there is no fallback rather than handing
+   * SendGrid an empty key.
+   *
    * @returns A promise that resolves when primary initialisation is complete.
    */
   private async init() {
     const secretObject = await this._secretsService.getSecret(
       process.env.AWS_SECRET_NAME!,
     );
+    const sendGridApiKey: unknown = secretObject?.sendGridApiKey;
 
-    sgMail.setApiKey(secretObject.sendGridApiKey);
+    if (typeof sendGridApiKey === 'string' && sendGridApiKey.trim() !== '') {
+      sgMail.setApiKey(sendGridApiKey);
+      this._sendGridConfigured = true;
+
+      return;
+    }
+
+    this._logger.warn(
+      'The AWS secret has no sendGridApiKey. SES is the only sender; there is no fallback.',
+    );
   }
 
   /**
@@ -283,6 +305,9 @@ export class MailService {
   /**
    * Send an email via Amazon SES (primary), falling back to SendGrid on failure.
    *
+   * Without a SendGrid key the failure is logged as an error and the message
+   * is not retried, which is the same outcome a failed SendGrid send has.
+   *
    * @param message - The email message to send.
    * @returns A promise that resolves when the email has been sent (via either provider).
    */
@@ -290,9 +315,21 @@ export class MailService {
     try {
       await this.sendEmailViaSES(message);
     } catch (sesError) {
+      const reason =
+        sesError instanceof Error ? sesError.message : String(sesError);
+
+      if (!this._sendGridConfigured) {
+        this._logger.error(
+          'Amazon SES sending failed and there is no SendGrid fallback.',
+          reason,
+        );
+
+        return;
+      }
+
       this._logger.warn(
         'Amazon SES sending failed — falling back to SendGrid.',
-        sesError instanceof Error ? sesError.message : String(sesError),
+        reason,
       );
       await this.sendEmailViaSendGrid(this.toSendGridMessage(message));
     }

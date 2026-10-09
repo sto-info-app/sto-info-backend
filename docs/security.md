@@ -674,7 +674,7 @@ Document current token expiry (e.g., 1 hour, 24 hours).
 ## Proxy, client IP, and IPv6
 
 - The backend runs behind Cloudflare; `req.ip` will reflect Cloudflare unless proxy trust is configured
-- The backend sets Express `trust proxy` to `TRUST_PROXY_HOPS` when not running in `local`
+- The backend sets Express `trust proxy` to `TRUST_PROXY_HOPS` when not running in `local` or `e2etest`
 - Client IP is derived in this order: `CF-Connecting-IP`, first `X-Forwarded-For`, then `req.ip`
 - IPv6-mapped IPv4 values like `::ffff:192.0.2.1` are normalised to IPv4
 

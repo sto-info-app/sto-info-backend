@@ -25,6 +25,8 @@
  * Usage: npm run e2e:support -- <command> [arguments]
  */
 
+import { writeSync } from 'node:fs';
+
 import { INestApplicationContext, Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 
@@ -34,6 +36,36 @@ import { AppModule } from '../src/app.module';
 import { CustomTrackingCleanupService } from '../src/cron/jobs/custom-tracking-cleanup/custom-tracking-cleanup.service';
 import { CustomTrackingImageCleanupService } from '../src/custom-tracking/retention/custom-tracking-image-cleanup.service';
 import { CustomTrackingPurgeService } from '../src/custom-tracking/retention/custom-tracking-purge.service';
+import {
+  inspectEnvironment,
+  prepareFixtureActor,
+  readFixtureActor,
+} from './e2e-actors';
+import {
+  clearNewsCommand,
+  discardAccount,
+  discardWeeklyStories,
+  readProfileIdentity,
+  restoreAccounts,
+  seedNews,
+  setAccountNote,
+  snapshot,
+  storytimeBegin,
+  storytimeFinish,
+  storytimeOff,
+  storytimeOn,
+  writeProfileIdentity,
+} from './e2e-content';
+import {
+  clearAuthRateLimit,
+  clearCharacterPicture,
+  clearPersonnelPicture,
+  discardContactRequest,
+  discardExternalUser,
+  expireAuthLink,
+  readAuthLink,
+  readContactRequest,
+} from './e2e-external';
 
 const SCHEMA = process.env.DB_SCHEMA ?? 'sto_info_app';
 
@@ -51,7 +83,7 @@ interface SupportContext {
   dataSource: DataSource;
 }
 
-type SupportResult = Record<string, unknown>;
+type SupportResult = object;
 
 async function userIdFor(
   dataSource: DataSource,
@@ -281,6 +313,54 @@ async function finish(
   return { finished: cleared, pictures };
 }
 
+/**
+ * Report the database, the feature switches and the fixture actors.
+ *
+ * The harness compares this with the database name and Redis database it was
+ * told to use. Nothing in the report is a password or a connection string.
+ */
+async function preflight(
+  { dataSource }: SupportContext,
+  demoEmail: string,
+  publicSlug: string,
+  privateSlug: string,
+): Promise<SupportResult> {
+  return inspectEnvironment(dataSource, demoEmail, publicSlug, privateSlug);
+}
+
+/** Enable one fixture actor again, so a retry starts from a known account. */
+async function prepare(
+  { dataSource }: SupportContext,
+  email: string,
+): Promise<SupportResult> {
+  return prepareFixtureActor(dataSource, email);
+}
+
+/** Read one fixture actor. The demonstration member is not accepted here. */
+async function actor(
+  { dataSource }: SupportContext,
+  email: string,
+): Promise<SupportResult> {
+  return readFixtureActor(dataSource, email);
+}
+
+/**
+ * First names travel as base64url, the same way account notes do.
+ *
+ * `--null--` clears the name. `--empty--` stores an empty string.
+ */
+function decodeProfileName(encoded: string): string | null {
+  if (encoded === '--null--') {
+    return null;
+  }
+
+  if (encoded === '--empty--') {
+    return '';
+  }
+
+  return Buffer.from(encoded, 'base64url').toString('utf8');
+}
+
 const COMMANDS: Record<
   string,
   (context: SupportContext, ...args: string[]) => Promise<SupportResult>
@@ -294,6 +374,112 @@ const COMMANDS: Record<
   disabled,
   cleanup,
   counts,
+  preflight,
+  prepare,
+  actor,
+  snapshot,
+  'set-note': setAccountNote,
+  'account-restore': restoreAccounts,
+  'discard-account': discardAccount,
+  'news-seed': seedNews,
+  'news-clear': clearNewsCommand,
+  'storytime-off': storytimeOff,
+  'storytime-on': storytimeOn,
+  'storytime-begin': storytimeBegin,
+  'storytime-finish': storytimeFinish,
+  'storytime-discard-weekly': (context, email) => {
+    if (!email) {
+      throw new Error('storytime-discard-weekly needs the owner email.');
+    }
+
+    return discardWeeklyStories(context, email);
+  },
+  'profile-identity': (context, email) => {
+    if (!email) {
+      throw new Error('profile-identity needs the member email.');
+    }
+
+    return readProfileIdentity(context.dataSource, email);
+  },
+  'profile-identity-set': (context, email, username, firstName, state) => {
+    if (!email || !username || !firstName || !state) {
+      throw new Error(
+        'profile-identity-set needs email, username, first name and public or private.',
+      );
+    }
+
+    return writeProfileIdentity(
+      context.dataSource,
+      email,
+      username,
+      decodeProfileName(firstName),
+      state,
+    );
+  },
+  'auth-limit-clear': () => clearAuthRateLimit(),
+  'auth-link': (context, email) => {
+    if (!email) {
+      throw new Error('auth-link needs the external email.');
+    }
+
+    return readAuthLink(context.dataSource, email);
+  },
+  'auth-link-expire': (context, email, kind) => {
+    if (!email || !kind) {
+      throw new Error(
+        'auth-link-expire needs the email and verification or reset.',
+      );
+    }
+
+    return expireAuthLink(context.dataSource, email, kind);
+  },
+  'discard-external': (context, email) => {
+    if (!email) {
+      throw new Error('discard-external needs the external email.');
+    }
+
+    return discardExternalUser(context.dataSource, email);
+  },
+  'contact-latest': (context, message) => {
+    if (!message) {
+      throw new Error('contact-latest needs the message, base64url.');
+    }
+
+    return readContactRequest(context.dataSource, message);
+  },
+  'contact-discard': (context, message) => {
+    if (!message) {
+      throw new Error('contact-discard needs the message, base64url.');
+    }
+
+    return discardContactRequest(context.dataSource, message);
+  },
+  'personnel-picture-clear': (context, email) => {
+    if (!email) {
+      throw new Error('personnel-picture-clear needs the member email.');
+    }
+
+    return clearPersonnelPicture(context, email);
+  },
+  'character-picture-clear': (
+    context,
+    email,
+    accountHandle,
+    characterHandle,
+  ) => {
+    if (!email || !accountHandle || !characterHandle) {
+      throw new Error(
+        'character-picture-clear needs the email, account handle and captain handle.',
+      );
+    }
+
+    return clearCharacterPicture(
+      context,
+      email,
+      accountHandle,
+      characterHandle,
+    );
+  },
 };
 
 async function main(): Promise<void> {
@@ -320,12 +506,21 @@ async function main(): Promise<void> {
     );
 
     process.stdout.write(`${JSON.stringify(result)}\n`);
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error ? (error.stack ?? error.message) : String(error);
+
+    writeSync(2, `${message}\n`);
+    throw error;
   } finally {
     await app.close();
   }
 }
 
-void main().catch((error: Error) => {
-  process.stderr.write(`${error.message}\n`);
+void main().catch((error: unknown) => {
+  const message =
+    error instanceof Error ? (error.stack ?? error.message) : String(error);
+
+  writeSync(2, `${message}\n`);
   process.exit(1);
 });
