@@ -21,7 +21,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-import { CLOUDFLARE_R2_CDN_ROOT_URL } from 'src/shared/constants/image.constants';
+import { getCloudflareCdnRootUrl } from 'src/shared/constants/image.constants';
 
 import { AccountEntity } from '../../account/entities/account.entity';
 import { CharacterClassEntity } from './character-class.entity';
@@ -227,15 +227,16 @@ export class CharacterEntity {
     // or an old R2 path (contains slashes)
     if (this.profilePictureId.includes('/')) {
       // Legacy R2 format
-      if (!CLOUDFLARE_R2_CDN_ROOT_URL) {
+      const legacyRootUrl = getCloudflareCdnRootUrl();
+      if (!legacyRootUrl) {
         return null;
       }
-      return `${CLOUDFLARE_R2_CDN_ROOT_URL}/${this.profilePictureId}`;
+      return `${legacyRootUrl}/${this.profilePictureId}`;
     }
 
     // New Cloudflare Images format - use custom domain
     const cfImagesHash = process.env.CLOUDFLARE_IMAGES_HASH;
-    const cdnRootUrl = CLOUDFLARE_R2_CDN_ROOT_URL;
+    const cdnRootUrl = getCloudflareCdnRootUrl();
     if (!cfImagesHash || !cdnRootUrl) {
       return null;
     }
@@ -266,15 +267,16 @@ export class CharacterEntity {
     // Check if it's a Cloudflare Images ID or old R2 path
     if (this.profilePictureId.includes('/')) {
       // Legacy R2 format - use Cloudflare Image Resizing
-      if (!CLOUDFLARE_R2_CDN_ROOT_URL) {
+      const legacyRootUrl = getCloudflareCdnRootUrl();
+      if (!legacyRootUrl) {
         return null;
       }
-      return `${CLOUDFLARE_R2_CDN_ROOT_URL}/cdn-cgi/image/width=300,height=300,fit=cover,format=auto/${this.profilePictureId}`;
+      return `${legacyRootUrl}/cdn-cgi/image/width=300,height=300,fit=cover,format=auto/${this.profilePictureId}`;
     }
 
     // New Cloudflare Images format - use custom domain and square300 variant
     const cfImagesHash = process.env.CLOUDFLARE_IMAGES_HASH;
-    const cdnRootUrl = CLOUDFLARE_R2_CDN_ROOT_URL;
+    const cdnRootUrl = getCloudflareCdnRootUrl();
     if (!cfImagesHash || !cdnRootUrl) {
       return null;
     }
@@ -295,15 +297,16 @@ export class CharacterEntity {
     // Check if it's a Cloudflare Images ID or old R2 path
     if (this.profilePictureId.includes('/')) {
       // Legacy R2 format - use Cloudflare Image Resizing
-      if (!CLOUDFLARE_R2_CDN_ROOT_URL) {
+      const legacyRootUrl = getCloudflareCdnRootUrl();
+      if (!legacyRootUrl) {
         return null;
       }
-      return `${CLOUDFLARE_R2_CDN_ROOT_URL}/cdn-cgi/image/width=100,height=100,fit=cover,format=auto/${this.profilePictureId}`;
+      return `${legacyRootUrl}/cdn-cgi/image/width=100,height=100,fit=cover,format=auto/${this.profilePictureId}`;
     }
 
     // New Cloudflare Images format - use custom domain and square100 variant
     const cfImagesHash = process.env.CLOUDFLARE_IMAGES_HASH;
-    const cdnRootUrl = CLOUDFLARE_R2_CDN_ROOT_URL;
+    const cdnRootUrl = getCloudflareCdnRootUrl();
     if (!cfImagesHash || !cdnRootUrl) {
       return null;
     }
