@@ -70,7 +70,23 @@ describe('PlatformLauncherService', () => {
       expect(result.platformId).toBe('platform-1');
       expect(result.launcherId).toBe('launcher-1');
       expect(repository.query).toHaveBeenCalledWith(
-        expect.stringContaining('INSERT INTO'),
+        expect.stringContaining(
+          'INSERT INTO "sto_info_app"."platform_launcher"',
+        ),
+        [expect.any(String), 'platform-1', 'launcher-1'],
+      );
+    });
+
+    it('should name the table alone when the repository has no schema', async () => {
+      (
+        repository.query as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue([]);
+      repository.metadata.schema = undefined;
+
+      await service.addPlatformLauncherRelation('platform-1', 'launcher-1');
+
+      expect(repository.query).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO "platform_launcher" ('),
         [expect.any(String), 'platform-1', 'launcher-1'],
       );
     });
