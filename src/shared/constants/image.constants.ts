@@ -166,5 +166,14 @@ export function isValidCloudflareImageUrl(
   return true;
 }
 
-export const CLOUDFLARE_IMAGES_ROOT_URL = getCloudflareImagesRootUrl();
-export const CLOUDFLARE_R2_CDN_ROOT_URL = process.env.CLOUDFLARE_CDN_ROOT_URL;
+/**
+ * The CDN root in front of Cloudflare, read when asked rather than when this
+ * module loads. The env file is read after the entities that build picture
+ * URLs have been imported, so a value copied at import time is empty on any
+ * run that gets it from the file rather than the process environment.
+ *
+ * @returns The root URL, or undefined when none is configured.
+ */
+export function getCloudflareCdnRootUrl(): string | undefined {
+  return process.env.CLOUDFLARE_CDN_ROOT_URL?.trim() || undefined;
+}
