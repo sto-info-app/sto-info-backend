@@ -130,15 +130,16 @@ Both fast-check and ZAP are updated regularly via Dependabot to ensure the lates
 
 ## Known Dependency Advisory Follow-up
 
-Both the full dependency audit (`npm audit`) and the production audit gate (`npm audit --audit-level=high --omit=dev`) currently pass with **zero advisories at any severity** (last verified 2026-09-11).
+Both the full dependency audit (`npm audit`) and the production audit gate (`npm audit --audit-level=high --omit=dev`) currently pass with **zero advisories at any severity** (last verified 2026-10-06).
 
 The current overrides remediate these upstream dependency advisories:
 
 - `qs` [GHSA-q8mj-m7cp-5q26](https://github.com/advisories/GHSA-q8mj-m7cp-5q26), [GHSA-x5fp-wj9c-mxmx](https://github.com/advisories/GHSA-x5fp-wj9c-mxmx), [GHSA-4mjr-xmp4-gh2g](https://github.com/advisories/GHSA-4mjr-xmp4-gh2g) — `typed-rest-client@2.3.1` (via `@stryker-mutator/core`) exact-pins `qs@6.15.1`; the global override keeps the tree on `6.16.0`, the first release patched against all three.
+- `argparse` [GHSA-hp3w-g68c-fv3c](https://github.com/advisories/GHSA-hp3w-g68c-fv3c) — `sprintf-js` has no patched release at all; its only consumer is `argparse@1` under `js-yaml@3` (via `ts-jest` → `@istanbuljs/load-nyc-config`), and `argparse@2` has no dependencies, so the global override removes `sprintf-js` from the development tree without touching any code path that runs.
 
-As of **2026-09-11**, `qs` is the only override this repository needs. The former `mailparser`/`nodemailer`, `nanoid`, `js-yaml`, and TypeORM `ioredis` entries were each verified redundant and removed; see `docs/security.md` for the evidence and for the removal criteria on the remaining entry.
+As of **2026-10-06**, these are the only two overrides this repository needs. The short-lived `nodemailer` entry (2026-10-04) went with the `@nestjs-modules/mailer@3` upgrade, which also removed the `preview-email` / `mailparser` / `mjml` family from the tree and retired the `postinstall` nested-package patch script; the former `mailparser`, `nanoid`, `js-yaml`, and TypeORM `ioredis` entries were each verified redundant and removed earlier. See `docs/security.md` for the evidence and for the removal criteria on the remaining entries.
 
-NestJS 12 majors from Dependabot are **deferred**: `nestjs-cls` and `@sentry/nestjs` do not yet declare Nest 12 in their peer ranges, and the ESM packages need a Jest/Vitest rework on the current CommonJS + ts-jest setup. `@nestjs/terminus@12` now supports Nest 12, and `@nestjs/throttler` was removed from the project on 2026-09-03 as unused — neither is a blocker any more. See `docs/security.md`.
+The backend has been on **NestJS 12** since 2026-09-11. TypeScript stays on `^6.0.3`: `@nestjs/cli` cannot drive `typescript@7.0` (it needs the programmatic compiler API, which TypeScript 7.0 does not ship) and `ts-jest` still declares `typescript <7`. See `docs/security.md`.
 
 ### Non-breaking remediation strategy
 

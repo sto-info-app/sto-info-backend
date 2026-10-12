@@ -159,6 +159,11 @@ describe('Logging Constants', () => {
           description: 'should use all levels for local',
         },
         {
+          env: 'e2etest',
+          expected: ['error', 'warn', 'log'],
+          description: 'should use up to log for e2etest',
+        },
+        {
           env: 'dev',
           expected: ['error', 'warn', 'log', 'debug'],
           description: 'should use up to debug for dev',

@@ -271,7 +271,7 @@ describe('CharacterAdmiraltyService', () => {
         completedCampaigns: 1,
         totalCampaigns: 3,
         totalTourSteps: 9,
-        maxPossibleTourSteps: 30,
+        maxPossibleTourSteps: 27,
         overallCompletionPercentage: 50,
       });
       expect(progressRepository.find).toHaveBeenCalledWith({

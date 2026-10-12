@@ -17,6 +17,7 @@ import {
   validateSync,
 } from 'class-validator';
 
+import { NODE_ENVIRONMENTS } from 'src/shared/constants/environment.constants';
 import {
   LOG_LEVEL_PATTERN,
   REDIS_URL_PATTERN,
@@ -37,7 +38,7 @@ class EnvironmentVariables {
   MEMORY_DIAGNOSTICS_INTERVAL_MINUTES?: number;
 
   @IsNotEmpty()
-  @IsIn(['local', 'dev', 'staging', 'prod'])
+  @IsIn([...NODE_ENVIRONMENTS])
   NODE_ENV: string;
 
   @IsNotEmpty()

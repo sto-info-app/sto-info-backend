@@ -44,6 +44,9 @@ export const ENVIRONMENT_LOG_LEVELS: Record<string, LogLevel[]> = {
     LOG_LEVEL_DEBUG,
     LOG_LEVEL_VERBOSE,
   ],
+  // An end-to-end scan reads the backend log only when a case fails, so it
+  // keeps to what a deployment would record.
+  e2etest: [LOG_LEVEL_ERROR, LOG_LEVEL_WARN, LOG_LEVEL_LOG],
   dev: [LOG_LEVEL_ERROR, LOG_LEVEL_WARN, LOG_LEVEL_LOG, LOG_LEVEL_DEBUG],
   staging: [LOG_LEVEL_ERROR, LOG_LEVEL_WARN, LOG_LEVEL_LOG],
   prod: [LOG_LEVEL_ERROR, LOG_LEVEL_WARN],
@@ -118,7 +121,7 @@ export function parseLogLevel(logLevel?: string): LogLevel[] {
 /**
  * Get recommended log levels for a specific environment
  *
- * @param env - The NODE_ENV value (local, dev, staging, prod)
+ * @param env - The NODE_ENV value (local, e2etest, dev, staging, prod)
  * @param logLevel - Optional LOG_LEVEL environment variable override
  * @returns Array of log levels to enable
  *

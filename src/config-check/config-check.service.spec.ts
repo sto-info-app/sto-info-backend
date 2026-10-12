@@ -117,6 +117,23 @@ describe('ConfigCheckService', () => {
       );
     });
 
+    it('should accept the end-to-end environment name', () => {
+      const result = service.validateInput({
+        ...validConfig,
+        NODE_ENV: 'e2etest',
+      });
+
+      expect(result.NODE_ENV).toBe('e2etest');
+    });
+
+    it('should throw error for an unknown environment name', () => {
+      const invalidConfig = { ...validConfig, NODE_ENV: 'test' };
+
+      expect(() => service.validateInput(invalidConfig)).toThrow(
+        'Validation error',
+      );
+    });
+
     it('should throw error for invalid port number', () => {
       const invalidConfig = { ...validConfig, APP_PORT: 'not-a-number' };
 

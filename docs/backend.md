@@ -149,7 +149,7 @@ Custom Tracking adds a second gate in front of everything that writes. `CustomTr
 Middleware executes in the following order:
 
 1. **CORS**: Enabled first so preflight requests are not blocked
-2. **trust proxy**: Set when not running in `local`
+2. **trust proxy**: Set when not running in `local` or `e2etest`
 3. **Body parsers**: JSON and URL-encoded payload limits
 4. **Content-Length guard**: Rejects oversized requests early
 5. **Client IP middleware**: Populates `req.clientIp` from Cloudflare/forwarded headers

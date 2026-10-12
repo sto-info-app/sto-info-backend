@@ -14,7 +14,7 @@ Note: the app reads `config/environments/.env` at startup (see `src/main.ts`).
 
 ### Application
 
-- `NODE_ENV`: `local` | `dev` | `staging` | `prod`
+- `NODE_ENV`: `local` | `e2etest` | `dev` | `staging` | `prod`. The names and what each one switches are in `src/shared/constants/environment.constants.ts`. `e2etest` is the disposable stack an end-to-end scan builds: it behaves like `local` (no database TLS, no trusted proxy, demonstration accounts seeded) and, because the image uploader uses the name as the first folder of every object key, keeps its uploads apart from the other environments'.
 - `LOG_LEVEL`: `error` | `warn` | `log` | `debug` | `verbose` (optionally comma-separated)
 - `APP_PORT`: Port the HTTP server listens on (default used by code is `3000`)
 - `APP_FRONTEND_URL`: Base URL used for CORS and links in emails (e.g. `https://startrekonline.info` in production).
@@ -129,7 +129,7 @@ The structural limits are fixed rather than configurable. They decide how large 
 
 ## Optional (dev-only seeding)
 
-These are read by seeders when `NODE_ENV` is not `prod`.
+These are read by seeders when `NODE_ENV` is not `prod`. The `EnsureSeedUser` migration creates this account on a fresh database before the Storytime tag vocabulary is attributed to it; when any of the five is unset or blank, the migration prints a notice naming the missing ones and creates nothing, so a deployment without a seed user still migrates.
 
 - `DATASEED_USER_EMAIL`
 - `DATASEED_USER_USERNAME`
@@ -143,7 +143,7 @@ The secret referenced by `AWS_SECRET_NAME` is expected to be JSON with at least:
 
 - `jwtSecret`: Used to sign JWT access tokens
 - `dbPassword`: Used as the PostgreSQL password for TypeORM
-- `sendGridApiKey`: Used by SendGrid for outbound email (fallback when SES fails)
+- `sendGridApiKey`: Optional. Used by SendGrid for outbound email (fallback when SES fails). Without it the backend starts, logs once that SES is the only sender, and reports a failed SES send instead of retrying it.
 - `cloudflareR2AccessKey`: Used to write objects to Cloudflare R2
 - `cloudflareR2Secret`: Used to write objects to Cloudflare R2
 - `cloudflareImagesAccountId`: Used for Cloudflare Images uploads
@@ -178,6 +178,7 @@ The timer is unreferenced and cleared on Nest shutdown; SIGTERM/SIGINT invoke sh
    ```
 
    If using an explicit comma-separated `LOG_LEVEL` list, add `log` while preserving the other levels. An existing `debug` or `verbose` setting already includes normal logs. Enabling `log` also exposes other application logs at that level.
+
 3. Save the settings and deploy/restart the service with the updated environment. These settings are read at startup; changing a value without restarting the process does not update the sampler.
 4. Filter the service logs for `MemoryDiagnosticsService`. After initialisation, expect a JSON message with `reason` set to `startup`, followed by `interval` every ten minutes. Cleanup executions additionally emit labels such as `audit-cleanup:before` and `audit-cleanup:after`.
 

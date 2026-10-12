@@ -384,7 +384,7 @@ Authorization: Bearer <Images API key/token (from AWS Secrets Manager)>
 
 ### Origin proxy trust
 
-- Backend sets Express `trust proxy` to `TRUST_PROXY_HOPS` (default 1) when not running in `local`
+- Backend sets Express `trust proxy` to `TRUST_PROXY_HOPS` (default 1) when not running in `local` or `e2etest`
 - Client IP used for logging and rate limiting is derived in this order: `CF-Connecting-IP`, then the first `X-Forwarded-For` entry, then Express `req.ip`
 
 ## Infrastructure Quirks
