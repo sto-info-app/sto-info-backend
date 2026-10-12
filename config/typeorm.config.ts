@@ -6,6 +6,7 @@ import { DataSourceOptions } from 'typeorm';
 
 import { AuditEntity } from 'src/audit/entities/audit.entity';
 import { AuditSubscriber } from 'src/audit/subscribers/audit.subscriber';
+import { isOnMachineEnvironment } from 'src/shared/constants/environment.constants';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
 
 dotenvConfig({ path: './config/environments/.env' });
@@ -29,7 +30,8 @@ export async function getTypeOrmConfig(): Promise<DataSourceOptions> {
     process.env.AWS_SECRET_NAME!,
   );
 
-  const isLocalEnv = process.env.NODE_ENV === 'local';
+  // A database on the same machine speaks plain TCP. The deployed ones need TLS.
+  const isLocalEnv = isOnMachineEnvironment(process.env.NODE_ENV);
 
   const rootDir = join(__dirname, '../');
   const entitiesDir = join(rootDir, process.env.TYPEORM_ENTITIES!);

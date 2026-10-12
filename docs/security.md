@@ -735,7 +735,8 @@ Document current token expiry (e.g., 1 hour, 24 hours).
 
 - The backend serves only what comes through Cloudflare (FC-044): a request must carry the origin
   secret Cloudflare adds in `X-Origin-Verify`, or it is refused `403`, `/health/` aside. Chat's
-  socket too. Outside `local` the backend does not start without the secret
+  socket too. Outside `local` and `e2etest` the backend does not start without the
+  secret
 - Only on such a request is `CF-Connecting-IP` believed; no other header the caller wrote is. A
   request Cloudflare named no address for is keyed on its connection's own peer
 - That one address (`req.clientIp`) keys every rate limit and fills the login, audit and site

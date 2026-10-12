@@ -592,18 +592,19 @@ write them, and every rate limit keyed on them could be dodged with a new value 
   Cloudflare did not name an address for is keyed on its connection's own peer.
 - **One address per request.** Rate limits, the login and audit logs, and the site admin log all
   use the address this decided (`req.clientIp`), never `req.ip`.
-- **Outside `local` the secret is required.** Without it the backend does not start, so a deploy
-  that lacks it never goes healthy and the previous instance keeps serving. On a developer's
-  machine there is no secret: nothing is refused, no header is believed, and every request's
-  address is its connection's own. The rehearsals put one in their throwaway secret and send it,
+- **Outside `local` and `e2etest` the secret is required.** Without it the backend does not
+  start, so a deploy that lacks it never goes healthy and the previous instance keeps serving. On
+  a developer's machine, or an end-to-end scan's runner, there is no secret: nothing is refused, no
+  header is believed, and every request's address is its connection's own. The rehearsals put one in their throwaway secret and send it,
   as Cloudflare would, so they run the production path.
 - **Rotating it:** change the Transform Rule and the secret together and restart the backend;
   requests in between are refused.
 - **`onrender.com`** is switched off on the service once the custom domain is in place (Render ›
   Settings › Custom Domains › Render Subdomain), as one less way round Cloudflare. FC-052.
 
-Express's `trust proxy` is still set to `TRUST_PROXY_HOPS` (default 1) outside `local`, for what
-Express derives from the proxies in front; it no longer decides the client's address.
+Express's `trust proxy` is still set to `TRUST_PROXY_HOPS` (default 1) outside `local` and
+`e2etest`, for what Express derives from the proxies in front; it no longer decides the client's
+address.
 
 ## Infrastructure Quirks
 

@@ -118,6 +118,7 @@ const SIGNED_IN_ROUTES: Readonly<Record<string, string>> = {
   CharacterRdController: OWN_CHARACTER_PROGRESS,
   CharacterReputationController: OWN_CHARACTER_PROGRESS,
   CharacterSpecializationController: OWN_CHARACTER_PROGRESS,
+  CharacterOverviewController: OWN_CHARACTER_PROGRESS,
   StorytimeCreatorArcsController: STORYTIME_CREATOR,
   StorytimeArcCollaboratorsController: STORYTIME_CREATOR,
   StorytimeArcMembershipsController: STORYTIME_CREATOR,

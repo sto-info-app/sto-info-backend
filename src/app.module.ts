@@ -63,6 +63,7 @@ import { ValidatorsService } from './shared/utilities/validators.service';
 import { AccountModule } from './sto/account/account.module';
 import { CharacterAdmiraltyModule } from './sto/character-admiralty/character-admiralty.module';
 import { CharacterCommendationModule } from './sto/character-commendation/character-commendation.module';
+import { CharacterOverviewModule } from './sto/character-overview/character-overview.module';
 import { CharacterRdModule } from './sto/character-rd/character-rd.module';
 import { CharacterReputationModule } from './sto/character-reputation/character-reputation.module';
 import { CharacterSpecializationModule } from './sto/character-specialization/character-specialization.module';
@@ -131,6 +132,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     CharacterModule,
     CharacterAdmiraltyModule,
     CharacterCommendationModule,
+    CharacterOverviewModule,
     EndeavourModule,
     CharacterReputationModule,
     CharacterRdModule,

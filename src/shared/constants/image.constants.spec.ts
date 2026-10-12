@@ -2,6 +2,7 @@ import {
   buildCloudflareImageUrl,
   CLOUDFLARE_IMAGES_DEFAULT_ROOT_URL,
   emblemUrlsOf,
+  getCloudflareCdnRootUrl,
   getCloudflareImagesRootUrl,
   imageUrlOf,
   isValidCloudflareImageUrl,
@@ -16,6 +17,21 @@ describe('Image Constants', () => {
   afterEach(() => {
     process.env.CLOUDFLARE_CDN_ROOT_URL = originalEnv.CLOUDFLARE_CDN_ROOT_URL;
     process.env.CLOUDFLARE_IMAGES_HASH = originalEnv.CLOUDFLARE_IMAGES_HASH;
+  });
+
+  describe('getCloudflareCdnRootUrl', () => {
+    it('reads the CDN root at the time it is asked', () => {
+      delete process.env.CLOUDFLARE_CDN_ROOT_URL;
+      expect(getCloudflareCdnRootUrl()).toBeUndefined();
+
+      process.env.CLOUDFLARE_CDN_ROOT_URL = 'https://cdn.startrekonline.info';
+      expect(getCloudflareCdnRootUrl()).toBe('https://cdn.startrekonline.info');
+    });
+
+    it('treats a blank value as unset', () => {
+      process.env.CLOUDFLARE_CDN_ROOT_URL = '   ';
+      expect(getCloudflareCdnRootUrl()).toBeUndefined();
+    });
   });
 
   describe('getCloudflareImagesRootUrl', () => {

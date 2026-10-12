@@ -12,7 +12,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-import { CLOUDFLARE_R2_CDN_ROOT_URL } from 'src/shared/constants/image.constants';
+import { getCloudflareCdnRootUrl } from 'src/shared/constants/image.constants';
 
 import { UserEntity } from './user.entity';
 
@@ -68,7 +68,7 @@ export class UserProfileEntity {
     }
 
     const cfImagesHash = process.env.CLOUDFLARE_IMAGES_HASH;
-    const cdnRootUrl = CLOUDFLARE_R2_CDN_ROOT_URL;
+    const cdnRootUrl = getCloudflareCdnRootUrl();
     if (!cfImagesHash || !cdnRootUrl) {
       return null;
     }
@@ -97,7 +97,7 @@ export class UserProfileEntity {
     }
 
     const cfImagesHash = process.env.CLOUDFLARE_IMAGES_HASH;
-    const cdnRootUrl = CLOUDFLARE_R2_CDN_ROOT_URL;
+    const cdnRootUrl = getCloudflareCdnRootUrl();
     if (!cfImagesHash || !cdnRootUrl) {
       return null;
     }
@@ -116,7 +116,7 @@ export class UserProfileEntity {
     }
 
     const cfImagesHash = process.env.CLOUDFLARE_IMAGES_HASH;
-    const cdnRootUrl = CLOUDFLARE_R2_CDN_ROOT_URL;
+    const cdnRootUrl = getCloudflareCdnRootUrl();
     if (!cfImagesHash || !cdnRootUrl) {
       return null;
     }

@@ -31,6 +31,11 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { ConfigCheckService } from './config-check/config-check.service';
 import { ChatIoAdapter } from './fleet/chat/realtime/chat-io.adapter';
 import { RestoreCheckService } from './operations/restore/restore-check.service';
+import {
+  isOnMachineEnvironment,
+  isProductionEnvironment,
+  NODE_ENV_DEV,
+} from './shared/constants/environment.constants';
 import { getLogLevelsForEnvironment } from './shared/constants/logging.constants';
 import {
   AUTH_RATE_LIMITED_ROUTES,
@@ -236,14 +241,26 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
 
   const appEnv = configService.get('NODE_ENV') ?? 'dev';
-  const inProduction = appEnv === 'prod';
-  const inDevelopment = appEnv === 'dev';
-  const inLocal = appEnv === 'local';
+  const inProduction = isProductionEnvironment(appEnv);
+  const inDevelopment = appEnv === NODE_ENV_DEV;
+  // `local` and `e2etest`: the browser, server and database share a machine.
+  const inLocal = isOnMachineEnvironment(appEnv);
 
   const devAllowedOrigins = [
     'http://localhost:4200',
     'https://dev.startrekonline.info',
   ];
+
+  // A local checkout may serve the site on another port. That address is
+  // APP_FRONTEND_URL. Development and production keep the fixed lists.
+  if (inLocal) {
+    const frontendUrl = configService.get<string>('APP_FRONTEND_URL')?.trim();
+
+    if (frontendUrl && !devAllowedOrigins.includes(frontendUrl)) {
+      devAllowedOrigins.push(frontendUrl);
+    }
+  }
+
   const prodAllowedOrigins = ['https://startrekonline.info'];
 
   let allowedOrigins = devAllowedOrigins;
@@ -280,7 +297,7 @@ async function bootstrap() {
 
   if (!inLocal && !originSecret) {
     throw new Error(
-      'cloudflareOriginVerifySecret is not set: outside local the backend serves only what Cloudflare forwards (see docs/infrastructure.md#origin-proxy-trust).',
+      'cloudflareOriginVerifySecret is not set: outside local and e2etest the backend serves only what Cloudflare forwards (see docs/infrastructure.md#origin-proxy-trust).',
     );
   }
 
@@ -306,7 +323,7 @@ async function bootstrap() {
   // them. The client address is CloudflareOrigin's, never `req.ip` (FC-044).
   const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 1);
 
-  // Set trust proxy if not in local environment
+  // Set trust proxy unless the server shares a machine with its browser
   if (!inLocal) {
     app.set('trust proxy', trustProxyHops);
   }
