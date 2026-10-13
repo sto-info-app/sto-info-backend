@@ -340,8 +340,6 @@ export class FleetCommunityService {
     const { slug, revision, ...changes } = dto as typeof dto & {
       ownerUserId?: string;
     };
-    void slug;
-    void revision;
     delete changes.ownerUserId;
 
     Object.assign(community, changes);

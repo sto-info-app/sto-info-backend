@@ -65,6 +65,18 @@ interface ChatRoutes {
 }
 
 /**
+ * Refuses while chat is switched off.
+ *
+ * @param featureService - The Fleet feature switches.
+ * @throws NotFoundException when it is.
+ */
+async function assertChatEnabled(
+  featureService: FleetFeatureService,
+): Promise<void> {
+  await featureService.assertFlagEnabled(FLEET_FEATURE_FLAGS.CHAT_ENABLED);
+}
+
+/**
  * Builds one kind of scope's channel routes (FC-031), as its news and events
  * are built: one definition under three prefixes. Every route needs the
  * chat switch, and somebody signed in who takes part in the scope's chat.
@@ -199,10 +211,8 @@ function chatChannelController(routes: ChatRoutes) {
      *
      * @throws NotFoundException when it is.
      */
-    async assertEnabled(): Promise<void> {
-      await this._featureService.assertFlagEnabled(
-        FLEET_FEATURE_FLAGS.CHAT_ENABLED,
-      );
+    assertEnabled(): Promise<void> {
+      return assertChatEnabled(this._featureService);
     }
   }
 
@@ -517,9 +527,7 @@ export class ChatController {
    *
    * @throws NotFoundException when it is.
    */
-  private async assertEnabled(): Promise<void> {
-    await this._featureService.assertFlagEnabled(
-      FLEET_FEATURE_FLAGS.CHAT_ENABLED,
-    );
+  private assertEnabled(): Promise<void> {
+    return assertChatEnabled(this._featureService);
   }
 }

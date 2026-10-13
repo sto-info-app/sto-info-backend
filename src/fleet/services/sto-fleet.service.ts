@@ -39,6 +39,10 @@ import {
 } from '../utilities/directory-query.utility';
 import { toNormalisedExactGameName } from '../utilities/exact-game-name.utility';
 import {
+  platformSlugRequest,
+  PlatformSlugWish,
+} from '../utilities/platform-slug.utility';
+import {
   DirectoryEntry,
   DirectoryPage,
   DuplicateCountRow,
@@ -520,8 +524,6 @@ export class StoFleetService {
     }
 
     const { slug, revision, ...changes } = dto;
-    void slug;
-    void revision;
 
     Object.assign(fleet, changes);
 
@@ -829,16 +831,15 @@ export class StoFleetService {
   private mintSlug(
     communityId: string,
     platformId: string,
-    request: { desiredSlug?: string; name: string; targetId?: string },
+    request: PlatformSlugWish,
   ): Promise<string> {
-    return this._slugService.generateUniqueSlug({
-      ...this.slugScope(communityId, platformId),
-      desiredSlug: request.desiredSlug,
-      name: request.name,
-      targetId: request.targetId,
-      isTakenByLiveScope: candidate =>
-        this.isSlugTaken(communityId, platformId, candidate, request.targetId),
-    });
+    return this._slugService.generateUniqueSlug(
+      platformSlugRequest(
+        this.slugScope(communityId, platformId),
+        request,
+        this._fleetRepository,
+      ),
+    );
   }
 
   /**
@@ -854,34 +855,6 @@ export class StoFleetService {
       communityId,
       platformId,
     };
-  }
-
-  /**
-   * Determines whether a live Fleet in the same scope already holds a slug.
-   *
-   * @param communityId - The owning Community.
-   * @param platformId - The platform.
-   * @param candidate - The slug to test.
-   * @param excludingId - The Fleet being renamed, which may keep its own.
-   * @returns True when something else holds it.
-   */
-  private async isSlugTaken(
-    communityId: string,
-    platformId: string,
-    candidate: string,
-    excludingId?: string,
-  ): Promise<boolean> {
-    const held = await this._fleetRepository.count({
-      where: {
-        communityId,
-        platformId,
-        slug: candidate,
-        deletedAt: IsNull(),
-        ...(excludingId ? { id: Not(excludingId) } : {}),
-      },
-    });
-
-    return held > 0;
   }
 
   /**

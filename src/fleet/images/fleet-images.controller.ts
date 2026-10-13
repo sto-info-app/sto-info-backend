@@ -1,4 +1,5 @@
 import {
+  applyDecorators,
   Body,
   Controller,
   Delete,
@@ -45,7 +46,10 @@ import {
 import { UserRole } from 'src/user/enums/user-role.enum';
 
 import { FLEET_CAPABILITIES } from '../authorisation/fleet-capability.constants';
-import { RequiresScopeCapability } from '../authorisation/requires-scope-capability.decorator';
+import {
+  RequiresScopeCapability,
+  ScopeSource,
+} from '../authorisation/requires-scope-capability.decorator';
 import { ScopeCapabilityGuard } from '../authorisation/scope-capability.guard';
 import { FleetImageUploadDto } from '../dto/fleet-image-upload.dto';
 import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
@@ -56,6 +60,112 @@ import { FleetArtworkTarget, FleetImageService } from './fleet-image.service';
 const BAD_IMAGE =
   'No image was supplied, the file is not the format the slot takes, or ' +
   'the crop is smaller than the slot allows.';
+
+/** Where a Community's identifier is in its artwork routes. */
+const COMMUNITY_SCOPE: ScopeSource = {
+  kind: FleetScopeKind.COMMUNITY,
+  param: 'communityId',
+};
+
+/** Where a Fleet's identifiers are in its artwork routes. */
+const FLEET_SCOPE: ScopeSource = {
+  kind: FleetScopeKind.FLEET,
+  param: 'fleetId',
+  communityParam: 'communityId',
+};
+
+/** Where an Armada's identifiers are in its artwork routes. */
+const ARMADA_SCOPE: ScopeSource = {
+  kind: FleetScopeKind.ARMADA,
+  param: 'armadaId',
+  communityParam: 'communityId',
+};
+
+/** What a removal route answers, by the slot it empties. */
+const CLEARED_SLOT_RESPONSES = {
+  banner: { removed: 'Banner removed.', missing: 'There is no banner there.' },
+  emblem: { removed: 'Emblem removed.', missing: 'There is no emblem there.' },
+} as const;
+
+/** The artwork slots a route can empty, as the responses name them. */
+type ArtworkSlotName = keyof typeof CLEARED_SLOT_RESPONSES;
+
+/**
+ * What every artwork upload declares, whoever may make it: a cropped image
+ * and its description in, `202` and the scan to ask about out.
+ *
+ * @returns The combined method decorator.
+ */
+function AcceptsArtworkUpload(): MethodDecorator {
+  return applyDecorators(
+    HttpCode(HttpStatus.ACCEPTED),
+    ApiConsumes('multipart/form-data'),
+    ApiBody(STORYTIME_IMAGE_UPLOAD_SCHEMA),
+    ApiAcceptedResponse({ type: AssetScanStatusDto }),
+    ApiBadRequestResponse({ description: BAD_IMAGE }),
+    ApiPayloadTooLargeResponse({ description: 'The image is too large.' }),
+    UseFilters(FileSizeExceptionFilter),
+    UseInterceptors(
+      FileInterceptor(STORYTIME_IMAGE_FIELD, STORYTIME_IMAGE_UPLOAD_OPTIONS),
+    ),
+  );
+}
+
+/**
+ * What every artwork removal answers: `204`, or `404` when the slot was
+ * already empty.
+ *
+ * @param slot - The slot being emptied.
+ * @returns The combined method decorator.
+ */
+function ClearsArtwork(slot: ArtworkSlotName): MethodDecorator {
+  return applyDecorators(
+    HttpCode(HttpStatus.NO_CONTENT),
+    ApiNoContentResponse({ description: CLEARED_SLOT_RESPONSES[slot].removed }),
+    ApiNotFoundResponse({ description: CLEARED_SLOT_RESPONSES[slot].missing }),
+  );
+}
+
+/**
+ * Declares a route setting a registered scope's artwork, open to a caller
+ * holding `scope.images.manage` at the scope the path names.
+ *
+ * @param summary - The operation's summary.
+ * @param source - Where the scope's identifiers are in the path.
+ * @returns The combined method decorator.
+ */
+function SetsScopeArtwork(
+  summary: string,
+  source: ScopeSource,
+): MethodDecorator {
+  return applyDecorators(
+    RequiresScopeCapability(FLEET_CAPABILITIES.SCOPE_IMAGES_MANAGE, source),
+    ApiOperation({ summary }),
+    AcceptsArtworkUpload(),
+    ApiForbiddenResponse({ description: 'You may not change its artwork.' }),
+  );
+}
+
+/**
+ * Declares a route emptying one of a registered scope's artwork slots, open
+ * to a caller holding `scope.images.manage` at the scope the path names.
+ *
+ * @param summary - The operation's summary.
+ * @param source - Where the scope's identifiers are in the path.
+ * @param slot - The slot being emptied.
+ * @returns The combined method decorator.
+ */
+function ClearsScopeArtwork(
+  summary: string,
+  source: ScopeSource,
+  slot: ArtworkSlotName,
+): MethodDecorator {
+  return applyDecorators(
+    RequiresScopeCapability(FLEET_CAPABILITIES.SCOPE_IMAGES_MANAGE, source),
+    ApiOperation({ summary }),
+    ClearsArtwork(slot),
+  );
+}
 
 /**
  * The banner and the emblem a Community, Fleet or Armada shows.
@@ -104,22 +214,7 @@ export class FleetImagesController {
    * @returns The upload to ask about, and how far along it is.
    */
   @Post('fleet-communities/:communityId/banner-image')
-  @HttpCode(HttpStatus.ACCEPTED)
-  @RequiresScopeCapability(FLEET_CAPABILITIES.SCOPE_IMAGES_MANAGE, {
-    kind: FleetScopeKind.COMMUNITY,
-    param: 'communityId',
-  })
-  @ApiOperation({ summary: 'Set a Community’s banner' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody(STORYTIME_IMAGE_UPLOAD_SCHEMA)
-  @ApiAcceptedResponse({ type: AssetScanStatusDto })
-  @ApiBadRequestResponse({ description: BAD_IMAGE })
-  @ApiPayloadTooLargeResponse({ description: 'The image is too large.' })
-  @ApiForbiddenResponse({ description: 'You may not change its artwork.' })
-  @UseFilters(FileSizeExceptionFilter)
-  @UseInterceptors(
-    FileInterceptor(STORYTIME_IMAGE_FIELD, STORYTIME_IMAGE_UPLOAD_OPTIONS),
-  )
+  @SetsScopeArtwork('Set a Community’s banner', COMMUNITY_SCOPE)
   async setCommunityBanner(
     @Param('communityId', ParseUUIDPipe) communityId: string,
     @UserId() userId: string,
@@ -141,14 +236,7 @@ export class FleetImagesController {
    * @param communityId - The Community.
    */
   @Delete('fleet-communities/:communityId/banner-image')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @RequiresScopeCapability(FLEET_CAPABILITIES.SCOPE_IMAGES_MANAGE, {
-    kind: FleetScopeKind.COMMUNITY,
-    param: 'communityId',
-  })
-  @ApiOperation({ summary: 'Remove a Community’s banner' })
-  @ApiNoContentResponse({ description: 'Banner removed.' })
-  @ApiNotFoundResponse({ description: 'There is no banner there.' })
+  @ClearsScopeArtwork('Remove a Community’s banner', COMMUNITY_SCOPE, 'banner')
   async clearCommunityBanner(
     @Param('communityId', ParseUUIDPipe) communityId: string,
   ): Promise<void> {
@@ -168,22 +256,7 @@ export class FleetImagesController {
    * @returns The upload to ask about, and how far along it is.
    */
   @Post('fleet-communities/:communityId/emblem-image')
-  @HttpCode(HttpStatus.ACCEPTED)
-  @RequiresScopeCapability(FLEET_CAPABILITIES.SCOPE_IMAGES_MANAGE, {
-    kind: FleetScopeKind.COMMUNITY,
-    param: 'communityId',
-  })
-  @ApiOperation({ summary: 'Set a Community’s emblem' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody(STORYTIME_IMAGE_UPLOAD_SCHEMA)
-  @ApiAcceptedResponse({ type: AssetScanStatusDto })
-  @ApiBadRequestResponse({ description: BAD_IMAGE })
-  @ApiPayloadTooLargeResponse({ description: 'The image is too large.' })
-  @ApiForbiddenResponse({ description: 'You may not change its artwork.' })
-  @UseFilters(FileSizeExceptionFilter)
-  @UseInterceptors(
-    FileInterceptor(STORYTIME_IMAGE_FIELD, STORYTIME_IMAGE_UPLOAD_OPTIONS),
-  )
+  @SetsScopeArtwork('Set a Community’s emblem', COMMUNITY_SCOPE)
   async setCommunityEmblem(
     @Param('communityId', ParseUUIDPipe) communityId: string,
     @UserId() userId: string,
@@ -205,14 +278,7 @@ export class FleetImagesController {
    * @param communityId - The Community.
    */
   @Delete('fleet-communities/:communityId/emblem-image')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @RequiresScopeCapability(FLEET_CAPABILITIES.SCOPE_IMAGES_MANAGE, {
-    kind: FleetScopeKind.COMMUNITY,
-    param: 'communityId',
-  })
-  @ApiOperation({ summary: 'Remove a Community’s emblem' })
-  @ApiNoContentResponse({ description: 'Emblem removed.' })
-  @ApiNotFoundResponse({ description: 'There is no emblem there.' })
+  @ClearsScopeArtwork('Remove a Community’s emblem', COMMUNITY_SCOPE, 'emblem')
   async clearCommunityEmblem(
     @Param('communityId', ParseUUIDPipe) communityId: string,
   ): Promise<void> {
@@ -232,23 +298,7 @@ export class FleetImagesController {
    * @returns The upload to ask about, and how far along it is.
    */
   @Post('fleet-communities/:communityId/fleets/:fleetId/banner-image')
-  @HttpCode(HttpStatus.ACCEPTED)
-  @RequiresScopeCapability(FLEET_CAPABILITIES.SCOPE_IMAGES_MANAGE, {
-    kind: FleetScopeKind.FLEET,
-    param: 'fleetId',
-    communityParam: 'communityId',
-  })
-  @ApiOperation({ summary: 'Set a Fleet’s banner' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody(STORYTIME_IMAGE_UPLOAD_SCHEMA)
-  @ApiAcceptedResponse({ type: AssetScanStatusDto })
-  @ApiBadRequestResponse({ description: BAD_IMAGE })
-  @ApiPayloadTooLargeResponse({ description: 'The image is too large.' })
-  @ApiForbiddenResponse({ description: 'You may not change its artwork.' })
-  @UseFilters(FileSizeExceptionFilter)
-  @UseInterceptors(
-    FileInterceptor(STORYTIME_IMAGE_FIELD, STORYTIME_IMAGE_UPLOAD_OPTIONS),
-  )
+  @SetsScopeArtwork('Set a Fleet’s banner', FLEET_SCOPE)
   async setFleetBanner(
     @Param('fleetId', ParseUUIDPipe) fleetId: string,
     @UserId() userId: string,
@@ -270,15 +320,7 @@ export class FleetImagesController {
    * @param fleetId - The Fleet.
    */
   @Delete('fleet-communities/:communityId/fleets/:fleetId/banner-image')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @RequiresScopeCapability(FLEET_CAPABILITIES.SCOPE_IMAGES_MANAGE, {
-    kind: FleetScopeKind.FLEET,
-    param: 'fleetId',
-    communityParam: 'communityId',
-  })
-  @ApiOperation({ summary: 'Remove a Fleet’s banner' })
-  @ApiNoContentResponse({ description: 'Banner removed.' })
-  @ApiNotFoundResponse({ description: 'There is no banner there.' })
+  @ClearsScopeArtwork('Remove a Fleet’s banner', FLEET_SCOPE, 'banner')
   async clearFleetBanner(
     @Param('fleetId', ParseUUIDPipe) fleetId: string,
   ): Promise<void> {
@@ -298,23 +340,7 @@ export class FleetImagesController {
    * @returns The upload to ask about, and how far along it is.
    */
   @Post('fleet-communities/:communityId/fleets/:fleetId/emblem-image')
-  @HttpCode(HttpStatus.ACCEPTED)
-  @RequiresScopeCapability(FLEET_CAPABILITIES.SCOPE_IMAGES_MANAGE, {
-    kind: FleetScopeKind.FLEET,
-    param: 'fleetId',
-    communityParam: 'communityId',
-  })
-  @ApiOperation({ summary: 'Set a Fleet’s emblem' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody(STORYTIME_IMAGE_UPLOAD_SCHEMA)
-  @ApiAcceptedResponse({ type: AssetScanStatusDto })
-  @ApiBadRequestResponse({ description: BAD_IMAGE })
-  @ApiPayloadTooLargeResponse({ description: 'The image is too large.' })
-  @ApiForbiddenResponse({ description: 'You may not change its artwork.' })
-  @UseFilters(FileSizeExceptionFilter)
-  @UseInterceptors(
-    FileInterceptor(STORYTIME_IMAGE_FIELD, STORYTIME_IMAGE_UPLOAD_OPTIONS),
-  )
+  @SetsScopeArtwork('Set a Fleet’s emblem', FLEET_SCOPE)
   async setFleetEmblem(
     @Param('fleetId', ParseUUIDPipe) fleetId: string,
     @UserId() userId: string,
@@ -336,15 +362,7 @@ export class FleetImagesController {
    * @param fleetId - The Fleet.
    */
   @Delete('fleet-communities/:communityId/fleets/:fleetId/emblem-image')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @RequiresScopeCapability(FLEET_CAPABILITIES.SCOPE_IMAGES_MANAGE, {
-    kind: FleetScopeKind.FLEET,
-    param: 'fleetId',
-    communityParam: 'communityId',
-  })
-  @ApiOperation({ summary: 'Remove a Fleet’s emblem' })
-  @ApiNoContentResponse({ description: 'Emblem removed.' })
-  @ApiNotFoundResponse({ description: 'There is no emblem there.' })
+  @ClearsScopeArtwork('Remove a Fleet’s emblem', FLEET_SCOPE, 'emblem')
   async clearFleetEmblem(
     @Param('fleetId', ParseUUIDPipe) fleetId: string,
   ): Promise<void> {
@@ -364,23 +382,7 @@ export class FleetImagesController {
    * @returns The upload to ask about, and how far along it is.
    */
   @Post('fleet-communities/:communityId/armadas/:armadaId/banner-image')
-  @HttpCode(HttpStatus.ACCEPTED)
-  @RequiresScopeCapability(FLEET_CAPABILITIES.SCOPE_IMAGES_MANAGE, {
-    kind: FleetScopeKind.ARMADA,
-    param: 'armadaId',
-    communityParam: 'communityId',
-  })
-  @ApiOperation({ summary: 'Set an Armada’s banner' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody(STORYTIME_IMAGE_UPLOAD_SCHEMA)
-  @ApiAcceptedResponse({ type: AssetScanStatusDto })
-  @ApiBadRequestResponse({ description: BAD_IMAGE })
-  @ApiPayloadTooLargeResponse({ description: 'The image is too large.' })
-  @ApiForbiddenResponse({ description: 'You may not change its artwork.' })
-  @UseFilters(FileSizeExceptionFilter)
-  @UseInterceptors(
-    FileInterceptor(STORYTIME_IMAGE_FIELD, STORYTIME_IMAGE_UPLOAD_OPTIONS),
-  )
+  @SetsScopeArtwork('Set an Armada’s banner', ARMADA_SCOPE)
   async setArmadaBanner(
     @Param('armadaId', ParseUUIDPipe) armadaId: string,
     @UserId() userId: string,
@@ -402,15 +404,7 @@ export class FleetImagesController {
    * @param armadaId - The Armada.
    */
   @Delete('fleet-communities/:communityId/armadas/:armadaId/banner-image')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @RequiresScopeCapability(FLEET_CAPABILITIES.SCOPE_IMAGES_MANAGE, {
-    kind: FleetScopeKind.ARMADA,
-    param: 'armadaId',
-    communityParam: 'communityId',
-  })
-  @ApiOperation({ summary: 'Remove an Armada’s banner' })
-  @ApiNoContentResponse({ description: 'Banner removed.' })
-  @ApiNotFoundResponse({ description: 'There is no banner there.' })
+  @ClearsScopeArtwork('Remove an Armada’s banner', ARMADA_SCOPE, 'banner')
   async clearArmadaBanner(
     @Param('armadaId', ParseUUIDPipe) armadaId: string,
   ): Promise<void> {
@@ -430,23 +424,7 @@ export class FleetImagesController {
    * @returns The upload to ask about, and how far along it is.
    */
   @Post('fleet-communities/:communityId/armadas/:armadaId/emblem-image')
-  @HttpCode(HttpStatus.ACCEPTED)
-  @RequiresScopeCapability(FLEET_CAPABILITIES.SCOPE_IMAGES_MANAGE, {
-    kind: FleetScopeKind.ARMADA,
-    param: 'armadaId',
-    communityParam: 'communityId',
-  })
-  @ApiOperation({ summary: 'Set an Armada’s emblem' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody(STORYTIME_IMAGE_UPLOAD_SCHEMA)
-  @ApiAcceptedResponse({ type: AssetScanStatusDto })
-  @ApiBadRequestResponse({ description: BAD_IMAGE })
-  @ApiPayloadTooLargeResponse({ description: 'The image is too large.' })
-  @ApiForbiddenResponse({ description: 'You may not change its artwork.' })
-  @UseFilters(FileSizeExceptionFilter)
-  @UseInterceptors(
-    FileInterceptor(STORYTIME_IMAGE_FIELD, STORYTIME_IMAGE_UPLOAD_OPTIONS),
-  )
+  @SetsScopeArtwork('Set an Armada’s emblem', ARMADA_SCOPE)
   async setArmadaEmblem(
     @Param('armadaId', ParseUUIDPipe) armadaId: string,
     @UserId() userId: string,
@@ -468,15 +446,7 @@ export class FleetImagesController {
    * @param armadaId - The Armada.
    */
   @Delete('fleet-communities/:communityId/armadas/:armadaId/emblem-image')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @RequiresScopeCapability(FLEET_CAPABILITIES.SCOPE_IMAGES_MANAGE, {
-    kind: FleetScopeKind.ARMADA,
-    param: 'armadaId',
-    communityParam: 'communityId',
-  })
-  @ApiOperation({ summary: 'Remove an Armada’s emblem' })
-  @ApiNoContentResponse({ description: 'Emblem removed.' })
-  @ApiNotFoundResponse({ description: 'There is no emblem there.' })
+  @ClearsScopeArtwork('Remove an Armada’s emblem', ARMADA_SCOPE, 'emblem')
   async clearArmadaEmblem(
     @Param('armadaId', ParseUUIDPipe) armadaId: string,
   ): Promise<void> {
@@ -496,7 +466,6 @@ export class FleetImagesController {
    * @returns The upload to ask about, and how far along it is.
    */
   @Post('fleets/:fleetId/banner-image')
-  @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({
     summary: 'Set the banner on an unregistered Fleet',
     description:
@@ -505,19 +474,11 @@ export class FleetImagesController {
       'filled it. A Fleet that belongs to a Community is reported as ' +
       'missing here and is reached through that Community.',
   })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody(STORYTIME_IMAGE_UPLOAD_SCHEMA)
-  @ApiAcceptedResponse({ type: AssetScanStatusDto })
-  @ApiBadRequestResponse({ description: BAD_IMAGE })
-  @ApiPayloadTooLargeResponse({ description: 'The image is too large.' })
+  @AcceptsArtworkUpload()
   @ApiForbiddenResponse({
     description: 'Somebody else put that picture there.',
   })
   @ApiNotFoundResponse({ description: 'There is no such unregistered Fleet.' })
-  @UseFilters(FileSizeExceptionFilter)
-  @UseInterceptors(
-    FileInterceptor(STORYTIME_IMAGE_FIELD, STORYTIME_IMAGE_UPLOAD_OPTIONS),
-  )
   async setUnclaimedFleetBanner(
     @Param('fleetId', ParseUUIDPipe) fleetId: string,
     @UserId() userId: string,
@@ -542,13 +503,11 @@ export class FleetImagesController {
    * @param role - What the caller is on the site.
    */
   @Delete('fleets/:fleetId/banner-image')
-  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Remove the banner from an unregistered Fleet' })
-  @ApiNoContentResponse({ description: 'Banner removed.' })
+  @ClearsArtwork('banner')
   @ApiForbiddenResponse({
     description: 'Somebody else put that picture there.',
   })
-  @ApiNotFoundResponse({ description: 'There is no banner there.' })
   async clearUnclaimedFleetBanner(
     @Param('fleetId', ParseUUIDPipe) fleetId: string,
     @UserId() userId: string,
@@ -573,21 +532,12 @@ export class FleetImagesController {
    * @returns The upload to ask about, and how far along it is.
    */
   @Post('fleets/:fleetId/emblem-image')
-  @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: 'Set the emblem on an unregistered Fleet' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody(STORYTIME_IMAGE_UPLOAD_SCHEMA)
-  @ApiAcceptedResponse({ type: AssetScanStatusDto })
-  @ApiBadRequestResponse({ description: BAD_IMAGE })
-  @ApiPayloadTooLargeResponse({ description: 'The image is too large.' })
+  @AcceptsArtworkUpload()
   @ApiForbiddenResponse({
     description: 'Somebody else put that picture there.',
   })
   @ApiNotFoundResponse({ description: 'There is no such unregistered Fleet.' })
-  @UseFilters(FileSizeExceptionFilter)
-  @UseInterceptors(
-    FileInterceptor(STORYTIME_IMAGE_FIELD, STORYTIME_IMAGE_UPLOAD_OPTIONS),
-  )
   async setUnclaimedFleetEmblem(
     @Param('fleetId', ParseUUIDPipe) fleetId: string,
     @UserId() userId: string,
@@ -612,13 +562,11 @@ export class FleetImagesController {
    * @param role - What the caller is on the site.
    */
   @Delete('fleets/:fleetId/emblem-image')
-  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Remove the emblem from an unregistered Fleet' })
-  @ApiNoContentResponse({ description: 'Emblem removed.' })
+  @ClearsArtwork('emblem')
   @ApiForbiddenResponse({
     description: 'Somebody else put that picture there.',
   })
-  @ApiNotFoundResponse({ description: 'There is no emblem there.' })
   async clearUnclaimedFleetEmblem(
     @Param('fleetId', ParseUUIDPipe) fleetId: string,
     @UserId() userId: string,
