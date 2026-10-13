@@ -1,22 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import {
-  Column,
-  CreateDateColumn,
-  DeleteDateColumn,
-  Entity,
-  Index,
-  JoinColumn,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { GeneralFactionEntity } from 'src/sto/character/entities/general-faction.entity';
 import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
 
-import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
 import { FleetCommunityEntity } from './fleet-community.entity';
+import { FleetScopeEntity } from './fleet-scope.entity';
 
 /**
  * A Star Trek Online Armada as a Community records it.
@@ -29,6 +19,9 @@ import { FleetCommunityEntity } from './fleet-community.entity';
  * The Armada holds no Fleet columns. Which Fleets are in it, in what position
  * and over what interval, is `armada_fleet_membership` — so a Fleet can leave
  * without either record being rewritten.
+ *
+ * The lifecycle, artwork, revision and date columns every scope carries
+ * come from {@link FleetScopeEntity}.
  */
 @Entity({ name: 'sto_armada' })
 @Index('UX_sto_armada_community_slug', ['communityId', 'platformId', 'slug'], {
@@ -39,11 +32,7 @@ import { FleetCommunityEntity } from './fleet-community.entity';
   'platformId',
   'exactGameNameNormalized',
 ])
-export class StoArmadaEntity {
-  @ApiProperty({ description: 'Unique identifier.' })
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
+export class StoArmadaEntity extends FleetScopeEntity {
   @ApiProperty({ description: 'Owning Community.' })
   @Column({ type: 'uuid', nullable: false })
   communityId: string;
@@ -95,60 +84,6 @@ export class StoArmadaEntity {
   })
   @Column({ type: 'varchar', length: 80, nullable: false })
   slug: string;
-
-  @ApiProperty({ enum: FleetScopeStatus, description: 'Lifecycle state.' })
-  @Column({
-    type: 'enum',
-    enum: FleetScopeStatus,
-    enumName: 'fleet_scope_status_enum',
-    default: FleetScopeStatus.ACTIVE,
-  })
-  status: FleetScopeStatus;
-
-  @ApiProperty({ description: 'When the Armada was closed.', nullable: true })
-  @Column({ type: 'timestamptz', nullable: true, default: null })
-  closedAt: Date | null;
-
-  @ApiProperty({
-    description: 'Delivery reference of the wide banner.',
-    nullable: true,
-  })
-  @Column({ type: 'varchar', length: 160, nullable: true, default: null })
-  bannerImageId: string | null;
-
-  @ApiProperty({
-    description: 'What the banner shows, for readers who cannot see it.',
-    nullable: true,
-  })
-  @Column({ type: 'varchar', length: 300, nullable: true, default: null })
-  bannerImageAlt: string | null;
-
-  @ApiProperty({
-    description: 'Delivery reference of the square emblem.',
-    nullable: true,
-  })
-  @Column({ type: 'varchar', length: 160, nullable: true, default: null })
-  emblemImageId: string | null;
-
-  @ApiProperty({
-    description: 'What the emblem shows, for readers who cannot see it.',
-    nullable: true,
-  })
-  @Column({ type: 'varchar', length: 300, nullable: true, default: null })
-  emblemImageAlt: string | null;
-
-  @ApiProperty({ description: 'Authorisation revision counter.' })
-  @Column({ type: 'integer', nullable: false, default: 1 })
-  revision: number;
-
-  @CreateDateColumn({ type: 'timestamptz' })
-  createdAt: Date;
-
-  @UpdateDateColumn({ type: 'timestamptz' })
-  updatedAt: Date;
-
-  @DeleteDateColumn({ type: 'timestamptz' })
-  deletedAt: Date | null;
 
   @ManyToOne(() => FleetCommunityEntity, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'communityId' })

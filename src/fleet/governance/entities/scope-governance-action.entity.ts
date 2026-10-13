@@ -7,12 +7,12 @@ import {
   Index,
   JoinColumn,
   ManyToOne,
-  PrimaryGeneratedColumn,
 } from 'typeorm';
 
 import { UserEntity } from 'src/user/entities/user.entity';
 
 import { FleetCommunityEntity } from '../../entities/fleet-community.entity';
+import { ScopedRecordEntity } from '../../entities/scoped-record.entity';
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { FleetScopeRole } from '../../enums/fleet-scope-role.enum';
 import { ScopeCapabilityEffect } from '../../enums/scope-capability-effect.enum';
@@ -30,6 +30,9 @@ import { OwnershipTransferEntity } from './ownership-transfer.entity';
  * Append-only: a database trigger refuses any change but a named user's
  * account being deleted. The reasons the story asks for on removals are
  * required by check constraints, not only by the service.
+ *
+ * The scope columns come from {@link ScopedRecordEntity}. Its relations stay
+ * here rather than in a base, because it declares none to the Armada.
  */
 @Entity({ name: 'scope_governance_action' })
 @Index('IDX_scope_governance_action_community', ['communityId', 'createdAt'])
@@ -38,29 +41,7 @@ import { OwnershipTransferEntity } from './ownership-transfer.entity';
 @Index('IDX_scope_governance_action_actor', ['actorUserId'])
 @Index('IDX_scope_governance_action_subject', ['subjectUserId'])
 @Index('IDX_scope_governance_action_transfer', ['transferId'])
-export class ScopeGovernanceActionEntity {
-  @ApiProperty({ description: 'Unique identifier.' })
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
-  @ApiProperty({ description: 'The Community the change was made in.' })
-  @Column({ type: 'uuid', nullable: false })
-  communityId: string;
-
-  @ApiProperty({
-    description: 'The Fleet, when the change was made at a Fleet.',
-    nullable: true,
-  })
-  @Column({ type: 'uuid', nullable: true, default: null })
-  fleetId: string | null;
-
-  @ApiProperty({
-    description: 'The Armada, when the change was made at an Armada.',
-    nullable: true,
-  })
-  @Column({ type: 'uuid', nullable: true, default: null })
-  armadaId: string | null;
-
+export class ScopeGovernanceActionEntity extends ScopedRecordEntity {
   @ApiProperty({ enum: ScopeGovernanceActionKind })
   @Column({
     type: 'enum',

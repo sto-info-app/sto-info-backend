@@ -53,9 +53,14 @@ describe('Activity schema alignment', () => {
       .split('\n')
       .map(line => line.trim());
 
+  // The scope columns are inherited from ScopedRecordEntity, so they are
+  // declared against the base rather than against the entity itself.
   const declared = () =>
     getMetadataArgsStorage().columns.filter(
-      column => column.target === ActivityEventEntity,
+      column =>
+        column.target === ActivityEventEntity ||
+        (typeof column.target === 'function' &&
+          ActivityEventEntity.prototype instanceof column.target),
     );
 
   it('declares exactly the columns the table is created with', () => {

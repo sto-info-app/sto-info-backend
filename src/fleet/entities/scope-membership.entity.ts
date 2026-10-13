@@ -1,23 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import {
-  Column,
-  CreateDateColumn,
-  DeleteDateColumn,
-  Entity,
-  Index,
-  JoinColumn,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { UserEntity } from 'src/user/entities/user.entity';
 
 import { ScopeMembershipStatus } from '../enums/scope-membership-status.enum';
-import { FleetCommunityEntity } from './fleet-community.entity';
-import { StoArmadaEntity } from './sto-armada.entity';
-import { StoFleetEntity } from './sto-fleet.entity';
+import { ScopeAccessRecordEntity } from './scope-access-record.entity';
 
 /**
  * An approved-access record for one user at one scope.
@@ -40,6 +28,9 @@ import { StoFleetEntity } from './sto-fleet.entity';
  * Only `APPROVED` confers access, and `SUSPENDED` denies it outright rather
  * than degrading to something weaker — deny wins, which is FC-005's first
  * acceptance criterion.
+ *
+ * The scope columns, dates and scope relations come from
+ * {@link ScopeAccessRecordEntity}.
  */
 @Entity({ name: 'scope_membership' })
 @Index('UX_scope_membership_community_user', ['communityId', 'userId'], {
@@ -55,29 +46,7 @@ import { StoFleetEntity } from './sto-fleet.entity';
   where: '"armadaId" IS NOT NULL AND "deletedAt" IS NULL',
 })
 @Index('IDX_scope_membership_user_status', ['userId', 'status'])
-export class ScopeMembershipEntity {
-  @ApiProperty({ description: 'Unique identifier.' })
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
-  @ApiProperty({ description: 'The Community the scope belongs to.' })
-  @Column({ type: 'uuid', nullable: false })
-  communityId: string;
-
-  @ApiProperty({
-    description: 'The Fleet, when the scope is a Fleet.',
-    nullable: true,
-  })
-  @Column({ type: 'uuid', nullable: true, default: null })
-  fleetId: string | null;
-
-  @ApiProperty({
-    description: 'The Armada, when the scope is an Armada.',
-    nullable: true,
-  })
-  @Column({ type: 'uuid', nullable: true, default: null })
-  armadaId: string | null;
-
+export class ScopeMembershipEntity extends ScopeAccessRecordEntity {
   @ApiProperty({ description: 'The user whose access this is.' })
   @Column({ type: 'uuid', nullable: false })
   userId: string;
@@ -112,37 +81,6 @@ export class ScopeMembershipEntity {
   })
   @Column({ type: 'varchar', length: 500, nullable: true, default: null })
   decisionReason: string | null;
-
-  @CreateDateColumn({ type: 'timestamptz' })
-  createdAt: Date;
-
-  @UpdateDateColumn({ type: 'timestamptz' })
-  updatedAt: Date;
-
-  @DeleteDateColumn({ type: 'timestamptz' })
-  deletedAt: Date | null;
-
-  @ManyToOne(() => FleetCommunityEntity, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'communityId' })
-  community: FleetCommunityEntity;
-
-  /**
-   * Joined on the Fleet ID alone.
-   *
-   * The constraint in the migration is the composite `(fleetId, communityId)`
-   * against `sto_fleet (id, communityId)`; it is not declared here for the same
-   * reason as in `armada_fleet_membership`. PostgreSQL's default `MATCH SIMPLE`
-   * makes this exactly right: when `fleetId` is null the constraint stands
-   * aside, and when it is set both columns are checked together.
-   */
-  @ManyToOne(() => StoFleetEntity, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'fleetId' })
-  fleet: StoFleetEntity | null;
-
-  /** Joined on the Armada ID alone; see {@link fleet}. */
-  @ManyToOne(() => StoArmadaEntity, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'armadaId' })
-  armada: StoArmadaEntity | null;
 
   @ManyToOne(() => UserEntity, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userId' })

@@ -1,24 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import {
-  Column,
-  CreateDateColumn,
-  DeleteDateColumn,
-  Entity,
-  Index,
-  JoinColumn,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { GeneralFactionEntity } from 'src/sto/character/entities/general-faction.entity';
 import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
 
 import { FleetAudience } from '../enums/fleet-audience.enum';
 import { FleetRecruitmentState } from '../enums/fleet-recruitment-state.enum';
-import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
 import { FleetCommunityEntity } from './fleet-community.entity';
+import { FleetScopeEntity } from './fleet-scope.entity';
 
 /**
  * A Star Trek Online Fleet as STO Info records it.
@@ -40,6 +30,9 @@ import { FleetCommunityEntity } from './fleet-community.entity';
  * `character.handle` ceiling. That is storage headroom, **not** the naming rule
  * — ADR-0003 is still a proposal and whatever it settles on is enforced in the
  * application, so ruling either way needs no migration.
+ *
+ * The lifecycle, artwork, revision and date columns every scope carries
+ * come from {@link FleetScopeEntity}.
  */
 @Entity({ name: 'sto_fleet' })
 @Index('UX_sto_fleet_community_slug', ['communityId', 'platformId', 'slug'], {
@@ -57,11 +50,7 @@ import { FleetCommunityEntity } from './fleet-community.entity';
 })
 @Index('IDX_sto_fleet_platform_name', ['platformId', 'exactGameNameNormalized'])
 @Index('IDX_sto_fleet_community', ['communityId'])
-export class StoFleetEntity {
-  @ApiProperty({ description: 'Unique identifier.' })
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
+export class StoFleetEntity extends FleetScopeEntity {
   @ApiProperty({
     description: 'Owning Community, or null for an unregistered record.',
     nullable: true,
@@ -148,60 +137,6 @@ export class StoFleetEntity {
   })
   @Column({ type: 'timestamptz', nullable: true, default: null })
   lastEffectiveImportAt: Date | null;
-
-  @ApiProperty({ enum: FleetScopeStatus, description: 'Lifecycle state.' })
-  @Column({
-    type: 'enum',
-    enum: FleetScopeStatus,
-    enumName: 'fleet_scope_status_enum',
-    default: FleetScopeStatus.ACTIVE,
-  })
-  status: FleetScopeStatus;
-
-  @ApiProperty({ description: 'When the Fleet was closed.', nullable: true })
-  @Column({ type: 'timestamptz', nullable: true, default: null })
-  closedAt: Date | null;
-
-  @ApiProperty({
-    description: 'Delivery reference of the wide banner.',
-    nullable: true,
-  })
-  @Column({ type: 'varchar', length: 160, nullable: true, default: null })
-  bannerImageId: string | null;
-
-  @ApiProperty({
-    description: 'What the banner shows, for readers who cannot see it.',
-    nullable: true,
-  })
-  @Column({ type: 'varchar', length: 300, nullable: true, default: null })
-  bannerImageAlt: string | null;
-
-  @ApiProperty({
-    description: 'Delivery reference of the square emblem.',
-    nullable: true,
-  })
-  @Column({ type: 'varchar', length: 160, nullable: true, default: null })
-  emblemImageId: string | null;
-
-  @ApiProperty({
-    description: 'What the emblem shows, for readers who cannot see it.',
-    nullable: true,
-  })
-  @Column({ type: 'varchar', length: 300, nullable: true, default: null })
-  emblemImageAlt: string | null;
-
-  @ApiProperty({ description: 'Authorisation revision counter.' })
-  @Column({ type: 'integer', nullable: false, default: 1 })
-  revision: number;
-
-  @CreateDateColumn({ type: 'timestamptz' })
-  createdAt: Date;
-
-  @UpdateDateColumn({ type: 'timestamptz' })
-  updatedAt: Date;
-
-  @DeleteDateColumn({ type: 'timestamptz' })
-  deletedAt: Date | null;
 
   @ManyToOne(() => FleetCommunityEntity, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'communityId' })

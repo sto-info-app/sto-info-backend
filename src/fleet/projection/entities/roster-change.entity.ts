@@ -4,6 +4,7 @@ import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
 import { RosterChangeKind } from '../enums/roster-change-kind.enum';
 import { ProjectedChangeDetail } from '../utilities/roster-projector';
+import { ProjectionKeyColumn } from './projection-key-column.decorator';
 
 /**
  * One change to one member between two exports, as a projection revision
@@ -21,16 +22,13 @@ export class RosterChangeEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ApiProperty({ description: 'The Fleet.' })
-  @Column({ type: 'uuid', nullable: false })
+  @ProjectionKeyColumn('The Fleet.', 'uuid')
   fleetId: string;
 
-  @ApiProperty({ description: 'The projection revision it belongs to.' })
-  @Column({ type: 'integer', nullable: false })
+  @ProjectionKeyColumn('The projection revision it belongs to.', 'integer')
   revision: number;
 
-  @ApiProperty({ description: 'The roster identity.' })
-  @Column({ type: 'uuid', nullable: false })
+  @ProjectionKeyColumn('The roster identity.', 'uuid')
   identityId: string;
 
   @ApiProperty({ description: 'The ordinal of its episode.' })

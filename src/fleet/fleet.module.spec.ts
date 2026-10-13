@@ -1,4 +1,4 @@
-import { readdirSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { getRepositoryToken } from '@nestjs/typeorm';
@@ -119,10 +119,16 @@ describe('FleetModule', () => {
    * injects its repository yet, so nothing complains until the ticket that
    * needs it. Comparing the directory against the module turns that into a
    * failing test at the moment the file is added.
+   *
+   * Abstract bases the scope tables share are left out: they declare
+   * columns but no table, so there is no repository to register.
    */
   it('leaves no entity file unregistered', () => {
-    const files = readdirSync(join(__dirname, 'entities')).filter(name =>
-      name.endsWith('.entity.ts'),
+    const directory = join(__dirname, 'entities');
+    const files = readdirSync(directory).filter(
+      name =>
+        name.endsWith('.entity.ts') &&
+        readFileSync(join(directory, name), 'utf8').includes('@Entity('),
     );
 
     expect(files).toHaveLength(ENTITIES.length);

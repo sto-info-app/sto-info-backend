@@ -109,11 +109,23 @@ describe('Fleet schema alignment', () => {
     return found;
   };
 
+  /**
+   * Column metadata declared on the entity or inherited from its abstract
+   * bases, which is where the columns the scope tables share are declared.
+   */
+  const declaredColumns = (entity: EntityClass) =>
+    getMetadataArgsStorage().columns.filter(
+      column =>
+        column.target === entity ||
+        (typeof column.target === 'function' &&
+          entity.prototype instanceof column.target),
+    );
+
   /** Column names declared on the entity, including the date columns. */
   const entityColumns = (entity: EntityClass): string[] =>
-    getMetadataArgsStorage()
-      .columns.filter(column => column.target === entity)
-      .map(column => column.options.name ?? column.propertyName);
+    declaredColumns(entity).map(
+      column => column.options.name ?? column.propertyName,
+    );
 
   /** Column names in the `CREATE TABLE`, ignoring the CONSTRAINT lines. */
   const createdColumns = (entity: EntityClass): string[] =>
@@ -175,8 +187,7 @@ describe('Fleet schema alignment', () => {
   it.each(ENTITIES.map(entity => [entity.name, entity] as const))(
     '%s types every instant column as timestamptz in both places',
     (_name, entity) => {
-      const declared = getMetadataArgsStorage()
-        .columns.filter(column => column.target === entity)
+      const declared = declaredColumns(entity)
         .filter(column => column.options.type === 'timestamptz')
         .map(column => column.options.name ?? column.propertyName);
 
@@ -194,13 +205,9 @@ describe('Fleet schema alignment', () => {
       }
 
       // Nothing may be left on the driver default.
-      const dateColumns = getMetadataArgsStorage()
-        .columns.filter(column => column.target === entity)
-        .filter(column =>
-          ['createDate', 'updateDate', 'deleteDate'].includes(
-            column.mode ?? '',
-          ),
-        );
+      const dateColumns = declaredColumns(entity).filter(column =>
+        ['createDate', 'updateDate', 'deleteDate'].includes(column.mode ?? ''),
+      );
 
       for (const column of dateColumns) {
         expect(column.options.type).toBe('timestamptz');

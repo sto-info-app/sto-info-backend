@@ -1,24 +1,58 @@
+import { applyDecorators } from '@nestjs/common';
 import { ApiProperty } from '@nestjs/swagger';
 
-import {
-  Column,
-  CreateDateColumn,
-  DeleteDateColumn,
-  Entity,
-  Index,
-  JoinColumn,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { UserEntity } from 'src/user/entities/user.entity';
 
 import { FleetScopeRole } from '../enums/fleet-scope-role.enum';
 import { ScopeCapabilityEffect } from '../enums/scope-capability-effect.enum';
-import { FleetCommunityEntity } from './fleet-community.entity';
-import { StoArmadaEntity } from './sto-armada.entity';
-import { StoFleetEntity } from './sto-fleet.entity';
+import { TemporalScopeGrantEntity } from './temporal-scope-grant.entity';
+
+/**
+ * Where an open grant can sit, and the predicate that selects rows there.
+ *
+ * A Community-level grant is one with neither child set; a Fleet or an Armada
+ * grant is one with that child set.
+ */
+const OPEN_GRANT_SCOPES = [
+  {
+    scope: 'community',
+    column: 'communityId',
+    where: '"fleetId" IS NULL AND "armadaId" IS NULL',
+  },
+  { scope: 'fleet', column: 'fleetId', where: '"fleetId" IS NOT NULL' },
+  { scope: 'armada', column: 'armadaId', where: '"armadaId" IS NOT NULL' },
+] as const;
+
+/** Who an open grant can be about: one individual, or one role label. */
+const OPEN_GRANT_SUBJECTS = [
+  { subject: 'user', column: 'subjectUserId' },
+  { subject: 'role', column: 'subjectRole' },
+] as const;
+
+/**
+ * Declares the six partial unique indexes allowing one open grant per scope,
+ * subject and capability — one for each scope and kind of subject.
+ *
+ * @returns The class decorator applying all six.
+ */
+function OpenGrantIndexes(): ClassDecorator {
+  return applyDecorators(
+    ...OPEN_GRANT_SCOPES.flatMap(({ scope, column, where }) =>
+      OPEN_GRANT_SUBJECTS.map(subject =>
+        Index(
+          `UX_scope_capability_grant_open_${scope}_${subject.subject}`,
+          [column, subject.column, 'capability'],
+          {
+            unique: true,
+            where: `${where} AND "${subject.column}" IS NOT NULL AND "validTo" IS NULL AND "deletedAt" IS NULL`,
+          },
+        ),
+      ),
+    ),
+  );
+}
 
 /**
  * One granular capability, added to or taken away from a subject at one scope.
@@ -54,87 +88,15 @@ import { StoFleetEntity } from './sto-fleet.entity';
  * store a contradiction and leave the resolver to break the tie silently; the
  * database refuses the second row instead, so the contradiction has to be
  * resolved by whoever is making the change.
+ *
+ * The scope columns, validity period, dates and scope relations come from
+ * {@link TemporalScopeGrantEntity}.
  */
 @Entity({ name: 'scope_capability_grant' })
-@Index(
-  'UX_scope_capability_grant_open_community_user',
-  ['communityId', 'subjectUserId', 'capability'],
-  {
-    unique: true,
-    where:
-      '"fleetId" IS NULL AND "armadaId" IS NULL AND "subjectUserId" IS NOT NULL AND "validTo" IS NULL AND "deletedAt" IS NULL',
-  },
-)
-@Index(
-  'UX_scope_capability_grant_open_community_role',
-  ['communityId', 'subjectRole', 'capability'],
-  {
-    unique: true,
-    where:
-      '"fleetId" IS NULL AND "armadaId" IS NULL AND "subjectRole" IS NOT NULL AND "validTo" IS NULL AND "deletedAt" IS NULL',
-  },
-)
-@Index(
-  'UX_scope_capability_grant_open_fleet_user',
-  ['fleetId', 'subjectUserId', 'capability'],
-  {
-    unique: true,
-    where:
-      '"fleetId" IS NOT NULL AND "subjectUserId" IS NOT NULL AND "validTo" IS NULL AND "deletedAt" IS NULL',
-  },
-)
-@Index(
-  'UX_scope_capability_grant_open_fleet_role',
-  ['fleetId', 'subjectRole', 'capability'],
-  {
-    unique: true,
-    where:
-      '"fleetId" IS NOT NULL AND "subjectRole" IS NOT NULL AND "validTo" IS NULL AND "deletedAt" IS NULL',
-  },
-)
-@Index(
-  'UX_scope_capability_grant_open_armada_user',
-  ['armadaId', 'subjectUserId', 'capability'],
-  {
-    unique: true,
-    where:
-      '"armadaId" IS NOT NULL AND "subjectUserId" IS NOT NULL AND "validTo" IS NULL AND "deletedAt" IS NULL',
-  },
-)
-@Index(
-  'UX_scope_capability_grant_open_armada_role',
-  ['armadaId', 'subjectRole', 'capability'],
-  {
-    unique: true,
-    where:
-      '"armadaId" IS NOT NULL AND "subjectRole" IS NOT NULL AND "validTo" IS NULL AND "deletedAt" IS NULL',
-  },
-)
+@OpenGrantIndexes()
 @Index('IDX_scope_capability_grant_subject_user', ['subjectUserId'])
 @Index('IDX_scope_capability_grant_community', ['communityId'])
-export class ScopeCapabilityGrantEntity {
-  @ApiProperty({ description: 'Unique identifier.' })
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
-  @ApiProperty({ description: 'The Community the scope belongs to.' })
-  @Column({ type: 'uuid', nullable: false })
-  communityId: string;
-
-  @ApiProperty({
-    description: 'The Fleet, when the scope is a Fleet.',
-    nullable: true,
-  })
-  @Column({ type: 'uuid', nullable: true, default: null })
-  fleetId: string | null;
-
-  @ApiProperty({
-    description: 'The Armada, when the scope is an Armada.',
-    nullable: true,
-  })
-  @Column({ type: 'uuid', nullable: true, default: null })
-  armadaId: string | null;
-
+export class ScopeCapabilityGrantEntity extends TemporalScopeGrantEntity {
   @ApiProperty({
     description: 'The individual the grant is about, when it names one.',
     nullable: true,
@@ -181,62 +143,7 @@ export class ScopeCapabilityGrantEntity {
   })
   effect: ScopeCapabilityEffect;
 
-  @ApiProperty({ description: 'When the grant took effect.' })
-  @Column({ type: 'timestamptz', nullable: false, default: () => 'now()' })
-  validFrom: Date;
-
-  @ApiProperty({
-    description: 'When it ended, or null while it stands.',
-    nullable: true,
-  })
-  @Column({ type: 'timestamptz', nullable: true, default: null })
-  validTo: Date | null;
-
-  @ApiProperty({ description: 'Who made the change.', nullable: true })
-  @Column({ type: 'uuid', nullable: true, default: null })
-  grantedByUserId: string | null;
-
-  @ApiProperty({
-    description: 'Why it was granted or withdrawn.',
-    nullable: true,
-  })
-  @Column({ type: 'varchar', length: 500, nullable: true, default: null })
-  reason: string | null;
-
-  @CreateDateColumn({ type: 'timestamptz' })
-  createdAt: Date;
-
-  @UpdateDateColumn({ type: 'timestamptz' })
-  updatedAt: Date;
-
-  @DeleteDateColumn({ type: 'timestamptz' })
-  deletedAt: Date | null;
-
-  @ManyToOne(() => FleetCommunityEntity, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'communityId' })
-  community: FleetCommunityEntity;
-
-  /**
-   * Joined on the Fleet ID alone.
-   *
-   * The constraint in the migration is the composite `(fleetId, communityId)`
-   * against `sto_fleet (id, communityId)`, as everywhere else in this feature,
-   * so a grant cannot name another Community's Fleet.
-   */
-  @ManyToOne(() => StoFleetEntity, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'fleetId' })
-  fleet: StoFleetEntity | null;
-
-  /** Joined on the Armada ID; the composite constraint is in the migration. */
-  @ManyToOne(() => StoArmadaEntity, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'armadaId' })
-  armada: StoArmadaEntity | null;
-
   @ManyToOne(() => UserEntity, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'subjectUserId' })
   subjectUser: UserEntity | null;
-
-  @ManyToOne(() => UserEntity, { onDelete: 'SET NULL' })
-  @JoinColumn({ name: 'grantedByUserId' })
-  grantedBy: UserEntity | null;
 }

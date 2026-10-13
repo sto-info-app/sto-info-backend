@@ -4,6 +4,7 @@ import { Column, Entity, Index, PrimaryGeneratedColumn, Unique } from 'typeorm';
 
 import { RosterEpisodeEnd } from '../enums/roster-episode-end.enum';
 import { RosterEpisodeStart } from '../enums/roster-episode-start.enum';
+import { ProjectionKeyColumn } from './projection-key-column.decorator';
 
 /**
  * One stretch of one roster identity's membership, as a projection revision
@@ -36,16 +37,13 @@ export class RosterEpisodeEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ApiProperty({ description: 'The Fleet.' })
-  @Column({ type: 'uuid', nullable: false })
+  @ProjectionKeyColumn('The Fleet.', 'uuid')
   fleetId: string;
 
-  @ApiProperty({ description: 'The projection revision it belongs to.' })
-  @Column({ type: 'integer', nullable: false })
+  @ProjectionKeyColumn('The projection revision it belongs to.', 'integer')
   revision: number;
 
-  @ApiProperty({ description: 'The roster identity.' })
-  @Column({ type: 'uuid', nullable: false })
+  @ProjectionKeyColumn('The roster identity.', 'uuid')
   identityId: string;
 
   @ApiProperty({ description: 'Which of the identity’s episodes, from one.' })

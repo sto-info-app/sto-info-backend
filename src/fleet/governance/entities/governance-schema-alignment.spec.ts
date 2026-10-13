@@ -81,8 +81,15 @@ describe('Governance schema alignment', () => {
       .split('\n')
       .map(line => line.trim());
 
+  // Inherited columns count too: the scope columns of a governance action
+  // are declared against ScopedRecordEntity rather than the entity itself.
   const declared = (entity: abstract new () => unknown) =>
-    getMetadataArgsStorage().columns.filter(column => column.target === entity);
+    getMetadataArgsStorage().columns.filter(
+      column =>
+        column.target === entity ||
+        (typeof column.target === 'function' &&
+          entity.prototype instanceof column.target),
+    );
 
   const TABLES: [string, abstract new () => unknown][] = [
     ['scope_governance_action', ScopeGovernanceActionEntity],

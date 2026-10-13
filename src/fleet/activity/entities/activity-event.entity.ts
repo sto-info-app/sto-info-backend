@@ -1,14 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  Index,
-  PrimaryGeneratedColumn,
-  Unique,
-} from 'typeorm';
+import { Column, CreateDateColumn, Entity, Index, Unique } from 'typeorm';
 
+import { ScopedRecordEntity } from '../../entities/scoped-record.entity';
 import { ActivityType, ActivityVisibility } from '../enums/activity.enums';
 
 /**
@@ -21,6 +15,8 @@ import { ActivityType, ActivityVisibility } from '../enums/activity.enums';
  * see it. So a post narrowed, a Fleet made private or a member gone changes
  * the feed at once, and nothing private is frozen here. `idempotencyKey` is
  * unique, so an import replayed or a change retried writes one item.
+ *
+ * The scope columns come from {@link ScopedRecordEntity}.
  */
 @Entity({ name: 'activity_event' })
 @Unique('UQ_activity_event_idempotency', ['idempotencyKey'])
@@ -31,23 +27,7 @@ import { ActivityType, ActivityVisibility } from '../enums/activity.enums';
   'occurredAt',
 ])
 @Index('IDX_activity_event_occurred', ['occurredAt'])
-export class ActivityEventEntity {
-  @ApiProperty()
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
-  @ApiProperty()
-  @Column({ type: 'uuid' })
-  communityId: string;
-
-  @ApiProperty({ nullable: true, type: String })
-  @Column({ type: 'uuid', nullable: true, default: null })
-  fleetId: string | null;
-
-  @ApiProperty({ nullable: true, type: String })
-  @Column({ type: 'uuid', nullable: true, default: null })
-  armadaId: string | null;
-
+export class ActivityEventEntity extends ScopedRecordEntity {
   @ApiProperty({ enum: ActivityType })
   @Column({
     type: 'enum',
