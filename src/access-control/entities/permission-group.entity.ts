@@ -1,14 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import {
-  Column,
-  CreateDateColumn,
-  DeleteDateColumn,
-  Entity,
-  Index,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Column, DeleteDateColumn, Entity } from 'typeorm';
+
+import { PermissionCatalogueEntryEntity } from './permission-catalogue-entry.entity';
 
 /**
  * A named bundle of permissions, such as "Storytime Creator".
@@ -18,42 +12,13 @@ import {
  * does not require editing every role that should receive it.
  */
 @Entity({ name: 'permission_group' })
-export class PermissionGroupEntity {
-  @ApiProperty({ description: 'Unique identifier.' })
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
-  @ApiProperty({
-    description: 'Stable code for the group.',
-    example: 'storytime.creator',
-  })
-  @Index({ unique: true })
-  @Column({ type: 'varchar', length: 100, nullable: false })
-  code: string;
-
-  @ApiProperty({ description: 'Human-readable name.' })
-  @Column({ type: 'varchar', length: 150, nullable: false })
-  name: string;
-
-  @ApiProperty({
-    description: 'Who the group is intended for.',
-    nullable: true,
-  })
-  @Column({ type: 'varchar', length: 500, nullable: true, default: null })
-  description: string | null;
-
+export class PermissionGroupEntity extends PermissionCatalogueEntryEntity {
   @ApiProperty({
     description:
       'System groups cannot be renamed or deleted, only have their membership changed.',
   })
   @Column({ type: 'boolean', nullable: false, default: false })
   isSystem: boolean;
-
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
 
   @DeleteDateColumn()
   deletedAt: Date | null;
