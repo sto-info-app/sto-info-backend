@@ -55,8 +55,17 @@ import {
  * Every container is the run's own; no real data is used.
  */
 
-/** Production's last migration, which this release starts from. */
-const PRODUCTION_HEAD = 1791500000000;
+/**
+ * Production's last migration, which this release starts from. By name: two
+ * of production's own share their timestamps with two of this release's.
+ */
+const PRODUCTION_HEAD = 'SeedStoInfoV1438ReleaseNotesNewsPost1792700000000';
+
+/** The query for the last migration a database ran. */
+const LAST_MIGRATION = `SELECT "name" AS "value" FROM "sto_info_app"."_migrations" ORDER BY "id" DESC LIMIT 1`;
+
+/** The query for how many migrations a database has run. */
+const MIGRATIONS_RUN = `SELECT count(*)::int AS "value" FROM "sto_info_app"."_migrations"`;
 
 /** Production's migrations before `SeedStorytimeTags`, which needs a site admin. */
 const BEFORE_STORYTIME_TAGS =
@@ -361,15 +370,13 @@ async function production1(r: Rehearsal): Promise<void> {
     migrated = await productionMigrations(r);
   }
 
-  const head = await r.db.value<string>(
-    `SELECT max("timestamp")::text AS "value" FROM "sto_info_app"."_migrations"`,
-  );
+  const head = await r.db.value<string>(LAST_MIGRATION);
 
   if (
     !r.results.check(
       name,
       `${r.config.oldBackendRef}'s own migrations make its schema`,
-      migrated.code === 0 && head === String(PRODUCTION_HEAD),
+      migrated.code === 0 && head === PRODUCTION_HEAD,
       secondsSince(at),
       migrated.code === 0
         ? `last migration ${head}`
@@ -448,18 +455,21 @@ async function production1(r: Rehearsal): Promise<void> {
  */
 async function migrate(r: Rehearsal): Promise<void> {
   const name = 'R2 Migrating to this release';
-  const pending = readdirSync(
-    join(r.config.repo, 'src', 'database', 'migrations'),
-  ).filter(
-    file =>
-      /^\d{13}-.*\.ts$/.test(file) &&
-      Number(file.slice(0, 13)) > PRODUCTION_HEAD,
+  // What is pending is every migration this release has and production does
+  // not, by file name, since two of each share a timestamp. A spec kept beside
+  // the migrations is not one.
+  const migrationsIn = (repo: string): string[] =>
+    readdirSync(join(repo, 'src', 'database', 'migrations')).filter(
+      file => /^\d{13}-.*\.ts$/.test(file) && !file.endsWith('.spec.ts'),
+    );
+  const productionFiles = new Set(migrationsIn(production(r).checkout));
+  const pending = migrationsIn(r.config.repo).filter(
+    file => !productionFiles.has(file),
   ).length;
+  const before = (await r.db.value<number>(MIGRATIONS_RUN)) ?? 0;
   const at = Date.now();
   const migrated = await r.backendMigrations('migration:run', r.db.name);
-  const ran = await r.db.value<number>(
-    `SELECT count(*)::int AS "value" FROM "sto_info_app"."_migrations" WHERE "timestamp" > ${PRODUCTION_HEAD}`,
-  );
+  const ran = ((await r.db.value<number>(MIGRATIONS_RUN)) ?? 0) - before;
 
   if (
     !r.results.check(
@@ -1111,9 +1121,7 @@ async function preflightProofs(r: Rehearsal): Promise<void> {
       await db.close();
 
       const migrated = await r.backendMigrations('migration:run', database);
-      const head = await db.value<string>(
-        `SELECT max("timestamp")::text AS "value" FROM "sto_info_app"."_migrations"`,
-      );
+      const head = await db.value<string>(LAST_MIGRATION);
       const tablesAfter = await db.value<number>(
         `SELECT count(*)::int AS "value" FROM information_schema.tables WHERE "table_schema" = 'sto_info_app'`,
       );
@@ -1124,7 +1132,7 @@ async function preflightProofs(r: Rehearsal): Promise<void> {
         preflight.code !== 0 &&
           found &&
           migrated.code !== 0 &&
-          head === String(PRODUCTION_HEAD) &&
+          head === PRODUCTION_HEAD &&
           tablesAfter === tablesBefore,
         null,
         `preflight ${preflight.code === 0 ? 'passed' : 'failed'}; migrations ${migrated.code === 0 ? 'ran' : `failed: ${failureOf(migrated.output).slice(0, 120)}`}; last migration ${head}`,

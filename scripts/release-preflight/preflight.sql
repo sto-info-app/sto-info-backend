@@ -26,7 +26,13 @@
 --   NOTICE_ID_TAKEN            1796500000000 adds a notification with a fixed ID.
 --   POSTGRES_TOO_OLD           the new tables use gen_random_uuid(), PostgreSQL 13+.
 --   UNEXPECTED_MIGRATIONS      the release expects to start from production's
---                              last migration, 1791500000000.
+--                              migrations: everything to 1791500000000, and
+--                              the two production has run since, which are
+--                              named because they share their timestamps with
+--                              two of the release's own (1792600000000 and
+--                              1792700000000). Anything else production gains
+--                              before the release fails this until it is
+--                              checked and added here.
 
 \set ON_ERROR_STOP on
 \if :{?schema}
@@ -69,7 +75,9 @@ DECLARE
     ['FAIL', 'POSTGRES_TOO_OLD',
      $q$SELECT CASE WHEN current_setting('server_version_num')::int >= 130000 THEN 0 ELSE 1 END$q$],
     ['FAIL', 'UNEXPECTED_MIGRATIONS',
-     $q$SELECT (SELECT count(*) FROM "_migrations" WHERE "timestamp" > 1791500000000)
+     $q$SELECT (SELECT count(*) FROM "_migrations" WHERE "timestamp" > 1791500000000
+                 AND "name" NOT IN ('CapAdmiraltyTourOfDutyAtNine1792600000000',
+                                    'SeedStoInfoV1438ReleaseNotesNewsPost1792700000000'))
              + CASE WHEN EXISTS (SELECT 1 FROM "_migrations" WHERE "timestamp" = 1791500000000) THEN 0 ELSE 1 END$q$],
     ['INFO', 'CHARACTER_NAMES_AS_PICTURES',
      $q$SELECT count(*) FROM "character"
