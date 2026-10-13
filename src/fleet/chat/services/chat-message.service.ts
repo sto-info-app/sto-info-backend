@@ -461,46 +461,50 @@ export class ChatMessageService {
       id === null ? null : { userId: id, username: names.get(id) ?? null };
     const blocked = await this._direct.blockedFor(userId);
 
-    return messages.map(message =>
-      blocked.has(message.authorUserId as string)
-        ? hiddenFrom(message)
-        : {
-            id: message.id,
-            channelId: message.channelId,
-            conversationId: message.conversationId,
-            author:
-              message.authorUserId === null
-                ? null
-                : {
-                    userId: message.authorUserId,
-                    username: names.get(message.authorUserId) ?? null,
-                  },
-            body: message.deletedAt === null ? message.body : null,
-            clientMessageId: message.clientMessageId,
-            createdAt: message.createdAt,
-            deleted: message.deletedAt !== null,
-            removed: wasRemoved(message),
-            mine: message.authorUserId === userId,
-            hidden: false,
-            mentions:
-              message.deletedAt === null
-                ? message.mentions.map(id => personOf(id) as ChatPersonDto)
-                : [],
-            replyTo:
-              message.deletedAt !== null || message.replyToMessageId === null
-                ? null
-                : replyOf(
-                    message.replyToMessageId,
-                    blocked.has(
-                      answeredById.get(message.replyToMessageId)
-                        ?.authorUserId as string,
-                    )
-                      ? undefined
-                      : answeredById.get(message.replyToMessageId),
-                    personOf,
-                  ),
-          },
-    );
+    return messages.map((message): ChatMessageDto => {
+      if (blocked.has(message.authorUserId as string)) {
+        return hiddenFrom(message);
+      }
+
+      let replyTo: ChatReplyDto | null = null;
+
+      if (message.deletedAt === null && message.replyToMessageId !== null) {
+        const answeredMessage = answeredById.get(message.replyToMessageId);
+
+        replyTo = replyOf(
+          message.replyToMessageId,
+          blocked.has(answeredMessage?.authorUserId as string)
+            ? undefined
+            : answeredMessage,
+          personOf,
+        );
+      }
+
+      return {
+        id: message.id,
+        channelId: message.channelId,
+        conversationId: message.conversationId,
+        author:
+          message.authorUserId === null
+            ? null
+            : {
+                userId: message.authorUserId,
+                username: names.get(message.authorUserId) ?? null,
+              },
+        body: message.deletedAt === null ? message.body : null,
+        clientMessageId: message.clientMessageId,
+        createdAt: message.createdAt,
+        deleted: message.deletedAt !== null,
+        removed: wasRemoved(message),
+        mine: message.authorUserId === userId,
+        hidden: false,
+        mentions:
+          message.deletedAt === null
+            ? message.mentions.map(id => personOf(id) as ChatPersonDto)
+            : [],
+        replyTo,
+      };
+    });
   }
 
   /**
@@ -693,8 +697,7 @@ export class ChatMessageService {
     });
 
     if (
-      answered === null ||
-      answered.channelId !== (place.channelId ?? null) ||
+      answered?.channelId !== (place.channelId ?? null) ||
       answered.conversationId !== (place.conversationId ?? null) ||
       blocked.has(answered.authorUserId as string)
     ) {

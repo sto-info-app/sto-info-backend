@@ -440,33 +440,14 @@ export class RosterTypedParserService {
     let cursor = 0;
 
     for (;;) {
-      if (line[cursor] !== '"') {
+      const field = this.readQuotedField(line, cursor);
+
+      if (field === null) {
         return null;
       }
 
-      cursor += 1;
-
-      let value = '';
-
-      for (;;) {
-        const quote = line.indexOf('"', cursor);
-
-        if (quote === -1) {
-          return null;
-        }
-
-        value += line.slice(cursor, quote);
-        cursor = quote + 1;
-
-        if (line[cursor] !== '"') {
-          break;
-        }
-
-        value += '"';
-        cursor += 1;
-      }
-
-      values.push(value);
+      values.push(field.value);
+      cursor = field.end;
 
       if (cursor === line.length) {
         return values.length === ROSTER_ALLOWED_COLUMNS.length ? values : null;
@@ -476,6 +457,44 @@ export class RosterTypedParserService {
         return null;
       }
 
+      cursor += 1;
+    }
+  }
+
+  /**
+   * Reads one quoted field of the canonical file, undoubling its quotes.
+   *
+   * @param line - The line, without its terminator.
+   * @param start - Where the field's opening quote should be.
+   * @returns The value, and where the field ends, just past its closing
+   *   quote; or null when no quoted field starts there or it never closes.
+   */
+  private readQuotedField(
+    line: string,
+    start: number,
+  ): { value: string; end: number } | null {
+    if (line[start] !== '"') {
+      return null;
+    }
+
+    let cursor = start + 1;
+    let value = '';
+
+    for (;;) {
+      const quote = line.indexOf('"', cursor);
+
+      if (quote === -1) {
+        return null;
+      }
+
+      value += line.slice(cursor, quote);
+      cursor = quote + 1;
+
+      if (line[cursor] !== '"') {
+        return { value, end: cursor };
+      }
+
+      value += '"';
       cursor += 1;
     }
   }

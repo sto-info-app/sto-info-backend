@@ -438,22 +438,11 @@ export class RosterProjector {
       // One row, and no excluded row naming the same identity: every value
       // is what the export said. Anything else is presence and nothing more.
       const single = rows.length === 1 && !unknown.has(identityId);
-      const row = rows[0];
-      const reported = single ? row.joinedAt : agreed(rows, r => r.joinedAt);
 
       sightings.set(identityId, {
         index,
         bound: boundOf(snapshot),
-        aliasId: single ? row.aliasId : null,
-        characterName: single ? row.characterName : null,
-        accountHandle: single ? row.accountHandle : null,
-        rank: single ? row.guildRank : null,
-        contribution: single ? BigInt(row.contributionTotal) : null,
-        joinedAt:
-          single && !row.joinedAtAmbiguous && row.joinedAt !== null
-            ? row.joinedAt
-            : null,
-        reportedJoinedAt: reported,
+        ...(single ? listedValues(rows[0]) : presenceOnly(rows)),
         reportedJoinedAtAmbiguous: rows.some(r => r.joinedAtAmbiguous),
       });
     }
@@ -536,12 +525,7 @@ export class RosterProjector {
       ordered,
       unknownSets,
     );
-    const startKind =
-      track.episodes.length > 0
-        ? RosterEpisodeStart.REJOINED
-        : startedAfter === null
-          ? RosterEpisodeStart.FIRST_SEEN
-          : RosterEpisodeStart.JOINED;
+    const startKind = startKindOf(track, startedAfter);
     const draft = this.open(track, sighting, startKind, startedAfter);
 
     this.countBaseline(interval, sighting);
@@ -946,6 +930,72 @@ export class RosterProjector {
  */
 function boundOf(snapshot: ProjectorSnapshot): ProjectorBound {
   return { importId: snapshot.importId, at: snapshot.exportedAt };
+}
+
+/** The values a sighting takes from its identity's rows. */
+type SightingValues = Omit<
+  Sighting,
+  'index' | 'bound' | 'reportedJoinedAtAmbiguous'
+>;
+
+/**
+ * What an identity's only row says, every value as the export said it.
+ *
+ * @param row - The row.
+ * @returns Its values. The Join Date is a time claim only when present and
+ *   not ambiguous.
+ */
+function listedValues(row: ProjectorRow): SightingValues {
+  return {
+    aliasId: row.aliasId,
+    characterName: row.characterName,
+    accountHandle: row.accountHandle,
+    rank: row.guildRank,
+    contribution: BigInt(row.contributionTotal),
+    joinedAt:
+      !row.joinedAtAmbiguous && row.joinedAt !== null ? row.joinedAt : null,
+    reportedJoinedAt: row.joinedAt,
+  };
+}
+
+/**
+ * What several rows of an identity, or one alongside an excluded row, say:
+ * presence, and the reported Join Date they agree on.
+ *
+ * @param rows - The rows.
+ * @returns No values, bar the agreed Join Date.
+ */
+function presenceOnly(rows: readonly ProjectorRow[]): SightingValues {
+  return {
+    aliasId: null,
+    characterName: null,
+    accountHandle: null,
+    rank: null,
+    contribution: null,
+    joinedAt: null,
+    reportedJoinedAt: agreed(rows, r => r.joinedAt),
+  };
+}
+
+/**
+ * How an arrival's episode begins.
+ *
+ * @param track - The identity.
+ * @param startedAfter - The latest export known not to list it, if any.
+ * @returns REJOINED after an earlier episode; otherwise JOINED when an
+ *   export bounds the arrival below, and FIRST_SEEN when none does.
+ */
+function startKindOf(
+  track: Track,
+  startedAfter: ProjectorBound | null,
+): RosterEpisodeStart {
+  if (track.episodes.length > 0) {
+    return RosterEpisodeStart.REJOINED;
+  }
+
+  return startedAfter === null
+    ? RosterEpisodeStart.FIRST_SEEN
+    : RosterEpisodeStart.JOINED;
 }
 
 /**

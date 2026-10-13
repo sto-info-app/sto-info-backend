@@ -81,9 +81,7 @@ export function planCandidates(
   aliasKeyById: ReadonlyMap<string, string>,
   aliasIdByKey: ReadonlyMap<string, string>,
 ): CandidatePlan {
-  const refreshes: Array<{ id: string; candidate: MatchedCandidate }> = [];
-  const staleness: Array<{ id: string; stale: boolean }> = [];
-  const deletions: string[] = [];
+  const plan: PlanLists = { refreshes: [], staleness: [], deletions: [] };
   const seen = new Set<string>();
 
   for (const candidate of stored) {
@@ -93,39 +91,79 @@ export function planCandidates(
     seen.add(key);
 
     if (now === undefined) {
-      if (candidate.state === RosterIdentityCandidateState.OPEN) {
-        if (candidate.revision === 0) {
-          deletions.push(candidate.id);
-
-          continue;
-        }
-      }
-
-      if (!candidate.stale) {
-        staleness.push({ id: candidate.id, stale: true });
-      }
-
-      continue;
-    }
-
-    if (candidate.state === RosterIdentityCandidateState.OPEN) {
-      refreshes.push({ id: candidate.id, candidate: now });
-
-      continue;
-    }
-
-    const stale =
-      now.collisionReasons.length > 0 ||
-      !sameLinks(candidate.links, now, aliasIdByKey);
-
-    if (stale !== candidate.stale) {
-      staleness.push({ id: candidate.id, stale });
+      planWithdrawn(candidate, plan);
+    } else {
+      planStillSuggested(candidate, now, aliasIdByKey, plan);
     }
   }
 
   const inserts = [...matched.values()].filter(each => !seen.has(each.key));
 
-  return { inserts, refreshes, staleness, deletions };
+  return {
+    inserts,
+    refreshes: plan.refreshes,
+    staleness: plan.staleness,
+    deletions: plan.deletions,
+  };
+}
+
+/** What {@link planCandidates} fills in as it goes. */
+interface PlanLists {
+  readonly refreshes: Array<{ id: string; candidate: MatchedCandidate }>;
+  readonly staleness: Array<{ id: string; stale: boolean }>;
+  readonly deletions: string[];
+}
+
+/**
+ * Plans a stored candidate the evidence no longer suggests: deleted if nobody
+ * ever decided it, and otherwise kept and stale.
+ *
+ * @param candidate - The stored candidate.
+ * @param plan - Added to in place.
+ */
+function planWithdrawn(candidate: StoredCandidate, plan: PlanLists): void {
+  if (
+    candidate.state === RosterIdentityCandidateState.OPEN &&
+    candidate.revision === 0
+  ) {
+    plan.deletions.push(candidate.id);
+
+    return;
+  }
+
+  if (!candidate.stale) {
+    plan.staleness.push({ id: candidate.id, stale: true });
+  }
+}
+
+/**
+ * Plans a stored candidate the evidence still suggests: rewritten if open,
+ * and otherwise left as decided, stale only if its evidence moved.
+ *
+ * @param candidate - The stored candidate.
+ * @param now - What the evidence suggests now.
+ * @param aliasIdByKey - Every alias's identifier, by its key.
+ * @param plan - Added to in place.
+ */
+function planStillSuggested(
+  candidate: StoredCandidate,
+  now: MatchedCandidate,
+  aliasIdByKey: ReadonlyMap<string, string>,
+  plan: PlanLists,
+): void {
+  if (candidate.state === RosterIdentityCandidateState.OPEN) {
+    plan.refreshes.push({ id: candidate.id, candidate: now });
+
+    return;
+  }
+
+  const stale =
+    now.collisionReasons.length > 0 ||
+    !sameLinks(candidate.links, now, aliasIdByKey);
+
+  if (stale !== candidate.stale) {
+    plan.staleness.push({ id: candidate.id, stale });
+  }
 }
 
 /**

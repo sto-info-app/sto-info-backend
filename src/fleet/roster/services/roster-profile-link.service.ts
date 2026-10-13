@@ -115,17 +115,7 @@ export class RosterProfileLinkService {
     );
 
     // A handle two claimed Characters share links to neither.
-    const byHandle = new Map<string, CharacterEntity[]>();
-
-    for (const character of characters) {
-      if (claimed.has(character.id)) {
-        const matches = byHandle.get(character.fullHandleNormalized) ?? [];
-
-        matches.push(character);
-        byHandle.set(character.fullHandleNormalized, matches);
-      }
-    }
-
+    const byHandle = claimedByHandle(characters, claimed);
     const visible = new Map<FleetAudience, boolean>();
     const candidates = new Map<string, string>();
 
@@ -137,26 +127,15 @@ export class RosterProfileLinkService {
       const [character] = matches;
       const audience = claimed.get(character.id) as FleetAudience;
 
-      if (audience === FleetAudience.PRIVATE) {
-        if (character.account.userId === viewerId) {
-          candidates.set(handle, character.id);
-        }
-
-        continue;
-      }
-
-      if (!visible.has(audience)) {
-        visible.set(
+      if (
+        await this.membershipVisible(
+          character,
           audience,
-          await this._audienceService.canView(
-            audience,
-            { kind: FleetScopeKind.FLEET, id: fleetId },
-            viewerId,
-          ),
-        );
-      }
-
-      if (visible.get(audience) === true) {
+          fleetId,
+          viewerId,
+          visible,
+        )
+      ) {
         candidates.set(handle, character.id);
       }
     }
@@ -175,6 +154,42 @@ export class RosterProfileLinkService {
     }
 
     return links;
+  }
+
+  /**
+   * Whether a Character's membership of the Fleet is visible to the viewer.
+   *
+   * @param character - The claimed Character.
+   * @param audience - Its membership's audience.
+   * @param fleetId - The Fleet.
+   * @param viewerId - The viewer.
+   * @param visible - Each audience already decided, so each is asked once.
+   * @returns True when the audience includes the viewer. `PRIVATE` is the
+   *   Character's owner alone.
+   */
+  private async membershipVisible(
+    character: CharacterEntity,
+    audience: FleetAudience,
+    fleetId: string,
+    viewerId: string,
+    visible: Map<FleetAudience, boolean>,
+  ): Promise<boolean> {
+    if (audience === FleetAudience.PRIVATE) {
+      return character.account.userId === viewerId;
+    }
+
+    if (!visible.has(audience)) {
+      visible.set(
+        audience,
+        await this._audienceService.canView(
+          audience,
+          { kind: FleetScopeKind.FLEET, id: fleetId },
+          viewerId,
+        ),
+      );
+    }
+
+    return visible.get(audience) === true;
   }
 
   /**
@@ -211,4 +226,29 @@ export class RosterProfileLinkService {
       ]),
     );
   }
+}
+
+/**
+ * Groups the claimed Characters by their full handle.
+ *
+ * @param characters - The Characters found by handle.
+ * @param claimed - Each claimed Character's membership audience.
+ * @returns The claimed Characters with each handle, in the order found.
+ */
+function claimedByHandle(
+  characters: readonly CharacterEntity[],
+  claimed: ReadonlyMap<string, FleetAudience>,
+): Map<string, CharacterEntity[]> {
+  const byHandle = new Map<string, CharacterEntity[]>();
+
+  for (const character of characters) {
+    if (claimed.has(character.id)) {
+      const matches = byHandle.get(character.fullHandleNormalized) ?? [];
+
+      matches.push(character);
+      byHandle.set(character.fullHandleNormalized, matches);
+    }
+  }
+
+  return byHandle;
 }

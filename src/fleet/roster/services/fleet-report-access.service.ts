@@ -5,7 +5,10 @@ import { DataSource } from 'typeorm';
 
 import { FleetAudienceService } from '../../authorisation/fleet-audience.service';
 import { FleetAuthorisationService } from '../../authorisation/fleet-authorisation.service';
-import { FLEET_CAPABILITIES } from '../../authorisation/fleet-capability.constants';
+import {
+  FLEET_CAPABILITIES,
+  FleetCapability,
+} from '../../authorisation/fleet-capability.constants';
 import { ScopeRef } from '../../authorisation/scope-authorisation.interface';
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { FleetAudience } from '../../enums/fleet-audience.enum';
@@ -90,32 +93,25 @@ export class FleetReportAccessService {
     const rosterOpen = importsOn && (await this.providesRoster(ref.id));
     let follower: boolean | undefined;
 
-    for (const [report, audience] of chosen) {
-      if (ROSTER_REPORTS.has(report) && !rosterOpen) {
-        continue;
-      } else if (capabilities.has(FLEET_CAPABILITIES.REPORTS_VIEW)) {
-        views.set(report, FleetReportView.FULL);
-      } else if (audience === FleetAudience.PRIVATE) {
-        continue;
-      } else if (capabilities.has(FLEET_CAPABILITIES.ROSTER_VIEW)) {
-        views.set(
-          report,
-          report === FleetReport.ATTENDANCE
-            ? FleetReportView.AGGREGATE
-            : FleetReportView.FULL,
-        );
-      } else if (audience === FleetAudience.PUBLIC) {
-        views.set(report, FleetReportView.AGGREGATE);
-      } else if (audience === FleetAudience.COMMUNITY) {
-        follower ??= await this._audienceService.canView(
-          FleetAudience.COMMUNITY,
-          ref,
-          userId,
-        );
+    // Asked once, and only when a COMMUNITY report needs it.
+    const isFollower = async (): Promise<boolean> =>
+      (follower ??= await this._audienceService.canView(
+        FleetAudience.COMMUNITY,
+        ref,
+        userId,
+      ));
 
-        if (follower) {
-          views.set(report, FleetReportView.AGGREGATE);
-        }
+    for (const [report, audience] of chosen) {
+      const view = await this.viewOf(
+        report,
+        audience,
+        capabilities,
+        rosterOpen,
+        isFollower,
+      );
+
+      if (view !== undefined) {
+        views.set(report, view);
       }
     }
 
@@ -124,6 +120,52 @@ export class FleetReportAccessService {
     }
 
     return views;
+  }
+
+  /**
+   * Says how much of one report, at its chosen audience, a viewer is shown.
+   *
+   * @param report - The report.
+   * @param audience - Its chosen audience.
+   * @param capabilities - The viewer's capabilities at the Fleet.
+   * @param rosterOpen - Whether the roster's reports are offered.
+   * @param isFollower - Whether the viewer follows the Community.
+   * @returns How much of it they are shown, or undefined for none.
+   */
+  private async viewOf(
+    report: FleetReport,
+    audience: FleetAudience,
+    capabilities: ReadonlySet<FleetCapability>,
+    rosterOpen: boolean,
+    isFollower: () => Promise<boolean>,
+  ): Promise<FleetReportView | undefined> {
+    if (ROSTER_REPORTS.has(report) && !rosterOpen) {
+      return undefined;
+    }
+
+    if (capabilities.has(FLEET_CAPABILITIES.REPORTS_VIEW)) {
+      return FleetReportView.FULL;
+    }
+
+    if (audience === FleetAudience.PRIVATE) {
+      return undefined;
+    }
+
+    if (capabilities.has(FLEET_CAPABILITIES.ROSTER_VIEW)) {
+      return report === FleetReport.ATTENDANCE
+        ? FleetReportView.AGGREGATE
+        : FleetReportView.FULL;
+    }
+
+    if (audience === FleetAudience.PUBLIC) {
+      return FleetReportView.AGGREGATE;
+    }
+
+    if (audience === FleetAudience.COMMUNITY && (await isFollower())) {
+      return FleetReportView.AGGREGATE;
+    }
+
+    return undefined;
   }
 
   /**

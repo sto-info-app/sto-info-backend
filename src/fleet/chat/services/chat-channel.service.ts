@@ -125,6 +125,27 @@ export class ChatChannelService {
    *   Fleets.
    */
   async mine(userId: string): Promise<ChatScopeChannelsDto[]> {
+    const listed: ChatScopeChannelsDto[] = [];
+
+    for (const scope of await this.scopesOf(userId)) {
+      const entry = await this.listScope(scope, userId);
+
+      if (entry !== null) {
+        listed.push(entry);
+      }
+    }
+
+    return listed;
+  }
+
+  /**
+   * Every scope somebody may take part in the chat of, as {@link mine}
+   * describes them.
+   *
+   * @param userId - The person.
+   * @returns Each scope once, Communities first, then Armadas, then Fleets.
+   */
+  private async scopesOf(userId: string): Promise<GovernanceScope[]> {
     const manager = this._dataSource.manager;
     const [memberships, roles, owned] = await Promise.all([
       manager.find(ScopeMembershipEntity, {
@@ -207,36 +228,48 @@ export class ChatChannelService {
       add(armadaScope(armada.communityId, armada.id));
     }
 
-    const listed: ChatScopeChannelsDto[] = [];
-
-    for (const scope of [...scopes.values()].sort(
+    return [...scopes.values()].sort(
       (a, b) => SCOPE_ORDER[a.kind] - SCOPE_ORDER[b.kind],
-    )) {
-      const standing = await this._access.standingAt(scope, userId);
-      const place =
-        standing.rank === 0 ? null : await scopePlaceOf(manager, scope);
+    );
+  }
 
-      if (place === null) {
-        continue;
-      }
+  /**
+   * One scope's entry in {@link mine}, making its standard channel if need be.
+   *
+   * @param scope - The scope.
+   * @param userId - The person.
+   * @returns Its channels, or null when they take no part in its chat or it
+   *   no longer exists.
+   */
+  private async listScope(
+    scope: GovernanceScope,
+    userId: string,
+  ): Promise<ChatScopeChannelsDto | null> {
+    const standing = await this._access.standingAt(scope, userId);
+    const place =
+      standing.rank === 0
+        ? null
+        : await scopePlaceOf(this._dataSource.manager, scope);
 
-      await this.ensureStandard(scope);
-      listed.push({
-        kind: place.kind,
-        name: place.name,
-        path: place.path,
-        target: {
-          communityId: scope.communityId,
-          fleetId: scope.fleetId,
-          armadaId: scope.armadaId,
-        },
-        mayCreate: standing.mayModerate && standing.isOpen,
-        mayExport: standing.mayExport,
-        channels: await this.channelsFor(standing),
-      });
+    if (place === null) {
+      return null;
     }
 
-    return listed;
+    await this.ensureStandard(scope);
+
+    return {
+      kind: place.kind,
+      name: place.name,
+      path: place.path,
+      target: {
+        communityId: scope.communityId,
+        fleetId: scope.fleetId,
+        armadaId: scope.armadaId,
+      },
+      mayCreate: standing.mayModerate && standing.isOpen,
+      mayExport: standing.mayExport,
+      channels: await this.channelsFor(standing),
+    };
   }
 
   /**

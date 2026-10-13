@@ -308,7 +308,9 @@ export class RosterCsvPrivacyParserService {
     let quotes = 0;
 
     for (let index = 0; index < line.length; index += 1) {
-      const code = line.charCodeAt(index);
+      // Read by code point, the index always inside the line. Only ASCII is
+      // compared, so a surrogate pair is passed over just as its halves were.
+      const code = line.codePointAt(index)!;
 
       if (code === 0x0d) {
         throw new RosterCsvRejectedError(
@@ -432,13 +434,13 @@ export class RosterCsvPrivacyParserService {
     headerShape: RosterSourceHeaderShape,
     lineNumber: number,
   ): TailReading[] {
-    const readings: TailReading[] = [];
-
     // Status is always quoted, so a tail that does not open with a quote is
     // not a tail.
     if (!remainder.startsWith('"')) {
-      return readings;
+      return [];
     }
+
+    const readings: TailReading[] = [];
 
     const officerAllowed = headerShape === RosterSourceHeaderShape.OFFICER;
     const budget: ParseBudget = { steps: 0 };
@@ -448,53 +450,91 @@ export class RosterCsvPrivacyParserService {
       statusEnd !== -1;
       statusEnd = remainder.indexOf('","', statusEnd + 1)
     ) {
-      const commentStart = statusEnd + 3;
-
-      for (
-        let commentEnd = remainder.indexOf('",', commentStart);
-        commentEnd !== -1;
-        commentEnd = remainder.indexOf('",', commentEnd + 1)
+      if (
+        this.readAfterStatus(
+          remainder,
+          statusEnd,
+          officerAllowed,
+          readings,
+          budget,
+          lineNumber,
+        )
       ) {
-        this.spend(budget, lineNumber);
-
-        const dateStart = commentEnd + 2;
-        const shared = { statusStart: 1, statusEnd, commentStart, commentEnd };
-
-        // The row stops after the public comment's edit date. Admissible under
-        // either header: 868 officer-headed files contain rows with no tail.
-        if (this.isDateField(remainder, dateStart, remainder.length)) {
-          readings.push({
-            ...shared,
-            dateStart,
-            dateEnd: remainder.length,
-            hasOfficerTail: false,
-          });
-
-          if (readings.length > 1) {
-            return readings;
-          }
-        }
-
-        if (!officerAllowed) {
-          continue;
-        }
-
-        if (
-          this.readOfficerTail(
-            remainder,
-            dateStart,
-            shared,
-            readings,
-            budget,
-            lineNumber,
-          )
-        ) {
-          return readings;
-        }
+        break;
       }
     }
 
     return readings;
+  }
+
+  /**
+   * Tries every end for the public comment after one candidate end of the
+   * status, and what may follow each.
+   *
+   * @param remainder - Everything after the ninth comma.
+   * @param statusEnd - Where this reading takes the status to end.
+   * @param officerAllowed - Whether the header admits an officer tail.
+   * @param readings - The readings found so far, appended to in place.
+   * @param budget - How much work this row has cost.
+   * @param lineNumber - The physical line number, for the budget's refusal.
+   * @returns True when the caller should stop searching, because a second
+   *   reading has been found and the row is already ambiguous.
+   * @throws RosterCsvRejectedError when the search exceeds its step budget.
+   */
+  private readAfterStatus(
+    remainder: string,
+    statusEnd: number,
+    officerAllowed: boolean,
+    readings: TailReading[],
+    budget: ParseBudget,
+    lineNumber: number,
+  ): boolean {
+    const commentStart = statusEnd + 3;
+
+    for (
+      let commentEnd = remainder.indexOf('",', commentStart);
+      commentEnd !== -1;
+      commentEnd = remainder.indexOf('",', commentEnd + 1)
+    ) {
+      this.spend(budget, lineNumber);
+
+      const dateStart = commentEnd + 2;
+      const shared = { statusStart: 1, statusEnd, commentStart, commentEnd };
+
+      // The row stops after the public comment's edit date. Admissible under
+      // either header: 868 officer-headed files contain rows with no tail.
+      if (this.isDateField(remainder, dateStart, remainder.length)) {
+        readings.push({
+          ...shared,
+          dateStart,
+          dateEnd: remainder.length,
+          hasOfficerTail: false,
+        });
+
+        if (readings.length > 1) {
+          return true;
+        }
+      }
+
+      if (!officerAllowed) {
+        continue;
+      }
+
+      if (
+        this.readOfficerTail(
+          remainder,
+          dateStart,
+          shared,
+          readings,
+          budget,
+          lineNumber,
+        )
+      ) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -641,8 +681,9 @@ export class RosterCsvPrivacyParserService {
       return false;
     }
 
-    const meridiem = text.charCodeAt(cursor) | LOWERCASE_BIT;
-    const marker = text.charCodeAt(cursor + 1) | LOWERCASE_BIT;
+    // Both positions are inside the field, which ends two places on.
+    const meridiem = text.codePointAt(cursor)! | LOWERCASE_BIT;
+    const marker = text.codePointAt(cursor + 1)! | LOWERCASE_BIT;
 
     return (
       (meridiem === LETTER_A || meridiem === LETTER_P) && marker === LETTER_M

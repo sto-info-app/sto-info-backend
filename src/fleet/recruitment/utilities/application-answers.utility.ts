@@ -94,31 +94,62 @@ function readAnswer(
       return value;
 
     case ApplicationQuestionKind.SINGLE_CHOICE:
-      if (typeof value !== 'string' || value === '') {
-        return value === '' ? null : invalidChoice(question);
-      }
-
-      return question.options.includes(value) ? value : invalidChoice(question);
+      return readChoice(question, value);
 
     case ApplicationQuestionKind.SHORT_TEXT:
-    case ApplicationQuestionKind.LONG_TEXT: {
-      if (typeof value !== 'string') {
-        throw new BadRequestException(
-          `Please answer in words: ${question.prompt}`,
-        );
-      }
-
-      const text = value.trim();
-
-      if (text.length > MAX_ANSWER_LENGTH[question.kind]) {
-        throw new BadRequestException(
-          `That answer is longer than ${MAX_ANSWER_LENGTH[question.kind]} characters: ${question.prompt}`,
-        );
-      }
-
-      return text === '' ? null : text;
-    }
+    case ApplicationQuestionKind.LONG_TEXT:
+      return readText(question, question.kind, value);
   }
+}
+
+/**
+ * Reads an answer to a choice question.
+ *
+ * @param question - The question.
+ * @param value - What was sent for it.
+ * @returns The option chosen, or null when it was left blank.
+ * @throws BadRequestException when it is not one of the options.
+ */
+function readChoice(
+  question: ApplicationQuestion,
+  value: unknown,
+): string | null {
+  if (value === '') {
+    return null;
+  }
+
+  return typeof value === 'string' && question.options.includes(value)
+    ? value
+    : invalidChoice(question);
+}
+
+/**
+ * Reads an answer to a text question, trimmed.
+ *
+ * @param question - The question.
+ * @param kind - Its kind, which sets the longest answer allowed.
+ * @param value - What was sent for it.
+ * @returns The text, or null when it was left blank.
+ * @throws BadRequestException when it is not text, or is too long.
+ */
+function readText(
+  question: ApplicationQuestion,
+  kind: keyof typeof MAX_ANSWER_LENGTH,
+  value: unknown,
+): string | null {
+  if (typeof value !== 'string') {
+    throw new BadRequestException(`Please answer in words: ${question.prompt}`);
+  }
+
+  const text = value.trim();
+
+  if (text.length > MAX_ANSWER_LENGTH[kind]) {
+    throw new BadRequestException(
+      `That answer is longer than ${MAX_ANSWER_LENGTH[kind]} characters: ${question.prompt}`,
+    );
+  }
+
+  return text === '' ? null : text;
 }
 
 /**

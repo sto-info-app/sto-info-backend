@@ -190,6 +190,18 @@ interface Draft {
   collisions: Set<RosterIdentityCollisionReason>;
 }
 
+/** What two exports say about handles, for an account rename's checks. */
+interface HandleEvidence {
+  /** Every handle the earlier export lists. */
+  readonly earlierHandles: ReadonlySet<string>;
+  /** Every handle the later export lists. */
+  readonly laterHandles: ReadonlySet<string>;
+  /** The new handles each vanished handle pairs with. */
+  readonly newHandlesOf: ReadonlyMap<string, ReadonlySet<string>>;
+  /** The old handles each appeared handle pairs with. */
+  readonly oldHandlesOf: ReadonlyMap<string, ReadonlySet<string>>;
+}
+
 /**
  * Works out a Fleet's roster identities and rename candidates from its
  * effective exports.
@@ -379,8 +391,38 @@ export class RosterIdentityMatcher {
       ),
     ];
 
-    // A row with more than one possible partner, by either kind of rename,
-    // cannot be resolved by any of them.
+    const ambiguous = this.severalPartners(pairs);
+    const handles = this.handleEvidence(pairs, earlier, later);
+
+    for (const pair of pairs) {
+      const draft = this.draftFor(pair, earlier, later);
+
+      this.link(draft, pair);
+
+      if (ambiguous(pair)) {
+        draft.collisions.add(RosterIdentityCollisionReason.SEVERAL_PARTNERS);
+      }
+
+      if (this.listedTogether(pair)) {
+        draft.collisions.add(RosterIdentityCollisionReason.LISTED_TOGETHER);
+      }
+
+      if (pair.kind === RosterIdentityCandidateKind.ACCOUNT_RENAME) {
+        this.markHandleCollisions(draft, pair, handles);
+      }
+    }
+  }
+
+  /**
+   * Says which pairs share a row with another pair.
+   *
+   * A row with more than one possible partner, by either kind of rename,
+   * cannot be resolved by any of them.
+   *
+   * @param pairs - Every pair the two exports give.
+   * @returns Whether a pair is one of those.
+   */
+  private severalPartners(pairs: readonly Pair[]): (pair: Pair) => boolean {
     const partners = new Map<RosterIdentityRow, number>();
 
     for (const pair of pairs) {
@@ -388,9 +430,23 @@ export class RosterIdentityMatcher {
       partners.set(pair.to, (partners.get(pair.to) ?? 0) + 1);
     }
 
-    const ambiguous = (pair: Pair): boolean =>
-      partners.get(pair.from)! > 1 || partners.get(pair.to)! > 1;
+    return pair => partners.get(pair.from)! > 1 || partners.get(pair.to)! > 1;
+  }
 
+  /**
+   * Gathers what the account renames' handle checks need of two exports.
+   *
+   * @param pairs - Every pair the two exports give.
+   * @param earlier - The earlier export.
+   * @param later - The later one.
+   * @returns Each export's handles, and where each account rename's handles
+   *   lead.
+   */
+  private handleEvidence(
+    pairs: readonly Pair[],
+    earlier: RosterIdentitySnapshot,
+    later: RosterIdentitySnapshot,
+  ): HandleEvidence {
     const accountPairs = pairs.filter(
       pair => pair.kind === RosterIdentityCandidateKind.ACCOUNT_RENAME,
     );
@@ -411,52 +467,49 @@ export class RosterIdentityMatcher {
       );
     }
 
-    const earlierHandles = new Set(
-      earlier.rows.map(row => row.accountHandleNormalised),
-    );
-    const laterHandles = new Set(
-      later.rows.map(row => row.accountHandleNormalised),
-    );
+    return {
+      earlierHandles: new Set(
+        earlier.rows.map(row => row.accountHandleNormalised),
+      ),
+      laterHandles: new Set(later.rows.map(row => row.accountHandleNormalised)),
+      newHandlesOf,
+      oldHandlesOf,
+    };
+  }
 
-    for (const pair of pairs) {
-      const draft = this.draftFor(pair, earlier, later);
+  /**
+   * Records why an account rename's handles make it unresolvable, if they do.
+   *
+   * @param draft - The draft the pair belongs to.
+   * @param pair - An account rename pair.
+   * @param handles - What the two exports say about handles.
+   */
+  private markHandleCollisions(
+    draft: Draft,
+    pair: Pair,
+    handles: HandleEvidence,
+  ): void {
+    const oldHandle = pair.from.accountHandleNormalised;
+    const newHandle = pair.to.accountHandleNormalised;
 
-      this.link(draft, pair);
+    if (handles.laterHandles.has(oldHandle)) {
+      draft.collisions.add(
+        RosterIdentityCollisionReason.OLD_HANDLE_STILL_PRESENT,
+      );
+    }
 
-      if (ambiguous(pair)) {
-        draft.collisions.add(RosterIdentityCollisionReason.SEVERAL_PARTNERS);
-      }
+    if (handles.earlierHandles.has(newHandle)) {
+      draft.collisions.add(
+        RosterIdentityCollisionReason.NEW_HANDLE_ALREADY_PRESENT,
+      );
+    }
 
-      if (this.listedTogether(pair)) {
-        draft.collisions.add(RosterIdentityCollisionReason.LISTED_TOGETHER);
-      }
+    if (handles.newHandlesOf.get(oldHandle)!.size > 1) {
+      draft.collisions.add(RosterIdentityCollisionReason.HANDLE_SPLIT);
+    }
 
-      if (pair.kind !== RosterIdentityCandidateKind.ACCOUNT_RENAME) {
-        continue;
-      }
-
-      const oldHandle = pair.from.accountHandleNormalised;
-      const newHandle = pair.to.accountHandleNormalised;
-
-      if (laterHandles.has(oldHandle)) {
-        draft.collisions.add(
-          RosterIdentityCollisionReason.OLD_HANDLE_STILL_PRESENT,
-        );
-      }
-
-      if (earlierHandles.has(newHandle)) {
-        draft.collisions.add(
-          RosterIdentityCollisionReason.NEW_HANDLE_ALREADY_PRESENT,
-        );
-      }
-
-      if (newHandlesOf.get(oldHandle)!.size > 1) {
-        draft.collisions.add(RosterIdentityCollisionReason.HANDLE_SPLIT);
-      }
-
-      if (oldHandlesOf.get(newHandle)!.size > 1) {
-        draft.collisions.add(RosterIdentityCollisionReason.HANDLE_MERGE);
-      }
+    if (handles.oldHandlesOf.get(newHandle)!.size > 1) {
+      draft.collisions.add(RosterIdentityCollisionReason.HANDLE_MERGE);
     }
   }
 
