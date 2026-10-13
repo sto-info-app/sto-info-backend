@@ -88,8 +88,10 @@ export class AddRetentionRuns1796400000000 implements MigrationInterface {
       }
     }
 
+    const quotedJobs = JOBS.map(job => `'${job}'`).join(', ');
+
     await queryRunner.query(
-      `CREATE TYPE "sto_info_app"."retention_job_enum" AS ENUM (${JOBS.map(job => `'${job}'`).join(', ')})`,
+      `CREATE TYPE "sto_info_app"."retention_job_enum" AS ENUM (${quotedJobs})`,
     );
     await queryRunner.query(`CREATE TABLE "sto_info_app"."retention_run" (
       "id" uuid NOT NULL DEFAULT gen_random_uuid(),

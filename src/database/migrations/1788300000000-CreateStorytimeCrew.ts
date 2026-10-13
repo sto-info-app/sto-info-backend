@@ -164,7 +164,7 @@ export class CreateStorytimeCrew1788300000000 implements MigrationInterface {
         ("code", "name", "description", "displayOrder", "isSystem")
       VALUES ${STORYTIME_CREW_ROLES.map(
         role =>
-          `('${role.code}', '${role.name.replace(/'/g, "''")}', '${role.description.replace(/'/g, "''")}', ${role.displayOrder}, true)`,
+          `('${role.code}', '${role.name.replaceAll("'", "''")}', '${role.description.replaceAll("'", "''")}', ${role.displayOrder}, true)`,
       ).join(', ')}
     `,
     ]);

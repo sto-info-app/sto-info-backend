@@ -133,15 +133,20 @@ export class AddRescanCampaigns1796800000000 implements MigrationInterface {
     const log = `"sto_info_app"."site_admin_action"`;
     const type = `"sto_info_app"."site_admin_action_enum"`;
 
+    const quotedAdded = RESCAN_ACTIONS.map(action => `'${action}'`).join(', ');
+
     await queryRunner.query(
-      `DELETE FROM ${log} WHERE "action"::text IN (${RESCAN_ACTIONS.map(action => `'${action}'`).join(', ')})`,
+      `DELETE FROM ${log} WHERE "action"::text IN (${quotedAdded})`,
     );
     await queryRunner.query(
       `ALTER TYPE ${type} RENAME TO "site_admin_action_enum_old"`,
     );
-    await queryRunner.query(
-      `CREATE TYPE ${type} AS ENUM (${SITE_ADMIN_ACTIONS_BEFORE.map(action => `'${action}'`).join(', ')})`,
-    );
+
+    const quotedBefore = SITE_ADMIN_ACTIONS_BEFORE.map(
+      action => `'${action}'`,
+    ).join(', ');
+
+    await queryRunner.query(`CREATE TYPE ${type} AS ENUM (${quotedBefore})`);
     await queryRunner.query(
       `ALTER TABLE ${log} ALTER COLUMN "action" TYPE ${type} USING "action"::text::${type}`,
     );

@@ -82,27 +82,27 @@ const changed = (columns: readonly string[]): string =>
  * @param erasable - Whether erasure may pass.
  * @returns The function.
  */
-const observationGuard = (
-  erasable: boolean,
-): string => `CREATE OR REPLACE FUNCTION "sto_info_app"."roster_observation_guard"()
-      RETURNS trigger AS $$
-      BEGIN
-        IF ${changed(OBSERVATION_FIXED)}${
-          erasable
-            ? `
+const observationGuard = (erasable: boolean): string => {
+  const namedChange = erasable
+    ? `
           OR ((${changed(OBSERVATION_NAMED)})
             AND NOT (NEW."characterName" = '${ERASED_NAME}'
               AND NEW."accountHandle" LIKE '@erased-%'
               AND NEW."publicComment" = '')) THEN`
-            : `
-          OR ${changed(OBSERVATION_NAMED)} THEN`
-        }
+    : `
+          OR ${changed(OBSERVATION_NAMED)} THEN`;
+
+  return `CREATE OR REPLACE FUNCTION "sto_info_app"."roster_observation_guard"()
+      RETURNS trigger AS $$
+      BEGIN
+        IF ${changed(OBSERVATION_FIXED)}${namedChange}
           RAISE EXCEPTION 'fleet_roster_observation is write-once' USING ERRCODE = '23514';
         END IF;
 
         RETURN NEW;
       END;
       $$ LANGUAGE plpgsql`;
+};
 
 /** What an erased Character is called, as the guard allows it. */
 const ERASED_NAME = 'Erased member';
@@ -259,9 +259,10 @@ export class AddPrivacyErasure1796500000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TYPE ${type} RENAME TO "roster_import_action_enum_old"`,
     );
-    await queryRunner.query(
-      `CREATE TYPE ${type} AS ENUM (${IMPORT_ACTIONS.map(value => `'${value}'`).join(', ')})`,
-    );
+
+    const quotedActions = IMPORT_ACTIONS.map(value => `'${value}'`).join(', ');
+
+    await queryRunner.query(`CREATE TYPE ${type} AS ENUM (${quotedActions})`);
     await queryRunner.query(
       `ALTER TABLE ${table} ALTER COLUMN "action" TYPE ${type} USING "action"::text::${type}`,
     );

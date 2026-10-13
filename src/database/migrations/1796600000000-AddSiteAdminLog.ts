@@ -69,8 +69,12 @@ export class AddSiteAdminLog1796600000000 implements MigrationInterface {
    * @param queryRunner - The TypeORM query runner.
    */
   public async up(queryRunner: QueryRunner): Promise<void> {
+    const quotedActions = SITE_ADMIN_ACTIONS.map(action => `'${action}'`).join(
+      ', ',
+    );
+
     await queryRunner.query(
-      `CREATE TYPE "sto_info_app"."site_admin_action_enum" AS ENUM (${SITE_ADMIN_ACTIONS.map(action => `'${action}'`).join(', ')})`,
+      `CREATE TYPE "sto_info_app"."site_admin_action_enum" AS ENUM (${quotedActions})`,
     );
     await queryRunner.query(`CREATE TABLE "sto_info_app"."site_admin_action" (
       "id" uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -140,15 +144,22 @@ export class AddSiteAdminLog1796600000000 implements MigrationInterface {
     const chat = `"sto_info_app"."chat_action"`;
     const type = `"sto_info_app"."chat_action_kind_enum"`;
 
+    const quotedAdded = CHAT_ACTIONS_ADDED.map(action => `'${action}'`).join(
+      ', ',
+    );
+
     await queryRunner.query(
-      `DELETE FROM ${chat} WHERE "action"::text IN (${CHAT_ACTIONS_ADDED.map(action => `'${action}'`).join(', ')})`,
+      `DELETE FROM ${chat} WHERE "action"::text IN (${quotedAdded})`,
     );
     await queryRunner.query(
       `ALTER TYPE ${type} RENAME TO "chat_action_kind_enum_old"`,
     );
-    await queryRunner.query(
-      `CREATE TYPE ${type} AS ENUM (${CHAT_ACTIONS_BEFORE.map(action => `'${action}'`).join(', ')})`,
+
+    const quotedBefore = CHAT_ACTIONS_BEFORE.map(action => `'${action}'`).join(
+      ', ',
     );
+
+    await queryRunner.query(`CREATE TYPE ${type} AS ENUM (${quotedBefore})`);
     await queryRunner.query(
       `ALTER TABLE ${chat} ALTER COLUMN "action" TYPE ${type} USING "action"::text::${type}`,
     );

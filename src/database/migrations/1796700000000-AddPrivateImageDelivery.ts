@@ -149,16 +149,23 @@ export class AddPrivateImageDelivery1796700000000 implements MigrationInterface 
     const log = `"sto_info_app"."site_admin_action"`;
     const type = `"sto_info_app"."site_admin_action_enum"`;
 
+    const quotedAdded = IMAGE_ESTATE_ACTIONS.map(action => `'${action}'`).join(
+      ', ',
+    );
+
     // The log is write-once; its trigger refuses updates, not deletes.
     await queryRunner.query(
-      `DELETE FROM ${log} WHERE "action"::text IN (${IMAGE_ESTATE_ACTIONS.map(action => `'${action}'`).join(', ')})`,
+      `DELETE FROM ${log} WHERE "action"::text IN (${quotedAdded})`,
     );
     await queryRunner.query(
       `ALTER TYPE ${type} RENAME TO "site_admin_action_enum_old"`,
     );
-    await queryRunner.query(
-      `CREATE TYPE ${type} AS ENUM (${SITE_ADMIN_ACTIONS_BEFORE.map(action => `'${action}'`).join(', ')})`,
-    );
+
+    const quotedBefore = SITE_ADMIN_ACTIONS_BEFORE.map(
+      action => `'${action}'`,
+    ).join(', ');
+
+    await queryRunner.query(`CREATE TYPE ${type} AS ENUM (${quotedBefore})`);
     await queryRunner.query(
       `ALTER TABLE ${log} ALTER COLUMN "action" TYPE ${type} USING "action"::text::${type}`,
     );

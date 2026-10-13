@@ -100,9 +100,11 @@ export class DecideRescanFindings1797100000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TYPE ${type} RENAME TO "site_admin_action_enum_old"`,
     );
-    await queryRunner.query(
-      `CREATE TYPE ${type} AS ENUM (${SITE_ADMIN_ACTIONS_BEFORE.map(action => `'${action}'`).join(', ')})`,
-    );
+    const quotedBefore = SITE_ADMIN_ACTIONS_BEFORE.map(
+      action => `'${action}'`,
+    ).join(', ');
+
+    await queryRunner.query(`CREATE TYPE ${type} AS ENUM (${quotedBefore})`);
     await queryRunner.query(
       `ALTER TABLE ${log} ALTER COLUMN "action" TYPE ${type} USING "action"::text::${type}`,
     );

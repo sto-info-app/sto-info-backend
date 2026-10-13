@@ -80,6 +80,5 @@ export class NormaliseDeclaredContentTypes1792400000000 implements MigrationInte
     // back. Rolling this migration back leaves the canonical spellings in
     // place, which is harmless: they were always valid values for the
     // column, and no code before this migration distinguished them.
-    return Promise.resolve();
   }
 }

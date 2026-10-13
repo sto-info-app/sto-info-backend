@@ -145,8 +145,12 @@ export class ScopeNewsPosts1795600000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TYPE "sto_info_app"."file_asset_subject_enum" RENAME TO "file_asset_subject_enum_old"`,
     );
+    const quotedSubjects = PREVIOUS_SUBJECTS.map(value => `'${value}'`).join(
+      ', ',
+    );
+
     await queryRunner.query(
-      `CREATE TYPE "sto_info_app"."file_asset_subject_enum" AS ENUM (${PREVIOUS_SUBJECTS.map(value => `'${value}'`).join(', ')})`,
+      `CREATE TYPE "sto_info_app"."file_asset_subject_enum" AS ENUM (${quotedSubjects})`,
     );
     await queryRunner.query(
       `ALTER TABLE "sto_info_app"."file_asset_placement" ALTER COLUMN "subject" TYPE "sto_info_app"."file_asset_subject_enum" USING "subject"::text::"sto_info_app"."file_asset_subject_enum"`,

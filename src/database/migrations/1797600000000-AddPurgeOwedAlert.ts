@@ -50,9 +50,11 @@ export class AddPurgeOwedAlert1797600000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TYPE ${type} RENAME TO "operations_alert_kind_enum_old"`,
     );
-    await queryRunner.query(
-      `CREATE TYPE ${type} AS ENUM (${OPERATIONS_ALERT_KINDS.map(kind => `'${kind}'`).join(', ')})`,
+    const quotedKinds = OPERATIONS_ALERT_KINDS.map(kind => `'${kind}'`).join(
+      ', ',
     );
+
+    await queryRunner.query(`CREATE TYPE ${type} AS ENUM (${quotedKinds})`);
     await queryRunner.query(
       `ALTER TABLE ${table} ALTER COLUMN "kind" TYPE ${type} USING "kind"::text::${type}`,
     );

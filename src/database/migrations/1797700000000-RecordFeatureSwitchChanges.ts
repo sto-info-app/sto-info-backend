@@ -67,16 +67,23 @@ export class RecordFeatureSwitchChanges1797700000000 implements MigrationInterfa
     const type = `"sto_info_app"."site_admin_action_enum"`;
     const log = `"sto_info_app"."site_admin_action"`;
 
+    const quotedAdded = FEATURE_SWITCH_ACTIONS.map(
+      action => `'${action}'`,
+    ).join(', ');
+
     await queryRunner.query(
-      `DO $$ BEGIN IF EXISTS (SELECT 1 FROM ${log} WHERE "action"::text IN (${FEATURE_SWITCH_ACTIONS.map(action => `'${action}'`).join(', ')})) THEN RAISE EXCEPTION '${FEATURE_SWITCH_ACTIONS_DOWN_REFUSAL}'; END IF; END $$`,
+      `DO $$ BEGIN IF EXISTS (SELECT 1 FROM ${log} WHERE "action"::text IN (${quotedAdded})) THEN RAISE EXCEPTION '${FEATURE_SWITCH_ACTIONS_DOWN_REFUSAL}'; END IF; END $$`,
     );
 
     await queryRunner.query(
       `ALTER TYPE ${type} RENAME TO "site_admin_action_enum_old"`,
     );
-    await queryRunner.query(
-      `CREATE TYPE ${type} AS ENUM (${SITE_ADMIN_ACTIONS_BEFORE.map(action => `'${action}'`).join(', ')})`,
-    );
+
+    const quotedBefore = SITE_ADMIN_ACTIONS_BEFORE.map(
+      action => `'${action}'`,
+    ).join(', ');
+
+    await queryRunner.query(`CREATE TYPE ${type} AS ENUM (${quotedBefore})`);
     await queryRunner.query(
       `ALTER TABLE ${log} ALTER COLUMN "action" TYPE ${type} USING "action"::text::${type}`,
     );

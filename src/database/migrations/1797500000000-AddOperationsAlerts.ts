@@ -75,8 +75,12 @@ export class AddOperationsAlerts1797500000000 implements MigrationInterface {
    * @param queryRunner - The TypeORM query runner.
    */
   public async up(queryRunner: QueryRunner): Promise<void> {
+    const quotedKinds = OPERATIONS_ALERT_KINDS.map(kind => `'${kind}'`).join(
+      ', ',
+    );
+
     await queryRunner.query(
-      `CREATE TYPE "sto_info_app"."operations_alert_kind_enum" AS ENUM (${OPERATIONS_ALERT_KINDS.map(kind => `'${kind}'`).join(', ')})`,
+      `CREATE TYPE "sto_info_app"."operations_alert_kind_enum" AS ENUM (${quotedKinds})`,
     );
     await queryRunner.query(`CREATE TABLE "sto_info_app"."operations_alert" (
       "id" uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -134,8 +138,12 @@ export class AddOperationsAlerts1797500000000 implements MigrationInterface {
     await queryRunner.query(
       `DO $$ BEGIN IF EXISTS (SELECT 1 FROM "sto_info_app"."app_setting" WHERE "key" = '${PUBLICATION_SWITCH.key}' AND "value"::jsonb ->> 'paused' = 'true') THEN RAISE EXCEPTION 'Publication is paused; resume it before rolling back'; END IF; END $$`,
     );
+    const quotedAdded = OPERATIONS_ACTIONS.map(action => `'${action}'`).join(
+      ', ',
+    );
+
     await queryRunner.query(
-      `DO $$ BEGIN IF EXISTS (SELECT 1 FROM ${log} WHERE "action"::text IN (${OPERATIONS_ACTIONS.map(action => `'${action}'`).join(', ')})) THEN RAISE EXCEPTION 'The Security Log holds operations actions (FC-042); removing them would lose its history, so this migration cannot be rolled back. Roll forward instead'; END IF; END $$`,
+      `DO $$ BEGIN IF EXISTS (SELECT 1 FROM ${log} WHERE "action"::text IN (${quotedAdded})) THEN RAISE EXCEPTION 'The Security Log holds operations actions (FC-042); removing them would lose its history, so this migration cannot be rolled back. Roll forward instead'; END IF; END $$`,
     );
     await queryRunner.query(
       `DELETE FROM "sto_info_app"."app_setting" WHERE "key" = '${PUBLICATION_SWITCH.key}'`,
@@ -144,9 +152,11 @@ export class AddOperationsAlerts1797500000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TYPE ${type} RENAME TO "site_admin_action_enum_old"`,
     );
-    await queryRunner.query(
-      `CREATE TYPE ${type} AS ENUM (${SITE_ADMIN_ACTIONS_BEFORE.map(action => `'${action}'`).join(', ')})`,
-    );
+    const quotedBefore = SITE_ADMIN_ACTIONS_BEFORE.map(
+      action => `'${action}'`,
+    ).join(', ');
+
+    await queryRunner.query(`CREATE TYPE ${type} AS ENUM (${quotedBefore})`);
     await queryRunner.query(
       `ALTER TABLE ${log} ALTER COLUMN "action" TYPE ${type} USING "action"::text::${type}`,
     );

@@ -5,6 +5,35 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 
 import { loadsDemoData } from '../../shared/constants/environment.constants';
 
+interface SeedLookupData {
+  generalFactions: Array<{ id: string }>;
+  factions: Array<{ id: string }>;
+  sexes: Array<{ id: string }>;
+  characterClasses: Array<{ id: string }>;
+  species: Array<{ id: string }>;
+  recruitTypes: Array<{ id: string }>;
+  perkIds: string[];
+}
+
+interface DemoCharacter {
+  index: number;
+  accountIndex: number;
+  characterIndex: number;
+  accountId: string;
+  characterId: string;
+  characterHandle: string;
+  fullHandle: string;
+}
+
+interface CharacterLookupIds {
+  generalFactionId: string;
+  factionId: string;
+  sexId: string;
+  classId: string;
+  recruitTypeId: string;
+  speciesId: string;
+}
+
 export class SeedDemoTestAccounts1787600000000 implements MigrationInterface {
   name = 'SeedDemoTestAccounts1787600000000';
 
@@ -22,301 +51,7 @@ export class SeedDemoTestAccounts1787600000000 implements MigrationInterface {
       const passwordHash = await bcrypt.hash(password, 10);
 
       for (let index = 0; index < 118; index += 1) {
-        const userId = randomUUID();
-        const email = this.buildEmail(index);
-        const username = this.buildUsername(index);
-        const firstName = this.buildFirstName(index);
-        const lastName = this.buildLastName(index);
-        const accountCount = 1 + (index % 4);
-
-        await queryRunner.query(
-          `
-            INSERT INTO "sto_info_app"."user"
-              ("id", "email", "password", "emailVerified", "role", "createdAt", "updatedAt")
-            VALUES ($1, $2, $3, true, 'USER', $4, $5)
-          `,
-          [
-            userId,
-            email,
-            passwordHash,
-            this.buildTimestamp(index, 2024),
-            this.buildTimestamp(index, 2024),
-          ],
-        );
-
-        await queryRunner.query(
-          `
-            INSERT INTO "sto_info_app"."user_profile"
-              ("userId", "username", "firstName", "lastName", "publiclyVisible", "createdAt", "updatedAt")
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-          `,
-          [
-            userId,
-            username,
-            firstName,
-            lastName,
-            index % 3 !== 0,
-            this.buildTimestamp(index, 2024),
-            this.buildTimestamp(index, 2024),
-          ],
-        );
-
-        for (
-          let accountIndex = 0;
-          accountIndex < accountCount;
-          accountIndex += 1
-        ) {
-          const accountId = randomUUID();
-          const handle = this.buildAccountHandle(index, accountIndex);
-          const accountEmail = this.buildAccountEmail(index, accountIndex);
-          const accountCreatedDate = this.buildAccountCreatedDate(
-            index,
-            accountIndex,
-          );
-          const isPubliclyVisible = accountIndex % 2 === 0;
-          const lifetimeSubscription = accountIndex % 3 === 0;
-
-          await queryRunner.query(
-            `
-              INSERT INTO "sto_info_app"."account"
-                ("id", "userId", "handle", "handleNormalized", "handleSlug", "username", "email",
-                 "notes", "accountCreatedDate", "publiclyVisible", "lifetimeSubscription", "createdAt", "updatedAt")
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-            `,
-            [
-              accountId,
-              userId,
-              handle,
-              this.normalizeHandle(handle),
-              this.toSlug(handle),
-              `${handle}-demo`,
-              accountEmail,
-              this.buildAccountNotes(index, accountIndex),
-              accountCreatedDate,
-              isPubliclyVisible,
-              lifetimeSubscription,
-              accountCreatedDate,
-              accountCreatedDate,
-            ],
-          );
-
-          const characterCount = this.getCharacterCount(index, accountIndex);
-          for (
-            let characterIndex = 0;
-            characterIndex < characterCount;
-            characterIndex += 1
-          ) {
-            const characterId = randomUUID();
-            const characterHandle = this.buildCharacterHandle(
-              index,
-              accountIndex,
-              characterIndex,
-            );
-            const fullHandle = `${characterHandle}@${handle}`;
-
-            if (lookupData) {
-              const generalFaction =
-                lookupData.generalFactions[
-                  (index + accountIndex + characterIndex) %
-                    lookupData.generalFactions.length
-                ];
-              const faction =
-                lookupData.factions[
-                  (index + accountIndex + characterIndex) %
-                    lookupData.factions.length
-                ];
-              const sex =
-                lookupData.sexes[
-                  (index + accountIndex + characterIndex) %
-                    lookupData.sexes.length
-                ];
-              const characterClass =
-                lookupData.characterClasses[
-                  (index + accountIndex + characterIndex) %
-                    lookupData.characterClasses.length
-                ];
-              const species =
-                lookupData.species[
-                  (index + accountIndex + characterIndex) %
-                    lookupData.species.length
-                ];
-              const recruitType =
-                lookupData.recruitTypes[
-                  (index + accountIndex + characterIndex) %
-                    lookupData.recruitTypes.length
-                ];
-
-              await queryRunner.query(
-                `
-                  INSERT INTO "sto_info_app"."character"
-                    ("id", "accountId", "handle", "fullHandleNormalized", "fullHandleSlug", "fullHandle",
-                     "generalFactionId", "factionId", "sexId", "classId", "recruitTypeId", "speciesId",
-                     "createdDate", "firstName", "lastName", "biography", "notes", "publiclyVisible",
-                     "createdAt", "updatedAt")
-                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
-                `,
-                [
-                  characterId,
-                  accountId,
-                  characterHandle,
-                  this.normalizeHandle(fullHandle),
-                  this.toSlug(fullHandle),
-                  fullHandle,
-                  generalFaction.id,
-                  faction.id,
-                  sex.id,
-                  characterClass.id,
-                  recruitType.id,
-                  species.id,
-                  this.buildCharacterCreatedDate(
-                    index,
-                    accountIndex,
-                    characterIndex,
-                  ),
-                  this.buildFirstName(index + characterIndex),
-                  this.buildLastName(index + accountIndex + characterIndex),
-                  this.buildBiography(index, accountIndex, characterIndex),
-                  this.buildCharacterNotes(index, accountIndex, characterIndex),
-                  characterIndex % 2 === 0,
-                  this.buildTimestamp(index + characterIndex, 2024),
-                  this.buildTimestamp(index + characterIndex, 2024),
-                ],
-              );
-              continue;
-            }
-
-            const fallbackLookupData = lookupData ?? {
-              generalFactions: [] as Array<{ id: string }>,
-              factions: [] as Array<{ id: string }>,
-              sexes: [] as Array<{ id: string }>,
-              characterClasses: [] as Array<{ id: string }>,
-              species: [] as Array<{ id: string }>,
-              recruitTypes: [] as Array<{ id: string }>,
-              perkIds: [] as string[],
-            };
-
-            const fallbackGeneralFactionId = this.getFallbackLookupId(
-              fallbackLookupData.generalFactions,
-              index,
-              accountIndex,
-              characterIndex,
-              0,
-            );
-            const fallbackFactionId = this.getFallbackLookupId(
-              fallbackLookupData.factions,
-              index,
-              accountIndex,
-              characterIndex,
-              1,
-            );
-            const fallbackSexId = this.getFallbackLookupId(
-              fallbackLookupData.sexes,
-              index,
-              accountIndex,
-              characterIndex,
-              2,
-            );
-            const fallbackClassId = this.getFallbackLookupId(
-              fallbackLookupData.characterClasses,
-              index,
-              accountIndex,
-              characterIndex,
-              3,
-            );
-            const fallbackRecruitTypeId = this.getFallbackLookupId(
-              fallbackLookupData.recruitTypes,
-              index,
-              accountIndex,
-              characterIndex,
-              4,
-            );
-            const fallbackSpeciesId = this.getFallbackLookupId(
-              fallbackLookupData.species,
-              index,
-              accountIndex,
-              characterIndex,
-              5,
-            );
-
-            if (
-              !fallbackGeneralFactionId ||
-              !fallbackFactionId ||
-              !fallbackSexId ||
-              !fallbackClassId ||
-              !fallbackRecruitTypeId ||
-              !fallbackSpeciesId
-            ) {
-              continue;
-            }
-
-            await queryRunner.query(
-              `
-                INSERT INTO "sto_info_app"."character"
-                  ("id", "accountId", "handle", "fullHandleNormalized", "fullHandleSlug", "fullHandle",
-                   "generalFactionId", "factionId", "sexId", "classId", "recruitTypeId", "speciesId",
-                   "createdDate", "firstName", "lastName", "biography", "notes", "publiclyVisible",
-                   "createdAt", "updatedAt")
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
-              `,
-              [
-                characterId,
-                accountId,
-                characterHandle,
-                this.normalizeHandle(fullHandle),
-                this.toSlug(fullHandle),
-                fullHandle,
-                fallbackGeneralFactionId,
-                fallbackFactionId,
-                fallbackSexId,
-                fallbackClassId,
-                fallbackRecruitTypeId,
-                fallbackSpeciesId,
-                this.buildCharacterCreatedDate(
-                  index,
-                  accountIndex,
-                  characterIndex,
-                ),
-                this.buildFirstName(index + characterIndex),
-                this.buildLastName(index + accountIndex + characterIndex),
-                this.buildBiography(index, accountIndex, characterIndex),
-                this.buildCharacterNotes(index, accountIndex, characterIndex),
-                characterIndex % 2 === 0,
-                this.buildTimestamp(index + characterIndex, 2024),
-                this.buildTimestamp(index + characterIndex, 2024),
-              ],
-            );
-          }
-
-          const progressCount = (index + accountIndex) % 3;
-          const perkIds = lookupData?.perkIds ?? [];
-          for (
-            let progressIndex = 0;
-            progressIndex < progressCount;
-            progressIndex += 1
-          ) {
-            if (perkIds.length === 0) {
-              continue;
-            }
-
-            const perkId =
-              perkIds[(index + accountIndex + progressIndex) % perkIds.length];
-            await queryRunner.query(
-              `
-                INSERT INTO "sto_info_app"."account_endeavour_progress"
-                  ("id", "accountId", "endeavourPerkId", "currentNodes", "createdAt", "updatedAt")
-                VALUES ($1, $2, $3, $4, $5, $6)
-              `,
-              [
-                randomUUID(),
-                accountId,
-                perkId,
-                (index + accountIndex + progressIndex) % 25,
-                this.buildTimestamp(index + progressIndex, 2024),
-                this.buildTimestamp(index + progressIndex, 2024),
-              ],
-            );
-          }
-        }
+        await this.seedUser(queryRunner, lookupData, passwordHash, index);
       }
 
       await queryRunner.commitTransaction();
@@ -359,15 +94,352 @@ export class SeedDemoTestAccounts1787600000000 implements MigrationInterface {
     }
   }
 
-  private async loadLookupData(queryRunner: QueryRunner): Promise<{
-    generalFactions: Array<{ id: string }>;
-    factions: Array<{ id: string }>;
-    sexes: Array<{ id: string }>;
-    characterClasses: Array<{ id: string }>;
-    species: Array<{ id: string }>;
-    recruitTypes: Array<{ id: string }>;
-    perkIds: string[];
-  } | null> {
+  // The seed helpers below keep each statement's SQL exactly as first
+  // released, indentation included, because this migration may have run.
+  private async seedUser(
+    queryRunner: QueryRunner,
+    lookupData: SeedLookupData | null,
+    passwordHash: string,
+    index: number,
+  ): Promise<void> {
+    const userId = randomUUID();
+    const email = this.buildEmail(index);
+    const username = this.buildUsername(index);
+    const firstName = this.buildFirstName(index);
+    const lastName = this.buildLastName(index);
+    const accountCount = 1 + (index % 4);
+
+    await queryRunner.query(
+      `
+            INSERT INTO "sto_info_app"."user"
+              ("id", "email", "password", "emailVerified", "role", "createdAt", "updatedAt")
+            VALUES ($1, $2, $3, true, 'USER', $4, $5)
+          `,
+      [
+        userId,
+        email,
+        passwordHash,
+        this.buildTimestamp(index, 2024),
+        this.buildTimestamp(index, 2024),
+      ],
+    );
+
+    await queryRunner.query(
+      `
+            INSERT INTO "sto_info_app"."user_profile"
+              ("userId", "username", "firstName", "lastName", "publiclyVisible", "createdAt", "updatedAt")
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+          `,
+      [
+        userId,
+        username,
+        firstName,
+        lastName,
+        index % 3 !== 0,
+        this.buildTimestamp(index, 2024),
+        this.buildTimestamp(index, 2024),
+      ],
+    );
+
+    for (let accountIndex = 0; accountIndex < accountCount; accountIndex += 1) {
+      await this.seedAccount(
+        queryRunner,
+        lookupData,
+        userId,
+        index,
+        accountIndex,
+      );
+    }
+  }
+
+  private async seedAccount(
+    queryRunner: QueryRunner,
+    lookupData: SeedLookupData | null,
+    userId: string,
+    index: number,
+    accountIndex: number,
+  ): Promise<void> {
+    const accountId = randomUUID();
+    const handle = this.buildAccountHandle(index, accountIndex);
+    const accountEmail = this.buildAccountEmail(index, accountIndex);
+    const accountCreatedDate = this.buildAccountCreatedDate(
+      index,
+      accountIndex,
+    );
+    const isPubliclyVisible = accountIndex % 2 === 0;
+    const lifetimeSubscription = accountIndex % 3 === 0;
+
+    await queryRunner.query(
+      `
+              INSERT INTO "sto_info_app"."account"
+                ("id", "userId", "handle", "handleNormalized", "handleSlug", "username", "email",
+                 "notes", "accountCreatedDate", "publiclyVisible", "lifetimeSubscription", "createdAt", "updatedAt")
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            `,
+      [
+        accountId,
+        userId,
+        handle,
+        this.normalizeHandle(handle),
+        this.toSlug(handle),
+        `${handle}-demo`,
+        accountEmail,
+        this.buildAccountNotes(index, accountIndex),
+        accountCreatedDate,
+        isPubliclyVisible,
+        lifetimeSubscription,
+        accountCreatedDate,
+        accountCreatedDate,
+      ],
+    );
+
+    const characterCount = this.getCharacterCount(index, accountIndex);
+    for (
+      let characterIndex = 0;
+      characterIndex < characterCount;
+      characterIndex += 1
+    ) {
+      const characterId = randomUUID();
+      const characterHandle = this.buildCharacterHandle(
+        index,
+        accountIndex,
+        characterIndex,
+      );
+
+      await this.seedCharacter(queryRunner, lookupData, {
+        index,
+        accountIndex,
+        characterIndex,
+        accountId,
+        characterId,
+        characterHandle,
+        fullHandle: `${characterHandle}@${handle}`,
+      });
+    }
+
+    await this.seedProgress(
+      queryRunner,
+      lookupData,
+      accountId,
+      index,
+      accountIndex,
+    );
+  }
+
+  private async seedCharacter(
+    queryRunner: QueryRunner,
+    lookupData: SeedLookupData | null,
+    character: DemoCharacter,
+  ): Promise<void> {
+    if (lookupData) {
+      await queryRunner.query(
+        `
+                  INSERT INTO "sto_info_app"."character"
+                    ("id", "accountId", "handle", "fullHandleNormalized", "fullHandleSlug", "fullHandle",
+                     "generalFactionId", "factionId", "sexId", "classId", "recruitTypeId", "speciesId",
+                     "createdDate", "firstName", "lastName", "biography", "notes", "publiclyVisible",
+                     "createdAt", "updatedAt")
+                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+                `,
+        this.buildCharacterParameters(
+          character,
+          this.pickLookupIds(lookupData, character),
+        ),
+      );
+      return;
+    }
+
+    const fallbackIds = this.pickFallbackIds(lookupData, character);
+
+    if (!fallbackIds) {
+      return;
+    }
+
+    await queryRunner.query(
+      `
+                INSERT INTO "sto_info_app"."character"
+                  ("id", "accountId", "handle", "fullHandleNormalized", "fullHandleSlug", "fullHandle",
+                   "generalFactionId", "factionId", "sexId", "classId", "recruitTypeId", "speciesId",
+                   "createdDate", "firstName", "lastName", "biography", "notes", "publiclyVisible",
+                   "createdAt", "updatedAt")
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+              `,
+      this.buildCharacterParameters(character, fallbackIds),
+    );
+  }
+
+  private pickLookupIds(
+    lookupData: SeedLookupData,
+    character: DemoCharacter,
+  ): CharacterLookupIds {
+    const offset =
+      character.index + character.accountIndex + character.characterIndex;
+
+    return {
+      generalFactionId:
+        lookupData.generalFactions[offset % lookupData.generalFactions.length]
+          .id,
+      factionId: lookupData.factions[offset % lookupData.factions.length].id,
+      sexId: lookupData.sexes[offset % lookupData.sexes.length].id,
+      classId:
+        lookupData.characterClasses[offset % lookupData.characterClasses.length]
+          .id,
+      recruitTypeId:
+        lookupData.recruitTypes[offset % lookupData.recruitTypes.length].id,
+      speciesId: lookupData.species[offset % lookupData.species.length].id,
+    };
+  }
+
+  private pickFallbackIds(
+    lookupData: SeedLookupData | null,
+    character: DemoCharacter,
+  ): CharacterLookupIds | null {
+    const { index, accountIndex, characterIndex } = character;
+    const fallbackLookupData = lookupData ?? {
+      generalFactions: [] as Array<{ id: string }>,
+      factions: [] as Array<{ id: string }>,
+      sexes: [] as Array<{ id: string }>,
+      characterClasses: [] as Array<{ id: string }>,
+      species: [] as Array<{ id: string }>,
+      recruitTypes: [] as Array<{ id: string }>,
+      perkIds: [] as string[],
+    };
+
+    const fallbackGeneralFactionId = this.getFallbackLookupId(
+      fallbackLookupData.generalFactions,
+      index,
+      accountIndex,
+      characterIndex,
+      0,
+    );
+    const fallbackFactionId = this.getFallbackLookupId(
+      fallbackLookupData.factions,
+      index,
+      accountIndex,
+      characterIndex,
+      1,
+    );
+    const fallbackSexId = this.getFallbackLookupId(
+      fallbackLookupData.sexes,
+      index,
+      accountIndex,
+      characterIndex,
+      2,
+    );
+    const fallbackClassId = this.getFallbackLookupId(
+      fallbackLookupData.characterClasses,
+      index,
+      accountIndex,
+      characterIndex,
+      3,
+    );
+    const fallbackRecruitTypeId = this.getFallbackLookupId(
+      fallbackLookupData.recruitTypes,
+      index,
+      accountIndex,
+      characterIndex,
+      4,
+    );
+    const fallbackSpeciesId = this.getFallbackLookupId(
+      fallbackLookupData.species,
+      index,
+      accountIndex,
+      characterIndex,
+      5,
+    );
+
+    if (
+      !fallbackGeneralFactionId ||
+      !fallbackFactionId ||
+      !fallbackSexId ||
+      !fallbackClassId ||
+      !fallbackRecruitTypeId ||
+      !fallbackSpeciesId
+    ) {
+      return null;
+    }
+
+    return {
+      generalFactionId: fallbackGeneralFactionId,
+      factionId: fallbackFactionId,
+      sexId: fallbackSexId,
+      classId: fallbackClassId,
+      recruitTypeId: fallbackRecruitTypeId,
+      speciesId: fallbackSpeciesId,
+    };
+  }
+
+  private buildCharacterParameters(
+    character: DemoCharacter,
+    ids: CharacterLookupIds,
+  ): unknown[] {
+    const { index, accountIndex, characterIndex, fullHandle } = character;
+
+    return [
+      character.characterId,
+      character.accountId,
+      character.characterHandle,
+      this.normalizeHandle(fullHandle),
+      this.toSlug(fullHandle),
+      fullHandle,
+      ids.generalFactionId,
+      ids.factionId,
+      ids.sexId,
+      ids.classId,
+      ids.recruitTypeId,
+      ids.speciesId,
+      this.buildCharacterCreatedDate(index, accountIndex, characterIndex),
+      this.buildFirstName(index + characterIndex),
+      this.buildLastName(index + accountIndex + characterIndex),
+      this.buildBiography(index, accountIndex, characterIndex),
+      this.buildCharacterNotes(index, accountIndex, characterIndex),
+      characterIndex % 2 === 0,
+      this.buildTimestamp(index + characterIndex, 2024),
+      this.buildTimestamp(index + characterIndex, 2024),
+    ];
+  }
+
+  private async seedProgress(
+    queryRunner: QueryRunner,
+    lookupData: SeedLookupData | null,
+    accountId: string,
+    index: number,
+    accountIndex: number,
+  ): Promise<void> {
+    const progressCount = (index + accountIndex) % 3;
+    const perkIds = lookupData?.perkIds ?? [];
+    for (
+      let progressIndex = 0;
+      progressIndex < progressCount;
+      progressIndex += 1
+    ) {
+      if (perkIds.length === 0) {
+        continue;
+      }
+
+      const perkId =
+        perkIds[(index + accountIndex + progressIndex) % perkIds.length];
+      await queryRunner.query(
+        `
+                INSERT INTO "sto_info_app"."account_endeavour_progress"
+                  ("id", "accountId", "endeavourPerkId", "currentNodes", "createdAt", "updatedAt")
+                VALUES ($1, $2, $3, $4, $5, $6)
+              `,
+        [
+          randomUUID(),
+          accountId,
+          perkId,
+          (index + accountIndex + progressIndex) % 25,
+          this.buildTimestamp(index + progressIndex, 2024),
+          this.buildTimestamp(index + progressIndex, 2024),
+        ],
+      );
+    }
+  }
+
+  private async loadLookupData(
+    queryRunner: QueryRunner,
+  ): Promise<SeedLookupData | null> {
     const requiredTables = [
       'character_general_faction',
       'character_faction',
