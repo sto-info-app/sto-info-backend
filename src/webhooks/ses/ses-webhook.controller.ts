@@ -46,18 +46,13 @@ export class SesWebhookController {
     @Headers('x-amz-sns-message-type') messageType: string,
     @Body() body: unknown,
   ): Promise<void> {
-    // SNS posts application/json but also sets the message-type header.
-    // Parse body if it arrived as a string (text/plain fallback).
-    let envelope: SnsEnvelope;
-    try {
-      envelope =
-        typeof body === 'string'
-          ? (JSON.parse(body) as SnsEnvelope)
-          : (body as SnsEnvelope);
-    } catch {
-      this._logger.error('Failed to parse SNS request body');
+    const parsed = this.parseEnvelope(body);
+
+    if (parsed === undefined) {
       return;
     }
+
+    const { envelope } = parsed;
 
     // Validate the TopicArn to prevent spoofed notifications
     if (!this._sesWebhookService.validateTopicArn(envelope)) {
@@ -70,63 +65,107 @@ export class SesWebhookController {
     const type = messageType ?? envelope.Type;
 
     if (type === 'SubscriptionConfirmation') {
-      const subscribeUrl = envelope.SubscribeURL;
-      if (!subscribeUrl) {
-        this._logger.error('SubscriptionConfirmation missing SubscribeURL');
-        return;
-      }
-
-      // Explicit inline check to satisfy security scanners (SSRF prevention).
-      // This is redundant with service validation but helps satisfy static analysis.
-      let isValid = false;
-      try {
-        const parsed = new URL(subscribeUrl);
-        const host = parsed.hostname.toLowerCase();
-        if (
-          parsed.protocol === 'https:' &&
-          (host === 'sns.amazonaws.com' ||
-            (host.endsWith('.amazonaws.com') && host.startsWith('sns.')))
-        ) {
-          isValid = true;
-        }
-      } catch {
-        isValid = false;
-      }
-
-      if (!isValid) {
-        this._logger.error(
-          'Rejected SNS subscription confirmation due to invalid SubscribeURL format or domain',
-        );
-        return;
-      }
-
-      await this._sesWebhookService.confirmSubscription(subscribeUrl);
+      await this.confirmSubscription(envelope);
       return;
     }
 
     if (type === 'Notification') {
-      if (!envelope.Message) {
-        this._logger.warn('SNS Notification missing Message body — skipping');
-        return;
-      }
-
-      let notification: SesNotification;
-      try {
-        notification = JSON.parse(envelope.Message) as SesNotification;
-      } catch {
-        this._logger.error(
-          'Failed to parse SES notification from SNS Message field',
-        );
-        return;
-      }
-
-      await this._sesWebhookService.processNotification(
-        envelope.MessageId,
-        notification,
-      );
+      await this.processNotification(envelope);
       return;
     }
 
     this._logger.warn(`Unhandled SNS message type: ${type}`);
+  }
+
+  /**
+   * Reads the SNS envelope from the request body.
+   *
+   * The envelope comes back wrapped, so a body that was itself undefined still
+   * goes on to be checked rather than being mistaken for one that would not
+   * parse.
+   *
+   * @param body - The request body.
+   * @returns The envelope, or undefined when the body could not be parsed.
+   */
+  private parseEnvelope(body: unknown): { envelope: SnsEnvelope } | undefined {
+    // SNS posts application/json but also sets the message-type header.
+    // Parse body if it arrived as a string (text/plain fallback).
+    try {
+      return {
+        envelope:
+          typeof body === 'string'
+            ? (JSON.parse(body) as SnsEnvelope)
+            : (body as SnsEnvelope),
+      };
+    } catch {
+      this._logger.error('Failed to parse SNS request body');
+      return undefined;
+    }
+  }
+
+  /**
+   * Confirms a subscription, once its SubscribeURL is shown to be SNS's own.
+   *
+   * @param envelope - The SubscriptionConfirmation envelope.
+   */
+  private async confirmSubscription(envelope: SnsEnvelope): Promise<void> {
+    const subscribeUrl = envelope.SubscribeURL;
+    if (!subscribeUrl) {
+      this._logger.error('SubscriptionConfirmation missing SubscribeURL');
+      return;
+    }
+
+    // Explicit inline check to satisfy security scanners (SSRF prevention).
+    // This is redundant with service validation but helps satisfy static analysis.
+    let isValid = false;
+    try {
+      const parsed = new URL(subscribeUrl);
+      const host = parsed.hostname.toLowerCase();
+      if (
+        parsed.protocol === 'https:' &&
+        (host === 'sns.amazonaws.com' ||
+          (host.endsWith('.amazonaws.com') && host.startsWith('sns.')))
+      ) {
+        isValid = true;
+      }
+    } catch {
+      isValid = false;
+    }
+
+    if (!isValid) {
+      this._logger.error(
+        'Rejected SNS subscription confirmation due to invalid SubscribeURL format or domain',
+      );
+      return;
+    }
+
+    await this._sesWebhookService.confirmSubscription(subscribeUrl);
+  }
+
+  /**
+   * Passes an SES notification on to be processed.
+   *
+   * @param envelope - The Notification envelope.
+   */
+  private async processNotification(envelope: SnsEnvelope): Promise<void> {
+    if (!envelope.Message) {
+      this._logger.warn('SNS Notification missing Message body — skipping');
+      return;
+    }
+
+    let notification: SesNotification;
+    try {
+      notification = JSON.parse(envelope.Message) as SesNotification;
+    } catch {
+      this._logger.error(
+        'Failed to parse SES notification from SNS Message field',
+      );
+      return;
+    }
+
+    await this._sesWebhookService.processNotification(
+      envelope.MessageId,
+      notification,
+    );
   }
 }

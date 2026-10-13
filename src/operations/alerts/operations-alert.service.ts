@@ -348,17 +348,7 @@ export class OperationsAlertService {
       ],
       [
         OperationsAlertKind.PUBLICATION_QUEUE_LAG,
-        !reachable || paused === null
-          ? null
-          : paused
-            ? { open: false }
-            : await this.checked('publicationQueue', () =>
-                this.checkQueueLag(
-                  FILE_ASSET_PUBLICATION_QUEUE,
-                  PUBLICATION_QUEUE_LAG_MINUTES,
-                  now,
-                ),
-              ),
+        await this.checkPublicationLag(paused, reachable, now),
       ],
       [OperationsAlertKind.WORKER_SILENT, workers?.silent ?? null],
       [OperationsAlertKind.WORKER_PAUSED, workers?.paused ?? null],
@@ -450,6 +440,38 @@ export class OperationsAlertService {
     return minutesUnreachable >= QUEUES_UNREACHABLE_MINUTES
       ? { open: true, detail: { minutesUnreachable } }
       : null;
+  }
+
+  /**
+   * Judges the publication queue's lag, which only counts while publication
+   * runs.
+   *
+   * @param paused - Whether publication is paused, or null when unknown.
+   * @param reachable - Whether Redis answered this run.
+   * @param now - The moment of the run.
+   * @returns Clear while paused; null when Redis or the pause could not
+   *   tell; otherwise what the lag check found.
+   */
+  private async checkPublicationLag(
+    paused: boolean | null,
+    reachable: boolean,
+    now: number,
+  ): Promise<OperationsFinding> {
+    if (!reachable || paused === null) {
+      return null;
+    }
+
+    if (paused) {
+      return { open: false };
+    }
+
+    return this.checked('publicationQueue', () =>
+      this.checkQueueLag(
+        FILE_ASSET_PUBLICATION_QUEUE,
+        PUBLICATION_QUEUE_LAG_MINUTES,
+        now,
+      ),
+    );
   }
 
   /**

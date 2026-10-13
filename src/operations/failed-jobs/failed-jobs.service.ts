@@ -78,7 +78,9 @@ const UNREACHABLE = 'The job queues cannot be reached.';
 const ERROR_NAME = /^([A-Za-z_$][\w$]{0,59}):/;
 
 /** A network error's code, anywhere in a failure reason. */
-const NETWORK_CODE = new RegExp(`\\b(${NETWORK_FAILURE_CODES.join('|')})\\b`);
+const NETWORK_CODE = new RegExp(
+  String.raw`\b(${NETWORK_FAILURE_CODES.join('|')})\b`,
+);
 
 /** An HTTP status, as the Cloudflare and S3 clients word it. */
 const HTTP_STATUS = /\bstatus(?: code)? (\d{3})\b/i;
@@ -523,10 +525,7 @@ export class FailedJobsService {
         );
 
         examined += jobs.length;
-
-        for (const job of jobs) {
-          result[(await act(name, job)) ? 'acted' : 'left'] += 1;
-        }
+        await actOnEach(name, jobs, act, result);
       } catch (error) {
         if (!(error instanceof ServiceUnavailableException)) {
           throw error;
@@ -549,9 +548,7 @@ export class FailedJobsService {
     return {
       acted,
       left,
-      remaining: after.includes(null)
-        ? null
-        : after.reduce<number>((sum, count) => sum + (count as number), 0),
+      remaining: totalOf(after),
       byQueue,
       interrupted,
     };
@@ -939,17 +936,63 @@ function rescanRefusal(rescan: FileRescanEntity | null): RetryRefusal | null {
  * @returns Its subject, or null when its data names none.
  */
 function subjectOf(queue: FailedJobQueue, job: Job): JobSubject | null {
-  const [kind, field] =
-    queue === CHAT_TRANSCRIPT_QUEUE
-      ? ['CHAT_TRANSCRIPT', 'transcriptId']
-      : queue === FILE_SCAN_REQUEST_QUEUE ||
-          queue === FILE_SCAN_VERDICT_QUEUE ||
-          queue === FILE_ASSET_PUBLICATION_QUEUE
-        ? ['FILE_ASSET', 'assetId']
-        : ['FLEET', 'fleetId'];
+  const [kind, field] = subjectFieldOf(queue);
   const id = textIn(job.data, field);
 
   return id === null ? null : { kind, id };
+}
+
+/**
+ * Where a queue's jobs name their subject.
+ *
+ * @param queue - The queue.
+ * @returns The kind of record its jobs are for, and the data field naming it.
+ */
+function subjectFieldOf(queue: FailedJobQueue): [string, string] {
+  if (queue === CHAT_TRANSCRIPT_QUEUE) {
+    return ['CHAT_TRANSCRIPT', 'transcriptId'];
+  }
+
+  if (
+    queue === FILE_SCAN_REQUEST_QUEUE ||
+    queue === FILE_SCAN_VERDICT_QUEUE ||
+    queue === FILE_ASSET_PUBLICATION_QUEUE
+  ) {
+    return ['FILE_ASSET', 'assetId'];
+  }
+
+  return ['FLEET', 'fleetId'];
+}
+
+/**
+ * Acts on each of one queue's failed jobs in turn, counting what was done.
+ *
+ * @param queue - The queue.
+ * @param jobs - Its failed jobs.
+ * @param act - Acts on one job, answering whether it did.
+ * @param result - The queue's counts, added to.
+ */
+async function actOnEach(
+  queue: FailedJobQueue,
+  jobs: readonly Job[],
+  act: (queue: FailedJobQueue, job: Job) => Promise<boolean>,
+  result: { acted: number; left: number },
+): Promise<void> {
+  for (const job of jobs) {
+    result[(await act(queue, job)) ? 'acted' : 'left'] += 1;
+  }
+}
+
+/**
+ * Adds up the failed jobs the queues hold.
+ *
+ * @param counts - Each queue's count, or null when it could not be counted.
+ * @returns The total, or null when any queue could not be counted.
+ */
+function totalOf(counts: readonly (number | null)[]): number | null {
+  return counts.includes(null)
+    ? null
+    : counts.reduce<number>((sum, count) => sum + (count as number), 0);
 }
 
 /**

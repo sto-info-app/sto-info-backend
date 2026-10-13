@@ -104,33 +104,21 @@ function readPngContent(buffer: Buffer): StorytimeImageContent | null {
  * @returns The dimensions, or null when the bytes are not a readable JPEG.
  */
 function readJpegContent(buffer: Buffer): StorytimeImageContent | null {
-  if (
-    buffer.length < 4 ||
-    buffer[0] !== JPEG_MARKER_PREFIX ||
-    buffer[1] !== JPEG_START_OF_IMAGE
-  ) {
+  if (!startsLikeJpeg(buffer)) {
     return null;
   }
 
   let offset = 2;
 
   while (offset + 1 < buffer.length) {
-    if (buffer[offset] !== JPEG_MARKER_PREFIX) {
+    const markerAt = findMarker(buffer, offset);
+
+    if (markerAt === null) {
       return null;
     }
 
-    // Segments may be padded with any number of fill bytes, which are all
-    // 0xff, so the marker is the first byte after the prefix that is not one.
-    while (offset < buffer.length && buffer[offset] === JPEG_MARKER_PREFIX) {
-      offset += 1;
-    }
-
-    if (offset >= buffer.length) {
-      return null;
-    }
-
-    const marker = buffer[offset];
-    offset += 1;
+    const marker = buffer[markerAt];
+    offset = markerAt + 1;
 
     if (marker === JPEG_END_OF_IMAGE) {
       return null;
@@ -140,36 +128,102 @@ function readJpegContent(buffer: Buffer): StorytimeImageContent | null {
       continue;
     }
 
-    if (offset + 2 > buffer.length) {
-      return null;
-    }
-
     if (isFrameMarker(marker)) {
-      // The segment length takes two bytes and the sample precision one, then
-      // the height and the width, each two.
-      if (offset + 7 > buffer.length) {
-        return null;
-      }
-
-      return {
-        format: 'jpeg',
-        height: buffer.readUInt16BE(offset + 3),
-        width: buffer.readUInt16BE(offset + 5),
-      };
+      return readJpegFrame(buffer, offset);
     }
 
-    const segmentLength = buffer.readUInt16BE(offset);
+    const next = segmentEnd(buffer, offset);
 
-    // A length shorter than the two bytes holding it would not advance the
-    // walk, so a malformed file cannot spin here.
-    if (segmentLength < 2) {
+    if (next === null) {
       return null;
     }
 
-    offset += segmentLength;
+    offset = next;
   }
 
   return null;
+}
+
+/**
+ * Determines whether the bytes open with a JPEG's start-of-image marker.
+ *
+ * @param buffer - The raw uploaded bytes.
+ * @returns True when they do, with room for at least one more marker.
+ */
+function startsLikeJpeg(buffer: Buffer): boolean {
+  return (
+    buffer.length >= 4 &&
+    buffer[0] === JPEG_MARKER_PREFIX &&
+    buffer[1] === JPEG_START_OF_IMAGE
+  );
+}
+
+/**
+ * Finds the next segment marker.
+ *
+ * @param buffer - The raw uploaded bytes.
+ * @param offset - Where the marker's prefix should be.
+ * @returns Where the marker byte is, or null when there is no prefix there or
+ * the bytes run out first.
+ */
+function findMarker(buffer: Buffer, offset: number): number | null {
+  if (buffer[offset] !== JPEG_MARKER_PREFIX) {
+    return null;
+  }
+
+  // Segments may be padded with any number of fill bytes, which are all
+  // 0xff, so the marker is the first byte after the prefix that is not one.
+  let at = offset;
+
+  while (at < buffer.length && buffer[at] === JPEG_MARKER_PREFIX) {
+    at += 1;
+  }
+
+  return at < buffer.length ? at : null;
+}
+
+/**
+ * Reads the dimensions from a start-of-frame segment.
+ *
+ * @param buffer - The raw uploaded bytes.
+ * @param offset - Where the segment's length begins.
+ * @returns The dimensions, or null when the segment is cut short.
+ */
+function readJpegFrame(
+  buffer: Buffer,
+  offset: number,
+): StorytimeImageContent | null {
+  // The segment length takes two bytes and the sample precision one, then
+  // the height and the width, each two.
+  if (offset + 7 > buffer.length) {
+    return null;
+  }
+
+  return {
+    format: 'jpeg',
+    height: buffer.readUInt16BE(offset + 3),
+    width: buffer.readUInt16BE(offset + 5),
+  };
+}
+
+/**
+ * Finds where a segment that is not a frame ends.
+ *
+ * @param buffer - The raw uploaded bytes.
+ * @param offset - Where the segment's length begins.
+ * @returns Where the next segment begins, or null when the length is cut
+ * short or malformed.
+ */
+function segmentEnd(buffer: Buffer, offset: number): number | null {
+  if (offset + 2 > buffer.length) {
+    return null;
+  }
+
+  const segmentLength = buffer.readUInt16BE(offset);
+
+  // A length shorter than the two bytes holding it would not advance the
+  // walk, so a malformed file cannot spin here.
+  return segmentLength < 2 ? null : offset + segmentLength;
 }
 
 /**

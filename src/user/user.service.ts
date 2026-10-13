@@ -458,17 +458,15 @@ export class UserService {
   }
 
   /**
-   * Update a user's profile information.
+   * Loads a user together with the profile that belongs to them, for a
+   * change to that profile.
    *
-   * @param userId - The UUID of the user owning the profile.
-   * @param userProfileData - The updated profile details.
-   * @returns A promise resolving to the number of affected rows and the updated UserProfileEntity.
-   * @throws HttpException if the user or profile is not found, or if the username already exists.
+   * @param userId Authenticated user ID.
+   * @returns The user, with their profile loaded.
+   * @throws HttpException when the identifier is invalid, or the user or their
+   *   profile is absent.
    */
-  async updateUserProfile(
-    userId: string,
-    userProfileData: UpdateUserProfileDto,
-  ): Promise<{ affected: number; updatedProfile: UserProfileEntity }> {
+  private async _getUserWithOwnProfile(userId: string): Promise<UserEntity> {
     if (!userId || !this._validatorsService.validateUuid(userId)) {
       throw new HttpException('User not found', HttpStatus.NOT_FOUND);
     }
@@ -485,6 +483,23 @@ export class UserService {
     if (!user.profile?.userId || user.profile.userId !== userId) {
       throw new HttpException('User data not found', HttpStatus.NOT_FOUND);
     }
+
+    return user;
+  }
+
+  /**
+   * Update a user's profile information.
+   *
+   * @param userId - The UUID of the user owning the profile.
+   * @param userProfileData - The updated profile details.
+   * @returns A promise resolving to the number of affected rows and the updated UserProfileEntity.
+   * @throws HttpException if the user or profile is not found, or if the username already exists.
+   */
+  async updateUserProfile(
+    userId: string,
+    userProfileData: UpdateUserProfileDto,
+  ): Promise<{ affected: number; updatedProfile: UserProfileEntity }> {
+    const user = await this._getUserWithOwnProfile(userId);
 
     const keys = Object.keys(userProfileData) as Array<
       keyof UpdateUserProfileDto
@@ -585,22 +600,7 @@ export class UserService {
     userId: string,
     file: Express.Multer.File,
   ): Promise<AcceptedAsset> {
-    if (!userId || !this._validatorsService.validateUuid(userId)) {
-      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
-    }
-
-    const user = await this._userRepository.findOne({
-      where: { id: userId },
-      relations: { profile: true },
-    });
-
-    if (!user) {
-      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
-    }
-
-    if (!user.profile?.userId || user.profile.userId !== userId) {
-      throw new HttpException('User data not found', HttpStatus.NOT_FOUND);
-    }
+    await this._getUserWithOwnProfile(userId);
 
     // The profile is left exactly as it is. Whatever picture it shows goes
     // on being shown until a scanner has cleared the new one and
