@@ -3,10 +3,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { In, Repository } from 'typeorm';
 
+import { compareText } from 'src/shared/utilities/compare-text.utility';
+
 import { RosterChangeEntity } from '../../projection/entities/roster-change.entity';
 import { RosterIntervalSummaryEntity } from '../../projection/entities/roster-interval-summary.entity';
 import { RosterChangeKind } from '../../projection/enums/roster-change-kind.enum';
-import { compareText } from '../../projection/utilities/compare-text.utility';
 import {
   ROSTER_HISTORY_KINDS,
   ROSTER_HISTORY_PAGE_SIZE,

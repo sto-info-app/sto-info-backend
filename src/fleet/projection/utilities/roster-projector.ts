@@ -1,7 +1,8 @@
+import { compareText } from 'src/shared/utilities/compare-text.utility';
+
 import { RosterChangeKind } from '../enums/roster-change-kind.enum';
 import { RosterEpisodeEnd } from '../enums/roster-episode-end.enum';
 import { RosterEpisodeStart } from '../enums/roster-episode-start.enum';
-import { compareText } from './compare-text.utility';
 
 /** What the projector needs of one roster row. Nothing it does not use. */
 export interface ProjectorRow {

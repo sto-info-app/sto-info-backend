@@ -17,6 +17,7 @@ import { BlockService } from 'src/community/block.service';
 import { FriendshipEntity } from 'src/community/entities/friendship.entity';
 import { FriendshipStatus } from 'src/community/enums/friendship-status.enum';
 import { FriendshipService } from 'src/community/friendship.service';
+import { compareText } from 'src/shared/utilities/compare-text.utility';
 
 import { usernamesFor } from '../../recruitment/utilities/recruitment-names.utility';
 import { ChatConversationDto } from '../dto/chat.dto';
@@ -75,7 +76,7 @@ export class ChatDirectService {
 
     await this.assertMayTalk(userId, otherUserId);
 
-    const [userLowId, userHighId] = [userId, otherUserId].sort();
+    const [userLowId, userHighId] = [userId, otherUserId].sort(compareText);
     const manager = this._dataSource.manager;
 
     await manager

@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { Repository, SelectQueryBuilder } from 'typeorm';
 
+import { compareText } from 'src/shared/utilities/compare-text.utility';
 import { escapeSqlLikeTerm } from 'src/shared/utilities/sql-like.utility';
 
 import { RosterIdentityAliasEntity } from '../../identity/entities/roster-identity-alias.entity';
@@ -11,7 +12,6 @@ import {
   normaliseRosterCharacterName,
   rosterRowFullHandle,
 } from '../../imports/utilities/roster-identity.utility';
-import { compareText } from '../../projection/utilities/compare-text.utility';
 import {
   RosterExportDto,
   RosterExportRefDto,

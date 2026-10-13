@@ -3,9 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { In, Repository } from 'typeorm';
 
+import { compareText } from 'src/shared/utilities/compare-text.utility';
+
 import { RosterChangeEntity } from '../../projection/entities/roster-change.entity';
 import { RosterChangeKind } from '../../projection/enums/roster-change-kind.enum';
-import { compareText } from '../../projection/utilities/compare-text.utility';
 import {
   FleetRanksReportDto,
   FleetTenureReportDto,

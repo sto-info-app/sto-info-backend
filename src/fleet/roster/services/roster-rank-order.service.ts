@@ -7,8 +7,9 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 
 import { DataSource, EntityManager, Repository } from 'typeorm';
 
+import { compareText } from 'src/shared/utilities/compare-text.utility';
+
 import { RosterObservationEntity } from '../../imports/entities/roster-observation.entity';
-import { compareText } from '../../projection/utilities/compare-text.utility';
 import {
   RosterRankOrderDto,
   UpdateRosterRankOrderDto,

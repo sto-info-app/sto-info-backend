@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common';
 
+import { compareText } from '../utilities/compare-text.utility';
 import { LedgerKey, ledgerKey, parseLedgerKey } from './ledger.utility';
 
 /** What a ledger needs of the private bucket it is kept in. */
@@ -67,7 +68,9 @@ export class LedgerStore<M> {
   async listKeys(): Promise<LedgerKey[]> {
     const keys: LedgerKey[] = [];
 
-    for (const key of (await this._storage.listKeys(this._prefix)).sort()) {
+    for (const key of (await this._storage.listKeys(this._prefix)).sort(
+      compareText,
+    )) {
       const parsed = parseLedgerKey(this._prefix, key);
 
       if (parsed === null || !this.recordsKind(parsed.kind)) {

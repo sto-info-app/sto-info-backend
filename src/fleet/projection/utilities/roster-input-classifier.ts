@@ -1,5 +1,6 @@
+import { compareText } from 'src/shared/utilities/compare-text.utility';
+
 import { RosterProjectionInputOutcome } from '../enums/roster-projection-input-outcome.enum';
-import { compareText } from './compare-text.utility';
 
 /** What the classifier needs to know of one import in force or held. */
 export interface RosterInputCandidate {
