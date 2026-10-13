@@ -6,13 +6,23 @@ import { SeedStoInfoV1438ReleaseNotesNewsPost1792700000000 } from '../1792700000
 type RecordedQuery = { sql: string; parameters: unknown[] | undefined };
 
 describe('SeedStoInfoV1438ReleaseNotesNewsPost1792700000000', () => {
+  // `scoped`: the database is already on Fleet Community's schema, where
+  // news_post has a communityId column and the slug index is partial.
   const runMigration = async (
     direction: 'up' | 'down',
+    scoped = false,
   ): Promise<RecordedQuery[]> => {
     const migration = new SeedStoInfoV1438ReleaseNotesNewsPost1792700000000();
     const queries: RecordedQuery[] = [];
     const queryRunner = {
       query: jest.fn((sql: string, parameters?: unknown[]) => {
+        if (sql.includes('information_schema.columns')) {
+          expect(sql).toContain("table_name = 'news_post'");
+          expect(sql).toContain("column_name = 'communityId'");
+
+          return Promise.resolve(scoped ? [{ '?column?': 1 }] : []);
+        }
+
         queries.push({ sql, parameters });
 
         return Promise.resolve();
@@ -53,6 +63,17 @@ describe('SeedStoInfoV1438ReleaseNotesNewsPost1792700000000', () => {
     expect(sql).toContain('"publishedAt" = EXCLUDED."publishedAt"');
   });
 
+  // Fleet Community's ScopeNewsPosts leaves the slug unique only among the
+  // site's own posts, and an upsert has to name that predicate to use it.
+  it('names the site-only slug index once news is scoped', async () => {
+    const queries = await runMigration('up', true);
+
+    expect(queries).toHaveLength(1);
+    expect(queries[0].sql).toContain(
+      'ON CONFLICT ("slug") WHERE "communityId" IS NULL DO UPDATE SET',
+    );
+  });
+
   it('links both v1.4.38 releases and names the Tour of Duty reset', async () => {
     const [{ parameters }] = await runMigration('up');
     const body = parameters?.[3] as string;
@@ -72,6 +93,17 @@ describe('SeedStoInfoV1438ReleaseNotesNewsPost1792700000000', () => {
     expect(queries).toEqual([
       {
         sql: 'DELETE FROM "sto_info_app"."news_post" WHERE "slug" = ANY($1)',
+        parameters: [['sto-info-version-1-4-38-release']],
+      },
+    ]);
+  });
+
+  it("leaves a Community's post of the same slug once news is scoped", async () => {
+    const queries = await runMigration('down', true);
+
+    expect(queries).toEqual([
+      {
+        sql: 'DELETE FROM "sto_info_app"."news_post" WHERE "slug" = ANY($1) AND "communityId" IS NULL',
         parameters: [['sto-info-version-1-4-38-release']],
       },
     ]);

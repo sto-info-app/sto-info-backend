@@ -181,6 +181,27 @@ The `handleNormalized` column migration failed because it expected the column to
 
 Adding unique constraints may fail if existing data violates uniqueness. Clean or migrate data first.
 
+**Shared timestamps:**
+
+Two pairs of migrations share a timestamp, because two were written on `development` while Fleet
+Community's were already numbered past them:
+
+| Timestamp       | Production's own (v1.4.38)                   | Fleet Community's           |
+| --------------- | -------------------------------------------- | --------------------------- |
+| `1792600000000` | `CapAdmiraltyTourOfDutyAtNine`               | `CreateFileAssetPlacements` |
+| `1792700000000` | `SeedStoInfoV1dot4dot38ReleaseNotesNewsPost` | `ScopeSlugsByPlatform`      |
+
+Both pairs stay as they are. Production has run its two, so they cannot be renumbered, and
+renumbering Fleet Community's would run them again on every database that already has. TypeORM
+records a migration by its name, runs whatever it has not run, and sorts a tie by file name, so
+each runs once whichever order a database meets them in. Production runs its two long before
+Fleet Community's; a database already on Fleet Community's schema runs them after all of its
+migrations. A migration on `development` that writes to a table Fleet Community changes has to
+work either way: the release notes seed names the site-only slug index once news is scoped.
+
+New migrations on `development` are numbered above Fleet Community's last, `1797900000000`, until
+it ships.
+
 ## Indexes
 
 ### Custom Indexes
