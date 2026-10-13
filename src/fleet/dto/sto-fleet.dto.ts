@@ -1,11 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import { EmblemImageUrls } from 'src/shared/constants/image.constants';
-
 import { FleetAudience } from '../enums/fleet-audience.enum';
 import { FleetRecruitmentState } from '../enums/fleet-recruitment-state.enum';
 import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
 import { FleetScopeViewerDto } from './fleet-scope-viewer.dto';
+import { FleetScopeDto } from './fleet-scope.dto';
 
 /**
  * A Fleet as a caller sees it.
@@ -16,10 +15,7 @@ import { FleetScopeViewerDto } from './fleet-scope-viewer.dto';
  * card that omitted the platform would be telling the reader they are the
  * same one.
  */
-export class StoFleetDto {
-  @ApiProperty({ description: 'Unique identifier.' })
-  id: string;
-
+export class StoFleetDto extends FleetScopeDto {
   @ApiProperty({
     description: 'Owning Community, or null for an unregistered record.',
     nullable: true,
@@ -81,60 +77,11 @@ export class StoFleetDto {
   })
   lastEffectiveImportAt: Date | null;
 
-  @ApiProperty({ enum: FleetScopeStatus, description: 'Lifecycle state.' })
-  status: FleetScopeStatus;
-
   @ApiProperty({ description: 'When the Fleet was closed.', nullable: true })
   closedAt: Date | null;
 
-  @ApiProperty({
-    description: 'Delivery reference of the wide banner.',
-    nullable: true,
-  })
-  bannerImageId: string | null;
-
-  @ApiProperty({
-    description: 'What the banner shows, for readers who cannot see it.',
-    nullable: true,
-  })
-  bannerImageAlt: string | null;
-
-  @ApiProperty({
-    description: 'The banner’s signed address, for the browser (FC-040).',
-    nullable: true,
-    type: String,
-  })
-  bannerImageUrl: string | null;
-
-  @ApiProperty({
-    description: 'Delivery reference of the square emblem.',
-    nullable: true,
-  })
-  emblemImageId: string | null;
-
-  @ApiProperty({
-    description: 'What the emblem shows, for readers who cannot see it.',
-    nullable: true,
-  })
-  emblemImageAlt: string | null;
-
-  @ApiProperty({
-    description:
-      'The emblem’s signed addresses, by variant (square100, square300), ' +
-      'for the browser to draw (FC-040).',
-    nullable: true,
-    type: Object,
-  })
-  emblemImageUrls: EmblemImageUrls | null;
-
-  @ApiProperty({ description: 'Authorisation revision counter.' })
-  revision: number;
-
   @ApiProperty({ description: 'When the Fleet was registered.' })
   createdAt: Date;
-
-  @ApiProperty({ description: 'When it was last changed.' })
-  updatedAt: Date;
 }
 
 /**

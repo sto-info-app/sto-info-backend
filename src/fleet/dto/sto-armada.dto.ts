@@ -1,9 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import { EmblemImageUrls } from 'src/shared/constants/image.constants';
-
 import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
 import { FleetScopeViewerDto } from './fleet-scope-viewer.dto';
+import { FleetScopeDto } from './fleet-scope.dto';
 
 /**
  * An Armada as a caller sees it.
@@ -13,10 +12,7 @@ import { FleetScopeViewerDto } from './fleet-scope-viewer.dto';
  * Fleets are in it either — that is a temporal record with its own route,
  * so a Fleet can leave without this shape changing at all.
  */
-export class StoArmadaDto {
-  @ApiProperty({ description: 'Unique identifier.' })
-  id: string;
-
+export class StoArmadaDto extends FleetScopeDto {
   @ApiProperty({ description: 'Owning Community.' })
   communityId: string;
 
@@ -60,60 +56,11 @@ export class StoArmadaDto {
   })
   slug: string;
 
-  @ApiProperty({ enum: FleetScopeStatus, description: 'Lifecycle state.' })
-  status: FleetScopeStatus;
-
   @ApiProperty({ description: 'When the Armada was closed.', nullable: true })
   closedAt: Date | null;
 
-  @ApiProperty({
-    description: 'Delivery reference of the wide banner.',
-    nullable: true,
-  })
-  bannerImageId: string | null;
-
-  @ApiProperty({
-    description: 'What the banner shows, for readers who cannot see it.',
-    nullable: true,
-  })
-  bannerImageAlt: string | null;
-
-  @ApiProperty({
-    description: 'The banner’s signed address, for the browser (FC-040).',
-    nullable: true,
-    type: String,
-  })
-  bannerImageUrl: string | null;
-
-  @ApiProperty({
-    description: 'Delivery reference of the square emblem.',
-    nullable: true,
-  })
-  emblemImageId: string | null;
-
-  @ApiProperty({
-    description: 'What the emblem shows, for readers who cannot see it.',
-    nullable: true,
-  })
-  emblemImageAlt: string | null;
-
-  @ApiProperty({
-    description:
-      'The emblem’s signed addresses, by variant (square100, square300), ' +
-      'for the browser to draw (FC-040).',
-    nullable: true,
-    type: Object,
-  })
-  emblemImageUrls: EmblemImageUrls | null;
-
-  @ApiProperty({ description: 'Authorisation revision counter.' })
-  revision: number;
-
   @ApiProperty({ description: 'When the Armada was registered.' })
   createdAt: Date;
-
-  @ApiProperty({ description: 'When it was last changed.' })
-  updatedAt: Date;
 }
 
 /**

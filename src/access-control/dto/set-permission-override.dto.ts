@@ -1,22 +1,16 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 
-import { Transform, Type } from 'class-transformer';
-import {
-  IsDate,
-  IsEnum,
-  IsIn,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  MaxLength,
-  MinDate,
-} from 'class-validator';
+import { IsEnum, IsIn, IsString } from 'class-validator';
 
 import {
   PERMISSION_CODES,
   PermissionCode,
 } from '../constants/permission-codes.constants';
 import { PermissionEffect } from '../enums/permission-effect.enum';
+import {
+  OverrideExpiryProperty,
+  OverrideReasonProperty,
+} from './override-fields.decorator';
 
 /** Every permission code an administrator may override. */
 const ALLOWED_PERMISSION_CODES: readonly PermissionCode[] =
@@ -48,28 +42,13 @@ export class SetPermissionOverrideDto {
   @IsEnum(PermissionEffect)
   readonly effect: PermissionEffect;
 
-  @ApiProperty({
-    description:
-      'Why the override is being applied. Recorded so the decision stays reviewable.',
-    maxLength: 500,
-  })
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
+  @OverrideReasonProperty(
+    'Why the override is being applied. Recorded so the decision stays reviewable.',
   )
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(500)
   readonly reason: string;
 
-  @ApiPropertyOptional({
-    description:
-      'When the override should lapse. Omit for an indefinite override.',
-  })
-  @IsOptional()
-  @Type(() => Date)
-  @IsDate()
-  @MinDate(() => new Date(), {
-    message: 'expiresAt must be in the future',
-  })
+  @OverrideExpiryProperty(
+    'When the override should lapse. Omit for an indefinite override.',
+  )
   readonly expiresAt?: Date;
 }
