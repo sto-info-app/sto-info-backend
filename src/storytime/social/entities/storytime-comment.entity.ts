@@ -1,16 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  Index,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Column, Entity, Index } from 'typeorm';
 
 import { StorytimeCommentStatus } from '../../enums/storytime-comment-status.enum';
-import { StorytimeTargetType } from '../../enums/storytime-target-type.enum';
+import { StorytimeTargetedEntity } from '../../shared/entities/storytime-targeted.entity';
 
 /**
  * One comment on a Story, Chapter or Arc.
@@ -25,26 +18,7 @@ import { StorytimeTargetType } from '../../enums/storytime-target-type.enum';
 @Entity({ name: 'storytime_comment' })
 @Index(['targetType', 'targetId', 'createdAt'])
 @Index(['authorUserId', 'createdAt'])
-export class StorytimeCommentEntity {
-  @ApiProperty({ description: 'Unique identifier.' })
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
-  @ApiProperty({
-    enum: StorytimeTargetType,
-    description: 'What kind of thing is being discussed.',
-  })
-  @Column({
-    type: 'enum',
-    enum: StorytimeTargetType,
-    enumName: 'storytime_target_type_enum',
-  })
-  targetType: StorytimeTargetType;
-
-  @ApiProperty({ description: 'The thing being discussed.' })
-  @Column({ type: 'uuid', nullable: false })
-  targetId: string;
-
+export class StorytimeCommentEntity extends StorytimeTargetedEntity {
   @ApiProperty({ description: 'Who wrote it.' })
   @Column({ type: 'uuid', nullable: false })
   authorUserId: string;
@@ -96,10 +70,4 @@ export class StorytimeCommentEntity {
   @ApiProperty({ description: 'When that happened.', nullable: true })
   @Column({ type: 'timestamp', nullable: true, default: null })
   moderatedAt: Date | null;
-
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
 }

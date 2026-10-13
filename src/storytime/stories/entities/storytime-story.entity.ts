@@ -1,23 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import {
-  Column,
-  CreateDateColumn,
-  DeleteDateColumn,
-  Entity,
-  Index,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Column, Entity, Index } from 'typeorm';
 
-import { buildCloudflareImageUrl } from '../../../shared/constants/image.constants';
 import { STORYTIME_IMAGE_VARIANTS } from '../../constants/storytime-image.constants';
 import { STORYTIME_DEFAULT_LANGUAGE_CODE } from '../../constants/storytime-language.constants';
 import { CompletionState } from '../../enums/completion-state.enum';
 import { ContentRating } from '../../enums/content-rating.enum';
 import { StoryStatus } from '../../enums/story-status.enum';
-import { StorytimeModerationStatus } from '../../enums/storytime-moderation-status.enum';
-import { StorytimeVisibility } from '../../enums/storytime-visibility.enum';
+import { StorytimePublishableWorkEntity } from '../../shared/entities/storytime-publishable-work.entity';
 
 /**
  * A Story: the container a creator publishes Chapters within.
@@ -31,51 +21,13 @@ import { StorytimeVisibility } from '../../enums/storytime-visibility.enum';
  * Keeping them apart is what allows a removed Story to be restored to exactly
  * the state its creator left it in, and stops a creator republishing their way
  * out of a moderation decision.
+ *
+ * The owner, title, description, artwork, moderation and audit columns are
+ * shared with an Arc through {@link StorytimePublishableWorkEntity}.
  */
 @Entity({ name: 'storytime_story' })
 @Index(['ownerUserId', 'ownerOrderIndex'])
-export class StorytimeStoryEntity {
-  @ApiProperty({ description: 'Unique identifier.' })
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
-  @ApiProperty({ description: 'The user who owns the Story.' })
-  @Column({ type: 'uuid', nullable: false })
-  ownerUserId: string;
-
-  @ApiProperty({ description: 'Story title.' })
-  @Column({ type: 'varchar', length: 200, nullable: false })
-  title: string;
-
-  @ApiProperty({
-    description: 'URL-friendly identifier, unique across all Stories.',
-    example: 'the-long-way-home',
-  })
-  @Column({ type: 'varchar', length: 220, nullable: false })
-  slug: string;
-
-  @ApiProperty({
-    description: 'Short plain-text summary used in listings.',
-    nullable: true,
-  })
-  @Column({ type: 'varchar', length: 500, nullable: true, default: null })
-  shortDescription: string | null;
-
-  @ApiProperty({
-    description: 'Full description, authored as Markdown.',
-    nullable: true,
-  })
-  @Column({ type: 'text', nullable: true, default: null })
-  description: string | null;
-
-  @ApiProperty({
-    description:
-      'Server-rendered, sanitised HTML for the description. Regenerated whenever the description changes.',
-    nullable: true,
-  })
-  @Column({ type: 'text', nullable: true, default: null })
-  descriptionHtml: string | null;
-
+export class StorytimeStoryEntity extends StorytimePublishableWorkEntity {
   @ApiProperty({ enum: StoryStatus, description: 'Publication state.' })
   @Column({
     type: 'enum',
@@ -84,18 +36,6 @@ export class StorytimeStoryEntity {
     default: StoryStatus.DRAFT,
   })
   status: StoryStatus;
-
-  @ApiProperty({
-    enum: StorytimeVisibility,
-    description: 'Who may reach the Story once published.',
-  })
-  @Column({
-    type: 'enum',
-    enum: StorytimeVisibility,
-    enumName: 'storytime_visibility_enum',
-    default: StorytimeVisibility.PRIVATE,
-  })
-  visibility: StorytimeVisibility;
 
   @ApiProperty({
     enum: CompletionState,
@@ -141,41 +81,6 @@ export class StorytimeStoryEntity {
   ownerOrderIndex: number;
 
   @ApiProperty({
-    description: 'Cloudflare Images ID for the wide banner.',
-    nullable: true,
-  })
-  @Column({ type: 'varchar', length: 160, nullable: true, default: null })
-  bannerImageId: string | null;
-
-  @ApiProperty({
-    description: 'Alternative text for the banner.',
-    nullable: true,
-  })
-  @Column({ type: 'varchar', length: 300, nullable: true, default: null })
-  bannerImageAlt: string | null;
-
-  @ApiProperty({
-    description: 'Cloudflare Images ID for the square profile image.',
-    nullable: true,
-  })
-  @Column({ type: 'varchar', length: 160, nullable: true, default: null })
-  profileImageId: string | null;
-
-  @ApiProperty({
-    description: 'Alternative text for the profile image.',
-    nullable: true,
-  })
-  @Column({ type: 'varchar', length: 300, nullable: true, default: null })
-  profileImageAlt: string | null;
-
-  @ApiProperty({
-    description: 'When the Story was first published.',
-    nullable: true,
-  })
-  @Column({ type: 'timestamp', nullable: true, default: null })
-  publishedAt: Date | null;
-
-  @ApiProperty({
     description: 'When the Story should publish automatically.',
     nullable: true,
   })
@@ -197,14 +102,6 @@ export class StorytimeStoryEntity {
   @Column({ type: 'integer', nullable: false, default: 0 })
   publishedChapterCount: number;
 
-  @ApiProperty({ description: 'Thumbs Up count.' })
-  @Column({ type: 'integer', nullable: false, default: 0 })
-  upVoteCount: number;
-
-  @ApiProperty({ description: 'Thumbs Down count.' })
-  @Column({ type: 'integer', nullable: false, default: 0 })
-  downVoteCount: number;
-
   @ApiProperty({
     description: 'When the owner accepted the content policy for this Story.',
     nullable: true,
@@ -223,96 +120,11 @@ export class StorytimeStoryEntity {
   contentPolicyVersion: string | null;
 
   @ApiProperty({
-    enum: StorytimeModerationStatus,
-    description:
-      'Whether an administrator has removed the Story. Independent of publication state.',
-  })
-  @Column({
-    type: 'enum',
-    enum: StorytimeModerationStatus,
-    enumName: 'storytime_moderation_status_enum',
-    default: StorytimeModerationStatus.ACTIVE,
-  })
-  moderationStatus: StorytimeModerationStatus;
-
-  @ApiProperty({ description: 'When the Story was removed.', nullable: true })
-  @Column({ type: 'timestamp', nullable: true, default: null })
-  removedAt: Date | null;
-
-  @ApiProperty({
-    description: 'Administrator who removed the Story.',
-    nullable: true,
-  })
-  @Column({ type: 'uuid', nullable: true, default: null })
-  removedByUserId: string | null;
-
-  @ApiProperty({
     description: 'Category recorded for the removal.',
     nullable: true,
   })
   @Column({ type: 'varchar', length: 50, nullable: true, default: null })
   moderationReasonCode: string | null;
-
-  @ApiProperty({
-    description: 'Explanation shown to the creator verbatim.',
-    nullable: true,
-  })
-  @Column({ type: 'varchar', length: 1000, nullable: true, default: null })
-  moderationMessage: string | null;
-
-  @ApiProperty({ description: 'When the Story was restored.', nullable: true })
-  @Column({ type: 'timestamp', nullable: true, default: null })
-  restoredAt: Date | null;
-
-  @ApiProperty({
-    description: 'Administrator who restored the Story.',
-    nullable: true,
-  })
-  @Column({ type: 'uuid', nullable: true, default: null })
-  restoredByUserId: string | null;
-
-  @ApiProperty({ description: 'User who created the Story.' })
-  @Column({ type: 'uuid', nullable: false })
-  createdByUserId: string;
-
-  @ApiProperty({ description: 'User who last updated the Story.' })
-  @Column({ type: 'uuid', nullable: false })
-  updatedByUserId: string;
-
-  @ApiProperty({
-    description: 'User who soft-deleted the Story.',
-    nullable: true,
-  })
-  @Column({ type: 'uuid', nullable: true, default: null })
-  deletedByUserId: string | null;
-
-  @ApiProperty({
-    description:
-      'Optimistic-concurrency version. Reorder and edit requests supply it so a stale write is rejected rather than silently overwriting.',
-  })
-  @Column({ type: 'integer', nullable: false, default: 1 })
-  version: number;
-
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
-
-  @DeleteDateColumn()
-  deletedAt: Date | null;
-
-  /**
-   * Gets the banner image URL at desktop size.
-   *
-   * @returns The image URL, or null when the Story has no banner.
-   */
-  get bannerImageUrl(): string | null {
-    return this.buildImageUrl(
-      this.bannerImageId,
-      STORYTIME_IMAGE_VARIANTS.BANNER_LARGE,
-    );
-  }
 
   /**
    * Gets the banner image URL at mobile size.
@@ -327,18 +139,6 @@ export class StorytimeStoryEntity {
   }
 
   /**
-   * Gets the profile image URL.
-   *
-   * @returns The image URL, or null when the Story has no profile image.
-   */
-  get profileImageUrl(): string | null {
-    return this.buildImageUrl(
-      this.profileImageId,
-      STORYTIME_IMAGE_VARIANTS.PROFILE_LARGE,
-    );
-  }
-
-  /**
    * Gets the profile image URL at card size.
    *
    * @returns The image URL, or null when the Story has no profile image.
@@ -348,27 +148,5 @@ export class StorytimeStoryEntity {
       this.profileImageId,
       STORYTIME_IMAGE_VARIANTS.PROFILE_SMALL,
     );
-  }
-
-  /**
-   * Builds a Cloudflare Images URL for a stored image ID.
-   *
-   * Returns null rather than a placeholder when there is no image: Storytime
-   * artwork is optional throughout, and a missing image must render as nothing
-   * at all rather than as an empty frame.
-   *
-   * @param imageId - The stored Cloudflare Images ID.
-   * @param variant - The variant to request.
-   * @returns The image URL, or null when no image is set.
-   */
-  private buildImageUrl(
-    imageId: string | null,
-    variant: string,
-  ): string | null {
-    if (!imageId) {
-      return null;
-    }
-
-    return buildCloudflareImageUrl(imageId, variant);
   }
 }

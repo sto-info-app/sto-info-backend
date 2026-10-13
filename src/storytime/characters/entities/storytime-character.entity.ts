@@ -1,18 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import {
-  Column,
-  CreateDateColumn,
-  DeleteDateColumn,
-  Entity,
-  Index,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Column, Entity, Index } from 'typeorm';
 
-import { buildCloudflareImageUrl } from '../../../shared/constants/image.constants';
+import {
+  ImageAltTextColumn,
+  ImageReferenceColumn,
+} from '../../../shared/entities/image-columns.decorator';
 import { STORYTIME_IMAGE_VARIANTS } from '../../constants/storytime-image.constants';
-import { StorytimeModerationStatus } from '../../enums/storytime-moderation-status.enum';
+import { StorytimeWorkEntity } from '../../shared/entities/storytime-work.entity';
 
 /**
  * A Character: somebody who appears in a Story.
@@ -29,14 +24,13 @@ import { StorytimeModerationStatus } from '../../enums/storytime-moderation-stat
  * There is no publication state either. A Character is visible exactly when
  * its Story is, because a cast list that could be published separately from
  * the Story it belongs to would only ever be half a cast list.
+ *
+ * The moderation and audit columns are shared with the other works through
+ * {@link StorytimeWorkEntity}.
  */
 @Entity({ name: 'storytime_character' })
 @Index(['storyId', 'displayOrder'])
-export class StorytimeCharacterEntity {
-  @ApiProperty({ description: 'Unique identifier.' })
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
+export class StorytimeCharacterEntity extends StorytimeWorkEntity {
   @ApiProperty({ description: 'The Story this Character belongs to.' })
   @Column({ type: 'uuid', nullable: false })
   storyId: string;
@@ -80,18 +74,10 @@ export class StorytimeCharacterEntity {
   @Column({ type: 'integer', nullable: false, default: 1 })
   biographySchemaVersion: number;
 
-  @ApiProperty({
-    description: 'Cloudflare Images ID for the portrait, 2:3.',
-    nullable: true,
-  })
-  @Column({ type: 'varchar', length: 160, nullable: true, default: null })
+  @ImageReferenceColumn('Cloudflare Images ID for the portrait, 2:3.')
   portraitImageId: string | null;
 
-  @ApiProperty({
-    description: 'Alternative text for the portrait.',
-    nullable: true,
-  })
-  @Column({ type: 'varchar', length: 300, nullable: true, default: null })
+  @ImageAltTextColumn('Alternative text for the portrait.')
   portraitImageAlt: string | null;
 
   @ApiProperty({ description: 'Species, as free text.', nullable: true })
@@ -137,89 +123,11 @@ export class StorytimeCharacterEntity {
   displayOrder: number;
 
   @ApiProperty({
-    enum: StorytimeModerationStatus,
-    description: 'Whether an administrator has removed the Character.',
-  })
-  @Column({
-    type: 'enum',
-    enum: StorytimeModerationStatus,
-    enumName: 'storytime_moderation_status_enum',
-    default: StorytimeModerationStatus.ACTIVE,
-  })
-  moderationStatus: StorytimeModerationStatus;
-
-  @ApiProperty({
-    description: 'When the Character was removed.',
-    nullable: true,
-  })
-  @Column({ type: 'timestamp', nullable: true, default: null })
-  removedAt: Date | null;
-
-  @ApiProperty({
-    description: 'Administrator who removed the Character.',
-    nullable: true,
-  })
-  @Column({ type: 'uuid', nullable: true, default: null })
-  removedByUserId: string | null;
-
-  @ApiProperty({
     description: 'Category recorded for the removal.',
     nullable: true,
   })
   @Column({ type: 'varchar', length: 50, nullable: true, default: null })
   moderationReasonCode: string | null;
-
-  @ApiProperty({
-    description: 'Explanation shown to the creator verbatim.',
-    nullable: true,
-  })
-  @Column({ type: 'varchar', length: 1000, nullable: true, default: null })
-  moderationMessage: string | null;
-
-  @ApiProperty({
-    description: 'When the Character was restored.',
-    nullable: true,
-  })
-  @Column({ type: 'timestamp', nullable: true, default: null })
-  restoredAt: Date | null;
-
-  @ApiProperty({
-    description: 'Administrator who restored the Character.',
-    nullable: true,
-  })
-  @Column({ type: 'uuid', nullable: true, default: null })
-  restoredByUserId: string | null;
-
-  @ApiProperty({ description: 'User who created the Character.' })
-  @Column({ type: 'uuid', nullable: false })
-  createdByUserId: string;
-
-  @ApiProperty({ description: 'User who last updated the Character.' })
-  @Column({ type: 'uuid', nullable: false })
-  updatedByUserId: string;
-
-  @ApiProperty({
-    description: 'User who soft-deleted the Character.',
-    nullable: true,
-  })
-  @Column({ type: 'uuid', nullable: true, default: null })
-  deletedByUserId: string | null;
-
-  @ApiProperty({
-    description:
-      'Optimistic-concurrency version, sent back on update so a stale edit is refused.',
-  })
-  @Column({ type: 'integer', nullable: false, default: 1 })
-  version: number;
-
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
-
-  @DeleteDateColumn()
-  deletedAt: Date | null;
 
   /**
    * Gets the portrait URL at full size.
@@ -243,27 +151,5 @@ export class StorytimeCharacterEntity {
       this.portraitImageId,
       STORYTIME_IMAGE_VARIANTS.PORTRAIT_SMALL,
     );
-  }
-
-  /**
-   * Builds a Cloudflare Images URL for a stored image ID.
-   *
-   * Returns null rather than a placeholder when there is no image: Storytime
-   * artwork is optional throughout, and a missing image must render as nothing
-   * at all rather than as an empty frame.
-   *
-   * @param imageId - The stored Cloudflare Images ID.
-   * @param variant - The variant to request.
-   * @returns The image URL, or null when no image is set.
-   */
-  private buildImageUrl(
-    imageId: string | null,
-    variant: string,
-  ): string | null {
-    if (!imageId) {
-      return null;
-    }
-
-    return buildCloudflareImageUrl(imageId, variant);
   }
 }
