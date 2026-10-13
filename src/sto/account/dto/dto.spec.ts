@@ -29,7 +29,7 @@ describe('CreateAccountRequestDto Validation', () => {
     for (const handle of validHandles) {
       (dto as any).handle = handle;
       const errors = await validate(dto);
-      expect(errors.length).toBe(0);
+      expect(errors).toHaveLength(0);
     }
   });
 
@@ -40,26 +40,13 @@ describe('CreateAccountRequestDto Validation', () => {
     expect(errors[0].constraints).toHaveProperty('matches');
   });
 
-  it('should fail if too short', async () => {
-    (dto as any).handle = 'St';
-    const errors = await validate(dto);
-    expect(errors.length).toBeGreaterThan(0);
-  });
-
-  it('should fail if too long (without hash)', async () => {
-    (dto as any).handle = 'Abcdefghijklmnopq'; // 17 chars
-    const errors = await validate(dto);
-    expect(errors.length).toBeGreaterThan(0);
-  });
-
-  it('should fail if hashtag has too few numbers', async () => {
-    (dto as any).handle = 'Steve#123';
-    const errors = await validate(dto);
-    expect(errors.length).toBeGreaterThan(0);
-  });
-
-  it('should fail with invalid characters', async () => {
-    (dto as any).handle = 'Steve@';
+  it.each([
+    ['is too short', 'St'],
+    ['is too long (without hash)', 'Abcdefghijklmnopq'], // 17 chars
+    ['has too few numbers after the hashtag', 'Steve#123'],
+    ['has invalid characters', 'Steve@'],
+  ])('should fail if the handle %s', async (_case, handle) => {
+    (dto as any).handle = handle;
     const errors = await validate(dto);
     expect(errors.length).toBeGreaterThan(0);
   });
@@ -80,14 +67,14 @@ describe('FindAccountsQueryDto Validation', () => {
   it('should accept an empty query', async () => {
     const errors = await validateQuery({});
 
-    expect(errors.length).toBe(0);
+    expect(errors).toHaveLength(0);
   });
 
   it('should accept every supported sort field', async () => {
     for (const sortBy of Object.values(AccountSortBy)) {
       const errors = await validateQuery({ sortBy });
 
-      expect(errors.length).toBe(0);
+      expect(errors).toHaveLength(0);
     }
   });
 
@@ -95,7 +82,7 @@ describe('FindAccountsQueryDto Validation', () => {
     for (const sortOrder of Object.values(AccountSortOrder)) {
       const errors = await validateQuery({ sortOrder });
 
-      expect(errors.length).toBe(0);
+      expect(errors).toHaveLength(0);
     }
   });
 
@@ -136,7 +123,7 @@ describe('UpdateAccountPinDto Validation', () => {
     for (const pinned of [true, false]) {
       const errors = await validatePin({ pinned });
 
-      expect(errors.length).toBe(0);
+      expect(errors).toHaveLength(0);
     }
   });
 

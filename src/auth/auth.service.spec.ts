@@ -928,7 +928,7 @@ describe('AuthService', () => {
   describe('utility methods', () => {
     it('generateToken should return hex string', () => {
       const t = service.generateToken();
-      expect(t.length).toBe(64);
+      expect(t).toHaveLength(64);
     });
 
     it('generateTokenExpiryDate should return future date', () => {

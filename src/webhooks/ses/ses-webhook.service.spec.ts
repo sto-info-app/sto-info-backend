@@ -382,30 +382,20 @@ describe('SesWebhookService', () => {
       expect(https.get).toHaveBeenCalled();
     });
 
-    it('should reject and return early for an invalid protocol', async () => {
-      await service.confirmSubscription('http://sns.amazonaws.com/confirm');
-      expect(https.get).not.toHaveBeenCalled();
-    });
-
-    it('should reject and return early for a malformed URL', async () => {
-      await service.confirmSubscription('not-a-url');
-      expect(https.get).not.toHaveBeenCalled();
-    });
-
-    it('should reject and return early for a non-AWS hostname', async () => {
-      await service.confirmSubscription('https://attacker.com/confirm');
-      expect(https.get).not.toHaveBeenCalled();
-    });
-
-    it('should reject and return early for an AWS hostname without sns label', async () => {
-      await service.confirmSubscription('https://ec2.amazonaws.com/confirm');
-      expect(https.get).not.toHaveBeenCalled();
-    });
-
-    it('should reject and return early for non-standard ports', async () => {
-      await service.confirmSubscription(
+    it.each([
+      ['an invalid protocol', 'http://sns.amazonaws.com/confirm'],
+      ['a malformed URL', 'not-a-url'],
+      ['a non-AWS hostname', 'https://attacker.com/confirm'],
+      [
+        'an AWS hostname without sns label',
+        'https://ec2.amazonaws.com/confirm',
+      ],
+      [
+        'non-standard ports',
         'https://sns.us-east-1.amazonaws.com:8080/confirm',
-      );
+      ],
+    ])('should reject and return early for %s', async (_case, url) => {
+      await service.confirmSubscription(url);
       expect(https.get).not.toHaveBeenCalled();
     });
 

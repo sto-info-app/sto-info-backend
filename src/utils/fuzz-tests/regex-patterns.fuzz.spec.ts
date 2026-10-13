@@ -19,46 +19,54 @@ describe('ValidatorsService Regex Fuzz Tests', () => {
   };
 
   it('should validate emails without catastrophic backtracking', async () => {
-    await fc.assert(
-      fc.asyncProperty(fc.string(), async input => {
-        await testWithTimeout(() => {
-          service.validateEmail(input);
-        });
-      }),
-      { numRuns },
-    );
+    await expect(
+      fc.assert(
+        fc.asyncProperty(fc.string(), async input => {
+          await testWithTimeout(() => {
+            service.validateEmail(input);
+          });
+        }),
+        { numRuns },
+      ),
+    ).resolves.toBeUndefined();
   });
 
   it('should validate usernames without catastrophic backtracking', async () => {
-    await fc.assert(
-      fc.asyncProperty(fc.string(), async input => {
-        await testWithTimeout(() => {
-          service.validateUsername(input);
-        });
-      }),
-      { numRuns },
-    );
+    await expect(
+      fc.assert(
+        fc.asyncProperty(fc.string(), async input => {
+          await testWithTimeout(() => {
+            service.validateUsername(input);
+          });
+        }),
+        { numRuns },
+      ),
+    ).resolves.toBeUndefined();
   });
 
   it('should validate passwords without catastrophic backtracking', async () => {
-    await fc.assert(
-      fc.asyncProperty(fc.string(), async input => {
-        await testWithTimeout(() => {
-          service.validatePassword(input);
-        });
-      }),
-      { numRuns },
-    );
+    await expect(
+      fc.assert(
+        fc.asyncProperty(fc.string(), async input => {
+          await testWithTimeout(() => {
+            service.validatePassword(input);
+          });
+        }),
+        { numRuns },
+      ),
+    ).resolves.toBeUndefined();
   });
 
   it('should validate UUIDs without catastrophic backtracking', async () => {
-    await fc.assert(
-      fc.asyncProperty(fc.string(), async input => {
-        await testWithTimeout(() => {
-          service.validateUuid(input);
-        });
-      }),
-      { numRuns },
-    );
+    await expect(
+      fc.assert(
+        fc.asyncProperty(fc.string(), async input => {
+          await testWithTimeout(() => {
+            service.validateUuid(input);
+          });
+        }),
+        { numRuns },
+      ),
+    ).resolves.toBeUndefined();
   });
 });

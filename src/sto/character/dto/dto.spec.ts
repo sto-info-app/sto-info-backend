@@ -50,7 +50,7 @@ describe('CreateCharacterRequestDto Validation', () => {
     for (const name of validNames) {
       (dto as any).handle = name;
       const errors = await validate(dto);
-      expect(errors.length).toBe(0);
+      expect(errors).toHaveLength(0);
     }
   });
 
@@ -112,7 +112,7 @@ describe('CreateCharacterRequestDto Validation', () => {
     it('should pass when recruitTypeId is a valid UUID', async () => {
       (dto as any).recruitTypeId = '550e8400-e29b-41d4-a716-446655440000';
       const errors = await validate(dto);
-      expect(errors.length).toBe(0);
+      expect(errors).toHaveLength(0);
     });
 
     it('should fail when recruitTypeId is not a valid UUID', async () => {
@@ -124,7 +124,7 @@ describe('CreateCharacterRequestDto Validation', () => {
 
     it('should pass when recruitTypeId is omitted', async () => {
       const errors = await validate(dto);
-      expect(errors.length).toBe(0);
+      expect(errors).toHaveLength(0);
     });
   });
 
@@ -132,34 +132,25 @@ describe('CreateCharacterRequestDto Validation', () => {
     it('should pass when createdDate is a calendar date', async () => {
       (dto as any).createdDate = '2024-01-01';
       const errors = await validate(dto);
-      expect(errors.length).toBe(0);
+      expect(errors).toHaveLength(0);
     });
 
-    /**
-     * An instant with an offset names two different days depending on where it
-     * is read, so it is refused rather than silently resolved to one of them.
-     */
-    it('should fail when createdDate is an instant rather than a day', async () => {
-      (dto as any).createdDate = '2024-01-01T00:00:00.000Z';
-      const errors = await validate(dto);
-      const fieldError = errors.find(e => e.property === 'createdDate');
-      expect(fieldError?.constraints).toHaveProperty('isCalendarDate');
-    });
-
-    it('should fail when createdDate is not a date at all', async () => {
-      (dto as any).createdDate = 'not-a-date';
-      const errors = await validate(dto);
-      const fieldError = errors.find(e => e.property === 'createdDate');
-      expect(fieldError?.constraints).toHaveProperty('isCalendarDate');
-    });
-
-    /**
-     * The pattern alone would accept this; the thirtieth of February is not a
-     * day, and storing it would move to the second of March the moment
-     * anything parsed it.
-     */
-    it('should fail when createdDate is a day that does not exist', async () => {
-      (dto as any).createdDate = '2024-02-30';
+    it.each([
+      /**
+       * An instant with an offset names two different days depending on where
+       * it is read, so it is refused rather than silently resolved to one of
+       * them.
+       */
+      ['an instant rather than a day', '2024-01-01T00:00:00.000Z'],
+      ['not a date at all', 'not-a-date'],
+      /**
+       * The pattern alone would accept this; the thirtieth of February is not
+       * a day, and storing it would move to the second of March the moment
+       * anything parsed it.
+       */
+      ['a day that does not exist', '2024-02-30'],
+    ])('should fail when createdDate is %s', async (_case, createdDate) => {
+      (dto as any).createdDate = createdDate;
       const errors = await validate(dto);
       const fieldError = errors.find(e => e.property === 'createdDate');
       expect(fieldError?.constraints).toHaveProperty('isCalendarDate');
@@ -170,13 +161,13 @@ describe('CreateCharacterRequestDto Validation', () => {
     it('should validate correctly with a valid level', async () => {
       (dto as any).level = 65;
       const errors = await validate(dto);
-      expect(errors.length).toBe(0);
+      expect(errors).toHaveLength(0);
     });
 
     it('should pass with level of 0 (boundary)', async () => {
       (dto as any).level = 0;
       const errors = await validate(dto);
-      expect(errors.length).toBe(0);
+      expect(errors).toHaveLength(0);
     });
 
     it('should fail with negative level', async () => {
@@ -205,7 +196,7 @@ describe('FindCharactersQueryDto Validation', () => {
   it('should accept an account on its own', async () => {
     const errors = await validateQuery({ accountId });
 
-    expect(errors.length).toBe(0);
+    expect(errors).toHaveLength(0);
   });
 
   it('should reject a missing account', async () => {
@@ -226,7 +217,7 @@ describe('FindCharactersQueryDto Validation', () => {
     for (const sortBy of Object.values(CharacterSortBy)) {
       const errors = await validateQuery({ accountId, sortBy });
 
-      expect(errors.length).toBe(0);
+      expect(errors).toHaveLength(0);
     }
   });
 
@@ -234,7 +225,7 @@ describe('FindCharactersQueryDto Validation', () => {
     for (const sortOrder of Object.values(CharacterSortOrder)) {
       const errors = await validateQuery({ accountId, sortOrder });
 
-      expect(errors.length).toBe(0);
+      expect(errors).toHaveLength(0);
     }
   });
 
@@ -275,7 +266,7 @@ describe('UpdateCharacterPinDto Validation', () => {
     for (const pinned of [true, false]) {
       const errors = await validatePin({ pinned });
 
-      expect(errors.length).toBe(0);
+      expect(errors).toHaveLength(0);
     }
   });
 

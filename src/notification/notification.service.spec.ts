@@ -18,12 +18,7 @@ import { NotificationService } from './notification.service';
  */
 const createQbMock = (overrides: Record<string, unknown> = {}) => {
   const qb: Record<string, jest.Mock> = {};
-  const chain =
-    () =>
-    (...args: unknown[]) => {
-      void args;
-      return qb;
-    };
+  const chain = () => () => qb;
   for (const method of [
     'where',
     'andWhere',

@@ -29,6 +29,10 @@ describe('AssetPublicationQueueService', () => {
     jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
   });
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   // FC-042: the failed job used to swallow every later request for the
   // same asset, silently, stranding it.
   it('sends a failed publication of the same asset round again instead', async () => {
@@ -49,10 +53,6 @@ describe('AssetPublicationQueueService', () => {
     expect(Logger.prototype.warn).toHaveBeenCalledWith(
       '[enqueue] Failed publication sent round again - AssetId: asset-1',
     );
-  });
-
-  afterEach(() => {
-    jest.restoreAllMocks();
   });
 
   it('queues an asset identifier and nothing else', async () => {

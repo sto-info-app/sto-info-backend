@@ -146,28 +146,14 @@ describe('SetLimitOverrideDto Validation', () => {
 
   // A key that does not match a configuration variable name would store an
   // exemption that no limit check ever reads.
-  it('should reject a lower-case limit key', async () => {
+  it.each([
+    ['is lower-case', 'storytime_max_stories_per_user'],
+    ['contains punctuation', 'STORYTIME.MAX-STORIES'],
+    ['is too short', 'AB'],
+  ])('should reject a limit key that %s', async (_case, limitKey) => {
     const { errors } = await validateDto(SetLimitOverrideDto, {
       ...validPayload,
-      limitKey: 'storytime_max_stories_per_user',
-    });
-
-    expect(errors.length).toBeGreaterThan(0);
-  });
-
-  it('should reject a limit key containing punctuation', async () => {
-    const { errors } = await validateDto(SetLimitOverrideDto, {
-      ...validPayload,
-      limitKey: 'STORYTIME.MAX-STORIES',
-    });
-
-    expect(errors.length).toBeGreaterThan(0);
-  });
-
-  it('should reject a limit key that is too short', async () => {
-    const { errors } = await validateDto(SetLimitOverrideDto, {
-      ...validPayload,
-      limitKey: 'AB',
+      limitKey,
     });
 
     expect(errors.length).toBeGreaterThan(0);

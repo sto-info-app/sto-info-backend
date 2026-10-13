@@ -131,7 +131,7 @@ describe('exact game name', () => {
      */
     it('counts an astral character once', () => {
       expect(countCodepoints('🖖')).toBe(1);
-      expect('🖖'.length).toBe(2);
+      expect('🖖').toHaveLength(2);
       expect(isValidExactGameName('🖖'.repeat(64))).toBe(true);
       expect(isValidExactGameName('🖖'.repeat(65))).toBe(false);
     });

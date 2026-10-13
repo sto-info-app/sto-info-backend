@@ -501,7 +501,7 @@ describe('RosterImportsController', () => {
       reply(),
     );
 
-    expect(file.buffer.length).toBe(0);
+    expect(file.buffer).toHaveLength(0);
   });
 
   // So the upload and the listing cannot describe one import two ways.
