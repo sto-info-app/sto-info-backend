@@ -43,9 +43,8 @@ export default {
     '!**/*.constants.(t|j)s',
     // Exclude database migrations
     '!**/database/migrations/**',
-    // Exclude build scripts
+    // Exclude compiled build scripts
     '!**/views/**/*.js',
-    '!**/views/copy-email-templates-to-dist.ts',
     // Exclude barrel export files (index.ts files that just re-export)
     '!**/index.ts',
     // Exclude express type augmentation
