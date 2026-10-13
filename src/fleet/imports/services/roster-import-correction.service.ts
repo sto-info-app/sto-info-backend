@@ -50,10 +50,10 @@ import {
 } from './roster-typed-parser.service';
 
 /** The placement states an import can be corrected in. */
-const CORRECTABLE: readonly FileAssetPlacementState[] = [
+const CORRECTABLE: ReadonlySet<FileAssetPlacementState> = new Set([
   FileAssetPlacementState.ACTIVE,
   FileAssetPlacementState.HELD,
-];
+]);
 
 /**
  * The four date columns of an observation, each with the column the export
@@ -889,7 +889,7 @@ export class RosterImportCorrectionService {
       );
     }
 
-    if (state === null || !CORRECTABLE.includes(state)) {
+    if (state === null || !CORRECTABLE.has(state)) {
       throw new ConflictException(
         'Only an import in force, or waiting on a conflicting export, can be ' +
           'corrected.',

@@ -12,10 +12,10 @@ import {
 import { ReportStatus } from '../../../moderation/enums/report-status.enum';
 
 /** The statuses a report is still live in, where no resolution is due. */
-const LIVE_REPORT_STATUSES: readonly ReportStatus[] = [
+const LIVE_REPORT_STATUSES: ReadonlySet<ReportStatus> = new Set([
   ReportStatus.OPEN,
   ReportStatus.UNDER_REVIEW,
-];
+]);
 
 /** Trims a string value, leaving anything else for the validators. */
 const trim = ({ value }: { value: unknown }) =>
@@ -44,8 +44,7 @@ export class ResolveStorytimeReportDto {
   })
   @ValidateIf(
     (dto: ResolveStorytimeReportDto) =>
-      dto.resolution !== undefined ||
-      !LIVE_REPORT_STATUSES.includes(dto.status),
+      dto.resolution !== undefined || !LIVE_REPORT_STATUSES.has(dto.status),
   )
   @Transform(trim)
   @IsString()

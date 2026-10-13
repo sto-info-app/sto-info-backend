@@ -175,10 +175,11 @@ export class ImageInventoryService {
 
     try {
       cloudflare = await this.reconcileCloudflare();
-    } catch (failure: unknown) {
-      error = (
-        failure instanceof Error ? failure.message : String(failure)
-      ).slice(0, 500);
+    } catch (error_: unknown) {
+      error = (error_ instanceof Error ? error_.message : String(error_)).slice(
+        0,
+        500,
+      );
       this._logger.error(
         `[run] Cloudflare's listing could not be read - InventoryId: ${inventoryId}`,
       );

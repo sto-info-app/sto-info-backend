@@ -36,14 +36,14 @@ export const MARKDOWN_FENCED_CODE_BLOCK_PATTERN = /```([\s\S]*?)```/g;
  * Any occurrence of this character in the incoming source is stripped before
  * extraction, so an author cannot forge a placeholder either.
  */
-export const CODE_PLACEHOLDER_SENTINEL = String.fromCharCode(0xe000);
+export const CODE_PLACEHOLDER_SENTINEL = String.fromCodePoint(0xe000);
 
 /** Placeholder standing in for an extracted fenced code block. */
-export const MARKDOWN_CODE_PLACEHOLDER_PATTERN = /\uE000CODE([0-9]+)\uE000/g;
+export const MARKDOWN_CODE_PLACEHOLDER_PATTERN = /\uE000CODE(\d+)\uE000/g;
 
 /** A block consisting solely of a code placeholder. */
 export const MARKDOWN_CODE_PLACEHOLDER_BLOCK_PATTERN =
-  /^\uE000CODE([0-9]+)\uE000$/;
+  /^\uE000CODE(\d+)\uE000$/;
 
 /** Any use of the sentinel in author-supplied source, which must be stripped. */
 export const CODE_PLACEHOLDER_SENTINEL_PATTERN = /\uE000/g;

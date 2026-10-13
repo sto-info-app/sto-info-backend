@@ -171,8 +171,6 @@ export class StorytimeArcCollaboratorService {
     );
 
     const { canPublish, userId, ...capabilities } = dto;
-    void canPublish;
-    void userId;
 
     Object.assign(collaborator, capabilities);
     // Belt and braces alongside the DTO and the check constraint.

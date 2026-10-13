@@ -540,7 +540,7 @@ export class RosterImportIngressService {
 
     try {
       await this._quarantineStorage.remove(loser.objectKey);
-    } catch (removal: unknown) {
+    } catch (error_: unknown) {
       // The row already says nothing may serve these bytes. An object left
       // behind is an orphan in a private bucket, which W10's inventory finds;
       // failing the upload over it would tell somebody their file was
@@ -548,7 +548,7 @@ export class RosterImportIngressService {
       this._logger.error(
         `[accept] Could not remove a repeated upload's copy - ` +
           `AssetId: ${loser.assetId}, ` +
-          `Reason: ${removal instanceof Error ? removal.message : 'unknown'}`,
+          `Reason: ${error_ instanceof Error ? error_.message : 'unknown'}`,
       );
     }
 

@@ -151,9 +151,11 @@ export class RosterRankOrderService {
       const unseen = next.flat().filter(label => !seen.has(label));
 
       if (unseen.length > 0) {
+        const quotedUnseen = unseen.map(label => `"${label}"`).join(', ');
+
         throw new BadRequestException(
           'Only labels this Fleet’s imports have listed can be placed. None ' +
-            `has listed ${unseen.map(label => `"${label}"`).join(', ')}.`,
+            `has listed ${quotedUnseen}.`,
         );
       }
 

@@ -82,8 +82,7 @@ export class ChatNoticeHandler
     });
 
     if (
-      message === null ||
-      message.deletedAt !== null ||
+      message?.deletedAt !== null ||
       message.createdAt < this._messages.windowStart() ||
       (await this._direct.blockedFor(notice.userId)).has(
         message.authorUserId as string,
@@ -123,7 +122,8 @@ export class ChatNoticeHandler
         notice.userId,
       );
       const place = await scopePlaceOf(manager, channel);
-      const where = `${channel.name}${place === null ? '' : ` (${place.name})`}`;
+      const placeSuffix = place === null ? '' : ` (${place.name})`;
+      const where = `${channel.name}${placeSuffix}`;
       const mentioned = notice.kind === NotificationOutboxKind.CHAT_MENTION;
 
       return {

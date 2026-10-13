@@ -142,13 +142,18 @@ export class ScopeEventAccessService {
     event: Pick<ScopeEventEntity, 'communityId' | 'fleetId' | 'armadaId'>,
     userId: string,
   ): Promise<EventViewer | null> {
+    let kind: FleetScopeKind;
+
+    if (event.fleetId !== null) {
+      kind = FleetScopeKind.FLEET;
+    } else if (event.armadaId !== null) {
+      kind = FleetScopeKind.ARMADA;
+    } else {
+      kind = FleetScopeKind.COMMUNITY;
+    }
+
     const scope: GovernanceScope = {
-      kind:
-        event.fleetId !== null
-          ? FleetScopeKind.FLEET
-          : event.armadaId !== null
-            ? FleetScopeKind.ARMADA
-            : FleetScopeKind.COMMUNITY,
+      kind,
       communityId: event.communityId,
       fleetId: event.fleetId,
       armadaId: event.armadaId,

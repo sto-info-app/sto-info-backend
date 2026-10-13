@@ -25,7 +25,7 @@ export interface CharacterCommendationSummary {
  * other value - "Undecided", or a captain with no allegiance recorded - earns
  * only the categories shared by both factions.
  */
-const FACTION_RESTRICTIONS = ['Federation', 'Klingon'];
+const FACTION_RESTRICTIONS = new Set(['Federation', 'Klingon']);
 
 @Injectable()
 export class CharacterCommendationService {
@@ -70,7 +70,7 @@ export class CharacterCommendationService {
   ): Promise<CharacterCommendationEntity[]> {
     const order = { sortOrder: 'ASC', name: 'ASC' } as const;
 
-    if (!generalFaction || !FACTION_RESTRICTIONS.includes(generalFaction)) {
+    if (!generalFaction || !FACTION_RESTRICTIONS.has(generalFaction)) {
       return this._commendationRepository.find({
         where: { factionRestriction: IsNull() },
         order,

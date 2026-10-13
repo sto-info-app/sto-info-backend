@@ -16,7 +16,7 @@ import {
  * Constrained so a client cannot store arbitrary text in a field the reader
  * page will later look up as an element id.
  */
-const BLOCK_ANCHOR_PATTERN = /^b[0-9]{1,6}$/;
+const BLOCK_ANCHOR_PATTERN = /^b\d{1,6}$/;
 
 /**
  * Reports how far a reader has got through a Chapter.

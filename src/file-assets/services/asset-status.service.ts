@@ -53,7 +53,7 @@ export class AssetStatusService {
   async report(assetId: string, viewerId: string): Promise<AssetStatusReport> {
     const asset = await this._fileAssets.findById(assetId);
 
-    if (asset === null || asset.ownerUserId !== viewerId) {
+    if (asset?.ownerUserId !== viewerId) {
       throw new NotFoundException('No such upload');
     }
 

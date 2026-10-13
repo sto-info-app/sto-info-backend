@@ -316,7 +316,7 @@ export class StorytimeCrewCreditService {
         where: { id: chapterId },
       });
 
-      if (!chapter || chapter.storyId !== storyId) {
+      if (chapter?.storyId !== storyId) {
         throw new BadRequestException(
           'That Chapter does not belong to this Story.',
         );
@@ -328,7 +328,7 @@ export class StorytimeCrewCreditService {
         where: { id: characterId },
       });
 
-      if (!character || character.storyId !== storyId) {
+      if (character?.storyId !== storyId) {
         throw new BadRequestException(
           'That Character does not belong to this Story.',
         );

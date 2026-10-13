@@ -1,4 +1,4 @@
-import { Readable } from 'stream';
+import { Readable } from 'node:stream';
 
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 

@@ -1,4 +1,4 @@
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 
 import { InjectQueue } from '@nestjs/bullmq';
 import { ConflictException, Injectable, Logger } from '@nestjs/common';
@@ -251,19 +251,20 @@ export class ImageEstateService {
       where: { id: runId },
     });
 
-    if (run === null || run.state !== ImageEstateRunState.RUNNING) {
+    if (run?.state !== ImageEstateRunState.RUNNING) {
       return;
     }
 
     let handled: number;
 
     try {
-      handled =
-        run.kind === ImageEstateRunKind.COPY
-          ? await this.copyBatch(run)
-          : run.kind === ImageEstateRunKind.UNDO
-            ? await this.undoBatch(run)
-            : await this.retireBatch(run);
+      if (run.kind === ImageEstateRunKind.COPY) {
+        handled = await this.copyBatch(run);
+      } else if (run.kind === ImageEstateRunKind.UNDO) {
+        handled = await this.undoBatch(run);
+      } else {
+        handled = await this.retireBatch(run);
+      }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
 

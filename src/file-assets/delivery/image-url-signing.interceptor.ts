@@ -57,7 +57,7 @@ export function readImageAddress(
       value,
     );
 
-  if (match === null || match[2] !== hash) {
+  if (match?.[2] !== hash) {
     return null;
   }
 

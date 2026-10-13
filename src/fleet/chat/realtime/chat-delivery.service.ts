@@ -250,7 +250,11 @@ export class ChatDeliveryService {
             ).flat();
 
       for (const socket of sockets) {
-        for (const room of [...socket.rooms]) {
+        // A copy, because leave() takes the room out of the live set while
+        // this loop is still waiting on the check for it.
+        const rooms = [...socket.rooms];
+
+        for (const room of rooms) {
           const place = placeOfRoom(room);
 
           if (
@@ -556,7 +560,10 @@ export class ChatDeliveryService {
     for (const userId of change.userIds) {
       this._blocks.delete(userId);
 
-      for (const key of [...this._checks.keys()]) {
+      // A copy of the keys, so none is deleted from under the loop.
+      const keys = [...this._checks.keys()];
+
+      for (const key of keys) {
         if (key.includes(userId)) {
           this._checks.delete(key);
         }

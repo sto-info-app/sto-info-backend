@@ -21,11 +21,11 @@ import { StorytimeArcService } from './storytime-arc.service';
  * Statuses in which a Story is considered part of an Arc for the purpose of
  * refusing a second, overlapping request.
  */
-const LIVE_STATUSES = [
+const LIVE_STATUSES = new Set([
   ArcMembershipStatus.REQUESTED,
   ArcMembershipStatus.INVITED,
   ArcMembershipStatus.APPROVED,
-];
+]);
 
 /**
  * Getting a Story into an Arc, and out again.
@@ -428,7 +428,7 @@ export class StorytimeArcMembershipService {
       where: { arcId, storyId },
     });
 
-    if (existing && LIVE_STATUSES.includes(existing.membershipStatus)) {
+    if (existing && LIVE_STATUSES.has(existing.membershipStatus)) {
       throw new BadRequestException(
         'That Story is already in this Arc, or waiting on an answer.',
       );

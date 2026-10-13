@@ -250,19 +250,13 @@ export class StorytimeCharacterService {
     // down is told so, rather than that it never existed. A Character has no
     // publication state of its own — its Story's readability is the gate, and
     // the caller has already passed it to get here.
-    if (
-      character &&
-      character.moderationStatus === StorytimeModerationStatus.REMOVED
-    ) {
+    if (character?.moderationStatus === StorytimeModerationStatus.REMOVED) {
       throw new GoneException(
         'This Character has been removed by an administrator.',
       );
     }
 
-    if (
-      !character ||
-      character.moderationStatus !== StorytimeModerationStatus.ACTIVE
-    ) {
+    if (character?.moderationStatus !== StorytimeModerationStatus.ACTIVE) {
       return null;
     }
 
@@ -476,10 +470,6 @@ export class StorytimeCharacterService {
     // Name, slug, biography, traits and version are handled by the caller,
     // which has to render, retire slugs and tidy traits alongside them.
     const { name, slug, biographySource, traits, version, ...changes } = dto;
-    void name;
-    void slug;
-    void biographySource;
-    void version;
 
     Object.assign(character, changes);
 

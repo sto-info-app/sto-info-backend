@@ -128,7 +128,9 @@ export function assertRosterFilenameUsable(filename: string): void {
  */
 function hasUnusableCharacter(filename: string): boolean {
   for (let index = 0; index < filename.length; index += 1) {
-    const code = filename.charCodeAt(index);
+    // Read by code point, the index always inside the name. Only ASCII is
+    // compared, so a surrogate pair is passed over just as its halves were.
+    const code = filename.codePointAt(index)!;
 
     if (code < FIRST_PRINTABLE_CHARACTER || code === DELETE_CHARACTER) {
       return true;

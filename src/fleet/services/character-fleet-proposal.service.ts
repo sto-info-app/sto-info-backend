@@ -151,7 +151,7 @@ export class CharacterFleetProposalService {
     // One question per Fleet, however many proposals it has raised.
     const visibility = new Map<string, Promise<boolean>>();
     const shown = await Promise.all(
-      proposals.map(proposal => {
+      proposals.map(async proposal => {
         if (!this._isUnanswered(proposal)) {
           return true;
         }

@@ -31,6 +31,13 @@ const STORY_JOIN = `LEFT JOIN ${S}."storytime_story" story ON story."id" = row."
 /** The Community a Fleet or Armada belongs to. */
 const COMMUNITY_JOIN = `LEFT JOIN ${S}."fleet_community" community ON community."id" = row."communityId"`;
 
+/** The placement subject of each Fleet Community table's pictures. */
+const FLEET_SUBJECTS = {
+  fleet_community: FileAssetSubject.FLEET_COMMUNITY,
+  sto_fleet: FileAssetSubject.FLEET,
+  sto_armada: FileAssetSubject.ARMADA,
+} as const;
+
 /** Every column that holds a picture, and what each one's picture is. */
 export const IMAGE_REFERENCE_COLUMNS: readonly ImageReferenceColumn[] = [
   {
@@ -153,12 +160,7 @@ export const IMAGE_REFERENCE_COLUMNS: readonly ImageReferenceColumn[] = [
       column,
       rowId: 'id',
       kind: FileAssetKind.FLEET_IMAGE,
-      subject:
-        table === 'fleet_community'
-          ? FileAssetSubject.FLEET_COMMUNITY
-          : table === 'sto_fleet'
-            ? FileAssetSubject.FLEET
-            : FileAssetSubject.ARMADA,
+      subject: FLEET_SUBJECTS[table],
       slot,
       subjectIdSql: 'row."id"::text',
       ...(table === 'fleet_community'

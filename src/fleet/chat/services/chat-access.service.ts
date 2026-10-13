@@ -137,13 +137,18 @@ export class ChatAccessService {
   scopeOf(
     channel: Pick<ChatChannelEntity, 'communityId' | 'fleetId' | 'armadaId'>,
   ): GovernanceScope {
+    let kind: FleetScopeKind;
+
+    if (channel.fleetId !== null) {
+      kind = FleetScopeKind.FLEET;
+    } else if (channel.armadaId !== null) {
+      kind = FleetScopeKind.ARMADA;
+    } else {
+      kind = FleetScopeKind.COMMUNITY;
+    }
+
     return {
-      kind:
-        channel.fleetId !== null
-          ? FleetScopeKind.FLEET
-          : channel.armadaId !== null
-            ? FleetScopeKind.ARMADA
-            : FleetScopeKind.COMMUNITY,
+      kind,
       communityId: channel.communityId,
       fleetId: channel.fleetId,
       armadaId: channel.armadaId,

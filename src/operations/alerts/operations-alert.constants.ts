@@ -1,5 +1,3 @@
-import { REDIS_TIMEOUT_MS } from 'src/shared/queue/redis-within.utility';
-
 /**
  * The thresholds the operations alert cron judges by (FC-042).
  *
@@ -55,7 +53,7 @@ export const PURGE_OWED_HOURS = 24;
  * nothing to talk to queues commands rather than failing them, so without a
  * limit the run would wait for as long as the outage lasts.
  */
-export const QUEUE_PROBE_TIMEOUT_MS = REDIS_TIMEOUT_MS;
+export { REDIS_TIMEOUT_MS as QUEUE_PROBE_TIMEOUT_MS } from 'src/shared/queue/redis-within.utility';
 
 /**
  * How many prioritised jobs are looked at to find the oldest. Only rescans

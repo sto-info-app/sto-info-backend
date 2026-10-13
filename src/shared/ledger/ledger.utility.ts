@@ -67,7 +67,9 @@ export function ledgerKey(
   id: string,
   kind?: string,
 ): string {
-  return `${prefix}${createdAt}_${id}${kind === undefined ? '' : `_${kind}`}.json`;
+  const kindSuffix = kind === undefined ? '' : `_${kind}`;
+
+  return `${prefix}${createdAt}_${id}${kindSuffix}.json`;
 }
 
 /**

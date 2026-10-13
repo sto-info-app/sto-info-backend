@@ -132,8 +132,9 @@ export class StorytimeChapterMediaEntity {
     }
 
     const query = parameters.toString();
+    const search = query ? `?${query}` : '';
 
-    return `${YOUTUBE_EMBED_HOST}/embed/${this.externalId}${query ? `?${query}` : ''}`;
+    return `${YOUTUBE_EMBED_HOST}/embed/${this.externalId}${search}`;
   }
 
   /**

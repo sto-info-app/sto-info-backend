@@ -1,4 +1,4 @@
-import { Readable } from 'stream';
+import { Readable } from 'node:stream';
 
 import { InjectQueue } from '@nestjs/bullmq';
 import {
@@ -607,15 +607,21 @@ export class ChatTranscriptService {
         scope: ScopePlace | null;
       };
 
+      let scopeKind: FleetScopeKind;
+
+      if (place.channel.fleetId) {
+        scopeKind = FleetScopeKind.FLEET;
+      } else if (place.channel.armadaId) {
+        scopeKind = FleetScopeKind.ARMADA;
+      } else {
+        scopeKind = FleetScopeKind.COMMUNITY;
+      }
+
       return {
         id: transcript.id,
         channelId: transcript.channelId,
         channelName: place.channel.name,
-        scopeKind: place.channel.fleetId
-          ? FleetScopeKind.FLEET
-          : place.channel.armadaId
-            ? FleetScopeKind.ARMADA
-            : FleetScopeKind.COMMUNITY,
+        scopeKind,
         scopeName: place.scope?.name ?? null,
         purpose: transcript.purpose,
         fromAt: transcript.fromAt,
@@ -713,7 +719,7 @@ function filenameOf(
     channel.name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'channel';
+      .replace(/^-|-$/g, '') || 'channel';
 
   return `chat-${slug}-${stamp(transcript.toAt).slice(0, 10)}.txt`;
 }

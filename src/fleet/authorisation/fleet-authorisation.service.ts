@@ -328,7 +328,7 @@ export class FleetAuthorisationService {
       },
     });
 
-    if (!fleet || fleet.communityId === null) {
+    if (fleet?.communityId == null) {
       return null;
     }
 
@@ -702,10 +702,7 @@ export class FleetAuthorisationService {
     for (const capability of held) {
       const definition = FLEET_CAPABILITY_BY_CODE.get(capability);
 
-      if (
-        definition === undefined ||
-        !definition.scopeKinds.includes(scope.kind)
-      ) {
+      if (!definition?.scopeKinds.includes(scope.kind)) {
         continue;
       }
 

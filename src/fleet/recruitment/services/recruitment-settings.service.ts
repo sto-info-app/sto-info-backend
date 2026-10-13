@@ -285,7 +285,7 @@ function normaliseQuestions(
     const options = question.options.map(option => option.trim());
 
     if (question.kind === ApplicationQuestionKind.SINGLE_CHOICE) {
-      if (options.length < 2 || options.some(option => option === '')) {
+      if (options.length < 2 || options.includes('')) {
         throw new BadRequestException(
           'A single-choice question needs at least two options, none of them blank.',
         );

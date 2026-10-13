@@ -4,8 +4,9 @@ import { ConfigService } from '@nestjs/config';
 import { NextFunction, Request, Response } from 'express';
 import * as jwt from 'jsonwebtoken';
 
-// Declares req.clientIp, which CloudflareOrigin sets before this runs.
-import type {} from 'src/common/http/cloudflare-origin';
+// Declares req.clientIp, which CloudflareOrigin sets before this runs. Loaded
+// for its declaration, so every compiler sees it, ts-node's scripts included.
+import 'src/common/http/cloudflare-origin';
 
 import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
 import { SecretsService } from 'src/shared/secrets/secrets.service';

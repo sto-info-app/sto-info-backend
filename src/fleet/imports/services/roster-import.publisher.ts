@@ -131,7 +131,7 @@ export class RosterImportPublisher
       where: { id: attachment.subjectId },
     });
 
-    if (record === null || record.assetId !== attachment.assetId) {
+    if (record?.assetId !== attachment.assetId) {
       return this.refuse(
         attachment,
         RosterPublicationRejectionCode.NOT_THIS_IMPORT,

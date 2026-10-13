@@ -8,6 +8,16 @@ import { StorytimeSpotlightEntity } from './entities/storytime-spotlight.entity'
 import { SpotlightWithTarget } from './storytime-spotlight.service';
 
 /**
+ * The work of an entry whose Story or Arc can no longer be shown. A fresh
+ * one each time, so no two entries share a tag list.
+ *
+ * @returns No work, and no tags.
+ */
+function noWork(): Omit<SpotlightWithTarget, 'entry'> {
+  return { story: null, arc: null, author: null, tags: [] };
+}
+
+/**
  * Turns Spotlight entries into the shapes the API returns.
  *
  * Two shapes, built separately rather than one with fields stripped
@@ -89,12 +99,7 @@ export class StorytimeSpotlightMapper {
    */
   toManaged(
     entry: StorytimeSpotlightEntity,
-    work: Omit<SpotlightWithTarget, 'entry'> = {
-      story: null,
-      arc: null,
-      author: null,
-      tags: [],
-    },
+    work: Omit<SpotlightWithTarget, 'entry'> = noWork(),
   ): ManagedSpotlightDto {
     return {
       ...this.toPublic({ entry, ...work }),

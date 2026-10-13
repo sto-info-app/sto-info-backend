@@ -38,7 +38,7 @@ import { StorytimeChapterEntity } from './entities/storytime-chapter.entity';
  * The statuses a Chapter must hold to be readable by the public, assuming its
  * Story is readable too.
  */
-const PUBLICLY_READABLE_STATUSES = [ChapterStatus.PUBLISHED];
+const PUBLICLY_READABLE_STATUSES = new Set([ChapterStatus.PUBLISHED]);
 
 /**
  * Neighbouring Chapters, for previous/next navigation.
@@ -301,7 +301,7 @@ export class StorytimeChapterService {
     // were published: saying "removed" about a draft would confirm it exists.
     if (
       chapter &&
-      PUBLICLY_READABLE_STATUSES.includes(chapter.status) &&
+      PUBLICLY_READABLE_STATUSES.has(chapter.status) &&
       chapter.moderationStatus === StorytimeModerationStatus.REMOVED
     ) {
       throw new GoneException(
@@ -719,7 +719,7 @@ export class StorytimeChapterService {
    */
   private isPubliclyReadable(chapter: StorytimeChapterEntity): boolean {
     return (
-      PUBLICLY_READABLE_STATUSES.includes(chapter.status) &&
+      PUBLICLY_READABLE_STATUSES.has(chapter.status) &&
       chapter.moderationStatus === StorytimeModerationStatus.ACTIVE
     );
   }
@@ -816,9 +816,6 @@ export class StorytimeChapterService {
     dto: UpdateChapterDto,
   ): void {
     const { slug, version, contentSource, ...changes } = dto;
-    void slug;
-    void version;
-    void contentSource;
 
     Object.assign(chapter, changes);
 

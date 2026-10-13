@@ -36,11 +36,11 @@ export const ASSET_DENY_REPLAYED_REASON =
 export const ASSET_DENY_REPLAYED_CODE = 'RESTORED_FROM_LEDGER';
 
 /** The placements a denied asset can no longer fill. */
-const OPEN_PLACEMENT_STATES: readonly FileAssetPlacementState[] = [
+const OPEN_PLACEMENT_STATES: ReadonlySet<FileAssetPlacementState> = new Set([
   FileAssetPlacementState.PENDING,
   FileAssetPlacementState.ACTIVE,
   FileAssetPlacementState.HELD,
-];
+]);
 
 /** What the check did about one marker the database lacked. */
 type DenyOutcome =
@@ -198,7 +198,7 @@ export class AssetDenyReconciliationService {
   ): Promise<DenyOutcome> {
     const placement = await this._placements.findByAssetId(asset.id);
 
-    if (placement !== null && OPEN_PLACEMENT_STATES.includes(placement.state)) {
+    if (placement !== null && OPEN_PLACEMENT_STATES.has(placement.state)) {
       await this._placements.settle(
         placement,
         FileAssetPlacementState.WITHDRAWN,

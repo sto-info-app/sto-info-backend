@@ -31,7 +31,7 @@ export type SessionTimeoutMinutes =
 export function isAllowedSessionTimeoutMinutes(
   value: number,
 ): value is SessionTimeoutMinutes {
-  return SESSION_TIMEOUT_OPTIONS_MINUTES.some(option => option === value);
+  return (SESSION_TIMEOUT_OPTIONS_MINUTES as readonly number[]).includes(value);
 }
 
 /**

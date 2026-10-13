@@ -1,4 +1,4 @@
-import { createHmac } from 'crypto';
+import { createHmac } from 'node:crypto';
 
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 

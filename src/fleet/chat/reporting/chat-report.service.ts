@@ -239,7 +239,7 @@ export class ChatReportService {
         deleted: held.deleted,
         sentAt: held.sentAt,
       })),
-      messageRemoved: message === null || message.deletedAt !== null,
+      messageRemoved: message?.deletedAt !== null,
       resolutionNote: report.resolutionNote,
       resolvedBy: personOf(report.resolvedByUserId, resolver ?? null),
       resolvedAt: report.resolvedAt,
@@ -318,7 +318,7 @@ export class ChatReportService {
       where: { id: report.messageId },
     });
 
-    if (message === null || message.deletedAt !== null) {
+    if (message?.deletedAt !== null) {
       throw new ConflictException('That message is already gone.');
     }
 

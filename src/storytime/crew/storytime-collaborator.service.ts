@@ -179,7 +179,6 @@ export class StorytimeCollaboratorService {
     );
 
     const { canPublish, ...capabilities } = dto;
-    void canPublish;
 
     Object.assign(collaborator, capabilities);
     // Belt and braces alongside the DTO and the check constraint: publishing

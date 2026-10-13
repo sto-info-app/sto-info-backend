@@ -30,6 +30,25 @@ function trimmed({ value }: { value: unknown }): unknown {
   return typeof value === 'string' ? value.trim() : value;
 }
 
+/**
+ * Reads a query string's `true` or `false` as a boolean, leaving anything
+ * else for the validators to refuse.
+ *
+ * @param value - What was sent.
+ * @returns It, as a boolean where it is one.
+ */
+function booleanQuery({ value }: { value: unknown }): unknown {
+  if (value === 'true') {
+    return true;
+  }
+
+  if (value === 'false') {
+    return false;
+  }
+
+  return value;
+}
+
 /** Placing a hold (FC-036). */
 export class ModerationHoldPlaceDto {
   @ApiProperty({ enum: ModerationHoldKind })
@@ -109,9 +128,7 @@ export class ModerationHoldReadDto {
 export class ModerationHoldsQueryDto {
   @ApiPropertyOptional({ description: 'Only holds still in force.' })
   @IsOptional()
-  @Transform(({ value }: { value: unknown }) =>
-    value === 'true' ? true : value === 'false' ? false : value,
-  )
+  @Transform(booleanQuery)
   @IsBoolean()
   readonly active?: boolean;
 }

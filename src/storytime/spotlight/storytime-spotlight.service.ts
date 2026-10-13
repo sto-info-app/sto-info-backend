@@ -304,12 +304,15 @@ export class StorytimeSpotlightService {
     const previousSlug = entry.slug;
 
     const startsAt = dto.startsAt ? new Date(dto.startsAt) : entry.startsAt;
-    const endsAt =
-      dto.endsAt === undefined
-        ? entry.endsAt
-        : dto.endsAt === null
-          ? null
-          : new Date(dto.endsAt);
+    let endsAt: Date | null;
+
+    if (dto.endsAt === undefined) {
+      endsAt = entry.endsAt;
+    } else if (dto.endsAt === null) {
+      endsAt = null;
+    } else {
+      endsAt = new Date(dto.endsAt);
+    }
 
     this.assertPeriod(startsAt, endsAt);
 

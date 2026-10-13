@@ -498,10 +498,7 @@ export class ModerationHoldService {
         lock: { mode: 'pessimistic_write' },
       });
 
-      if (
-        current === null ||
-        current.reviewAt.getTime() !== hold.reviewAt.getTime()
-      ) {
+      if (current?.reviewAt.getTime() !== hold.reviewAt.getTime()) {
         return false;
       }
 

@@ -726,7 +726,7 @@ export class ScopeNewsService {
    * @returns What to store.
    */
   private summaryOf(summary: string | null | undefined): string | null {
-    return summary ? summary : null;
+    return summary || null;
   }
 
   /**

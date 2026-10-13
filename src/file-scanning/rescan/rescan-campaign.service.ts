@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import { InjectQueue } from '@nestjs/bullmq';
 import { ConflictException, Injectable, Logger } from '@nestjs/common';
@@ -347,7 +347,7 @@ export class RescanCampaignService {
       where: { id: campaignId },
     });
 
-    if (campaign === null || campaign.state !== RescanCampaignState.RUNNING) {
+    if (campaign?.state !== RescanCampaignState.RUNNING) {
       return;
     }
 

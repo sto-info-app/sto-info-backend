@@ -42,16 +42,16 @@ const DEFAULT_PAGE_SIZE = 12;
 /**
  * Statuses a Story can hold and still be reachable by the public.
  */
-const PUBLICLY_READABLE_STATUSES = [StoryStatus.PUBLISHED];
+const PUBLICLY_READABLE_STATUSES = new Set([StoryStatus.PUBLISHED]);
 
 /**
  * Visibilities that allow a published Story to be opened by anyone holding a
  * link. `PRIVATE` is excluded: it is readable only by the owner.
  */
-const PUBLICLY_READABLE_VISIBILITIES = [
+const PUBLICLY_READABLE_VISIBILITIES = new Set([
   StorytimeVisibility.PUBLIC,
   StorytimeVisibility.UNLISTED,
-];
+]);
 
 /** The artwork a Story carries. */
 export type StoryImageSlot =
@@ -398,8 +398,8 @@ export class StorytimeStoryService {
   private assertNotRemoved(story: StorytimeStoryEntity | null): void {
     const wasPublic =
       story &&
-      PUBLICLY_READABLE_STATUSES.includes(story.status) &&
-      PUBLICLY_READABLE_VISIBILITIES.includes(story.visibility);
+      PUBLICLY_READABLE_STATUSES.has(story.status) &&
+      PUBLICLY_READABLE_VISIBILITIES.has(story.visibility);
 
     if (
       wasPublic &&
@@ -864,8 +864,8 @@ export class StorytimeStoryService {
    */
   private isPubliclyReadable(story: StorytimeStoryEntity): boolean {
     return (
-      PUBLICLY_READABLE_STATUSES.includes(story.status) &&
-      PUBLICLY_READABLE_VISIBILITIES.includes(story.visibility) &&
+      PUBLICLY_READABLE_STATUSES.has(story.status) &&
+      PUBLICLY_READABLE_VISIBILITIES.has(story.visibility) &&
       story.moderationStatus === StorytimeModerationStatus.ACTIVE
     );
   }
@@ -980,8 +980,6 @@ export class StorytimeStoryService {
    */
   private applyChanges(story: StorytimeStoryEntity, dto: UpdateStoryDto): void {
     const { slug, version, ...changes } = dto;
-    void slug;
-    void version;
 
     Object.assign(story, changes);
   }

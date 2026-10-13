@@ -170,8 +170,6 @@ export class StorytimeArcService {
     }
 
     const { slug, version, description, ...changes } = dto;
-    void slug;
-    void version;
 
     Object.assign(arc, changes);
 

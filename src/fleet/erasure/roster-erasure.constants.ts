@@ -28,5 +28,5 @@ export const ROSTER_ERASURE_REASON = { min: 10, max: 500 } as const;
  * @returns The pseudonym.
  */
 export function pseudonymFor(erasureId: string): string {
-  return `@erased-${erasureId.replace(/-/g, '').slice(0, 12)}`;
+  return `@erased-${erasureId.replaceAll('-', '').slice(0, 12)}`;
 }

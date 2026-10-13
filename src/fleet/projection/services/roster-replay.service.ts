@@ -594,7 +594,7 @@ export class RosterReplayService {
       RosterProjectionEntity,
       {
         fleetId,
-        latestImportId: latestImportId === null ? IsNull() : latestImportId,
+        latestImportId: latestImportId ?? IsNull(),
       },
       { proposedImportId: latestImportId },
     );

@@ -97,5 +97,8 @@ export class MarkdownConfigurationDto {
  * that has none.
  */
 export class EmptyConfigurationDto {
-  // Intentionally has no properties: whitelist validation rejects every key.
+  // No property may hold a value. This states in the type what whitelist
+  // validation enforces at runtime, where every key is rejected; a signature
+  // emits no code and carries no metadata, so validation is unchanged.
+  [property: string]: never;
 }
