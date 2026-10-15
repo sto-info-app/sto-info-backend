@@ -15,8 +15,9 @@
  * - `fleet-flag <on|off>` throws the master switch, for the journey about a
  *   Fleet Community switched off. The server reads it within ten seconds.
  * - `fleet-finish <file>` removes every person whose address is at
- *   `fc044.example`, from any run, and everything they made, and puts the
- *   switch back as `fleet-begin` found it.
+ *   `fc044.example`, from any run, and everything they made, the Fleets
+ *   nobody here runs that they confirmed included, and puts the switch back
+ *   as `fleet-begin` found it.
  * - `fleet-counts` says how much of that is left: nothing, after a finish.
  * - `fleet-clear-communities` removes the people's Communities and keeps the
  *   people, before each journey file: an Owner may hold only ten. It also
@@ -389,21 +390,97 @@ async function removeCommunities(
 }
 
 /**
+ * The Fleets nobody here runs that the journeys confirmed, from any run.
+ *
+ * A Fleet confirmed with no Community has no owner, so nothing of the people's
+ * leads to it: it is known by its name, which the journeys mark as they mark
+ * everything they make. Left alone, one gathered on every run and the
+ * directory's first page filled with them (13 October 2026).
+ *
+ * @param db - The connection.
+ * @returns Their IDs.
+ */
+async function standaloneFleetIds(db: DataSource): Promise<string[]> {
+  const rows = (await db.query(
+    `SELECT "id" FROM "${SCHEMA}"."sto_fleet"
+      WHERE "communityId" IS NULL AND "exactGameName" LIKE 'Fc044 %'`,
+  )) as Array<{ id: string }>;
+
+  return rows.map(row => row.id);
+}
+
+/**
+ * Removes the Fleets nobody here runs that the journeys confirmed, with
+ * everything hung on them, as a Community's Fleets go.
+ *
+ * @param db - The connection.
+ * @returns How many went.
+ */
+async function removeStandaloneFleets(db: DataSource): Promise<number> {
+  const fleets = await standaloneFleetIds(db);
+
+  if (fleets.length === 0) {
+    return 0;
+  }
+
+  const assets = (
+    (await db.query(
+      `SELECT "id" FROM "${SCHEMA}"."file_asset" WHERE "fleetId" = ANY($1::uuid[])`,
+      [fleets],
+    )) as Array<{ id: string }>
+  ).map(row => row.id);
+  const [{ attempts }] = (await db.query(
+    `SELECT to_regclass('sto_info_worker.file_scan_attempt')::text AS "attempts"`,
+  )) as Array<{ attempts: string | null }>;
+
+  if (attempts !== null && assets.length > 0) {
+    await db.query(
+      `DELETE FROM "sto_info_worker"."file_scan_attempt" WHERE "assetId" = ANY($1::uuid[])`,
+      [assets],
+    );
+  }
+
+  for (const table of await tablesWith(db, 'fleetId')) {
+    await remove(db, table, `"fleetId" = ANY($1::uuid[])`, [fleets]);
+  }
+
+  if (assets.length > 0) {
+    await remove(db, `"${SCHEMA}"."file_asset"`, `"id" = ANY($1::uuid[])`, [
+      assets,
+    ]);
+  }
+
+  await remove(
+    db,
+    `"${SCHEMA}"."fleet_slug_history"`,
+    `"targetId" = ANY($1::uuid[])`,
+    [fleets],
+  );
+  await remove(db, `"${SCHEMA}"."sto_fleet"`, `"id" = ANY($1::uuid[])`, [
+    fleets,
+  ]);
+
+  return fleets.length;
+}
+
+/**
  * Removes every disposable person and everything they made.
  *
- * Their Communities go with everything in them; then their files, the
- * worker's record of scanning them, what they wrote and were sent, and they.
- * What the logs say about them stays, with their IDs nulled by the database,
- * because the logs are written once.
+ * Their Communities go with everything in them, and the Fleets nobody here
+ * runs that they confirmed; then their files, the worker's record of
+ * scanning them, what they wrote and were sent, and they. What the logs say
+ * about them stays, with their IDs nulled by the database, because the logs
+ * are written once.
  *
  * @param db - The connection.
  * @returns How many people were removed.
  */
 async function removeEverything(db: DataSource): Promise<Result> {
   const people = await disposableIds(db);
+  const standaloneFleets = await removeStandaloneFleets(db);
 
   if (people.length === 0) {
-    return { people: 0, communities: 0 };
+    return { people: 0, communities: 0, standaloneFleets };
   }
 
   const communities = await removeCommunities(db, people, true);
@@ -454,7 +531,7 @@ async function removeEverything(db: DataSource): Promise<Result> {
 
   await remove(db, `"${SCHEMA}"."user"`, `"id" = ANY($1::uuid[])`, [people]);
 
-  return { people: people.length, communities };
+  return { people: people.length, communities, standaloneFleets };
 }
 
 /**
@@ -705,7 +782,9 @@ async function counts(db: DataSource): Promise<Result> {
        (SELECT count(*)::int FROM "${SCHEMA}"."fleet_community" c
           JOIN "${SCHEMA}"."user" u ON u."id" = c."ownerUserId"
          WHERE lower(u."email") LIKE $1) AS "communities",
-       (SELECT count(*)::int FROM "${SCHEMA}"."user_profile" WHERE "username" LIKE 'Fc044%') AS "profiles"`,
+       (SELECT count(*)::int FROM "${SCHEMA}"."user_profile" WHERE "username" LIKE 'Fc044%') AS "profiles",
+       (SELECT count(*)::int FROM "${SCHEMA}"."sto_fleet"
+         WHERE "communityId" IS NULL AND "exactGameName" LIKE 'Fc044 %') AS "standaloneFleets"`,
     [`%@${DISPOSABLE_DOMAIN}`],
   )) as Array<Record<string, number>>;
 

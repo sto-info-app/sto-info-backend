@@ -115,7 +115,7 @@ file events that changed nothing). Results: see [Journey results](#journey-resul
 | `04-owed-events` | FC-028, FC-030. |
 | `04-owed-chat` | FC-031, FC-033, FC-034, FC-035's reports. |
 | `04-owed-admin` | FC-036, FC-037, FC-039, FC-041. |
-| `05-screenshots` | 16 pages at 1280 px and on a Pixel 7, `docs/screenshots/fc-044/`. |
+| `05-screenshots` | 16 pages at 1280 px and on a Pixel 7, written to the frontend's `reports/screenshots/fc-044/`, which git ignores. |
 
 Still owed, for secrets the local stack does not hold: FC-035's transcript export, FC-038's erasure
 and FC-040's private images.
