@@ -1,0 +1,217 @@
+# Render Blueprint for the STO Info Staging project, "tribble": the Fleet
+# Community branch deployed whole. A Blueprint instance reads this file from
+# the sr/sc-1036-fleet-community branch, with its path given in the
+# dashboard's Blueprint Path field; render/development.yaml and
+# render/production.yaml describe the other projects.
+#
+# A blueprint can link a service only to a database or Key Value instance
+# declared in the same file, so both of those live here, with the backend, and
+# the worker's blueprint takes their addresses from the dashboard. The
+# frontend's blueprint needs neither.
+#
+# What the dashboard still holds, because a blueprint cannot: every `sync:
+# false` value below, and the AWS secret the service names in
+# AWS_SECRET_NAME. The database password Render generates has to be copied
+# into that secret as `dbPassword`, since nothing here reads DB_PASSWORD. See
+# docs/operations/render-services.md.
+
+services:
+  - type: web
+    name: sto-info-backend-tribble
+    runtime: node
+    repo: https://github.com/sto-info-app/sto-info-backend
+    branch: sr/sc-1036-fleet-community
+    region: frankfurt
+    # Mirrors Development. Production runs on starter.
+    plan: free
+    buildCommand: npm install; npm run build
+    # Runs the build's pending migrations, then the API.
+    startCommand: npm run start:render
+    # The API listens only once the boot's restore check has finished, so a
+    # deploy that cannot finish it never goes healthy.
+    healthCheckPath: /health/ready
+    autoDeployTrigger: commit
+    domains:
+      - tribble-api.startrekonline.info
+    envVars:
+      - key: NODE_ENV
+        value: staging
+      # The 512 MB plans' heap cap (FC-044).
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=384
+      - key: LOG_LEVEL
+        value: log
+      # Render routes to this port.
+      - key: APP_PORT
+        value: '10000'
+      # Added to the origins CORS and the chat socket accept, outside
+      # production.
+      - key: APP_FRONTEND_URL
+        value: https://tribble.startrekonline.info
+      - key: APP_TITLE
+        value: Star Trek Online Info Portal
+
+      - key: AUTH_SALT_ROUNDS
+        value: '10'
+      - key: AUTH_TOKEN_EXPIRES_IN
+        value: '3600'
+      - key: AUTH_REFRESH_TOKEN_EXPIRES_IN
+        value: '14400'
+
+      # The database declared below. Its password is not an environment
+      # variable: it is `dbPassword` in the AWS secret.
+      - key: DB_TYPE
+        value: postgres
+      - key: DB_HOST
+        fromDatabase:
+          name: sto-info-postgres-tribble
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: sto-info-postgres-tribble
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: sto-info-postgres-tribble
+          property: database
+      - key: DB_USERNAME
+        fromDatabase:
+          name: sto-info-postgres-tribble
+          property: user
+      - key: DB_SCHEMA
+        value: sto_info_app
+      # Copy Development's value.
+      - key: DB_SSL_REJECT_UNAUTHORIZED
+        sync: false
+
+      # Rate limiting, the BullMQ queues and chat's socket.io adapter.
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: sto-info-redis-tribble
+          property: connectionString
+      # Must match the worker's, or each looks idle to the other.
+      - key: QUEUE_PREFIX
+        value: 'bull:sto-info:'
+
+      - key: TYPEORM_SYNCHRONIZE
+        value: 'false'
+      - key: TYPEORM_LOGGING
+        value: 'false'
+      # Copy Development's values: the globs for the built code.
+      - key: TYPEORM_ENTITIES
+        sync: false
+      - key: TYPEORM_MIGRATIONS
+        sync: false
+
+      - key: EMAIL_NOREPLY_SENDER
+        value: no-reply@startrekonline.info
+
+      # The two AWS keys are the only credentials Render holds. The secret
+      # they read is staging's own: a different `dbPassword` and
+      # `cloudflareOriginVerifySecret` from Development's, the rest the same.
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_REGION
+        sync: false
+      - key: AWS_SECRET_NAME
+        sync: false
+      - key: AWS_SNS_TOPIC_ARN
+        sync: false
+      - key: AWS_SES_CONFIGURATION_SET
+        sync: false
+
+      # One account endpoint reaches all three buckets. The delivery and
+      # quarantine buckets serve every environment, keyed by NODE_ENV, so
+      # staging's objects land under `staging/`.
+      - key: CLOUDFLARE_R2_ENDPOINT
+        sync: false
+      - key: CLOUDFLARE_R2_BUCKET_NAME
+        sync: false
+      - key: CLOUDFLARE_R2_QUARANTINE_BUCKET_NAME
+        sync: false
+      - key: CLOUDFLARE_R2_EXPORTS_BUCKET_NAME
+        sync: false
+      # The CDN hostname is per environment: `dev-cdn.` for Development, so
+      # `tribble-cdn.startrekonline.info` here once Cloudflare has it.
+      - key: CLOUDFLARE_CDN_ROOT_URL
+        sync: false
+      - key: CLOUDFLARE_IMAGES_HASH
+        sync: false
+
+      - key: MAX_IMAGE_SIZE_IN_BYTES
+        value: '10485760'
+
+      - key: AUDIT_DATA_NUKE_THRESHOLD_DAYS
+        value: '3'
+      - key: AUDIT_IP_NUKE_THRESHOLD_DAYS
+        value: '1'
+      - key: CONTACT_REQUEST_EMAIL_MASK_RETENTION_DAYS
+        value: '21'
+      - key: CONTACT_REQUEST_RECORD_RETENTION_DAYS
+        value: '90'
+      - key: CLOSED_ACCOUNT_RETENTION_DAYS
+        value: '180'
+      - key: SES_AUDIT_RETENTION_DAYS
+        value: '180'
+      - key: SES_SUPPRESSION_RETENTION_DAYS
+        value: '2557'
+
+      # Cloudflare in front, then Render's proxy.
+      - key: TRUST_PROXY_HOPS
+        value: '1'
+
+      - key: STORYTIME_PUBLIC_READ_ENABLED
+        value: 'true'
+      - key: STORYTIME_CREATION_ENABLED
+        value: 'true'
+      - key: STORYTIME_YOUTUBE_ENABLED
+        value: 'true'
+      - key: STORYTIME_SPOTLIGHT_ENABLED
+        value: 'true'
+      - key: STORYTIME_MAX_STORIES_PER_USER
+        value: '50'
+      - key: STORYTIME_MAX_CHAPTERS_PER_STORY
+        value: '200'
+      - key: STORYTIME_MAX_CHARACTERS_PER_STORY
+        value: '100'
+      - key: STORYTIME_MAX_CONTENT_LENGTH
+        value: '100000'
+
+      - key: STARTUP_DIAGNOSTICS
+        value: 'false'
+      - key: MEMORY_DIAGNOSTICS_ENABLED
+        value: 'false'
+      - key: MEMORY_DIAGNOSTICS_INTERVAL_MINUTES
+        value: '10'
+      - key: SENTRY_DSN
+        sync: false
+
+      # DATASEED_USER_* are left out on purpose: without them the seed-user
+      # migration skips with a notice. DATASEED_FLEET_* are local only.
+
+  # Mirrors Development's instance, which production runs on starter with
+  # journal-snapshot persistence. Nothing here needs persistence: a lost
+  # Redis is put back in line by the backend within a minute.
+  - type: keyvalue
+    name: sto-info-redis-tribble
+    region: frankfurt
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
+databases:
+  # The same plan and major version as Development. The worker needs a role
+  # of its own in it, made by hand, with the grants
+  # docs/operations/render-services.md gives under Deploy order.
+  - name: sto-info-postgres-tribble
+    databaseName: sto_info_app_tribble
+    user: sto_info_app_tribble_user
+    region: frankfurt
+    plan: basic-256mb
+    postgresMajorVersion: '18'
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: everywhere

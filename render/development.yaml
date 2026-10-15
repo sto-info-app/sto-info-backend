@@ -1,0 +1,188 @@
+# Render Blueprint for the STO Info Development project, recording the
+# services as they run today, which were made by hand in the dashboard. A
+# Blueprint instance reads this file from the development branch, with its
+# path given in the dashboard's Blueprint Path field. Values a blueprint
+# cannot hold, or that the dashboard already holds and this file does not
+# assert, are `sync: false`: a sync leaves them as they are. See
+# docs/operations/render-services.md.
+
+services:
+  - type: web
+    name: sto-info-backend-dev
+    runtime: node
+    repo: https://github.com/sto-info-app/sto-info-backend
+    branch: development
+    region: frankfurt
+    plan: free
+    buildCommand: npm install; npm run build
+    startCommand: NODE_OPTIONS=--max-old-space-size=384 npm run start:render
+    healthCheckPath: /health/live
+    autoDeployTrigger: commit
+    # The custom domain Cloudflare fronts (docs/infrastructure.md).
+    domains:
+      - dev-api.startrekonline.info
+    envVars:
+      - key: NODE_ENV
+        value: dev
+      - key: LOG_LEVEL
+        sync: false
+      - key: APP_PORT
+        sync: false
+      - key: APP_FRONTEND_URL
+        value: https://dev.startrekonline.info
+      - key: APP_TITLE
+        sync: false
+      - key: AUTH_SALT_ROUNDS
+        sync: false
+      - key: AUTH_TOKEN_EXPIRES_IN
+        sync: false
+      - key: AUTH_REFRESH_TOKEN_EXPIRES_IN
+        sync: false
+
+      # The database declared below. Its password is `dbPassword` in the
+      # AWS secret, never an environment variable.
+      - key: DB_TYPE
+        value: postgres
+      - key: DB_HOST
+        fromDatabase:
+          name: sto_info_app_dev
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: sto_info_app_dev
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: sto_info_app_dev
+          property: database
+      - key: DB_USERNAME
+        fromDatabase:
+          name: sto_info_app_dev
+          property: user
+      - key: DB_SCHEMA
+        value: sto_info_app
+      - key: DB_SSL_REJECT_UNAUTHORIZED
+        sync: false
+
+      # Persistence is off on this instance, which a blueprint cannot say.
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: sto-info-redis-rate-limiting-dev
+          property: connectionString
+
+      - key: TYPEORM_SYNCHRONIZE
+        value: 'false'
+      - key: TYPEORM_LOGGING
+        sync: false
+      - key: TYPEORM_ENTITIES
+        sync: false
+      - key: TYPEORM_MIGRATIONS
+        sync: false
+
+      - key: EMAIL_NOREPLY_SENDER
+        sync: false
+
+      # The two AWS keys are the only credentials Render holds; everything
+      # else secret is in the secret AWS_SECRET_NAME names.
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_REGION
+        sync: false
+      - key: AWS_SECRET_NAME
+        sync: false
+      - key: AWS_SNS_TOPIC_ARN
+        sync: false
+      - key: AWS_SES_CONFIGURATION_SET
+        sync: false
+
+      # The seed user. Without these the seed-user migration skips.
+      - key: DATASEED_USER_EMAIL
+        sync: false
+      - key: DATASEED_USER_USERNAME
+        sync: false
+      - key: DATASEED_USER_FIRSTNAME
+        sync: false
+      - key: DATASEED_USER_LASTNAME
+        sync: false
+      - key: DATASEED_USER_PASSWORD
+        sync: false
+
+      - key: CLOUDFLARE_R2_ENDPOINT
+        sync: false
+      - key: CLOUDFLARE_R2_BUCKET_NAME
+        sync: false
+      - key: CLOUDFLARE_CDN_ROOT_URL
+        sync: false
+      - key: CLOUDFLARE_IMAGES_HASH
+        sync: false
+
+      - key: MAX_IMAGE_SIZE_IN_BYTES
+        sync: false
+
+      - key: AUDIT_DATA_NUKE_THRESHOLD_DAYS
+        sync: false
+      - key: AUDIT_IP_NUKE_THRESHOLD_DAYS
+        sync: false
+      - key: CONTACT_REQUEST_EMAIL_MASK_RETENTION_DAYS
+        sync: false
+      - key: CONTACT_REQUEST_RECORD_RETENTION_DAYS
+        sync: false
+      - key: CLOSED_ACCOUNT_RETENTION_DAYS
+        sync: false
+      - key: SES_AUDIT_RETENTION_DAYS
+        sync: false
+      - key: SES_SUPPRESSION_RETENTION_DAYS
+        sync: false
+
+      - key: TRUST_PROXY_HOPS
+        sync: false
+
+      - key: STORYTIME_PUBLIC_READ_ENABLED
+        sync: false
+      - key: STORYTIME_CREATION_ENABLED
+        sync: false
+      - key: STORYTIME_YOUTUBE_ENABLED
+        sync: false
+      - key: STORYTIME_SPOTLIGHT_ENABLED
+        sync: false
+      - key: STORYTIME_MAX_STORIES_PER_USER
+        sync: false
+      - key: STORYTIME_MAX_CHAPTERS_PER_STORY
+        sync: false
+      - key: STORYTIME_MAX_CHARACTERS_PER_STORY
+        sync: false
+      - key: STORYTIME_MAX_CONTENT_LENGTH
+        sync: false
+
+      - key: STARTUP_DIAGNOSTICS
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: MEMORY_DIAGNOSTICS_ENABLED
+        sync: false
+      - key: MEMORY_DIAGNOSTICS_INTERVAL_MINUTES
+        sync: false
+
+  # Rate limiting, and since the Fleet Community release the BullMQ queues and
+  # chat's socket.io adapter.
+  - type: keyvalue
+    name: sto-info-redis-rate-limiting-dev
+    region: frankfurt
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
+databases:
+  - name: sto_info_app_dev
+    databaseName: sto_info_app_dev
+    user: sto_info_app_dev_user
+    region: frankfurt
+    plan: basic-256mb
+    postgresMajorVersion: '18'
+    diskSizeGB: 1
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: everywhere

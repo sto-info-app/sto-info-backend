@@ -29,7 +29,7 @@ using stale definitions.** The worker enforces it; nothing here can weaken it.
 | Age of the newest signatures | What happens                                                                                                                                                                                                                                            |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Over **36 hours**            | `SIGNATURES_STALE` opens: every site admin is told, and Scan Diagnostics shows it. Nothing stops. (`SIGNATURES_STALE_HOURS` in the backend.)                                                                                                            |
-| Over **48 hours**            | The worker pauses its queue with `SIGNATURES_TOO_OLD`, and `/health/ready` fails. Uploads wait in the queue; none is judged clean. After 10 minutes paused, `WORKER_PAUSED` opens too. (`CLAMAV_MAX_DEFINITION_AGE_HOURS`, set to 48 in `render.yaml`.) |
+| Over **48 hours**            | The worker pauses its queue with `SIGNATURES_TOO_OLD`, and `/health/ready` fails. Uploads wait in the queue; none is judged clean. After 10 minutes paused, `WORKER_PAUSED` opens too. (`CLAMAV_MAX_DEFINITION_AGE_HOURS`, set to 48 in the worker's `render/production.yaml`.) |
 
 The age is worked out from when the signatures were built, as `clamd` reports it, not from when
 they were downloaded. With twelve checks a day, twenty-four in a row have to fail before the worker

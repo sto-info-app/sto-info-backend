@@ -45,21 +45,21 @@ its [infrastructure documentation](../../../sto-info-file-scan-worker/docs/infra
 
 ### The file scan worker
 
-Declared in the worker's `render.yaml`; the reasons are in ADR-0020 and the worker's
+Declared in the worker's `render/production.yaml`; the reasons are in ADR-0020 and the worker's
 [infrastructure documentation](../../../sto-info-file-scan-worker/docs/infrastructure.md).
 
 - **Docker**, because `clamd` lives in the image. The signature database is baked in at build time,
   so `clamd` answers about seven seconds after the container starts.
 - **Region Frankfurt**, to keep uploaded roster material in the EU.
-- **Plan: the smallest with 2 GB of memory.** `render.yaml` deliberately does not name it. Measured
+- **Plan: the smallest with 2 GB of memory.** `render/production.yaml` deliberately does not name it. Measured
   peaks are about 1,068 MiB through a signature reload, with `ConcurrentDatabaseReload no`; see
   [Scanner signatures](scanner-signatures.md#reloads-and-memory).
-- **One instance.** `render.yaml` sets no count. Several can run at once safely — an attempt is
+- **One instance.** `render/production.yaml` sets no count. Several can run at once safely — an attempt is
   claimed by one statement against a unique constraint — but each holds its own copy of the
   signature database.
 - **No disk.** Bytes are streamed from the quarantine bucket to `clamd` and never written down.
 - **`branch: production`, `autoDeploy: false`.** The worker is deployed by hand, after the backend.
-- **Environment.** `render.yaml` fixes `FILE_SCAN_SCHEMA_VERSION` 2, `DB_SCHEMA` `sto_info_worker`,
+- **Environment.** `render/production.yaml` fixes `FILE_SCAN_SCHEMA_VERSION` 2, `DB_SCHEMA` `sto_info_worker`,
   `TYPEORM_SYNCHRONIZE` false, `SCAN_CONCURRENCY` 1, `CLAMAV_HOST` 127.0.0.1, `CLAMAV_PORT` 3310,
   `CLAMAV_MAX_DEFINITION_AGE_HOURS` 48, `CLAMAV_HEALTH_POLL_MS` 30000, `SCAN_UNHEALTHY_RETRY_MS`
   60000, `WORKER_HEARTBEAT_INTERVAL_MS` 30000 and `STRANDED_VERDICT_RESEND_INTERVAL_MS` 600000. The
@@ -77,6 +77,22 @@ schema beyond the foreign key into `file_asset`; the backend's role reads only t
 Redis holds rate limiting, the BullMQ queues and chat's socket.io adapter. It is load-bearing for
 file safety: while it is down no upload can be scanned, so none is published.
 [Infrastructure](../infrastructure.md#redis-service-configuration) has the plan.
+
+### Staging: tribble
+
+A third environment, for the Fleet Community branch whole:
+`tribble.startrekonline.info` and `tribble-api.startrekonline.info`, described by
+`render/staging.yaml` in each repository and mirroring Development's plans. Each repository also
+carries `render/development.yaml` and `render/production.yaml`, recording those projects' services
+as they run, so that a Blueprint instance per project and branch can take them over; a value the
+file does not assert is `sync: false`, and a sync leaves it alone. The backend's blueprint declares the
+PostgreSQL instance (`sto_info_app_tribble`, PostgreSQL 18) and the Key Value instance; the
+worker's entry and the frontend's blueprint set what they cannot link to by hand. `NODE_ENV` is
+`staging`, so uploads land under `staging/` in the shared buckets, and `APP_FRONTEND_URL` lets
+the site through CORS and the chat socket. Staging has its own AWS secrets, with their own
+`dbPassword` (the password Render generated) and `cloudflareOriginVerifySecret`, and needs the
+same Cloudflare work as Development: a Transform Rule on `tribble-api.`, the CDN hostname, and
+the worker's role in the new database with the grants below.
 
 ## Deploy order
 
