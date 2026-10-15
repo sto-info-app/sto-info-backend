@@ -188,13 +188,11 @@ function startupStepLogger(
  * Works out the origins CORS and the chat socket accept.
  *
  * @param configService - The configuration.
- * @param inLocal - Whether the browser, server and database share a machine.
  * @param inProduction - Whether this is production.
  * @returns The allowed origins.
  */
 function allowedOriginsFor(
   configService: ConfigService,
-  inLocal: boolean,
   inProduction: boolean,
 ): string[] {
   const devAllowedOrigins = [
@@ -202,9 +200,11 @@ function allowedOriginsFor(
     'https://dev.startrekonline.info',
   ];
 
-  // A local checkout may serve the site on another port. That address is
-  // APP_FRONTEND_URL. Development and production keep the fixed lists.
-  if (inLocal) {
+  // A local checkout may serve the site on another port, and a staging site
+  // has a hostname of its own (tribble).
+  // That address is APP_FRONTEND_URL, honoured everywhere but production,
+  // which keeps its fixed list.
+  if (!inProduction) {
     const frontendUrl = configService.get<string>('APP_FRONTEND_URL')?.trim();
 
     if (frontendUrl && !devAllowedOrigins.includes(frontendUrl)) {
@@ -487,11 +487,7 @@ async function bootstrap() {
   // `local` and `e2etest`: the browser, server and database share a machine.
   const inLocal = isOnMachineEnvironment(appEnv);
 
-  const allowedOrigins = allowedOriginsFor(
-    configService,
-    inLocal,
-    inProduction,
-  );
+  const allowedOrigins = allowedOriginsFor(configService, inProduction);
 
   const allowedMethods = 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS';
   const allowedHeaders =

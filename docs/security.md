@@ -431,7 +431,10 @@ origin: [
 - CORS allows both localhost and dev subdomain
 - Credentials: `true` (allows cookies/auth headers)
 
-> TODO: Confirm the full list of allowed origins for dev (including any additional hostnames like preview/staging/admin tools).
+**Outside production** (`local`, `e2etest`, `dev` and `staging`), `APP_FRONTEND_URL` is added to
+that list when it names something else. A local checkout serving the site on another port and the
+staging site, `https://tribble.startrekonline.info` (its blueprint sets the variable), are let in
+that way; the chat socket accepts the same origins. Production keeps its fixed list.
 
 ### Production CORS Settings
 
