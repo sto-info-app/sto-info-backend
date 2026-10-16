@@ -194,8 +194,20 @@ services:
       - key: SENTRY_DSN
         sync: false
 
-      # DATASEED_USER_* are left out on purpose: without them the seed-user
-      # migration skips with a notice. DATASEED_FLEET_* are local only.
+      # The seed account, as Development has it. Staging loads the demo data,
+      # and that migration refuses to run without DATASEED_USER_PASSWORD;
+      # without all five the seed-user migration skips with a notice.
+      # DATASEED_FLEET_* are local only and stay out.
+      - key: DATASEED_USER_EMAIL
+        sync: false
+      - key: DATASEED_USER_USERNAME
+        sync: false
+      - key: DATASEED_USER_FIRSTNAME
+        sync: false
+      - key: DATASEED_USER_LASTNAME
+        sync: false
+      - key: DATASEED_USER_PASSWORD
+        sync: false
 
   # The smallest paid plan: a workspace may hold one free Key Value instance,
   # and Development has it. Persistence is left at its default, as nothing
