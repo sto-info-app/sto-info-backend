@@ -275,7 +275,9 @@ with an in-memory `MemoryStore` behind it. Before this, a Redis outage held ever
 the whole API down, including the Scan Diagnostics page and the publication pause meant for that
 outage.
 
-- A count Redis has not answered within **1 second** is made in memory instead.
+- A count Redis has not answered within **1 second** is made in memory instead. Start-up alone
+  waits **10 seconds**, since no request is behind it and a fresh instance's first command to a TLS
+  Key Value instance takes longer than a count is allowed.
 - For the next **10 seconds** nothing asks Redis, so an outage costs one slow request every ten
   seconds rather than a second on every request. After that, the next request asks Redis again.
 - Limits keep applying throughout, sign-in's included (Steve's decision of 1 October 2026: counting

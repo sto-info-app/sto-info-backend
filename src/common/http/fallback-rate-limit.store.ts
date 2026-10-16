@@ -10,6 +10,15 @@ import type {
 /** How long a rate-limit count may wait on Redis before it is counted here. */
 export const RATE_LIMIT_STORE_TIMEOUT_MS = 1_000;
 
+/**
+ * How long the limiter's start-up may wait on Redis. Nothing is being served
+ * yet, so the wait costs no request, and a fresh instance's first command to
+ * a TLS Key Value instance takes longer than a count is allowed: on Render,
+ * every deploy began by counting in memory and switching back ten seconds
+ * later.
+ */
+export const RATE_LIMIT_STORE_INIT_TIMEOUT_MS = 10_000;
+
 /** How long after Redis fails the limiter counts here before asking again. */
 export const RATE_LIMIT_STORE_RETRY_MS = 10_000;
 
@@ -29,7 +38,8 @@ export const RATE_LIMIT_STORE_RETRY_MS = 10_000;
  * outage costs one slow request every ten seconds rather than a second on
  * every request. Limits still apply, sign-in's included; for the length of
  * the outage each instance keeps its own count rather than a shared one.
- * The switch is logged once each way.
+ * The switch is logged once each way. Start-up alone waits longer, since no
+ * request is behind it.
  */
 export class FallbackRateLimitStore implements Store {
   private readonly _logger = new Logger(FallbackRateLimitStore.name);
@@ -62,7 +72,11 @@ export class FallbackRateLimitStore implements Store {
    */
   async init(options: Options): Promise<void> {
     await this._memory.init?.(options);
-    await this.ask(() => this._redis.init?.(options), 'init');
+    await this.ask(
+      () => this._redis.init?.(options),
+      'init',
+      RATE_LIMIT_STORE_INIT_TIMEOUT_MS,
+    );
   }
 
   /**
@@ -164,11 +178,13 @@ export class FallbackRateLimitStore implements Store {
    *
    * @param question - What to ask.
    * @param operation - What is being asked, for the log.
+   * @param timeoutMs - How long to wait for the answer.
    * @returns The answer, or that there was none.
    */
   private async ask<T>(
     question: () => Promise<T> | T,
     operation: string,
+    timeoutMs: number = RATE_LIMIT_STORE_TIMEOUT_MS,
   ): Promise<{ answered: true; value: T } | { answered: false }> {
     let timer: NodeJS.Timeout | undefined;
 
@@ -182,10 +198,7 @@ export class FallbackRateLimitStore implements Store {
       const value = await Promise.race([
         pending,
         new Promise<never>((_resolve, reject) => {
-          timer = setTimeout(
-            () => reject(new Error('Timed out')),
-            RATE_LIMIT_STORE_TIMEOUT_MS,
-          );
+          timer = setTimeout(() => reject(new Error('Timed out')), timeoutMs);
         }),
       ]);
 

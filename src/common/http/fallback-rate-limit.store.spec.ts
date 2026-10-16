@@ -5,6 +5,7 @@ import type { IncrementResponse, Options, Store } from 'express-rate-limit';
 
 import {
   FallbackRateLimitStore,
+  RATE_LIMIT_STORE_INIT_TIMEOUT_MS,
   RATE_LIMIT_STORE_RETRY_MS,
   RATE_LIMIT_STORE_TIMEOUT_MS,
 } from './fallback-rate-limit.store';
@@ -225,6 +226,49 @@ describe('FallbackRateLimitStore', () => {
       // ioredis gives up on the command long afterwards; nothing hears of it.
       fail(new Error('MaxRetriesPerRequestError'));
       await jest.advanceTimersByTimeAsync(0);
+    });
+
+    it('waits longer while starting up, when no request is behind it', async () => {
+      jest.useFakeTimers();
+
+      let answer: () => void = () => undefined;
+
+      redis.init.mockReturnValue(
+        new Promise<void>(resolve => {
+          answer = resolve;
+        }),
+      );
+
+      const started = store.init({} as Options);
+
+      // A count would have given up by now; start-up has not.
+      await jest.advanceTimersByTimeAsync(RATE_LIMIT_STORE_TIMEOUT_MS);
+      expect(warn).not.toHaveBeenCalled();
+
+      answer();
+      await expect(started).resolves.toBeUndefined();
+
+      // Redis answered, so the first count goes to Redis, not memory.
+      await expect(store.increment('ip')).resolves.toBe(COUNT);
+      expect(redis.increment).toHaveBeenCalledWith('ip');
+      expect(memory.increment).not.toHaveBeenCalled();
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('still gives up on start-up once its longer wait is over', async () => {
+      jest.useFakeTimers();
+
+      redis.init.mockReturnValue(new Promise<void>(() => undefined));
+
+      const started = store.init({} as Options);
+
+      await jest.advanceTimersByTimeAsync(RATE_LIMIT_STORE_INIT_TIMEOUT_MS);
+
+      await expect(started).resolves.toBeUndefined();
+      expect(memory.init).toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('Reason: Timed out'),
+      );
     });
   });
 });
