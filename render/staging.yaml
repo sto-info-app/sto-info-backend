@@ -126,17 +126,19 @@ services:
       - key: AWS_SES_CONFIGURATION_SET
         sync: false
 
-      # One account endpoint reaches all three buckets. The delivery and
-      # quarantine buckets serve every environment, keyed by NODE_ENV, so
-      # staging's objects land under `staging/`.
+      # One account endpoint reaches all three buckets. The buckets serve
+      # every environment, keyed by NODE_ENV, so staging's objects land under
+      # `staging/`; their names are the same everywhere, so they are asserted
+      # here rather than left to be remembered. Validation refuses to start
+      # without the quarantine and exports names.
       - key: CLOUDFLARE_R2_ENDPOINT
         sync: false
       - key: CLOUDFLARE_R2_BUCKET_NAME
-        sync: false
+        value: stoi-uploads
       - key: CLOUDFLARE_R2_QUARANTINE_BUCKET_NAME
-        sync: false
+        value: stoi-quarantine
       - key: CLOUDFLARE_R2_EXPORTS_BUCKET_NAME
-        sync: false
+        value: stoi-exports
       # The CDN hostname is per environment: `dev-cdn.` for Development, so
       # `tribble-cdn.startrekonline.info` here once Cloudflare has it.
       - key: CLOUDFLARE_CDN_ROOT_URL

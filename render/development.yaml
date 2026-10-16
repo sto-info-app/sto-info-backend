@@ -112,8 +112,15 @@ services:
 
       - key: CLOUDFLARE_R2_ENDPOINT
         sync: false
+      # The same three buckets serve every environment, keyed by NODE_ENV.
+      # The quarantine and exports buckets arrive with Fleet Community, and
+      # the backend refuses to start without their names from that release.
       - key: CLOUDFLARE_R2_BUCKET_NAME
-        sync: false
+        value: stoi-uploads
+      - key: CLOUDFLARE_R2_QUARANTINE_BUCKET_NAME
+        value: stoi-quarantine
+      - key: CLOUDFLARE_R2_EXPORTS_BUCKET_NAME
+        value: stoi-exports
       - key: CLOUDFLARE_CDN_ROOT_URL
         sync: false
       - key: CLOUDFLARE_IMAGES_HASH
