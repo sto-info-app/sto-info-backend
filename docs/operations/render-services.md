@@ -32,8 +32,10 @@ its [infrastructure documentation](../../../sto-info-file-scan-worker/docs/infra
   restore check has finished, a deploy whose check cannot finish never goes healthy, and the
   previous instance keeps serving. See [Readiness and heartbeats](readiness-and-heartbeats.md).
 - **Plan: 512 MB, with the heap capped at 384 MiB** (FC-044, Steve's decision of 4 October 2026).
-  Set `NODE_OPTIONS=--max-old-space-size=384` on the service. Uncapped, Node let the heap grow to
-  775 MiB after the launch load's longest replay and the process to about 1 GB; capped, every load
+  Set `NODE_OPTIONS=--max-old-space-size=384` in the start command, not as an environment
+  variable, which Render would give the build too, and `nest build` needs more than 384 MB.
+  Uncapped, Node let the heap grow to 775 MiB after the launch load's longest replay and the
+  process to about 1 GB; capped, every load
   scenario still passed with the heap at most 322 MiB and about 550 MiB resident on Windows. The
   resident set on Render's Linux is measured in FC-052; FC-044's acceptance evidence, kept with
   the Fleet Community plans, has the load figures.

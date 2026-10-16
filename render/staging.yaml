@@ -28,8 +28,11 @@ services:
     # service until the next month.
     plan: starter
     buildCommand: npm install; npm run build
-    # Runs the build's pending migrations, then the API.
-    startCommand: npm run start:render
+    # Runs the build's pending migrations, then the API, under the 512 MB
+    # plans' heap cap (FC-044). The cap is set here and not as an environment
+    # variable because Render gives those to the build too, and nest build
+    # needs more than 384 MB.
+    startCommand: NODE_OPTIONS=--max-old-space-size=384 npm run start:render
     # The API listens only once the boot's restore check has finished, so a
     # deploy that cannot finish it never goes healthy.
     healthCheckPath: /health/ready
@@ -39,9 +42,6 @@ services:
     envVars:
       - key: NODE_ENV
         value: staging
-      # The 512 MB plans' heap cap (FC-044).
-      - key: NODE_OPTIONS
-        value: --max-old-space-size=384
       - key: LOG_LEVEL
         value: log
       # Render routes to this port.
