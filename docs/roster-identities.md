@@ -24,13 +24,13 @@ own.
 
 ## The four tables
 
-| Table | What it holds |
-| --- | --- |
-| `fleet_roster_identity` | A UUID for somebody a Fleet's roster listed. No STO Info account needed: a member who has never signed up is as much a roster entry as one who has |
-| `fleet_roster_identity_alias` | One exact normalised Character name and handle in one Fleet, which identity it belongs to now, and the identity it was born with |
-| `fleet_roster_identity_candidate` | A rename the evidence suggests, its corroborating checks, its confidence, why it cannot be resolved if it cannot, and where a reviewer has left it |
-| `fleet_roster_identity_candidate_link` | Each pair of aliases a candidate would join — one for a Character rename, one per Character for an account rename |
-| `fleet_roster_identity_decision` | Each confirm, reject or undo, numbered per candidate and write-once |
+| Table                                  | What it holds                                                                                                                                      |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fleet_roster_identity`                | A UUID for somebody a Fleet's roster listed. No STO Info account needed: a member who has never signed up is as much a roster entry as one who has |
+| `fleet_roster_identity_alias`          | One exact normalised Character name and handle in one Fleet, which identity it belongs to now, and the identity it was born with                   |
+| `fleet_roster_identity_candidate`      | A rename the evidence suggests, its corroborating checks, its confidence, why it cannot be resolved if it cannot, and where a reviewer has left it |
+| `fleet_roster_identity_candidate_link` | Each pair of aliases a candidate would join — one for a Character rename, one per Character for an account rename                                  |
+| `fleet_roster_identity_decision`       | Each confirm, reject or undo, numbered per candidate and write-once                                                                                |
 
 Observations are never written to. An observation joins to its alias on the Fleet, normalised
 name and normalised handle, so a decision rewrites a small alias table rather than every row of
@@ -53,10 +53,10 @@ Nothing is ever matched on a join date or a name alone.
 Three checks are graded into the confidence rather than required, because the corpus holds a
 probable rename whose contribution changed:
 
-| Signal | Holds when |
-| --- | --- |
-| `LEVEL_NOT_LOWER` | The later row's level is not below the earlier's |
-| `CONTRIBUTION_NOT_LOWER` | The later cumulative total is not below the earlier's, compared as bigints |
+| Signal                    | Holds when                                                                                          |
+| ------------------------- | --------------------------------------------------------------------------------------------------- |
+| `LEVEL_NOT_LOWER`         | The later row's level is not below the earlier's                                                    |
+| `CONTRIBUTION_NOT_LOWER`  | The later cumulative total is not below the earlier's, compared as bigints                          |
 | `RANK_CHANGE_NOT_EARLIER` | The later rank change is not dated before the earlier; unknown where either is missing or ambiguous |
 
 None failed is `HIGH`, one is `MEDIUM`, two or more `LOW`. An account rename resting on a single
@@ -67,14 +67,14 @@ Character is never above `MEDIUM`.
 A candidate with any of these is recorded and shown, and can be neither confirmed nor rejected —
 the database refuses to let it leave `OPEN`:
 
-| Reason | Meaning |
-| --- | --- |
-| `SEVERAL_PARTNERS` | One of its rows could pair with more than one row on the other side, by either kind of rename. The multi-alt case |
-| `OLD_HANDLE_STILL_PRESENT` | The old handle is still in the later export. A handle belongs to the whole account |
-| `NEW_HANDLE_ALREADY_PRESENT` | The new handle was already in the earlier export |
-| `HANDLE_SPLIT` | One handle's Characters moved to more than one new handle |
-| `HANDLE_MERGE` | Two handles' Characters moved to the same new one |
-| `LISTED_TOGETHER` | A partial export between the two listed both names at once |
+| Reason                       | Meaning                                                                                                           |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `SEVERAL_PARTNERS`           | One of its rows could pair with more than one row on the other side, by either kind of rename. The multi-alt case |
+| `OLD_HANDLE_STILL_PRESENT`   | The old handle is still in the later export. A handle belongs to the whole account                                |
+| `NEW_HANDLE_ALREADY_PRESENT` | The new handle was already in the earlier export                                                                  |
+| `HANDLE_SPLIT`               | One handle's Characters moved to more than one new handle                                                         |
+| `HANDLE_MERGE`               | Two handles' Characters moved to the same new one                                                                 |
+| `LISTED_TOGETHER`            | A partial export between the two listed both names at once                                                        |
 
 ## The recompute
 
@@ -153,12 +153,12 @@ costs a wasted pass. It replaces FC-018's `fleet:backfill-identities`.
 
 ## How it is proved
 
-| Check | What it covers |
-| --- | --- |
-| `roster-identity-matcher.spec.ts` | The corpus's Character rename, account rename and contribution reset fixtures through the real readers; every hard gate; every collision reason; grading; ordering |
-| `roster-identity-planner.spec.ts` | Insert, rewrite, flag and delete rules for stored candidates; identity assignment, chains and undo |
-| `roster-identity-recompute.service.spec.ts` | The whole pass against in-memory tables across successive recomputes |
-| `roster-replay.service.spec.ts` | Proposals: raised from the latest effective export once, and finished after a crash |
-| `roster-identity-review.service.spec.ts` | Listing, every transition and refusal, the revision check, the lock |
-| `character-fleet-proposal.service.spec.ts` | Every reason not to ask, lapsing, deduplication and hiding |
-| `roster-identity-schema-alignment.spec.ts` | The entities against the migration |
+| Check                                       | What it covers                                                                                                                                                     |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `roster-identity-matcher.spec.ts`           | The corpus's Character rename, account rename and contribution reset fixtures through the real readers; every hard gate; every collision reason; grading; ordering |
+| `roster-identity-planner.spec.ts`           | Insert, rewrite, flag and delete rules for stored candidates; identity assignment, chains and undo                                                                 |
+| `roster-identity-recompute.service.spec.ts` | The whole pass against in-memory tables across successive recomputes                                                                                               |
+| `roster-replay.service.spec.ts`             | Proposals: raised from the latest effective export once, and finished after a crash                                                                                |
+| `roster-identity-review.service.spec.ts`    | Listing, every transition and refusal, the revision check, the lock                                                                                                |
+| `character-fleet-proposal.service.spec.ts`  | Every reason not to ask, lapsing, deduplication and hiding                                                                                                         |
+| `roster-identity-schema-alignment.spec.ts`  | The entities against the migration                                                                                                                                 |

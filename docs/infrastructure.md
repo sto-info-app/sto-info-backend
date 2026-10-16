@@ -258,13 +258,13 @@ instance takes it and reads what it missed from the database. See [Fleet chat](f
 told apart by the path. This is the single most confusing thing about the image setup and it has
 already caused one wrong conclusion, so it is written down here explicitly.
 
-| Path | Product | What it serves |
-| --- | --- | --- |
-| `/cdn-cgi/imagedelivery/<hash>/<imageId>/<variant>` | **Cloudflare Images** | Every image the site uploads today |
-| `/cdn-cgi/image/<options>/<key>` | **Cloudflare Image Resizing**, over an R2 object | Legacy Character portraits only |
-| `/<key>` — anything else | **The delivery R2 bucket** | Legacy Character portraits only |
+| Path                                                | Product                                          | What it serves                     |
+| --------------------------------------------------- | ------------------------------------------------ | ---------------------------------- |
+| `/cdn-cgi/imagedelivery/<hash>/<imageId>/<variant>` | **Cloudflare Images**                            | Every image the site uploads today |
+| `/cdn-cgi/image/<options>/<key>`                    | **Cloudflare Image Resizing**, over an R2 object | Legacy Character portraits only    |
+| `/<key>` — anything else                            | **The delivery R2 bucket**                       | Legacy Character portraits only    |
 
-Both are live: the domain is bound to the delivery R2 bucket *and* fronts Cloudflare Images. The
+Both are live: the domain is bound to the delivery R2 bucket _and_ fronts Cloudflare Images. The
 quarantine bucket is not bound to it, which is checked by
 `npm run probe:asset-delivery`.
 
@@ -276,7 +276,7 @@ Two further things are easy to miss:
 
 - **Every Cloudflare Images object is also reachable at `https://imagedelivery.net/<hash>/<id>/<variant>`**,
   a hostname this custom domain's cache purge does not touch. Withdrawing a published image must
-  therefore be a *delete* of the image, not a cache purge.
+  therefore be a _delete_ of the image, not a cache purge.
 - **The CDN hostname differs per environment** (`cdn.` and `dev-cdn.`), while the R2 buckets behind
   the estate are single buckets with the environment as a key prefix. Domain is per environment;
   bucket is not.
@@ -288,11 +288,11 @@ Two further things are easy to miss:
 
 ### What writes where, as of FC-008
 
-| Store | Written by | Read by |
-| --- | --- | --- |
-| **Cloudflare Images** | `ImageUploadsService.uploadImageToCloudflareImages` — every upload the site accepts | The custom domain and `imagedelivery.net` |
-| **Public R2 bucket** | **Nothing.** `uploadImageToCloudflareR2` and `deleteImageFromCloudflareR2` have no callers; FC-040's copy reads each legacy portrait out and its retirement deletes it | Legacy Character portraits, via the two `cdn-cgi` paths above, until they are copied |
-| **Quarantine R2 bucket** | `QuarantineStorageService.put` | `FileAssetDeliveryService`, and the scan worker |
+| Store                    | Written by                                                                                                                                                             | Read by                                                                              |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **Cloudflare Images**    | `ImageUploadsService.uploadImageToCloudflareImages` — every upload the site accepts                                                                                    | The custom domain and `imagedelivery.net`                                            |
+| **Public R2 bucket**     | **Nothing.** `uploadImageToCloudflareR2` and `deleteImageFromCloudflareR2` have no callers; FC-040's copy reads each legacy portrait out and its retirement deletes it | Legacy Character portraits, via the two `cdn-cgi` paths above, until they are copied |
+| **Quarantine R2 bucket** | `QuarantineStorageService.put`                                                                                                                                         | `FileAssetDeliveryService`, and the scan worker                                      |
 
 The public R2 bucket is kept rather than retired because document uploads are a likely future
 feature and Cloudflare Images cannot serve a PDF. See [File assets](file-assets.md) for how such
@@ -489,10 +489,10 @@ in it would be private only for as long as nobody pointed a rule at it.
 
 ### Two objects in R2 that must not be deleted
 
-| Bucket | Key |
-| --- | --- |
-| `stoi-quarantine` | `334843800-example-file-q.txt` |
-| `stoi-uploads` | `334843800-example-file-cdn.txt` |
+| Bucket            | Key                              |
+| ----------------- | -------------------------------- |
+| `stoi-quarantine` | `334843800-example-file-q.txt`   |
+| `stoi-uploads`    | `334843800-example-file-cdn.txt` |
 
 These are fixtures for `npm run probe:asset-delivery`, at the bucket root. They look like stray
 test files in a bucket listing and their contents say nothing about themselves, which is why they

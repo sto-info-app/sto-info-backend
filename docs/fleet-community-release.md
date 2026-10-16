@@ -37,16 +37,17 @@ No part of the agreed scope is held back for later.
 
   It is read-only and changes nothing. Note its INFO counts: they are what the release changes on
   purpose (below).
+
 - [ ] **A fresh backup of the production database** is taken immediately before deploying, and
-  its time noted. See [Restore](operations/restore.md).
+      its time noted. See [Restore](operations/restore.md).
 - [ ] **The new secret keys are in production's secret**, beside the old ones, which the running
-  release still reads. See [Rollback](operations/rollback.md#retiring-the-old-credentials-at-release)
-  and [Render services](operations/render-services.md#secrets).
+      release still reads. See [Rollback](operations/rollback.md#retiring-the-old-credentials-at-release)
+      and [Render services](operations/render-services.md#secrets).
 - [ ] **The worker's database role has its grant** on `sto_info_app.file_asset`. See
-  [Render services](operations/render-services.md#deploy-order).
+      [Render services](operations/render-services.md#deploy-order).
 - [ ] **The rehearsals pass on this release's commit**: `npm run rehearse:release`,
-  `rehearse:operations`, `rehearse:adversarial` and `rehearse:load`, and the frontend's Fleet
-  journeys at desktop and phone widths.
+      `rehearse:operations`, `rehearse:adversarial` and `rehearse:load`, and the frontend's Fleet
+      journeys at desktop and phone widths.
 
 ## Releasing
 
@@ -86,11 +87,11 @@ Only when every line below is true. Each is a box to tick on the day, with when 
 checked:
 
 - [ ] **Policies**: the Privacy Policy and Terms of Use describing Fleet Community are live (last
-  updated 29 September 2026), and the notice has gone out.
+      updated 29 September 2026), and the notice has gone out.
 - [ ] **Uploads**: every kind of upload has gone through the deployed worker and published, and a
-  withdrawn picture can no longer be fetched by any old address.
+      withdrawn picture can no longer be fetched by any old address.
 - [ ] **Backup and restore**: a restore of a recent backup has been rehearsed on Render, with the
-  restore check bringing back what the backup lacked.
+      restore check bringing back what the backup lacked.
 - [ ] **Rollback**: switching off, and rolling the code forward, have been rehearsed on Render.
 - [ ] **Operations**: no operations alert is open; Scan Diagnostics shows the worker `RUNNING`.
 - [ ] **Support**: Contact us and both report queues work.

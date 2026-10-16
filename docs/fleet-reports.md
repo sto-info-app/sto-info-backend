@@ -10,12 +10,12 @@ Plan R13 has Admins choose public aggregates. Steve decided on 25 September 2026
 made per report, by the Owner alone — the holder of `scope.settings.manage`, which is not
 delegable — from the Fleet's own four audiences:
 
-| Audience | Who | What they see |
-| --- | --- | --- |
-| `PRIVATE`, the default | `reports.view` holders: the Owner and Admins | The report in full |
-| `FLEET_MEMBERS` | The Fleet's approved members too | The report in full, since they can already read the roster it is built from |
-| `COMMUNITY` | The Community's followers and members too | Aggregates only |
-| `PUBLIC` | Anyone, signed in or not | Aggregates only |
+| Audience               | Who                                          | What they see                                                               |
+| ---------------------- | -------------------------------------------- | --------------------------------------------------------------------------- |
+| `PRIVATE`, the default | `reports.view` holders: the Owner and Admins | The report in full                                                          |
+| `FLEET_MEMBERS`        | The Fleet's approved members too             | The report in full, since they can already read the roster it is built from |
+| `COMMUNITY`            | The Community's followers and members too    | Aggregates only                                                             |
+| `PUBLIC`               | Anyone, signed in or not                     | Aggregates only                                                             |
 
 For a report, `PRIVATE` means its `reports.view` holders, not the Owner alone as it does for a
 Fleet record.

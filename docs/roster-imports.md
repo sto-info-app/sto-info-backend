@@ -118,7 +118,7 @@ Consider this row under a fifteen-column header:
 ```
 
 It is not a well-formed fifteen-field row — the officer date is missing. Without a right-hand
-anchor it is a perfectly good *twelve*-field row: Status, then a Public Comment of
+anchor it is a perfectly good _twelve_-field row: Status, then a Public Comment of
 `Comment",d,"OFFICER NOTE`, then an edit date of `Author`. One reading, no ambiguity, officer note
 retained.
 
@@ -147,14 +147,14 @@ it is not attributed to an officer, and where FC-016's typed parse gets a second
 
 ### Bounded
 
-| Limit | Value | Chosen against |
-| --- | --- | --- |
-| Upload size | 2 MiB | Largest corpus file is 79,165 bytes |
-| Rows | 2,000 | Largest corpus roster is 500 |
-| Line length | 64 KiB | — |
-| Retained field length | 4 KiB | A public comment is not four kilobytes |
-| Quotes per line | 48 | A well-formed row has 4, or 6 with an officer tail |
-| Tail parse steps | 4,096 | A real row costs fewer than ten |
+| Limit                 | Value  | Chosen against                                     |
+| --------------------- | ------ | -------------------------------------------------- |
+| Upload size           | 2 MiB  | Largest corpus file is 79,165 bytes                |
+| Rows                  | 2,000  | Largest corpus roster is 500                       |
+| Line length           | 64 KiB | —                                                  |
+| Retained field length | 4 KiB  | A public comment is not four kilobytes             |
+| Quotes per line       | 48     | A well-formed row has 4, or 6 with an officer tail |
+| Tail parse steps      | 4,096  | A real row costs fewer than ten                    |
 
 The last two are the ones that matter. The officer shape nests three searches over candidate quote
 positions, so a line of alternating quotes and commas would otherwise cost cubically: forty-eight
@@ -183,14 +183,14 @@ A BOM on the way in is explicitly allowed and is not retained.
 Into the private quarantine bucket, under a key built from the asset's own UUID — never from the
 filename. Registered as:
 
-| Field | Value | Why |
-| --- | --- | --- |
-| `kind` | `ROSTER_IMPORT_SOURCE` | What a rescan campaign and the retention job filter on |
-| `state` | `QUARANTINED` | Nothing has scanned it |
-| `audience` | `RESTRICTED` | **Not** `SCOPE` — see below |
-| `storage` | `QUARANTINE` | |
-| `fleetId` | the Fleet | Ownership, for cleanup and campaigns |
-| `retainUntil` | upload + 180 days | ADR-0001, measured from upload |
+| Field         | Value                  | Why                                                    |
+| ------------- | ---------------------- | ------------------------------------------------------ |
+| `kind`        | `ROSTER_IMPORT_SOURCE` | What a rescan campaign and the retention job filter on |
+| `state`       | `QUARANTINED`          | Nothing has scanned it                                 |
+| `audience`    | `RESTRICTED`           | **Not** `SCOPE` — see below                            |
+| `storage`     | `QUARANTINE`           |                                                        |
+| `fleetId`     | the Fleet              | Ownership, for cleanup and campaigns                   |
+| `retainUntil` | upload + 180 days      | ADR-0001, measured from upload                         |
 
 **The audience is `RESTRICTED` on purpose.** A scoped audience would make the sanitised CSV
 reachable through the generic delivery endpoint by anyone the Fleet's audience policy admits, and
@@ -204,19 +204,19 @@ scanner has looked at.
 `fleet_roster_import_source`, one row per accepted upload. ADR-0001 names what has to survive; the
 registry holds the filename and the sanitised hash, and this holds the rest.
 
-| Column | Note |
-| --- | --- |
-| `assetId` | Unique. One import record per stored object |
-| `fleetId`, `uploadedByUserId` | `RESTRICT` and `SET NULL` respectively |
-| `originalFilename` | As uploaded. Evidence, not input |
-| `declaredContentType` | The `Content-Type` the upload arrived with, exactly as sent. Evidence, believed by nothing |
-| `sourceSha256` | Of bytes that no longer exist anywhere |
-| `sanitisedSha256` | Of what is in the bucket |
-| `sourceByteSize`, `sanitisedByteSize` | |
-| `sourceHeaderShape` | `NORMAL` or `OFFICER` |
-| `rowCount`, `officerTailRowCount` | Counts, never values |
-| `parserVersion` | Bump when the same bytes would give a different file |
-| `uploadedAt` | |
+| Column                                | Note                                                                                       |
+| ------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `assetId`                             | Unique. One import record per stored object                                                |
+| `fleetId`, `uploadedByUserId`         | `RESTRICT` and `SET NULL` respectively                                                     |
+| `originalFilename`                    | As uploaded. Evidence, not input                                                           |
+| `declaredContentType`                 | The `Content-Type` the upload arrived with, exactly as sent. Evidence, believed by nothing |
+| `sourceSha256`                        | Of bytes that no longer exist anywhere                                                     |
+| `sanitisedSha256`                     | Of what is in the bucket                                                                   |
+| `sourceByteSize`, `sanitisedByteSize` |                                                                                            |
+| `sourceHeaderShape`                   | `NORMAL` or `OFFICER`                                                                      |
+| `rowCount`, `officerTailRowCount`     | Counts, never values                                                                       |
+| `parserVersion`                       | Bump when the same bytes would give a different file                                       |
+| `uploadedAt`                          |                                                                                            |
 
 **Why keep the source hash when the source is gone.** It is the only evidence connecting an import
 to the file somebody actually uploaded — it settles "is this the same export I sent you" and "has
@@ -300,20 +300,20 @@ The caller gets a structural code and, where one applies, a physical line number
 one with the header as line one. Both values were produced by this application; neither was read
 out of the file.
 
-| Code | Meaning |
-| --- | --- |
-| `FILE_TOO_LARGE`, `FILE_EMPTY` | |
-| `FILENAME_UNUSABLE` | Empty, too long, or holding a control character or path separator |
-| `ENCODING_NOT_UTF8` | A BOM is fine; invalid UTF-8 is refused rather than repaired |
-| `CONTROL_CHARACTER` | Tab is allowed. A NUL in a name is not |
-| `LINE_ENDING_UNSUPPORTED` | A carriage return not ending a CRLF |
-| `HEADER_UNRECOGNISED` | Neither known header, byte for byte |
-| `TOO_MANY_ROWS`, `LINE_TOO_LONG`, `FIELD_TOO_LONG`, `TOO_MANY_QUOTES` | |
-| `BLANK_LINE` | Other than the file's own terminator |
-| `ROW_PREFIX_MALFORMED` | Fewer than nine leading commas |
-| `ROW_UNPARSEABLE` | No reading satisfies the grammar |
-| `ROW_AMBIGUOUS` | More than one does |
-| `ROW_PARSE_BUDGET` | Finding out would cost more than the parser will spend |
+| Code                                                                  | Meaning                                                           |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `FILE_TOO_LARGE`, `FILE_EMPTY`                                        |                                                                   |
+| `FILENAME_UNUSABLE`                                                   | Empty, too long, or holding a control character or path separator |
+| `ENCODING_NOT_UTF8`                                                   | A BOM is fine; invalid UTF-8 is refused rather than repaired      |
+| `CONTROL_CHARACTER`                                                   | Tab is allowed. A NUL in a name is not                            |
+| `LINE_ENDING_UNSUPPORTED`                                             | A carriage return not ending a CRLF                               |
+| `HEADER_UNRECOGNISED`                                                 | Neither known header, byte for byte                               |
+| `TOO_MANY_ROWS`, `LINE_TOO_LONG`, `FIELD_TOO_LONG`, `TOO_MANY_QUOTES` |                                                                   |
+| `BLANK_LINE`                                                          | Other than the file's own terminator                              |
+| `ROW_PREFIX_MALFORMED`                                                | Fewer than nine leading commas                                    |
+| `ROW_UNPARSEABLE`                                                     | No reading satisfies the grammar                                  |
+| `ROW_AMBIGUOUS`                                                       | More than one does                                                |
+| `ROW_PARSE_BUDGET`                                                    | Finding out would cost more than the parser will spend            |
 
 Every one describes structure. None describes content, which is what makes it safe to hand back.
 
@@ -323,7 +323,7 @@ The parser validates structure and redacts. **It never evaluates content.** Each
 FC-016's or FC-017's, and implementing either here would mean two implementations of the same
 question with a chance to disagree:
 
-- Whether a level is a number or a date is real. A date of the right *shape* that is not a real
+- Whether a level is a number or a date is real. A date of the right _shape_ that is not a real
   date is accepted here and refused there.
 - Whether the filename matches the anchored grammar, or its Fleet label matches the target Fleet.
 - Whether a Character and handle appear twice.
@@ -335,15 +335,15 @@ successfully here and refused later, and the parser's specs assert exactly that.
 
 ## How it is proved
 
-| Check | What it covers |
-| --- | --- |
-| `roster-csv-privacy-parser.service.spec.ts` | 73 cases: the grammar, every limit, every rejection code, and all 20 accepted corpus fixtures |
-| `roster-import-ingress.service.spec.ts` | Registration, hashing, buffer disposal on all four paths |
-| `roster-imports.controller.spec.ts` | Feature switch, missing file, DTO mapping |
-| `__tests__/officer-canary-sinks.spec.ts` | Drives the whole ingress and asserts the canary reaches none of six sinks — response, log, stored bytes, registry arguments, database row, thrown error and its stack |
-| `__tests__/officer-canary-containment.spec.ts` | Sweeps `src`, `scripts`, `docs`, `config` and `test` for the token outside its six allowed files |
-| `roster-csv-privacy-parser.fuzz.spec.ts` | Arbitrary bytes never throw anything but a refusal; officer text never escapes; output is always twelve strict RFC 4180 columns; bounds hold |
-| `npm run rehearse:migration:roster-import-source` | 32 assertions and a ten-writer race, against `postgres:18-alpine` |
+| Check                                             | What it covers                                                                                                                                                        |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `roster-csv-privacy-parser.service.spec.ts`       | 73 cases: the grammar, every limit, every rejection code, and all 20 accepted corpus fixtures                                                                         |
+| `roster-import-ingress.service.spec.ts`           | Registration, hashing, buffer disposal on all four paths                                                                                                              |
+| `roster-imports.controller.spec.ts`               | Feature switch, missing file, DTO mapping                                                                                                                             |
+| `__tests__/officer-canary-sinks.spec.ts`          | Drives the whole ingress and asserts the canary reaches none of six sinks — response, log, stored bytes, registry arguments, database row, thrown error and its stack |
+| `__tests__/officer-canary-containment.spec.ts`    | Sweeps `src`, `scripts`, `docs`, `config` and `test` for the token outside its six allowed files                                                                      |
+| `roster-csv-privacy-parser.fuzz.spec.ts`          | Arbitrary bytes never throw anything but a refusal; officer text never escapes; output is always twelve strict RFC 4180 columns; bounds hold                          |
+| `npm run rehearse:migration:roster-import-source` | 32 assertions and a ten-writer race, against `postgres:18-alpine`                                                                                                     |
 
 The canary is the synthetic token FC-001 wrote into its fixtures' officer columns; the fixtures
 and the containment spec's allowlist are where it is spelled out, and this document deliberately

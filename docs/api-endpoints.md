@@ -291,22 +291,22 @@ Publishing or unpublishing a Chapter updates its Story's `publishedChapterCount`
 
 Collaboration and credits are deliberately separate throughout. Inviting somebody hands them the ability to change the Story and needs the collaborator capability; crediting somebody is public thanks that confers nothing and needs only the crew one.
 
-| Method | Path                                                       | Purpose                                     |
-| ------ | ---------------------------------------------------------- | ------------------------------------------- |
-| GET    | `/storytime/crew-roles`                                    | List the roles a credit may be given in     |
-| GET    | `/storytime/stories/:storySlug/credits`                    | Read a published Story's credits            |
-| GET    | `/storytime/manage/stories/:storyId/collaborators`         | List who is helping write a Story           |
-| POST   | `/storytime/manage/stories/:storyId/collaborators`         | Invite somebody to help write a Story       |
-| PATCH  | `/storytime/manage/collaborators/:collaboratorId`          | Change what a collaborator may do           |
-| POST   | `/storytime/manage/collaborators/:collaboratorId/accept`   | Accept an invitation                        |
-| POST   | `/storytime/manage/collaborators/:collaboratorId/decline`  | Decline an invitation                       |
-| POST   | `/storytime/manage/collaborators/:collaboratorId/revoke`   | Withdraw an invitation, or step down        |
-| GET    | `/storytime/manage/collaborations/invitations`             | List the invitations waiting on you         |
-| GET    | `/storytime/manage/stories/:storyId/credits`               | List the credits on a Story you manage      |
-| GET    | `/storytime/manage/stories/:storyId/creditable-members`    | Find members you could credit               |
-| POST   | `/storytime/manage/stories/:storyId/credits`               | Credit somebody on a Story                  |
-| PATCH  | `/storytime/manage/credits/:creditId`                      | Reword a credit                             |
-| DELETE | `/storytime/manage/credits/:creditId`                      | Soft-delete a credit                        |
+| Method | Path                                                      | Purpose                                 |
+| ------ | --------------------------------------------------------- | --------------------------------------- |
+| GET    | `/storytime/crew-roles`                                   | List the roles a credit may be given in |
+| GET    | `/storytime/stories/:storySlug/credits`                   | Read a published Story's credits        |
+| GET    | `/storytime/manage/stories/:storyId/collaborators`        | List who is helping write a Story       |
+| POST   | `/storytime/manage/stories/:storyId/collaborators`        | Invite somebody to help write a Story   |
+| PATCH  | `/storytime/manage/collaborators/:collaboratorId`         | Change what a collaborator may do       |
+| POST   | `/storytime/manage/collaborators/:collaboratorId/accept`  | Accept an invitation                    |
+| POST   | `/storytime/manage/collaborators/:collaboratorId/decline` | Decline an invitation                   |
+| POST   | `/storytime/manage/collaborators/:collaboratorId/revoke`  | Withdraw an invitation, or step down    |
+| GET    | `/storytime/manage/collaborations/invitations`            | List the invitations waiting on you     |
+| GET    | `/storytime/manage/stories/:storyId/credits`              | List the credits on a Story you manage  |
+| GET    | `/storytime/manage/stories/:storyId/creditable-members`   | Find members you could credit           |
+| POST   | `/storytime/manage/stories/:storyId/credits`              | Credit somebody on a Story              |
+| PATCH  | `/storytime/manage/credits/:creditId`                     | Reword a credit                         |
+| DELETE | `/storytime/manage/credits/:creditId`                     | Soft-delete a credit                    |
 
 #### Naming the member
 
@@ -326,8 +326,8 @@ Managing credits needs the crew capability on the Story, which the owner always 
 
 ### Content
 
-| Method | Path                               | Purpose                                  |
-| ------ | ---------------------------------- | ---------------------------------------- |
+| Method | Path                                | Purpose                                  |
+| ------ | ----------------------------------- | ---------------------------------------- |
 | POST   | `/storytime/manage/content/preview` | Render Storytime Markdown without saving |
 
 Takes `{ contentSource }` and answers `{ html }` — the same HTML the same source would produce on save, because it is the same renderer. Answers `200`, since nothing is created.
@@ -356,30 +356,30 @@ See
 Every site-level admin action takes a reason, kept in the site admin log. Beyond the access
 control routes above:
 
-| Route | Reason |
-| ----- | ------ |
-| `POST /admin/moderation/users/:moderatedUserId/disable`, `/enable` | `{ reason }`, required for both |
-| `PATCH /admin/moderation/reports/:reportId` | `reason`, required to close a report as `ACTIONED` or `DISMISSED`; a claim needs none |
-| `POST /admin/chat-reports/:reportId/decision` | `note`, now required |
-| `POST /admin/moderation/custom-tracking/:level/:id/suppress`, `/restore` | `{ reason }` |
-| Storytime moderation | A report's `resolution` is required to close it, and an appeal's `reviewNotes` to decide it |
+| Route                                                                    | Reason                                                                                      |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| `POST /admin/moderation/users/:moderatedUserId/disable`, `/enable`       | `{ reason }`, required for both                                                             |
+| `PATCH /admin/moderation/reports/:reportId`                              | `reason`, required to close a report as `ACTIONED` or `DISMISSED`; a claim needs none       |
+| `POST /admin/chat-reports/:reportId/decision`                            | `note`, now required                                                                        |
+| `POST /admin/moderation/custom-tracking/:level/:id/suppress`, `/restore` | `{ reason }`                                                                                |
+| Storytime moderation                                                     | A report's `resolution` is required to close it, and an appeal's `reviewNotes` to decide it |
 
-| Method | Path | Purpose |
-| ------ | ---- | ------- |
-| GET | `/admin/security-log?source=&page=` | What site admins and the retention jobs did, newest first, fifty to a page; `source` is one of `SITE_ADMIN`, `FLEET`, `HOLD`, `INVESTIGATION`, `ERASURE`, `RETENTION` |
-| GET | `/admin/file-scanning/rejections?page=` | Refused assets, newest verdict first, 25 to a page; a page after the first is logged (FC-042) |
-| GET | `/admin/file-scanning/assets/:assetId` | One asset's scan outcome: code and engine, never a signature name; the read is logged (FC-042) |
+| Method | Path                                    | Purpose                                                                                                                                                               |
+| ------ | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/admin/security-log?source=&page=`     | What site admins and the retention jobs did, newest first, fifty to a page; `source` is one of `SITE_ADMIN`, `FLEET`, `HOLD`, `INVESTIGATION`, `ERASURE`, `RETENTION` |
+| GET    | `/admin/file-scanning/rejections?page=` | Refused assets, newest verdict first, 25 to a page; a page after the first is logged (FC-042)                                                                         |
+| GET    | `/admin/file-scanning/assets/:assetId`  | One asset's scan outcome: code and engine, never a signature name; the read is logged (FC-042)                                                                        |
 
 All three require the `ADMIN` role. See [Admin audit](admin-audit.md).
 
 ### Private image delivery (FC-040)
 
-| Method | Path | Purpose |
-| ------ | ---- | ------- |
-| GET | `/admin/image-estate` | Whether addresses are signed, how many pictures are still public, the copies by state, and the last run and inventory |
-| POST | `/admin/image-estate/inventory` | Reconcile the image columns, the registry and Cloudflare's listing; changes nothing |
-| POST | `/admin/image-estate/runs` | `{ kind: COPY \| UNDO \| RETIRE, reason }`; 409 while another run is open, without the signing key, or with nothing to undo or retire |
-| POST | `/admin/image-estate/runs/pause`, `/resume` | `{ reason }` |
+| Method | Path                                        | Purpose                                                                                                                               |
+| ------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/admin/image-estate`                       | Whether addresses are signed, how many pictures are still public, the copies by state, and the last run and inventory                 |
+| POST   | `/admin/image-estate/inventory`             | Reconcile the image columns, the registry and Cloudflare's listing; changes nothing                                                   |
+| POST   | `/admin/image-estate/runs`                  | `{ kind: COPY \| UNDO \| RETIRE, reason }`; 409 while another run is open, without the signing key, or with nothing to undo or retire |
+| POST   | `/admin/image-estate/runs/pause`, `/resume` | `{ reason }`                                                                                                                          |
 
 All require the `ADMIN` role. Every response's picture addresses are signed on the way out, and
 Community, Fleet, Armada, news and Custom Tracking responses now carry addresses
@@ -388,26 +388,26 @@ Community, Fleet, Armada, news and Custom Tracking responses now carry addresses
 
 ### Rescan campaigns (FC-041)
 
-| Method | Path | Purpose |
-| ------ | ---- | ------- |
-| GET | `/admin/rescan-campaigns` | The 20 latest campaigns with their counts, how many rescans are waiting, how many legacy pictures have never been scanned, and the 50 latest pictures found infected or refused for policy and not yet decided (rescan ID, asset ID and code only) |
-| POST | `/admin/rescan-campaigns` | `{ selection: { kinds?, uploadedFrom?, uploadedBefore?, notScannedForDays?, unverifiedOnly?, priority?: HIGH \| LOW }, reason }`; starts a campaign |
-| POST | `/admin/rescan-campaigns/:id/pause`, `/resume`, `/cancel` | `{ reason }`; 409 when the campaign cannot do that now |
-| POST | `/admin/rescan-campaigns/findings/:rescanId/decision` | `{ decision: TAKEN_DOWN \| KEPT, reason }`; takes down or keeps a picture refused for policy, answering 204; 404 for no such rescan, 409 when it is not a policy refusal or has been decided (FC-050) |
+| Method | Path                                                      | Purpose                                                                                                                                                                                                                                            |
+| ------ | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/admin/rescan-campaigns`                                 | The 20 latest campaigns with their counts, how many rescans are waiting, how many legacy pictures have never been scanned, and the 50 latest pictures found infected or refused for policy and not yet decided (rescan ID, asset ID and code only) |
+| POST   | `/admin/rescan-campaigns`                                 | `{ selection: { kinds?, uploadedFrom?, uploadedBefore?, notScannedForDays?, unverifiedOnly?, priority?: HIGH \| LOW }, reason }`; starts a campaign                                                                                                |
+| POST   | `/admin/rescan-campaigns/:id/pause`, `/resume`, `/cancel` | `{ reason }`; 409 when the campaign cannot do that now                                                                                                                                                                                             |
+| POST   | `/admin/rescan-campaigns/findings/:rescanId/decision`     | `{ decision: TAKEN_DOWN \| KEPT, reason }`; takes down or keeps a picture refused for policy, answering 204; 404 for no such rescan, 409 when it is not a policy refusal or has been decided (FC-050)                                              |
 
 All require the `ADMIN` role. See [Rescan campaigns](rescan-campaigns.md).
 
 ### Failed jobs and the publication pause (FC-042)
 
-| Method | Path | Purpose |
-| ------ | ---- | ------- |
-| GET | `/admin/file-scanning/failed-jobs?queue=&page=` | Failed jobs of `file-scan`, `file-scan-verdict`, `file-asset-publication`, `chat-transcript` and `fleet-roster-replay`, queue by queue and newest first, 25 to a page: job ID, name, attempts, when it failed, the asset, transcript or Fleet ID, a failure code, and whether a retry could help. A page after the first, or one queue, is logged as `SCAN_DIAGNOSTICS_VIEWED` |
-| POST | `/admin/file-scanning/failed-jobs/:queue/:jobId/retry` | `{ reason }`; sends the job round again with its attempts back, answering 204. 404 for no such job; 409 when it has not failed, when a retry would change nothing (the message says why), or when somebody retried it first. Logged as `SCAN_JOB_RETRIED` |
-| POST | `/admin/file-scanning/failed-jobs/retry-all` | `{ reason, queue? }`; retries every failed job a retry can help, up to 500 a press, and answers `{ retried, skipped, remaining, byQueue }`. Logged once as `SCAN_JOB_RETRIED` |
-| POST | `/admin/file-scanning/failed-jobs/:queue/:jobId/discard` | `{ reason }`; removes any failed job from its queue, answering 204. 404 for no such job; 409 when it has not failed or somebody retried or discarded it first. Logged as `SCAN_JOB_DISCARDED` |
-| POST | `/admin/file-scanning/failed-jobs/discard-unretryable` | `{ reason, queue? }`; removes every failed job a retry cannot help, up to 500 a press, and answers `{ discarded, kept, remaining, byQueue }`. Logged once as `SCAN_JOB_DISCARDED` |
-| GET | `/admin/file-publication` | Whether publication is paused, since when and by whom (`pausedByUserId`, `pausedByUsername`), whether the queue is paused, and how many cleared uploads are held |
-| POST | `/admin/file-publication/pause`, `/resume` | `{ reason }`; 409 when it is already paused, or not paused. Logged as `PUBLICATION_PAUSED` and `PUBLICATION_RESUMED` |
+| Method | Path                                                     | Purpose                                                                                                                                                                                                                                                                                                                                                                        |
+| ------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GET    | `/admin/file-scanning/failed-jobs?queue=&page=`          | Failed jobs of `file-scan`, `file-scan-verdict`, `file-asset-publication`, `chat-transcript` and `fleet-roster-replay`, queue by queue and newest first, 25 to a page: job ID, name, attempts, when it failed, the asset, transcript or Fleet ID, a failure code, and whether a retry could help. A page after the first, or one queue, is logged as `SCAN_DIAGNOSTICS_VIEWED` |
+| POST   | `/admin/file-scanning/failed-jobs/:queue/:jobId/retry`   | `{ reason }`; sends the job round again with its attempts back, answering 204. 404 for no such job; 409 when it has not failed, when a retry would change nothing (the message says why), or when somebody retried it first. Logged as `SCAN_JOB_RETRIED`                                                                                                                      |
+| POST   | `/admin/file-scanning/failed-jobs/retry-all`             | `{ reason, queue? }`; retries every failed job a retry can help, up to 500 a press, and answers `{ retried, skipped, remaining, byQueue }`. Logged once as `SCAN_JOB_RETRIED`                                                                                                                                                                                                  |
+| POST   | `/admin/file-scanning/failed-jobs/:queue/:jobId/discard` | `{ reason }`; removes any failed job from its queue, answering 204. 404 for no such job; 409 when it has not failed or somebody retried or discarded it first. Logged as `SCAN_JOB_DISCARDED`                                                                                                                                                                                  |
+| POST   | `/admin/file-scanning/failed-jobs/discard-unretryable`   | `{ reason, queue? }`; removes every failed job a retry cannot help, up to 500 a press, and answers `{ discarded, kept, remaining, byQueue }`. Logged once as `SCAN_JOB_DISCARDED`                                                                                                                                                                                              |
+| GET    | `/admin/file-publication`                                | Whether publication is paused, since when and by whom (`pausedByUserId`, `pausedByUsername`), whether the queue is paused, and how many cleared uploads are held                                                                                                                                                                                                               |
+| POST   | `/admin/file-publication/pause`, `/resume`               | `{ reason }`; 409 when it is already paused, or not paused. Logged as `PUBLICATION_PAUSED` and `PUBLICATION_RESUMED`                                                                                                                                                                                                                                                           |
 
 All require the `ADMIN` role. The failed-jobs routes answer 503 "The job queues cannot be reached."
 when Redis cannot be reached or does not answer within 5 seconds. A pause or resume while Redis is
@@ -416,10 +416,10 @@ down still succeeds on the switch, answering with `queuePaused` and `held` null.
 
 ### Feature switches (FC-045)
 
-| Method | Path | Purpose |
-| ------ | ---- | ------- |
-| GET | `/admin/feature-switches` | Fleet Communities, Storytime and Custom Tracking, in that order: whether each is on, when its switch was last written and by whom (`changedAt`, `changedByUsername`, null for a seeded or hand-set value), and the capability flags beneath it as the environment sets them (`subFlags`: `key`, `label`, `isEnabled`), read whether or not the feature is on |
-| PATCH | `/admin/feature-switches/:feature` | `{ isEnabled, reason }`, where `:feature` is `FLEET_COMMUNITIES`, `STORYTIME` or `CUSTOM_TRACKING` (400 otherwise); answers the switch as it now stands. 409 when it is already in that position; 404 when its `app_setting` row is missing. Logged as `FEATURE_SWITCHED_ON` or `FEATURE_SWITCHED_OFF` |
+| Method | Path                               | Purpose                                                                                                                                                                                                                                                                                                                                                      |
+| ------ | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GET    | `/admin/feature-switches`          | Fleet Communities, Storytime and Custom Tracking, in that order: whether each is on, when its switch was last written and by whom (`changedAt`, `changedByUsername`, null for a seeded or hand-set value), and the capability flags beneath it as the environment sets them (`subFlags`: `key`, `label`, `isEnabled`), read whether or not the feature is on |
+| PATCH  | `/admin/feature-switches/:feature` | `{ isEnabled, reason }`, where `:feature` is `FLEET_COMMUNITIES`, `STORYTIME` or `CUSTOM_TRACKING` (400 otherwise); answers the switch as it now stands. 409 when it is already in that position; 404 when its `app_setting` row is missing. Logged as `FEATURE_SWITCHED_ON` or `FEATURE_SWITCHED_OFF`                                                       |
 
 All require the `ADMIN` role. Gated by the role rather than any feature's own permission: those
 permissions are only meaningful while the feature is on, so gating the switch behind one would let
@@ -1200,10 +1200,10 @@ Returned URL values are verified as valid Cloudflare Images delivery URLs.
 
 **Query parameters:**
 
-| Parameter   | Values                                                                 | Default  |
-| ----------- | ---------------------------------------------------------------------- | -------- |
+| Parameter   | Values                                                                  | Default  |
+| ----------- | ----------------------------------------------------------------------- | -------- |
 | `sortBy`    | `handle`, `characterCount`, `endeavourTotalNodes`, `accountCreatedDate` | `handle` |
-| `sortOrder` | `ASC`, `DESC`                                                          | `ASC`    |
+| `sortOrder` | `ASC`, `DESC`                                                           | `ASC`    |
 
 Pinned accounts always lead the list, whichever ordering is requested; the
 requested ordering then applies within the pinned and unpinned groups alike.
@@ -1651,10 +1651,10 @@ allowed type, successful processing and an audience to publish to.
 
 **Responses**
 
-| Status | When |
-| ------ | ---- |
+| Status | When                                                                                                                        |
+| ------ | --------------------------------------------------------------------------------------------------------------------------- |
 | `200`  | The bytes, with `Cache-Control: no-store, private`, `Content-Disposition: attachment` and `X-Content-Type-Options: nosniff` |
-| `404`  | No such asset, the asset is not available, **or** the reader may not see it |
+| `404`  | No such asset, the asset is not available, **or** the reader may not see it                                                 |
 
 The three `404` cases are deliberately indistinguishable. Telling them apart would let somebody
 enumerate what is stored and, for a quarantined file, confirm that the scanner rejected it — which

@@ -6,18 +6,18 @@ picture was public at two hostnames for as long as it existed, whatever the regi
 
 Steve's decisions of 29 September 2026:
 
-| Question | Decision |
-| -------- | -------- |
-| How old addresses stop getting round an asset's state | Signed Cloudflare Images URLs |
-| A legacy (`UNVERIFIED`) picture until FC-041 scans it | Keeps showing, never marked clean |
-| How the estate moves | An admin-run, checkpointed job on Scan Diagnostics, undoable, deleting nothing |
-| Cloudflare objects nothing points at | Reported, not deleted |
-| Legacy R2 Character portraits | Copied into Cloudflare Images; the R2 bucket's public access closed afterwards |
-| How long a signed address lasts | Until the end of the next UTC day |
-| Where admins run it | A new section of Scan Diagnostics |
-| The old public copies | Deleted by a separate "Retire old copies" run, after checking the site |
-| Which pictures | Every published picture, legacy or since FC-012 |
-| The signing key | A new field in the application's AWS secret, `cloudflareImagesSigningKey` |
+| Question                                              | Decision                                                                       |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------ |
+| How old addresses stop getting round an asset's state | Signed Cloudflare Images URLs                                                  |
+| A legacy (`UNVERIFIED`) picture until FC-041 scans it | Keeps showing, never marked clean                                              |
+| How the estate moves                                  | An admin-run, checkpointed job on Scan Diagnostics, undoable, deleting nothing |
+| Cloudflare objects nothing points at                  | Reported, not deleted                                                          |
+| Legacy R2 Character portraits                         | Copied into Cloudflare Images; the R2 bucket's public access closed afterwards |
+| How long a signed address lasts                       | Until the end of the next UTC day                                              |
+| Where admins run it                                   | A new section of Scan Diagnostics                                              |
+| The old public copies                                 | Deleted by a separate "Retire old copies" run, after checking the site         |
+| Which pictures                                        | Every published picture, legacy or since FC-012                                |
+| The signing key                                       | A new field in the application's AWS secret, `cloudflareImagesSigningKey`      |
 
 ## What Cloudflare does
 

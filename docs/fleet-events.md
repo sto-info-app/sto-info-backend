@@ -44,12 +44,12 @@ Armadas' events too. Held occurrences stay readable.
 
 ## Who may do what
 
-| Who | May |
-| --- | --- |
-| Anybody who may see the scope and the event | See it, how many are Going, Maybe and waiting, and subscribe to reminders |
-| The scope's members, and its managers | Also see who answered, by username and Character |
-| `events.rsvp` holders it is shown to; anybody signed in, for a public event | Answer it |
-| `events.manage` holders | Everything: create, preview, edit, cancel, move, see Can't go, record attendance, read the change log |
+| Who                                                                         | May                                                                                                   |
+| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Anybody who may see the scope and the event                                 | See it, how many are Going, Maybe and waiting, and subscribe to reminders                             |
+| The scope's members, and its managers                                       | Also see who answered, by username and Character                                                      |
+| `events.rsvp` holders it is shown to; anybody signed in, for a public event | Answer it                                                                                             |
+| `events.manage` holders                                                     | Everything: create, preview, edit, cancel, move, see Can't go, record attendance, read the change log |
 
 `events.rsvp` is a member's by default and `events.manage` an Owner's and Admins'; both can be
 delegated. A Community role reaches every Fleet and Armada in it.
@@ -119,21 +119,21 @@ reminder is reminded of again. The link is the event's page below its scope,
 `:scope` is `fleet-communities/:c`, `fleet-communities/:c/fleets/:f` or
 `fleet-communities/:c/armadas/:a`.
 
-| Route | Who |
-| --- | --- |
-| `GET /:scope/events?from=&to=` | Anybody who may see the scope; the next 31 days by default, at most 93 |
-| `POST /:scope/events/preview` | `events.manage`; what a rule would come to over the next year |
-| `POST /:scope/events` | `events.manage` |
-| `GET /:scope/events/:eventId` | Anybody it is shown to; the rule and the next ten occurrences |
-| `PUT /:scope/events/:eventId` | `events.manage`; the whole event, changed from now on |
-| `POST /:scope/events/:eventId/cancel` | `events.manage` |
-| `GET /:scope/events/:eventId/history` | `events.manage` |
-| `PUT` / `DELETE /:scope/events/:eventId/reminders` | Anybody it is shown to, signed in |
-| `GET /:scope/events/:eventId/occurrences/:o` | Anybody it is shown to |
-| `POST …/occurrences/:o/cancel`, `POST …/occurrences/:o/move` | `events.manage` |
-| `PUT` / `DELETE …/occurrences/:o/rsvp` | Those who may answer |
-| `GET` / `PUT …/occurrences/:o/attendance` | `events.manage`; the sheet is `{ records, candidates }` |
-| `GET /fleet-events/mine` | Anybody signed in; their own next thirty days |
+| Route                                                        | Who                                                                    |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| `GET /:scope/events?from=&to=`                               | Anybody who may see the scope; the next 31 days by default, at most 93 |
+| `POST /:scope/events/preview`                                | `events.manage`; what a rule would come to over the next year          |
+| `POST /:scope/events`                                        | `events.manage`                                                        |
+| `GET /:scope/events/:eventId`                                | Anybody it is shown to; the rule and the next ten occurrences          |
+| `PUT /:scope/events/:eventId`                                | `events.manage`; the whole event, changed from now on                  |
+| `POST /:scope/events/:eventId/cancel`                        | `events.manage`                                                        |
+| `GET /:scope/events/:eventId/history`                        | `events.manage`                                                        |
+| `PUT` / `DELETE /:scope/events/:eventId/reminders`           | Anybody it is shown to, signed in                                      |
+| `GET /:scope/events/:eventId/occurrences/:o`                 | Anybody it is shown to                                                 |
+| `POST …/occurrences/:o/cancel`, `POST …/occurrences/:o/move` | `events.manage`                                                        |
+| `PUT` / `DELETE …/occurrences/:o/rsvp`                       | Those who may answer                                                   |
+| `GET` / `PUT …/occurrences/:o/attendance`                    | `events.manage`; the sheet is `{ records, candidates }`                |
+| `GET /fleet-events/mine`                                     | Anybody signed in; their own next thirty days                          |
 
 `GET /fleet-events/mine` (FC-030) lists each occurrence still going ahead in the next thirty days
 that the caller answered Going or Maybe, is waiting for, or asked to be reminded of. It covers

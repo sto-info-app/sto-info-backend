@@ -786,13 +786,13 @@ The project adheres to the following cryptographic standards:
 
 ### Audit tables
 
-| Table                  | PII stored                                  | Retention                                                                                                                                                              |
-| ---------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `_audit`               | `ipAddress` (nullable), `userId`            | `ipAddress` nulled after `AUDIT_IP_NUKE_THRESHOLD_DAYS`; records deleted after `AUDIT_DATA_NUKE_THRESHOLD_DAYS`                                                        |
-| `_audit_login_attempt` | `email` (nullable), `ipAddress` (nullable)  | Same as above                                                                                                                                                          |
-| `site_admin_action`    | `ipAddress` (nullable), the actor and target | Same as above (FC-039); see [Admin audit](admin-audit.md)                                                                                                             |
-| `_audit_ses_event`     | `emailHashed` (HMAC-SHA256 — not plaintext) | Non-suppressing records deleted after `SES_AUDIT_RETENTION_DAYS` (180 days); suppression records deleted after `SES_SUPPRESSION_RETENTION_DAYS` (2557 days / ~7 years) |
-| `contact_request`      | `emailMasked` (nullable)                    | Email nulled after `CONTACT_REQUEST_EMAIL_MASK_RETENTION_DAYS`; records deleted after `CONTACT_REQUEST_RECORD_RETENTION_DAYS`                                          |
+| Table                  | PII stored                                   | Retention                                                                                                                                                              |
+| ---------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `_audit`               | `ipAddress` (nullable), `userId`             | `ipAddress` nulled after `AUDIT_IP_NUKE_THRESHOLD_DAYS`; records deleted after `AUDIT_DATA_NUKE_THRESHOLD_DAYS`                                                        |
+| `_audit_login_attempt` | `email` (nullable), `ipAddress` (nullable)   | Same as above                                                                                                                                                          |
+| `site_admin_action`    | `ipAddress` (nullable), the actor and target | Same as above (FC-039); see [Admin audit](admin-audit.md)                                                                                                              |
+| `_audit_ses_event`     | `emailHashed` (HMAC-SHA256 — not plaintext)  | Non-suppressing records deleted after `SES_AUDIT_RETENTION_DAYS` (180 days); suppression records deleted after `SES_SUPPRESSION_RETENTION_DAYS` (2557 days / ~7 years) |
+| `contact_request`      | `emailMasked` (nullable)                     | Email nulled after `CONTACT_REQUEST_EMAIL_MASK_RETENTION_DAYS`; records deleted after `CONTACT_REQUEST_RECORD_RETENTION_DAYS`                                          |
 
 - A daily cron job (UTC, 03:26 and 00:00) runs all retention cleanup jobs in sequence.
 - A failed individual job is logged and swallowed so the others continue.
@@ -944,13 +944,13 @@ between them are two queue messages. What a scan request carries is fixed by
 [ADR-0006](../../../Plans/Fleets/ADR/0006-worker-job-transport-and-ownership.md) and is worth
 reading as a list of absences:
 
-| Carried | Not carried |
-| --- | --- |
-| The asset's identifier | Any URL |
-| The object key the registry built | Any bucket or endpoint name |
-| The object version and the SHA-256 | Any credential |
-| The policy version, a campaign, a trace | The original filename |
-| | Any row, field or byte of a user's file |
+| Carried                                 | Not carried                             |
+| --------------------------------------- | --------------------------------------- |
+| The asset's identifier                  | Any URL                                 |
+| The object key the registry built       | Any bucket or endpoint name             |
+| The object version and the SHA-256      | Any credential                          |
+| The policy version, a campaign, a trace | The original filename                   |
+|                                         | Any row, field or byte of a user's file |
 
 The worker resolves where to read from out of its own configuration, so there is no code path in
 which a message can influence where a request goes. That is why there is no SSRF surface to defend

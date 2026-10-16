@@ -6,18 +6,18 @@ Steve's, from 28 September 2026.
 
 ## What goes on a feed
 
-| Type | Recorded when | Scope | Shown to |
-| --- | --- | --- | --- |
-| `NEWS_PUBLISHED` | A draft is published, or published again after going back to a draft | The post's | Whoever may read the post now |
-| `EVENT_CREATED`, `EVENT_CANCELLED` | An event is created, or cancelled | The event's | Whoever the event is shown to now |
-| `OCCURRENCE_CANCELLED`, `OCCURRENCE_MOVED` | A manager cancels or moves one occurrence | The event's | Whoever the event is shown to now |
-| `MEMBER_JOINED`, `MEMBER_LEFT`, `MEMBER_REMOVED` | A membership is granted, left, or removed | The Fleet's | Its members |
-| `ROSTER_IMPORTED` | A replay publishes a new latest export | The Fleet's | Its members |
-| `HOLDINGS_RECORDED` | A holding's tiers are recorded | The Fleet's | Whoever may see the Fleet |
-| `ARMADA_FLEET_PLACED`, `ARMADA_FLEET_MOVED`, `ARMADA_FLEET_LEFT` | A Fleet is placed in, moved within, or leaves or is taken out of an Armada | The Armada's and the Fleet's, one item each | Whoever may see that scope |
-| `ROLE_APPOINTED`, `ROLE_WITHDRAWN` | A role is given or taken away | The role's | Its members |
-| `OWNERSHIP_TRANSFERRED` | An offer is accepted, or a site administrator reassigns ownership | The Community's | Its members |
-| `SCOPE_CLOSED` | A Community, Fleet or Armada closes | Its own | Its members |
+| Type                                                             | Recorded when                                                              | Scope                                       | Shown to                          |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------- | --------------------------------- |
+| `NEWS_PUBLISHED`                                                 | A draft is published, or published again after going back to a draft       | The post's                                  | Whoever may read the post now     |
+| `EVENT_CREATED`, `EVENT_CANCELLED`                               | An event is created, or cancelled                                          | The event's                                 | Whoever the event is shown to now |
+| `OCCURRENCE_CANCELLED`, `OCCURRENCE_MOVED`                       | A manager cancels or moves one occurrence                                  | The event's                                 | Whoever the event is shown to now |
+| `MEMBER_JOINED`, `MEMBER_LEFT`, `MEMBER_REMOVED`                 | A membership is granted, left, or removed                                  | The Fleet's                                 | Its members                       |
+| `ROSTER_IMPORTED`                                                | A replay publishes a new latest export                                     | The Fleet's                                 | Its members                       |
+| `HOLDINGS_RECORDED`                                              | A holding's tiers are recorded                                             | The Fleet's                                 | Whoever may see the Fleet         |
+| `ARMADA_FLEET_PLACED`, `ARMADA_FLEET_MOVED`, `ARMADA_FLEET_LEFT` | A Fleet is placed in, moved within, or leaves or is taken out of an Armada | The Armada's and the Fleet's, one item each | Whoever may see that scope        |
+| `ROLE_APPOINTED`, `ROLE_WITHDRAWN`                               | A role is given or taken away                                              | The role's                                  | Its members                       |
+| `OWNERSHIP_TRANSFERRED`                                          | An offer is accepted, or a site administrator reassigns ownership          | The Community's                             | Its members                       |
+| `SCOPE_CLOSED`                                                   | A Community, Fleet or Armada closes                                        | Its own                                     | Its members                       |
 
 Routine activity is feed, never inbox: none of these sends a notification.
 
@@ -71,12 +71,12 @@ notification preference itself. It links to the Character's page, where they ans
 
 ## Routes
 
-| Method | Path | Who |
-| --- | --- | --- |
-| `GET` | `/fleet-communities/:communityId/activity` | Anybody who may see the Community, signed in or not |
-| `GET` | `/fleet-communities/:communityId/fleets/:fleetId/activity` | Anybody who may see the Fleet |
-| `GET` | `/fleet-communities/:communityId/armadas/:armadaId/activity` | Anybody who may see the Armada |
-| `GET` | `/fleet-activity/mine` | Anybody signed in |
+| Method | Path                                                         | Who                                                 |
+| ------ | ------------------------------------------------------------ | --------------------------------------------------- |
+| `GET`  | `/fleet-communities/:communityId/activity`                   | Anybody who may see the Community, signed in or not |
+| `GET`  | `/fleet-communities/:communityId/fleets/:fleetId/activity`   | Anybody who may see the Fleet                       |
+| `GET`  | `/fleet-communities/:communityId/armadas/:armadaId/activity` | Anybody who may see the Armada                      |
+| `GET`  | `/fleet-activity/mine`                                       | Anybody signed in                                   |
 
 Each takes `before`, a cursor from the page before, and returns `{ items, next }`. An item is
 `{ id, type, occurredAt, sentence, path, scope: { kind, name, path } }`. Paths are the site's.

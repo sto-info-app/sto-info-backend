@@ -50,14 +50,14 @@ Alongside the coarse `USER`, `STORYTIME_CURATOR` and `ADMIN` roles, the applicat
 
 **Model**
 
-| Table | Purpose |
-| --- | --- |
-| `permission` | The registry of capabilities, keyed by a stable code such as `storytime.story.create`. Seeded by migration only. |
-| `permission_group` | A named bundle of permissions, for example *Storytime Creator*. |
-| `permission_group_permission` | Which permissions a group confers. |
-| `role_permission_group` | Which groups a `UserRole` receives by default. |
-| `user_permission_override` | A per-user `GRANT` or `DENY` that departs from the role default. |
-| `user_limit_override` | A per-user replacement for a configured numeric limit. |
+| Table                         | Purpose                                                                                                          |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `permission`                  | The registry of capabilities, keyed by a stable code such as `storytime.story.create`. Seeded by migration only. |
+| `permission_group`            | A named bundle of permissions, for example _Storytime Creator_.                                                  |
+| `permission_group_permission` | Which permissions a group confers.                                                                               |
+| `role_permission_group`       | Which groups a `UserRole` receives by default.                                                                   |
+| `user_permission_override`    | A per-user `GRANT` or `DENY` that departs from the role default.                                                 |
+| `user_limit_override`         | A per-user replacement for a configured numeric limit.                                                           |
 
 **Resolution order** — implemented once, in `AccessControlService`:
 
@@ -90,11 +90,11 @@ The framework is purely additive. `RolesGuard` and every existing `@Roles(UserRo
 
 `PUT /admin/access-control/users/:userId/role` moves a member between the roles in `ASSIGNABLE_USER_ROLES` — `USER` and `STORYTIME_CURATOR`. There are three roles in all:
 
-| Role | What it confers |
-| --- | --- |
-| `USER` | Read and write their own Storytime content (`storytime.reader`, `storytime.creator`). |
-| `STORYTIME_CURATOR` | Everything a `USER` has, plus `storytime.curator`: `storytime.moderate`, `storytime.spotlight.manage` and `storytime.tag.manage`. |
-| `ADMIN` | Everything a curator has, plus `storytime.configure`, and every `@Roles(UserRole.ADMIN)` surface: news, banners, notifications, member moderation, access control and the Storytime master switch. |
+| Role                | What it confers                                                                                                                                                                                    |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `USER`              | Read and write their own Storytime content (`storytime.reader`, `storytime.creator`).                                                                                                              |
+| `STORYTIME_CURATOR` | Everything a `USER` has, plus `storytime.curator`: `storytime.moderate`, `storytime.spotlight.manage` and `storytime.tag.manage`.                                                                  |
+| `ADMIN`             | Everything a curator has, plus `storytime.configure`, and every `@Roles(UserRole.ADMIN)` surface: news, banners, notifications, member moderation, access control and the Storytime master switch. |
 
 `storytime.configure` is the line between curator and administrator: feature flags and per-user limit exemptions change the rules everyone plays by. The Storytime master switch is stricter still — `AdminStorytimeConfigurationController` is gated by the `ADMIN` role itself, because a switch that turns Storytime off cannot be gated by a Storytime permission.
 
@@ -284,7 +284,7 @@ outage.
   locally rather than letting requests through). While Redis is away each instance keeps its own
   count, so with several instances a client can make that many more requests.
 - The switch is logged once each way: a warning `Rate limits counted in memory while Redis cannot
-  answer - Limiter: <name>`, and `Rate limits counted in Redis again` when it answers. Counts made in
+answer - Limiter: <name>`, and `Rate limits counted in Redis again` when it answers. Counts made in
   memory are not copied back to Redis.
 
 **Key Generation:**
@@ -445,12 +445,12 @@ different failure modes: the registry is a table this application owns outright,
 a conversation with another application over infrastructure that can be down. Keeping them apart
 means the delivery endpoint does not depend on Redis in order to serve a file.
 
-| Piece | What it does |
-| --- | --- |
+| Piece                            | What it does                                                                      |
+| -------------------------------- | --------------------------------------------------------------------------------- |
 | `contract/file-scan-contract.ts` | The message shapes and their parsers. **Duplicated byte for byte in the worker.** |
-| `ScanRequestProducerService` | Moves an asset to `SCANNING` and puts a request on `file-scan`. |
-| `ScanVerdictProcessor` | Takes verdicts off `file-scan-verdict` and parses them before touching a field. |
-| `ScanVerdictService` | Applies a verdict to the registry, after rechecking it against the row. |
+| `ScanRequestProducerService`     | Moves an asset to `SCANNING` and puts a request on `file-scan`.                   |
+| `ScanVerdictProcessor`           | Takes verdicts off `file-scan-verdict` and parses them before touching a field.   |
+| `ScanVerdictService`             | Applies a verdict to the registry, after rechecking it against the row.           |
 
 **Redis is now load-bearing for file safety**, which it was not before — it was a rate-limiting
 dependency. ADR-0006 accepted that and required the queue's connection budget to be sized and

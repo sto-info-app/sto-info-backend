@@ -7,13 +7,13 @@ change.
 
 Steve's decisions of 29 September 2026:
 
-| Question | Decision |
-| -------- | -------- |
-| How the worker reaches a published picture | The API stages a copy in the quarantine bucket; the worker's access and contract are unchanged |
-| What a clean legacy picture becomes | `AVAILABLE` |
-| Who is told about an infection | Every site admin, in-app, with the asset and the code; the owner, without detail |
-| When the legacy estate is scanned | Once, automatically, after release; after that, when a site admin starts a campaign |
-| A picture refused for policy on rescan | Keeps showing, and is reported on Scan Diagnostics for a site admin to take down or keep, with a reason (FC-050) |
+| Question                                   | Decision                                                                                                         |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| How the worker reaches a published picture | The API stages a copy in the quarantine bucket; the worker's access and contract are unchanged                   |
+| What a clean legacy picture becomes        | `AVAILABLE`                                                                                                      |
+| Who is told about an infection             | Every site admin, in-app, with the asset and the code; the owner, without detail                                 |
+| When the legacy estate is scanned          | Once, automatically, after release; after that, when a site admin starts a campaign                              |
+| A picture refused for policy on rescan     | Keeps showing, and is reported on Scan Diagnostics for a site admin to take down or keep, with a reason (FC-050) |
 
 ## How a picture is rescanned
 
@@ -34,12 +34,12 @@ verdict comes back, `ScanVerdictService` hands it to `RescanVerdictService` firs
 matches it by the asset and the staged key, so an upload's verdict never matches a rescan and a
 rescan's verdict never reaches the upload path. A repeated delivery of a verdict changes nothing.
 
-| Verdict | What happens |
-| ------- | ------------ |
-| Clean, with the hash the copy was staged with | The picture stays. Its verdict fields are brought up to date, its hash and type filled in if missing, and a legacy picture becomes `AVAILABLE` |
-| `INFECTED` | The picture is taken down: delivery is revoked first, so it is never signed again, then its image is deleted. The asset records the code. Every enabled site admin gets an in-app warning with the asset ID and the code, linking to Scan Diagnostics; the owner is told only that a picture failed a security check and was removed |
-| A policy refusal (for example `CONTENT_TYPE_MISMATCH` or `SIZE_LIMIT_EXCEEDED`) | The picture keeps showing. The rescan records the code, and Scan Diagnostics lists it for a site admin to decide — see [Deciding a policy refusal](#deciding-a-policy-refusal) |
-| `HASH_MISMATCH`, `OBJECT_MISSING`, `RETRY_BUDGET_EXHAUSTED`, a retry, or a clean verdict for different bytes | No verdict: the rescan fails, and a later campaign may try again |
+| Verdict                                                                                                      | What happens                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Clean, with the hash the copy was staged with                                                                | The picture stays. Its verdict fields are brought up to date, its hash and type filled in if missing, and a legacy picture becomes `AVAILABLE`                                                                                                                                                                                       |
+| `INFECTED`                                                                                                   | The picture is taken down: delivery is revoked first, so it is never signed again, then its image is deleted. The asset records the code. Every enabled site admin gets an in-app warning with the asset ID and the code, linking to Scan Diagnostics; the owner is told only that a picture failed a security check and was removed |
+| A policy refusal (for example `CONTENT_TYPE_MISMATCH` or `SIZE_LIMIT_EXCEEDED`)                              | The picture keeps showing. The rescan records the code, and Scan Diagnostics lists it for a site admin to decide — see [Deciding a policy refusal](#deciding-a-policy-refusal)                                                                                                                                                       |
+| `HASH_MISMATCH`, `OBJECT_MISSING`, `RETRY_BUDGET_EXHAUSTED`, a retry, or a clean verdict for different bytes | No verdict: the rescan fails, and a later campaign may try again                                                                                                                                                                                                                                                                     |
 
 The staged copy is deleted whatever the verdict. A copy that cannot be deleted is left for the
 quarantine bucket's own sweep.

@@ -9,13 +9,13 @@ Render or the live Cloudflare account is
 
 ## The five criteria
 
-| Criterion | Met by |
-| --- | --- |
-| All plan §5 Help/navigation journeys pass; campaign help matches FC-041; public/restricted sitemap and feature filtering are correct. | [Journeys](#journeys): `02-help-and-navigation` on desktop and phone, including the sitemap built as the build builds it and every Help address in it opened signed out; switched off and unreachable; `04-owed-admin` drives rescan campaigns against the guide's words. |
-| All LCARS shared control/tab/dialog/colour requirements pass build and visual review. | [Visual review](#visual-review): 32 full-page screenshots reviewed tile by tile; every defect on Fleet's pages and the shared controls they use fixed, and the site-wide phone frame with them. `docs/ui-components.md` describes the controls and the Fleet colours as they are. |
-| Four-hour/seven-day limits, presence choices and source timezone are clear to users. | Chat's note reads "You can read back the last four hours here." and the transcript dialog its days, both from the server's policy; presence and typing on Settings with their help; the export zone on import and Settings. Checked in `04-owed-chat` and `04-owed-news-activity`. |
-| Measured throughput/latency/memory/DB/Redis budgets support agreed launch load. | [Load](#load): every latency, throughput, connection and Redis budget met with room. The backend fits 512 MiB with its heap capped at 384 MiB, the configuration Steve chose for Render; its resident set there is FC-052's to confirm. |
-| Accessibility, keyboard and reduced motion pass relevant checks. | [Accessibility](#accessibility): axe (WCAG 2.0/2.1 A and AA) on every Fleet, chat, settings, Help and site admin page, with data in them; keyboard journeys; one global reduced-motion rule. Six defects found and fixed. |
+| Criterion                                                                                                                             | Met by                                                                                                                                                                                                                                                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| All plan §5 Help/navigation journeys pass; campaign help matches FC-041; public/restricted sitemap and feature filtering are correct. | [Journeys](#journeys): `02-help-and-navigation` on desktop and phone, including the sitemap built as the build builds it and every Help address in it opened signed out; switched off and unreachable; `04-owed-admin` drives rescan campaigns against the guide's words.          |
+| All LCARS shared control/tab/dialog/colour requirements pass build and visual review.                                                 | [Visual review](#visual-review): 32 full-page screenshots reviewed tile by tile; every defect on Fleet's pages and the shared controls they use fixed, and the site-wide phone frame with them. `docs/ui-components.md` describes the controls and the Fleet colours as they are.  |
+| Four-hour/seven-day limits, presence choices and source timezone are clear to users.                                                  | Chat's note reads "You can read back the last four hours here." and the transcript dialog its days, both from the server's policy; presence and typing on Settings with their help; the export zone on import and Settings. Checked in `04-owed-chat` and `04-owed-news-activity`. |
+| Measured throughput/latency/memory/DB/Redis budgets support agreed launch load.                                                       | [Load](#load): every latency, throughput, connection and Redis budget met with room. The backend fits 512 MiB with its heap capped at 384 MiB, the configuration Steve chose for Render; its resident set there is FC-052's to confirm.                                            |
+| Accessibility, keyboard and reduced motion pass relevant checks.                                                                      | [Accessibility](#accessibility): axe (WCAG 2.0/2.1 A and AA) on every Fleet, chat, settings, Help and site admin page, with data in them; keyboard journeys; one global reduced-motion rule. Six defects found and fixed.                                                          |
 
 ## Steve's decisions
 
@@ -50,43 +50,43 @@ On 4 October 2026:
 
 ## Defects found and fixed
 
-| # | Defect | Found by | Fixed by |
-| --- | --- | --- | --- |
-| 1 | **Chat delivery p95 was 1,417 ms** at 20 messages a second: each socket was told in turn, and membership lookups were repeated per message. | Load L7. | `ChatDeliveryService`: parallel delivery, single-flight lookups, a generation bump on `forget()`. p95 now 78 to 106 ms. |
-| 2 | **A long replay took 220 s and 214 MB of `_audit`**: one audit row per derived roster row. | Load L4. | `audit.subscriber.ts` leaves derived roster entities out. 37 s. |
-| 3 | **Storytime Help vanished while the API was unreachable.** | Journey 02. | Help keeps guides readable under the offline notice; only a switch the server says is off withdraws them. |
-| 4 | **Every sign-in mailed the address**, disposable test domains included. | Setting up the journeys. | `reservedMailDomain()`; `MailService` skips and logs them. |
-| 5 | **Rate limits keyed on headers any caller could write.** | Reviewing the load script's addresses. | `CloudflareOrigin`: the secret header proves Cloudflare; everything else is refused. |
-| 6 | **Chat refused every send, "Chat is closed.", after a sign-in race**: a disconnect before the first open rejected a promise the first open never replaced. | Journey 01. | `ChatSocketService.ready()` starts a fresh wait when it first opens; a spec fails without the fix. |
-| 7 | **A Community's Owner saw no chats**, and their Fleet's Chat tab opened an empty page: ownership is not a role row. | Journey 01. | `ChatChannelService.mine()` lists everywhere an Owner or a Community-wide role reaches. |
-| 8 | **Reply, Report and Remove could not be reached by keyboard** (`display: none` until hover or focus inside, and a message cannot take focus). | Journey 01 by keyboard. | Clipped rather than hidden, so they stay in the Tab order. WCAG 2.1.1. |
-| 9 | **An exact Fleet name used a prohibited `aria-label` on a span**, which screen readers ignore, with every drawn part hidden. | axe. | The name is visually hidden text instead. |
-| 10 | **Admin record details were `<dl>`s of spans**, five pages. | axe. | `dt`/`dd`. |
-| 11 | **LCARS buttons kept their hover fade under reduced motion**, their `!important` outranking the global rule. | Journey 03. | Named in the reduced-motion rule. |
-| 12 | **A Fleet news cover could never be uploaded** ("Database error"), nor, by the same path, Fleet or Armada artwork: the file row named both the Fleet and its Community, and the database allows one. | `04-owed-news-activity`. | `ImageIngressService` names the narrowest scope only, as delivery reads it. |
-| 13 | **A refused Community registration never said why.** At the ten-Community limit, or on any other refusal, "Registering the Community" stayed up for good: the OnPush page was never told to redraw. | The phone run, whose Owner reached the limit. | `CommunityRegisterComponent` marks the view on a refusal; a spec with a late answer fails without it. |
-| 14 | **The local schema was six migrations behind** (FC-042/043): `start:dev` never migrates. | The backend's own `42P01` errors. | Applied; noted for whoever runs the stack next. |
-| 15 | The [visual review](#visual-review)'s defects. | Screenshots. | Below. |
+| #   | Defect                                                                                                                                                                                               | Found by                                      | Fixed by                                                                                                                |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Chat delivery p95 was 1,417 ms** at 20 messages a second: each socket was told in turn, and membership lookups were repeated per message.                                                          | Load L7.                                      | `ChatDeliveryService`: parallel delivery, single-flight lookups, a generation bump on `forget()`. p95 now 78 to 106 ms. |
+| 2   | **A long replay took 220 s and 214 MB of `_audit`**: one audit row per derived roster row.                                                                                                           | Load L4.                                      | `audit.subscriber.ts` leaves derived roster entities out. 37 s.                                                         |
+| 3   | **Storytime Help vanished while the API was unreachable.**                                                                                                                                           | Journey 02.                                   | Help keeps guides readable under the offline notice; only a switch the server says is off withdraws them.               |
+| 4   | **Every sign-in mailed the address**, disposable test domains included.                                                                                                                              | Setting up the journeys.                      | `reservedMailDomain()`; `MailService` skips and logs them.                                                              |
+| 5   | **Rate limits keyed on headers any caller could write.**                                                                                                                                             | Reviewing the load script's addresses.        | `CloudflareOrigin`: the secret header proves Cloudflare; everything else is refused.                                    |
+| 6   | **Chat refused every send, "Chat is closed.", after a sign-in race**: a disconnect before the first open rejected a promise the first open never replaced.                                           | Journey 01.                                   | `ChatSocketService.ready()` starts a fresh wait when it first opens; a spec fails without the fix.                      |
+| 7   | **A Community's Owner saw no chats**, and their Fleet's Chat tab opened an empty page: ownership is not a role row.                                                                                  | Journey 01.                                   | `ChatChannelService.mine()` lists everywhere an Owner or a Community-wide role reaches.                                 |
+| 8   | **Reply, Report and Remove could not be reached by keyboard** (`display: none` until hover or focus inside, and a message cannot take focus).                                                        | Journey 01 by keyboard.                       | Clipped rather than hidden, so they stay in the Tab order. WCAG 2.1.1.                                                  |
+| 9   | **An exact Fleet name used a prohibited `aria-label` on a span**, which screen readers ignore, with every drawn part hidden.                                                                         | axe.                                          | The name is visually hidden text instead.                                                                               |
+| 10  | **Admin record details were `<dl>`s of spans**, five pages.                                                                                                                                          | axe.                                          | `dt`/`dd`.                                                                                                              |
+| 11  | **LCARS buttons kept their hover fade under reduced motion**, their `!important` outranking the global rule.                                                                                         | Journey 03.                                   | Named in the reduced-motion rule.                                                                                       |
+| 12  | **A Fleet news cover could never be uploaded** ("Database error"), nor, by the same path, Fleet or Armada artwork: the file row named both the Fleet and its Community, and the database allows one. | `04-owed-news-activity`.                      | `ImageIngressService` names the narrowest scope only, as delivery reads it.                                             |
+| 13  | **A refused Community registration never said why.** At the ten-Community limit, or on any other refusal, "Registering the Community" stayed up for good: the OnPush page was never told to redraw.  | The phone run, whose Owner reached the limit. | `CommunityRegisterComponent` marks the view on a refusal; a spec with a late answer fails without it.                   |
+| 14  | **The local schema was six migrations behind** (FC-042/043): `start:dev` never migrates.                                                                                                             | The backend's own `42P01` errors.             | Applied; noted for whoever runs the stack next.                                                                         |
+| 15  | The [visual review](#visual-review)'s defects.                                                                                                                                                       | Screenshots.                                  | Below.                                                                                                                  |
 
 ## Load
 
 `npm run rehearse:load` (backend): the operations rehearsal's stack started cold, then L1 to L7 at the
 launch load. Run 8, on 2 October 2026, after defects 1 and 2:
 
-| Scenario | Budget | Measured |
-| --- | --- | --- |
-| S1 cold start | — | Whole stack ready in 49.7 s from `docker start`; `/health/ready` 14.2 s from process start, restore check included. |
-| L1 launch scale | — | 300 rosters of 100 imported in 52.3 s (20,650 an hour); 30,000 members. |
-| L2 reads | p95 under 500 ms at 50 a second | p50 26 ms, p95 62 ms, p99 79 ms, max 134 ms; all 3,000 answered 200. |
-| L3 a 2,000-row check | under 2 s | p95 353 ms; imported end to end in 3.5 s. |
-| L4 the largest replay | under 60 s | 37.1 s over 150,100 rows of history. |
-| L5 imports | 60 an hour | 60 sent at once, all in force in 12.3 s. |
-| L6 picture scans | 300 an hour | 300 accepted in 5.4 s; upload to verdict p95 3.7 s. |
-| L7 chat | p95 under 500 ms | 200 sockets, 1,201 messages in 60 s: acknowledged p95 80 ms; 24,020 deliveries, none doubled, p95 106 ms. |
-| Connections | inside the plan | Backend at most 10, worker at most 2. Redis at most 27 clients, inside 250 twice over for a deploy. |
-| Worker and clamd | under 2 GB | Worker at most 144 MiB, clamd 948 MiB. |
-| Backend memory | under 512 MiB | **Not met uncapped**: 440 to 470 MiB under reads and imports, up to 1,001 MiB after L4's replay, with the heap at 775 MiB. With `--max-old-space-size=384` every scenario still passed, the heap at most 322 MiB and the resident set about 550 MiB (Windows working set). |
-| Nothing unscanned published | none | None. |
+| Scenario                    | Budget                          | Measured                                                                                                                                                                                                                                                                   |
+| --------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S1 cold start               | —                               | Whole stack ready in 49.7 s from `docker start`; `/health/ready` 14.2 s from process start, restore check included.                                                                                                                                                        |
+| L1 launch scale             | —                               | 300 rosters of 100 imported in 52.3 s (20,650 an hour); 30,000 members.                                                                                                                                                                                                    |
+| L2 reads                    | p95 under 500 ms at 50 a second | p50 26 ms, p95 62 ms, p99 79 ms, max 134 ms; all 3,000 answered 200.                                                                                                                                                                                                       |
+| L3 a 2,000-row check        | under 2 s                       | p95 353 ms; imported end to end in 3.5 s.                                                                                                                                                                                                                                  |
+| L4 the largest replay       | under 60 s                      | 37.1 s over 150,100 rows of history.                                                                                                                                                                                                                                       |
+| L5 imports                  | 60 an hour                      | 60 sent at once, all in force in 12.3 s.                                                                                                                                                                                                                                   |
+| L6 picture scans            | 300 an hour                     | 300 accepted in 5.4 s; upload to verdict p95 3.7 s.                                                                                                                                                                                                                        |
+| L7 chat                     | p95 under 500 ms                | 200 sockets, 1,201 messages in 60 s: acknowledged p95 80 ms; 24,020 deliveries, none doubled, p95 106 ms.                                                                                                                                                                  |
+| Connections                 | inside the plan                 | Backend at most 10, worker at most 2. Redis at most 27 clients, inside 250 twice over for a deploy.                                                                                                                                                                        |
+| Worker and clamd            | under 2 GB                      | Worker at most 144 MiB, clamd 948 MiB.                                                                                                                                                                                                                                     |
+| Backend memory              | under 512 MiB                   | **Not met uncapped**: 440 to 470 MiB under reads and imports, up to 1,001 MiB after L4's replay, with the heap at 775 MiB. With `--max-old-space-size=384` every scenario still passed, the heap at most 322 MiB and the resident set about 550 MiB (Windows working set). |
+| Nothing unscanned published | none                            | None.                                                                                                                                                                                                                                                                      |
 
 The rehearsal now caps the backend's heap at 384 MiB by default, as production runs it;
 `LOAD_BACKEND_HEAP_MIB` sets another cap, and `0` none. Other options: `LOAD_SCENARIOS` (`L4,L7`;
@@ -106,16 +106,16 @@ set on Render's Linux is FC-052's to measure ([Render services](../operations/re
 stack with the backend built rather than watching (its watcher restarted the API twice mid-run on
 file events that changed nothing). Results: see [Journey results](#journey-results).
 
-| Spec | Covers |
-| --- | --- |
-| `01-registration-to-moderation` | Register a Community and Fleets, import a roster, apply and accept, an event, chat, report and resolve, suspend. |
-| `02-help-and-navigation` | Plan §5: Help to every section and guide and every page a guide links to; Settings and its guide; Community and the Dashboard to Fleets; following nothing and several; signed out; switched off; unreachable; the sitemap. |
-| `03-accessibility` | axe on 37 pages; tabs and a dialog by keyboard; reduced motion. |
-| `04-owed-news-activity` | FC-027, FC-029, FC-049. |
-| `04-owed-events` | FC-028, FC-030. |
-| `04-owed-chat` | FC-031, FC-033, FC-034, FC-035's reports. |
-| `04-owed-admin` | FC-036, FC-037, FC-039, FC-041. |
-| `05-screenshots` | 16 pages at 1280 px and on a Pixel 7, written to the frontend's `reports/screenshots/fc-044/`, which git ignores. |
+| Spec                            | Covers                                                                                                                                                                                                                      |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `01-registration-to-moderation` | Register a Community and Fleets, import a roster, apply and accept, an event, chat, report and resolve, suspend.                                                                                                            |
+| `02-help-and-navigation`        | Plan §5: Help to every section and guide and every page a guide links to; Settings and its guide; Community and the Dashboard to Fleets; following nothing and several; signed out; switched off; unreachable; the sitemap. |
+| `03-accessibility`              | axe on 37 pages; tabs and a dialog by keyboard; reduced motion.                                                                                                                                                             |
+| `04-owed-news-activity`         | FC-027, FC-029, FC-049.                                                                                                                                                                                                     |
+| `04-owed-events`                | FC-028, FC-030.                                                                                                                                                                                                             |
+| `04-owed-chat`                  | FC-031, FC-033, FC-034, FC-035's reports.                                                                                                                                                                                   |
+| `04-owed-admin`                 | FC-036, FC-037, FC-039, FC-041.                                                                                                                                                                                             |
+| `05-screenshots`                | 16 pages at 1280 px and on a Pixel 7, written to the frontend's `reports/screenshots/fc-044/`, which git ignores.                                                                                                           |
 
 Still owed, for secrets the local stack does not hold: FC-035's transcript export, FC-038's erasure
 and FC-040's private images.
@@ -125,11 +125,11 @@ and FC-040's private images.
 The final run, on 4 October 2026: **173 passed, none flaky**, in 1.1 hours across both projects. The
 one skip is the sitemap journey on the phone, which runs on desktop alone.
 
-| Project | Passed |
-| --- | --- |
-| `fleet-setup`, `fleet-teardown` | 2 |
-| `fleet-desktop` (1280 × 900) | 86 of 86, the sitemap included |
-| `fleet-mobile` (Pixel 7) | 85 of 86, the sitemap skipped |
+| Project                         | Passed                         |
+| ------------------------------- | ------------------------------ |
+| `fleet-setup`, `fleet-teardown` | 2                              |
+| `fleet-desktop` (1280 × 900)    | 86 of 86, the sitemap included |
+| `fleet-mobile` (Pixel 7)        | 85 of 86, the sitemap skipped  |
 
 Earlier runs found defects 6 to 13 and 15, and four things about running them, each now handled by
 the harness and written up in the frontend's `e2e/README.md`: the dev server's watcher restarting

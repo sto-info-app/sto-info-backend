@@ -16,17 +16,17 @@ Steve's, from 29 September 2026.
 
 All times are UTC, set by `FleetRetentionScheduler`.
 
-| Job | When | What goes |
-| --- | --- | --- |
-| `ROSTER_SOURCES` | 04:11 daily | Sanitised roster files whose `retainUntil` has passed: 180 days after upload, or `IMPORT_SOURCE_RETENTION_DAYS` |
-| `NEWS_POSTS` | 04:05 daily | Scoped news posts deleted more than 30 days ago. The site's own news is never touched |
-| `CHARACTER_FLEET_MEMBERSHIPS` | 04:07 daily | Character Fleet memberships retracted more than 30 days ago |
-| `CHAT_MESSAGES` | 04:23 daily | Chat messages older than 45 days, or `CHAT_RETENTION_DAYS`, except those of a held member |
-| `CHAT_REPORTS` | 04:41 daily | Chat reports closed more than 90 days ago, with their evidence, except held ones |
-| `CHAT_TRANSCRIPTS` | hourly | Transcript files past their 24 hours; transcripts never written are marked failed |
-| `ACTIVITY` | 03:41 daily | Activity items older than twelve months |
-| `MODERATION_HOLDS` | 05:03 daily | Holds past their review date: notices, then release. See [Holds past review](#holds-past-review) |
-| `RETENTION_RUNS` | 05:11 daily | This record's own runs, after a year |
+| Job                           | When        | What goes                                                                                                       |
+| ----------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------- |
+| `ROSTER_SOURCES`              | 04:11 daily | Sanitised roster files whose `retainUntil` has passed: 180 days after upload, or `IMPORT_SOURCE_RETENTION_DAYS` |
+| `NEWS_POSTS`                  | 04:05 daily | Scoped news posts deleted more than 30 days ago. The site's own news is never touched                           |
+| `CHARACTER_FLEET_MEMBERSHIPS` | 04:07 daily | Character Fleet memberships retracted more than 30 days ago                                                     |
+| `CHAT_MESSAGES`               | 04:23 daily | Chat messages older than 45 days, or `CHAT_RETENTION_DAYS`, except those of a held member                       |
+| `CHAT_REPORTS`                | 04:41 daily | Chat reports closed more than 90 days ago, with their evidence, except held ones                                |
+| `CHAT_TRANSCRIPTS`            | hourly      | Transcript files past their 24 hours; transcripts never written are marked failed                               |
+| `ACTIVITY`                    | 03:41 daily | Activity items older than twelve months                                                                         |
+| `MODERATION_HOLDS`            | 05:03 daily | Holds past their review date: notices, then release. See [Holds past review](#holds-past-review)                |
+| `RETENTION_RUNS`              | 05:11 daily | This record's own runs, after a year                                                                            |
 
 The 45-day chat purge is its own clock. What a member may read (four hours) and what a transcript
 may take (seven days) are windows on what is still stored. Neither changes when the purge runs, and
@@ -115,10 +115,10 @@ See [Privacy: erasure](privacy-erasure.md#erasing-a-closed-account).
 
 ## What is kept
 
-| Table | Kept |
-| --- | --- |
-| `retention_run` | A year |
-| `file_asset` for a roster file | The row stays, `DELETED`, as the record that the file existed. The import that points at it stays too |
-| `fleet_roster_import_action` | Kept with its import, including `SOURCE_EXPIRED`. The system's `SOURCE_EXPIRED` and `SOURCE_ERASED` are keyed by the import, so a retried run writes each once (FC-039) |
+| Table                                       | Kept                                                                                                                                                                                |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `retention_run`                             | A year                                                                                                                                                                              |
+| `file_asset` for a roster file              | The row stays, `DELETED`, as the record that the file existed. The import that points at it stays too                                                                               |
+| `fleet_roster_import_action`                | Kept with its import, including `SOURCE_EXPIRED`. The system's `SOURCE_EXPIRED` and `SOURCE_ERASED` are keyed by the import, so a retried run writes each once (FC-039)             |
 | `moderation_hold`, `moderation_hold_action` | Kept, including the system's notices and releases. Each notice is keyed by the hold and its review date, and a release by the hold, so two runs that cross write each once (FC-039) |
-| `site_admin_action` | Under the audit policy, like `_audit`; see [Admin audit](admin-audit.md#write-once-and-how-long-it-is-kept) |
+| `site_admin_action`                         | Under the audit policy, like `_audit`; see [Admin audit](admin-audit.md#write-once-and-how-long-it-is-kept)                                                                         |

@@ -18,7 +18,7 @@ could have shown it.
 Plan section 3.6, with Steve's decisions of 25 September 2026:
 
 - **Presence is evidence; absence only from a complete export.** A member missing from an export
-  marked partial, or whose row an investigator excluded, is *unknown* there. An unknown never ends
+  marked partial, or whose row an investigator excluded, is _unknown_ there. An unknown never ends
   a membership.
 - **A departure is bounded, not dated.** It lies between the last export that listed them and the
   first complete one that did not — never "on" the later export's date.
@@ -27,7 +27,7 @@ Plan section 3.6, with Steve's decisions of 25 September 2026:
   Date is recorded and keeps the episode. An ambiguous Join Date, from the morning a clock went
   back, is never a time claim, so never a rejoin.
 - **A contribution delta is the later total minus the earlier, within one episode, when it is not
-  negative.** A fall is a *reset*: a discontinuity with no delta, never a negative donation.
+  negative.** A fall is a _reset_: a discontinuity with no delta, never a negative donation.
   Nothing is carried across a rejoin, and a leaver's final total is unknown.
 - **Nothing is allocated between exports.** A change across an export where the member was unknown
   is recorded once, bounded by the two exports it lies between, and counted in no interval.
@@ -43,13 +43,13 @@ label change.
 Everything here is derived and rebuildable. Observations stay the source of truth, and dropping
 these tables and replaying every Fleet gives them back.
 
-| Table | What it holds |
-| --- | --- |
-| `fleet_roster_projection` | One row per Fleet: the published revision, when, its latest effective export, and the `requested` and `built` counters |
-| `fleet_roster_projection_input` | Every import a revision considered, and whether it was read — `EFFECTIVE`, `EXCLUDED`, `NOT_SELECTED`, `AWAITING_SELECTION` or `SAME_AS_EFFECTIVE` |
-| `fleet_roster_episode` | One stretch of one identity's membership: how it began (`FIRST_SEEN`, `JOINED`, `REJOINED`), how it ended (`LEFT`, `LEFT_AND_REJOINED`) and the exports bounding each, the reported Join Date, and the first and last contribution known in it |
-| `fleet_roster_change` | One change to one member between two exports: joined, rejoined, left, renamed, rank changed, Join Date changed, contribution rose (with its delta) or reset |
-| `fleet_roster_interval_summary` | One row per pair of consecutive effective exports: members at each end, the changes within it, and the contribution delta with its known, reset, baseline and unknown counts |
+| Table                           | What it holds                                                                                                                                                                                                                                  |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fleet_roster_projection`       | One row per Fleet: the published revision, when, its latest effective export, and the `requested` and `built` counters                                                                                                                         |
+| `fleet_roster_projection_input` | Every import a revision considered, and whether it was read — `EFFECTIVE`, `EXCLUDED`, `NOT_SELECTED`, `AWAITING_SELECTION` or `SAME_AS_EFFECTIVE`                                                                                             |
+| `fleet_roster_episode`          | One stretch of one identity's membership: how it began (`FIRST_SEEN`, `JOINED`, `REJOINED`), how it ended (`LEFT`, `LEFT_AND_REJOINED`) and the exports bounding each, the reported Join Date, and the first and last contribution known in it |
+| `fleet_roster_change`           | One change to one member between two exports: joined, rejoined, left, renamed, rank changed, Join Date changed, contribution rose (with its delta) or reset                                                                                    |
+| `fleet_roster_interval_summary` | One row per pair of consecutive effective exports: members at each end, the changes within it, and the contribution delta with its known, reset, baseline and unknown counts                                                                   |
 
 Every derived row carries its revision. The keys hold each row to its Fleet and revision: an
 episode refers to its identity through `(id, fleetId)`, and a change to its episode through Fleet,
@@ -126,13 +126,13 @@ import counts without changing anything it said. Every correction requires a rea
 with who made it and when, in `fleet_roster_import_action`, which is append-only. Each one locks the
 import, records its request for a replay in the same transaction, and queues it after committing.
 
-| Correction | What the replay makes of it |
-| --- | --- |
-| **Exclude** an import, or **reinstate** it | It stays evidence and leaves every derived result. Reinstating rebuilds exactly what was there before |
-| Mark an export **partial**, or complete again | Its rows still show who was there, but nobody missing from it is taken to have left |
-| **Correct the timezone** an export was read in | Its stamp and every row date are read again from the local text, so it takes its true place in the Fleet's history |
-| **Select** the export that stands for a disputed moment | It is read for the moment and the group's other exports are not. A held export is read into force first |
-| **Exclude rows**, or put them back | Each member an excluded row names is unknown in that export — neither present nor absent |
+| Correction                                              | What the replay makes of it                                                                                        |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **Exclude** an import, or **reinstate** it              | It stays evidence and leaves every derived result. Reinstating rebuilds exactly what was there before              |
+| Mark an export **partial**, or complete again           | Its rows still show who was there, but nobody missing from it is taken to have left                                |
+| **Correct the timezone** an export was read in          | Its stamp and every row date are read again from the local text, so it takes its true place in the Fleet's history |
+| **Select** the export that stands for a disputed moment | It is read for the moment and the group's other exports are not. A held export is read into force first            |
+| **Exclude rows**, or put them back                      | Each member an excluded row names is unknown in that export — neither present nor absent                           |
 
 Only an import in force, or held for a conflicting export, can be corrected: one still scanning,
 refused or given up on has never counted. Only one in force has rows to exclude.
@@ -279,13 +279,13 @@ npm run fleet:replay-rosters
 
 ## How it is proved
 
-| Check | What it covers |
-| --- | --- |
-| `roster-projector.spec.ts` | Every rule above, the corpus cases, all six orders of three exports, and a middle export added and excluded |
-| `roster-projector.fuzz.spec.ts` | Over generated histories: order invariance, no negative delta, the per-interval partition, departures only at complete exports, ordered and disjoint episodes |
-| `roster-input-classifier.spec.ts` | Which import of a moment is read, with and without a selection |
-| `roster-replay.service.spec.ts` | Skipping a covered request, the revision written beside and published, the revision before kept, the Fleet's date following it, and proposals raised once |
-| `roster-import-correction.service.spec.ts` | Each correction's refusals, the lock, the record, and the request committed with the change; the timezone re-read and the selection's release of a held export |
-| `roster-import-conflict.service.spec.ts` | One group per moment, reopened when a newcomer disagrees with its selection; holding judged against the selection |
-| `roster-projection-status.service.spec.ts` | The status pinned to one revision, and stale when a change is waiting |
-| `roster-projection-schema-alignment.spec.ts` | The five entities against their migration |
+| Check                                        | What it covers                                                                                                                                                 |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `roster-projector.spec.ts`                   | Every rule above, the corpus cases, all six orders of three exports, and a middle export added and excluded                                                    |
+| `roster-projector.fuzz.spec.ts`              | Over generated histories: order invariance, no negative delta, the per-interval partition, departures only at complete exports, ordered and disjoint episodes  |
+| `roster-input-classifier.spec.ts`            | Which import of a moment is read, with and without a selection                                                                                                 |
+| `roster-replay.service.spec.ts`              | Skipping a covered request, the revision written beside and published, the revision before kept, the Fleet's date following it, and proposals raised once      |
+| `roster-import-correction.service.spec.ts`   | Each correction's refusals, the lock, the record, and the request committed with the change; the timezone re-read and the selection's release of a held export |
+| `roster-import-conflict.service.spec.ts`     | One group per moment, reopened when a newcomer disagrees with its selection; holding judged against the selection                                              |
+| `roster-projection-status.service.spec.ts`   | The status pinned to one revision, and stale when a change is waiting                                                                                          |
+| `roster-projection-schema-alignment.spec.ts` | The five entities against their migration                                                                                                                      |

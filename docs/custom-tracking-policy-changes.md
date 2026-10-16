@@ -28,14 +28,14 @@ standing statement.
 
 ## What has to be said, and why
 
-| Point                                                     | Where it belongs   |
-| --------------------------------------------------------- | ------------------ |
-| Members can define their own fields and record their own values | Privacy §1     |
+| Point                                                                                     | Where it belongs     |
+| ----------------------------------------------------------------------------------------- | -------------------- |
+| Members can define their own fields and record their own values                           | Privacy §1           |
 | That material may be made public, and is then visible to anyone, including search engines | Privacy §1, Terms §2 |
-| Personal information about the member or anybody else is prohibited in it | Terms §2, Terms §4 |
-| Pictures uploaded to custom fields are covered by the existing upload rules | Terms §2 |
-| Deleted definitions and values are kept for 180 days before permanent deletion | Privacy §4 |
-| An administrator may hide custom content from public view without deleting it | Terms §2, Terms §5 |
+| Personal information about the member or anybody else is prohibited in it                 | Terms §2, Terms §4   |
+| Pictures uploaded to custom fields are covered by the existing upload rules               | Terms §2             |
+| Deleted definitions and values are kept for 180 days before permanent deletion            | Privacy §4           |
+| An administrator may hide custom content from public view without deleting it             | Terms §2, Terms §5   |
 
 The one point that is genuinely new rather than an extension of what the pages
 already say is the prohibition on personal information. Everywhere else on the
@@ -70,15 +70,15 @@ anything in it, so we prohibit it and enforce it after the fact.
   including search engines. Treat anything you make public as published.
 </li>
 <li>
-  Pictures uploaded to a custom field are subject to the same rules as any
-  other upload, including the size limit and the prohibitions on adult content,
+  Pictures uploaded to a custom field are subject to the same rules as any other
+  upload, including the size limit and the prohibitions on adult content,
   copyrighted material and malicious files.
 </li>
 <li>
-  We may hide any custom section, tab or field from public view without
-  deleting it. Your data stays yours and you can still see and edit it; the
-  rest of the world cannot. Repeated or serious breaches may lead to your
-  account being disabled under section 5.
+  We may hide any custom section, tab or field from public view without deleting
+  it. Your data stays yours and you can still see and edit it; the rest of the
+  world cannot. Repeated or serious breaches may lead to your account being
+  disabled under section 5.
 </li>
 ```
 
@@ -89,8 +89,8 @@ This list uses `no-bullets` with an icon per item, so the new one must match:
 ```html
 <li>
   <i class="fas fa-square-xmark go-red"></i>
-  Store or publish personal information about yourself or anybody else in
-  custom tracking.
+  Store or publish personal information about yourself or anybody else in custom
+  tracking.
 </li>
 ```
 
@@ -134,8 +134,8 @@ This section is a paragraph rather than a list, so the sentence goes into it:
     Pictures are stored with Cloudflare Images in the same way as the rest of
     the App's uploads. Video fields store only a YouTube video identifier, never
     the address you pasted. The video itself is not loaded until you or a
-    visitor presses play, although the still image shown beforehand is served
-    by Google, in the same way as elsewhere on the App.
+    visitor presses play, although the still image shown beforehand is served by
+    Google, in the same way as elsewhere on the App.
   </li>
 </ul>
 ```
@@ -149,9 +149,9 @@ Suggested placement: after "Closed accounts".
 
 ```html
 <li>
-  <strong class="go-sky">Custom tracking data</strong> - Deleting a section, tab,
-  field or value hides it immediately and it can no longer be seen by anyone.
-  The underlying records are permanently deleted
+  <strong class="go-sky">Custom tracking data</strong> - Deleting a section,
+  tab, field or value hides it immediately and it can no longer be seen by
+  anyone. The underlying records are permanently deleted
   <strong class="go-gold">180 days</strong> later. A deleted option is kept for
   longer where a value you still hold refers to it, because its label is what
   makes that value readable. Pictures are deleted from our image storage as part

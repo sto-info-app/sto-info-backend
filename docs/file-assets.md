@@ -11,18 +11,18 @@ flag in the database that leaves a CDN URL working looks exactly like a working 
 
 ## The states
 
-| State           | Meaning                                                                  | Served?                             |
-| --------------- | ------------------------------------------------------------------------ | ----------------------------------- |
-| `UNVERIFIED`    | Bytes that predate the registry. No verdict of any kind exists for them. | Yes, until rescanned; see below     |
-| `RECEIVING`     | The row exists; the bytes are still arriving.                            | No                                  |
-| `QUARANTINED`   | The bytes are in the private bucket, waiting for a scanner.              | No                                  |
-| `SCANNING`      | A scanner has the object and has not answered.                           | No                                  |
-| `CLEAN`         | A scanner returned an affirmative clean verdict for exactly these bytes. | **No**                              |
-| `AVAILABLE`     | Clean, processed, and published to an audience.                          | Yes                                 |
-| `RETRY_PENDING` | A transient fault. Eligible to be scanned again.                         | No                                  |
-| `REJECTED`      | Refused, and never published.                                            | No                                  |
-| `REVOKED`       | Was `AVAILABLE`, and is not any more.                                    | No                                  |
-| `DELETED`       | The object has been removed from storage. The row remains as evidence.   | No                                  |
+| State           | Meaning                                                                  | Served?                         |
+| --------------- | ------------------------------------------------------------------------ | ------------------------------- |
+| `UNVERIFIED`    | Bytes that predate the registry. No verdict of any kind exists for them. | Yes, until rescanned; see below |
+| `RECEIVING`     | The row exists; the bytes are still arriving.                            | No                              |
+| `QUARANTINED`   | The bytes are in the private bucket, waiting for a scanner.              | No                              |
+| `SCANNING`      | A scanner has the object and has not answered.                           | No                              |
+| `CLEAN`         | A scanner returned an affirmative clean verdict for exactly these bytes. | **No**                          |
+| `AVAILABLE`     | Clean, processed, and published to an audience.                          | Yes                             |
+| `RETRY_PENDING` | A transient fault. Eligible to be scanned again.                         | No                              |
+| `REJECTED`      | Refused, and never published.                                            | No                              |
+| `REVOKED`       | Was `AVAILABLE`, and is not any more.                                    | No                              |
+| `DELETED`       | The object has been removed from storage. The row remains as evidence.   | No                              |
 
 `CLEAN` is deliberately not serveable. A scanner says something about bytes; it knows nothing
 about whether the type is one the feature accepts, whether processing succeeded, or whether the
@@ -351,7 +351,7 @@ then writes the row. A move the state machine refuses writes nothing.
     object the marker names, if any — from Cloudflare Images, or from R2 for a legacy object — and
     counts a missing object as deleted. A Cloudflare failure is logged and tried again at the next
     boot; it does not stop the API starting, since nothing in the database can serve the asset.
-  The reason on each is "Brought back from the asset-deny ledger after a restore."
+    The reason on each is "Brought back from the asset-deny ledger after a restore."
 - **Triggers.** `file_asset_guard` lets every one of these moves through: it guards only the
   object's identity and the two ways into `AVAILABLE`.
 - **Failures.** If the ledger cannot be written, the move fails and the row is unchanged. A marker
@@ -501,13 +501,13 @@ FC-010 joined the two halves. The path is a queue in each direction, and neither
 its own messages — [ADR-0015](../../../Plans/Fleets/ADR/0015-asset-registry-ownership.md)'s
 authority boundary expressed as an absence rather than as a check.
 
-| Step | Who | What |
-| --- | --- | --- |
-| 1 | backend | `recordStored` puts the asset in `QUARANTINED` with its key and hash. |
-| 2 | backend | `ScanRequestProducerService.requestScan` moves it to `SCANNING` and puts a message on `file-scan`. |
-| 3 | worker | Reads the object, scans it, writes an attempt row, puts a verdict on `file-scan-verdict`. |
-| 4 | backend | `ScanVerdictService.apply` rechecks the hash and calls `recordCleanVerdict`, `reject` or `markRetryPending`. |
-| 5 | backend | A clean verdict enqueues publication; `AssetPublicationService` publishes against a fresh look at the registry. **Not step 4.** |
+| Step | Who     | What                                                                                                                            |
+| ---- | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | backend | `recordStored` puts the asset in `QUARANTINED` with its key and hash.                                                           |
+| 2    | backend | `ScanRequestProducerService.requestScan` moves it to `SCANNING` and puts a message on `file-scan`.                              |
+| 3    | worker  | Reads the object, scans it, writes an attempt row, puts a verdict on `file-scan-verdict`.                                       |
+| 4    | backend | `ScanVerdictService.apply` rechecks the hash and calls `recordCleanVerdict`, `reject` or `markRetryPending`.                    |
+| 5    | backend | A clean verdict enqueues publication; `AssetPublicationService` publishes against a fresh look at the registry. **Not step 4.** |
 
 Three things about step 2 and step 4 are worth knowing before changing either.
 
@@ -562,16 +562,16 @@ apart. This administrator-only route reads each of its sources on its own, and a
 when its source cannot be reached. That way the page still shows the rest while something is down,
 which is when it is most needed.
 
-| Part | Source |
-| --- | --- |
-| `usage` | The worker's `scan_usage` view: one entry each for 24 hours, 7 days and 30 days. |
-| `engine` | The worker's `scan_engine_status` view, plus the signature age worked out here. |
-| `queue` | The `file-scan` queue's own job counts, prioritised jobs counted as waiting. |
-| `awaiting` | The registry's assets in `QUARANTINED`, `SCANNING` and `RETRY_PENDING`. |
-| `workers` | The worker's `worker_heartbeat_status` view (FC-042): one entry per worker process, latest beat first, with `live`, `secondsSinceBeat`, `pausedMinutes` and `signatureAgeHours` worked out by the database against its own clock. `null` when the view cannot be read. |
-| `alerts` | The operations alerts open now (FC-042), oldest first. |
-| `publication` | The publication pause (FC-042): whether it is on, since when and by whom (`pausedByUserId`, and `pausedByUsername`, null for an account since gone), whether the queue itself is paused, and how many cleared uploads are held. |
-| `owedPurges` | The registry's owed purges (FC-043): `owed`, how many of those are `overdue` (owed for more than a day, as `PURGE_OWED` judges), and `oldestHours`, null when none is owed. Counted by the database against its own clock. |
+| Part          | Source                                                                                                                                                                                                                                                                 |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `usage`       | The worker's `scan_usage` view: one entry each for 24 hours, 7 days and 30 days.                                                                                                                                                                                       |
+| `engine`      | The worker's `scan_engine_status` view, plus the signature age worked out here.                                                                                                                                                                                        |
+| `queue`       | The `file-scan` queue's own job counts, prioritised jobs counted as waiting.                                                                                                                                                                                           |
+| `awaiting`    | The registry's assets in `QUARANTINED`, `SCANNING` and `RETRY_PENDING`.                                                                                                                                                                                                |
+| `workers`     | The worker's `worker_heartbeat_status` view (FC-042): one entry per worker process, latest beat first, with `live`, `secondsSinceBeat`, `pausedMinutes` and `signatureAgeHours` worked out by the database against its own clock. `null` when the view cannot be read. |
+| `alerts`      | The operations alerts open now (FC-042), oldest first.                                                                                                                                                                                                                 |
+| `publication` | The publication pause (FC-042): whether it is on, since when and by whom (`pausedByUserId`, and `pausedByUsername`, null for an account since gone), whether the queue itself is paused, and how many cleared uploads are held.                                        |
+| `owedPurges`  | The registry's owed purges (FC-043): `owed`, how many of those are `overdue` (owed for more than a day, as `PURGE_OWED` judges), and `oldestHours`, null when none is owed. Counted by the database against its own clock.                                             |
 
 **Every read is logged** (FC-042, Steve's decision of 30 September 2026). The diagnostics stay
 ADMIN-only, and each page view writes one `SCAN_DIAGNOSTICS_VIEWED` entry to the site admin log —
@@ -609,17 +609,17 @@ in [`docs/operations/`](operations/).
 into line with the pause switch, then checks for each of these, with thresholds fixed in code in
 `src/operations/alerts/operations-alert.constants.ts`:
 
-| Alert | Opens when | Detail |
-| --- | --- | --- |
-| `SCAN_QUEUE_LAG` | The oldest waiting (waiting or prioritised) job on `file-scan` was queued more than 15 minutes ago. | `oldestMinutes` |
-| `PUBLICATION_QUEUE_LAG` | The same on `file-asset-publication` — never while publication is paused, when it clears. | `oldestMinutes` |
-| `WORKER_SILENT` | No worker has beaten in the last 2 minutes, or the heartbeat view cannot be read. | `liveWorkers`, `minutesSinceBeat` |
-| `WORKER_PAUSED` | Every live worker is `PAUSED`, and the most recent pause began 10 minutes ago or more. | `pausedWorkers`, `pausedMinutes` |
-| `SIGNATURES_STALE` | The newest signatures any live worker holds were built more than 36 hours ago (the worker stops at 48). | `signatureAgeHours` |
-| `FAILED_JOBS` | Any job is in the failed set of a queue below. | `failed` |
-| `PUBLICATION_PAUSED_LONG` | Publication has been paused for more than an hour. | `pausedMinutes` |
-| `QUEUES_UNREACHABLE` | Redis has not answered the alert run for 2 minutes running (counted in memory from the first run that could not reach it; a restart starts again). | `minutesUnreachable` |
-| `PURGE_OWED` | A withdrawn picture's public copy has been owed a purge for more than 24 hours (FC-043; database only, so judged while Redis is down). | `overdue`, `oldestHours` |
+| Alert                     | Opens when                                                                                                                                         | Detail                            |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| `SCAN_QUEUE_LAG`          | The oldest waiting (waiting or prioritised) job on `file-scan` was queued more than 15 minutes ago.                                                | `oldestMinutes`                   |
+| `PUBLICATION_QUEUE_LAG`   | The same on `file-asset-publication` — never while publication is paused, when it clears.                                                          | `oldestMinutes`                   |
+| `WORKER_SILENT`           | No worker has beaten in the last 2 minutes, or the heartbeat view cannot be read.                                                                  | `liveWorkers`, `minutesSinceBeat` |
+| `WORKER_PAUSED`           | Every live worker is `PAUSED`, and the most recent pause began 10 minutes ago or more.                                                             | `pausedWorkers`, `pausedMinutes`  |
+| `SIGNATURES_STALE`        | The newest signatures any live worker holds were built more than 36 hours ago (the worker stops at 48).                                            | `signatureAgeHours`               |
+| `FAILED_JOBS`             | Any job is in the failed set of a queue below.                                                                                                     | `failed`                          |
+| `PUBLICATION_PAUSED_LONG` | Publication has been paused for more than an hour.                                                                                                 | `pausedMinutes`                   |
+| `QUEUES_UNREACHABLE`      | Redis has not answered the alert run for 2 minutes running (counted in memory from the first run that could not reach it; a restart starts again). | `minutesUnreachable`              |
+| `PURGE_OWED`              | A withdrawn picture's public copy has been owed a purge for more than 24 hours (FC-043; database only, so judged while Redis is down).             | `overdue`, `oldestHours`          |
 
 - **One alert per problem until it clears.** Each occurrence is a row in `operations_alert`
   (`openedAt`, `lastSeenAt`, `clearedAt`, all `timestamptz`), and a partial unique index keeps one
@@ -672,15 +672,15 @@ offer. `FAILED_JOBS` counts every failed job, so it clears once each has been re
 it runs, so one whose record has moved on would do nothing; retrying it is refused with a 409 that
 says why, and "Retry all" skips it:
 
-| Queue | Kept on failure | A retry is allowed while |
-| --- | --- | --- |
-| `file-scan` | yes | an upload's asset is still `SCANNING` the same object; a rescan's (`rescan_<id>`) rescan is still `REQUESTED`. The worker is idempotent: a finished attempt repeats its verdict, and a spent retry budget answers `RETRY_BUDGET_EXHAUSTED`, so a retry always ends in a verdict. An asset that has since been refused, published or swept cannot move again (`REJECTED` only goes to `DELETED`), so its retry is refused. |
-| `file-scan-verdict` | yes | the same: the rescan it answers (found by its staged copy) is still `REQUESTED`, or else the upload is still `SCANNING` the same object. |
-| `file-asset-publication` | yes | the asset is `CLEAN` or `AVAILABLE` and its placement still `PENDING`, or `CLEAN` with a `HELD` placement (the owning feature is asked again). While publication is paused, a retried job waits with the rest. |
-| `chat-transcript` | yes | the transcript is still `PENDING`; the retention sweep gives up on one after an hour. |
-| `fleet-roster-replay` | yes | the Fleet's projection is behind (`built < requested`); the ten-minute sweep queues a fresh replay anyway. |
-| `image-estate` | **no** (`removeOnFail: true`) | not listed: each run records its own failures and is resumed from its page. |
-| `file-rescan` | **no** (`removeOnFail: true`) | not listed: a campaign's batch that fails is resumed with the campaign. |
+| Queue                    | Kept on failure               | A retry is allowed while                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------ | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `file-scan`              | yes                           | an upload's asset is still `SCANNING` the same object; a rescan's (`rescan_<id>`) rescan is still `REQUESTED`. The worker is idempotent: a finished attempt repeats its verdict, and a spent retry budget answers `RETRY_BUDGET_EXHAUSTED`, so a retry always ends in a verdict. An asset that has since been refused, published or swept cannot move again (`REJECTED` only goes to `DELETED`), so its retry is refused. |
+| `file-scan-verdict`      | yes                           | the same: the rescan it answers (found by its staged copy) is still `REQUESTED`, or else the upload is still `SCANNING` the same object.                                                                                                                                                                                                                                                                                  |
+| `file-asset-publication` | yes                           | the asset is `CLEAN` or `AVAILABLE` and its placement still `PENDING`, or `CLEAN` with a `HELD` placement (the owning feature is asked again). While publication is paused, a retried job waits with the rest.                                                                                                                                                                                                            |
+| `chat-transcript`        | yes                           | the transcript is still `PENDING`; the retention sweep gives up on one after an hour.                                                                                                                                                                                                                                                                                                                                     |
+| `fleet-roster-replay`    | yes                           | the Fleet's projection is behind (`built < requested`); the ten-minute sweep queues a fresh replay anyway.                                                                                                                                                                                                                                                                                                                |
+| `image-estate`           | **no** (`removeOnFail: true`) | not listed: each run records its own failures and is resumed from its page.                                                                                                                                                                                                                                                                                                                                               |
+| `file-rescan`            | **no** (`removeOnFail: true`) | not listed: a campaign's batch that fails is resumed with the campaign.                                                                                                                                                                                                                                                                                                                                                   |
 
 The queues are found through the module graph rather than registered again, so the list opens no
 Redis connections of its own.
@@ -693,12 +693,12 @@ queued once decided, say. It now sends the failed job round again instead, with 
 back, and logs `[enqueue] Failed publication sent round again - AssetId: …`
 (`reviveFailedJob()` in `src/shared/queue/`). The other kept queues need no change:
 
-| Queue | Job ID | Why no fix |
-| --- | --- | --- |
-| `chat-transcript` | BullMQ's own | Every request is a new job. |
-| `fleet-roster-replay` | BullMQ's own | Every request is a new job. |
-| `file-scan` | `<assetId>_<policyVersion>`, or `rescan_<rescanId>` | A request is only made for a new asset or a new rescan, so the identifier is never reused. |
-| `file-scan-verdict` | The worker's attempt ID and the time of its answer (`<attemptId>_<scannedAt ms>`), so a reopened attempt's new answer is a new job | Produced by the worker, not here: see its [queues documentation](../../sto-info-file-scan-worker/docs/queues.md). |
+| Queue                 | Job ID                                                                                                                             | Why no fix                                                                                                        |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `chat-transcript`     | BullMQ's own                                                                                                                       | Every request is a new job.                                                                                       |
+| `fleet-roster-replay` | BullMQ's own                                                                                                                       | Every request is a new job.                                                                                       |
+| `file-scan`           | `<assetId>_<policyVersion>`, or `rescan_<rescanId>`                                                                                | A request is only made for a new asset or a new rescan, so the identifier is never reused.                        |
+| `file-scan-verdict`   | The worker's attempt ID and the time of its answer (`<attemptId>_<scannedAt ms>`), so a reopened attempt's new answer is a new job | Produced by the worker, not here: see its [queues documentation](../../sto-info-file-scan-worker/docs/queues.md). |
 
 ### Pausing publication
 
@@ -738,15 +738,15 @@ Cloudflare Images until a scanner has cleared it.
 [ADR-0021](../../../Plans/Fleets/ADR/0021-asynchronous-publication-and-placements.md) is the
 decision; this is the shape of it.
 
-| Step | Who | What |
-| --- | --- | --- |
-| 1 | the feature | Applies its slot's rules and calls `ImageIngressService.accept`. |
-| 2 | `ImageSlotService` | Reads the encoding out of the bytes. A PNG that is not a PNG stops here. |
-| 2a | `ImageReencodeService` | Decodes the picture and writes it out again (FC-043): only pixels go on. |
-| 3 | `AssetIngressService` | Registers, quarantines, claims the slot, requests the scan. |
-| 4 | the worker | Scans, and puts a verdict on `file-scan-verdict`. |
-| 5 | `ScanVerdictProcessor` | Applies the verdict and, for a clean one, enqueues publication. |
-| 6 | `AssetPublicationService` | Pushes to Cloudflare Images, publishes the asset, tells the feature, withdraws what it replaced, drops the quarantined copy. |
+| Step | Who                       | What                                                                                                                         |
+| ---- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| 1    | the feature               | Applies its slot's rules and calls `ImageIngressService.accept`.                                                             |
+| 2    | `ImageSlotService`        | Reads the encoding out of the bytes. A PNG that is not a PNG stops here.                                                     |
+| 2a   | `ImageReencodeService`    | Decodes the picture and writes it out again (FC-043): only pixels go on.                                                     |
+| 3    | `AssetIngressService`     | Registers, quarantines, claims the slot, requests the scan.                                                                  |
+| 4    | the worker                | Scans, and puts a verdict on `file-scan-verdict`.                                                                            |
+| 5    | `ScanVerdictProcessor`    | Applies the verdict and, for a clean one, enqueues publication.                                                              |
+| 6    | `AssetPublicationService` | Pushes to Cloudflare Images, publishes the asset, tells the feature, withdraws what it replaced, drops the quarantined copy. |
 
 **Only pixels are quarantined (FC-043).** `clamd` reads an archive member only up to
 `MaxFileSize` and reports nothing about the rest, so a small PNG carrying an archive — still a
@@ -883,8 +883,7 @@ A stop too short to open an alert is not counted, which a day's margin absorbs. 
 `[sweep] Stale uploads kept; the pipeline was stopped - Reason: …` and the nightly job says why.
 
 **A bucket that cannot be read is retried, not abandoned** (FC-042). Publication reads a picture's
-or a roster file's bytes out of quarantine; only a missing object (`NoSuchKey`, `NotFound` or a
-404) means the upload was already abandoned and is refused as `NO_BYTES`. Any other error fails
+or a roster file's bytes out of quarantine; only a missing object (`NoSuchKey`, `NotFound` or a 404) means the upload was already abandoned and is refused as `NO_BYTES`. Any other error fails
 the job, so BullMQ retries it and, after five attempts, keeps it in the failed set, where
 `FAILED_JOBS` alerts on it and a retry is allowed.
 

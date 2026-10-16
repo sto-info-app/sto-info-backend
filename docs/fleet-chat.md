@@ -254,6 +254,7 @@ FC-036, plan section 9 and Steve's decisions of 29 September 2026 (`src/fleet/ch
     release is logged with no actor.
 
   See [Fleet retention jobs](fleet-retention.md#holds-past-review).
+
 - **The purges.** The message purge leaves a held member's messages, and the report purge a held
   report. Released, what it kept goes with the next purge, as if never held. A hold has no key to
   its report, so its record outlives what it held.
@@ -275,7 +276,7 @@ to a ledger outside the database, before the database, in the same step that log
   `<NODE_ENV>/hold-ledger/<createdAt>_<actionId>_<PLACED|EXTENDED|RELEASED>.json`. The action ID is
   the log row's own: the service makes it before it inserts the row.
 - **What.** `{ actionId, holdId, kind, holdKind, chatReportId, subjectUserId, ownerUserId,
-  reviewAt, createdAt }`: IDs, dates and the event, with `reviewAt` as the event left it. No
+reviewAt, createdAt }`: IDs, dates and the event, with `reviewAt` as the event left it. No
   reason. Readings and the system's notices are not in it.
 - **Brought back.** At every boot, the restore check (see
   [Privacy: erasure](privacy-erasure.md#the-restore-check-fc-042)) brings back, oldest first, each
@@ -296,39 +297,39 @@ Every route needs somebody signed in and the `FLEET_CHAT_ENABLED` switch, as doe
 The site admins' chat-report routes need the ADMIN role instead of the switch, so reports made
 before chat was switched off can still be closed.
 
-| Method | Path | Who |
-| --- | --- | --- |
-| `GET` | `/fleet-communities/:communityId/chat/channels` | Anybody who takes part in the Community's chat |
-| `POST` | `/fleet-communities/:communityId/chat/channels` | Its `chat.moderate` holders, while it is open |
-| `PATCH` | `/fleet-communities/:communityId/chat/channels/:channelId` | Its `chat.moderate` holders, while it is open |
-| `POST` | `/fleet-communities/:communityId/chat/channels/:channelId/archive` | Its `chat.moderate` holders, while it is open |
-| | The same four under `/fleet-communities/:communityId/fleets/:fleetId/chat/channels` | The same, at the Fleet |
-| | The same four under `/fleet-communities/:communityId/armadas/:armadaId/chat/channels` | The same, at the Armada |
-| `GET` | `/chat/channels` | Anybody: every scope's channels they may read |
-| `GET` | `/chat/channels/:channelId/messages` | Anybody who may read the channel |
-| `POST` | `/chat/channels/:channelId/messages` | Anybody who may post in it |
-| `GET` | `/chat/channels/:channelId/people?q=` | Anybody who may read the channel: others who can, to mention |
-| `GET` | `/chat/presence?usernames=` | Anybody: who of up to fifty people is online, as the caller may know it |
-| `GET` | `/chat/messages/:messageId` | Anybody who may read its channel or conversation |
-| `DELETE` | `/chat/messages/:messageId` | Its author, or a moderator of its channel with a reason |
-| `GET` | `/chat/direct` | Anybody: their conversations still open to them |
-| `POST` | `/chat/direct` | Anybody, naming a friend by `userId`, or the `friendshipId` a public profile gives |
-| `GET` | `/chat/direct/:conversationId/messages` | Its two, while they may talk |
-| `POST` | `/chat/direct/:conversationId/messages` | Its two, while they may talk |
-| `POST` | `/chat/messages/:messageId/report` | A reader with `content.report` there, or either side of its conversation |
-| `POST` | `/chat/channels/:channelId/transcripts` | A `chat.transcript.export` holder at the channel's own scope |
-| `GET` | `/chat/transcripts` | Anybody: the transcripts they asked for in the last day |
-| `GET` | `/chat/transcripts/:transcriptId/download` | Its requester, while they may still export the channel, for 24 hours |
-| `GET` | `/admin/chat-reports?status=&reason=&page=&pageSize=` | The site's admins: the queue, oldest first |
-| `GET` | `/admin/chat-reports/:reportId` | The site's admins: a report with its evidence |
-| `POST` | `/admin/chat-reports/:reportId/decision` | The site's admins: `{ status: ACTIONED \| DISMISSED, note }` |
-| `POST` | `/admin/chat-reports/:reportId/remove-message` | The site's admins: `{ reason }` |
-| `GET` | `/admin/moderation-holds?active=` | The site's admins: holds, due reviews first |
-| `POST` | `/admin/moderation-holds` | The site's admins: `{ kind, chatReportId? \| subjectUserId?, reason, reviewAt? }` |
-| `GET` | `/admin/moderation-holds/:holdId` | The site's admins: a hold and its log |
-| `POST` | `/admin/moderation-holds/:holdId/extend` | The site's admins: `{ reviewAt, reason }` |
-| `POST` | `/admin/moderation-holds/:holdId/release` | The site's admins: `{ reason }` |
-| `POST` | `/admin/moderation-holds/:holdId/read` | The site's admins: `{ purpose, before? }`, logged |
+| Method   | Path                                                                                  | Who                                                                                |
+| -------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `GET`    | `/fleet-communities/:communityId/chat/channels`                                       | Anybody who takes part in the Community's chat                                     |
+| `POST`   | `/fleet-communities/:communityId/chat/channels`                                       | Its `chat.moderate` holders, while it is open                                      |
+| `PATCH`  | `/fleet-communities/:communityId/chat/channels/:channelId`                            | Its `chat.moderate` holders, while it is open                                      |
+| `POST`   | `/fleet-communities/:communityId/chat/channels/:channelId/archive`                    | Its `chat.moderate` holders, while it is open                                      |
+|          | The same four under `/fleet-communities/:communityId/fleets/:fleetId/chat/channels`   | The same, at the Fleet                                                             |
+|          | The same four under `/fleet-communities/:communityId/armadas/:armadaId/chat/channels` | The same, at the Armada                                                            |
+| `GET`    | `/chat/channels`                                                                      | Anybody: every scope's channels they may read                                      |
+| `GET`    | `/chat/channels/:channelId/messages`                                                  | Anybody who may read the channel                                                   |
+| `POST`   | `/chat/channels/:channelId/messages`                                                  | Anybody who may post in it                                                         |
+| `GET`    | `/chat/channels/:channelId/people?q=`                                                 | Anybody who may read the channel: others who can, to mention                       |
+| `GET`    | `/chat/presence?usernames=`                                                           | Anybody: who of up to fifty people is online, as the caller may know it            |
+| `GET`    | `/chat/messages/:messageId`                                                           | Anybody who may read its channel or conversation                                   |
+| `DELETE` | `/chat/messages/:messageId`                                                           | Its author, or a moderator of its channel with a reason                            |
+| `GET`    | `/chat/direct`                                                                        | Anybody: their conversations still open to them                                    |
+| `POST`   | `/chat/direct`                                                                        | Anybody, naming a friend by `userId`, or the `friendshipId` a public profile gives |
+| `GET`    | `/chat/direct/:conversationId/messages`                                               | Its two, while they may talk                                                       |
+| `POST`   | `/chat/direct/:conversationId/messages`                                               | Its two, while they may talk                                                       |
+| `POST`   | `/chat/messages/:messageId/report`                                                    | A reader with `content.report` there, or either side of its conversation           |
+| `POST`   | `/chat/channels/:channelId/transcripts`                                               | A `chat.transcript.export` holder at the channel's own scope                       |
+| `GET`    | `/chat/transcripts`                                                                   | Anybody: the transcripts they asked for in the last day                            |
+| `GET`    | `/chat/transcripts/:transcriptId/download`                                            | Its requester, while they may still export the channel, for 24 hours               |
+| `GET`    | `/admin/chat-reports?status=&reason=&page=&pageSize=`                                 | The site's admins: the queue, oldest first                                         |
+| `GET`    | `/admin/chat-reports/:reportId`                                                       | The site's admins: a report with its evidence                                      |
+| `POST`   | `/admin/chat-reports/:reportId/decision`                                              | The site's admins: `{ status: ACTIONED \| DISMISSED, note }`                       |
+| `POST`   | `/admin/chat-reports/:reportId/remove-message`                                        | The site's admins: `{ reason }`                                                    |
+| `GET`    | `/admin/moderation-holds?active=`                                                     | The site's admins: holds, due reviews first                                        |
+| `POST`   | `/admin/moderation-holds`                                                             | The site's admins: `{ kind, chatReportId? \| subjectUserId?, reason, reviewAt? }`  |
+| `GET`    | `/admin/moderation-holds/:holdId`                                                     | The site's admins: a hold and its log                                              |
+| `POST`   | `/admin/moderation-holds/:holdId/extend`                                              | The site's admins: `{ reviewAt, reason }`                                          |
+| `POST`   | `/admin/moderation-holds/:holdId/release`                                             | The site's admins: `{ reason }`                                                    |
+| `POST`   | `/admin/moderation-holds/:holdId/read`                                                | The site's admins: `{ purpose, before? }`, logged                                  |
 
 - A channel is `{ id, kind, name, readRole, postRole, mayPost, mayManage, mayReport }`. Its input
   is `{ name, readRole, postRole? }`.
@@ -336,9 +337,9 @@ before chat was switched off can still be closed.
   Communities first, then Armadas, then Fleets.
 - A report is `{ reason, details? }`. A transcript request is `{ fromAt, toAt, purpose }`, and a
   transcript `{ id, channelId, channelName, scopeKind, scopeName, purpose, fromAt, toAt, status,
-  messageCount, createdAt, readyAt, expiresAt }`.
+messageCount, createdAt, readyAt, expiresAt }`.
 - A message is `{ id, channelId, conversationId, author, body, clientMessageId, createdAt,
-  deleted, mine, mentions, replyTo }`, where `replyTo` is `{ id, author, excerpt }` or null. A
+deleted, mine, mentions, replyTo }`, where `replyTo` is `{ id, author, excerpt }` or null. A
   page is `{ messages, before }`.
 - A post is `{ body, clientMessageId, mentions?, replyToMessageId? }`, over HTTP or the socket.
 - A conversation is `{ id, other: { userId, username } }`.

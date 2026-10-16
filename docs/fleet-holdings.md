@@ -11,15 +11,15 @@ recorded, and nothing else sets it.
 Seven holdings, read from the STO Wiki on 28 September 2026. Each has a track of its own and two or
 three departments, and every track has its own tiers from 0, meaning not started:
 
-| Holding | Tiers | Departments, each with the same tiers |
-| --- | --- | --- |
-| Fleet Starbase | 0–5 | Military, Engineering, Science |
-| Fleet Embassy | 0–3 | Diplomacy, Recruitment |
-| Fleet Dilithium Mine | 0–3 | Trade, Development |
-| Fleet Spire | 0–3 | Research, Operations |
-| Fleet Research Lab | 0–3 | Research, Development |
-| Deep Space K-13 | 0–3 | Retrofit Engineering, Xenotech Research |
-| Fleet Colony World | 0–5 | Morale, Infrastructure, Renewable Energy |
+| Holding              | Tiers | Departments, each with the same tiers    |
+| -------------------- | ----- | ---------------------------------------- |
+| Fleet Starbase       | 0–5   | Military, Engineering, Science           |
+| Fleet Embassy        | 0–3   | Diplomacy, Recruitment                   |
+| Fleet Dilithium Mine | 0–3   | Trade, Development                       |
+| Fleet Spire          | 0–3   | Research, Operations                     |
+| Fleet Research Lab   | 0–3   | Research, Development                    |
+| Deep Space K-13      | 0–3   | Retrofit Engineering, Xenotech Research  |
+| Fleet Colony World   | 0–5   | Morale, Infrastructure, Renewable Energy |
 
 Every track at its highest makes a Fleet level 85, as the wiki says.
 
@@ -66,11 +66,11 @@ change without a name.
 
 ## Routes
 
-| Route | Who |
-| --- | --- |
-| `GET /fleet-communities/:c/fleets/:f/holdings` | Anybody who may see the Fleet |
-| `GET …/holdings/history?page=&pageSize=` | Anybody who may see the Fleet; newest first, 25 a page by default, at most 100 |
-| `PUT …/holdings/:holdingCode` | `holdings.write` at the Fleet |
+| Route                                          | Who                                                                            |
+| ---------------------------------------------- | ------------------------------------------------------------------------------ |
+| `GET /fleet-communities/:c/fleets/:f/holdings` | Anybody who may see the Fleet                                                  |
+| `GET …/holdings/history?page=&pageSize=`       | Anybody who may see the Fleet; newest first, 25 a page by default, at most 100 |
+| `PUT …/holdings/:holdingCode`                  | `holdings.write` at the Fleet                                                  |
 
 The `PUT` takes `{ tiers: [{ track, tier }], reason? }`. Tracks left out stay as they are. It is
 refused with 400 for a track of another holding, a track given twice, a tier out of range, or

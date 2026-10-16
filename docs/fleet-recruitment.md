@@ -10,12 +10,12 @@ See also [Roster history](roster-history.md), whose evidence a decider is shown,
 
 Steve decided on 26 September 2026 what each recruitment state lets an outsider do:
 
-| State | Outsiders | Officers |
-| --- | --- | --- |
-| `OPEN` | **Join** with one of their Characters; membership is granted at once | May invite |
-| `APPLICATION` | **Apply** with a Character and the Fleet's form; a decider answers | May invite |
-| `INVITE_ONLY` | Nothing | May invite |
-| `CLOSED` | Nothing | May invite |
+| State         | Outsiders                                                            | Officers   |
+| ------------- | -------------------------------------------------------------------- | ---------- |
+| `OPEN`        | **Join** with one of their Characters; membership is granted at once | May invite |
+| `APPLICATION` | **Apply** with a Character and the Fleet's form; a decider answers   | May invite |
+| `INVITE_ONLY` | Nothing                                                              | May invite |
+| `CLOSED`      | Nothing                                                              | May invite |
 
 An invitation works in every state, because it is the Fleet reaching out on purpose.
 
@@ -56,12 +56,12 @@ edit route no longer accepts it.
 
 A form holds up to 20 questions of four kinds:
 
-| Kind | Answer |
-| --- | --- |
-| `SHORT_TEXT` | One line, up to 200 characters |
-| `LONG_TEXT` | A paragraph, up to 2,000 characters, plain text |
-| `SINGLE_CHOICE` | One of two to ten options |
-| `YES_NO` | A boolean, such as agreeing to the Fleet's rules |
+| Kind            | Answer                                           |
+| --------------- | ------------------------------------------------ |
+| `SHORT_TEXT`    | One line, up to 200 characters                   |
+| `LONG_TEXT`     | A paragraph, up to 2,000 characters, plain text  |
+| `SINGLE_CHOICE` | One of two to ten options                        |
+| `YES_NO`        | A boolean, such as agreeing to the Fleet's rules |
 
 A question keeps its identifier across versions that keep it, so an answer names the question it
 answered.
@@ -135,27 +135,27 @@ so every route that asks whether somebody may see a Fleet gives the same answer.
 
 ## Routes
 
-| Route | Who |
-| --- | --- |
-| `GET  /fleet-communities/:c/fleets/:f/recruitment` | Anyone who may see the Fleet |
-| `PUT  …/recruitment/settings` | `recruitment.manage` |
-| `POST …/recruitment/join` | Signed in; the service checks the rest |
-| `POST …/recruitment/applications` | Signed in; the service checks the rest |
-| `GET  …/recruitment/applications` | `applications.view` |
-| `GET  …/recruitment/applications/:id` | `applications.view` |
-| `POST …/recruitment/applications/:id/decision` | `applications.decide` |
-| `GET  …/recruitment/invitations` | `applications.view` |
-| `POST …/recruitment/invitations` | `applications.decide` |
-| `POST …/recruitment/invitations/:id/withdraw` | `applications.decide` |
-| `GET  …/recruitment/members` | `members.manage` |
-| `POST …/recruitment/members/:id/remove` | `members.manage` |
-| `POST …/recruitment/members/:id/suspend` and `…/reinstate` | `members.manage`, with a reason |
-| `POST …/recruitment/leave` | A member |
-| `GET  /fleet-recruitment/applications` | The applicant |
-| `POST /fleet-recruitment/applications/:id/withdraw` | The applicant |
-| `GET  /fleet-recruitment/invitations` | The invitee |
-| `POST /fleet-recruitment/invitations/:id/accept` | The invitee |
-| `POST /fleet-recruitment/invitations/:id/decline` | The invitee |
+| Route                                                      | Who                                    |
+| ---------------------------------------------------------- | -------------------------------------- |
+| `GET  /fleet-communities/:c/fleets/:f/recruitment`         | Anyone who may see the Fleet           |
+| `PUT  …/recruitment/settings`                              | `recruitment.manage`                   |
+| `POST …/recruitment/join`                                  | Signed in; the service checks the rest |
+| `POST …/recruitment/applications`                          | Signed in; the service checks the rest |
+| `GET  …/recruitment/applications`                          | `applications.view`                    |
+| `GET  …/recruitment/applications/:id`                      | `applications.view`                    |
+| `POST …/recruitment/applications/:id/decision`             | `applications.decide`                  |
+| `GET  …/recruitment/invitations`                           | `applications.view`                    |
+| `POST …/recruitment/invitations`                           | `applications.decide`                  |
+| `POST …/recruitment/invitations/:id/withdraw`              | `applications.decide`                  |
+| `GET  …/recruitment/members`                               | `members.manage`                       |
+| `POST …/recruitment/members/:id/remove`                    | `members.manage`                       |
+| `POST …/recruitment/members/:id/suspend` and `…/reinstate` | `members.manage`, with a reason        |
+| `POST …/recruitment/leave`                                 | A member                               |
+| `GET  /fleet-recruitment/applications`                     | The applicant                          |
+| `POST /fleet-recruitment/applications/:id/withdraw`        | The applicant                          |
+| `GET  /fleet-recruitment/invitations`                      | The invitee                            |
+| `POST /fleet-recruitment/invitations/:id/accept`           | The invitee                            |
+| `POST /fleet-recruitment/invitations/:id/decline`          | The invitee                            |
 
 Every route is behind the Fleet Community switch.
 

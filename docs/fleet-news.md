@@ -36,11 +36,11 @@ and its Open Graph images, all of which the frontend builds from those routes.
 
 ## Who may do what
 
-| Who | May |
-| --- | --- |
-| Anybody who may see the scope | Read its published posts in their audience, and search them by title and summary |
-| `news.write` at the scope | Also read its drafts and every audience; write, edit, publish, unpublish and delete any post there, and set or remove its cover |
-| A site administrator | Unpublish or delete any scoped post, whatever the scope's state |
+| Who                           | May                                                                                                                             |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Anybody who may see the scope | Read its published posts in their audience, and search them by title and summary                                                |
+| `news.write` at the scope     | Also read its drafts and every audience; write, edit, publish, unpublish and delete any post there, and set or remove its cover |
+| A site administrator          | Unpublish or delete any scoped post, whatever the scope's state                                                                 |
 
 `news.write` is held by the Owner and Admins by default, and can be delegated to Officers or to
 one person. A Community role reaches every Fleet and Armada in it, so a Community's Owner and
@@ -57,19 +57,19 @@ Every change is saved through the repository, so the audit log records it and wh
 `:scope` is `fleet-communities/:c`, `fleet-communities/:c/fleets/:f` or
 `fleet-communities/:c/armadas/:a`.
 
-| Route | Who |
-| --- | --- |
+| Route                                         | Who                                                                                                        |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `GET /:scope/news?page=&pageSize=&q=&status=` | Anybody who may see the scope; drafts (`status=DRAFT`) need `news.write`. 10 a page by default, at most 50 |
-| `GET /:scope/news/:slug` | Anybody the post is published to; a draft needs `news.write` |
-| `POST /:scope/news` | `news.write`; writes a draft |
-| `PATCH /:scope/news/:postId` | `news.write` |
-| `POST /:scope/news/:postId/publish` | `news.write` |
-| `POST /:scope/news/:postId/unpublish` | `news.write` |
-| `DELETE /:scope/news/:postId` | `news.write` |
-| `POST /:scope/news/:postId/cover-image` | `news.write`; multipart, with `altText` |
-| `DELETE /:scope/news/:postId/cover-image` | `news.write` |
-| `POST /admin/fleet-news/:postId/unpublish` | Site administrators |
-| `DELETE /admin/fleet-news/:postId` | Site administrators |
+| `GET /:scope/news/:slug`                      | Anybody the post is published to; a draft needs `news.write`                                               |
+| `POST /:scope/news`                           | `news.write`; writes a draft                                                                               |
+| `PATCH /:scope/news/:postId`                  | `news.write`                                                                                               |
+| `POST /:scope/news/:postId/publish`           | `news.write`                                                                                               |
+| `POST /:scope/news/:postId/unpublish`         | `news.write`                                                                                               |
+| `DELETE /:scope/news/:postId`                 | `news.write`                                                                                               |
+| `POST /:scope/news/:postId/cover-image`       | `news.write`; multipart, with `altText`                                                                    |
+| `DELETE /:scope/news/:postId/cover-image`     | `news.write`                                                                                               |
+| `POST /admin/fleet-news/:postId/unpublish`    | Site administrators                                                                                        |
+| `DELETE /admin/fleet-news/:postId`            | Site administrators                                                                                        |
 
 A post or scope the caller may not see answers 404, the same as one that does not exist. The list
 leaves out each post's body, and answers with `mayWrite`, `isOpen` and `isSuspended` so the page

@@ -2,8 +2,7 @@
 
 Who governs a Community or Fleet: role labels, delegated capabilities, ownership and closure
 (FC-022), and a site administrator's disputes, suspensions and looks into a Fleet (FC-036). The
-code is in `src/fleet/governance`. The decisions below are Steve's, from 27 and 29 September
-2026.
+code is in `src/fleet/governance`. The decisions below are Steve's, from 27 and 29 September 2026.
 
 An Armada has roles and delegation too (FC-025): the Community's Owner appoints its Admins and
 Officers from the approved members of the Fleets placed in it, and a role there ends when its
@@ -156,12 +155,12 @@ Otherwise a member of one Fleet who did not follow could not see a sibling Fleet
 members", while somebody who merely followed could. "Fleet members" is the one audience that
 differs by scope.
 
-| Audience | At a Community it admits | At a Fleet or an Armada it admits |
-| --- | --- | --- |
-| Anyone (`PUBLIC`) | Everybody, signed in or not | Everybody, signed in or not |
-| Community members (`COMMUNITY`) | Its followers; the approved members of any of its Fleets; anybody holding a role, grant or approved membership at the Community itself | The Community's followers; the approved members of any of the Community's Fleets; anybody holding a role, grant or approved membership at the Fleet or Armada, including a Community role that reaches it |
-| Fleet members (`FLEET_MEMBERS`) | The approved members of any of its Fleets; an approved member of the Community itself; anybody holding `members.view` there — the Owner, Admins and whoever it is delegated to. Never a follower | The Fleet's own approved members, or an Armada's through its placed Fleets; anybody holding `members.view` there. Never a sibling Fleet's member, never a follower |
-| Only me (`PRIVATE`) | The Owner | The Community's Owner |
+| Audience                        | At a Community it admits                                                                                                                                                                         | At a Fleet or an Armada it admits                                                                                                                                                                         |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Anyone (`PUBLIC`)               | Everybody, signed in or not                                                                                                                                                                      | Everybody, signed in or not                                                                                                                                                                               |
+| Community members (`COMMUNITY`) | Its followers; the approved members of any of its Fleets; anybody holding a role, grant or approved membership at the Community itself                                                           | The Community's followers; the approved members of any of the Community's Fleets; anybody holding a role, grant or approved membership at the Fleet or Armada, including a Community role that reaches it |
+| Fleet members (`FLEET_MEMBERS`) | The approved members of any of its Fleets; an approved member of the Community itself; anybody holding `members.view` there — the Owner, Admins and whoever it is delegated to. Never a follower | The Fleet's own approved members, or an Armada's through its placed Fleets; anybody holding `members.view` there. Never a sibling Fleet's member, never a follower                                        |
+| Only me (`PRIVATE`)             | The Owner                                                                                                                                                                                        | The Community's Owner                                                                                                                                                                                     |
 
 Community content published to "Fleet members" reaching the members of every Fleet is intended
 (Steve, 30 September 2026).
@@ -239,33 +238,33 @@ Owner and Admins. A site admin's dispute actions also show in the Security Log; 
 
 ## Routes
 
-| Route | Who |
-| --- | --- |
-| `GET  /fleet-communities/:c/governance/roles` | The Owner or an Admin |
-| `POST …/governance/roles` | `scope.roles.manage` |
-| `POST …/governance/roles/:id/withdraw` | `scope.roles.manage` |
-| `PUT  …/governance/officer-capabilities` | `scope.roles.manage` |
-| `PUT  …/governance/personal-capabilities` | `scope.roles.manage` |
-| `POST …/governance/personal-capabilities/:id/clear` | `scope.roles.manage` |
-| `GET  …/governance/history` | The Owner or an Admin |
-| `GET  …/governance/ownership` | Signed in; shows only the Owner or the Admin offered anything |
-| `POST …/governance/ownership` | `scope.ownership.transfer` |
-| `POST …/governance/ownership/:id/cancel` | `scope.ownership.transfer` |
-| `POST …/governance/ownership/:id/accept` | The Admin offered it |
-| `POST …/governance/ownership/:id/decline` | The Admin offered it |
-| `POST …/governance/close` | `scope.close` |
-| `… /fleet-communities/:c/fleets/:f/governance/…` | The same, less ownership, at one Fleet |
-| `… /fleet-communities/:c/armadas/:a/governance/…` | The same, less ownership, at one Armada; its closure since FC-050 |
-| `GET  /admin/fleet-communities?search=&page=&pageSize=` | Site ADMIN: every live Community by name or web address, whoever may see it (FC-050) |
-| `GET  /admin/fleet-communities/by-slug/:slug` | Site ADMIN: any Community, whoever may see it, for the dispute page (FC-050) |
-| `GET  /admin/fleet-communities/:c/dispute` | Site ADMIN |
-| `POST /admin/fleet-communities/:c/owner` | Site ADMIN |
-| `POST /admin/fleet-communities/:c/close` | Site ADMIN |
-| `POST /admin/fleet-communities/:c/suspend` and `…/reinstate` | Site ADMIN, with a reason |
-| `POST /admin/fleet-communities/:c/fleets/:f/suspend`, `…/reinstate` and `…/close` | Site ADMIN, with a reason |
-| `POST /admin/fleet-communities/:c/armadas/:a/suspend`, `…/reinstate` and `…/close` | Site ADMIN, with a reason |
-| `POST /admin/fleet-communities/:c/fleets/:f/investigations` | Site ADMIN, with a purpose: a 24-hour read-only look |
-| `GET  /admin/fleet-investigations` and `…/mine` | Site ADMIN |
+| Route                                                                              | Who                                                                                  |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `GET  /fleet-communities/:c/governance/roles`                                      | The Owner or an Admin                                                                |
+| `POST …/governance/roles`                                                          | `scope.roles.manage`                                                                 |
+| `POST …/governance/roles/:id/withdraw`                                             | `scope.roles.manage`                                                                 |
+| `PUT  …/governance/officer-capabilities`                                           | `scope.roles.manage`                                                                 |
+| `PUT  …/governance/personal-capabilities`                                          | `scope.roles.manage`                                                                 |
+| `POST …/governance/personal-capabilities/:id/clear`                                | `scope.roles.manage`                                                                 |
+| `GET  …/governance/history`                                                        | The Owner or an Admin                                                                |
+| `GET  …/governance/ownership`                                                      | Signed in; shows only the Owner or the Admin offered anything                        |
+| `POST …/governance/ownership`                                                      | `scope.ownership.transfer`                                                           |
+| `POST …/governance/ownership/:id/cancel`                                           | `scope.ownership.transfer`                                                           |
+| `POST …/governance/ownership/:id/accept`                                           | The Admin offered it                                                                 |
+| `POST …/governance/ownership/:id/decline`                                          | The Admin offered it                                                                 |
+| `POST …/governance/close`                                                          | `scope.close`                                                                        |
+| `… /fleet-communities/:c/fleets/:f/governance/…`                                   | The same, less ownership, at one Fleet                                               |
+| `… /fleet-communities/:c/armadas/:a/governance/…`                                  | The same, less ownership, at one Armada; its closure since FC-050                    |
+| `GET  /admin/fleet-communities?search=&page=&pageSize=`                            | Site ADMIN: every live Community by name or web address, whoever may see it (FC-050) |
+| `GET  /admin/fleet-communities/by-slug/:slug`                                      | Site ADMIN: any Community, whoever may see it, for the dispute page (FC-050)         |
+| `GET  /admin/fleet-communities/:c/dispute`                                         | Site ADMIN                                                                           |
+| `POST /admin/fleet-communities/:c/owner`                                           | Site ADMIN                                                                           |
+| `POST /admin/fleet-communities/:c/close`                                           | Site ADMIN                                                                           |
+| `POST /admin/fleet-communities/:c/suspend` and `…/reinstate`                       | Site ADMIN, with a reason                                                            |
+| `POST /admin/fleet-communities/:c/fleets/:f/suspend`, `…/reinstate` and `…/close`  | Site ADMIN, with a reason                                                            |
+| `POST /admin/fleet-communities/:c/armadas/:a/suspend`, `…/reinstate` and `…/close` | Site ADMIN, with a reason                                                            |
+| `POST /admin/fleet-communities/:c/fleets/:f/investigations`                        | Site ADMIN, with a purpose: a 24-hour read-only look                                 |
+| `GET  /admin/fleet-investigations` and `…/mine`                                    | Site ADMIN                                                                           |
 
 The Community and Fleet close routes replace the earlier `DELETE` routes, which took no reason.
 Every route is behind the Fleet Community switch.

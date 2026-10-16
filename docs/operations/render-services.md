@@ -113,6 +113,7 @@ the worker's role in the new database with the grants below.
 
    Nothing else in `sto_info_app`: the worker does not read the registry and must not write it.
    Without the grant, the worker's first migration fails and its container stops.
+
 1. **The backend first.** Its migrations must run before the worker's, because the worker's
    `file_scan_attempt` has a foreign key into `sto_info_app.file_asset`. The failure the other way
    round is loud: the worker's migration does not apply and its container stops.

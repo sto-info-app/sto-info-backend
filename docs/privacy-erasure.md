@@ -96,12 +96,12 @@ Steve's decisions of 30 September 2026: the backend checks four ledgers kept out
 against it at every boot, brings back whatever an older backup lacks, and serves nothing until it
 has.
 
-| Ledger | Key, under `<NODE_ENV>/` in the quarantine bucket | Written | Brought back |
-| --- | --- | --- | --- |
-| Erasures | `erasure-ledger/<createdAt>_<erasureId>.json` | By each erasure, before the database | The erasure, as above |
-| Hold events | `hold-ledger/<createdAt>_<actionId>_<PLACED\|EXTENDED\|RELEASED>.json` | By each placing, extension and release of a moderation hold, before the database — see [Fleet chat](fleet-chat.md#the-hold-ledger-fc-042) | The event, under its own ID |
-| Asset denies | `asset-deny-ledger/<createdAt>_<assetId>_<REJECTED\|REVOKED\|DELETED>.json` | By each move of a `file_asset` into a denied state, before the database — see [File assets](file-assets.md#the-asset-deny-ledger-fc-042) | The deny |
-| Account closures | `account-closure-ledger/<createdAt>_<userId>_<CLOSED\|REOPENED>.json` | By each account closure, before the database — see [Backend](backend.md#the-account-closure-ledger-fc-042) | The closure: the account closed again as of when it was closed |
+| Ledger           | Key, under `<NODE_ENV>/` in the quarantine bucket                           | Written                                                                                                                                   | Brought back                                                   |
+| ---------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Erasures         | `erasure-ledger/<createdAt>_<erasureId>.json`                               | By each erasure, before the database                                                                                                      | The erasure, as above                                          |
+| Hold events      | `hold-ledger/<createdAt>_<actionId>_<PLACED\|EXTENDED\|RELEASED>.json`      | By each placing, extension and release of a moderation hold, before the database — see [Fleet chat](fleet-chat.md#the-hold-ledger-fc-042) | The event, under its own ID                                    |
+| Asset denies     | `asset-deny-ledger/<createdAt>_<assetId>_<REJECTED\|REVOKED\|DELETED>.json` | By each move of a `file_asset` into a denied state, before the database — see [File assets](file-assets.md#the-asset-deny-ledger-fc-042)  | The deny                                                       |
+| Account closures | `account-closure-ledger/<createdAt>_<userId>_<CLOSED\|REOPENED>.json`       | By each account closure, before the database — see [Backend](backend.md#the-account-closure-ledger-fc-042)                                | The closure: the account closed again as of when it was closed |
 
 **When.** `main.ts` runs `RestoreCheckService.run()` after `NestFactory.create()` and before
 `app.init()`. `create()` builds the providers — the TypeORM connection, the buckets' S3 clients, the
@@ -196,9 +196,9 @@ is kept out too.
 
 ## Routes
 
-| Method | Path | Who |
-| --- | --- | --- |
-| `GET` | `/admin/roster-erasures` | Site admins: every erasure, newest first, never naming who |
-| `POST` | `/admin/roster-erasures/preview` | Site admins: `{ characterName, accountHandle }`, the Fleets naming them |
-| `POST` | `/admin/roster-erasures` | Site admins: `{ characterName, accountHandle, reason }` |
-| `GET` | `/user/close-account/communities` | The signed-in user: what closing does to each Community they own |
+| Method | Path                              | Who                                                                     |
+| ------ | --------------------------------- | ----------------------------------------------------------------------- |
+| `GET`  | `/admin/roster-erasures`          | Site admins: every erasure, newest first, never naming who              |
+| `POST` | `/admin/roster-erasures/preview`  | Site admins: `{ characterName, accountHandle }`, the Fleets naming them |
+| `POST` | `/admin/roster-erasures`          | Site admins: `{ characterName, accountHandle, reason }`                 |
+| `GET`  | `/user/close-account/communities` | The signed-in user: what closing does to each Community they own        |

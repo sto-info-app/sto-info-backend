@@ -79,7 +79,7 @@ rollback is meant not to get there.
 
 ## Why this exists alongside the unit specs
 
-The specs under `src/database/migrations/__tests__` assert the SQL a migration *emits*. That
+The specs under `src/database/migrations/__tests__` assert the SQL a migration _emits_. That
 catches a partial unique index quietly becoming a full one, or a `timestamptz` column reverting
 to a plain `TIMESTAMP`. What it cannot tell you is whether PostgreSQL accepts the SQL at all, or
 whether a constraint that reads correctly actually rejects the row it is meant to reject. Those
@@ -125,7 +125,7 @@ process ID and is removed on exit, including on failure or interrupt.
 `sql/stubs.sql` holds stand-ins for the tables an earlier migration created — `user`,
 `platform`, `character`, `character_general_faction`, `user_profile`, `app_setting` — carrying
 only the columns the migrations under rehearsal need. A stub carries a column that a migration
-*alters* as well as one a foreign key points at: `user_profile` keeps `privacyMode`,
+_alters_ as well as one a foreign key points at: `user_profile` keeps `privacyMode`,
 `sessionTimeoutMinutes` and the check constraint FC-006 drops by name, or that migration would
 have nothing to drop. Using stubs rather than replaying the whole migration history keeps a
 rehearsal independent of every migration before it, and keeps it fast. It also means a rehearsal

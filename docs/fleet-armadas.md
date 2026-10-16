@@ -72,7 +72,7 @@ placement can only be ended (`TR_armada_fleet_membership_guard`).
   reason; see [Fleet governance](fleet-governance.md#routes).
 - **Closing a Fleet** ends its placement and cancels its open request. If it was a Beta, its
   Gammas become Betas where there is room, in the order they were placed, and otherwise leave;
-  the history records the change with the reason "*Fleet* closed.".
+  the history records the change with the reason "_Fleet_ closed.".
 
 ## Membership and roles
 
@@ -101,21 +101,21 @@ the history without its name or link.
 
 ## Routes
 
-| Route | Who |
-| --- | --- |
-| `GET /fleet-communities/:c/structure` | Anybody who may see the Community: each open Armada's shape, then its open Fleets in none |
-| `GET …/armadas/:a/structure` | Anybody who may see the Armada |
-| `GET …/armadas/:a/history?page=&pageSize=` | Anybody who may see the Armada; newest change first |
-| `GET …/armadas/:a/requests?status=&page=&pageSize=` | `armada.manage`; open requests by default |
-| `POST …/armadas/:a/requests/:r/approve` | `armada.manage`; `{ position, parentFleetId? }` |
-| `POST …/armadas/:a/requests/:r/reject` | `armada.manage`; `{ reason }` |
-| `POST …/armadas/:a/placements/:f/move` | `armada.manage`; `{ position, parentFleetId?, reason, gammas? }` |
-| `POST …/armadas/:a/placements/:f/remove` | `armada.manage`; `{ reason, gammas? }` |
-| `GET …/fleets/:f/armada` | Anybody who may see the Fleet; its requests and choices for `armada.request` holders |
-| `POST …/fleets/:f/armada/requests` | `armada.request`; `{ armadaId, message? }` |
-| `POST …/fleets/:f/armada/requests/:r/withdraw` | `armada.request` |
-| `POST …/fleets/:f/armada/leave` | `armada.request`; `{ reason }` |
-| `… /armadas/:a/governance/…` | Roles and delegation, as for a Fleet — see [Fleet governance](fleet-governance.md#routes) |
+| Route                                               | Who                                                                                       |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `GET /fleet-communities/:c/structure`               | Anybody who may see the Community: each open Armada's shape, then its open Fleets in none |
+| `GET …/armadas/:a/structure`                        | Anybody who may see the Armada                                                            |
+| `GET …/armadas/:a/history?page=&pageSize=`          | Anybody who may see the Armada; newest change first                                       |
+| `GET …/armadas/:a/requests?status=&page=&pageSize=` | `armada.manage`; open requests by default                                                 |
+| `POST …/armadas/:a/requests/:r/approve`             | `armada.manage`; `{ position, parentFleetId? }`                                           |
+| `POST …/armadas/:a/requests/:r/reject`              | `armada.manage`; `{ reason }`                                                             |
+| `POST …/armadas/:a/placements/:f/move`              | `armada.manage`; `{ position, parentFleetId?, reason, gammas? }`                          |
+| `POST …/armadas/:a/placements/:f/remove`            | `armada.manage`; `{ reason, gammas? }`                                                    |
+| `GET …/fleets/:f/armada`                            | Anybody who may see the Fleet; its requests and choices for `armada.request` holders      |
+| `POST …/fleets/:f/armada/requests`                  | `armada.request`; `{ armadaId, message? }`                                                |
+| `POST …/fleets/:f/armada/requests/:r/withdraw`      | `armada.request`                                                                          |
+| `POST …/fleets/:f/armada/leave`                     | `armada.request`; `{ reason }`                                                            |
+| `… /armadas/:a/governance/…`                        | Roles and delegation, as for a Fleet — see [Fleet governance](fleet-governance.md#routes) |
 
 Each of `gammas` is `{ fleetId, outcome: 'BETA' | 'GAMMA' | 'LEAVE', parentFleetId? }`. Every
 route is behind the Fleet Community switch.
