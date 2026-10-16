@@ -82,10 +82,14 @@ file safety: while it is down no upload can be scanned, so none is published.
 
 A third environment, for the Fleet Community branch whole:
 `tribble.startrekonline.info` and `tribble-api.startrekonline.info`, described by
-`render/staging.yaml` in each repository and mirroring Development's plans. Each repository also
-carries `render/development.yaml` and `render/production.yaml`, recording those projects' services
-as they run, so that a Blueprint instance per project and branch can take them over; a value the
-file does not assert is `sync: false`, and a sync leaves it alone. The backend's blueprint declares the
+`render/staging.yaml` in each repository. Its plans are Development's, except that its backend is
+on starter, since the workspace's 750 free instance hours a month are nearly spent by Development's
+backend alone, and its Key Value instance is on the smallest paid plan, a workspace being allowed
+one free instance. Each
+repository also carries `render/development.yaml` and `render/production.yaml`, recording those
+projects' services as they run, so that a Blueprint instance per project and branch can take them
+over; a value the file does not assert is `sync: false`, and a sync leaves it alone. The backend's
+blueprint declares the
 PostgreSQL instance (`sto_info_app_tribble`, PostgreSQL 18) and the Key Value instance; the
 worker's entry and the frontend's blueprint set what they cannot link to by hand. `NODE_ENV` is
 `staging`, so uploads land under `staging/` in the shared buckets, and `APP_FRONTEND_URL` lets

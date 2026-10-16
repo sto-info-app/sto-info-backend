@@ -22,8 +22,11 @@ services:
     repo: https://github.com/sto-info-app/sto-info-backend
     branch: sr/sc-1036-fleet-community
     region: frankfurt
-    # Mirrors Development. Production runs on starter.
-    plan: free
+    # Production's plan, not Development's: free web services share one pool
+    # of 750 instance hours a month across the workspace, which Development's
+    # backend alone comes close to, and an empty pool suspends every free
+    # service until the next month.
+    plan: starter
     buildCommand: npm install; npm run build
     # Runs the build's pending migrations, then the API.
     startCommand: npm run start:render
@@ -192,13 +195,14 @@ services:
       # DATASEED_USER_* are left out on purpose: without them the seed-user
       # migration skips with a notice. DATASEED_FLEET_* are local only.
 
-  # Mirrors Development's instance, which production runs on starter with
-  # journal-snapshot persistence. Nothing here needs persistence: a lost
-  # Redis is put back in line by the backend within a minute.
+  # The smallest paid plan: a workspace may hold one free Key Value instance,
+  # and Development has it. Persistence is left at its default, as nothing
+  # here needs it: a lost Redis is put back in line by the backend within a
+  # minute.
   - type: keyvalue
     name: sto-info-redis-tribble
     region: frankfurt
-    plan: free
+    plan: 256mb
     maxmemoryPolicy: allkeys-lru
     ipAllowList: []
 
@@ -212,6 +216,9 @@ databases:
     region: frankfurt
     plan: basic-256mb
     postgresMajorVersion: '18'
+    # Development's size. Left out, Render gives a Basic instance 15 GB, and a
+    # disk can be grown but never shrunk.
+    diskSizeGB: 1
     ipAllowList:
       - source: 0.0.0.0/0
         description: everywhere
