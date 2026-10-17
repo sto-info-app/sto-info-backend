@@ -360,16 +360,13 @@ describe('FileAssetDeliveryService', () => {
 
   describe('openForReader', () => {
     /**
-     * The version is passed to the store, so what is served is the version a
-     * scanner cleared rather than whatever happens to be under the key now.
+     * By key alone: R2 will not read by version, and the key is never reused,
+     * so what is under it is what the scanner cleared.
      */
-    it('reads the exact version the verdict was bound to', async () => {
+    it('reads the object the verdict was bound to, by its key', async () => {
       const content = await service.openForReader('asset-1', null);
 
-      expect(storage.getStream).toHaveBeenCalledWith(
-        'local/assets/asset-1',
-        'v-3',
-      );
+      expect(storage.getStream).toHaveBeenCalledWith('local/assets/asset-1');
       expect(content.contentType).toBe('image/png');
       expect(content.byteSize).toBe(4096);
       expect(content.filename).toBe('portrait.png');

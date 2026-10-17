@@ -56,7 +56,7 @@ describe('QuarantineStorageService', () => {
   });
 
   describe('put', () => {
-    it('writes to the quarantine bucket and returns the version', async () => {
+    it('writes to the quarantine bucket under the key it was given', async () => {
       const result = await service.put('local/assets/a', Buffer.from('hello'));
 
       const command = s3Client.send.mock.calls[0][0] as PutObjectCommand;
@@ -64,7 +64,18 @@ describe('QuarantineStorageService', () => {
       expect(command).toBeInstanceOf(PutObjectCommand);
       expect(command.input.Bucket).toBe('sto-info-quarantine-local');
       expect(command.input.Key).toBe('local/assets/a');
-      expect(result.objectVersion).toBe('v-7');
+      expect(result.objectKey).toBe('local/assets/a');
+    });
+
+    /**
+     * R2 answers `PutObject` with a `VersionId` it then refuses to read by.
+     * The first staging roster import failed every scan on it (17 October
+     * 2026), so whatever the store says, no version is recorded.
+     */
+    it('records no version, even when the provider offers one', async () => {
+      const result = await service.put('local/assets/a', Buffer.from('hello'));
+
+      expect(result.objectVersion).toBeNull();
     });
 
     /**
@@ -90,27 +101,22 @@ describe('QuarantineStorageService', () => {
   });
 
   describe('getStream', () => {
-    it('names the version so the bytes served are the bytes cleared', async () => {
-      await service.getStream('local/assets/a', 'v-2');
+    it('reads by key alone, never by version', async () => {
+      await service.getStream('local/assets/a');
 
       const command = s3Client.send.mock.calls[0][0] as GetObjectCommand;
 
       expect(command).toBeInstanceOf(GetObjectCommand);
-      expect(command.input.VersionId).toBe('v-2');
-    });
-
-    it('omits the version when the object has none', async () => {
-      await service.getStream('local/assets/a', null);
-
-      const command = s3Client.send.mock.calls[0][0] as GetObjectCommand;
-
-      expect(command.input.VersionId).toBeUndefined();
+      expect(command.input).toEqual({
+        Bucket: 'sto-info-quarantine-local',
+        Key: 'local/assets/a',
+      });
     });
 
     it('returns the stream', async () => {
-      await expect(
-        service.getStream('local/assets/a', null),
-      ).resolves.toBeInstanceOf(Readable);
+      await expect(service.getStream('local/assets/a')).resolves.toBeInstanceOf(
+        Readable,
+      );
     });
 
     it('refuses an empty response rather than serving nothing', async () => {

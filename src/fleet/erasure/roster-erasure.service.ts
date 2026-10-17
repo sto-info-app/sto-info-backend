@@ -584,10 +584,7 @@ export class RosterErasureService {
    */
   private async readUnlessGone(asset: FileAssetEntity): Promise<Buffer | null> {
     try {
-      return await this._storage.read(
-        asset.objectKey as string,
-        asset.objectVersion,
-      );
+      return await this._storage.read(asset.objectKey as string);
     } catch (error: unknown) {
       if (!isMissingObject(error)) {
         throw error;

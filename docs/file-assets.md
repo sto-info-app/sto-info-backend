@@ -106,13 +106,15 @@ rather than assumed:
   quarantine holds unscanned files and roster CSVs full of other people's in-game identities. **Treat
   every quarantine credential as a production credential**, whichever environment it was issued for.
 - **R2 has no bucket versioning.** `PutBucketVersioning` and `GetBucketVersioning` are unimplemented
-  and `PutObject` returns no `VersionId`
-  ([S3 API compatibility](https://developers.cloudflare.com/r2/api/s3/api/)), so
-  `file_asset.objectVersion` is null for every object here. What binds a verdict to a particular set
-  of bytes is therefore **the key never being reused**, plus the SHA-256. A quarantine key is derived
-  from the asset's own UUID and every upload is a new asset, so no key is written twice; `objectKey`
-  and `sha256` are both write-once at the database level. A caller that invented its own key scheme
-  would break that silently, which is why one function owns key construction.
+  ([S3 API compatibility](https://developers.cloudflare.com/r2/api/s3/api/)). Since October 2026
+  its `PutObject` answer nonetheless carries a `VersionId`, a 32-character hex string, which its
+  `GetObject` refuses with "versionId not implemented": the first staging roster import (17 October 2026) recorded that id and every scan of the file failed on it. So **no version is recorded and
+  none is ever sent**: `file_asset.objectVersion` is null for every object here, and the backend and
+  the worker read by key alone. What binds a verdict to a particular set of bytes is therefore
+  **the key never being reused**, plus the SHA-256. A quarantine key is derived from the asset's
+  own UUID and every upload is a new asset, so no key is written twice; `objectKey` and `sha256` are
+  both write-once at the database level. A caller that invented its own key scheme would break that
+  silently, which is why one function owns key construction.
 
 ### Configuration
 

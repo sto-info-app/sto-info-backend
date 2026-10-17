@@ -403,7 +403,6 @@ export class AssetPublicationService {
     try {
       const stream = await this._quarantine.getStream(
         asset.objectKey as string,
-        asset.objectVersion,
       );
 
       const chunks: Buffer[] = [];

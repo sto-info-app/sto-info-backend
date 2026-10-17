@@ -696,10 +696,7 @@ export class RosterImportCorrectionService {
     const asset = await manager.findOneOrFail(FileAssetEntity, {
       where: { id: record.assetId },
     });
-    const bytes = await this._quarantine.read(
-      asset.objectKey as string,
-      asset.objectVersion,
-    );
+    const bytes = await this._quarantine.read(asset.objectKey as string);
     const { problems } = this._typedParser.read(bytes, timezone);
 
     if (problems.length > 0) {

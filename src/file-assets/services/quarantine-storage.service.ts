@@ -26,7 +26,13 @@ export const QUARANTINE_S3_CLIENT = Symbol('QUARANTINE_S3_CLIENT');
 export interface QuarantinePutResult {
   /** The key the object was written under. */
   readonly objectKey: string;
-  /** The storage provider's version of the written object, when it gave one. */
+  /**
+   * The storage provider's version of the written object.
+   *
+   * Always null here: R2 does not version objects, and the id it has
+   * started returning from `PutObject` is not one it will read by. See
+   * {@link QuarantineStorageService.put}.
+   */
   readonly objectVersion: string | null;
 }
 
@@ -86,10 +92,10 @@ export class QuarantineStorageService {
    * @param objectKey - The key to write under, derived by the caller from the
    *   asset's own identifier rather than from anything a user supplied.
    * @param body - The bytes.
-   * @returns The key and, when the provider supplies one, the object version.
+   * @returns The key, and no object version.
    */
   async put(objectKey: string, body: Buffer): Promise<QuarantinePutResult> {
-    const response = await this._s3Client.send(
+    await this._s3Client.send(
       new PutObjectCommand({
         Bucket: this._bucketName,
         Key: objectKey,
@@ -102,7 +108,15 @@ export class QuarantineStorageService {
       `[put] Stored in quarantine - Key: ${objectKey}, Bytes: ${body.length}`,
     );
 
-    return { objectKey, objectVersion: response.VersionId ?? null };
+    // R2 has no object versioning, yet since October 2026 its `PutObject`
+    // answer carries a `VersionId`, a 32-character hex string, which its
+    // `GetObject` then refuses with "versionId not implemented". The first
+    // staging roster import found this (17 October 2026): the worker asked
+    // for the version the registry had recorded, and every scan failed. An
+    // id the store will not read by is not a version of anything, so none is
+    // recorded. What binds a verdict to its bytes is the key never being
+    // reused and the SHA-256, both write-once on the row.
+    return { objectKey, objectVersion: null };
   }
 
   /**
@@ -112,27 +126,19 @@ export class QuarantineStorageService {
    * to a response, and reading a whole file into the process to do that would
    * make the size of an upload the size of a spike in memory.
    *
+   * Never by version. R2 does not implement object versioning and refuses a
+   * `GetObject` that names one, even the id its own `PutObject` returned
+   * (see {@link put}). The guarantee that the bytes served are the bytes a
+   * scanner cleared rests on the key never being reused and on the hash being
+   * write-once. ADR-0017.
+   *
    * @param objectKey - The key to read.
-   * @param objectVersion - The version to read, when the object has one.
-   *   **R2 has none** — it does not implement bucket versioning, so this is
-   *   null for every object in this bucket and the guarantee that the bytes
-   *   served are the bytes a scanner cleared rests instead on the key never
-   *   being reused and on the hash being write-once. The parameter stays
-   *   because the registry is not R2-specific and a store that does version
-   *   objects would fill it in. ADR-0017.
    * @returns The object's bytes.
    * @throws Error when the provider returns no body.
    */
-  async getStream(
-    objectKey: string,
-    objectVersion: string | null,
-  ): Promise<Readable> {
+  async getStream(objectKey: string): Promise<Readable> {
     const response = await this._s3Client.send(
-      new GetObjectCommand({
-        Bucket: this._bucketName,
-        Key: objectKey,
-        ...(objectVersion === null ? {} : { VersionId: objectVersion }),
-      }),
+      new GetObjectCommand({ Bucket: this._bucketName, Key: objectKey }),
     );
 
     if (!response.Body) {
@@ -159,13 +165,12 @@ export class QuarantineStorageService {
    * Reads a whole object.
    *
    * @param objectKey - The key.
-   * @param objectVersion - The version, when the store gave one.
    * @returns Its bytes.
    */
-  async read(objectKey: string, objectVersion: string | null): Promise<Buffer> {
+  async read(objectKey: string): Promise<Buffer> {
     const chunks: Buffer[] = [];
 
-    for await (const chunk of await this.getStream(objectKey, objectVersion)) {
+    for await (const chunk of await this.getStream(objectKey)) {
       chunks.push(Buffer.from(chunk as Buffer));
     }
 

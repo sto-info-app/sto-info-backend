@@ -622,10 +622,7 @@ describe('RosterImportCorrectionService', () => {
           id: IMPORT_ID,
         });
 
-        expect(quarantine.read).toHaveBeenCalledWith(
-          'quarantine/asset-1',
-          'v1',
-        );
+        expect(quarantine.read).toHaveBeenCalledWith('quarantine/asset-1');
         expect(typedParser.read).toHaveBeenCalledWith(
           Buffer.from('csv'),
           'America/New_York',

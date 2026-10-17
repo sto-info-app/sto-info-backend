@@ -127,10 +127,7 @@ export class FileAssetDeliveryService {
   ): Promise<FileAssetContent> {
     const asset = await this.resolveForReader(assetId, userId);
 
-    const stream = await this._storage.getStream(
-      asset.objectKey!,
-      asset.objectVersion,
-    );
+    const stream = await this._storage.getStream(asset.objectKey!);
 
     return {
       stream,
