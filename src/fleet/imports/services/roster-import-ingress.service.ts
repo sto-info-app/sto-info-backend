@@ -31,7 +31,6 @@ import {
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
 import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum';
 import { RosterFilenameRejectionCode } from '../enums/roster-filename-rejection-code.enum';
-import { RosterImportStatus } from '../enums/roster-import-status.enum';
 import { RosterRepeatRejectionCode } from '../enums/roster-repeat-rejection-code.enum';
 import { RosterSourceHeaderShape } from '../enums/roster-source-header-shape.enum';
 import { RosterCsvRejectedError } from '../errors/roster-csv-rejected.error';
@@ -249,14 +248,12 @@ export class RosterImportIngressService {
       sourceSha256 = this.hash(input.source);
 
       // Before the file is read any further. What a repeat would produce has
-      // already been kept, scanned and read once.
+      // already been kept, scanned and read once — unless the earlier import
+      // never got that far, in which case the file is imported afresh.
       const earlier = await this.findEarlier(input.fleet.id, sourceSha256);
 
       if (earlier !== null) {
-        if (
-          (await this._statuses.statusOf(earlier)) !==
-          RosterImportStatus.ABANDONED
-        ) {
+        if (!(await this._statuses.mayBeReplaced(earlier))) {
           return this.repeat(earlier, input.timezone, settled);
         }
 

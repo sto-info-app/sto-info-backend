@@ -28,6 +28,7 @@ import { RosterRowRejectionCode } from '../enums/roster-row-rejection-code.enum'
 import { RosterSourceHeaderShape } from '../enums/roster-source-header-shape.enum';
 import {
   RosterImportStatusService,
+  SCAN_NOT_COMPLETED,
   SCAN_REFUSED,
 } from './roster-import-status.service';
 import { ROSTER_SOURCE_ERASED_REASON } from './roster-source-retention.service';
@@ -243,30 +244,56 @@ describe('RosterImportStatusService', () => {
     });
   });
 
-  // For the upload that asks whether an earlier import of the same file was
-  // abandoned, and so may be replaced (FC-050).
-  describe('statusOf', () => {
+  // For the upload that asks whether an earlier import of the same file may
+  // be replaced: one whose file was never read (FC-050).
+  describe('mayBeReplaced', () => {
     it('asks about the one import’s placement', async () => {
       const record = importOf();
       placements.findByAssetId.mockResolvedValue(
         placementOf(record, FileAssetPlacementState.ABANDONED),
       );
 
-      await expect(service.statusOf(record)).resolves.toBe(
-        RosterImportStatus.ABANDONED,
-      );
+      await expect(service.mayBeReplaced(record)).resolves.toBe(true);
       expect(placements.findByAssetId).toHaveBeenCalledWith(record.assetId);
     });
 
-    it('says an import in force is imported', async () => {
+    // The scanner never judged the file: every attempt failed to answer and
+    // the budget ran out. Answering a re-send with this import would leave
+    // the export unimportable for good.
+    it('lets a file the scanner never judged be sent again', async () => {
+      const record = importOf(
+        {},
+        {
+          state: FileAssetState.REJECTED,
+          rejectionCode: SCAN_NOT_COMPLETED,
+        },
+      );
+      placements.findByAssetId.mockResolvedValue(
+        placementOf(record, FileAssetPlacementState.REJECTED),
+      );
+
+      await expect(service.mayBeReplaced(record)).resolves.toBe(true);
+    });
+
+    it.each([
+      ['refused on what was in it', FileAssetState.REJECTED, 'INFECTED'],
+      ['refused for its rows', FileAssetState.REJECTED, 'ROWS_UNREADABLE'],
+    ])('keeps an import %s as the answer', async (_how, state, code) => {
+      const record = importOf({}, { state, rejectionCode: code });
+      placements.findByAssetId.mockResolvedValue(
+        placementOf(record, FileAssetPlacementState.REJECTED),
+      );
+
+      await expect(service.mayBeReplaced(record)).resolves.toBe(false);
+    });
+
+    it('keeps an import in force as the answer', async () => {
       const record = importOf();
       placements.findByAssetId.mockResolvedValue(
         placementOf(record, FileAssetPlacementState.ACTIVE),
       );
 
-      await expect(service.statusOf(record)).resolves.toBe(
-        RosterImportStatus.IMPORTED,
-      );
+      await expect(service.mayBeReplaced(record)).resolves.toBe(false);
     });
   });
 
@@ -517,8 +544,13 @@ describe('RosterImportStatusService', () => {
       });
     });
 
-    it.each(['ROWS_UNREADABLE', 'EXPORT_TIMEZONE_MISSING', 'NOT_THIS_IMPORT'])(
-      'names a refusal this feature made (%s)',
+    it.each([
+      'ROWS_UNREADABLE',
+      'EXPORT_TIMEZONE_MISSING',
+      'NOT_THIS_IMPORT',
+      SCAN_NOT_COMPLETED,
+    ])(
+      'names a refusal that says nothing about the content (%s)',
       async rejectionCode => {
         await expect(
           report(

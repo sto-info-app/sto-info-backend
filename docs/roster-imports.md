@@ -248,11 +248,16 @@ import it made. Sent with a different reading, another zone or another instant, 
 instead, because the earlier reading stands. Two copies arriving together are settled by
 `UQ_roster_import_source_fleet_hash`.
 
-**An abandoned import is the exception (FC-050).** It was given up on before it was read, so
-answering with it would leave the export unimportable for good. The file is imported afresh, and
-the abandoned import is kept as the record of its upload, with `replacedAt` set in the same
-transaction as the new row. The unique index holds only where `replacedAt` is null, and a replaced
-import is no longer compared with other exports of its moment.
+**An import whose file was never read is the exception.** One given up on before it was read
+(FC-050), or one the scanner refused without ever judging it — every attempt failed to reach a
+verdict and the retry budget ran out, `RETRY_BUDGET_EXHAUSTED`, which is what three attempts
+during a six-minute outage come to. Answering with either would leave the export unimportable for
+good. The file is imported afresh, and the earlier import is kept as the record of its upload,
+with `replacedAt` set in the same transaction as the new row. The unique index holds only where
+`replacedAt` is null, and a replaced import is no longer compared with other exports of its
+moment. `RosterImportStatusService.mayBeReplaced` is the one place that says which imports these
+are, and the scanner's budget refusal is the one scanner code named to the uploader: it says
+nothing about the file's content.
 
 ## Dates after now (FC-043)
 

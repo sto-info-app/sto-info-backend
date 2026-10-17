@@ -28,7 +28,6 @@ import {
 import { RosterImportSourceEntity } from '../entities/roster-import-source.entity';
 import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum';
 import { RosterFilenameRejectionCode } from '../enums/roster-filename-rejection-code.enum';
-import { RosterImportStatus } from '../enums/roster-import-status.enum';
 import { RosterRepeatRejectionCode } from '../enums/roster-repeat-rejection-code.enum';
 import { RosterRowRejectionCode } from '../enums/roster-row-rejection-code.enum';
 import { RosterSourceHeaderShape } from '../enums/roster-source-header-shape.enum';
@@ -135,7 +134,7 @@ describe('RosterImportIngressService', () => {
     update: jest.Mock;
     manager: { transaction: jest.Mock };
   };
-  let statuses: { statusOf: jest.Mock };
+  let statuses: { mayBeReplaced: jest.Mock };
   let transactionManager: { getRepository: jest.Mock };
   let conflicts: { group: jest.Mock };
   let fileAssetService: {
@@ -190,7 +189,7 @@ describe('RosterImportIngressService', () => {
     conflicts = { group: jest.fn(() => Promise.resolve(null)) };
 
     statuses = {
-      statusOf: jest.fn(() => Promise.resolve(RosterImportStatus.IMPORTED)),
+      mayBeReplaced: jest.fn(() => Promise.resolve(false)),
     };
 
     fileAssetService = {
@@ -538,7 +537,7 @@ describe('RosterImportIngressService', () => {
     it('replaces nothing when the file is new to the Fleet', async () => {
       await accept(officerExport());
 
-      expect(statuses.statusOf).not.toHaveBeenCalled();
+      expect(statuses.mayBeReplaced).not.toHaveBeenCalled();
       expect(repository.update).not.toHaveBeenCalled();
     });
 
@@ -596,10 +595,10 @@ describe('RosterImportIngressService', () => {
       });
     });
 
-    it('asks how far the earlier import got', async () => {
+    it('asks whether the earlier import may be replaced', async () => {
       await accept(officerExport());
 
-      expect(statuses.statusOf).toHaveBeenCalledWith(earlierImport());
+      expect(statuses.mayBeReplaced).toHaveBeenCalledWith(earlierImport());
     });
 
     it('answers with the import the earlier upload made', async () => {
@@ -691,16 +690,16 @@ describe('RosterImportIngressService', () => {
     });
   });
 
-  // Given up on before it was read, so answering with it would leave the
-  // export unimportable for good (FC-050).
-  describe('a file whose earlier import was abandoned', () => {
+  // Never read — given up on before it was read (FC-050), or refused by a
+  // scanner that never judged it — so answering with it would leave the
+  // export unimportable for good. The status service says which imports
+  // those are; this trusts its answer.
+  describe('a file whose earlier import may be replaced', () => {
     beforeEach(() => {
       repository.findOne.mockImplementation(() =>
         Promise.resolve(earlierImport()),
       );
-      statuses.statusOf.mockImplementation(() =>
-        Promise.resolve(RosterImportStatus.ABANDONED),
-      );
+      statuses.mayBeReplaced.mockImplementation(() => Promise.resolve(true));
     });
 
     it('imports it afresh', async () => {
@@ -714,7 +713,7 @@ describe('RosterImportIngressService', () => {
 
     // Kept as the record of its upload, never deleted, and marked only while
     // it is still the answer, so a second racing upload marks nothing.
-    it('marks the abandoned import replaced, before recording the new one', async () => {
+    it('marks the earlier import replaced, before recording the new one', async () => {
       await accept(officerExport());
 
       expect(repository.update).toHaveBeenCalledWith(

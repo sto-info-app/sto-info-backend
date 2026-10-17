@@ -38,8 +38,22 @@ import { ROSTER_SOURCE_ERASED_REASON } from './roster-source-retention.service';
 export const SCAN_REFUSED = 'SCAN_REFUSED';
 
 /**
- * The refusals this feature made itself, which describe the file's structure
- * and may be named to whoever sent it.
+ * The scanner's refusal that says it never judged the file.
+ *
+ * Every attempt to scan it failed to reach a verdict and the budget ran
+ * out, which is what happened to the first import on tribble when the
+ * worker could not read from the store (17 October 2026). It names nothing
+ * about the file's content, so it may be shown to whoever sent it, and an
+ * import refused this way may be replaced by sending the export again, as
+ * an abandoned one may: the file was never read, and answering a re-send
+ * with this import would leave the export unimportable for good.
+ */
+export const SCAN_NOT_COMPLETED = 'RETRY_BUDGET_EXHAUSTED';
+
+/**
+ * The refusals that describe no content and may be named to whoever sent the
+ * file: this feature's own, about the file's structure, and the scanner's
+ * one admission that it never answered.
  *
  * An allow-list rather than a deny-list, so a code added anywhere else in the
  * asset pipeline is hidden until somebody decides otherwise.
@@ -47,6 +61,7 @@ export const SCAN_REFUSED = 'SCAN_REFUSED';
 const NAMEABLE_REFUSALS: ReadonlySet<string> = new Set<string>([
   RosterCsvRejectionCode.ROWS_UNREADABLE,
   ...Object.values(RosterPublicationRejectionCode),
+  SCAN_NOT_COMPLETED,
 ]);
 
 /** The asset states in which the scanner has yet to answer. */
@@ -429,17 +444,24 @@ export class RosterImportStatusService {
   }
 
   /**
-   * Works out where one import has got to.
+   * Reports whether sending the same file again may replace this import.
+   *
+   * Only an import whose file was never read: one given up on before it was
+   * read (FC-050), or one the scanner refused without ever judging it. An
+   * import in flight, in force, held or refused on what was in it stays the
+   * answer to its file.
    *
    * @param record - The import, with its asset.
-   * @returns Its status.
+   * @returns True when a re-send starts afresh.
    */
-  async statusOf(
-    record: RosterImportSourceEntity,
-  ): Promise<RosterImportStatus> {
+  async mayBeReplaced(record: RosterImportSourceEntity): Promise<boolean> {
     const placement = await this._placements.findByAssetId(record.assetId);
+    const { status, reason } = this.derive(record, placement);
 
-    return this.derive(record, placement).status;
+    return (
+      status === RosterImportStatus.ABANDONED ||
+      (status === RosterImportStatus.REFUSED && reason === SCAN_NOT_COMPLETED)
+    );
   }
 
   /**
