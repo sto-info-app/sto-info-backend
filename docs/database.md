@@ -53,6 +53,7 @@ The database uses PostgreSQL with TypeORM for object-relational mapping.
 | `ScopeEventRsvpEntity`              | `scope_event_rsvp`                     | Each answer, and each place on a waitlist                                                                                                                                                                                                                                                                       |
 | `ScopeEventAttendanceEntity`        | `scope_event_attendance`               | Who a manager recorded came, kept apart from answers                                                                                                                                                                                                                                                            |
 | `ScopeEventReminderEntity`          | `scope_event_reminder`                 | Who asked to be reminded of an event, and how long before                                                                                                                                                                                                                                                       |
+| `NotificationDismissalEntity`       | `notification_dismissal`               | A notification one reader has deleted from their inbox, kept per reader as `notification_read` keeps reading; the row stays for everyone else and for the admin list                                                                                                                                            |
 | `NotificationOutboxEntity`          | `notification_outbox`                  | The outbox every targeted in-app notice goes through — event reminders, proposals, chat mentions, replies and direct messages — each sent once                                                                                                                                                                  |
 | `ScopeEventActionEntity`            | `scope_event_action`                   | An event's change log, write-once                                                                                                                                                                                                                                                                               |
 | `ActivityEventEntity`               | `activity_event`                       | One thing that happened in a Community, Fleet or Armada, by reference, for its activity feed — see [Fleet activity](fleet-activity.md)                                                                                                                                                                          |
@@ -199,7 +200,7 @@ Fleet Community's; a database already on Fleet Community's schema runs them afte
 migrations. A migration on `development` that writes to a table Fleet Community changes has to
 work either way: the release notes seed names the site-only slug index once news is scoped.
 
-New migrations on `development` are numbered above Fleet Community's last, `1798000000000`, until
+New migrations on `development` are numbered above Fleet Community's last, `1798100000000`, until
 it ships.
 
 ## Indexes

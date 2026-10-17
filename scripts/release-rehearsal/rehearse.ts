@@ -994,7 +994,7 @@ async function rollback(r: Rehearsal): Promise<void> {
   const steps: string[] = [];
   let refusal = '';
 
-  for (let step = 0; step < 4; step += 1) {
+  for (let step = 0; step < 5; step += 1) {
     const reverted = await r.backendMigrations('migration:revert', REVERT);
     const which = /Migration (\w+) has been reverted/.exec(
       reverted.output,
@@ -1010,9 +1010,9 @@ async function rollback(r: Rehearsal): Promise<void> {
 
   r.results.check(
     name,
-    'migration:revert undoes the level check, the platform guard and the name clearing, then refuses once the Security Log holds a feature switch',
+    'migration:revert undoes the dismissals, the level check, the platform guard and the name clearing, then refuses once the Security Log holds a feature switch',
     steps.join(',') ===
-      'AllowLevelZeroRosterObservations1798000000000,GuardPlatformRenames1797900000000,ClearCharacterNamesFromPictures1797800000000' &&
+      'AddNotificationDismissals1798100000000,AllowLevelZeroRosterObservations1798000000000,GuardPlatformRenames1797900000000,ClearCharacterNamesFromPictures1797800000000' &&
       refusal.includes(FEATURE_SWITCH_ACTIONS_DOWN_REFUSAL.slice(0, 60)),
     null,
     `reverted ${steps.join(', ') || 'nothing'}; then ${failureOf(refusal).slice(0, 160)}`,

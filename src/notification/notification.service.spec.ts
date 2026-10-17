@@ -6,6 +6,7 @@ import { jest } from '@jest/globals';
 import { Repository } from 'typeorm';
 
 import { BannerEntity } from './entities/banner.entity';
+import { NotificationDismissalEntity } from './entities/notification-dismissal.entity';
 import { NotificationReadEntity } from './entities/notification-read.entity';
 import { NotificationEntity } from './entities/notification.entity';
 import { NotificationSeverity } from './enums/notification-severity.enum';
@@ -48,6 +49,7 @@ describe('NotificationService', () => {
   let bannerRepo: jest.Mocked<Repository<BannerEntity>>;
   let notificationRepo: jest.Mocked<Repository<NotificationEntity>>;
   let readRepo: jest.Mocked<Repository<NotificationReadEntity>>;
+  let dismissalRepo: jest.Mocked<Repository<NotificationDismissalEntity>>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -79,6 +81,10 @@ describe('NotificationService', () => {
           provide: getRepositoryToken(NotificationReadEntity),
           useValue: { createQueryBuilder: jest.fn(), delete: jest.fn() },
         },
+        {
+          provide: getRepositoryToken(NotificationDismissalEntity),
+          useValue: { createQueryBuilder: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -86,6 +92,7 @@ describe('NotificationService', () => {
     bannerRepo = module.get(getRepositoryToken(BannerEntity));
     notificationRepo = module.get(getRepositoryToken(NotificationEntity));
     readRepo = module.get(getRepositoryToken(NotificationReadEntity));
+    dismissalRepo = module.get(getRepositoryToken(NotificationDismissalEntity));
   });
 
   it('should be defined', () => {
@@ -342,6 +349,83 @@ describe('NotificationService', () => {
       await expect(service.markRead('user-1', 'n1')).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  // A deletion hides the notification for this reader alone: the row is a
+  // broadcast's or the admin list's, and the read marker's pattern already
+  // keeps per-reader state off it.
+  describe('dismiss', () => {
+    it('records a dismissal for a notification in the inbox', async () => {
+      notificationRepo.createQueryBuilder.mockReturnValue(
+        createQbMock({ getExists: true }) as never,
+      );
+      const insertQb = createQbMock();
+      dismissalRepo.createQueryBuilder.mockReturnValue(insertQb as never);
+
+      await service.dismiss('user-1', 'n1');
+
+      expect(insertQb.values).toHaveBeenCalledWith({
+        notificationId: 'n1',
+        userId: 'user-1',
+      });
+      expect(insertQb.orIgnore).toHaveBeenCalled();
+      expect(insertQb.execute).toHaveBeenCalled();
+    });
+
+    it('refuses a notification that is not in the inbox', async () => {
+      notificationRepo.createQueryBuilder.mockReturnValue(
+        createQbMock({ getExists: false }) as never,
+      );
+
+      await expect(service.dismiss('user-1', 'n1')).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(dismissalRepo.createQueryBuilder).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('dismissAllRead', () => {
+    it('returns 0 when nothing read is left', async () => {
+      notificationRepo.createQueryBuilder.mockReturnValue(
+        createQbMock({ getMany: [] }) as never,
+      );
+
+      await expect(service.dismissAllRead('user-1')).resolves.toBe(0);
+      expect(dismissalRepo.createQueryBuilder).not.toHaveBeenCalled();
+    });
+
+    it('records a dismissal for every read notification', async () => {
+      const qb = createQbMock({ getMany: [{ id: 'n1' }, { id: 'n2' }] });
+      notificationRepo.createQueryBuilder.mockReturnValue(qb as never);
+      const insertQb = createQbMock();
+      dismissalRepo.createQueryBuilder.mockReturnValue(insertQb as never);
+
+      await expect(service.dismissAllRead('user-1')).resolves.toBe(2);
+      expect(qb.andWhere).toHaveBeenCalledWith('r.id IS NOT NULL');
+      expect(insertQb.values).toHaveBeenCalledWith([
+        { notificationId: 'n1', userId: 'user-1' },
+        { notificationId: 'n2', userId: 'user-1' },
+      ]);
+    });
+  });
+
+  // Every inbox query leaves out what the reader has deleted, so a deleted
+  // notification is neither listed nor counted, read or not.
+  describe('the inbox leaves out deleted notifications', () => {
+    it('joins the reader’s dismissals and keeps only rows without one', async () => {
+      const qb = createQbMock({ getCount: 0 });
+      notificationRepo.createQueryBuilder.mockReturnValue(qb as never);
+
+      await service.getUnreadCount('user-1');
+
+      expect(qb.leftJoin).toHaveBeenCalledWith(
+        NotificationDismissalEntity,
+        'd',
+        'd."notificationId" = n.id AND d."userId" = :userId',
+        { userId: 'user-1' },
+      );
+      expect(qb.andWhere).toHaveBeenCalledWith('d.id IS NULL');
     });
   });
 

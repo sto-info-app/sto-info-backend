@@ -8,6 +8,7 @@ import { CreateNotificationDto } from './dto/create-notification.dto';
 import { InboxQueryDto } from './dto/inbox-query.dto';
 import { UpdateBannerDto } from './dto/update-banner.dto';
 import { BannerEntity } from './entities/banner.entity';
+import { NotificationDismissalEntity } from './entities/notification-dismissal.entity';
 import { NotificationReadEntity } from './entities/notification-read.entity';
 import { NotificationEntity } from './entities/notification.entity';
 import { NotificationTarget } from './enums/notification-target.enum';
@@ -49,6 +50,8 @@ export class NotificationService {
     private readonly _notificationRepository: Repository<NotificationEntity>,
     @InjectRepository(NotificationReadEntity)
     private readonly _notificationReadRepository: Repository<NotificationReadEntity>,
+    @InjectRepository(NotificationDismissalEntity)
+    private readonly _notificationDismissalRepository: Repository<NotificationDismissalEntity>,
   ) {}
 
   // ----- Banners (public read) -----
@@ -274,6 +277,52 @@ export class NotificationService {
     return unread.length;
   }
 
+  /**
+   * Deletes a notification from one user's inbox (idempotent).
+   *
+   * The row is kept: a broadcast is everybody's, and the admin list keeps
+   * what was sent. A dismissal row hides it for this reader, and the inbox,
+   * its count and its unread count leave it out from then on.
+   *
+   * @param userId - The authenticated user's ID.
+   * @param notificationId - The notification ID.
+   * @throws NotFoundException when the notification is not in the user's inbox.
+   */
+  async dismiss(userId: string, notificationId: string): Promise<void> {
+    await this.assertNotificationInScope(userId, notificationId);
+    await this._notificationDismissalRepository
+      .createQueryBuilder()
+      .insert()
+      .values({ notificationId, userId })
+      .orIgnore()
+      .execute();
+  }
+
+  /**
+   * Deletes every notification a user has read from their inbox.
+   *
+   * @param userId - The authenticated user's ID.
+   * @returns The number deleted.
+   */
+  async dismissAllRead(userId: string): Promise<number> {
+    const read = await this.scopedInboxQuery(userId)
+      .andWhere('r.id IS NOT NULL')
+      .getMany();
+
+    if (read.length === 0) {
+      return 0;
+    }
+
+    await this._notificationDismissalRepository
+      .createQueryBuilder()
+      .insert()
+      .values(read.map(n => ({ notificationId: n.id, userId })))
+      .orIgnore()
+      .execute();
+
+    return read.length;
+  }
+
   // ----- Notifications (admin) -----
 
   /**
@@ -323,8 +372,9 @@ export class NotificationService {
   // ----- Helpers -----
 
   /**
-   * Builds a query selecting the notifications visible to a user, left-joined
-   * to that user's read state (alias `r`).
+   * Builds a query selecting the notifications in a user's inbox, left-joined
+   * to that user's read state (alias `r`), and leaving out the ones that
+   * user has deleted (alias `d`).
    *
    * @param userId - The authenticated user's ID.
    * @returns A configured query builder.
@@ -338,6 +388,12 @@ export class NotificationService {
         'r."notificationId" = n.id AND r."userId" = :userId',
         { userId },
       )
+      .leftJoin(
+        NotificationDismissalEntity,
+        'd',
+        'd."notificationId" = n.id AND d."userId" = :userId',
+        { userId },
+      )
       .where(
         '(n.target = :broadcast OR (n.target = :user AND n."userId" = :userId))',
         {
@@ -345,7 +401,8 @@ export class NotificationService {
           user: NotificationTarget.USER,
           userId,
         },
-      );
+      )
+      .andWhere('d.id IS NULL');
   }
 
   /**

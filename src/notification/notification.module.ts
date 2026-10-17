@@ -5,6 +5,7 @@ import { UserModule } from 'src/user/user.module';
 
 import { AppStateController } from './app-state.controller';
 import { BannerEntity } from './entities/banner.entity';
+import { NotificationDismissalEntity } from './entities/notification-dismissal.entity';
 import { NotificationReadEntity } from './entities/notification-read.entity';
 import { NotificationEntity } from './entities/notification.entity';
 import { NotificationController } from './notification.controller';
@@ -20,6 +21,7 @@ import { NotificationOutboxService } from './outbox/notification-outbox.service'
       BannerEntity,
       NotificationEntity,
       NotificationReadEntity,
+      NotificationDismissalEntity,
       NotificationOutboxEntity,
     ]),
   ],
