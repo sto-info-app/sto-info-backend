@@ -122,7 +122,7 @@ describe('QuarantineStorageService', () => {
     it('refuses an empty response rather than serving nothing', async () => {
       s3Client.send.mockResolvedValue({ Body: undefined });
 
-      await expect(service.getStream('local/assets/a', null)).rejects.toThrow(
+      await expect(service.getStream('local/assets/a')).rejects.toThrow(
         'Quarantine object has no body: local/assets/a',
       );
     });
@@ -146,7 +146,7 @@ describe('QuarantineStorageService', () => {
         Body: Readable.from([Buffer.from('ab'), 'cd']),
       });
 
-      await expect(service.read('local/x', null)).resolves.toEqual(
+      await expect(service.read('local/x')).resolves.toEqual(
         Buffer.from('abcd'),
       );
     });

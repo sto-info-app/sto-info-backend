@@ -41,6 +41,8 @@ export const HOURS_ON_A_CLOCK_FACE = 12;
  * Digits only, four at most. No upper game bound is asserted: the level cap
  * has moved four times since launch and an importer that refused a roster the
  * week the cap rose would be wrong about the game rather than about the file.
+ * Zero is real: the game writes it for a Character created but never played,
+ * and the observation table admits it (17 October 2026).
  */
 export const ROSTER_LEVEL_PATTERN = /^\d{1,4}$/;
 

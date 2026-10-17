@@ -199,7 +199,7 @@ Fleet Community's; a database already on Fleet Community's schema runs them afte
 migrations. A migration on `development` that writes to a table Fleet Community changes has to
 work either way: the release notes seed names the site-only slug index once news is scoped.
 
-New migrations on `development` are numbered above Fleet Community's last, `1797900000000`, until
+New migrations on `development` are numbered above Fleet Community's last, `1798000000000`, until
 it ships.
 
 ## Indexes

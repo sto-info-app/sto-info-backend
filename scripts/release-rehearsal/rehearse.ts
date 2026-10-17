@@ -1010,9 +1010,9 @@ async function rollback(r: Rehearsal): Promise<void> {
 
   r.results.check(
     name,
-    'migration:revert undoes the platform guard and the name clearing, then refuses once the Security Log holds a feature switch',
+    'migration:revert undoes the level check, the platform guard and the name clearing, then refuses once the Security Log holds a feature switch',
     steps.join(',') ===
-      'GuardPlatformRenames1797900000000,ClearCharacterNamesFromPictures1797800000000' &&
+      'AllowLevelZeroRosterObservations1798000000000,GuardPlatformRenames1797900000000,ClearCharacterNamesFromPictures1797800000000' &&
       refusal.includes(FEATURE_SWITCH_ACTIONS_DOWN_REFUSAL.slice(0, 60)),
     null,
     `reverted ${steps.join(', ') || 'nothing'}; then ${failureOf(refusal).slice(0, 160)}`,
