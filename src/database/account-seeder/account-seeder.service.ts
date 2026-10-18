@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 
 import { LauncherEntity } from 'src/sto/launcher/entities/launcher.entity';
 import { LauncherService } from 'src/sto/launcher/launcher.service';
@@ -6,6 +6,8 @@ import { PlatformLauncherService } from 'src/sto/platform-launcher/platform-laun
 import { CreatePlatformDto } from 'src/sto/platform/dto/create-platform.dto';
 import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
 import { PlatformService } from 'src/sto/platform/platform.service';
+
+import { ACCOUNT_BACKGROUNDS } from './account-backgrounds.constants';
 
 /**
  * Handles seeding of account-related reference data.
@@ -18,11 +20,15 @@ import { PlatformService } from 'src/sto/platform/platform.service';
  * Platforms: Windows, PlayStation, Xbox — each with whether the game
  * provides a fleet roster export on it
  * Launchers: Arc, Epic, Steam, N/A
+ * Account card pictures: one for each pairing, each platform and everything
+ * else, given to rows that have none
  *
  * @injectable
  */
 @Injectable()
 export class AccountSeederService {
+  private readonly _logger = new Logger(AccountSeederService.name);
+
   /**
    * Creates an instance of AccountSeederService.
    *
@@ -55,6 +61,7 @@ export class AccountSeederService {
     await this.seedPlatforms();
     await this.seedLaunchers();
     await this.seedPlatformLaunchers();
+    await this.seedBackgrounds();
   }
 
   /**
@@ -147,6 +154,57 @@ export class AccountSeederService {
           );
         }
       }
+    }
+  }
+
+  /**
+   * Gives each account card picture to its row.
+   *
+   * Runs after the pairings exist, which is what the migration that added
+   * the pictures could not count on: on a new database it ran before them and
+   * matched nothing. A row with no picture is given one and a missing default
+   * row is made, while a picture already set is left alone, so one changed
+   * by hand stays changed. A picture whose platform or launcher is not in the
+   * catalogue is skipped.
+   *
+   * @private
+   * @returns {Promise<void>}
+   */
+  private async seedBackgrounds() {
+    let created = 0;
+    let filled = 0;
+
+    for (const background of ACCOUNT_BACKGROUNDS) {
+      const platform =
+        background.platform === null
+          ? null
+          : await this.findPlatformByName(background.platform);
+      const launcher =
+        background.launcher === null
+          ? null
+          : await this.findLauncherByName(background.launcher);
+
+      if (
+        (background.platform !== null && !platform) ||
+        (background.launcher !== null && !launcher)
+      ) {
+        continue;
+      }
+
+      const outcome = await this._platformLauncherService.ensureBackground(
+        platform?.id ?? null,
+        launcher?.id ?? null,
+        background.url,
+      );
+
+      if (outcome === 'created') created++;
+      if (outcome === 'filled') filled++;
+    }
+
+    if (created > 0 || filled > 0) {
+      this._logger.log(
+        `[seedBackgrounds] Account card pictures set - Created: ${created}, Filled: ${filled}`,
+      );
     }
   }
 

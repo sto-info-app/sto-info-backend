@@ -97,6 +97,16 @@ Resolution precedence used by the API:
 Uniqueness is enforced using partial unique indexes per mapping pattern,
 instead of a single `(platformId, launcherId)` unique constraint.
 
+The pictures themselves are given by the account seeder at every start, from
+`ACCOUNT_BACKGROUNDS` in `src/database/account-seeder`: each pairing, each
+platform default and the global default. A row with no picture is given one and
+a missing default row is made; a picture already set is left alone, so one
+changed by hand stays changed. The migration that added the column set the same
+pictures, but only on databases whose platform and launcher rows already
+existed. On a database built from nothing the migrations run before the seeder
+makes those rows, so it matched none of them, and every account card showed the
+global default until the seeder took this over.
+
 ### Entity Relationships
 
 **Document relationships:**
