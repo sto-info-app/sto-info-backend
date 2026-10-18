@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 
-import { emblemUrlsOf, imageUrlOf } from 'src/shared/constants/image.constants';
+import {
+  BANNER_VARIANT,
+  emblemUrlsOf,
+  imageUrlOf,
+} from 'src/shared/constants/image.constants';
 
 import { FleetCommunityDto } from '../dto/fleet-community.dto';
 import { FleetCommunityCardDto } from '../dto/fleet-directory.dto';
@@ -36,7 +40,7 @@ export class FleetCommunityMapper {
       closedAt: community.closedAt,
       bannerImageId: community.bannerImageId,
       bannerImageAlt: community.bannerImageAlt,
-      bannerImageUrl: imageUrlOf(community.bannerImageId, 'public'),
+      bannerImageUrl: imageUrlOf(community.bannerImageId, BANNER_VARIANT),
       emblemImageId: community.emblemImageId,
       emblemImageAlt: community.emblemImageAlt,
       emblemImageUrls: emblemUrlsOf(community.emblemImageId),

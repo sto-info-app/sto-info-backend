@@ -178,6 +178,17 @@ export function getCloudflareCdnRootUrl(): string | undefined {
   return process.env.CLOUDFLARE_CDN_ROOT_URL?.trim() || undefined;
 }
 
+/**
+ * The variant a Community, Fleet or Armada banner is delivered at.
+ *
+ * The full 2400 by 480 a banner has to be uploaded at, so a high-density
+ * screen gets the detail it was given. `public` came out 1366 wide, soft at
+ * double density, where the banner's 1050 or so pixels need about 2100
+ * (18 October 2026). Storytime's banners already use this variant, so it
+ * exists on the account.
+ */
+export const BANNER_VARIANT = 'banner2400x480';
+
 /** The variants a Fleet emblem is drawn at: a listing's row and a page's head. */
 export const EMBLEM_VARIANTS = ['square100', 'square300'] as const;
 

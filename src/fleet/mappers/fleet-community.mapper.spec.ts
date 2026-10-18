@@ -44,7 +44,7 @@ describe('FleetCommunityMapper', () => {
       closedAt: null,
       bannerImageId: 'banner-ref',
       bannerImageAlt: 'A fleet yard at dusk',
-      bannerImageUrl: imageUrlOf('banner-ref', 'public'),
+      bannerImageUrl: imageUrlOf('banner-ref', 'banner2400x480'),
       emblemImageId: 'emblem-ref',
       emblemImageAlt: 'A crossed-sabres badge',
       emblemImageUrls: emblemUrlsOf('emblem-ref'),
