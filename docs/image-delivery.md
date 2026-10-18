@@ -56,13 +56,18 @@ by its image ID, with one query for the whole response:
   page, the placeholder itself) lives in Cloudflare Images too, and it is public.
 
 The browser no longer builds a picture's address. The API sends `bannerImageUrl` and
-`emblemImageUrls` (by variant) for Communities, Fleets and Armadas, `coverImageUrl` for news posts,
+`emblemImageUrls` (by variant) for Communities, Fleets and Armadas, `coverImageUrls` (by variant) for news posts,
 and `imageUrl` for a Custom Tracking picture, alongside the IDs. Profile, Character and Storytime
 pictures already came as addresses.
 
 A Community, Fleet or Armada banner is sent at `banner2400x480` (`BANNER_VARIANT`), the full size
 a banner has to be uploaded at, so a high-density screen gets the detail it was given. `public`
 came out 1366 wide, which is soft at double density. Storytime's banners use the same variant.
+
+A news post's cover is sent at two variants, `cover640x360` for its card in a news list and
+`cover1920x1080` for the head of the post (`COVER_VARIANTS`), the same two Storytime's chapter
+covers use. One `public` address was 1366 by 768: more than a card needs, and soft across a post
+at double density.
 
 Without the key nothing is signed, new pictures are uploaded public, no copy can start, and the
 log says so at start-up. The site keeps working as it did before FC-040.

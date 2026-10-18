@@ -195,6 +195,22 @@ describe('ScopeNewsService', () => {
       expect(posts.findAndCount).not.toHaveBeenCalled();
     });
 
+    // A card draws the cover small and the post draws it across the page, so
+    // each is sent the size it needs.
+    it('sends a cover at the card size and the post size', async () => {
+      posts.findAndCount.mockResolvedValue([
+        [post({ coverImageId: 'img-1', coverImageAlt: 'A ship' })],
+        1,
+      ]);
+
+      const page = await service.list(FLEET, READER_ID, {});
+
+      expect(page.items[0].coverImageUrls).toEqual({
+        cover640x360: expect.stringMatching(/\/img-1\/cover640x360$/),
+        cover1920x1080: expect.stringMatching(/\/img-1\/cover1920x1080$/),
+      });
+    });
+
     it('shows a reader only the audiences they are in, newest first', async () => {
       audience.canView.mockImplementation(
         async audienceAsked => audienceAsked !== FleetAudience.FLEET_MEMBERS,
@@ -227,7 +243,7 @@ describe('ScopeNewsService', () => {
             updatedAt: CREATED,
             coverImageId: null,
             coverImageAlt: null,
-            coverImageUrl: null,
+            coverImageUrls: null,
             author: { username: 'Writer', linksToProfile: true },
           },
         ],

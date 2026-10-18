@@ -383,7 +383,7 @@ All three require the `ADMIN` role. See [Admin audit](admin-audit.md).
 
 All require the `ADMIN` role. Every response's picture addresses are signed on the way out, and
 Community, Fleet, Armada, news and Custom Tracking responses now carry addresses
-(`bannerImageUrl`, `emblemImageUrls`, `coverImageUrl`, `imageUrl`) beside the IDs. See
+(`bannerImageUrl`, `emblemImageUrls`, `coverImageUrls`, `imageUrl`) beside the IDs. See
 [Private image delivery](image-delivery.md).
 
 ### Rescan campaigns (FC-041)

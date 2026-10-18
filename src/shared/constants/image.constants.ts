@@ -196,6 +196,18 @@ export const EMBLEM_VARIANTS = ['square100', 'square300'] as const;
 export type EmblemImageUrls = Record<(typeof EMBLEM_VARIANTS)[number], string>;
 
 /**
+ * The variants a news post's cover is drawn at: its card in a news list, and
+ * the head of the post. A single `public` address came out 1366 by 768, more
+ * than a card needs and soft across a post at double density (18 October
+ * 2026). Storytime's chapter covers already use both, so they exist on the
+ * account.
+ */
+export const COVER_VARIANTS = ['cover640x360', 'cover1920x1080'] as const;
+
+/** A cover's addresses, by variant. */
+export type CoverImageUrls = Record<(typeof COVER_VARIANTS)[number], string>;
+
+/**
  * A picture's address, for a response (FC-040). The API signs it on the way
  * out, so the browser never builds one itself.
  *
@@ -208,6 +220,23 @@ export function imageUrlOf(
   variant: string,
 ): string | null {
   return imageId ? buildCloudflareImageUrl(imageId, variant) : null;
+}
+
+/**
+ * A news post cover's addresses at each size the site draws one.
+ *
+ * @param imageId - The cover, or null.
+ * @returns Its addresses by variant, or null when there is no cover.
+ */
+export function coverUrlsOf(
+  imageId: string | null | undefined,
+): CoverImageUrls | null {
+  return imageId
+    ? {
+        cover640x360: buildCloudflareImageUrl(imageId, 'cover640x360'),
+        cover1920x1080: buildCloudflareImageUrl(imageId, 'cover1920x1080'),
+      }
+    : null;
 }
 
 /**

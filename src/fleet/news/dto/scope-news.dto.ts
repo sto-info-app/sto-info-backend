@@ -13,6 +13,7 @@ import {
 } from 'class-validator';
 
 import { NewsStatus } from 'src/news/enums/news-status.enum';
+import { CoverImageUrls } from 'src/shared/constants/image.constants';
 
 import { FleetAudience } from '../../enums/fleet-audience.enum';
 import {
@@ -189,10 +190,12 @@ export class ScopeNewsPostSummaryDto {
 
   @ApiProperty({
     nullable: true,
-    type: String,
-    description: 'The cover’s signed address, for the browser (FC-040).',
+    type: Object,
+    description:
+      'The cover’s signed addresses, by variant (cover640x360 for a card, ' +
+      'cover1920x1080 for the post), for the browser (FC-040).',
   })
-  coverImageUrl: string | null;
+  coverImageUrls: CoverImageUrls | null;
 
   @ApiProperty({ nullable: true, type: ScopeNewsAuthorDto })
   author: ScopeNewsAuthorDto | null;

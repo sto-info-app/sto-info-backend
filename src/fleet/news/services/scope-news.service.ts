@@ -29,7 +29,7 @@ import { NewsPostEntity } from 'src/news/entities/news-post.entity';
 import { NewsStatus } from 'src/news/enums/news-status.enum';
 import { RegistryService } from 'src/registry/registry.service';
 import { DEFAULT_MULTER_LIMITS } from 'src/shared/constants/file-upload.constants';
-import { imageUrlOf } from 'src/shared/constants/image.constants';
+import { coverUrlsOf } from 'src/shared/constants/image.constants';
 import { normaliseToSlug } from 'src/shared/utilities/slug.utility';
 import { escapeSqlLikeTerm } from 'src/shared/utilities/sql-like.utility';
 
@@ -885,7 +885,7 @@ export class ScopeNewsService {
       updatedAt: post.updatedAt,
       coverImageId: post.coverImageId,
       coverImageAlt: post.coverImageAlt,
-      coverImageUrl: imageUrlOf(post.coverImageId, 'public'),
+      coverImageUrls: coverUrlsOf(post.coverImageId),
       author: authors.get(post.authorId as string) ?? null,
     };
   }
