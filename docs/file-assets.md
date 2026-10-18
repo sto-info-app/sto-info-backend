@@ -320,15 +320,16 @@ old public copy from the image estate retired. A 404 from Cloudflare counts as g
 every withdrawal, because the first delete may have worked with only its answer lost. One owed for
 a day opens the `PURGE_OWED` alert, and Scan Diagnostics counts what is owed under Publication.
 
-**Deleted Storytime work takes its pictures with it.** A deleted Story, Chapter or Character can
-never be brought back, so deleting one withdraws what it showed. Deleting a Story soft-deletes its
-Chapters and their videos, its cast, its credits and its places in Arcs in one transaction, then
+**Deleted Storytime work takes its pictures with it.** A deleted Story, Chapter, Character or Arc
+can never be brought back, so deleting one withdraws what it showed. Deleting a Story soft-deletes
+its Chapters and their videos, its cast, its credits and its places in Arcs in one transaction, then
 withdraws the banner, profile image, every Chapter cover and every portrait ("Its Story was
 deleted"). Deleting one Chapter or one Character withdraws its cover or portrait ("Its Chapter was
-deleted", "Its Character was deleted"). A withdrawal that fails is logged and the delete still
-stands. `StorytimeDeletedArtworkSweepService` runs in the background at every start, under
-advisory lock `1798200000`, and withdraws any picture a deleted Story, Chapter or Character still
-holds that is still served. That covers a failed withdrawal and the work deleted before 18 October
+deleted", "Its Character was deleted"), and deleting an Arc withdraws its banner and profile image
+("Its Arc was deleted") while its Story memberships stay as a record of what was agreed. A
+withdrawal that fails is logged and the delete still stands. `StorytimeDeletedArtworkSweepService`
+runs in the background at every start, under advisory lock `1798200000`, and withdraws any picture
+a deleted Story, Chapter, Character or Arc still holds that is still served. That covers a failed withdrawal and the work deleted before 18 October
 2026, whose leftover Chapters, cast, credits, videos and Arc places
 `DeleteLeftoversOfDeletedStories1798200000000` marked deleted with their Story.
 

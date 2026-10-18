@@ -15,6 +15,7 @@ import { AcceptedAsset } from 'src/file-assets/services/asset-ingress.service';
 
 import { ArcCapability } from '../collaboration/storytime-arc-capability.enum';
 import { StorytimeArcCollaboratorAccessService } from '../collaboration/storytime-arc-collaborator-access.service';
+import { STORYTIME_DELETION_REASONS } from '../constants/storytime-deletion.constants';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
 import { ArcStatus } from '../enums/arc-status.enum';
 import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
@@ -478,10 +479,14 @@ export class StorytimeArcService {
   }
 
   /**
-   * Deletes an Arc.
+   * Deletes an Arc, and withdraws its pictures.
    *
    * Soft-deleted, so its memberships survive as a record of what was agreed
-   * and the slug is not immediately reissued.
+   * and the slug is not immediately reissued. A deleted Arc cannot be brought
+   * back, so its banner and profile image are withdrawn rather than left to
+   * be served from their old addresses. The Arc stops pointing at them first,
+   * by being deleted, as a picture's removal always runs in that order; one
+   * whose withdrawal fails is found again by the sweep at the next start.
    *
    * @param arcId - The Arc.
    * @param actingUserId - The caller.
@@ -492,6 +497,19 @@ export class StorytimeArcService {
     arc.deletedByUserId = actingUserId;
     await this._arcRepository.save(arc);
     await this._arcRepository.softDelete(arcId);
+
+    await this._imageService.withdraw(
+      StorytimeImageSlot.ARC_BANNER,
+      arcId,
+      arc.bannerImageId,
+      STORYTIME_DELETION_REASONS.ARC,
+    );
+    await this._imageService.withdraw(
+      StorytimeImageSlot.ARC_PROFILE,
+      arcId,
+      arc.profileImageId,
+      STORYTIME_DELETION_REASONS.ARC,
+    );
   }
 
   /**

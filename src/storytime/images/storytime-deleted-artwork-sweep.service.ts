@@ -5,6 +5,7 @@ import { DataSource, EntityTarget, ObjectLiteral } from 'typeorm';
 import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
 
+import { StorytimeArcEntity } from '../arcs/entities/storytime-arc.entity';
 import { StorytimeChapterEntity } from '../chapters/entities/storytime-chapter.entity';
 import { StorytimeCharacterEntity } from '../characters/entities/storytime-character.entity';
 import { STORYTIME_DELETION_REASONS } from '../constants/storytime-deletion.constants';
@@ -19,7 +20,7 @@ export const STORYTIME_DELETED_ARTWORK_SWEEP_LOCK = 1_798_200_000;
 export interface DeletedWorkPicture {
   /** Which slot it fills. */
   readonly slot: StorytimeImageSlot;
-  /** The Story, Chapter or Character it belongs to. */
+  /** The Story, Chapter, Character or Arc it belongs to. */
   readonly entityId: string;
   /** Its delivery reference. */
   readonly imageId: string;
@@ -33,11 +34,11 @@ const SERVED_STATES = [FileAssetState.AVAILABLE, FileAssetState.UNVERIFIED];
 /**
  * Withdraws, at every start, the pictures deleted Storytime work still holds.
  *
- * Deleting a Story, a Chapter or a Character withdraws its pictures as it
- * goes. This catches the rest: the pictures of work deleted before deletion
- * withdrew anything (the Stories deleted before 18 October 2026 kept their
- * banners, covers and portraits), and any picture whose withdrawal failed
- * after its work had been deleted. A deleted work can never be brought back,
+ * Deleting a Story, a Chapter, a Character or an Arc withdraws its pictures
+ * as it goes. This catches the rest: the pictures of work deleted before
+ * deletion withdrew anything (Stories and Arcs deleted before 18 October
+ * 2026 kept their banners, profile images, covers and portraits), and any
+ * picture whose withdrawal failed after its work had been deleted. A deleted work can never be brought back,
  * so nothing is lost by it.
  *
  * It runs in the background so it never holds the start up, and instances
@@ -159,6 +160,7 @@ export class StorytimeDeletedArtworkSweepService implements OnApplicationBootstr
     const story = this.tableOf(StorytimeStoryEntity);
     const chapter = this.tableOf(StorytimeChapterEntity);
     const character = this.tableOf(StorytimeCharacterEntity);
+    const arc = this.tableOf(StorytimeArcEntity);
     const asset = this.tableOf(FileAssetEntity);
 
     return (await this._dataSource.query(
@@ -184,6 +186,14 @@ export class StorytimeDeletedArtworkSweepService implements OnApplicationBootstr
             FROM ${character} ch
             JOIN ${story} s ON s."id" = ch."storyId"
            WHERE ch."deletedAt" IS NOT NULL AND ch."portraitImageId" IS NOT NULL
+          UNION ALL
+          SELECT $9::text, r."id"::text, r."bannerImageId"::text, $11::text
+            FROM ${arc} r
+           WHERE r."deletedAt" IS NOT NULL AND r."bannerImageId" IS NOT NULL
+          UNION ALL
+          SELECT $10::text, r."id"::text, r."profileImageId"::text, $11::text
+            FROM ${arc} r
+           WHERE r."deletedAt" IS NOT NULL AND r."profileImageId" IS NOT NULL
         ) picture
         JOIN ${asset} a ON a."deliveryReference" = picture."imageId"
        WHERE a."state"::text = ANY($8::text[])
@@ -198,6 +208,9 @@ export class StorytimeDeletedArtworkSweepService implements OnApplicationBootstr
         STORYTIME_DELETION_REASONS.CHAPTER,
         STORYTIME_DELETION_REASONS.CHARACTER,
         SERVED_STATES,
+        StorytimeImageSlot.ARC_BANNER,
+        StorytimeImageSlot.ARC_PROFILE,
+        STORYTIME_DELETION_REASONS.ARC,
       ],
     )) as DeletedWorkPicture[];
   }

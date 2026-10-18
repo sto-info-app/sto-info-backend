@@ -11,6 +11,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { ArcCapability } from '../collaboration/storytime-arc-capability.enum';
 import { StorytimeArcCollaboratorAccessService } from '../collaboration/storytime-arc-collaborator-access.service';
+import { STORYTIME_DELETION_REASONS } from '../constants/storytime-deletion.constants';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
 import { ArcStatus } from '../enums/arc-status.enum';
 import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
@@ -560,12 +561,56 @@ describe('StorytimeArcService', () => {
       );
     });
 
+    // A deleted Arc cannot be brought back, so nothing should go on serving
+    // its artwork.
+    it('withdraws its banner and profile image once it is deleted', async () => {
+      arcRepository.findOne.mockResolvedValue(
+        buildArc({ bannerImageId: 'banner-1', profileImageId: 'profile-1' }),
+      );
+
+      await service.remove(arcId, curatorId);
+
+      expect(imageService.withdraw.mock.calls).toEqual([
+        [
+          StorytimeImageSlot.ARC_BANNER,
+          arcId,
+          'banner-1',
+          STORYTIME_DELETION_REASONS.ARC,
+        ],
+        [
+          StorytimeImageSlot.ARC_PROFILE,
+          arcId,
+          'profile-1',
+          STORYTIME_DELETION_REASONS.ARC,
+        ],
+      ]);
+      expect(arcRepository.softDelete.mock.invocationCallOrder[0]).toBeLessThan(
+        imageService.withdraw.mock.invocationCallOrder[0],
+      );
+    });
+
+    // The image service settles an empty slot itself, as clearing one does.
+    it('hands over an empty slot as it is', async () => {
+      arcRepository.findOne.mockResolvedValue(buildArc());
+
+      await service.remove(arcId, curatorId);
+
+      expect(imageService.withdraw).toHaveBeenCalledWith(
+        StorytimeImageSlot.ARC_BANNER,
+        arcId,
+        null,
+        STORYTIME_DELETION_REASONS.ARC,
+      );
+    });
+
     it('refuses to delete an Arc the caller does not curate', async () => {
       arcRepository.findOne.mockResolvedValue(buildArc());
 
       await expect(service.remove(arcId, strangerId)).rejects.toThrow(
         ForbiddenException,
       );
+      expect(arcRepository.softDelete).not.toHaveBeenCalled();
+      expect(imageService.withdraw).not.toHaveBeenCalled();
     });
   });
 
