@@ -9,17 +9,22 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { In, IsNull, Not, Repository } from 'typeorm';
+import { DataSource, In, IsNull, Not, Repository } from 'typeorm';
 
 import { AcceptedAsset } from 'src/file-assets/services/asset-ingress.service';
 
 import { LimitService } from '../../access-control/limit.service';
+import { StorytimeArcStoryEntity } from '../arcs/entities/storytime-arc-story.entity';
+import { StorytimeChapterEntity } from '../chapters/entities/storytime-chapter.entity';
+import { StorytimeCharacterEntity } from '../characters/entities/storytime-character.entity';
 import { StorytimeCollaboratorAccessService } from '../collaboration/storytime-collaborator-access.service';
 import { StoryCapability } from '../collaboration/storytime-story-capability.enum';
+import { STORYTIME_DELETION_REASONS } from '../constants/storytime-deletion.constants';
 import { STORYTIME_LANGUAGE_CODES } from '../constants/storytime-language.constants';
 import { STORYTIME_LIMITS } from '../constants/storytime-limits.constants';
 import { STORYTIME_POLICY_VERSION } from '../constants/storytime-policy.constants';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
+import { StorytimeCrewCreditEntity } from '../crew/entities/storytime-crew-credit.entity';
 import { StoryStatus } from '../enums/story-status.enum';
 import { StorytimeActivityType } from '../enums/storytime-activity-type.enum';
 import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
@@ -28,6 +33,7 @@ import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
 import { StorytimeVisibility } from '../enums/storytime-visibility.enum';
 import { assertImageDescribable } from '../images/storytime-image-alt.utility';
 import { StorytimeImageService } from '../images/storytime-image.service';
+import { StorytimeChapterMediaEntity } from '../media/entities/storytime-chapter-media.entity';
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
 import { StorytimeSlugService } from '../shared/storytime-slug.service';
 import { StorytimeActivityFeedService } from '../social/storytime-activity-feed.service';
@@ -99,6 +105,7 @@ export class StorytimeStoryService {
    * @param _collaboratorAccessService - Decides what a collaborator may do.
    * @param _feedService - Announces publication to the people who follow.
    * @param _imageService - Checks, stores and releases the Story's artwork.
+   * @param _dataSource - Deletes a Story and everything it holds together.
    */
   constructor(
     @InjectRepository(StorytimeStoryEntity)
@@ -110,6 +117,7 @@ export class StorytimeStoryService {
     private readonly _collaboratorAccessService: StorytimeCollaboratorAccessService,
     private readonly _feedService: StorytimeActivityFeedService,
     private readonly _imageService: StorytimeImageService,
+    private readonly _dataSource: DataSource,
   ) {}
 
   /**
@@ -792,12 +800,23 @@ export class StorytimeStoryService {
   }
 
   /**
-   * Soft-deletes a Story.
+   * Soft-deletes a Story, with its Chapters, cast and pictures.
    *
-   * The row is retained so its slug stays reserved and any moderation history
-   * remains reviewable. Its artwork is left in place: a soft delete can be
-   * undone, and coming back to a Story whose banner had been thrown away would
-   * be a worse outcome than the storage it saves.
+   * The rows are kept, marked deleted, so the slug stays reserved and any
+   * moderation history still points at something. Nothing can bring a deleted
+   * Story back, so what it held goes with it, as the author is told it will:
+   * its Chapters and their videos, its cast, its credits and its places in
+   * Arcs, all in one transaction so a Story is never half deleted. Each was
+   * once soft-deleted alone, which left Chapters and cast behind a Story
+   * nobody could reach (18 October 2026).
+   *
+   * Its pictures are withdrawn once that has committed: the banner, the
+   * profile image, every Chapter's cover and every portrait, revoked and
+   * deleted from Cloudflare as a deleted news post's cover is. The records
+   * have stopped pointing at them by then, which is the order withdrawal
+   * expects. One that cannot be withdrawn is logged and left for the sweep
+   * at the next start, rather than failing a delete that has already
+   * happened.
    *
    * @param storyId - The Story to delete.
    * @param actingUserId - The caller.
@@ -805,11 +824,117 @@ export class StorytimeStoryService {
   async remove(storyId: string, actingUserId: string): Promise<void> {
     const story = await this.findOwnedOrFail(storyId, actingUserId);
 
-    story.deletedByUserId = actingUserId;
-    await this._storyRepository.save(story);
-    await this._storyRepository.softDelete(storyId);
+    const { chapters, characters } = await this._dataSource.transaction(
+      async manager => {
+        const live = { storyId, deletedAt: IsNull() };
+        const owned = {
+          chapters: await manager.find(StorytimeChapterEntity, {
+            where: live,
+            select: { id: true, coverImageId: true },
+          }),
+          characters: await manager.find(StorytimeCharacterEntity, {
+            where: live,
+            select: { id: true, portraitImageId: true },
+          }),
+        };
+        const chapterIds = owned.chapters.map(chapter => chapter.id);
+        const characterIds = owned.characters.map(character => character.id);
 
-    this._logger.log(`Story '${story.slug}' deleted by ${actingUserId}`);
+        if (chapterIds.length > 0) {
+          await manager.softDelete(StorytimeChapterMediaEntity, {
+            chapterId: In(chapterIds),
+            deletedAt: IsNull(),
+          });
+          await manager.update(
+            StorytimeChapterEntity,
+            { id: In(chapterIds) },
+            { deletedByUserId: actingUserId },
+          );
+          await manager.softDelete(StorytimeChapterEntity, {
+            id: In(chapterIds),
+          });
+        }
+
+        if (characterIds.length > 0) {
+          await manager.update(
+            StorytimeCharacterEntity,
+            { id: In(characterIds) },
+            { deletedByUserId: actingUserId },
+          );
+          await manager.softDelete(StorytimeCharacterEntity, {
+            id: In(characterIds),
+          });
+        }
+
+        await manager.softDelete(StorytimeCrewCreditEntity, live);
+        await manager.softDelete(StorytimeArcStoryEntity, live);
+
+        story.deletedByUserId = actingUserId;
+        await manager.save(story);
+        await manager.softDelete(StorytimeStoryEntity, storyId);
+
+        return owned;
+      },
+    );
+
+    await this.withdrawPictures([
+      [StorytimeImageSlot.STORY_BANNER, storyId, story.bannerImageId],
+      [StorytimeImageSlot.STORY_PROFILE, storyId, story.profileImageId],
+      ...chapters.map(
+        chapter =>
+          [
+            StorytimeImageSlot.CHAPTER_COVER,
+            chapter.id,
+            chapter.coverImageId,
+          ] as const,
+      ),
+      ...characters.map(
+        character =>
+          [
+            StorytimeImageSlot.CHARACTER_PORTRAIT,
+            character.id,
+            character.portraitImageId,
+          ] as const,
+      ),
+    ]);
+
+    this._logger.log(
+      `Story '${story.slug}' deleted by ${actingUserId} - Chapters: ${chapters.length}, Characters: ${characters.length}`,
+    );
+  }
+
+  /**
+   * Withdraws the pictures a deleted Story held, one at a time.
+   *
+   * A picture that fails is logged and the rest still go; the sweep at the
+   * next start finds any picture a deleted work still holds.
+   *
+   * @param pictures - Each slot, the work it belonged to and its image.
+   */
+  private async withdrawPictures(
+    pictures: ReadonlyArray<
+      readonly [StorytimeImageSlot, string, string | null | undefined]
+    >,
+  ): Promise<void> {
+    for (const [slot, entityId, imageId] of pictures) {
+      if (!imageId) {
+        continue;
+      }
+
+      try {
+        await this._imageService.withdraw(
+          slot,
+          entityId,
+          imageId,
+          STORYTIME_DELETION_REASONS.STORY,
+        );
+      } catch (error: unknown) {
+        this._logger.error(
+          `[withdrawPictures] Not withdrawn - Slot: ${slot}, EntityId: ${entityId}, ImageId: ${imageId}`,
+          error instanceof Error ? error.stack : String(error),
+        );
+      }
+    }
   }
 
   /**
