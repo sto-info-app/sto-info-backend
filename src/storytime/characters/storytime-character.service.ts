@@ -14,6 +14,7 @@ import { AcceptedAsset } from 'src/file-assets/services/asset-ingress.service';
 
 import { LimitService } from '../../access-control/limit.service';
 import { StoryCapability } from '../collaboration/storytime-story-capability.enum';
+import { STORYTIME_DELETION_REASONS } from '../constants/storytime-deletion.constants';
 import { STORYTIME_LIMITS } from '../constants/storytime-limits.constants';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
 import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
@@ -324,6 +325,8 @@ export class StorytimeCharacterService {
    *
    * Soft-deleted so its appearances and any links to it survive as history,
    * and so the slug it held is not immediately reissued to somebody else.
+   * Its portrait is withdrawn, since a deleted Character cannot be brought
+   * back to show it.
    *
    * @param characterId - The Character to delete.
    * @param actingUserId - The caller.
@@ -334,6 +337,13 @@ export class StorytimeCharacterService {
     character.deletedByUserId = actingUserId;
     await this._characterRepository.save(character);
     await this._characterRepository.softDelete(characterId);
+
+    await this._imageService.withdraw(
+      StorytimeImageSlot.CHARACTER_PORTRAIT,
+      characterId,
+      character.portraitImageId,
+      STORYTIME_DELETION_REASONS.CHARACTER,
+    );
 
     this._logger.log(
       `Character '${character.slug}' deleted by ${actingUserId}`,

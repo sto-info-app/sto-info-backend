@@ -14,6 +14,7 @@ import { AcceptedAsset } from 'src/file-assets/services/asset-ingress.service';
 
 import { LimitService } from '../../access-control/limit.service';
 import { StoryCapability } from '../collaboration/storytime-story-capability.enum';
+import { STORYTIME_DELETION_REASONS } from '../constants/storytime-deletion.constants';
 import { STORYTIME_LANGUAGE_CODES } from '../constants/storytime-language.constants';
 import { STORYTIME_LIMITS } from '../constants/storytime-limits.constants';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
@@ -621,7 +622,12 @@ export class StorytimeChapterService {
   }
 
   /**
-   * Soft-deletes a Chapter.
+   * Soft-deletes a Chapter, and withdraws its cover.
+   *
+   * A deleted Chapter cannot be brought back, so its cover is withdrawn
+   * rather than left to be served from its old address. The Chapter stops
+   * pointing at it first, by being deleted, as a picture's removal always
+   * runs in that order.
    *
    * @param chapterId - The Chapter to delete.
    * @param actingUserId - The caller.
@@ -637,6 +643,13 @@ export class StorytimeChapterService {
     // Deleting a published Chapter changes what the Story contains, so the
     // count has to follow it down.
     await this.recalculateStoryChapterCount(storyId);
+
+    await this._imageService.withdraw(
+      StorytimeImageSlot.CHAPTER_COVER,
+      chapterId,
+      chapter.coverImageId,
+      STORYTIME_DELETION_REASONS.CHAPTER,
+    );
 
     this._logger.log(`Chapter '${chapter.slug}' deleted by ${actingUserId}`);
   }

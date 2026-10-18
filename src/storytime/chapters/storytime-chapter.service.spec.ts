@@ -12,6 +12,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
 import { LimitService } from '../../access-control/limit.service';
+import { STORYTIME_DELETION_REASONS } from '../constants/storytime-deletion.constants';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
 import { ChapterStatus } from '../enums/chapter-status.enum';
 import { StorytimeActivityType } from '../enums/storytime-activity-type.enum';
@@ -958,6 +959,28 @@ describe('StorytimeChapterService', () => {
       expect(storyRepository.update).toHaveBeenCalledWith(
         storyId,
         expect.objectContaining({ publishedChapterCount: 0 }),
+      );
+    });
+
+    // A deleted Chapter cannot be brought back, so its cover goes with it,
+    // once the Chapter has stopped pointing at it.
+    it('withdraws its cover once deleted', async () => {
+      chapterRepository.findOne.mockResolvedValue(
+        buildChapter({ coverImageId: 'cover-1' }),
+      );
+      imageService.withdraw.mockImplementation(() => {
+        expect(chapterRepository.softDelete).toHaveBeenCalledWith(chapterId);
+
+        return Promise.resolve(undefined);
+      });
+
+      await service.remove(chapterId, ownerId);
+
+      expect(imageService.withdraw).toHaveBeenCalledWith(
+        StorytimeImageSlot.CHAPTER_COVER,
+        chapterId,
+        'cover-1',
+        STORYTIME_DELETION_REASONS.CHAPTER,
       );
     });
   });

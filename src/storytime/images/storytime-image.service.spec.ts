@@ -366,5 +366,24 @@ describe('StorytimeImageService', () => {
         'Removed by the owner',
       );
     });
+
+    // A picture withdrawn because its work was deleted says so in the
+    // registry, rather than claiming the owner removed it.
+    it('records the reason it is given', async () => {
+      await service.withdraw(
+        StorytimeImageSlot.CHAPTER_COVER,
+        entityId,
+        'cover-1',
+        'Its Story was deleted',
+      );
+
+      expect(withdrawal.withdrawSlot).toHaveBeenCalledWith(
+        FileAssetSubject.STORYTIME_CHAPTER,
+        entityId,
+        FileAssetSlot.COVER,
+        'cover-1',
+        'Its Story was deleted',
+      );
+    });
   });
 });

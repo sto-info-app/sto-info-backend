@@ -10,6 +10,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { LimitService } from '../../access-control/limit.service';
+import { STORYTIME_DELETION_REASONS } from '../constants/storytime-deletion.constants';
 import { STORYTIME_LIMITS } from '../constants/storytime-limits.constants';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
 import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
@@ -630,6 +631,29 @@ describe('StorytimeCharacterService', () => {
       expect(characterRepository.softDelete).toHaveBeenCalledWith(characterId);
       expect(characterRepository.save.mock.calls[0][0].deletedByUserId).toBe(
         ownerId,
+      );
+    });
+
+    // A deleted Character cannot be brought back, so the portrait goes too.
+    it('withdraws their portrait once deleted', async () => {
+      characterRepository.findOne.mockResolvedValue(
+        buildCharacter({ portraitImageId: 'portrait-1' }),
+      );
+      imageService.withdraw.mockImplementation(() => {
+        expect(characterRepository.softDelete).toHaveBeenCalledWith(
+          characterId,
+        );
+
+        return Promise.resolve(undefined);
+      });
+
+      await service.remove(characterId, ownerId);
+
+      expect(imageService.withdraw).toHaveBeenCalledWith(
+        StorytimeImageSlot.CHARACTER_PORTRAIT,
+        characterId,
+        'portrait-1',
+        STORYTIME_DELETION_REASONS.CHARACTER,
       );
     });
 

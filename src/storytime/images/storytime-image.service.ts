@@ -161,11 +161,14 @@ export class StorytimeImageService {
    * @param slot - Which piece of artwork was removed.
    * @param entityId - The work it belonged to.
    * @param imageId - The image that was there, when there was one.
+   * @param reason - Why, as the registry records it: the owner removing the
+   *   picture unless said, or the work it belonged to being deleted.
    */
   async withdraw(
     slot: StorytimeImageSlot,
     entityId: string,
     imageId: string | null | undefined,
+    reason = 'Removed by the owner',
   ): Promise<void> {
     const placement = STORYTIME_PLACEMENTS[slot];
 
@@ -174,7 +177,7 @@ export class StorytimeImageService {
       entityId,
       placement.slot,
       imageId ?? null,
-      'Removed by the owner',
+      reason,
     );
   }
 }
