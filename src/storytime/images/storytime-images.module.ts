@@ -12,6 +12,7 @@ import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity
 import { StorytimeArcImagePublisher } from './storytime-arc-image.publisher';
 import { StorytimeCastImagePublisher } from './storytime-cast-image.publisher';
 import { StorytimeChapterImagePublisher } from './storytime-chapter-image.publisher';
+import { StorytimeDeletedArtworkSweepService } from './storytime-deleted-artwork-sweep.service';
 import { StorytimeImageService } from './storytime-image.service';
 import { StorytimeSpotlightImagePublisher } from './storytime-spotlight-image.publisher';
 import { StorytimeStoryImagePublisher } from './storytime-story-image.publisher';
@@ -50,6 +51,7 @@ import { StorytimeStoryImagePublisher } from './storytime-story-image.publisher'
     StorytimeChapterImagePublisher,
     StorytimeCastImagePublisher,
     StorytimeSpotlightImagePublisher,
+    StorytimeDeletedArtworkSweepService,
   ],
   exports: [StorytimeImageService],
 })
