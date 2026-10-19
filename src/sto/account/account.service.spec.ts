@@ -11,6 +11,12 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { jest } from '@jest/globals';
 import { Repository } from 'typeorm';
 
+import {
+  PERSONAL_PICTURE_REASONS,
+  PersonalPictureWithdrawalService,
+} from 'src/user/images/personal-picture-withdrawal.service';
+
+import { CharacterEntity } from '../character/entities/character.entity';
 import { PlatformLauncherEntity } from '../platform-launcher/entities/platform-launcher.entity';
 import { AccountSortBy, AccountSortOrder } from './account-sort.utility';
 import { AccountService } from './account.service';
@@ -20,8 +26,17 @@ describe('AccountService', () => {
   let service: AccountService;
   let repository: Repository<AccountEntity>;
   let platformLauncherRepository: Repository<PlatformLauncherEntity>;
+  let characters: {
+    find: jest.Mock<(...args: unknown[]) => Promise<unknown[]>>;
+  };
+  let pictures: {
+    withdraw: jest.Mock<(...args: unknown[]) => Promise<void>>;
+    withdrawEach: jest.Mock<(...args: unknown[]) => Promise<number>>;
+  };
 
   beforeEach(async () => {
+    characters = { find: jest.fn(async () => []) };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AccountService,
@@ -35,12 +50,20 @@ describe('AccountService', () => {
             update: jest.fn(),
             softDelete: jest.fn(),
             delete: jest.fn(),
+            manager: characters,
           },
         },
         {
           provide: getRepositoryToken(PlatformLauncherEntity),
           useValue: {
             find: jest.fn(),
+          },
+        },
+        {
+          provide: PersonalPictureWithdrawalService,
+          useValue: {
+            withdraw: jest.fn(async () => undefined),
+            withdrawEach: jest.fn(async () => 0),
           },
         },
       ],
@@ -53,6 +76,7 @@ describe('AccountService', () => {
     platformLauncherRepository = module.get<Repository<PlatformLauncherEntity>>(
       getRepositoryToken(PlatformLauncherEntity),
     );
+    pictures = module.get(PersonalPictureWithdrawalService);
   });
 
   afterEach(() => {
@@ -1077,6 +1101,48 @@ describe('AccountService', () => {
 
       expect(repository.findOne).toHaveBeenCalledWith({ where: { id: '1' } });
       expect(repository.softDelete).toHaveBeenCalledWith('1');
+    });
+
+    // Its Characters cannot be reached once it has gone.
+    it("withdraws its Characters' portraits once it is deleted", async () => {
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: '1', userId: 'user-1' });
+      (
+        repository.softDelete as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ affected: 1 });
+      characters.find.mockResolvedValue([
+        { id: 'c1', profilePictureId: 'portrait-1' },
+        { id: 'c2', profilePictureId: null },
+      ]);
+
+      await service.removeForUser('1', 'user-1');
+
+      expect(characters.find).toHaveBeenCalledWith(CharacterEntity, {
+        where: { accountId: '1' },
+        select: { id: true, profilePictureId: true },
+      });
+      expect(pictures.withdrawEach).toHaveBeenCalledWith(
+        [PersonalPictureWithdrawalService.portrait('c1', 'portrait-1'), null],
+        PERSONAL_PICTURE_REASONS.STO_ACCOUNT_DELETED,
+      );
+      expect(
+        (repository.softDelete as jest.Mock).mock.invocationCallOrder[0],
+      ).toBeLessThan(pictures.withdrawEach.mock.invocationCallOrder[0]);
+    });
+
+    it('withdraws nothing when the account was not deleted', async () => {
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: '1', userId: 'user-1' });
+      (
+        repository.softDelete as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ affected: 0 });
+
+      await expect(service.removeForUser('1', 'user-1')).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(pictures.withdrawEach).not.toHaveBeenCalled();
     });
 
     it('should throw ForbiddenException if account is not owned by user', async () => {

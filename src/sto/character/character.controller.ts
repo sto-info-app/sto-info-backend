@@ -23,6 +23,8 @@ import {
   ApiBearerAuth,
   ApiBody,
   ApiConsumes,
+  ApiNoContentResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiPayloadTooLargeResponse,
   ApiTags,
@@ -174,6 +176,27 @@ export class CharacterController {
       );
       throw error;
     }
+  }
+
+  /**
+   * Takes a character's portrait off, and withdraws it.
+   *
+   * @param userId Authenticated user ID (injected).
+   * @param id Character ID.
+   */
+  @Delete(':id/profile-image')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse({
+    description: 'The portrait was removed, or the character had none.',
+  })
+  @ApiNotFoundResponse({
+    description: 'The authenticated user has no such character.',
+  })
+  async removeProfileImage(
+    @UserId() userId: string,
+    @Param('id') id: string,
+  ): Promise<void> {
+    await this._characterService.removeProfileImage(id, userId);
   }
 
   /**

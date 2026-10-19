@@ -21,6 +21,10 @@ import { UserProfileEntity } from './entities/user-profile.entity';
 import { UserEntity } from './entities/user.entity';
 import { UserRole } from './enums/user-role.enum';
 import {
+  PERSONAL_PICTURE_REASONS,
+  PersonalPictureWithdrawalService,
+} from './images/personal-picture-withdrawal.service';
+import {
   DEFAULT_USER_PREFERENCES,
   UserPreferenceService,
 } from './user-preference.service';
@@ -35,6 +39,10 @@ describe('UserService', () => {
   let userProfileRepository: Repository<UserProfileEntity>;
   let validatorsService: ValidatorsService;
   let imageIngress: ImageIngressService;
+  let pictures: {
+    withdraw: jest.Mock<(...args: unknown[]) => Promise<void>>;
+    withdrawEach: jest.Mock<(...args: unknown[]) => Promise<number>>;
+  };
   let mailService: Pick<MailService, 'sendAccountClosureEmail'>;
   let preferenceService: {
     get: jest.Mock<(...args: any[]) => Promise<any>>;
@@ -122,6 +130,13 @@ describe('UserService', () => {
           provide: AccountClosureLedgerService,
           useValue: { record: jest.fn(async () => new Date()) },
         },
+        {
+          provide: PersonalPictureWithdrawalService,
+          useValue: {
+            withdraw: jest.fn(async () => undefined),
+            withdrawEach: jest.fn(async () => 0),
+          },
+        },
       ],
     }).compile();
 
@@ -138,6 +153,7 @@ describe('UserService', () => {
       module.get<Pick<MailService, 'sendAccountClosureEmail'>>(MailService);
     preferenceService = module.get(UserPreferenceService);
     closures = module.get(AccountClosureLedgerService);
+    pictures = module.get(PersonalPictureWithdrawalService);
     preferenceService.get.mockResolvedValue(preferencesFor());
     preferenceService.update.mockImplementation(
       async (_userId: string, changes: Record<string, unknown>) =>
@@ -864,6 +880,7 @@ describe('UserService', () => {
         update: jest.fn(async () => ({ affected: 1 })),
         find: jest.fn(async () => [{ id: 'a1' }]),
         softDelete: jest.fn(async () => ({ affected: 1 })),
+        findOne: jest.fn(async () => null),
       };
 
       (
@@ -879,9 +896,8 @@ describe('UserService', () => {
           (...args: any[]) => Promise<any>
         >
       ).mockImplementation(
-        async (callback: (managerArg: any) => Promise<void>) => {
-          await callback(manager);
-        },
+        async (callback: (managerArg: any) => Promise<unknown>) =>
+          callback(manager),
       );
 
       await service.closeAccount('1');
@@ -918,6 +934,7 @@ describe('UserService', () => {
         update: jest.fn(async () => ({ affected: 1 })),
         find: jest.fn(async () => []),
         softDelete: jest.fn(async () => ({ affected: 1 })),
+        findOne: jest.fn(async () => null),
       };
 
       (
@@ -928,9 +945,8 @@ describe('UserService', () => {
           (...args: any[]) => Promise<any>
         >
       ).mockImplementation(
-        async (callback: (managerArg: any) => Promise<void>) => {
-          await callback(manager);
-        },
+        async (callback: (managerArg: any) => Promise<unknown>) =>
+          callback(manager),
       );
 
       await service.closeAccount('1');
@@ -986,6 +1002,7 @@ describe('UserService', () => {
         update: jest.fn(async () => ({ affected: 1 })),
         find: jest.fn(async () => []),
         softDelete: jest.fn(async () => ({ affected: 1 })),
+        findOne: jest.fn(async () => null),
       };
 
       (
@@ -1001,9 +1018,8 @@ describe('UserService', () => {
           (...args: any[]) => Promise<any>
         >
       ).mockImplementation(
-        async (callback: (managerArg: any) => Promise<void>) => {
-          await callback(manager);
-        },
+        async (callback: (managerArg: any) => Promise<unknown>) =>
+          callback(manager),
       );
 
       await service.closeAccount('1');
@@ -1025,6 +1041,7 @@ describe('UserService', () => {
         update: jest.fn(async () => ({ affected: 1 })),
         find: jest.fn(async () => []),
         softDelete: jest.fn(async () => ({ affected: 1 })),
+        findOne: jest.fn(async () => null),
       };
 
       const user = {
@@ -1058,6 +1075,158 @@ describe('UserService', () => {
     });
   });
 
+  describe('closing takes the pictures down', () => {
+    /**
+     * Arranges a closure whose profile and Characters hold the pictures given.
+     *
+     * @param profilePictureId - The profile picture, or null.
+     * @param portraits - Each Character's portrait, or null.
+     * @returns The transaction's manager.
+     */
+    const arrangeClosure = (
+      profilePictureId: string | null,
+      portraits: Array<string | null>,
+    ) => {
+      const manager = {
+        update: jest.fn(async () => ({ affected: 1 })),
+        find: jest.fn(async (entity: unknown) =>
+          entity === CharacterEntity
+            ? portraits.map((portrait, index) => ({
+                id: `c${index + 1}`,
+                profilePictureId: portrait,
+              }))
+            : [{ id: 'a1' }],
+        ),
+        softDelete: jest.fn<(entity: unknown) => Promise<{ affected: number }>>(
+          async () => ({ affected: 1 }),
+        ),
+        findOne: jest.fn(async () => ({ userId: '1', profilePictureId })),
+      };
+
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: '1', email: 'captain@example.com' });
+      (
+        (userRepository as any).manager.transaction as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockImplementation(
+        async (callback: (managerArg: any) => Promise<unknown>) =>
+          callback(manager),
+      );
+
+      return manager;
+    };
+
+    it('withdraws the profile picture and every portrait once the closure has committed', async () => {
+      const manager = arrangeClosure('profile-1', ['portrait-1', null]);
+
+      await service.closeAccount('1');
+
+      expect(manager.find).toHaveBeenCalledWith(CharacterEntity, {
+        where: { accountId: expect.any(Object) },
+        select: { id: true, profilePictureId: true },
+      });
+      expect(pictures.withdrawEach).toHaveBeenCalledWith(
+        [
+          PersonalPictureWithdrawalService.profilePicture('1', 'profile-1'),
+          PersonalPictureWithdrawalService.portrait('c1', 'portrait-1'),
+          null,
+        ],
+        PERSONAL_PICTURE_REASONS.ACCOUNT_CLOSED,
+      );
+      expect(pictures.withdrawEach.mock.invocationCallOrder[0]).toBeGreaterThan(
+        ((userRepository as any).manager.transaction as jest.Mock).mock
+          .invocationCallOrder[0],
+      );
+    });
+
+    it('reads the portraits before the Characters are deleted', async () => {
+      const manager = arrangeClosure(null, ['portrait-1']);
+
+      await service.closeAccount('1');
+
+      const characterFind = manager.find.mock.calls.findIndex(
+        ([entity]) => entity === CharacterEntity,
+      );
+      const characterDelete = manager.softDelete.mock.calls.findIndex(
+        ([entity]) => entity === CharacterEntity,
+      );
+
+      expect(manager.find.mock.invocationCallOrder[characterFind]).toBeLessThan(
+        manager.softDelete.mock.invocationCallOrder[characterDelete],
+      );
+    });
+
+    it('withdraws nothing when the closure fails', async () => {
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: '1', email: 'captain@example.com' });
+      (
+        (userRepository as any).manager.transaction as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockRejectedValue(new Error('deadlock'));
+
+      await expect(service.closeAccount('1')).rejects.toThrow('deadlock');
+      expect(pictures.withdrawEach).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('removeProfilePicture', () => {
+    /**
+     * Arranges a user whose profile shows the picture given.
+     *
+     * @param profilePictureId - The picture, or null.
+     */
+    const arrangeProfile = (profilePictureId: string | null): void => {
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
+        id: '1',
+        profile: { userId: '1', profilePictureId },
+      });
+    };
+
+    it('takes the picture off the profile, then withdraws it', async () => {
+      arrangeProfile('profile-1');
+
+      await service.removeProfilePicture('1');
+
+      expect(userProfileRepository.update).toHaveBeenCalledWith(
+        { userId: '1' },
+        { profilePictureId: null },
+      );
+      expect(pictures.withdraw).toHaveBeenCalledWith(
+        PersonalPictureWithdrawalService.profilePicture('1', 'profile-1'),
+        PERSONAL_PICTURE_REASONS.REMOVED,
+      );
+      expect(
+        (userProfileRepository.update as jest.Mock).mock.invocationCallOrder[0],
+      ).toBeLessThan(pictures.withdraw.mock.invocationCallOrder[0]);
+    });
+
+    it('leaves a profile with no picture as it is', async () => {
+      arrangeProfile(null);
+
+      await service.removeProfilePicture('1');
+
+      expect(userProfileRepository.update).not.toHaveBeenCalled();
+      expect(pictures.withdraw).not.toHaveBeenCalled();
+    });
+
+    it('refuses when the member cannot be found', async () => {
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
+
+      await expect(service.removeProfilePicture('1')).rejects.toThrow(
+        HttpException,
+      );
+      expect(pictures.withdraw).not.toHaveBeenCalled();
+    });
+  });
+
   // FC-042: the restore check closes again an account a restore opened.
   describe('closeAgain', () => {
     it('closes it as of when it was first closed, writing no marker and sending no email', async () => {
@@ -1065,6 +1234,7 @@ describe('UserService', () => {
         update: jest.fn(async () => ({ affected: 1 })),
         find: jest.fn(async () => [{ id: 'a1' }]),
         softDelete: jest.fn(async () => ({ affected: 1 })),
+        findOne: jest.fn(async () => null),
       };
       const closedAt = new Date('2026-09-01T12:00:00.000Z');
 
@@ -1073,9 +1243,8 @@ describe('UserService', () => {
           (...args: any[]) => Promise<any>
         >
       ).mockImplementation(
-        async (callback: (managerArg: any) => Promise<void>) => {
-          await callback(manager);
-        },
+        async (callback: (managerArg: any) => Promise<unknown>) =>
+          callback(manager),
       );
 
       await service.closeAgain('1', closedAt);

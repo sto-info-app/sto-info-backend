@@ -31,6 +31,7 @@ describe('CharacterController', () => {
             getRecruitTypes: jest.fn(),
             getSpecies: jest.fn(),
             uploadProfileImage: jest.fn(),
+            removeProfileImage: jest.fn(),
           },
         },
       ],
@@ -129,6 +130,16 @@ describe('CharacterController', () => {
     it('should call service.removeForUser', async () => {
       await controller.remove('user-1', 'char-1');
       expect(service.removeForUser).toHaveBeenCalledWith('char-1', 'user-1');
+    });
+  });
+
+  describe('removeProfileImage', () => {
+    it('should call service.removeProfileImage', async () => {
+      await controller.removeProfileImage('user-1', 'char-1');
+      expect(service.removeProfileImage).toHaveBeenCalledWith(
+        'char-1',
+        'user-1',
+      );
     });
   });
 

@@ -12,6 +12,10 @@ import { jest } from '@jest/globals';
 import { Repository } from 'typeorm';
 
 import { ImageIngressService } from 'src/file-assets/services/image-ingress.service';
+import {
+  PERSONAL_PICTURE_REASONS,
+  PersonalPictureWithdrawalService,
+} from 'src/user/images/personal-picture-withdrawal.service';
 
 import { AccountEntity } from '../account/entities/account.entity';
 import { CharacterSortBy, CharacterSortOrder } from './character-sort.utility';
@@ -35,6 +39,10 @@ describe('CharacterService', () => {
   let recruitTypeRepository: Repository<RecruitTypeEntity>;
   let speciesRepository: Repository<SpeciesEntity>;
   let imageIngress: ImageIngressService;
+  let pictures: {
+    withdraw: jest.Mock<(...args: unknown[]) => Promise<void>>;
+    withdrawEach: jest.Mock<(...args: unknown[]) => Promise<number>>;
+  };
 
   beforeEach(async () => {
     process.env.CLOUDFLARE_CDN_ROOT_URL = 'https://cdn.startrekonline.info';
@@ -106,6 +114,13 @@ describe('CharacterService', () => {
             accept: jest.fn(),
           },
         },
+        {
+          provide: PersonalPictureWithdrawalService,
+          useValue: {
+            withdraw: jest.fn(async () => undefined),
+            withdrawEach: jest.fn(async () => 0),
+          },
+        },
       ],
     }).compile();
 
@@ -135,6 +150,7 @@ describe('CharacterService', () => {
       getRepositoryToken(SpeciesEntity),
     );
     imageIngress = module.get<ImageIngressService>(ImageIngressService);
+    pictures = module.get(PersonalPictureWithdrawalService);
     jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
     jest.spyOn(Logger.prototype, 'debug').mockImplementation(() => undefined);
@@ -832,6 +848,35 @@ describe('CharacterService', () => {
       expect(characterRepository.softDelete).toHaveBeenCalledWith('char-1');
     });
 
+    // Nothing brings a deleted Character back to show it again.
+    it('withdraws the portrait once the Character is deleted', async () => {
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
+        id: 'char-1',
+        profilePictureId: 'portrait-1',
+        account: { userId: 'user-1' },
+      });
+      (
+        characterRepository.softDelete as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({ affected: 1 });
+
+      await service.removeForUser('char-1', 'user-1');
+
+      expect(pictures.withdrawEach).toHaveBeenCalledWith(
+        [PersonalPictureWithdrawalService.portrait('char-1', 'portrait-1')],
+        PERSONAL_PICTURE_REASONS.CHARACTER_DELETED,
+      );
+      expect(
+        (characterRepository.softDelete as jest.Mock).mock
+          .invocationCallOrder[0],
+      ).toBeLessThan(pictures.withdrawEach.mock.invocationCallOrder[0]);
+    });
+
     it('should throw BadRequestException if id is missing', async () => {
       await expect(service.removeForUser('', 'user-1')).rejects.toThrow(
         BadRequestException,
@@ -842,6 +887,68 @@ describe('CharacterService', () => {
       await expect(service.removeForUser('char-1', '')).rejects.toThrow(
         BadRequestException,
       );
+    });
+  });
+
+  describe('removeProfileImage', () => {
+    /**
+     * Arranges one of the caller's Characters showing the portrait given.
+     *
+     * @param profilePictureId - The portrait, or null.
+     */
+    const arrangeCharacter = (profilePictureId: string | null): void => {
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
+        id: 'char-1',
+        profilePictureId,
+        account: { userId: 'user-1' },
+      });
+    };
+
+    it('takes the portrait off the Character, then withdraws it', async () => {
+      arrangeCharacter('portrait-1');
+
+      await service.removeProfileImage('char-1', 'user-1');
+
+      expect(characterRepository.update).toHaveBeenCalledWith('char-1', {
+        profilePictureId: null,
+      });
+      expect(pictures.withdraw).toHaveBeenCalledWith(
+        PersonalPictureWithdrawalService.portrait('char-1', 'portrait-1'),
+        PERSONAL_PICTURE_REASONS.REMOVED,
+      );
+      expect(
+        (characterRepository.update as jest.Mock).mock.invocationCallOrder[0],
+      ).toBeLessThan(pictures.withdraw.mock.invocationCallOrder[0]);
+    });
+
+    it('leaves a Character with no portrait as it is', async () => {
+      arrangeCharacter(null);
+
+      await service.removeProfileImage('char-1', 'user-1');
+
+      expect(characterRepository.update).not.toHaveBeenCalled();
+      expect(pictures.withdraw).not.toHaveBeenCalled();
+    });
+
+    it("refuses a Character that is not the caller's", async () => {
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
+        id: 'char-1',
+        profilePictureId: 'portrait-1',
+        account: { userId: 'someone-else' },
+      });
+
+      await expect(
+        service.removeProfileImage('char-1', 'user-1'),
+      ).rejects.toThrow();
+      expect(pictures.withdraw).not.toHaveBeenCalled();
     });
   });
 

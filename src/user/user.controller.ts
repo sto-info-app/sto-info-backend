@@ -25,6 +25,7 @@ import {
   ApiBody,
   ApiConflictResponse,
   ApiConsumes,
+  ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -322,5 +323,28 @@ export class UserController {
     file.filename = `${file.fieldname}-${uniqueSuffix}${extname(file.originalname)}`;
 
     return this._userService.uploadProfilePicture(userId, file);
+  }
+
+  /**
+   * Takes the authenticated user's profile picture off, and withdraws it.
+   *
+   * @param userId Authenticated user ID (injected).
+   */
+  @ApiOperation({
+    summary: 'Remove the profile picture',
+    description:
+      'Takes the picture off the profile, revokes it in the file registry and deletes it from Cloudflare Images. A profile with no picture is left as it is.',
+  })
+  @ApiNoContentResponse({
+    description: 'The picture was removed, or the profile had none.',
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid access token.' })
+  @ApiNotFoundResponse({
+    description: 'User/profile not found for the authenticated user id.',
+  })
+  @Delete('profile-pic')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async removeUserProfilePic(@UserId() userId: string): Promise<void> {
+    await this._userService.removeProfilePicture(userId);
   }
 }

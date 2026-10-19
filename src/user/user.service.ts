@@ -45,6 +45,11 @@ import { UserSettingsDto } from './dto/user-settings.dto';
 import { UserPreferenceEntity } from './entities/user-preference.entity';
 import { UserProfileEntity } from './entities/user-profile.entity';
 import { UserEntity } from './entities/user.entity';
+import {
+  PERSONAL_PICTURE_REASONS,
+  PersonalPicture,
+  PersonalPictureWithdrawalService,
+} from './images/personal-picture-withdrawal.service';
 import { UserPreferenceService } from './user-preference.service';
 
 @Injectable()
@@ -77,6 +82,7 @@ export class UserService {
     private readonly _mailService: MailService,
     private readonly _userPreferenceService: UserPreferenceService,
     private readonly _closures: AccountClosureLedgerService,
+    private readonly _pictures: PersonalPictureWithdrawalService,
     @Optional()
     @Inject(ACCOUNT_DEPARTURE)
     private readonly _departure?: AccountDeparture,
@@ -312,7 +318,13 @@ export class UserService {
 
   /**
    * Closes an account: its Communities first, then its sessions and data,
-   * in one transaction.
+   * in one transaction, and then its own pictures.
+   *
+   * The profile picture and every Character's portrait are withdrawn once the
+   * transaction has committed, recorded as "The account was closed". Nothing
+   * reopens a closed account, so they no longer wait for the account to be
+   * erased. One that cannot be withdrawn is logged rather than failing a
+   * closure that has already happened; the sweep at the next start finds it.
    *
    * @param userId - The account.
    * @param closedAt - When to record it as closed, or null for now.
@@ -322,35 +334,71 @@ export class UserService {
     // (FC-038): nothing open may be left without an Owner.
     await this._departure?.depart(userId);
 
-    await this._userRepository.manager.transaction(async manager => {
-      await manager.update(
-        UserRefreshTokenEntity,
-        { userId, isRevoked: false },
-        { isRevoked: true },
-      );
+    const pictures = await this._userRepository.manager.transaction(
+      async manager => {
+        await manager.update(
+          UserRefreshTokenEntity,
+          { userId, isRevoked: false },
+          { isRevoked: true },
+        );
 
-      const ownedAccounts = await manager.find(AccountEntity, {
-        where: { userId },
-        select: { id: true },
-      });
-
-      const accountIds = ownedAccounts.map(account => account.id);
-
-      if (accountIds.length) {
-        await manager.softDelete(CharacterEntity, {
-          accountId: In(accountIds),
+        const ownedAccounts = await manager.find(AccountEntity, {
+          where: { userId },
+          select: { id: true },
         });
-      }
 
-      await manager.softDelete(AccountEntity, { userId });
-      await manager.softDelete(UserProfileEntity, { userId });
-      await manager.softDelete(UserEntity, userId);
+        const accountIds = ownedAccounts.map(account => account.id);
+        const held: Array<PersonalPicture | null> = [];
 
-      // The clean-up's retention clock runs from the user's deletedAt.
-      if (closedAt !== null) {
-        await manager.update(UserEntity, userId, { deletedAt: closedAt });
-      }
-    });
+        const profile = await manager.findOne(UserProfileEntity, {
+          where: { userId },
+          select: { userId: true, profilePictureId: true },
+        });
+
+        held.push(
+          PersonalPictureWithdrawalService.profilePicture(
+            userId,
+            profile?.profilePictureId,
+          ),
+        );
+
+        if (accountIds.length) {
+          const characters = await manager.find(CharacterEntity, {
+            where: { accountId: In(accountIds) },
+            select: { id: true, profilePictureId: true },
+          });
+
+          held.push(
+            ...characters.map(character =>
+              PersonalPictureWithdrawalService.portrait(
+                character.id,
+                character.profilePictureId,
+              ),
+            ),
+          );
+
+          await manager.softDelete(CharacterEntity, {
+            accountId: In(accountIds),
+          });
+        }
+
+        await manager.softDelete(AccountEntity, { userId });
+        await manager.softDelete(UserProfileEntity, { userId });
+        await manager.softDelete(UserEntity, userId);
+
+        // The clean-up's retention clock runs from the user's deletedAt.
+        if (closedAt !== null) {
+          await manager.update(UserEntity, userId, { deletedAt: closedAt });
+        }
+
+        return held;
+      },
+    );
+
+    await this._pictures.withdrawEach(
+      pictures,
+      PERSONAL_PICTURE_REASONS.ACCOUNT_CLOSED,
+    );
   }
 
   /**
@@ -623,6 +671,36 @@ export class UserService {
       sizeLimitLabel: 'Profile pictures',
       file,
     });
+  }
+
+  /**
+   * Takes the member's profile picture off, and withdraws it.
+   *
+   * The profile stops pointing at the picture first, so a reader never meets
+   * a picture that has gone, and the picture is then revoked in the registry
+   * and deleted from Cloudflare. A profile with no picture is left as it is.
+   *
+   * @param userId - The member.
+   * @throws HttpException when the member or their profile cannot be found.
+   */
+  async removeProfilePicture(userId: string): Promise<void> {
+    const user = await this._getUserWithOwnProfile(userId);
+    const profile = user.profile as UserProfileEntity;
+    const picture = PersonalPictureWithdrawalService.profilePicture(
+      userId,
+      profile.profilePictureId,
+    );
+
+    if (picture === null) {
+      return;
+    }
+
+    await this._userProfileRepository.update(
+      { userId },
+      { profilePictureId: null },
+    );
+
+    await this._pictures.withdraw(picture, PERSONAL_PICTURE_REASONS.REMOVED);
   }
 
   /**

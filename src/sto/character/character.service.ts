@@ -23,6 +23,10 @@ import {
   generateSlug,
   normalizeHandle,
 } from 'src/shared/utilities/handle.utility';
+import {
+  PERSONAL_PICTURE_REASONS,
+  PersonalPictureWithdrawalService,
+} from 'src/user/images/personal-picture-withdrawal.service';
 
 import { AccountEntity } from '../account/entities/account.entity';
 import {
@@ -78,6 +82,7 @@ export class CharacterService {
     @InjectRepository(SpeciesEntity)
     private readonly _speciesRepository: Repository<SpeciesEntity>,
     private readonly _imageIngress: ImageIngressService,
+    private readonly _pictures: PersonalPictureWithdrawalService,
   ) {}
 
   /**
@@ -473,10 +478,16 @@ export class CharacterService {
   }
 
   /**
-   * Removes for user.
+   * Soft-deletes one of the caller's Characters, and withdraws its portrait.
    *
-   * @param id - The id.
-   * @param userId - The user id.
+   * Nothing brings a deleted Character back, so its portrait is withdrawn
+   * rather than left to be served from its old address, recorded as "Its
+   * Character was deleted". The Character stops pointing at it first, by
+   * being deleted; one whose withdrawal fails is found again by the sweep at
+   * the next start.
+   *
+   * @param id - The Character.
+   * @param userId - The caller.
    */
   async removeForUser(id: string, userId: string): Promise<void> {
     if (!id) {
@@ -489,6 +500,46 @@ export class CharacterService {
 
     const character = await this.findOneForUser(id, userId);
     await this._characterRepository.softDelete(character.id);
+
+    await this._pictures.withdrawEach(
+      [
+        PersonalPictureWithdrawalService.portrait(
+          character.id,
+          character.profilePictureId,
+        ),
+      ],
+      PERSONAL_PICTURE_REASONS.CHARACTER_DELETED,
+    );
+  }
+
+  /**
+   * Takes one of the caller's Characters' portrait off, and withdraws it.
+   *
+   * The Character stops pointing at the portrait first, so a reader never
+   * meets a picture that has gone, and the portrait is then revoked in the
+   * registry and deleted from Cloudflare. A Character with no portrait is
+   * left as it is.
+   *
+   * @param id - The Character.
+   * @param userId - The caller.
+   * @throws NotFoundException when the caller has no such Character.
+   */
+  async removeProfileImage(id: string, userId: string): Promise<void> {
+    const character = await this.findOneForUser(id, userId);
+    const picture = PersonalPictureWithdrawalService.portrait(
+      character.id,
+      character.profilePictureId,
+    );
+
+    if (picture === null) {
+      return;
+    }
+
+    await this._characterRepository.update(character.id, {
+      profilePictureId: null,
+    });
+
+    await this._pictures.withdraw(picture, PERSONAL_PICTURE_REASONS.REMOVED);
   }
 
   /**

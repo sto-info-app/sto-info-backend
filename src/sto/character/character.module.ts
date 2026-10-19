@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AssetIngressModule } from 'src/file-assets/asset-ingress.module';
 import { SharedModule } from 'src/shared/shared.module';
+import { PersonalPictureWithdrawalService } from 'src/user/images/personal-picture-withdrawal.service';
 
 import { AccountEntity } from '../account/entities/account.entity';
 import { CharacterOwnershipService } from './character-ownership.service';
@@ -41,6 +42,8 @@ import { CharacterImagePublisher } from './images/character-image.publisher';
     CharacterService,
     CharacterOwnershipService,
     CharacterImagePublisher,
+    // Removing a portrait, or deleting its Character, withdraws it.
+    PersonalPictureWithdrawalService,
   ],
   exports: [CharacterService, CharacterOwnershipService],
 })

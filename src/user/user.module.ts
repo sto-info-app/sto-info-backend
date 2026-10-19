@@ -12,6 +12,8 @@ import { AccountClosureReconciliationService } from './closure/account-closure-r
 import { UserPreferenceEntity } from './entities/user-preference.entity';
 import { UserProfileEntity } from './entities/user-profile.entity';
 import { UserEntity } from './entities/user.entity';
+import { DeletedPersonalPictureSweepService } from './images/deleted-personal-picture-sweep.service';
+import { PersonalPictureWithdrawalService } from './images/personal-picture-withdrawal.service';
 import { UserProfileImagePublisher } from './images/user-profile-image.publisher';
 import { UserPreferenceService } from './user-preference.service';
 import { UserController } from './user.controller';
@@ -37,6 +39,10 @@ import { UserService } from './user.service';
     UserPreferenceService,
     ValidatorsService,
     UserProfileImagePublisher,
+    // Removing, or deleting what holds, a profile picture or a portrait
+    // withdraws it; the sweep catches what earlier deletions left.
+    PersonalPictureWithdrawalService,
+    DeletedPersonalPictureSweepService,
     // Each closure kept outside the database, and checked at boot (FC-042).
     AccountClosureLedgerService,
     AccountClosureReconciliationService,

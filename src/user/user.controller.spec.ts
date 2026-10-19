@@ -37,6 +37,7 @@ describe('UserController', () => {
             updateUserProfile: updateUserProfileMock,
             uploadProfilePicture: uploadProfilePictureMock,
             closeAccount: closeAccountMock,
+            removeProfilePicture: jest.fn(async () => undefined),
             closurePreview: jest.fn(async () => []),
             getSettings: getSettingsMock,
             updateSettings: updateSettingsMock,
@@ -119,6 +120,14 @@ describe('UserController', () => {
       await expect(
         controller.updateUserProfile('1', null as any),
       ).rejects.toThrow(HttpException);
+    });
+  });
+
+  describe('removeUserProfilePic', () => {
+    it('asks the service to take the picture off', async () => {
+      await controller.removeUserProfilePic('1');
+
+      expect(userService.removeProfilePicture).toHaveBeenCalledWith('1');
     });
   });
 
