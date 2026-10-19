@@ -1131,6 +1131,28 @@ describe('AccountService', () => {
       ).toBeLessThan(pictures.withdrawEach.mock.invocationCallOrder[0]);
     });
 
+    it('asks Custom Tracking to take down what it holds about the account', async () => {
+      const recordDeletion = {
+        charactersDeleted: jest.fn(async () => undefined),
+        accountsDeleted: jest.fn(async () => undefined),
+      };
+
+      Object.assign(service, { _recordDeletion: recordDeletion });
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: '1', userId: 'user-1' });
+      (
+        repository.softDelete as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ affected: 1 });
+
+      await service.removeForUser('1', 'user-1');
+
+      expect(recordDeletion.accountsDeleted).toHaveBeenCalledWith(
+        ['1'],
+        PERSONAL_PICTURE_REASONS.STO_ACCOUNT_DELETED,
+      );
+    });
+
     it('withdraws nothing when the account was not deleted', async () => {
       (
         repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>

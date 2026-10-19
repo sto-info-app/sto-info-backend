@@ -157,6 +157,83 @@ describe('CustomTrackingFieldPictureService', () => {
     });
   });
 
+  describe('detachForRecords', () => {
+    it('does nothing for no Accounts or Characters', async () => {
+      await expect(
+        service.detachForRecords(
+          manager as unknown as EntityManager,
+          { accountIds: [], characterIds: [] },
+          'Its Character was deleted',
+        ),
+      ).resolves.toEqual([]);
+
+      expect(manager.find).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [['account-1'], [], [{ accountId: In(['account-1']) }]],
+      [[], ['character-1'], [{ characterId: In(['character-1']) }]],
+      [
+        ['account-1'],
+        ['character-1'],
+        [
+          { accountId: In(['account-1']) },
+          { characterId: In(['character-1']) },
+        ],
+      ],
+    ])(
+      'reads the answers describing accounts %p and characters %p',
+      async (accountIds, characterIds, where) => {
+        await service.detachForRecords(
+          manager as unknown as EntityManager,
+          { accountIds, characterIds },
+          'Its STO account was deleted',
+        );
+
+        expect(manager.find).toHaveBeenCalledWith(
+          CustomTrackingValueEntity,
+          expect.objectContaining({ where }),
+        );
+      },
+    );
+
+    it('carries the deletion as the reason each picture goes', async () => {
+      holding(
+        [
+          {
+            id: 'value-1',
+            fieldId: 'field-1',
+            accountId: null,
+            characterId: 'character-1',
+          },
+        ],
+        [
+          {
+            id: 'image-value-1',
+            valueId: 'value-1',
+            cloudflareImageId: 'image-1',
+          },
+        ],
+      );
+
+      const [picture] = await service.detachForRecords(
+        manager as unknown as EntityManager,
+        { accountIds: [], characterIds: ['character-1'] },
+        'Its Character was deleted',
+      );
+
+      await service.withdrawEach([picture]);
+
+      expect(withdrawal.withdrawSlot).toHaveBeenCalledWith(
+        FileAssetSubject.CUSTOM_TRACKING_VALUE,
+        'field-1:character-1',
+        FileAssetSlot.PICTURE,
+        'image-1',
+        'Its Character was deleted',
+      );
+    });
+  });
+
   describe('release', () => {
     it('removes the answer, then withdraws the picture', async () => {
       await service.release(PICTURE);

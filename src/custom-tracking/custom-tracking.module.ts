@@ -38,6 +38,7 @@ import { CustomTrackingFieldPictureService } from './images/custom-tracking-fiel
 import { CustomTrackingImagePublisher } from './images/custom-tracking-image.publisher';
 import { CustomTrackingImageService } from './images/custom-tracking-image.service';
 import { CustomTrackingImagesController } from './images/custom-tracking-images.controller';
+import { CustomTrackingRecordDeletionService } from './images/custom-tracking-record-deletion.service';
 import { DeletedCustomTrackingPictureSweepService } from './images/deleted-custom-tracking-picture-sweep.service';
 import { CustomTrackingModerationController } from './moderation/custom-tracking-moderation.controller';
 import { CustomTrackingModerationService } from './moderation/custom-tracking-moderation.service';
@@ -130,6 +131,7 @@ import { CustomTrackingValuesController } from './values/custom-tracking-values.
     // A deleted Field's pictures go at once; the sweep catches earlier ones.
     CustomTrackingFieldPictureService,
     DeletedCustomTrackingPictureSweepService,
+    CustomTrackingRecordDeletionService,
     CustomTrackingPublicService,
     CustomTrackingPublicMapper,
     CustomTrackingImageCleanupService,
@@ -152,6 +154,7 @@ import { CustomTrackingValuesController } from './values/custom-tracking-values.
     CustomTrackingObservabilityService,
     CustomTrackingImageCleanupService,
     CustomTrackingPurgeService,
+    CustomTrackingRecordDeletionService,
   ],
 })
 export class CustomTrackingModule {}

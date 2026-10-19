@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-import { DataSource, EntityManager, In } from 'typeorm';
+import { DataSource, EntityManager, FindOptionsWhere, In } from 'typeorm';
 
 import { FileAssetSlot } from 'src/file-assets/enums/file-asset-slot.enum';
 import { FileAssetSubject } from 'src/file-assets/enums/file-asset-subject.enum';
@@ -12,6 +12,14 @@ import { customTrackingSubjectId } from './custom-tracking-image-subject.utility
 
 /** Why a picture went with its Field, as the file registry records it. */
 export const CUSTOM_TRACKING_FIELD_DELETED_REASON = 'Its field was deleted';
+
+/** The Accounts and Characters whose answers' pictures are to go. */
+export interface CustomTrackingRecords {
+  /** STO Accounts. */
+  readonly accountIds: readonly string[];
+  /** STO Characters. */
+  readonly characterIds: readonly string[];
+}
 
 /** A picture answering a Field, and the rows that hold it. */
 export interface CustomTrackingFieldPicture {
@@ -25,6 +33,8 @@ export interface CustomTrackingFieldPicture {
   readonly targetId: string;
   /** Its Cloudflare Images identifier. */
   readonly imageId: string;
+  /** Why it goes, when not because its Field was deleted. */
+  readonly reason?: string;
 }
 
 /**
@@ -40,6 +50,9 @@ export interface CustomTrackingFieldPicture {
  * picture still answering an expired Field for deletion, and Cloudflare
  * refuses to delete one that has already gone, so an answer left pointing at
  * a withdrawn picture would fail its clean-up every night until it alarmed.
+ *
+ * The same goes for the pictures describing an STO Account or Character that
+ * has been deleted: nothing can show them again either.
  */
 @Injectable()
 export class CustomTrackingFieldPictureService {
@@ -74,8 +87,56 @@ export class CustomTrackingFieldPictureService {
       return [];
     }
 
+    return this.detachWhere(manager, { fieldId: In(fieldIds) });
+  }
+
+  /**
+   * Removes the picture answers describing deleted Accounts and Characters.
+   *
+   * @param manager - The transaction to write in.
+   * @param records - The Accounts and Characters deleted.
+   * @param reason - Why, as the registry records it.
+   * @returns The pictures to withdraw.
+   */
+  async detachForRecords(
+    manager: EntityManager,
+    records: CustomTrackingRecords,
+    reason: string,
+  ): Promise<CustomTrackingFieldPicture[]> {
+    const where: FindOptionsWhere<CustomTrackingValueEntity>[] = [];
+
+    if (records.accountIds.length > 0) {
+      where.push({ accountId: In([...records.accountIds]) });
+    }
+
+    if (records.characterIds.length > 0) {
+      where.push({ characterId: In([...records.characterIds]) });
+    }
+
+    if (where.length === 0) {
+      return [];
+    }
+
+    return this.detachWhere(manager, where, reason);
+  }
+
+  /**
+   * Removes the picture answers among the answers matched.
+   *
+   * @param manager - The transaction to write in.
+   * @param where - Which answers.
+   * @param reason - Why, when not because their Field was deleted.
+   * @returns The pictures to withdraw.
+   */
+  private async detachWhere(
+    manager: EntityManager,
+    where:
+      | FindOptionsWhere<CustomTrackingValueEntity>
+      | FindOptionsWhere<CustomTrackingValueEntity>[],
+    reason?: string,
+  ): Promise<CustomTrackingFieldPicture[]> {
     const values = await manager.find(CustomTrackingValueEntity, {
-      where: { fieldId: In(fieldIds) },
+      where,
       withDeleted: true,
       select: { id: true, fieldId: true, accountId: true, characterId: true },
     });
@@ -107,6 +168,7 @@ export class CustomTrackingFieldPictureService {
               fieldId: value.fieldId,
               targetId: (value.accountId ?? value.characterId) as string,
               imageId: image.cloudflareImageId,
+              ...(reason ? { reason } : {}),
             },
           ]
         : [];
@@ -173,7 +235,7 @@ export class CustomTrackingFieldPictureService {
       customTrackingSubjectId(picture.fieldId, picture.targetId),
       FileAssetSlot.PICTURE,
       picture.imageId,
-      CUSTOM_TRACKING_FIELD_DELETED_REASON,
+      picture.reason ?? CUSTOM_TRACKING_FIELD_DELETED_REASON,
     );
   }
 

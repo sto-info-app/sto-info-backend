@@ -24,6 +24,10 @@ import { DEFAULT_MULTER_LIMITS } from 'src/shared/constants/file-upload.constant
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
 import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
+import {
+  STO_RECORD_DELETION,
+  StoRecordDeletion,
+} from 'src/sto/shared/sto-record-deletion';
 import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
 
 import {
@@ -86,6 +90,9 @@ export class UserService {
     @Optional()
     @Inject(ACCOUNT_DEPARTURE)
     private readonly _departure?: AccountDeparture,
+    @Optional()
+    @Inject(STO_RECORD_DELETION)
+    private readonly _recordDeletion?: StoRecordDeletion,
   ) {}
 
   /**
@@ -334,8 +341,8 @@ export class UserService {
     // (FC-038): nothing open may be left without an Owner.
     await this._departure?.depart(userId);
 
-    const pictures = await this._userRepository.manager.transaction(
-      async manager => {
+    const { pictures, accountIds } =
+      await this._userRepository.manager.transaction(async manager => {
         await manager.update(
           UserRefreshTokenEntity,
           { userId, isRevoked: false },
@@ -391,12 +398,18 @@ export class UserService {
           await manager.update(UserEntity, userId, { deletedAt: closedAt });
         }
 
-        return held;
-      },
-    );
+        return { pictures: held, accountIds };
+      });
 
     await this._pictures.withdrawEach(
       pictures,
+      PERSONAL_PICTURE_REASONS.ACCOUNT_CLOSED,
+    );
+
+    // And the Custom Tracking pictures recorded about their STO accounts and
+    // Characters, rather than waiting for the account to be erased.
+    await this._recordDeletion?.accountsDeleted(
+      accountIds,
       PERSONAL_PICTURE_REASONS.ACCOUNT_CLOSED,
     );
   }

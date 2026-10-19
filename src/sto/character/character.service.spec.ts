@@ -849,6 +849,32 @@ describe('CharacterService', () => {
     });
 
     // Nothing brings a deleted Character back to show it again.
+    it('asks Custom Tracking to take down what it holds about the Character', async () => {
+      const recordDeletion = {
+        charactersDeleted: jest.fn(async () => undefined),
+        accountsDeleted: jest.fn(async () => undefined),
+      };
+
+      Object.assign(service, { _recordDeletion: recordDeletion });
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({ id: 'char-1', account: { userId: 'user-1' } });
+      (
+        characterRepository.softDelete as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({ affected: 1 });
+
+      await service.removeForUser('char-1', 'user-1');
+
+      expect(recordDeletion.charactersDeleted).toHaveBeenCalledWith(
+        ['char-1'],
+        PERSONAL_PICTURE_REASONS.CHARACTER_DELETED,
+      );
+    });
+
     it('withdraws the portrait once the Character is deleted', async () => {
       (
         characterRepository.findOne as jest.Mock<

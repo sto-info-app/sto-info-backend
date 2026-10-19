@@ -2,9 +2,11 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
@@ -15,6 +17,10 @@ import {
   generateSlug,
   normalizeHandle,
 } from 'src/shared/utilities/handle.utility';
+import {
+  STO_RECORD_DELETION,
+  StoRecordDeletion,
+} from 'src/sto/shared/sto-record-deletion';
 import {
   PERSONAL_PICTURE_REASONS,
   PersonalPictureWithdrawalService,
@@ -63,6 +69,9 @@ export class AccountService {
     @InjectRepository(PlatformLauncherEntity)
     private readonly _platformLauncherRepository: Repository<PlatformLauncherEntity>,
     private readonly _pictures: PersonalPictureWithdrawalService,
+    @Optional()
+    @Inject(STO_RECORD_DELETION)
+    private readonly _recordDeletion?: StoRecordDeletion,
   ) {}
 
   /**
@@ -561,6 +570,13 @@ export class AccountService {
           character.profilePictureId,
         ),
       ),
+      PERSONAL_PICTURE_REASONS.STO_ACCOUNT_DELETED,
+    );
+
+    // The Custom Tracking pictures recorded about it and its Characters go
+    // too.
+    await this._recordDeletion?.accountsDeleted(
+      [account.id],
       PERSONAL_PICTURE_REASONS.STO_ACCOUNT_DELETED,
     );
   }

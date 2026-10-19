@@ -178,6 +178,33 @@ describe('CustomTrackingPurgeService', () => {
     });
   });
 
+  // Deleting an STO Account or Character never touched its answers, so their
+  // expiry is counted from the record.
+  it('removes the answers of Accounts and Characters deleted long enough ago', async () => {
+    rows.set(CustomTrackingValueEntity, [{ id: 'value-1' }]);
+
+    const summary = await service.purgeExpired(threshold);
+
+    const recordQuery = find.mock.calls.find(
+      ([entity, options]) =>
+        entity === CustomTrackingValueEntity &&
+        Array.isArray((options as { where?: unknown }).where),
+    );
+
+    expect(recordQuery?.[1]).toEqual(
+      expect.objectContaining({
+        where: [
+          { account: { deletedAt: expect.anything() } },
+          { character: { deletedAt: expect.anything() } },
+          { character: { account: { deletedAt: expect.anything() } } },
+        ],
+        withDeleted: true,
+      }),
+    );
+    // Found by both routes, removed once.
+    expect(summary.values).toBe(1);
+  });
+
   describe('purgeUsers', () => {
     it('takes everything a closed account had', async () => {
       rows.set(CustomTrackingSectionEntity, [{ id: 'section-1' }]);

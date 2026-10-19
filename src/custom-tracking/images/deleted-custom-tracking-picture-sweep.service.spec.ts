@@ -4,11 +4,16 @@ import { DataSource } from 'typeorm';
 
 import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
+import { AccountEntity } from 'src/sto/account/entities/account.entity';
+import { CharacterEntity } from 'src/sto/character/entities/character.entity';
+import { UserEntity } from 'src/user/entities/user.entity';
+import { PERSONAL_PICTURE_REASONS } from 'src/user/images/personal-picture-withdrawal.service';
 
 import { CustomTrackingFieldEntity } from '../entities/custom-tracking-field.entity';
 import { CustomTrackingImageValueEntity } from '../entities/custom-tracking-image-value.entity';
 import { CustomTrackingValueEntity } from '../entities/custom-tracking-value.entity';
 import {
+  CUSTOM_TRACKING_FIELD_DELETED_REASON,
   CustomTrackingFieldPicture,
   CustomTrackingFieldPictureService,
 } from './custom-tracking-field-picture.service';
@@ -31,6 +36,9 @@ const TABLES = new Map<unknown, { schema?: string; tableName: string }>([
     CustomTrackingFieldEntity,
     { schema: 'sto_info_app', tableName: 'custom_tracking_field' },
   ],
+  [AccountEntity, { schema: 'sto_info_app', tableName: 'account' }],
+  [CharacterEntity, { schema: 'sto_info_app', tableName: 'character' }],
+  [UserEntity, { schema: 'sto_info_app', tableName: 'user' }],
   [FileAssetEntity, { schema: 'sto_info_app', tableName: 'file_asset' }],
 ]);
 
@@ -81,7 +89,7 @@ describe('DeletedCustomTrackingPictureSweepService', () => {
 
   // A Field deleted with its Tab or Section carries the same deletion, so
   // asking the Field is enough.
-  it('looks for still-served pictures answering deleted Fields', async () => {
+  it('looks for still-served pictures of deleted Fields, Accounts and Characters', async () => {
     await service.findPictures();
 
     const [sql, parameters] = dataSource.query.mock.calls[0] as [
@@ -96,10 +104,33 @@ describe('DeletedCustomTrackingPictureSweepService', () => {
     expect(sql).toContain('JOIN "sto_info_app"."custom_tracking_field" f');
     expect(sql).toContain('JOIN "sto_info_app"."file_asset" a');
     expect(sql).toContain('f."deletedAt" IS NOT NULL');
+    expect(sql).toContain('LEFT JOIN "sto_info_app"."account" acc');
+    expect(sql).toContain('LEFT JOIN "sto_info_app"."character" ch');
+    expect(sql).toContain('LEFT JOIN "sto_info_app"."account" ca');
+    expect(sql).toContain('LEFT JOIN "sto_info_app"."user" u');
+    expect(sql).toContain('OR acc."deletedAt" IS NOT NULL');
+    expect(sql).toContain('OR ch."deletedAt" IS NOT NULL');
+    expect(sql).toContain('OR ca."deletedAt" IS NOT NULL');
     expect(sql).toContain('COALESCE(v."accountId", v."characterId")');
     expect(parameters).toEqual([
       [FileAssetState.AVAILABLE, FileAssetState.UNVERIFIED],
+      PERSONAL_PICTURE_REASONS.ACCOUNT_CLOSED,
+      PERSONAL_PICTURE_REASONS.STO_ACCOUNT_DELETED,
+      PERSONAL_PICTURE_REASONS.CHARACTER_DELETED,
+      CUSTOM_TRACKING_FIELD_DELETED_REASON,
     ]);
+  });
+
+  // A closed account, then a deleted STO Account, then a deleted Character,
+  // then a deleted Field.
+  it('records the widest deletion that took the picture', async () => {
+    await service.findPictures();
+
+    const [sql] = dataSource.query.mock.calls[0] as [string];
+
+    expect(sql).toMatch(
+      /WHEN COALESCE\(acc\."deletedAt", ca\."deletedAt"\) IS NOT NULL\s+AND u\."deletedAt" IS NOT NULL THEN \$2::text\s+WHEN COALESCE\(acc\."deletedAt", ca\."deletedAt"\) IS NOT NULL THEN \$3::text\s+WHEN ch\."deletedAt" IS NOT NULL THEN \$4::text\s+ELSE \$5::text/,
+    );
   });
 
   it('removes each picture answer and withdraws the picture', async () => {

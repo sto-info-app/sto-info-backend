@@ -1062,7 +1062,7 @@ describe('UserService', () => {
         async (callback: (managerArg: any) => Promise<void>) => {
           user.email = 'changed@example.com';
           user.profile.firstName = 'Changed';
-          await callback(manager);
+          return callback(manager);
         },
       );
 
@@ -1155,6 +1155,24 @@ describe('UserService', () => {
 
       expect(manager.find.mock.invocationCallOrder[characterFind]).toBeLessThan(
         manager.softDelete.mock.invocationCallOrder[characterDelete],
+      );
+    });
+
+    // Rather than waiting for the account to be erased.
+    it('asks Custom Tracking to take down what it holds about the STO accounts', async () => {
+      const recordDeletion = {
+        charactersDeleted: jest.fn(async () => undefined),
+        accountsDeleted: jest.fn(async () => undefined),
+      };
+
+      Object.assign(service, { _recordDeletion: recordDeletion });
+      arrangeClosure(null, []);
+
+      await service.closeAccount('1');
+
+      expect(recordDeletion.accountsDeleted).toHaveBeenCalledWith(
+        ['a1'],
+        PERSONAL_PICTURE_REASONS.ACCOUNT_CLOSED,
       );
     });
 
@@ -1476,6 +1494,8 @@ describe('UserService', () => {
         >
       ).mockImplementation(async () => {
         expect(departure.depart).toHaveBeenCalledWith('1');
+
+        return { pictures: [], accountIds: [] };
       });
 
       await service.closeAccount('1');

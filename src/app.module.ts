@@ -24,6 +24,7 @@ import { CommunityModule } from './community/community.module';
 import { ConfigCheckService } from './config-check/config-check.service';
 import { ContactModule } from './contact/contact.module';
 import { CronModule } from './cron/cron.module';
+import { CustomTrackingRecordDeletionModule } from './custom-tracking/custom-tracking-record-deletion.module';
 import { CustomTrackingModule } from './custom-tracking/custom-tracking.module';
 import { DatabaseModule } from './database/database.module';
 import { DiagnosticsModule } from './diagnostics/diagnostics.module';
@@ -122,6 +123,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     AccessControlModule,
     StorytimeModule,
     CustomTrackingModule,
+    CustomTrackingRecordDeletionModule,
     UserModule,
     AuthModule,
     MailModule,
