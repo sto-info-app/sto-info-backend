@@ -32,7 +32,7 @@ import { RescanDecision, RescanState } from './rescan.enums';
 /** Where a site admin reads about it. */
 const SCAN_DIAGNOSTICS_LINK = '/admin/scan-diagnostics';
 
-/** What the owner is told, with no detail (Steve's decision). */
+/** What the owner is told, with no detail. */
 const OWNER_NOTICE = {
   title: 'A picture was removed',
   body:

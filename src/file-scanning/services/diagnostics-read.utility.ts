@@ -23,10 +23,10 @@ export const DIAGNOSTICS_READ_REASONS: Readonly<
 /**
  * Logs one read of Scan Diagnostics in the site admin log (FC-042).
  *
- * Steve's decision of 30 September 2026: the diagnostics stay ADMIN-only,
- * and every read of them is logged. The subject is the asset read, when one
- * was; otherwise `ALL`, since the site admin log keeps a subject whole or not
- * at all. The detail says which page, and which queue, never anything read.
+ * The diagnostics stay ADMIN-only, and every read of them is logged. The
+ * subject is the asset read, when one was; otherwise `ALL`, since the site
+ * admin log keeps a subject whole or not at all. The detail says which page,
+ * and which queue, never anything read.
  *
  * @param manager - The database.
  * @param adminUserId - The site admin reading.

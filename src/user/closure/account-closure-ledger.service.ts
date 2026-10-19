@@ -33,14 +33,13 @@ export interface AccountClosureMarker {
 /**
  * Keeps every account closure outside the database (FC-042).
  *
- * Steve's decision of 30 September 2026: a restore from a backup taken
- * before somebody closed their account would open it again, and nothing
- * else records that they asked. Each closure is written here first — one
- * object per event, in the private quarantine bucket, under
- * `<NODE_ENV>/account-closure-ledger/<createdAt>_<userId>_CLOSED.json` —
- * and then to the database, and the restore check at boot closes again any
- * account the database has open. The key holds everything the check needs,
- * so it reads no body.
+ * A restore from a backup taken before somebody closed their account would open
+ * it again, and nothing else records that they asked. Each closure is written
+ * here first — one object per event, in the private quarantine bucket, under
+ * `<NODE_ENV>/account-closure-ledger/<createdAt>_<userId>_CLOSED.json` — and
+ * then to the database, and the restore check at boot closes again any account
+ * the database has open. The key holds everything the check needs, so it reads
+ * no body.
  */
 @Injectable()
 export class AccountClosureLedgerService {

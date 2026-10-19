@@ -270,11 +270,11 @@ export interface ScheduledInstant {
  *
  * For something that recurs on a local clock — an event every Friday at
  * half past one — there is nobody to ask on every date, so the choice is made
- * by policy, Steve's of 28 September 2026: a time that happens twice takes the
- * earlier instant, and a time the clock jumps over moves forward by the jump,
- * so half past one on the morning the clocks go forward becomes half past two.
- * The resolution is returned alongside, so the organiser can be shown which
- * occurrences were placed by that policy.
+ * by policy: a time that happens twice takes the earlier instant, and a time
+ * the clock jumps over moves forward by the jump, so half past one on the
+ * morning the clocks go forward becomes half past two. The resolution is
+ * returned alongside, so the organiser can be shown which occurrences were
+ * placed by that policy.
  *
  * @param localDateTime - The local date and time, as `YYYY-MM-DDTHH:mm` or
  *   `YYYY-MM-DDTHH:mm:ss`.

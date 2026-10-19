@@ -70,13 +70,12 @@ export interface ImageEstateStatus {
 /**
  * Moves the image estate to private delivery (FC-040).
  *
- * Steve's decisions of 29 September 2026. Every published picture becomes a
- * private Cloudflare Images object, reachable only by an address the API
- * signs. Cloudflare will not make a custom-ID image private, which every
- * picture before FC-040 is, so each is copied to a private one under a
- * generated ID and every row pointing at it is repointed; a picture that
- * already has a generated ID is made private in place. A legacy R2 portrait
- * is copied into Cloudflare Images the same way.
+ * Every published picture becomes a private Cloudflare Images object, reachable
+ * only by an address the API signs. Cloudflare will not make a custom-ID image
+ * private, which every picture before FC-040 is, so each is copied to a private
+ * one under a generated ID and every row pointing at it is repointed; a picture
+ * that already has a generated ID is made private in place. A legacy R2
+ * portrait is copied into Cloudflare Images the same way.
  *
  * A site admin runs it from Scan Diagnostics, one run at a time, each
  * paused and resumed at will and logged with a reason:

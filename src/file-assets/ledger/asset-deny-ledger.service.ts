@@ -43,14 +43,14 @@ export interface AssetDenyMarker {
 /**
  * Keeps every asset deny outside the database (FC-042).
  *
- * Steve's decision of 30 September 2026: a restore from a backup taken
- * before a withdrawal, a rescan infection or a policy take-down would put
- * the picture back. Every move of a `file_asset` into `REJECTED`, `REVOKED`
- * or `DELETED` goes through {@link FileAssetService}, which writes a marker
- * here first — one object per move, in the private quarantine bucket, under
- * `<NODE_ENV>/asset-deny-ledger/<createdAt>_<assetId>_<STATE>.json` — and
- * then writes the database. A marker whose database write then failed is
- * denied again at the next boot: the ledger fails closed.
+ * A restore from a backup taken before a withdrawal, a rescan infection or a
+ * policy take-down would put the picture back. Every move of a `file_asset`
+ * into `REJECTED`, `REVOKED` or `DELETED` goes through
+ * {@link FileAssetService}, which writes a marker here first — one object per
+ * move, in the private quarantine bucket, under
+ * `<NODE_ENV>/asset-deny-ledger/<createdAt>_<assetId>_<STATE>.json` — and then
+ * writes the database. A marker whose database write then failed is denied
+ * again at the next boot: the ledger fails closed.
  */
 @Injectable()
 export class AssetDenyLedgerService {

@@ -31,10 +31,9 @@ export const RESCAN_STALE_HOURS = 24;
 export const UNKNOWN_DEFINITION_EPOCH = 'unknown';
 
 /**
- * The rejections that mean a picture is infected, and taken down. Every
- * other rejection a rescan can bring is either a policy refusal, reported
- * and left showing (Steve's decision of 29 September 2026), or a failure to
- * reach a verdict.
+ * The rejections that mean a picture is infected, and taken down. Every other
+ * rejection a rescan can bring is either a policy refusal, reported and left
+ * showing, or a failure to reach a verdict.
  */
 export const INFECTION_CODES: readonly string[] = ['INFECTED'];
 

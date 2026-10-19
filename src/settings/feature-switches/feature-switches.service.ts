@@ -38,10 +38,9 @@ function isOn(value: string | null): boolean {
  * The site features' master switches, thrown from the Admin page (FC-045):
  * Fleet Communities, Storytime and Custom Tracking.
  *
- * Steve's decisions of 6 October 2026: no feature switch is left needing
- * SQL, each change takes a reason and is kept in the site admin log, and the
- * capability flags beneath each switch, which the environment sets, are shown
- * but cannot be changed here.
+ * No feature switch is left needing SQL, each change takes a reason and is kept
+ * in the site admin log, and the capability flags beneath each switch, which
+ * the environment sets, are shown but cannot be changed here.
  *
  * None of these switches reaches the file gate: scanning, quarantine and
  * publication run whatever they say.

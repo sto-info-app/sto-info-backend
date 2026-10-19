@@ -32,14 +32,13 @@ export const RATE_LIMIT_STORE_RETRY_MS = 10_000;
  * fails it. That included Scan Diagnostics and the publication pause, the
  * pages a site admin is sent to during exactly that outage.
  *
- * Steve's decision of 1 October 2026: rather than stop limiting, count
- * locally. A count Redis has not answered within a second is made in memory
- * instead, and for the next ten seconds nothing asks Redis at all, so one
- * outage costs one slow request every ten seconds rather than a second on
- * every request. Limits still apply, sign-in's included; for the length of
- * the outage each instance keeps its own count rather than a shared one.
- * The switch is logged once each way. Start-up alone waits longer, since no
- * request is behind it.
+ * Rather than stop limiting, count locally. A count Redis has not answered
+ * within a second is made in memory instead, and for the next ten seconds
+ * nothing asks Redis at all, so one outage costs one slow request every ten
+ * seconds rather than a second on every request. Limits still apply, sign-in's
+ * included; for the length of the outage each instance keeps its own count
+ * rather than a shared one. The switch is logged once each way. Start-up alone
+ * waits longer, since no request is behind it.
  */
 export class FallbackRateLimitStore implements Store {
   private readonly _logger = new Logger(FallbackRateLimitStore.name);

@@ -89,13 +89,12 @@ const HTTP_STATUS = /\bstatus(?: code)? (\d{3})\b/i;
  * The failed jobs of every queue that keeps them, and a site admin's retry
  * of them (FC-042), on Scan Diagnostics.
  *
- * Steve's decision of 30 September 2026: an ADMIN "Retry" and "Retry all",
- * each with a reason in the site admin log. A retry is only sent when it can
- * change something. Every job here is read against the record it was for
- * when it runs, so a retried job whose record has since moved on — an
- * upload refused, published or swept, a transcript given up on, a roster
- * already replayed — would do nothing; such a retry is refused with the
- * reason, rather than sent round to no effect:
+ * An ADMIN "Retry" and "Retry all", each with a reason in the site admin log. A
+ * retry is only sent when it can change something. Every job here is read
+ * against the record it was for when it runs, so a retried job whose record has
+ * since moved on — an upload refused, published or swept, a transcript given up
+ * on, a roster already replayed — would do nothing; such a retry is refused
+ * with the reason, rather than sent round to no effect:
  *
  * - **`file-scan`**: an upload's request, while its asset is still
  *   `SCANNING` the same object; a rescan's, while the rescan is still

@@ -54,7 +54,7 @@ export interface RestoreCheckOutcome {
  * with the database. Whatever the database lacks, as after a restore from an
  * older backup, is brought back; whatever the ledgers lack gets a marker.
  *
- * Steve's decisions of 30 September 2026:
+ * Decisions of 30 September 2026:
  *
  * - **Before anything serves.** `main.ts` runs it after `NestFactory.create`
  *   and before `app.init()`: no route, socket, scheduled job or queue worker
@@ -69,12 +69,12 @@ export interface RestoreCheckOutcome {
  *   that brought anything back writes a `LEDGERS_RECONCILED` entry to the
  *   site admin log, with no actor.
  *
- * And Steve's decision of 1 October 2026 (FC-043): **retention is caught up
- * too**, after the ledgers and before anything serves. A restore brings
- * back whatever the retention jobs forgot after the backup was taken, and it
- * must not be readable even until their next run. Holds are replayed first,
- * so what a hold keeps is still kept. A job that fails is a failed check,
- * tried again like any other.
+ * And the decision of 1 October 2026 (FC-043): **retention is caught up too**,
+ * after the ledgers and before anything serves. A restore brings back whatever
+ * the retention jobs forgot after the backup was taken, and it must not be
+ * readable even until their next run. Holds are replayed first, so what a hold
+ * keeps is still kept. A job that fails is a failed check, tried again like any
+ * other.
  */
 @Injectable()
 export class RestoreCheckService {

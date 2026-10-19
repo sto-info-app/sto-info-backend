@@ -20,9 +20,9 @@ import { ImageSigningService } from './image-signing.service';
 export const IMAGE_UNAVAILABLE_ID = '817e04f3-331f-4837-e189-c00a68e4c400';
 
 /**
- * The states a picture may be shown in (FC-040): published, or from before
- * the registry and not yet scanned. Steve's decision of 29 September 2026:
- * the estate stays on the site, never marked clean, until FC-041 scans it.
+ * The states a picture may be shown in (FC-040): published, or from before the
+ * registry and not yet scanned. The estate stays on the site, never marked
+ * clean, until FC-041 scans it.
  */
 export const SHOWABLE_IMAGE_STATES: readonly FileAssetState[] = [
   FileAssetState.AVAILABLE,

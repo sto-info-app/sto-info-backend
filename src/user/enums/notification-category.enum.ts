@@ -7,8 +7,8 @@
  * here is a product decision rather than a convenience.
  *
  * Every category can be switched off, including {@link ROSTER_ASSOCIATION}.
- * Decided by Steve on 17 September 2026 over the alternative of forcing that
- * one on: a proposal nobody is told about goes unanswered and expires.
+ * Decided on 17 September 2026 over the alternative of forcing that one on: a
+ * proposal nobody is told about goes unanswered and expires.
  */
 export enum NotificationCategory {
   /** Someone named them in a message. */

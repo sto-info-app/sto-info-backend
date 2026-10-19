@@ -64,10 +64,9 @@ const STOPPING_ALERTS: readonly OperationsAlertKind[] = [
  * scanner comes back; only something that has genuinely been forgotten is
  * still pending the next night.
  *
- * **Nothing is given up on while the pipeline is stopped** (FC-042, Steve's
- * decision of 30 September 2026). The day counts from the later of the
- * upload and the moment things started again, so the sweep holds back
- * entirely while:
+ * **Nothing is given up on while the pipeline is stopped** (FC-042). The day
+ * counts from the later of the upload and the moment things started again, so
+ * the sweep holds back entirely while:
  *
  * - the scan worker is silent or paused now, by the same definitions as
  *   those alerts without their grace periods — and a heartbeat that cannot

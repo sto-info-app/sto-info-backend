@@ -50,12 +50,12 @@ const AWAITING_SCAN: readonly FileAssetState[] = [
  * Queues again the uploads whose scan request never reached the queue, or
  * was lost from it (FC-042).
  *
- * Steve's decision of 1 October 2026: an upload made while Redis is down is
- * accepted and queued later. Every minute, once Redis answers, this finds
- * stored uploads still awaiting a scan — `QUARANTINED`, `SCANNING` or
- * `RETRY_PENDING` for more than {@link SCAN_REQUEUE_AFTER_MINUTES} minutes —
- * whose request is not on the `file-scan` queue under its deterministic
- * identifier, and sends it again, {@link SCAN_REQUEUE_BATCH} at a time.
+ * An upload made while Redis is down is accepted and queued later. Every
+ * minute, once Redis answers, this finds stored uploads still awaiting a scan —
+ * `QUARANTINED`, `SCANNING` or `RETRY_PENDING` for more than
+ * {@link SCAN_REQUEUE_AFTER_MINUTES} minutes — whose request is not on the
+ * `file-scan` queue under its deterministic identifier, and sends it again,
+ * {@link SCAN_REQUEUE_BATCH} at a time.
  *
  * - **Present in any state counts.** Waiting, prioritised, delayed, active,
  *   or kept after failing: a failed request is the failed-jobs flow's, and

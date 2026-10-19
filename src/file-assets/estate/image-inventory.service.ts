@@ -73,14 +73,13 @@ export interface ImageInventoryReport {
 /**
  * The image estate's inventory (FC-040).
  *
- * Steve's decision of 29 September 2026: reconcile, and report. Every
- * feature column that holds a picture is counted, with how many of its
- * references the registry knows; the registry's published pictures are
- * counted by kind, state, storage and whether they are private; and
- * Cloudflare's listing for this environment is compared with both, naming
- * orphans (nothing points at them) and missing pictures (the registry says
- * they are shown, Cloudflare does not have them). Nothing is deleted: a
- * deleted object cannot be rolled back.
+ * Reconcile, and report. Every feature column that holds a picture is counted,
+ * with how many of its references the registry knows; the registry's published
+ * pictures are counted by kind, state, storage and whether they are private;
+ * and Cloudflare's listing for this environment is compared with both, naming
+ * orphans (nothing points at them) and missing pictures (the registry says they
+ * are shown, Cloudflare does not have them). Nothing is deleted: a deleted
+ * object cannot be rolled back.
  */
 @Injectable()
 export class ImageInventoryService {

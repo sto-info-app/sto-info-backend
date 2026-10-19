@@ -291,8 +291,8 @@ describe('RescanVerdictService (FC-041)', () => {
     });
   });
 
-  // Steve's decision of 30 September 2026: a picture refused for policy on
-  // rescan is taken down or kept by a site admin, with a reason (FC-050).
+  // A picture refused for policy on rescan is taken down or kept by a site
+  // admin, with a reason (FC-050).
   describe('deciding a policy refusal', () => {
     const REFUSED = {
       ...RESCAN,

@@ -4,8 +4,8 @@
  * FC-018 recomputed a Fleet's identities whenever one of its imports went
  * into force, and FC-019 replaces that with a replay that also builds the
  * Fleet's history, so a Fleet imported before FC-019 was deployed has no
- * projection until its next import. Run this once after deploying it, as
- * Steve chose on 24 September 2026 for the identity backfill it replaces.
+ * projection until its next import. Run this once after deploying it, as was
+ * chosen on 24 September 2026 for the identity backfill it replaces.
  *
  * For each Fleet it records a request, bumping the Fleet's `requested`
  * counter, and then queues a job. Both are needed: a job that found no

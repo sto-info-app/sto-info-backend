@@ -3,7 +3,7 @@
  *
  * One alert per problem until it clears: every site admin is told once when
  * it opens and once when it clears. Each threshold is a named constant in
- * `operations-alert.constants.ts`, fixed in code by Steve's choice.
+ * `operations-alert.constants.ts`, fixed in code.
  */
 export enum OperationsAlertKind {
   /** An upload has waited too long on the scan queue. */

@@ -80,8 +80,8 @@ export class StorytimeModerationService {
    * One transaction (FC-044): the queue used to close the report it was
    * acting on in a second request, which leaving the page cancelled, so
    * content was removed with its report still open. Closing them all here is
-   * Steve's decision of 4 October 2026: once the content is gone, another
-   * report about it has nothing left to act on.
+   * deliberate: once the content is gone, another report about it has nothing
+   * left to act on.
    *
    * @param dto - What to remove, why, and what to tell the creator.
    * @param actingUserId - The administrator.

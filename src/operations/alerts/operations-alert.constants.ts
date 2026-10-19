@@ -1,9 +1,9 @@
 /**
  * The thresholds the operations alert cron judges by (FC-042).
  *
- * Fixed in code rather than configured, by Steve's choice of 30 September
- * 2026: a threshold that can be edited is one that gets edited until it
- * stops firing. Changing one is a code change, reviewed like any other.
+ * Fixed in code rather than configured: a threshold that can be edited is one
+ * that gets edited until it stops firing. Changing one is a code change,
+ * reviewed like any other.
  */
 
 /** How long the oldest waiting scan request may wait, in minutes. */

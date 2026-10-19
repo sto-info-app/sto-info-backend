@@ -3,7 +3,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import sharp from 'sharp';
 
 /**
- * The most pixels a picture may have, by Steve's choice of 1 October 2026.
+ * The most pixels a picture may have.
  *
  * Decoding is what costs memory, at four bytes a pixel, and a small file can
  * claim an enormous image. Fifty megapixels covers a 48-megapixel phone
@@ -30,7 +30,7 @@ export type ReencodableFormat = 'png' | 'jpeg';
  * ancillary chunks or APP segments, comments and every kind of metadata are
  * gone before the bytes are stored, scanned or published.
  *
- * With Steve's choices of 1 October 2026:
+ * With the choices of 1 October 2026:
  *
  * - **Upright first.** The orientation a camera recorded in EXIF is applied
  *   before the metadata goes, so a phone photograph is not published on its

@@ -1,12 +1,12 @@
 /**
- * The load rehearsal (FC-044): the launch load Steve agreed on 2 October 2026,
+ * The load rehearsal (FC-044): the launch load agreed on 2 October 2026,
  * against the real backend and the real worker on the operations rehearsal's
  * throwaway stack.
  *
- * The plan never set a launch load, so these are the figures he chose. Each
- * scenario drives one workload at that load while a sampler records, every
- * two seconds, both applications' memory, clamd's, the database connections
- * each application holds, Redis's clients and memory, and how many jobs wait:
+ * The plan never set a launch load, so these are the figures chosen. Each
+ * scenario drives one workload at that load while a sampler records, every two
+ * seconds, both applications' memory, clamd's, the database connections each
+ * application holds, Redis's clients and memory, and how many jobs wait:
  *
  * - **L1 Launch scale.** 100 Communities and 300 Fleets, with 30,000 roster
  *   members between them, each Fleet's roster imported through the real
@@ -74,7 +74,7 @@ const run = promisify(execFile);
 /** The results page's heading. */
 const TITLE = 'Load rehearsal results (FC-044)';
 
-/** The launch load Steve agreed on 2 October 2026. */
+/** The launch load agreed on 2 October 2026. */
 const LAUNCH = {
   communities: 100,
   fleetsPerCommunity: 3,
@@ -1697,9 +1697,9 @@ async function main(): Promise<void> {
     MEMORY_DIAGNOSTICS_ENABLED: 'true',
     // Every three seconds.
     MEMORY_DIAGNOSTICS_INTERVAL_MINUTES: '0.05',
-    // Production's heap cap on its 512 MB plan (Steve, 4 October 2026), so
-    // the run measures what Render runs. LOAD_BACKEND_HEAP_MIB sets another;
-    // 0 leaves Node to choose, as it did before the decision.
+    // Production's heap cap on its 512 MB plan (4 October 2026), so the run
+    // measures what Render runs. LOAD_BACKEND_HEAP_MIB sets another; 0 leaves
+    // Node to choose, as it did before the decision.
     ...(heapMib === '0'
       ? {}
       : { NODE_OPTIONS: `--max-old-space-size=${heapMib}` }),
@@ -1779,7 +1779,7 @@ async function main(): Promise<void> {
       `Run ${started.toISOString()} to ${new Date().toISOString()} on ${process.platform}, Node ${process.version}.`,
       '',
       `- Backend: ${r.config.repo}; worker: ${r.config.workerRepo} (working trees as built).`,
-      '- The operations rehearsal’s stack and cold start (S1), then FC-044’s scenarios L1 to L7 at the launch load Steve agreed on 2 October 2026.',
+      '- The operations rehearsal’s stack and cold start (S1), then FC-044’s scenarios L1 to L7 at the launch load agreed on 2 October 2026.',
       '- One backend and one worker, as at launch. Memory is each process’s resident set; clamd’s is its container’s.',
       `- Application logs: ${logsCopy}`,
     ]);

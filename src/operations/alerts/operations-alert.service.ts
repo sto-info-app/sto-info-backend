@@ -177,10 +177,9 @@ export const OPERATIONS_ALERT_NOTICES: Readonly<
 const MINUTE_MS = 60_000;
 
 /**
- * The operations alerts (FC-042): every minute, checks the file pipeline
- * for the problems Steve chose to be told about, and tells every site admin
- * in-app — once when a problem opens, once when it clears, and nothing in
- * between.
+ * The operations alerts (FC-042): every minute, checks the file pipeline for
+ * the problems chosen for an alert, and tells every site admin in-app — once
+ * when a problem opens, once when it clears, and nothing in between.
  *
  * - **Scan backlog.** The oldest waiting scan request is older than
  *   {@link SCAN_QUEUE_LAG_MINUTES} minutes; and the same for publication,

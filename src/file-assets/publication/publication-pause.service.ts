@@ -48,7 +48,7 @@ function instantOf(value: unknown): Date | null {
 }
 
 /**
- * The publication pause (FC-042): Steve's kill switch for everything a
+ * The publication pause (FC-042): the site admins' kill switch for everything a
  * scanner clears.
  *
  * While it is on, uploads are still accepted and scanned, and nothing is

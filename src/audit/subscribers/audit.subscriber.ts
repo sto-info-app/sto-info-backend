@@ -25,12 +25,12 @@ import { SiteAdminActionEntity } from '../site-admin/site-admin-action.entity';
 
 /**
  * What an import or a roster replay computes from an uploaded export, row by
- * row, and recomputes whole on every replay (FC-044, Steve's decision of
- * 2 October 2026). Auditing it recorded nothing anybody did: the import, its
- * exclusions and corrections, and every decision about the roster are
- * audited where they are made. It cost one INSERT per derived row — a
- * long-history replay wrote a hundred and fifty thousand of them, took more
- * than three minutes, and left `_audit` hundreds of megabytes larger.
+ * row, and recomputes whole on every replay (FC-044). Auditing it recorded
+ * nothing anybody did: the import, its exclusions and corrections, and every
+ * decision about the roster are audited where they are made. It cost one INSERT
+ * per derived row — a long-history replay wrote a hundred and fifty thousand of
+ * them, took more than three minutes, and left `_audit` hundreds of megabytes
+ * larger.
  */
 export const DERIVED_ROSTER_ENTITIES: readonly EntityTarget<unknown>[] = [
   RosterObservationEntity,

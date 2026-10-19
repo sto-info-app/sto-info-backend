@@ -164,9 +164,9 @@ export class UserAccountCleanupService {
   /**
    * The closed accounts that cannot go yet (FC-037, FC-038).
    *
-   * One whose chat messages a site admin holds would lose them to the next
-   * chat purge, which forgets messages with no author, so it waits until the
-   * hold is released (Steve's decision of 29 September 2026).
+   * One whose chat messages a site admin holds would lose them to the next chat
+   * purge, which forgets messages with no author, so it waits until the hold is
+   * released.
    *
    * @param userIds - The accounts due.
    * @returns Those to keep.

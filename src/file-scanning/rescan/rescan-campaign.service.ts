@@ -89,12 +89,11 @@ export interface RescanOverview {
 /**
  * Rescan campaigns (FC-041).
  *
- * Steve's decisions of 29 September 2026. A campaign rescans a selection of
- * published pictures, by kind, upload date and how long since each was last
- * scanned. For each, the API reads the picture from Cloudflare (or a legacy
- * R2 portrait), stages a copy in the quarantine bucket and asks the worker
- * to scan it as it would an upload. The worker keeps its quarantine-only
- * access, and the contract is unchanged.
+ * A campaign rescans a selection of published pictures, by kind, upload date
+ * and how long since each was last scanned. For each, the API reads the picture
+ * from Cloudflare (or a legacy R2 portrait), stages a copy in the quarantine
+ * bucket and asks the worker to scan it as it would an upload. The worker keeps
+ * its quarantine-only access, and the contract is unchanged.
  *
  * - **Behind new uploads.** Every rescan is queued with a priority, which
  *   an upload never has, and a campaign holds back while the queue is long.

@@ -52,9 +52,9 @@ interface SecurityLogRow {
 /**
  * The site admins' Security Log (FC-039).
  *
- * Steve's decision of 29 September 2026: one filterable, paged feed of what
- * site admins did and what the retention jobs did — actor, time, scope or
- * subject, action and reason — read from the logs that already hold each:
+ * One filterable, paged feed of what site admins did and what the retention
+ * jobs did — actor, time, scope or subject, action and reason — read from the
+ * logs that already hold each:
  *
  * - the site admin log (`site_admin_action`);
  * - a site admin's dispute actions in the Fleet governance log;

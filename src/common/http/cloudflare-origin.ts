@@ -58,9 +58,8 @@ const digest = (value: string): Buffer =>
  * `CF-Connecting-IP` and `X-Forwarded-For` are only headers: anybody who
  * reaches the origin without Cloudflare can write them, and every rate limit
  * keyed on them could be dodged with a new value per request. So a request is
- * believed only when it carries the secret Cloudflare adds on its way through
- * (Steve's decision of 2 October 2026), and anything else is refused, except
- * Render's health checks.
+ * believed only when it carries the secret Cloudflare adds on its way through,
+ * and anything else is refused, except Render's health checks.
  *
  * Without a secret — on a developer's machine — nothing is refused and no
  * header is believed: every request's address is its connection's own.

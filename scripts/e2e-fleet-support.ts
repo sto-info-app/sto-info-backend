@@ -4,9 +4,9 @@
  * The Fleet journeys sign in as several people at once — an Owner, an
  * applicant, a friend, an Officer, a stranger and a site admin — and build
  * Communities, Fleets, Armadas, imports, events, chat and reports through the
- * interface. Steve chose on 2 October 2026 that they do it as people made for
- * the run and removed after it, on the local stack, so his own data is never
- * touched and no password of his is ever needed.
+ * interface. They do it as people made for the run and removed after it, on the
+ * local stack, so no real person's data is ever touched and no real password is
+ * ever needed.
  *
  * - `fleet-begin <file>` removes whatever an earlier run left, switches Fleet
  *   Community on, makes the people with passwords generated here, and writes

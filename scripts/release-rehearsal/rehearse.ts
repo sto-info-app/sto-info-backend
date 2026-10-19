@@ -30,11 +30,11 @@ import {
 /**
  * The Fleet Community v1 release, rehearsed from production as it is (FC-045).
  *
- * Steve's decisions of 6 October 2026: a synthetic, throwaway rehearsal. The
- * production release (`origin/production`) is built and its own migrations
- * make a database exactly as production's schema is, filled by its own demo
- * seed and by `sql/production-seed.sql` with rows of every kind the release's
- * migrations read or change. Then:
+ * A synthetic, throwaway rehearsal. The production release
+ * (`origin/production`) is built and its own migrations make a database exactly
+ * as production's schema is, filled by its own demo seed and by
+ * `sql/production-seed.sql` with rows of every kind the release's migrations
+ * read or change. Then:
  *
  * - **R1** the preflight (`scripts/release-preflight/preflight.sql`) passes on
  *   it, as it must on production before the release;

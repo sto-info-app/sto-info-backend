@@ -251,8 +251,8 @@ describe('Ledger reconciliation schema alignment (FC-042)', () => {
     );
   });
 
-  // Steve's decision: the Security Log's history is not rolled back; the
-  // down refuses first, with nothing changed, and says to roll forward.
+  // The Security Log's history is not rolled back; the down refuses first, with
+  // nothing changed, and says to roll forward.
   it('refuses first while the log holds the action, deleting nothing', () => {
     expect(down[0]).toContain('RAISE EXCEPTION');
     expect(LEDGER_ACTIONS_DOWN_REFUSAL).toContain('roll forward instead');

@@ -85,14 +85,13 @@ const DELIVERY_ATTEMPTS = 5;
  * in `SCANNING` with nothing scanning it is the one outcome nobody would
  * notice.
  *
- * **An upload is never refused because Redis is down** (FC-042, Steve's
- * decision of 1 October 2026: accept, queue later). The send waits at most
- * {@link REDIS_TIMEOUT_MS}, because BullMQ holds a command while Redis is
- * away rather than failing it; if it fails or times out, the asset is put
- * back to `RETRY_PENDING` — "waiting to be scanned" to its uploader — the
- * failure is logged, and the upload is answered as usual. The re-queue
- * sweep sends it once Redis answers. Nothing about the asset or its
- * placement depends on the job having been added.
+ * **An upload is never refused because Redis is down** (FC-042: accept, queue
+ * later). The send waits at most {@link REDIS_TIMEOUT_MS}, because BullMQ holds
+ * a command while Redis is away rather than failing it; if it fails or times
+ * out, the asset is put back to `RETRY_PENDING` — "waiting to be scanned" to
+ * its uploader — the failure is logged, and the upload is answered as usual.
+ * The re-queue sweep sends it once Redis answers. Nothing about the asset or
+ * its placement depends on the job having been added.
  */
 @Injectable()
 export class ScanRequestProducerService {

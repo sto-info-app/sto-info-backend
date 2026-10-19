@@ -200,9 +200,9 @@ describe('UserPreferenceService', () => {
 
     /**
      * Every category can be switched off, including roster association
-     * proposals. Decided by Steve on 17 September 2026: a proposal nobody is
-     * told about goes unanswered and expires, and the alternative was a
-     * notification the recipient cannot turn off.
+     * proposals. Decided on 17 September 2026: a proposal nobody is told about
+     * goes unanswered and expires, and the alternative was a notification the
+     * recipient cannot turn off.
      */
     it('lets a user switch off roster association proposals', async () => {
       repository.findOne.mockResolvedValue(
