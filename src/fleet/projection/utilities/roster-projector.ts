@@ -280,10 +280,9 @@ interface IntervalDraft {
  * - **A departure is bounded, not dated.** It lies between the last export
  *   that listed them and the first complete one that did not.
  * - **A Join Date after the previous export means they left and came back**
- *   between the two: Steve's decision of 25 September 2026. The old episode
- *   ends and a new one begins with a new baseline. Any other change of Join
- *   Date is recorded and keeps the episode. An ambiguous Join Date is never
- *   a time claim, so never a rejoin.
+ *   between the two. The old episode ends and a new one begins with a new
+ *   baseline. Any other change of Join Date is recorded and keeps the episode.
+ *   An ambiguous Join Date is never a time claim, so never a rejoin.
  * - **A contribution delta is later minus earlier, within one episode, when
  *   it is not negative.** A fall is a reset: a discontinuity with the later
  *   total as a new baseline, never a negative donation. Nothing is carried

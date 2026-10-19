@@ -217,8 +217,7 @@ interface HandleEvidence {
  * the earlier that is gone from the later against a row in the later that was
  * not in the earlier. An export marked partial, or with a row excluded, cannot
  * show that a name is gone, so it is skipped for pairing and only records the
- * names it lists — Steve's decision of 25 September 2026. Then, as hard
- * gates:
+ * names it lists. Then, as hard gates:
  *
  * - **A Character rename** keeps the handle and changes the name.
  * - **An account rename** keeps the name and changes the handle.

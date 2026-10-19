@@ -153,9 +153,9 @@ export class FleetImageService {
    *
    * An unregistered record has no Community, so there is no scope at which
    * to hold a capability and the route that reaches it carries no guard.
-   * The rule instead is the one Steve chose: an empty slot may be filled by
-   * anybody signed in, and a slot already showing something may only be
-   * changed by whoever uploaded it, or by a site administrator.
+   * The rule instead is: an empty slot may be filled by anybody signed in, and
+   * a slot already showing something may only be changed by whoever uploaded
+   * it, or by a site administrator.
    *
    * @param fleetId - The unregistered Fleet.
    * @param slot - The banner or the emblem.

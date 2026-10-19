@@ -39,10 +39,10 @@ describe('exact game name', () => {
     });
 
     /**
-     * Steve's ruling of 21 September 2026, and the one that reversed what
-     * ADR-0003 originally proposed. Silent trimming was declined because it
-     * mutates the stored value and would stop the name matching a roster
-     * filename that carries the space.
+     * The ruling of 21 September 2026, and the one that reversed what ADR-0003
+     * originally proposed. Silent trimming was declined because it mutates the
+     * stored value and would stop the name matching a roster filename that
+     * carries the space.
      */
     it('accepts a leading or trailing space and does not touch it', () => {
       expect(isValidExactGameName(' Omega Armada')).toBe(true);
@@ -177,7 +177,7 @@ describe('exact game name', () => {
     });
 
     /**
-     * Steve has seen a leading space used in game precisely so that two
+     * A leading space is known to be used in game precisely so that two
      * different Fleets can carry almost the same name. Folding it away would
      * make the directory tell a registrant a Fleet already exists when what
      * exists is a deliberately distinct one, and a confident wrong warning is

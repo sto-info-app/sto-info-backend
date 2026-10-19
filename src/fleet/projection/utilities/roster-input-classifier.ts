@@ -42,8 +42,7 @@ export interface ClassifiedRosterInput extends RosterInputCandidate {
  *   and not excluded. Any other in force with the same contents is
  *   `SAME_AS_EFFECTIVE`; the rest were not selected. A selected export
  *   excluded afterwards leaves the moment with none, until somebody selects
- *   again — Steve's decision of 25 September 2026 that a selection can be
- *   changed, never that it changes itself.
+ *   again: a selection can be changed, but it never changes itself.
  * - **Otherwise the first version stands.** The earliest upload in force
  *   and not excluded is read, as FC-017 already keeps it in force; a later
  *   copy of it is `SAME_AS_EFFECTIVE`, and anything held is waiting for a

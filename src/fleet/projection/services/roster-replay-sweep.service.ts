@@ -13,9 +13,8 @@ import { RosterReplayQueueService } from './roster-replay-queue.service';
  *
  * A change records its request in its own transaction and queues the job
  * after committing, so a queue that is down at that moment leaves a request
- * nothing will act on. Steve chose on 25 September 2026 to catch that with a
- * sweep every ten minutes rather than leave the projection stale until the
- * next change.
+ * nothing will act on. A sweep every ten minutes catches that, rather than
+ * leaving the projection stale until the next change.
  *
  * Queueing a Fleet whose replay is already on its way costs a job that reads
  * two numbers and stops, so the sweep does not try to tell the difference.

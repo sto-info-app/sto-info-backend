@@ -52,20 +52,19 @@ export interface RosterIdentityRecomputeResult {
  * reviewers' decisions.
  *
  * Plan section 3.6 allows a full replay of a Fleet in v1 because an identity
- * decision can change conclusions drawn from any export, and Steve chose on
- * 24 September 2026 to recompute the whole Fleet each time rather than patch
- * it import by import: an older export imported late has to be able to undo
- * a suggestion it now sits in the middle of, and only a full pass sees that.
+ * decision can change conclusions drawn from any export, and the whole Fleet is
+ * recomputed each time rather than patched import by import: an older export
+ * imported late has to be able to undo a suggestion it now sits in the middle
+ * of, and only a full pass sees that.
  *
  * ## Inside the replay
  *
  * Since FC-019 this is one step of a Fleet's roster replay, which takes the
  * Fleet's lock, decides which exports are effective, and hands them here
- * before building the projection from the identities this leaves. Steve
- * decided on 25 September 2026 that identities and projection are one job
- * and one revision, so that no report is ever built from identities a
- * different pass worked out. Proposals are raised by the replay after it
- * commits.
+ * before building the projection from the identities this leaves. Identities
+ * and projection are one job and one revision, so that no report is ever built
+ * from identities a different pass worked out. Proposals are raised by the
+ * replay after it commits.
  *
  * Within the replay's transaction:
  *

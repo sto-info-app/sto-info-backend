@@ -1,11 +1,10 @@
 /**
  * A corroborating check made on a rename candidate.
  *
- * Graded rather than required, by Steve's decision of 24 September 2026: the
- * corpus has a probable rename whose contribution changed, so a check that
- * fails lowers the confidence and is shown to the reviewer rather than
- * stopping the candidate being raised. Each is phrased as the thing that
- * would be expected of one Character seen twice.
+ * Graded rather than required: the corpus has a probable rename whose
+ * contribution changed, so a check that fails lowers the confidence and is
+ * shown to the reviewer rather than stopping the candidate being raised. Each
+ * is phrased as the thing that would be expected of one Character seen twice.
  */
 export enum RosterIdentitySignal {
   /** The later row's level is not below the earlier row's. */

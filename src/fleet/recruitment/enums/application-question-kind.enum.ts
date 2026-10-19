@@ -1,8 +1,8 @@
 /**
  * The kinds of question a Fleet's application form may ask (FC-021).
  *
- * Steve's choice of 26 September 2026. Answers are plain text or a choice;
- * nothing an applicant writes is ever rendered as Markdown or HTML.
+ * Answers are plain text or a choice; nothing an applicant writes is ever
+ * rendered as Markdown or HTML.
  */
 export enum ApplicationQuestionKind {
   /** One line, up to 200 characters. */

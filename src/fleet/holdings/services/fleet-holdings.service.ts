@@ -59,7 +59,7 @@ interface HoldingsViewer {
  * The tiers of a Fleet's holdings, recorded by hand, and their history
  * (FC-023).
  *
- * Steve's decisions of 28 September 2026:
+ * Decisions of 28 September 2026:
  *
  * - The catalogue is seven holdings from the STO Wiki, each with a track of
  *   its own and its departments. Each track is recorded on its own, within

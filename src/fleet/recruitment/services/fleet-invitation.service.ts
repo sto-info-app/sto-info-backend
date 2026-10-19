@@ -30,7 +30,7 @@ import { RecruitmentEligibilityService } from './recruitment-eligibility.service
 import { RecruitmentMembershipService } from './recruitment-membership.service';
 import { RecruitmentSettingsService } from './recruitment-settings.service';
 
-/** How long an invitation stays open (Steve's decision of 26 September 2026). */
+/** How long an invitation stays open. */
 export const FLEET_INVITATION_LIFETIME_DAYS = 14;
 
 /** Milliseconds in a day. */

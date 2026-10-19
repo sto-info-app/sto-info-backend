@@ -91,9 +91,8 @@ const NOTHING_BUILT: Published['counts'] = {
  * Plan section 3.6 point 10: an insertion, exclusion, correction or identity
  * decision takes the Fleet's lock, bumps its revision and rebuilds from the
  * whole of its effective history, and publishes one complete revision
- * atomically. Steve decided on 25 September 2026 that identities and history
- * are one job and one revision, built beside the published one and then
- * switched to.
+ * atomically. Identities and history are one job and one revision, built beside
+ * the published one and then switched to.
  *
  * ## One transaction, under the Fleet's lock
  *
@@ -114,7 +113,7 @@ const NOTHING_BUILT: Published['counts'] = {
  *    step 1. The revision before it is kept for readers that pinned it; any
  *    older is deleted.
  * 6. The Fleet's last effective import follows the revision, back as well as
- *    forward: Steve's decision of 25 September 2026.
+ *    forward.
  *
  * A crash anywhere rolls all of it back, and the retried job starts again
  * from the same evidence.

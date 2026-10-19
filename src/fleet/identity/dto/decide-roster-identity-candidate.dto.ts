@@ -35,7 +35,7 @@ const trim = ({ value }: { value: unknown }): unknown =>
  *
  * A reason is optional for confirming and rejecting, where the evidence and
  * its confidence already say why, and required for undoing, which overturns
- * somebody's decision. Steve's decision of 24 September 2026.
+ * somebody's decision.
  */
 export class DecideRosterIdentityCandidateDto {
   @ApiProperty({ enum: RosterIdentityDecisionAction })

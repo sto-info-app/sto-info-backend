@@ -64,8 +64,8 @@ export interface AssignableAlias {
  *   suggestion, and the suggestion is whatever the evidence says now.
  * - **Still suggested and decided** — left alone, as decided, and stale only
  *   if the evidence no longer says what it said: different alias pairs, or
- *   now unresolvable. Steve decided on 24 September 2026 that a decision
- *   stands when its evidence moves, and a reviewer is told to look again.
+ *   now unresolvable. A decision stands when its evidence moves, and a reviewer
+ *   is told to look again.
  * - **No longer suggested** — deleted if nobody ever decided it; otherwise
  *   kept, and stale, so that no decision and no undo is lost.
  *

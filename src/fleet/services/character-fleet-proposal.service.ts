@@ -89,11 +89,10 @@ export interface AcceptProposalInput {
  *
  * Anybody can register a Character under any name, so a proposal would
  * otherwise tell whoever claimed somebody else's Character that a hidden
- * Fleet lists it. Steve decided on 24 September 2026 that a proposal is
- * raised only when its owner may already view the Fleet, and that an
- * unanswered one is hidden, and cannot be answered, for as long as they
- * cannot — so a Fleet or Community narrowing its audience later hides the
- * question as well. Its deadline does not move while it is hidden.
+ * Fleet lists it. A proposal is raised only when its owner may already view the
+ * Fleet, and an unanswered one is hidden, and cannot be answered, for as long
+ * as they cannot — so a Fleet or Community narrowing its audience later hides
+ * the question as well. Its deadline does not move while it is hidden.
  */
 @Injectable()
 export class CharacterFleetProposalService {
@@ -271,8 +270,7 @@ export class CharacterFleetProposalService {
    *
    * The producer FC-018 adds. Called for each registered Character whose
    * exact name and handle the Fleet's latest in-force import lists, and
-   * silent — returning null — wherever Steve decided on 24 September 2026
-   * that the import should not ask:
+   * silent — returning null — wherever the import should not ask:
    *
    * - the Character or its account is gone;
    * - its owner could not see the Fleet anyway;

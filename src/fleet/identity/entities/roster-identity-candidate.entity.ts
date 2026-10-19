@@ -59,9 +59,9 @@ export interface RosterIdentitySignalResult {
  * An open candidate that the evidence no longer produces — because an older
  * export imported later now sits between the two it compared — is removed. A
  * decided one is kept, because somebody decided it, and marked `stale` so a
- * reviewer knows to look again; Steve's decision of 24 September 2026. Its
- * links and collision reasons are frozen at the decision, so the stale flag
- * compares what was decided with what the evidence now says.
+ * reviewer knows to look again. Its links and collision reasons are frozen at
+ * the decision, so the stale flag compares what was decided with what the
+ * evidence now says.
  */
 @Entity({ name: 'fleet_roster_identity_candidate' })
 @Index(

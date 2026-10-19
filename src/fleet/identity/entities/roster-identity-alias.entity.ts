@@ -23,9 +23,8 @@ import { RosterIdentityEntity } from './roster-identity.entity';
  * The join between evidence and identity. An observation carries the
  * normalised name and handle it was read with, and the alias with the same
  * two, in the same Fleet, says which identity that observation is of. Nothing
- * is written to the observation itself, by Steve's decision of 24 September
- * 2026, so changing who an alias belongs to is one row rather than every
- * export the Fleet ever imported.
+ * is written to the observation itself, so changing who an alias belongs to is
+ * one row rather than every export the Fleet ever imported.
  *
  * ## Two identities, one of which never changes
  *

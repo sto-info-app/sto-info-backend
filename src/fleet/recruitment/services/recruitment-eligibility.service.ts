@@ -23,8 +23,7 @@ import { CurrentRecruitment } from './recruitment-settings.service';
  * The checks the three ways in share. The Character must be the person's
  * own — the story's second criterion — and play on the Fleet's platform.
  * The Fleet's requirements apply to joining and applying, and not to an
- * invitation, whose invitee an officer chose (Steve's decision of 26
- * September 2026).
+ * invitation, whose invitee an officer chose.
  */
 @Injectable()
 export class RecruitmentEligibilityService {

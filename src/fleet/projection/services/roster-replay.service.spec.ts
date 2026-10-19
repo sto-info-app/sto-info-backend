@@ -505,8 +505,7 @@ describe('RosterReplayService', () => {
       });
     });
 
-    // Steve's decision of 25 September 2026: the date follows the revision,
-    // back as well as forward.
+    // The date follows the revision, back as well as forward.
     it('clears the date when no export is effective any more', async () => {
       evidence.read.mockResolvedValue(evidenceOf());
 

@@ -49,9 +49,8 @@ const FLEET_SCOPE = {
  * `roster.investigate` for reading as well as deciding, because a candidate
  * names Characters and account handles as the roster exported them, and
  * that capability's description already includes identity conflicts. Owners
- * and Admins hold it; it can be delegated. Steve's decision of 24 September
- * 2026. A caller who cannot see the Fleet at all is told it does not exist,
- * by the guard, as on every other scoped route.
+ * and Admins hold it; it can be delegated. A caller who cannot see the Fleet at
+ * all is told it does not exist, by the guard, as on every other scoped route.
  *
  * Behind the same switch as imports: with imports off there is no evidence
  * a candidate could rest on.

@@ -334,9 +334,9 @@ describe('StoFleetService', () => {
     /**
      * ADR-0003, and the reason this field exists at all: the stored name has
      * to match what the game shows, character for character, because FC-016
-     * compares it to a roster export's filename. Steve has seen a leading
-     * space used in game so two Fleets can carry almost the same name, so
-     * trimming here would merge two real Fleets into one record.
+     * compares it to a roster export's filename. A leading space is known to be
+     * used in game so two Fleets can carry almost the same name, so trimming
+     * here would merge two real Fleets into one record.
      */
     it('stores an edge space rather than trimming it away', async () => {
       const { fleet } = await service.register(

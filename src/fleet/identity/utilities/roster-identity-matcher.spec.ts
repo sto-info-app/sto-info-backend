@@ -646,9 +646,9 @@ describe('RosterIdentityMatcher', () => {
     });
   });
 
-  // FC-019: an export marked partial, or with a row excluded, cannot show
-  // that a name is gone. Steve decided on 25 September 2026 that it is
-  // skipped for pairing and still records the names it lists.
+  // FC-019: an export marked partial, or with a row excluded, cannot show that
+  // a name is gone. It is skipped for pairing and still records the names it
+  // lists.
   describe('skipping exports that cannot show a name gone', () => {
     const partial = (
       importId: string,

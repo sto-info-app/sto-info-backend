@@ -24,7 +24,7 @@ import { RosterProjectionEntity } from '../entities/roster-projection.entity';
  * - **{@link enqueue}**, after that transaction commits, queues a job. Only
  *   after, so the job cannot run before the change it is about is visible.
  *
- * ## Coalescing — Steve's decision of 25 September 2026
+ * ## Coalescing
  *
  * Every request is its own job, and the counters make surplus ones cheap: a
  * replay reads `requested` when it starts, builds from the evidence as it

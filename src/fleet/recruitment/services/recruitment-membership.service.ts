@@ -64,9 +64,9 @@ export interface GrantMembershipInput {
  * `scope_membership_action` and advances the Fleet's authorisation revision
  * in the same transaction.
  *
- * Suspension (FC-036, Steve's decision of 29 September 2026) keeps the
- * membership but takes every right it gives, as if they were not a member,
- * until reinstated. Its admins see why; the member is told, never why.
+ * Suspension (FC-036) keeps the membership but takes every right it gives, as
+ * if they were not a member, until reinstated. Its admins see why; the member
+ * is told, never why.
  */
 /** Why a member's roles and grants ended as they left (FC-039). */
 export const ENDED_BY_LEAVING = 'Ended when they left the Fleet.';

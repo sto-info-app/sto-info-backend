@@ -13,8 +13,7 @@ export enum RosterEpisodeEnd {
 
   /**
    * Still listed, but with a Join Date after the last export that listed
-   * them: they left and came back between the two. Steve's decision of
-   * 25 September 2026.
+   * them: they left and came back between the two.
    */
   LEFT_AND_REJOINED = 'LEFT_AND_REJOINED',
 }
