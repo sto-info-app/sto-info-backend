@@ -79,7 +79,7 @@ function sortName(person: GovernancePersonDto): string {
 /**
  * Role labels and delegated capabilities at a Community or Fleet (FC-022).
  *
- * With Steve's decisions of 27 September 2026:
+ * With the decisions of 27 September 2026:
  *
  * - Only the Owner changes any of this: `scope.roles.manage` is the Owner's
  *   and cannot be delegated. The route guard asks for it, so an Admin is

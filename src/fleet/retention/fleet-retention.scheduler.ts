@@ -163,10 +163,9 @@ export class FleetRetentionScheduler {
    *
    * The restore check calls this at boot, after the ledgers: a database
    * restored from an older backup holds again what the daily jobs had
-   * forgotten since — old chat messages, roster files, transcripts — and
-   * Steve's decision of 1 October 2026 is that none of it may be readable,
-   * not even for the day until the next run. Holds come back from their
-   * ledger first, so a message under hold is still kept.
+   * forgotten since — old chat messages, roster files, transcripts — and none
+   * of it may be readable, not even for the day until the next run. Holds come
+   * back from their ledger first, so a message under hold is still kept.
    *
    * Each job runs, and is recorded, as on its schedule, round after round
    * until it says it is complete. Reviewing holds and pruning this record

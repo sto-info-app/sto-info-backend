@@ -68,11 +68,11 @@ export const FORMER_OWNER_REASON = 'Previously the Owner';
  * cancellation, or an acceptance and a dispute action, are therefore taken
  * one after the other, and the second sees what the first did.
  *
- * With Steve's decisions of 27 September 2026: the Owner offers it to one of
- * the Community's Admins, who accepts or declines within seven days, and the
- * former Owner becomes an Admin. A site administrator may instead move it to
- * any of its Admins with a reason and no acceptance, and the former Owner
- * then keeps no role.
+ * With the decisions of 27 September 2026: the Owner offers it to one of the
+ * Community's Admins, who accepts or declines within seven days, and the former
+ * Owner becomes an Admin. A site administrator may instead move it to any of
+ * its Admins with a reason and no acceptance, and the former Owner then keeps
+ * no role.
  */
 @Injectable()
 export class OwnershipTransferService {
@@ -431,8 +431,7 @@ export class OwnershipTransferService {
    * Moves ownership in a dispute, with a reason and no acceptance.
    *
    * The former Owner keeps no role; the new Owner may appoint them later.
-   * The new Owner is told, without the reason (Steve's decision of 30
-   * September 2026).
+   * The new Owner is told, without the reason.
    *
    * @param communityId - The Community.
    * @param toUserId - The Admin who becomes the Owner.

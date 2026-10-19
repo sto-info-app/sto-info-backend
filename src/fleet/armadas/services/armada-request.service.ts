@@ -75,7 +75,7 @@ export function slotOf(dto: ArmadaSlotDto): ArmadaSlot {
 /**
  * A Fleet's requests to join an Armada, and their answers (FC-025).
  *
- * Steve's decisions of 28 September 2026:
+ * Decisions of 28 September 2026:
  *
  * - A Fleet joins an Armada in its own Community only by asking, and only an
  *   `armada.manage` holder answers. The request carries an optional message;

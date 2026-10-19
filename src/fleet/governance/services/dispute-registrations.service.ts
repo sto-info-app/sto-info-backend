@@ -22,7 +22,7 @@ type Registration = StoFleetEntity | StoArmadaEntity;
  * Every registration of a disputed Community's Fleets' and Armadas' names
  * (FC-036), for site admins alone.
  *
- * R02 and Steve's decision of 29 September 2026: STO Info cannot verify who
+ * R02 and the decision of 29 September 2026: STO Info cannot verify who
  * leads a Fleet in the game, so competing registrations of one exact name on
  * one platform are allowed, and a dispute shows each of them with where it
  * came from — its Community and that Community's Owner, when it was

@@ -22,12 +22,11 @@ const DEFAULT_PAGE_SIZE = 20;
 /**
  * A site admin's look into one Fleet's roster imports (FC-036).
  *
- * Steve's decision of 29 September 2026: a site admin gives a purpose, and
- * may then read the Fleet's Investigate pages — its imports, rows, conflicts,
- * identity decisions and rank order — for 24 hours, and change nothing. The
- * grant row is the record of who looked, where, why and until when; the
- * resolver reads it and confers `roster.investigate.read`. There is still no
- * way to see a raw roster file.
+ * A site admin gives a purpose, and may then read the Fleet's Investigate pages
+ * — its imports, rows, conflicts, identity decisions and rank order — for 24
+ * hours, and change nothing. The grant row is the record of who looked, where,
+ * why and until when; the resolver reads it and confers
+ * `roster.investigate.read`. There is still no way to see a raw roster file.
  */
 @Injectable()
 export class FleetInvestigationService {

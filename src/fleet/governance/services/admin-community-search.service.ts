@@ -16,11 +16,11 @@ import { AdminCommunityPageDto } from '../dto/admin-community-search.dto';
 /**
  * Finds Communities for a site administrator's dispute page (FC-050).
  *
- * Steve's decision of 30 September 2026: a site administrator reaches every
- * Community's dispute page, members-only and private ones included, and a
- * members-only or private Community is on no directory. So this lists every
- * live Community, whoever may see it and whatever its state, by name or web
- * address; only a site administrator reaches it.
+ * A site administrator reaches every Community's dispute page, members-only and
+ * private ones included, and a members-only or private Community is on no
+ * directory. So this lists every live Community, whoever may see it and
+ * whatever its state, by name or web address; only a site administrator reaches
+ * it.
  */
 @Injectable()
 export class AdminCommunitySearchService {

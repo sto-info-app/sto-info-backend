@@ -55,11 +55,10 @@ type FleetNamer = (fleetId: string) => ArmadaFleetRefDto;
  * Reads Armadas' shapes, their history and their requests (FC-024 to
  * FC-026).
  *
- * Steve's decisions of 28 September 2026: an Armada's shape and history are
- * shown to whoever may see the Armada; who made each change, and why, only
- * to its members. A Fleet the reader may not see is shown in its place
- * without its name, so the Armada's shape stays true without telling anybody
- * that a hidden Fleet exists by name.
+ * An Armada's shape and history are shown to whoever may see the Armada; who
+ * made each change, and why, only to its members. A Fleet the reader may not
+ * see is shown in its place without its name, so the Armada's shape stays true
+ * without telling anybody that a hidden Fleet exists by name.
  */
 @Injectable()
 export class ArmadaViewService {

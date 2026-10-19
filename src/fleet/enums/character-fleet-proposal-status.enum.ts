@@ -31,7 +31,7 @@ export enum CharacterFleetProposalStatus {
    * replacement to exist. The replacement names it in `replacesProposalId`.
    * A lapsed proposal was already expired, so it reads as
    * {@link CharacterFleetProposalState.EXPIRED} and nothing a client sees
-   * changes; Steve's decision of 24 September 2026.
+   * changes.
    */
   LAPSED = 'LAPSED',
   /**
@@ -41,7 +41,7 @@ export enum CharacterFleetProposalStatus {
    * transaction that ends the member's Fleet membership: it asked them to
    * confirm the Fleet once the in-game invitation happened, and that
    * invitation is no longer coming. Nobody answered, so `answeredAt` stays
-   * null; Steve's decision of 27 September 2026.
+   * null.
    */
   WITHDRAWN = 'WITHDRAWN',
 }

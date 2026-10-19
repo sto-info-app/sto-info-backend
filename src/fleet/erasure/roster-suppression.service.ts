@@ -30,12 +30,11 @@ export type RosterRowScrubber = (row: readonly string[]) => string[];
 /**
  * The suppression list every roster import is scrubbed against (FC-038).
  *
- * Steve's decisions of 29 September 2026: a site-wide list of erased
- * Character name and @handle pairs, held only as HMAC-SHA256 hashes keyed
- * with `rosterErasureKey`, so a copy of the list reveals nothing without the
- * key. A row whose pair is on it is rewritten before anything is stored —
- * the sanitised file included — to the erasure's pseudonym, with no public
- * comment.
+ * A site-wide list of erased Character name and @handle pairs, held only as
+ * HMAC-SHA256 hashes keyed with `rosterErasureKey`, so a copy of the list
+ * reveals nothing without the key. A row whose pair is on it is rewritten
+ * before anything is stored — the sanitised file included — to the erasure's
+ * pseudonym, with no public comment.
  *
  * With erasures on the list and no key, nothing can be matched, so an
  * import is refused rather than stored unscrubbed.

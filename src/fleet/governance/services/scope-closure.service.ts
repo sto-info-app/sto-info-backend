@@ -38,11 +38,10 @@ export interface ClosureRequest {
  *
  * Closure is a status change, never a deletion: the record, its web address,
  * its roster history and its Armada placements all stay, and the resolver
- * withdraws every mutating capability from a closed scope. Steve decided on
- * 27 September 2026 that it also ends every role and capability grant held at
- * the scope, whose rows keep their dates; memberships, recruitment, artwork
- * and the Fleets inside a Community are left as they are. A Community's open
- * ownership offer is cancelled with it.
+ * withdraws every mutating capability from a closed scope. It also ends every
+ * role and capability grant held at the scope, whose rows keep their dates;
+ * memberships, recruitment, artwork and the Fleets inside a Community are left
+ * as they are. A Community's open ownership offer is cancelled with it.
  *
  * A reason is required, and the closure is logged. Closing what is closed
  * already succeeds and changes nothing, so a retry cannot move the date.

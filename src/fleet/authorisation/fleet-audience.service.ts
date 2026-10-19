@@ -29,16 +29,15 @@ import { ScopeAuthorisation, ScopeRef } from './scope-authorisation.interface';
  * consulted for `FLEET_MEMBERS`, which is FC-005's second acceptance criterion
  * — following a Community never opens a private roster (R07).
  *
- * A Community's own audience counts the approved members of every Fleet in
- * it, whether it is set to its followers and members or to its members alone
- * — Steve's decision of 30 September 2026 (FC-050). Otherwise a Fleet's
- * members who do not follow their Community could not open their own
- * Fleet's pages, since a Fleet page asks about its Community first.
- * "Community members" means the same wherever it is set inside the
+ * A Community's own audience counts the approved members of every Fleet in it,
+ * whether it is set to its followers and members or to its members alone
+ * (FC-050). Otherwise a Fleet's members who do not follow their Community could
+ * not open their own Fleet's pages, since a Fleet page asks about its Community
+ * first. "Community members" means the same wherever it is set inside the
  * Community — on a Fleet, an Armada or anything published in either — so it
- * counts them there too. "Fleet members" set on a Fleet or an Armada stays
- * that scope's own members; a membership of one Fleet opens nothing a
- * sibling keeps for its own.
+ * counts them there too. "Fleet members" set on a Fleet or an Armada stays that
+ * scope's own members; a membership of one Fleet opens nothing a sibling keeps
+ * for its own.
  *
  * An open invitation is the one other thing that shows somebody a Fleet
  * (FC-021). A Fleet only its Community can see has no other way to reach a

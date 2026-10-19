@@ -1,11 +1,10 @@
 /**
  * What STO Info will accept as the exact in-game name of a Fleet or Armada.
  *
- * ADR-0003, accepted by Steve on 21 September 2026. The rule is deliberately
- * permissive: it validates by exclusion rather than by allow-list, because a
- * restrictive rule that turns out to be wrong stops a real Fleet registering
- * at all, and that failure is worse and less recoverable than an odd name
- * getting in.
+ * ADR-0003, accepted on 21 September 2026. The rule is deliberately permissive:
+ * it validates by exclusion rather than by allow-list, because a restrictive
+ * rule that turns out to be wrong stops a real Fleet registering at all, and
+ * that failure is worse and less recoverable than an odd name getting in.
  *
  * **The documented in-game rule is not this rule.** STO states 32 characters
  * including spaces, alphanumerics, spaces and basic punctuation, with symbols

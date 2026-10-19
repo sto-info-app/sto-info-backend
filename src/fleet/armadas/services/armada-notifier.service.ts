@@ -27,10 +27,10 @@ export const ARMADA_POSITION_NAMES: Readonly<Record<ArmadaPosition, string>> = {
  * Tells people in-app what became of their Armada requests, and when their
  * Fleet is taken out of an Armada (FC-025).
  *
- * Steve's decisions of 28 September 2026: the requester hears of an approval,
- * a rejection with its reason, and a lapse; a removed Fleet's Owner and
- * Admins hear of the removal, with its reason. Nobody is told of a new
- * request: the Armada's managers see it on its Requests tab.
+ * The requester hears of an approval, a rejection with its reason, and a lapse;
+ * a removed Fleet's Owner and Admins hear of the removal, with its reason.
+ * Nobody is told of a new request: the Armada's managers see it on its Requests
+ * tab.
  *
  * Sent after the change is committed. A notification that fails does not
  * undo anything, since the Fleet's page shows the outcome either way.

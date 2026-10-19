@@ -598,8 +598,8 @@ export async function endArmadaForClosure(
  * Ends a closing Fleet's placement and any open request of its (FC-024).
  *
  * A Beta's Gammas become Betas where there is room, in the order they were
- * placed, and otherwise leave: Steve's decision of 28 September 2026. Each
- * is recorded as part of the same change, with the reason.
+ * placed, and otherwise leave. Each is recorded as part of the same change,
+ * with the reason.
  *
  * @param manager - The closure's transaction.
  * @param fleet - The Fleet.

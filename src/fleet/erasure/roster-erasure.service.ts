@@ -78,7 +78,7 @@ interface Scrubbed {
 /**
  * Verified erasure of somebody's roster data (FC-038).
  *
- * Steve's decisions of 29 September 2026:
+ * Decisions of 29 September 2026:
  *
  * - **Who.** A site admin, after verifying the person off-site, erases a
  *   Character name and @handle from every Fleet's roster, with a reason.

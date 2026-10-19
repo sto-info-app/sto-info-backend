@@ -244,8 +244,8 @@ describe('AdminFleetCommunitySearchController', () => {
   });
 });
 
-// Steve's decision of 30 September 2026: a site administrator reaches every
-// Community's dispute page, whoever may see it; nobody else gains anything.
+// A site administrator reaches every Community's dispute page, whoever may see
+// it; nobody else gains anything.
 describe('AdminFleetCommunityLookupController', () => {
   const COMMUNITY = { id: COMMUNITY_ID, slug: 'hidden-fleet' };
   const VIEWER = { roles: [], capabilities: [] };

@@ -691,7 +691,7 @@ describe('OwnershipTransferService', () => {
       );
     });
 
-    // Steve's decision of 30 September 2026: told, but not why.
+    // Told, but not why.
     it('tells the new Owner, linking to the Community and leaving out the reason', async () => {
       await service.reassign(
         COMMUNITY_ID,

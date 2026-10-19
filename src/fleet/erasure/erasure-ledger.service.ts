@@ -19,15 +19,14 @@ export interface ErasureMarker {
 /**
  * Keeps every roster erasure's marker outside the database (FC-038).
  *
- * Steve's decision of 29 September 2026: a restore from a backup taken
- * before an erasure would bring back what it erased. Each marker is also
- * written, one object per erasure, to the private quarantine bucket, which
- * has no expiry rule, under `<NODE_ENV>/erasure-ledger/<createdAt>_<id>.json`.
- * At every boot, before the API serves anything, the restore check (FC-042)
- * compares the keys with the database and re-applies every marker the
- * database no longer has; it reads only those markers' bodies. A marker
- * holds the keyed hash and the pseudonym, never the name, the handle or the
- * reason.
+ * A restore from a backup taken before an erasure would bring back what it
+ * erased. Each marker is also written, one object per erasure, to the private
+ * quarantine bucket, which has no expiry rule, under
+ * `<NODE_ENV>/erasure-ledger/<createdAt>_<id>.json`. At every boot, before the
+ * API serves anything, the restore check (FC-042) compares the keys with the
+ * database and re-applies every marker the database no longer has; it reads
+ * only those markers' bodies. A marker holds the keyed hash and the pseudonym,
+ * never the name, the handle or the reason.
  */
 @Injectable()
 export class ErasureLedgerService {

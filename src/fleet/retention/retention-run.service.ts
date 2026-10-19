@@ -22,9 +22,9 @@ const ERROR_LENGTH = 500;
 /**
  * Records each run of each Fleet retention job (FC-037).
  *
- * Steve's decision of 29 September 2026: a row per run, with what it did,
- * whether it got through everything due, and why it stopped when it failed.
- * No page shows them yet; FC-039's diagnostics may.
+ * A row per run, with what it did, whether it got through everything due, and
+ * why it stopped when it failed. No page shows them yet; FC-039's diagnostics
+ * may.
  *
  * Every job runs through {@link record}, which catches a failure — an
  * unhandled rejection inside a scheduled job takes the process down — and

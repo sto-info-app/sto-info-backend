@@ -224,8 +224,8 @@ describe('ScopeSuspensionService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  // Steve's decision of 30 September 2026: the Owner and Admins are told,
-  // never why, and nothing goes in the activity feed.
+  // The Owner and Admins are told, never why, and nothing goes in the activity
+  // feed.
   describe('telling its Owner and Admins', () => {
     it('tells a Community’s Owner and its own Admins that it was suspended, without the reason', async () => {
       stored = { id: COMMUNITY_ID, status: FleetScopeStatus.ACTIVE };

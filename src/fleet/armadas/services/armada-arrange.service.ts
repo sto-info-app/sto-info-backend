@@ -33,7 +33,7 @@ import { slotOf } from './armada-request.service';
 /**
  * Moves Fleets within an Armada, and takes them out of it (FC-024).
  *
- * Steve's decisions of 28 September 2026:
+ * Decisions of 28 September 2026:
  *
  * - An `armada.manage` holder moves a placed Fleet, or removes it. Either
  *   needs a reason. The Alpha slot may be left empty.

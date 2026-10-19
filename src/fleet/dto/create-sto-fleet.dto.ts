@@ -24,7 +24,7 @@ const trim = ({ value }: { value: unknown }) =>
  * **The name is not trimmed, and that is the whole point.** ADR-0003 applies
  * here in a way it does not to a Community: this field has to hold what the
  * game shows, character for character, because FC-016 compares it to a roster
- * export's filename and Steve has seen a leading space used in game precisely
+ * export's filename and a leading space is known to be used in game precisely
  * so two Fleets can carry almost the same name. Every other field on this
  * request is trimmed like any ordinary display value.
  *

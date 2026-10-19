@@ -411,10 +411,10 @@ describe('FleetAudienceService: seeing a scope', () => {
 });
 
 /**
- * FC-050, Steve's decision of 30 September 2026: a Community's own audience
- * counts the approved members of every Fleet in it, whether it is set to its
- * followers and members or to its members alone. So a Fleet's members reach
- * their own Fleet without following, and nobody else is let in.
+ * FC-050: a Community's own audience counts the approved members of every Fleet
+ * in it, whether it is set to its followers and members or to its members
+ * alone. So a Fleet's members reach their own Fleet without following, and
+ * nobody else is let in.
  */
 describe("FleetAudienceService: a Community's Fleet members", () => {
   const OWNER = 'user-owner';
@@ -740,11 +740,11 @@ describe("FleetAudienceService: a Community's Fleet members", () => {
 });
 
 /**
- * FC-050, Steve's decision of 30 September 2026: "Community members" means
- * the same wherever it is set inside a Community. On a Fleet, an Armada or
- * anything published in either, it admits the Community's followers and the
- * approved members of every Fleet in it, as it does on the Community itself.
- * "Fleet members" on a Fleet stays that Fleet's own.
+ * FC-050: "Community members" means the same wherever it is set inside a
+ * Community. On a Fleet, an Armada or anything published in either, it admits
+ * the Community's followers and the approved members of every Fleet in it, as
+ * it does on the Community itself. "Fleet members" on a Fleet stays that
+ * Fleet's own.
  */
 describe('FleetAudienceService: "Community members" inside a Community', () => {
   const OWNER = 'user-owner';

@@ -54,21 +54,21 @@ interface SuspensionAudience {
 /**
  * A site admin's suspension of a Community, Fleet or Armada (FC-036).
  *
- * Steve's decision of 29 September 2026: a suspended scope is read-only —
- * the resolver withdraws every mutating capability there, as it does at a
- * closed one, so nothing changes and nobody posts in its chat — until a
- * site admin reinstates it. A Community's suspension reaches its Fleets and
- * Armadas. Both need a reason, and both are logged as a site admin's.
+ * A suspended scope is read-only — the resolver withdraws every mutating
+ * capability there, as it does at a closed one, so nothing changes and nobody
+ * posts in its chat — until a site admin reinstates it. A Community's
+ * suspension reaches its Fleets and Armadas. Both need a reason, and both are
+ * logged as a site admin's.
  *
  * Unlike closure it ends nothing: roles, grants, memberships and events all
  * stand, and come back into force when it is reinstated. A closed scope is
  * never suspended or reinstated.
  *
- * Steve's decision of 30 September 2026: its Owner and Admins are told
- * in-app that it was suspended or reinstated, without the reason, and
- * nothing goes in its activity feed. Whom to tell is read in the same
- * transaction as the change; the notices go once it is committed, as the
- * Fleet's other governance notices do, and one that fails undoes nothing.
+ * Its Owner and Admins are told in-app that it was suspended or reinstated,
+ * without the reason, and nothing goes in its activity feed. Whom to tell is
+ * read in the same transaction as the change; the notices go once it is
+ * committed, as the Fleet's other governance notices do, and one that fails
+ * undoes nothing.
  */
 @Injectable()
 export class ScopeSuspensionService {

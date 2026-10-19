@@ -26,13 +26,12 @@ export const DEPARTURE_CLOSE_REASON =
 /**
  * What an Owner closing their account does to their Communities (FC-038).
  *
- * Steve's decision of 29 September 2026: closing the account says first
- * which Communities they own and what will happen, suggesting a transfer.
- * If they close anyway, each open Community goes to its longest-serving
- * Admin whose account is open and who may own one more; one with nobody to
- * take it is closed. It all happens at closure, and is logged. A closed
- * Community stays theirs until the account is erased, when it keeps no
- * Owner.
+ * Closing the account says first which Communities they own and what will
+ * happen, suggesting a transfer. If they close anyway, each open Community goes
+ * to its longest-serving Admin whose account is open and who may own one more;
+ * one with nobody to take it is closed. It all happens at closure, and is
+ * logged. A closed Community stays theirs until the account is erased, when it
+ * keeps no Owner.
  */
 @Injectable()
 export class CommunityOwnerDepartureService implements AccountDeparture {

@@ -84,8 +84,8 @@ describe('fleet policy constants', () => {
 
   /**
    * The three fixed figures have no environment variable behind them, decided
-   * with Steve on 17 September 2026 and recorded in ADR-0011. Nothing in R20 or
-   * R22 describes them as configurable, and a published window an operator can
+   * on 17 September 2026 and recorded in ADR-0011. Nothing in R20 or R22
+   * describes them as configurable, and a published window an operator can
    * quietly widen is a policy statement that can stop being true without being
    * corrected.
    *

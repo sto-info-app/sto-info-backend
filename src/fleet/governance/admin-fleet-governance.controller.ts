@@ -108,12 +108,11 @@ export class AdminFleetCommunitySearchController {
  * Finds a Community from its web address for a site administrator's dispute
  * page, whoever may see it (FC-050).
  *
- * Steve's decision of 30 September 2026: a site administrator reaches every
- * Community's dispute page, members-only and private ones included. The
- * public `GET /fleet-communities/by-slug/:slug` still answers them as it
- * answers anybody, so this is the only read that skips the audience check,
- * and only a site administrator reaches it. It says nothing the dispute view
- * does not already.
+ * A site administrator reaches every Community's dispute page, members-only and
+ * private ones included. The public `GET /fleet-communities/by-slug/:slug`
+ * still answers them as it answers anybody, so this is the only read that skips
+ * the audience check, and only a site administrator reaches it. It says nothing
+ * the dispute view does not already.
  *
  * Its routes are registered before {@link AdminFleetGovernanceController}'s,
  * whose `:communityId` would otherwise take `by-slug` for an identifier when
@@ -192,8 +191,8 @@ export class AdminFleetCommunityLookupController {
  * imports, read-only, for 24 hours under a logged purpose.
  *
  * None of these routes asks whether the site administrator may see the
- * Community: they work at a members-only or private one as at a public one
- * (Steve's decision of 30 September 2026), behind the site role alone.
+ * Community: they work at a members-only or private one as at a public one,
+ * behind the site role alone.
  */
 @ApiTags('Fleet governance (admin)')
 @ApiBearerAuth()
