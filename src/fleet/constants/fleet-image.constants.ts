@@ -5,12 +5,12 @@ import { ImageSlotSpec } from 'src/shared/images/image-slot.service';
 /**
  * The pictures a Community, Fleet or Armada may carry.
  *
- * **Nothing uploads one yet.** FC-012 built the ingress every picture on the
- * site now goes through and wrote these specifications with it; the routes
- * that use them arrive with FC-013 and the registration screens. They are
- * here rather than there because the shape of a Fleet banner is a property
- * of the design — ADR-0014's one colour and shared components — and not of
- * whichever ticket happens to add the form.
+ * Each is uploaded from the Artwork panel on the record's page, through the
+ * same ingress as every other picture on the site, by
+ * `FleetImageService`. The specifications live here rather than with the
+ * routes because the shape of a Fleet banner is a property of the design —
+ * ADR-0014's one colour and shared components — and not of the form that
+ * happens to upload it.
  *
  * The two shapes match the ones Storytime already uses for the same jobs. A
  * reader who has cropped a Story banner should not have to learn a second
