@@ -71,12 +71,11 @@ const TENURE_COLUMNS: ReadonlyArray<[RosterTenureBand, string]> = [
 /**
  * Writes a report as CSV (FC-020).
  *
- * The tables exactly as the viewer is shown them (Steve's decision of 25
- * September 2026): an aggregate view's export names nobody, and every
- * figure its view hid is written `< 5`. Comment lines above the tables say
- * which report, revision, span and view it is and when it was made. The
- * text starts with a byte order mark, so a spreadsheet reads it as UTF-8,
- * and every instant is ISO 8601 UTC.
+ * The tables exactly as the viewer is shown them: an aggregate view's export
+ * names nobody, and every figure its view hid is written `< 5`. Comment lines
+ * above the tables say which report, revision, span and view it is and when it
+ * was made. The text starts with a byte order mark, so a spreadsheet reads it
+ * as UTF-8, and every instant is ISO 8601 UTC.
  */
 @Injectable()
 export class FleetReportCsvService {

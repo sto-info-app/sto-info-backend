@@ -1,9 +1,8 @@
 /**
  * How recently a member was active, measured back from an export (FC-020).
  *
- * Bands at 7, 30 and 90 days before the export's own instant (Steve's
- * decision of 25 September 2026), from the latest Last Active of the
- * member's rows on it.
+ * Bands at 7, 30 and 90 days before the export's own instant, from the latest
+ * Last Active of the member's rows on it.
  */
 export enum RosterActivityBand {
   /** Active within 7 days of the export. */

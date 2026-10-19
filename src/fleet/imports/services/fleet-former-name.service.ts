@@ -35,9 +35,9 @@ const RELATIONS = {
  *
  * In-game Fleets are renamed, and an export from before a rename carries the
  * old name in its filename. The roster import has always matched a recorded
- * former name, and until FC-050 nothing could record one. Steve's decision
- * of 30 September 2026: the Fleet's Owner and Admins record them, with the
- * dates the name was used and a reason, and can remove one.
+ * former name, and until FC-050 nothing could record one. The Fleet's Owner and
+ * Admins record them, with the dates the name was used and a reason, and can
+ * remove one.
  *
  * **Deliberately, never from a file.** A name is accepted only when somebody
  * states it, because an importer that learned names from filenames could be

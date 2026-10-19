@@ -77,10 +77,9 @@ export class IsRosterImportReason implements ValidatorConstraintInterface {
 /**
  * Why an investigator is correcting an import (FC-019).
  *
- * Required of every correction — Steve's decision of 25 September 2026 —
- * because a history somebody changed with no word of why is not one anybody
- * else can trust. Kept, with who gave it and when, in the import's action
- * log.
+ * Required of every correction, because a history somebody changed with no word
+ * of why is not one anybody else can trust. Kept, with who gave it and when, in
+ * the import's action log.
  */
 export class RosterImportReasonDto {
   @ApiProperty({

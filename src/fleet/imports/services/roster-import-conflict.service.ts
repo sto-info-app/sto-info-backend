@@ -27,11 +27,10 @@ import { RosterImportSourceEntity } from '../entities/roster-import-source.entit
  *
  * ## One group per moment, ever
  *
- * Steve decided on 25 September 2026 that an export arriving for a moment
- * whose group was settled joins that group rather than starting another. If
- * it says something different from the export selected there, the group is
- * reopened: the selection stays in force, and the newcomer waits until an
- * investigator selects again.
+ * An export arriving for a moment whose group was settled joins that group
+ * rather than starting another. If it says something different from the export
+ * selected there, the group is reopened: the selection stays in force, and the
+ * newcomer waits until an investigator selects again.
  *
  * ## Holding
  *

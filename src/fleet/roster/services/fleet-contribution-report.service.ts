@@ -34,9 +34,8 @@ import {
  * negative gift, and nothing says what was given.
  *
  * A full view also lists each member's rise, largest first, and each reset,
- * in one interval (Steve's decision of 25 September 2026). An aggregate
- * view sees the totals and counts only, with a total hidden when fewer than
- * five members' deltas make it up.
+ * in one interval. An aggregate view sees the totals and counts only, with a
+ * total hidden when fewer than five members' deltas make it up.
  */
 @Injectable()
 export class FleetContributionReportService {

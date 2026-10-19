@@ -59,9 +59,9 @@ export interface RosterSourceDestruction {
 /**
  * Deletes sanitised roster files when their retention ends (FC-037).
  *
- * R22 and Steve's decisions of 29 September 2026: a file goes when its
- * `retainUntil` passes — 180 days after upload by default — whatever state
- * its import is in.
+ * R22 and the decisions of 29 September 2026: a file goes when its
+ * `retainUntil` passes — 180 days after upload by default — whatever state its
+ * import is in.
  *
  * - **The Fleet's history stays.** An import in force was read into
  *   observations when it went into force, and nothing reads its file again:

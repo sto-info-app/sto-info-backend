@@ -23,7 +23,7 @@ import { FleetReportAudienceService } from './fleet-report-audience.service';
 /**
  * Decides how much of a Fleet's report a viewer is shown (FC-020).
  *
- * Steve's decisions of 25 September 2026:
+ * Decisions of 25 September 2026:
  *
  * - Nobody is shown anything of a Fleet they may not see at all. The Fleet
  *   and its Community's own audiences come first, so a public report on a

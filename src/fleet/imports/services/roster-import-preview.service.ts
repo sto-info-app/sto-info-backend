@@ -231,13 +231,12 @@ export class RosterImportPreviewService {
 /**
  * Finds the dates that fall after now (FC-043).
  *
- * Steve's decision of 1 October 2026: a warning in the check, not a
- * refusal. An export stamp or a row in the future is almost always a file
- * read through the wrong timezone — a New York export read as London's runs
- * five hours fast — and the check is where that is cheapest to notice. A
- * date counts as future only when every instant it could name is: the
- * morning a clock goes back, one reading may be ahead while the other is
- * not, and that is the ambiguity's question rather than this one's.
+ * A warning in the check, not a refusal. An export stamp or a row in the future
+ * is almost always a file read through the wrong timezone — a New York export
+ * read as London's runs five hours fast — and the check is where that is
+ * cheapest to notice. A date counts as future only when every instant it could
+ * name is: the morning a clock goes back, one reading may be ahead while the
+ * other is not, and that is the ambiguity's question rather than this one's.
  *
  * @param stamp - Every instant the export stamp could name.
  * @param rows - The readable rows.

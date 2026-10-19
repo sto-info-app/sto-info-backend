@@ -21,10 +21,9 @@ import { RosterRankOrderEntity } from '../entities/roster-rank-order.entity';
  * A Fleet's rank order: read by the pages that show ranks, and edited by its
  * investigators (FC-020).
  *
- * Read when a page is drawn rather than replayed into a revision (Steve's
- * decision of 25 September 2026), so an edit shows at once. Every edit
- * replaces the whole order, gives a reason, and is kept with the order
- * before and after in `fleet_roster_rank_order_action`.
+ * Read when a page is drawn rather than replayed into a revision, so an edit
+ * shows at once. Every edit replaces the whole order, gives a reason, and is
+ * kept with the order before and after in `fleet_roster_rank_order_action`.
  *
  * Within a tier the labels have no order, so a tier is always given back
  * sorted and two orders differing only there are the same order.

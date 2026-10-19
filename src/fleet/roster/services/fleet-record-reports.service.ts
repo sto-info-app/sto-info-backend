@@ -77,14 +77,13 @@ interface RecruitmentTally {
  * who came to its events, how its recruitment went, and how its holdings
  * changed.
  *
- * Steve's decisions of 28 September 2026: attendance covers the Fleet's own
- * events, shown per person to `reports.view` holders alone and as counts
- * and rates to anybody else the Owner chooses; recruitment is counts per
- * month and route, and the median days to a decision, never a name;
- * holdings are public, like the Holdings page, and never say who recorded
- * them. Each reads the last twelve months unless another span is asked
- * for, and hides a figure counting one to four people in an aggregate
- * view, as the roster's reports do.
+ * Attendance covers the Fleet's own events, shown per person to `reports.view`
+ * holders alone and as counts and rates to anybody else the Owner chooses;
+ * recruitment is counts per month and route, and the median days to a decision,
+ * never a name; holdings are public, like the Holdings page, and never say who
+ * recorded them. Each reads the last twelve months unless another span is asked
+ * for, and hides a figure counting one to four people in an aggregate view, as
+ * the roster's reports do.
  */
 @Injectable()
 export class FleetRecordReportsService {

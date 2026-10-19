@@ -1,6 +1,6 @@
 /**
  * The fewest members a figure shown to an aggregate audience may count
- * (FC-020, Steve's decision of 25 September 2026).
+ * (FC-020).
  */
 export const REPORT_MINIMUM_COHORT = 5;
 
@@ -11,10 +11,9 @@ export const REPORT_MINIMUM_COHORT = 5;
  * only. Any count from 1 to 4 is hidden. Then, so that no hidden count can
  * be got back by subtracting the rest from a total shown elsewhere, the
  * smallest counts still shown are hidden too, one by one, until the hidden
- * counts together count at least the minimum, or every count is hidden
- * (Steve's decisions of 25 September 2026). A zero is never hidden for its
- * own sake, since it counts nobody, but is hidden first when more must be:
- * it gives the least away.
+ * counts together count at least the minimum, or every count is hidden. A zero
+ * is never hidden for its own sake, since it counts nobody, but is hidden first
+ * when more must be: it gives the least away.
  *
  * @param counts - The group, in any order.
  * @param minimum - The fewest members a shown count may count.

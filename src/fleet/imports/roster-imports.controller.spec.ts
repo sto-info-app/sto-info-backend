@@ -560,8 +560,7 @@ describe('RosterImportsController', () => {
     });
   });
 
-  // FC-019: correcting an import is an investigator's, never an importer's
-  // — Steve's decision of 25 September 2026.
+  // FC-019: correcting an import is an investigator's, never an importer's.
   describe.each([
     ['excluding an import', 'exclude', { reason: 'Wrong Fleet' }],
     ['reinstating one', 'reinstate', { reason: 'Right Fleet after all' }],

@@ -99,8 +99,8 @@ interface NameMatch {
  * On its NFC form and nothing else: not case-folded, not trimmed, not with
  * punctuation stripped, and never against the slug. ADR-0003 settled that a
  * Fleet's exact game name is stored as given, edge spaces included, precisely
- * so that it can be compared with a filename that carries them — and Steve has
- * seen a leading space used in game so that two Fleets can be named almost the
+ * so that it can be compared with a filename that carries them — and a leading
+ * space is known to be used in game so that two Fleets can be named almost the
  * same. A comparison that folded it away would file one Fleet's roster under
  * another's, which is the worst thing this module could do.
  *

@@ -63,10 +63,9 @@ const SORT_COLUMNS: Readonly<Record<RosterSort, string>> = {
  * stored.
  *
  * The export is chosen from the published revision's effective exports, the
- * last at or before `asOf` (Steve's decision of 25 September 2026), so a
- * roster never shows an export the history does not stand on: an excluded
- * one, or one not selected for its moment. A row an investigator excluded is
- * shown to investigators alone, marked.
+ * last at or before `asOf`, so a roster never shows an export the history does
+ * not stand on: an excluded one, or one not selected for its moment. A row an
+ * investigator excluded is shown to investigators alone, marked.
  */
 @Injectable()
 export class RosterViewService {

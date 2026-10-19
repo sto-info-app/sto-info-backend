@@ -31,10 +31,9 @@ import { RosterRankOrderService } from './roster-rank-order.service';
  *
  * For `roster.view` holders. Each interval between two consecutive effective
  * exports is shown with its summary and the membership, name, rank and Join
- * Date changes that the later export revealed, newest first (Steve's
- * decisions of 25 September 2026). A change across a gap sits under the
- * export that revealed it, with its wider bounds, and is in none of the
- * interval's totals — FC-019 counted it in none.
+ * Date changes that the later export revealed, newest first. A change across a
+ * gap sits under the export that revealed it, with its wider bounds, and is in
+ * none of the interval's totals — FC-019 counted it in none.
  *
  * Contribution appears here only as each interval's totals and counts: a
  * member's rises and resets are on their timeline and in the contribution

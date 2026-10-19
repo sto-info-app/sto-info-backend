@@ -161,9 +161,8 @@ export class FleetReportsController {
   /**
    * Reads every report's audience and every change to one.
    *
-   * For `reports.view` holders — the Owner and Admins (Steve's decision of
-   * 25 September 2026). Anybody else learns only whether a report is shown
-   * to them.
+   * For `reports.view` holders — the Owner and Admins. Anybody else learns only
+   * whether a report is shown to them.
    *
    * @param fleetId - The Fleet.
    * @returns The audiences and their changes.

@@ -17,11 +17,10 @@ const AUDIENCED_REPORTS: readonly FleetReport[] = Object.values(
 /**
  * Who may see each of a Fleet's reports (FC-020).
  *
- * The Owner chooses, per report, from the Fleet's four audiences (Steve's
- * decisions of 25 September 2026). A report nobody has chosen for is
- * `PRIVATE`: its `reports.view` holders alone. Every change is kept, from
- * what to what and by whom; no reason is asked, as for the Owner's other
- * settings.
+ * The Owner chooses, per report, from the Fleet's four audiences. A report
+ * nobody has chosen for is `PRIVATE`: its `reports.view` holders alone. Every
+ * change is kept, from what to what and by whom; no reason is asked, as for the
+ * Owner's other settings.
  */
 @Injectable()
 export class FleetReportAudienceService {

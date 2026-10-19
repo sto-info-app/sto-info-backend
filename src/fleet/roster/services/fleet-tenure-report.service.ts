@@ -46,8 +46,8 @@ const TENURE_LIMITS: ReadonlyArray<[RosterTenureBand, number]> = [
  * - **Tenure** is observed: how long each export's members had been listed,
  *   from the first export of the episode it falls in, banded at 30 and 90
  *   days and one and two years. A member no earlier export bounds had been
- *   listed at least that long, and is counted as such (Steve's decisions of
- *   25 September 2026). A full view also lists the members at one export.
+ *   listed at least that long, and is counted as such. A full view also lists
+ *   the members at one export.
  * - **Ranks** is each export's members under each rank label, ordered by
  *   the Fleet's tiers, beside the rank changes it revealed: promotions and
  *   demotions where the tiers allow, every other change only "changed".

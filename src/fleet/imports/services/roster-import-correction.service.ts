@@ -116,7 +116,7 @@ type Correction = (
  * departures, and an excluded row leaves its member unknown in that export.
  *
  * Only `roster.investigate` holders reach this, and a reason is required of
- * every correction: Steve's decisions of 25 September 2026.
+ * every correction.
  *
  * ## Correcting a timezone
  *
@@ -129,18 +129,17 @@ type Correction = (
  * at upload is not redone: a former name's validity is measured in months,
  * and the stamp moves by hours.
  *
- * An export in a conflict can be corrected at once (Steve's decision of 30
- * September 2026): a wrong clock is usually why it clashed, and correcting it
- * is the answer, not something to wait for. It leaves its old moment's group,
- * which stays with the moment for anything that claims it later, and joins
- * whatever group its new moment already has, as an upload of that moment
- * would. If it was the export selected there, the selection goes with it and
- * the moment falls back to the first version the site saw. Either way the
- * exports it leaves behind that were held are published again, so the
- * publisher decides afresh which of them stands. A held export has not been
- * read, so its stored file is read through the new zone first: a date that
- * never happened there refuses the correction, changing nothing, rather than
- * leaving the publisher to refuse the file.
+ * An export in a conflict can be corrected at once: a wrong clock is usually
+ * why it clashed, and correcting it is the answer, not something to wait for.
+ * It leaves its old moment's group, which stays with the moment for anything
+ * that claims it later, and joins whatever group its new moment already has, as
+ * an upload of that moment would. If it was the export selected there, the
+ * selection goes with it and the moment falls back to the first version the
+ * site saw. Either way the exports it leaves behind that were held are
+ * published again, so the publisher decides afresh which of them stands. A held
+ * export has not been read, so its stored file is read through the new zone
+ * first: a date that never happened there refuses the correction, changing
+ * nothing, rather than leaving the publisher to refuse the file.
  *
  * ## Selecting an export
  *

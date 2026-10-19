@@ -229,8 +229,8 @@ describe('RosterImportConflictService', () => {
         expect(conflicts.update).not.toHaveBeenCalled();
       });
 
-      // Steve's decision of 25 September 2026: the selection stays in force
-      // and the newcomer waits for an investigator to select again.
+      // The selection stays in force and the newcomer waits for an investigator
+      // to select again.
       it('reopens it when it says something different from the selection', async () => {
         await expect(group(member('new', 'a'))).resolves.toEqual({
           ...settled,

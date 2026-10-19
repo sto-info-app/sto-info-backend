@@ -33,8 +33,7 @@ const ACTIVITY_BANDS = Object.values(RosterActivityBand);
  *   revealed across a gap. Beside them, the account handles each end
  *   listed, counted as observed accounts, never as people (plan section 7).
  * - **Activity** is each export's members banded by their Last Active,
- *   measured back from the export itself at 7, 30 and 90 days (Steve's
- *   decision of 25 September 2026).
+ *   measured back from the export itself at 7, 30 and 90 days.
  */
 @Injectable()
 export class FleetGrowthReportService {

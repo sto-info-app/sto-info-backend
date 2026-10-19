@@ -127,8 +127,7 @@ export class IsRosterRankOrderReason implements ValidatorConstraintInterface {
  * An investigator's new rank order for a Fleet (FC-020).
  *
  * Replaces the whole order. `expected` is the order as it was loaded, so an
- * edit made meanwhile by somebody else is refused rather than overwritten
- * (Steve's decision of 25 September 2026).
+ * edit made meanwhile by somebody else is refused rather than overwritten.
  */
 export class UpdateRosterRankOrderDto {
   @ApiProperty({

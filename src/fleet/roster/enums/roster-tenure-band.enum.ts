@@ -2,9 +2,9 @@
  * How long a member had been listed at an export (FC-020).
  *
  * Measured from the first export of the member's current episode to the
- * export itself — observed, never the game's Join Date (Steve's decision of
- * 25 September 2026). A member first seen on the Fleet's first export had
- * been there at least that long, and is counted as such.
+ * export itself — observed, never the game's Join Date. A member first seen on
+ * the Fleet's first export had been there at least that long, and is counted as
+ * such.
  */
 export enum RosterTenureBand {
   /** Under 30 days. */

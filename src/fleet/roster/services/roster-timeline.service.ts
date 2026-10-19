@@ -27,10 +27,9 @@ import { RosterViewer } from './roster-view.service';
  *
  * For `roster.view` holders, from the published revision: the member's
  * episodes, every change including contribution, and their row on each
- * effective export listing them (Steve's decisions of 25 September 2026).
- * Rows an investigator excluded are shown to investigators alone, as on the
- * roster, and the registry link follows the roster's rule, applied to the
- * latest export listing them.
+ * effective export listing them. Rows an investigator excluded are shown to
+ * investigators alone, as on the roster, and the registry link follows the
+ * roster's rule, applied to the latest export listing them.
  */
 @Injectable()
 export class RosterTimelineService {

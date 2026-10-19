@@ -29,8 +29,8 @@ export interface RosterRowName {
  *
  * A roster row is evidence that somebody by that name and handle was listed.
  * It never says whose Character it is — ADR-0002 — so a row links only where
- * the Character's owner has said so and every privacy setting on the way
- * lets the viewer through (Steve's decisions of 25 September 2026):
+ * the Character's owner has said so and every privacy setting on the way lets
+ * the viewer through:
  *
  * 1. A registered Character has the row's exact full handle.
  * 2. Its owner has recorded a membership of this Fleet covering the moment of

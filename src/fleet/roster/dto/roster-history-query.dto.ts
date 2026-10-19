@@ -16,9 +16,9 @@ import { RosterChangeKind } from '../../projection/enums/roster-change-kind.enum
 /**
  * The kinds of change the History tab lists (FC-020).
  *
- * Contribution rises and resets are left to the interval totals, the
- * member's timeline and the contribution report (Steve's decision of 25
- * September 2026): on a real Fleet they would be most of the list.
+ * Contribution rises and resets are left to the interval totals, the member's
+ * timeline and the contribution report: on a real Fleet they would be most of
+ * the list.
  */
 export const ROSTER_HISTORY_KINDS: readonly RosterChangeKind[] = [
   RosterChangeKind.JOINED,

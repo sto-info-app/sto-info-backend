@@ -359,7 +359,7 @@ describe('RosterImportCorrectionService', () => {
       });
     });
 
-    // Steve's decision of 25 September 2026: a selection can be changed.
+    // A selection can be changed.
     it('replaces an earlier selection', async () => {
       group.selectedImportId = 'import-other';
 
@@ -609,9 +609,8 @@ describe('RosterImportCorrectionService', () => {
       expect(publications.enqueue).not.toHaveBeenCalled();
     });
 
-    // Steve's decision of 30 September 2026: a held export is corrected at
-    // once. It has no rows yet, so its stored file is read through the new
-    // zone first, as the publisher will read it.
+    // A held export is corrected at once. It has no rows yet, so its stored
+    // file is read through the new zone first, as the publisher will read it.
     describe('a held export', () => {
       beforeEach(() => {
         placementState = FileAssetPlacementState.HELD;
@@ -677,8 +676,8 @@ describe('RosterImportCorrectionService', () => {
         );
       });
 
-      // Steve's decision of 30 September 2026: a wrong clock is why it
-      // clashed, so correcting it is the answer, not something to wait for.
+      // A wrong clock is why it clashed, so correcting it is the answer, not
+      // something to wait for.
       it('corrects it while nobody has chosen, and takes it out of the group', async () => {
         await expect(correct('America/New_York')).resolves.toEqual({
           id: IMPORT_ID,
