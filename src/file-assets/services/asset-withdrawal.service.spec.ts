@@ -4,6 +4,7 @@ import { jest } from '@jest/globals';
 
 import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
 
+import { ImageCachePurgeService } from '../delivery/image-cache-purge.service';
 import { FileAssetEntity } from '../entities/file-asset.entity';
 import { FileAssetPlacementState } from '../enums/file-asset-placement-state.enum';
 import { FileAssetSlot } from '../enums/file-asset-slot.enum';
@@ -42,6 +43,7 @@ describe('AssetWithdrawalService', () => {
   >;
   let deleteR2Object: jest.Mock<(...args: any[]) => Promise<void>>;
   let retireFor: jest.Mock<(...args: any[]) => Promise<void>>;
+  let purge: jest.Mock<(...args: any[]) => Promise<boolean>>;
   let service: AssetWithdrawalService;
 
   beforeEach(() => {
@@ -68,6 +70,9 @@ describe('AssetWithdrawalService', () => {
     retireFor = jest
       .fn<(...args: any[]) => Promise<void>>()
       .mockResolvedValue(undefined);
+    purge = jest
+      .fn<(...args: any[]) => Promise<boolean>>()
+      .mockResolvedValue(true);
 
     service = new AssetWithdrawalService(
       {
@@ -85,6 +90,7 @@ describe('AssetWithdrawalService', () => {
         deleteR2Object,
       } as unknown as ImageUploadsService,
       { retireFor } as unknown as ImageEstateService,
+      { purge } as unknown as ImageCachePurgeService,
     );
 
     jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
@@ -110,6 +116,40 @@ describe('AssetWithdrawalService', () => {
       expect(retireFor).toHaveBeenCalledWith('asset-1');
     });
 
+    // The delete does not empty the custom domain's edge cache, and an
+    // address cached there went on being served (19 October 2026). Purged
+    // after the delete, so nothing can fill it again.
+    it('purges the edge cache once the image has gone', async () => {
+      await service.withdrawByReference('image-1', 'Replaced');
+
+      expect(purge).toHaveBeenCalledWith('image-1');
+      expect(
+        deleteImageFromCloudflareImages.mock.invocationCallOrder[0],
+      ).toBeLessThan(purge.mock.invocationCallOrder[0]);
+      expect(purge.mock.invocationCallOrder[0]).toBeLessThan(
+        confirmPurged.mock.invocationCallOrder[0],
+      );
+    });
+
+    // Left owed, so the hourly sweep tries the purge again.
+    it('confirms no purge while a cached copy may be left', async () => {
+      purge.mockResolvedValue(false);
+
+      await expect(
+        service.withdrawByReference('image-1', 'Replaced'),
+      ).resolves.toEqual({ deleted: false, revoked: true });
+
+      expect(confirmPurged).not.toHaveBeenCalled();
+    });
+
+    it('does not purge the cache when the delete failed', async () => {
+      deleteImageFromCloudflareImages.mockRejectedValue(new Error('down'));
+
+      await service.withdrawByReference('image-1', 'Replaced');
+
+      expect(purge).not.toHaveBeenCalled();
+    });
+
     // FC-040: a legacy R2 portrait is an object in the R2 bucket, not an
     // image, and is deleted there.
     it('deletes a legacy R2 portrait from R2', async () => {
@@ -127,6 +167,8 @@ describe('AssetWithdrawalService', () => {
         'user/character/portrait.png',
       );
       expect(deleteImageFromCloudflareImages).not.toHaveBeenCalled();
+      // Not served through the images' custom domain.
+      expect(purge).not.toHaveBeenCalled();
     });
 
     it.each([
@@ -227,8 +269,17 @@ describe('AssetWithdrawalService', () => {
       await expect(service.settleOwedPurge(owed())).resolves.toBe(true);
 
       expect(deleteImageFromCloudflareImages).toHaveBeenCalledWith('image-1');
+      expect(purge).toHaveBeenCalledWith('image-1');
       expect(confirmPurged).toHaveBeenCalledWith('asset-1');
       expect(retireFor).toHaveBeenCalledWith('asset-1');
+    });
+
+    it('leaves the purge owed while the edge cache could not be purged', async () => {
+      purge.mockResolvedValue(false);
+
+      await expect(service.settleOwedPurge(owed())).resolves.toBe(false);
+
+      expect(confirmPurged).not.toHaveBeenCalled();
     });
 
     it('deletes a legacy R2 object from R2', async () => {

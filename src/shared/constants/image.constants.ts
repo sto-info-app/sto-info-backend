@@ -208,6 +208,28 @@ export const COVER_VARIANTS = ['cover640x360', 'cover1920x1080'] as const;
 export type CoverImageUrls = Record<(typeof COVER_VARIANTS)[number], string>;
 
 /**
+ * Every variant defined on the Cloudflare Images account.
+ *
+ * Withdrawing a picture purges each of these from the custom domain's cache,
+ * so a variant added on the account has to be added here too, or a cached
+ * copy of it would outlive the picture.
+ */
+export const DELIVERY_VARIANTS = [
+  'public',
+  'square40',
+  'square100',
+  'square200',
+  'square300',
+  'square512',
+  'banner1200x240',
+  'banner2400x480',
+  'cover640x360',
+  'cover1920x1080',
+  'portrait133x200',
+  'portrait400x600',
+] as const;
+
+/**
  * A picture's address, for a response (FC-040). The API signs it on the way
  * out, so the browser never builds one itself.
  *
