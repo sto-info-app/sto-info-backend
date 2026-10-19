@@ -14,7 +14,7 @@ const ADDED_ACTIONS = ['TRANSCRIPT_REQUESTED', 'TRANSCRIPT_DOWNLOADED'];
 /**
  * Transcripts and message reports for chat (FC-035).
  *
- * With Steve's decisions of 28 and 29 September 2026:
+ * With the decisions of 28 and 29 September 2026:
  *
  * - `chat_transcript`: a scope admin's request for one channel over at most
  *   the last seven days, with a purpose. A job writes it as plain text to the

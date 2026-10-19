@@ -12,12 +12,12 @@ const PREVIOUS_REASONS = [
 /**
  * Gives a rename candidate one more reason it cannot be resolved (FC-019).
  *
- * Steve decided on 25 September 2026 that renames are suggested only between
- * consecutive complete exports: one marked partial, or with a row excluded,
- * cannot show that a name is gone, so it is skipped for pairing. What it can
- * still show is that two names were listed at once, and a pair it lists
- * together cannot be one name replacing the other. `LISTED_TOGETHER` records
- * that, and like every collision it keeps the candidate open.
+ * Renames are suggested only between consecutive complete exports: one marked
+ * partial, or with a row excluded, cannot show that a name is gone, so it is
+ * skipped for pairing. What it can still show is that two names were listed at
+ * once, and a pair it lists together cannot be one name replacing the other.
+ * `LISTED_TOGETHER` records that, and like every collision it keeps the
+ * candidate open.
  */
 export class AddListedTogetherCollisionReason1794500000000 implements MigrationInterface {
   name = 'AddListedTogetherCollisionReason1794500000000';

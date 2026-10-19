@@ -15,12 +15,11 @@ const ADDED_KINDS = ['CHAT_MENTION', 'CHAT_REPLY', 'CHAT_DIRECT_MESSAGE'];
 /**
  * Chat's notices (FC-033).
  *
- * With Steve's decisions of 28 and 29 September 2026: a mention and a reply
- * each send one notice, and a direct message sends one per conversation
- * while its reader has no chat open — no more until they open it again. The
- * outbox gains the three kinds, and each conversation records, for each of
- * its two, when they were last told: null means the next message may tell
- * them.
+ * With the decisions of 28 and 29 September 2026: a mention and a reply each
+ * send one notice, and a direct message sends one per conversation while its
+ * reader has no chat open — no more until they open it again. The outbox gains
+ * the three kinds, and each conversation records, for each of its two, when
+ * they were last told: null means the next message may tell them.
  */
 export class AddChatNotices1796100000000 implements MigrationInterface {
   name = 'AddChatNotices1796100000000';

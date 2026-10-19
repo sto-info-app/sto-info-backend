@@ -4,7 +4,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * Recruitment, applications, invitations and the membership they grant
  * (FC-021).
  *
- * Plan R07 and R08, and Steve's decisions of 26 September 2026:
+ * Plan R07 and R08, and the decisions of 26 September 2026:
  *
  * - **Four ways in, one record.** An application a decider accepts, an OPEN
  *   Fleet's join and an accepted invitation all leave a `fleet_application`

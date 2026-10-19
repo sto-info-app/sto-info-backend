@@ -3,9 +3,9 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 /**
  * Lets a Fleet's Owner choose who may see each of its reports (FC-020).
  *
- * Plan R13: Admins choose public aggregates. Steve decided on 25 September
- * 2026 that the choice is made per report, by the Owner alone — the holder
- * of `scope.settings.manage` — and from the Fleet's own four audiences:
+ * Plan R13: Admins choose public aggregates. Instead, the choice is made per
+ * report, by the Owner alone — the holder of `scope.settings.manage` — and from
+ * the Fleet's own four audiences:
  *
  * - `PRIVATE`, the default, is the holders of `reports.view`: the Owner and
  *   the Admins, who see every report in full. For a report, it does not mean
@@ -23,8 +23,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  *
  * `fleet_report_audience_change` keeps each change, from what to what, who
  * made it and when, append-only and guarded like an import correction. No
- * reason is asked: the audience is one of the Owner's settings (Steve's
- * decision of 25 September 2026).
+ * reason is asked: the audience is one of the Owner's settings.
  */
 export class CreateFleetReportAudiences1794700000000 implements MigrationInterface {
   name = 'CreateFleetReportAudiences1794700000000';

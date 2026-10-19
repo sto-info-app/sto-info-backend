@@ -3,7 +3,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 /**
  * Activity feeds for Communities, Fleets and Armadas (FC-029).
  *
- * With Steve's decisions of 28 September 2026:
+ * With the decisions of 28 September 2026:
  *
  * - `activity_event` holds one row per thing that happened: news and events,
  *   membership, roster imports and holdings, Armada placements and

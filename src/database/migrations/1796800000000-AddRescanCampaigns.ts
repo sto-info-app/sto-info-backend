@@ -35,7 +35,7 @@ const SITE_ADMIN_ACTIONS_BEFORE = [
 /**
  * Rescan campaigns (FC-041).
  *
- * With Steve's decisions of 29 September 2026:
+ * With the decisions of 29 September 2026:
  *
  * - **Campaigns.** A site admin, or once after release the system for the
  *   legacy estate, rescans a selection of published pictures: by kind, by

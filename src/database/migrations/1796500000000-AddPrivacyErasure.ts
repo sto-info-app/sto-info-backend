@@ -119,7 +119,7 @@ const identifiersOf = (column: string): string =>
 /**
  * Privacy claims, account erasure and telemetry masking (FC-038).
  *
- * With Steve's decisions of 29 September 2026:
+ * With the decisions of 29 September 2026:
  *
  * - **Roster erasure.** `roster_erasure` records each verified erasure of a
  *   Character name and @handle: a keyed hash of the pair (never the pair),

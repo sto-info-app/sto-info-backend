@@ -136,7 +136,7 @@ function literal(value: string): string {
  * Records the tiers of a Fleet's holdings, by hand, with their history
  * (FC-023).
  *
- * With the decisions Steve made on 28 September 2026:
+ * With the decisions made on 28 September 2026:
  *
  * - `fleet_holding_type`, `fleet_holding_track` and `fleet_holding_tier` are
  *   the reference catalogue: each holding, its own track and its

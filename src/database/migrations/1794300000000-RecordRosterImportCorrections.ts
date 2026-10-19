@@ -25,12 +25,11 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  *
  * ## One group per Fleet and instant, ever
  *
- * Steve decided on 25 September 2026 that an export arriving for an instant
- * whose group was already settled reopens that group, rather than starting
- * another beside it, so the selection already made stays in force while the
- * newcomer waits. The partial unique index on open groups becomes a plain
- * one. Nothing has settled a group before this migration, so no Fleet has
- * two groups for one instant for it to trip over.
+ * An export arriving for an instant whose group was already settled reopens
+ * that group, rather than starting another beside it, so the selection already
+ * made stays in force while the newcomer waits. The partial unique index on
+ * open groups becomes a plain one. Nothing has settled a group before this
+ * migration, so no Fleet has two groups for one instant for it to trip over.
  *
  * ## The selection is a member, by key
  *
@@ -43,9 +42,8 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  *
  * `fleet_roster_import_action` is append-only, guarded like the identity
  * decisions: the actor may be cleared when their account goes, and nothing
- * else may change. A reason is required and may not be blank — Steve's
- * decision of 25 September 2026 — because a history somebody changed with
- * no word of why is not one anybody else can trust.
+ * else may change. A reason is required and may not be blank, because a history
+ * somebody changed with no word of why is not one anybody else can trust.
  */
 export class RecordRosterImportCorrections1794300000000 implements MigrationInterface {
   name = 'RecordRosterImportCorrections1794300000000';

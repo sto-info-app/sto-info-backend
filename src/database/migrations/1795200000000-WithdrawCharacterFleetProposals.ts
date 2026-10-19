@@ -5,10 +5,9 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  *
  * Accepting an application grants Fleet membership and asks the member to
  * confirm their Character's Fleet once the in-game invitation has happened.
- * Steve decided on 27 September 2026 that when that membership ends — the
- * member leaves, or is removed — before the question is answered, the
- * question is withdrawn: it is about an invitation that is no longer coming.
- * They can still record the Fleet by hand.
+ * When that membership ends — the member leaves, or is removed — before the
+ * question is answered, the question is withdrawn: it is about an invitation
+ * that is no longer coming. They can still record the Fleet by hand.
  *
  * ## `WITHDRAWN`, the second status nobody chose
  *

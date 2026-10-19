@@ -24,7 +24,7 @@ const PREVIOUS_SUBJECTS = [
  * site's own and stays so: it names no scope, and every global query now says
  * so explicitly.
  *
- * With the decisions Steve made on 28 September 2026:
+ * With the decisions made on 28 September 2026:
  *
  * - A scoped post names its Community and, for a Fleet or an Armada, that
  *   too — never both. The composite keys keep the Fleet or Armada in the

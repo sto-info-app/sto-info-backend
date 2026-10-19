@@ -3,7 +3,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 /**
  * Chat for Communities, Fleets and Armadas, and between friends (FC-031).
  *
- * With Steve's decisions of 28 September 2026:
+ * With the decisions of 28 September 2026:
  *
  * - `chat_channel`: one standard channel per scope, and up to three custom
  *   ones, each with the least role that may read it and the least that may

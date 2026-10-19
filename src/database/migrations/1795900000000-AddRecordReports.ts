@@ -16,11 +16,11 @@ const ADDED_REPORTS = ['ATTENDANCE', 'RECRUITMENT', 'HOLDINGS'];
  * Event attendance, recruitment and holdings join a Fleet's reports
  * (FC-030).
  *
- * With Steve's decisions of 28 September 2026: attendance and recruitment
- * have an audience the Owner chooses, as the roster's reports do; holdings
- * are public, like the Holdings page, and have none. `HOLDINGS` is added to
- * `fleet_report_enum` all the same, so every report is named by one type;
- * the service never stores an audience for it.
+ * With the decisions of 28 September 2026: attendance and recruitment have an
+ * audience the Owner chooses, as the roster's reports do; holdings are public,
+ * like the Holdings page, and have none. `HOLDINGS` is added to
+ * `fleet_report_enum` all the same, so every report is named by one type; the
+ * service never stores an audience for it.
  */
 export class AddRecordReports1795900000000 implements MigrationInterface {
   name = 'AddRecordReports1795900000000';

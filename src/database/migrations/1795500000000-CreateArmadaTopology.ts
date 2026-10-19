@@ -4,7 +4,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * Arranges Fleets in an Armada by request and approval, with a history of
  * every placement, move and departure (FC-024, FC-025).
  *
- * With the decisions Steve made on 28 September 2026:
+ * With the decisions made on 28 September 2026:
  *
  * - An Armada has an allegiance, Federation or Klingon, and a Fleet must share
  *   it to be placed. `sto_armada.allegianceFactionId` is nullable here only

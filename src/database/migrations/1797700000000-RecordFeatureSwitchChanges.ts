@@ -34,9 +34,9 @@ const SITE_ADMIN_ACTIONS_BEFORE = [
  * Records a site admin switching a feature on or off from the Admin page
  * (FC-045).
  *
- * With Steve's decisions of 6 October 2026, Fleet Communities, Storytime and
- * Custom Tracking are each switched from the Admin page rather than with SQL,
- * and every change takes a reason that the site admin log keeps.
+ * With the decisions of 6 October 2026, Fleet Communities, Storytime and Custom
+ * Tracking are each switched from the Admin page rather than with SQL, and
+ * every change takes a reason that the site admin log keeps.
  */
 export class RecordFeatureSwitchChanges1797700000000 implements MigrationInterface {
   name = 'RecordFeatureSwitchChanges1797700000000';

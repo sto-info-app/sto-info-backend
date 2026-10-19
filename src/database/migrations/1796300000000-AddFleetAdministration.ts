@@ -100,7 +100,7 @@ const EXTENDED: readonly Extended[] = [
 /**
  * Fleet administration and moderation investigations (FC-036).
  *
- * With Steve's decisions of 29 September 2026:
+ * With the decisions of 29 September 2026:
  *
  * - **Suspension.** A member's suspension and reinstatement are logged with
  *   the membership's other actions, and a scope's with its governance

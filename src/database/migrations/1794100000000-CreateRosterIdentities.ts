@@ -23,9 +23,9 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * - `fleet_roster_identity_decision` is each thing a reviewer did, append-only.
  *
  * Observations are not touched. The plan put an identity column on each
- * observation; Steve chose on 24 September 2026 to join through the alias
- * key instead, so a decision rewrites a small alias table rather than every
- * row of every export the Fleet has imported.
+ * observation; this joins through the alias key instead, so a decision rewrites
+ * a small alias table rather than every row of every export the Fleet has
+ * imported.
  *
  * ## The constraints are the design
  *

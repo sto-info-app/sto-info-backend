@@ -10,11 +10,10 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  *
  * ## Tiers, not a list
  *
- * Steve decided on 25 September 2026 that an order is a list of tiers, each
- * holding one or more labels. A move between tiers is a promotion or a
- * demotion; a move within one, which is what renaming a rank looks like, is
- * still "rank changed", and so is a move to or from a label nobody placed.
- * Tier 1 is the highest.
+ * An order is a list of tiers, each holding one or more labels. A move between
+ * tiers is a promotion or a demotion; a move within one, which is what renaming
+ * a rank looks like, is still "rank changed", and so is a move to or from a
+ * label nobody placed. Tier 1 is the highest.
  *
  * `fleet_roster_rank_order` is the order now: one row per placed label,
  * matched to an export row's `guildRank` by its exact text. It is replaced

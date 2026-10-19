@@ -21,7 +21,7 @@ export const PLATFORM_NAMED_TABLES = [
  * ADR-0022 derives the platform segment of every Fleet and Armada address
  * from `platform.name` rather than a slug column, and accepted that renaming
  * a platform would break every address on it with no redirect, leaving the
- * guard to be written later. Steve chose on 6 October 2026 to close it now.
+ * guard to be written later. This closes it now.
  *
  * A rename is refused while any Fleet, Armada or old Fleet address — closed
  * ones included, since their addresses still redirect — is on the platform.

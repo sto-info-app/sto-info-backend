@@ -38,7 +38,7 @@ const SITE_ADMIN_ACTIONS_BEFORE = [
  * A site admin's decision on a picture refused for policy on rescan, and
  * two actions the site admin log was missing (FC-050).
  *
- * With Steve's decisions of 30 September 2026:
+ * With the decisions of 30 September 2026:
  *
  * - **Take it down or keep it.** A picture refused for policy on rescan
  *   stays up and is listed on Scan Diagnostics for a site admin to decide

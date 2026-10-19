@@ -31,7 +31,7 @@ const SITE_ADMIN_ACTIONS_BEFORE = [
 /**
  * Private image delivery and the image estate's runs (FC-040).
  *
- * With Steve's decisions of 29 September 2026:
+ * With the decisions of 29 September 2026:
  *
  * - **Signed addresses.** A published picture is a private Cloudflare Images
  *   object, reachable only by an address the API signs, and only while its

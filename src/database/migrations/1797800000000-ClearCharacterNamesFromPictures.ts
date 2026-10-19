@@ -35,7 +35,7 @@ const NOT_A_PICTURE = `"profilePictureId" IS NOT NULL
  * registers each of those names as a legacy picture, which FC-040's private
  * copy and FC-041's legacy rescan would ask Cloudflare for and fail.
  *
- * Steve's decision of 6 October 2026: clear them after the backfill.
+ * Clear them after the backfill.
  *
  * 1. Every Character picture that cannot be one — no `/`, and not shaped like
  *    a Cloudflare Images ID ({@link CHARACTER_PICTURE_SHAPE}) — is set to

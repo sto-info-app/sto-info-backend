@@ -3,10 +3,9 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 /**
  * The outbox every targeted in-app notice goes through (FC-028, FC-029).
  *
- * Steve's decision of 28 September 2026: one outbox for event reminders and
- * changes, Character association proposals, and later mentions, replies and
- * direct messages, each with its kind, a key that makes it sent once, and a
- * recheck before it is sent.
+ * One outbox for event reminders and changes, Character association proposals,
+ * and later mentions, replies and direct messages, each with its kind, a key
+ * that makes it sent once, and a recheck before it is sent.
  *
  * It holds references, never words: `subjectId` names the occurrence or the
  * proposal, and `detail` only what a handler needs besides, such as a

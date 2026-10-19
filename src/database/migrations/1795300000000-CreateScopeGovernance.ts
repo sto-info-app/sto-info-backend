@@ -3,7 +3,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 /**
  * Records who governs a Community or Fleet, and offers of ownership (FC-022).
  *
- * With the decisions Steve made on 27 September 2026:
+ * With the decisions made on 27 September 2026:
  *
  * - `scope_governance_action` is the append-only log of role assignments and
  *   withdrawals, capability grants, denials and clearings, ownership offers

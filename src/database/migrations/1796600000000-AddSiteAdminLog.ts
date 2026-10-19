@@ -47,7 +47,7 @@ const CHAT_ACTIONS_BEFORE = [
 /**
  * Cross-feature audit and admin security diagnostics (FC-039).
  *
- * With Steve's decisions of 29 September 2026:
+ * With the decisions of 29 September 2026:
  *
  * - **The site admin log.** `site_admin_action` records every site-level
  *   admin action — roles and permission and limit overrides, disabling and

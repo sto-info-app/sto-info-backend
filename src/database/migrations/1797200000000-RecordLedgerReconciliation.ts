@@ -26,12 +26,12 @@ const SITE_ADMIN_ACTIONS_BEFORE = [
 /**
  * Records the restore check bringing records back (FC-042).
  *
- * With Steve's decisions of 30 September 2026, the backend compares the
- * ledgers it keeps outside the database — roster erasures, moderation hold
- * events and asset denies, in the private quarantine bucket — with the
- * database at every boot, before it serves anything, and puts back what an
- * older backup lacks. When it puts anything back, it says so in the site
- * admin log with no actor: nobody asked for it, the restore did.
+ * With the decisions of 30 September 2026, the backend compares the ledgers it
+ * keeps outside the database — roster erasures, moderation hold events and
+ * asset denies, in the private quarantine bucket — with the database at every
+ * boot, before it serves anything, and puts back what an older backup lacks.
+ * When it puts anything back, it says so in the site admin log with no actor:
+ * nobody asked for it, the restore did.
  */
 export class RecordLedgerReconciliation1797200000000 implements MigrationInterface {
   name = 'RecordLedgerReconciliation1797200000000';

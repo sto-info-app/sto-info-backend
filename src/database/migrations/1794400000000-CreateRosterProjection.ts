@@ -9,7 +9,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * imports, its bounds and its known, unknown and reset counts. Nothing here is
  * evidence: dropping every row and replaying the Fleet produces them again.
  *
- * ## Built beside, then published — Steve's decision of 25 September 2026
+ * ## Built beside, then published
  *
  * Every derived row carries the `revision` it belongs to. A rebuild writes the
  * next revision's rows beside the published one, then moves the Fleet's

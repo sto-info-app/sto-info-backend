@@ -6,11 +6,11 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  *
  * FC-014 allows one `PENDING` proposal per Character and Fleet, and reads
  * expiry from the date rather than storing it. Both were right while nothing
- * raised proposals. FC-018 does, and Steve decided on 24 September 2026 that
- * an expired proposal was never answered, so the next import may ask once
- * more — while a declined one is never asked again. The expired row has to
- * stop being `PENDING` for the new one to exist, and has to stay visible so
- * the owner's history shows the question was asked before.
+ * raised proposals. FC-018 does, and an expired proposal was never answered, so
+ * the next import may ask once more — while a declined one is never asked
+ * again. The expired row has to stop being `PENDING` for the new one to exist,
+ * and has to stay visible so the owner's history shows the question was asked
+ * before.
  *
  * ## `LAPSED`, the one status nobody chose
  *

@@ -58,7 +58,7 @@ const JOBS = [
 /**
  * Retention and purge jobs (FC-037).
  *
- * With Steve's decisions of 29 September 2026:
+ * With the decisions of 29 September 2026:
  *
  * - **Runs.** `retention_run` records each run of each Fleet retention job:
  *   when it started and finished, what it deleted, whether it got through

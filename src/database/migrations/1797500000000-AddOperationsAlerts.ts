@@ -45,7 +45,7 @@ const SITE_ADMIN_ACTIONS_BEFORE = [
 /**
  * Operations alerts, logged diagnostics and the publication pause (FC-042).
  *
- * With Steve's decisions of 30 September 2026:
+ * With the decisions of 30 September 2026:
  *
  * - **Alerts.** A backend cron checks every minute for a scan or
  *   publication backlog, a silent or long-paused scan worker, old

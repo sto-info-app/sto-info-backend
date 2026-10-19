@@ -8,12 +8,12 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * Community, so two confirmations of the same name on one platform were free
  * to hold the same slug, and neither was reachable anyway.
  *
- * Steve's decision is that such a record gets a page, addressed under the
- * reserved segment `standalone` where a Community's slug would otherwise sit:
+ * Such a record gets a page, addressed under the reserved segment `standalone`
+ * where a Community's slug would otherwise sit:
  * `/fleets/communities/standalone/fleets/{platform}/{fleetSlug}`. That makes
  * the slug an address rather than a label, and an address has to be unique —
- * among the standalone records on the same platform, which is exactly the
- * scope the segment names.
+ * among the standalone records on the same platform, which is exactly the scope
+ * the segment names.
  *
  * Two things therefore have to be true before the index can exist, and both
  * are settled here rather than left for the first insert to discover.

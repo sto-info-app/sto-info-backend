@@ -14,7 +14,7 @@ const TYPES = [
 /**
  * Events for Communities, Fleets and Armadas (FC-028).
  *
- * With the decisions Steve made on 28 September 2026:
+ * With the decisions made on 28 September 2026:
  *
  * - `scope_event` holds the rule: once, every one to twelve weeks on chosen
  *   weekdays, or every one to twelve months on a day or on the first to
