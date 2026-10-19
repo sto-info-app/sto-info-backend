@@ -64,11 +64,10 @@ export async function cancelFutureOccurrences(
 /**
  * Ends the events of a scope being closed (FC-028).
  *
- * Steve's decision of 28 September 2026: closing a scope cancels every
- * occurrence still to come, and tells whoever is reminded of each. A
- * Community's closure reaches its Fleets' and Armadas' events too, since
- * they close with it. Past occurrences stay readable, with what was
- * answered and attended.
+ * Closing a scope cancels every occurrence still to come, and tells whoever is
+ * reminded of each. A Community's closure reaches its Fleets' and Armadas'
+ * events too, since they close with it. Past occurrences stay readable, with
+ * what was answered and attended.
  *
  * Called inside the closure's own transaction, so the events end exactly
  * when the scope does.

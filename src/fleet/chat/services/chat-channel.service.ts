@@ -66,12 +66,12 @@ const NAME_TAKEN = 'Another channel here already has that name.';
 /**
  * A Community's, a Fleet's and an Armada's channels (FC-031).
  *
- * Steve's decisions of 28 September 2026: every scope has one standard
- * channel for all its members, made the first time anybody asks for it, and
- * its `chat.moderate` holders may add up to three custom ones, each with the
- * least role that may read it and the least that may post. The ceiling is
- * the database's to keep, under the scope's lock, so two creations at once
- * cannot make a fourth. Nothing is deleted: a custom channel is archived.
+ * Every scope has one standard channel for all its members, made the first time
+ * anybody asks for it, and its `chat.moderate` holders may add up to three
+ * custom ones, each with the least role that may read it and the least that may
+ * post. The ceiling is the database's to keep, under the scope's lock, so two
+ * creations at once cannot make a fourth. Nothing is deleted: a custom channel
+ * is archived.
  */
 @Injectable()
 export class ChatChannelService {

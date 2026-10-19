@@ -70,7 +70,7 @@ const OPEN = [ReportStatus.OPEN, ReportStatus.UNDER_REVIEW];
 /**
  * Reports of chat messages, and the site admins' queue of them (FC-035).
  *
- * R28 and Steve's decisions of 28 and 29 September 2026:
+ * R28 and the decisions of 28 and 29 September 2026:
  *
  * - A reader holding `content.report` where the message is — members, by
  *   default — reports it with one of the member reports' reasons, and either

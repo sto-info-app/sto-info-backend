@@ -1,8 +1,8 @@
 /**
  * Who an event is shown to (FC-028).
  *
- * Steve's decision of 28 September 2026 offers all of these. Matched by name
- * at every site, never compared as an ordering, as {@link FleetAudience} is.
+ * All of these are offered. Matched by name at every site, never compared as an
+ * ordering, as {@link FleetAudience} is.
  */
 export enum ScopeEventAudience {
   /** Anyone, including signed-out visitors. */

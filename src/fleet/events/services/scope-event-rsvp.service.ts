@@ -47,11 +47,11 @@ const LIST_ORDER: Readonly<Record<RsvpResponse, number>> = {
 /**
  * Answers to an event's occurrences, and its waitlist (FC-028).
  *
- * With Steve's decisions of 28 September 2026: Going, Maybe or Can't go,
- * with a Character of the answerer's own; open until the occurrence starts;
- * one answer per person. Beyond an event's capacity, Going waits for a
- * place, and Maybe takes none. When a place comes free the earliest waiting
- * is given it and told, until the occurrence starts.
+ * With the decisions of 28 September 2026: Going, Maybe or Can't go, with a
+ * Character of the answerer's own; open until the occurrence starts; one answer
+ * per person. Beyond an event's capacity, Going waits for a place, and Maybe
+ * takes none. When a place comes free the earliest waiting is given it and
+ * told, until the occurrence starts.
  *
  * Every change to an occurrence's answers is made under a lock on the
  * occurrence, so two people taking the last place are decided one after the

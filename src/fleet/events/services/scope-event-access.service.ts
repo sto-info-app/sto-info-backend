@@ -49,7 +49,7 @@ export interface EventViewer {
   readonly isSuspended: boolean;
   /**
    * Whether they see who answered, not only how many: the scope's members
-   * and its managers, by Steve's decision of 28 September 2026.
+   * and its managers.
    */
   readonly seesNames: boolean;
 }
@@ -203,9 +203,8 @@ export class ScopeEventAccessService {
   /**
    * Reports whether somebody may answer an event.
    *
-   * Steve's decision: anybody it is shown to who holds `events.rsvp` at the
-   * scope — its members, by default — and, for a public event, anybody
-   * signed in.
+   * Anybody it is shown to who holds `events.rsvp` at the scope — its members,
+   * by default — and, for a public event, anybody signed in.
    *
    * @param event - The event.
    * @param viewer - Who is looking.

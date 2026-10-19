@@ -82,18 +82,18 @@ const AUTOMATIC: ReadonlySet<ModerationHoldActionKind> = new Set([
 /**
  * Site admins' holds on chat evidence (FC-036).
  *
- * R23, plan section 9 and Steve's decisions of 29 September 2026:
+ * R23, plan section 9 and the decisions of 29 September 2026:
  *
  * - A hold keeps a chat report's evidence past its 90 days, or everything
  *   one member ever wrote in chat — every channel and conversation — past
  *   the 45-day purge. One live hold per report and per member.
  * - Each has a reason, an owner (the admin who placed it), a review date at
  *   most 180 days ahead, and ends by a release, with a reason.
- * - No hold runs on unreviewed (FC-037, Steve's decision of the same day):
- *   when its review date passes, its owner is told; seven days before the
- *   system would release it, every site admin is; and 14 days after the
- *   date, unless somebody has extended it, the system releases it, logged
- *   as a release nobody made. Extending it starts all three again.
+ * - No hold runs on unreviewed (FC-037): when its review date passes, its owner
+ *   is told; seven days before the system would release it, every site admin
+ *   is; and 14 days after the date, unless somebody has extended it, the system
+ *   releases it, logged as a release nobody made. Extending it starts all three
+ *   again.
  * - What it keeps is read only here, by site admins, each time with a
  *   purpose, and every reading is logged. Nobody else — scope moderators
  *   included — ever sees it.

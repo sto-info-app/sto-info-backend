@@ -90,9 +90,9 @@ export async function queueNotices(
 /**
  * Tells everybody reminded of an event about a change to one occurrence.
  *
- * Steve's decision of 28 September 2026: somebody who asked to be reminded
- * of an event is told when an occurrence they would be reminded of is
- * cancelled or moved. Nobody else is: an event is feed, not inbox.
+ * Somebody who asked to be reminded of an event is told when an occurrence they
+ * would be reminded of is cancelled or moved. Nobody else is: an event is feed,
+ * not inbox.
  *
  * @param manager - The transaction.
  * @param kind - A cancellation or a move.

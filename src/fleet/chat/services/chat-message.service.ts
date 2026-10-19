@@ -107,12 +107,12 @@ interface ChatAudience {
 /**
  * Messages in channels and conversations (FC-031).
  *
- * R22 and Steve's decisions of 28 September 2026: nothing older than four
- * hours is ever read here — not by cursor, search or ID — and a message is
- * plain text, 2,000 characters at most, ten a person in any ten seconds.
- * A resend with the same client ID is the same message. Authors delete their
- * own; a scope's `chat.moderate` holders remove anyone's in its channels,
- * with a reason, logged. Messages go after the retention period.
+ * R22 and the decisions of 28 September 2026: nothing older than four hours is
+ * ever read here — not by cursor, search or ID — and a message is plain text,
+ * 2,000 characters at most, ten a person in any ten seconds. A resend with the
+ * same client ID is the same message. Authors delete their own; a scope's
+ * `chat.moderate` holders remove anyone's in its channels, with a reason,
+ * logged. Messages go after the retention period.
  */
 @Injectable()
 export class ChatMessageService {

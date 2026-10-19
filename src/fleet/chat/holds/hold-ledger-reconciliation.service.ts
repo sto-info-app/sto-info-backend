@@ -35,7 +35,7 @@ import {
 
 /**
  * Why a hold, or an event of one, the database had lost was made again:
- * the ledger keeps no reason (Steve's decision of 30 September 2026).
+ * the ledger keeps no reason.
  */
 export const HOLD_REPLAYED_REASON =
   'Brought back from the hold ledger after a restore.';

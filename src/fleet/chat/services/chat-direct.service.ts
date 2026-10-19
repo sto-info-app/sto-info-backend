@@ -32,13 +32,12 @@ export interface UsableConversation {
 /**
  * Conversations between two people (FC-031).
  *
- * Steve's decisions of 28 September 2026: only between friends, and only
- * two people — there is no group route. Whether a pair may use theirs is
- * asked at every read and post: once they stop being friends, or either
- * blocks the other, it is closed and its history hidden, and becoming
- * friends again opens it with only the last four hours to read, as ever. A
- * closed conversation answers as absent, so a block's existence is never
- * told.
+ * Only between friends, and only two people — there is no group route. Whether
+ * a pair may use theirs is asked at every read and post: once they stop being
+ * friends, or either blocks the other, it is closed and its history hidden, and
+ * becoming friends again opens it with only the last four hours to read, as
+ * ever. A closed conversation answers as absent, so a block's existence is
+ * never told.
  */
 @Injectable()
 export class ChatDirectService {

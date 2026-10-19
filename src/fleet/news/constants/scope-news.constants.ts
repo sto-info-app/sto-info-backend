@@ -8,8 +8,7 @@ import { FleetAudience } from '../../enums/fleet-audience.enum';
  *
  * Anyone; the Community's followers and members; or the scope's own members.
  * Never {@link FleetAudience.PRIVATE}, which means the Community's Owner alone
- * and is no audience for news. Steve's decision of 28 September 2026, which
- * also made {@link FleetAudience.PUBLIC} the default.
+ * and is no audience for news. {@link FleetAudience.PUBLIC} is the default.
  */
 export const SCOPE_NEWS_AUDIENCES: readonly FleetAudience[] = [
   FleetAudience.PUBLIC,
@@ -40,8 +39,8 @@ export const SCOPE_NEWS_SLUG_MAX_LENGTH = 240;
  *
  * The shape of a Storytime chapter cover, which is the same job: one picture
  * heading one piece of writing. Published to Cloudflare Images like a Fleet's
- * banner, by Steve's decision of 28 September 2026; what gates it is that the
- * post naming it is only handed to its audience.
+ * banner; what gates it is that the post naming it is only handed to its
+ * audience.
  */
 export const SCOPE_NEWS_COVER_SPEC: ImageSlotSpec = {
   label: 'News cover',

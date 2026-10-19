@@ -10,9 +10,8 @@ import { GovernanceScope } from '../../governance/utilities/governance-scope.uti
  * The people a scope counts as its members, for recording attendance
  * (FC-030).
  *
- * Steve's decision of 28 September 2026: a Fleet's approved members; an
- * Armada's, those of the Fleets placed in it now; a Community's, those of
- * the Community itself and of every Fleet in it.
+ * A Fleet's approved members; an Armada's, those of the Fleets placed in it
+ * now; a Community's, those of the Community itself and of every Fleet in it.
  *
  * @param manager - The manager to read through.
  * @param scope - The scope.

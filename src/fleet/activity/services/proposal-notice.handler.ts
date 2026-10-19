@@ -21,11 +21,11 @@ import { toProposalState } from '../../utilities/character-fleet-proposal.utilit
  * Tells somebody a Fleet has asked whether their Character is in it
  * (FC-029).
  *
- * Steve's decision of 28 September 2026: one notice per proposal, through
- * the outbox. It is written at delivery, from the proposal as it stands
- * then, and set aside if it was answered, withdrawn or has lapsed, if the
- * Character is no longer theirs, or if they may no longer see the Fleet —
- * a proposal is hidden from its owner for as long as that lasts.
+ * One notice per proposal, through the outbox. It is written at delivery, from
+ * the proposal as it stands then, and set aside if it was answered, withdrawn
+ * or has lapsed, if the Character is no longer theirs, or if they may no longer
+ * see the Fleet — a proposal is hidden from its owner for as long as that
+ * lasts.
  */
 @Injectable()
 export class ProposalNoticeHandler

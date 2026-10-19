@@ -1,9 +1,9 @@
 /**
  * What happened, for an activity feed (FC-029).
  *
- * Steve's decision of 28 September 2026: news and events; membership;
- * roster imports and holdings; Armada placements and governance. Routine
- * activity is feed, never inbox: none of these sends a notification.
+ * News and events; membership; roster imports and holdings; Armada placements
+ * and governance. Routine activity is feed, never inbox: none of these sends a
+ * notification.
  */
 export enum ActivityType {
   /** A scope's news post was published. */
@@ -45,8 +45,8 @@ export enum ActivityType {
 /**
  * Who may see an activity item, asked afresh at every read (FC-029).
  *
- * Steve's decision: the item follows its source. Every item also needs the
- * reader to see its scope at all.
+ * The item follows its source. Every item also needs the reader to see its
+ * scope at all.
  */
 export enum ActivityVisibility {
   /** Whoever may see the scope: holdings, Armada placements. */
@@ -83,5 +83,5 @@ export const ACTIVITY_VISIBILITY: Readonly<
   [ActivityType.SCOPE_CLOSED]: ActivityVisibility.MEMBERS,
 };
 
-/** How long an item is kept, in months. Steve's decision: twelve. */
+/** How long an item is kept, in months: twelve. */
 export const ACTIVITY_RETENTION_MONTHS = 12;

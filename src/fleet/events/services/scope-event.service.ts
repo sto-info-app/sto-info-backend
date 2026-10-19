@@ -109,7 +109,7 @@ interface CheckedDefinition {
  * A Community's, a Fleet's and an Armada's events, their rules and their
  * occurrences (FC-028).
  *
- * With Steve's decisions of 28 September 2026:
+ * With the decisions of 28 September 2026:
  *
  * - An event repeats once, weekly or monthly, on the clock of the timezone
  *   its organiser chose. Its occurrences are written out twelve months

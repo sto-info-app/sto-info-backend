@@ -21,13 +21,12 @@ import { ChatDeliveryService } from './chat-delivery.service';
 /**
  * Writes chat's notices when the outbox delivers them (FC-033).
  *
- * Steve's decisions of 28 and 29 September 2026: a mention and a reply each
- * tell their person once; a direct message tells its reader once per
- * conversation while they have no chat open, and not again until they open
- * it. Each is asked again at delivery — the message still there and within
- * the four-hour window, the reader still able to read its place — and is set
- * aside otherwise. A direct message's reader who has chat open by then is
- * not told, and the conversation is ready to tell them next time.
+ * A mention and a reply each tell their person once; a direct message tells its
+ * reader once per conversation while they have no chat open, and not again
+ * until they open it. Each is asked again at delivery — the message still there
+ * and within the four-hour window, the reader still able to read its place —
+ * and is set aside otherwise. A direct message's reader who has chat open by
+ * then is not told, and the conversation is ready to tell them next time.
  *
  * A notice never quotes the message: it outlives the window, and chat's text
  * does not.

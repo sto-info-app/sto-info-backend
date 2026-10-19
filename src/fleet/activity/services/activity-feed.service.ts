@@ -64,9 +64,9 @@ const MAX_BATCHES = 5;
  * data as it stands, so a post renamed or a member gone reads as it is now,
  * and an item whose source has gone is left out.
  *
- * Steve's decisions of 28 September 2026: a Fleet's and an Armada's own
- * activity, a Community's own, and a personal feed gathering the Communities
- * somebody follows and the scopes they belong to; kept twelve months.
+ * A Fleet's and an Armada's own activity, a Community's own, and a personal
+ * feed gathering the Communities somebody follows and the scopes they belong
+ * to; kept twelve months.
  */
 @Injectable()
 export class ActivityFeedService {

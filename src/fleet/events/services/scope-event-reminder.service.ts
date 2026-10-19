@@ -51,12 +51,11 @@ const EVENT_KINDS = [
 /**
  * Event reminders, and what every event notice says (FC-028).
  *
- * Steve's decisions of 28 September 2026: somebody subscribes to an event —
- * a one-off or a whole series — to be reminded fifteen minutes, an hour or a
- * day before each occurrence, and is told when an occurrence they would be
- * reminded of is cancelled or moved. Somebody given a place off the
- * waitlist is told too. All of it in-app, under the event reminder
- * category, which they can switch off.
+ * Somebody subscribes to an event — a one-off or a whole series — to be
+ * reminded fifteen minutes, an hour or a day before each occurrence, and is
+ * told when an occurrence they would be reminded of is cancelled or moved.
+ * Somebody given a place off the waitlist is told too. All of it in-app, under
+ * the event reminder category, which they can switch off.
  *
  * The notices go through the notification outbox (FC-029). This is its
  * handler for event notices: every minute it queues the reminders that have

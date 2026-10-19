@@ -17,12 +17,11 @@ export const CHAT_EXPORTS_S3_CLIENT = Symbol('CHAT_EXPORTS_S3_CLIENT');
  * Keeps chat transcripts in the private exports bucket until their link
  * expires (FC-035).
  *
- * Steve's decisions of 29 September 2026: a bucket of its own, since the
- * delivery bucket is served publicly through the CDN and a prefix in it would
- * be private only for as long as nobody pointed a rule at it; with its own
- * credentials, as the quarantine bucket has. It must have no public access,
- * no custom domain and no `r2.dev` subdomain. Nothing here can check that —
- * FC-052 does, live.
+ * A bucket of its own, since the delivery bucket is served publicly through the
+ * CDN and a prefix in it would be private only for as long as nobody pointed a
+ * rule at it; with its own credentials, as the quarantine bucket has. It must
+ * have no public access, no custom domain and no `r2.dev` subdomain. Nothing
+ * here can check that — FC-052 does, live.
  */
 @Injectable()
 export class ChatExportStorageService {

@@ -66,7 +66,7 @@ interface ChatSocketData {
 /**
  * Chat's socket (FC-032).
  *
- * Steve's decisions of 28 September 2026:
+ * Decisions of 28 September 2026:
  *
  * - WebSocket only, so any instance can take a reconnect; the Redis adapter
  *   carries rooms and fan-out between instances.

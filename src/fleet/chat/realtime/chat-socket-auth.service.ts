@@ -20,12 +20,11 @@ export interface ChatSocketIdentity {
 /**
  * Says who a chat socket belongs to (FC-032).
  *
- * Steve's decisions of 28 September 2026: the token comes in the socket's
- * first message, never in its address, so it is in no URL and no access log.
- * It is checked as the HTTP API checks it — an access token, signed HS256,
- * for an account that exists and is not disabled — and again whenever the
- * browser sends a fresh one before the old one runs out. Nothing here logs
- * a token.
+ * The token comes in the socket's first message, never in its address, so it is
+ * in no URL and no access log. It is checked as the HTTP API checks it — an
+ * access token, signed HS256, for an account that exists and is not disabled —
+ * and again whenever the browser sends a fresh one before the old one runs out.
+ * Nothing here logs a token.
  */
 @Injectable()
 export class ChatSocketAuthService {

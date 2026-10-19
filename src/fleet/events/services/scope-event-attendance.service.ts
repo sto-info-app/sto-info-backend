@@ -28,14 +28,13 @@ import { ScopeEventRsvpService } from './scope-event-rsvp.service';
 /**
  * Who actually came to an occurrence (FC-028).
  *
- * Steve's decisions of 28 September 2026: an `events.manage` holder marks
- * each person attended or absent once the occurrence has started — anybody
- * who answered, or any of the scope's members who did not. The Character
- * recorded is the one they answered with, if it is still theirs: a manager
- * never picks another person's. It is kept apart from the answer and never
- * worked out from it, and only the managers and the person see it.
- * Recording is allowed after the scope closes, since it is the record of
- * what happened.
+ * An `events.manage` holder marks each person attended or absent once the
+ * occurrence has started — anybody who answered, or any of the scope's members
+ * who did not. The Character recorded is the one they answered with, if it is
+ * still theirs: a manager never picks another person's. It is kept apart from
+ * the answer and never worked out from it, and only the managers and the person
+ * see it. Recording is allowed after the scope closes, since it is the record
+ * of what happened.
  */
 @Injectable()
 export class ScopeEventAttendanceService {

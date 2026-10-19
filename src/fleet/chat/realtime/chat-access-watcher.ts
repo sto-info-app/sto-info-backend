@@ -42,14 +42,13 @@ const PEOPLE_COLUMNS = new Map<unknown, readonly string[]>([
  * Watches the database for changes to who may read what in chat, and has
  * delivery ask again at once (FC-034).
  *
- * Steve's decision of 29 September 2026: leaving a Fleet, a role ending, a
- * suspension, a Fleet leaving an Armada, unfriending and blocking each take
- * effect on open sockets straight away, on every instance. Rather than every
- * service that makes such a change remembering to say so, the rows they
- * write are watched: memberships, role assignments, Armada placements,
- * friendships, blocks and presence preferences. A change made in a
- * transaction is held until it commits, and dropped if it rolls back, so a
- * socket is never checked against what is about to be undone.
+ * Leaving a Fleet, a role ending, a suspension, a Fleet leaving an Armada,
+ * unfriending and blocking each take effect on open sockets straight away, on
+ * every instance. Rather than every service that makes such a change
+ * remembering to say so, the rows they write are watched: memberships, role
+ * assignments, Armada placements, friendships, blocks and presence preferences.
+ * A change made in a transaction is held until it commits, and dropped if it
+ * rolls back, so a socket is never checked against what is about to be undone.
  *
  * A row an update names only by its conditions carries nobody, so such a
  * change has every socket checked again; they are rare.

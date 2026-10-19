@@ -46,14 +46,13 @@ export interface ChatStanding {
 /**
  * Says who somebody is in a scope's chat (FC-031).
  *
- * Steve's decisions of 28 September 2026: chat is for members, never for
- * followers. A Fleet's member takes part in its own channels, its Armada's
- * and its Community's. A Community counts the members of every Fleet in it
- * as well as its own, and such a member posts there on the strength of
- * `chat.post` at their Fleet. A role — Officer, Admin, Owner — reaches
- * further, into the channels kept for it. Every answer is asked afresh, so
- * leaving a Fleet, a suspension or a Fleet leaving its Armada closes the
- * door at once.
+ * Chat is for members, never for followers. A Fleet's member takes part in its
+ * own channels, its Armada's and its Community's. A Community counts the
+ * members of every Fleet in it as well as its own, and such a member posts
+ * there on the strength of `chat.post` at their Fleet. A role — Officer, Admin,
+ * Owner — reaches further, into the channels kept for it. Every answer is asked
+ * afresh, so leaving a Fleet, a suspension or a Fleet leaving its Armada closes
+ * the door at once.
  */
 @Injectable()
 export class ChatAccessService {

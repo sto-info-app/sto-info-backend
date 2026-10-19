@@ -108,8 +108,8 @@ interface NewsAccess {
  *
  * The posts live in the site's own `news_post` table, so there is one news
  * system; the site's queries ask for posts naming no Community and these ask
- * for posts naming this scope exactly. Steve's decisions of 28 September 2026
- * shape the rest:
+ * for posts naming this scope exactly. The decisions of 28 September 2026 shape
+ * the rest:
  *
  * - **Reading.** Nobody reads a post of a scope they may not see, and a
  *   published post is read only by its audience: anyone, the Community, or

@@ -1,9 +1,8 @@
 /**
  * How an event repeats (FC-028).
  *
- * Steve's decision of 28 September 2026: once, every N weeks on chosen
- * weekdays, or every N months on a day of the month or on the first to
- * fourth or last of a weekday. Nothing daily.
+ * Once, every N weeks on chosen weekdays, or every N months on a day of the
+ * month or on the first to fourth or last of a weekday. Nothing daily.
  */
 export enum EventRecurrence {
   /** Once. */

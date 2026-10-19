@@ -29,11 +29,10 @@ import { ScopeNewsService } from './services/scope-news.service';
  * Site administrators taking a Community's, a Fleet's or an Armada's news
  * post down (FC-027).
  *
- * Steve's decision of 28 September 2026: a site administrator may unpublish
- * or delete any scoped post, whatever the state of its scope, but writes one
- * only by holding `news.write` there like anybody else. The site's own news
- * stays theirs alone, through the site's news routes, which never reach a
- * scoped post.
+ * A site administrator may unpublish or delete any scoped post, whatever the
+ * state of its scope, but writes one only by holding `news.write` there like
+ * anybody else. The site's own news stays theirs alone, through the site's news
+ * routes, which never reach a scoped post.
  */
 @ApiTags('Fleet news (admin)')
 @ApiBearerAuth()

@@ -105,17 +105,16 @@ function hidden(message: ChatMessageDto): ChatMessageDto {
  * Carries committed messages to the sockets reading their place (FC-032),
  * and takes away what may no longer be read (FC-034).
  *
- * Steve's decisions of 28 and 29 September 2026: a message is told to a
- * reader only if they may read its place at that moment — their account
- * still in use, still a member with the channel's role, still friends and
- * unblocked — each answer trusted for a few seconds at most, and forgotten at
- * once when a membership, role, Armada placement, friendship or block
- * changes. A socket that may no longer read a place leaves its room and is
- * told so. A message from somebody across a block from the reader arrives
+ * A message is told to a reader only if they may read its place at that moment
+ * — their account still in use, still a member with the channel's role, still
+ * friends and unblocked — each answer trusted for a few seconds at most, and
+ * forgotten at once when a membership, role, Armada placement, friendship or
+ * block changes. A socket that may no longer read a place leaves its room and
+ * is told so. A message from somebody across a block from the reader arrives
  * with nobody and nothing in it, and a reply shows nothing of a message they
- * wrote. Every instance delivers to its own sockets, and passes the message
- * to the others through the Redis adapter. Delivery is at least once: a
- * client keeps the first copy of each message ID. Nothing is kept here that a
+ * wrote. Every instance delivers to its own sockets, and passes the message to
+ * the others through the Redis adapter. Delivery is at least once: a client
+ * keeps the first copy of each message ID. Nothing is kept here that a
  * reconnect cannot fetch again from the database.
  */
 @Injectable()

@@ -17,7 +17,7 @@ import { FleetScopeKind } from '../../enums/fleet-scope-kind.enum';
 import { FleetScopeRole } from '../../enums/fleet-scope-role.enum';
 import { ChatChannelKind } from '../enums/chat.enums';
 
-/** The most a message may say, in characters (Steve's decision). */
+/** The most a message may say, in characters. */
 export const CHAT_MESSAGE_MAX_LENGTH = 2000;
 
 /** The most people one message may mention. */

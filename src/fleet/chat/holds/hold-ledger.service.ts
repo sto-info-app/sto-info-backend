@@ -22,8 +22,7 @@ export const LEDGERED_HOLD_ACTIONS: readonly ModerationHoldActionKind[] = [
 
 /**
  * What the ledger keeps of one hold event: IDs, dates and the event, and no
- * reason — Steve's decision of 30 September 2026. The action's ID is the
- * log row's own.
+ * reason. The action's ID is the log row's own.
  */
 export interface HoldMarker {
   readonly actionId: string;
@@ -45,14 +44,14 @@ export interface HoldMarker {
  * Keeps every moderation hold's placing, extension and release outside the
  * database (FC-042).
  *
- * Steve's decision of 30 September 2026: a restore from a backup taken
- * before a hold was placed would let the purge take what it keeps, and one
- * taken before a release would keep what should go. Each event is written
- * here first — one object per event, in the private quarantine bucket,
- * under `<NODE_ENV>/hold-ledger/<createdAt>_<actionId>_<KIND>.json` — and
- * then to the database, and the restore check at boot brings back every
- * event the database lacks. A marker whose database write then failed is
- * brought back at the next boot, which errs towards keeping evidence.
+ * A restore from a backup taken before a hold was placed would let the purge
+ * take what it keeps, and one taken before a release would keep what should go.
+ * Each event is written here first — one object per event, in the private
+ * quarantine bucket, under
+ * `<NODE_ENV>/hold-ledger/<createdAt>_<actionId>_<KIND>.json` — and then to the
+ * database, and the restore check at boot brings back every event the database
+ * lacks. A marker whose database write then failed is brought back at the next
+ * boot, which errs towards keeping evidence.
  */
 @Injectable()
 export class HoldLedgerService {

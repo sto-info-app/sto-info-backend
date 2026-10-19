@@ -75,7 +75,7 @@ export interface ChatTranscriptDownload {
 /**
  * Scope admins' transcripts of their channels (FC-035).
  *
- * R23 and Steve's decisions of 28 and 29 September 2026:
+ * R23 and the decisions of 28 and 29 September 2026:
  *
  * - `chat.transcript.export` holders at a channel's own scope export it, and
  *   nobody else: never a conversation between friends, never a sibling

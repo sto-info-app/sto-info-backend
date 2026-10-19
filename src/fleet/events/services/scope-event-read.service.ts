@@ -79,12 +79,11 @@ interface ShownEvent {
 /**
  * What a reader is shown of a scope's events (FC-028).
  *
- * Every read asks who the reader is at the scope, then which events they
- * may see, before anything is read about them. Counts are for everyone the
- * event is shown to; who answered, for the scope's members and managers;
- * Can't go, attendance and the change log, for managers alone — Steve's
- * decisions of 28 September 2026. A reader always sees their own answer and
- * attendance.
+ * Every read asks who the reader is at the scope, then which events they may
+ * see, before anything is read about them. Counts are for everyone the event is
+ * shown to; who answered, for the scope's members and managers; Can't go,
+ * attendance and the change log, for managers alone. A reader always sees their
+ * own answer and attendance.
  */
 @Injectable()
 export class ScopeEventReadService {

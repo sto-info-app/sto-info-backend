@@ -49,14 +49,13 @@ export const presenceKey = (userId: string): string =>
 /**
  * Who is online on STO Info, and who may know it (FC-034).
  *
- * Steve's decisions of 28 and 29 September 2026: somebody is online while
- * any tab of theirs holds a chat connection — every signed-in tab does,
- * while chat is on — and for 60 seconds after its last heartbeat, so a tab
- * that dies without saying so drops off by itself. Never a guess at whether
- * they are in the game. Each person chooses who may see it: everybody,
- * friends, or friends and the people they share a Fleet or an Armada with;
- * appearing offline hides it from everybody. Nobody across a block from them
- * ever sees it.
+ * Somebody is online while any tab of theirs holds a chat connection — every
+ * signed-in tab does, while chat is on — and for 60 seconds after its last
+ * heartbeat, so a tab that dies without saying so drops off by itself. Never a
+ * guess at whether they are in the game. Each person chooses who may see it:
+ * everybody, friends, or friends and the people they share a Fleet or an Armada
+ * with; appearing offline hides it from everybody. Nobody across a block from
+ * them ever sees it.
  */
 @Injectable()
 export class ChatPresenceService implements OnModuleDestroy {

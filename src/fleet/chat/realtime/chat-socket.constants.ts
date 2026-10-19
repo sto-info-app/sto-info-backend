@@ -12,7 +12,7 @@ export const CHAT_SOCKET_NAMESPACE = '/chat';
 /** How long a new socket has to say who it is, in milliseconds. */
 export const CHAT_AUTH_TIMEOUT_MS = 5_000;
 
-/** How many sockets one person may hold at once (Steve's decision). */
+/** How many sockets one person may hold at once. */
 export const CHAT_SOCKETS_PER_PERSON = 5;
 
 /** How long a reader's right to receive is trusted, in milliseconds. */

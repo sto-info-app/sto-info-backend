@@ -69,7 +69,7 @@ export interface OccurrencePlan {
   readonly occurrences: PlannedOccurrence[];
   /**
    * The months, as `YYYY-MM`, a monthly event skips because they have no
-   * such day. Steve's decision: skipped, and shown in the preview.
+   * such day. They are skipped, and shown in the preview.
    */
   readonly skippedMonths: string[];
 }
