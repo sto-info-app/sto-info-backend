@@ -35,6 +35,7 @@ standing statement.
 | Personal information about the member or anybody else is prohibited in it                 | Terms §2, Terms §4   |
 | Pictures uploaded to custom fields are covered by the existing upload rules               | Terms §2             |
 | Deleted definitions and values are kept for 180 days before permanent deletion            | Privacy §4           |
+| Pictures in deleted fields are deleted at once, not kept for the 180 days                 | Privacy §4           |
 | An administrator may hide custom content from public view without deleting it             | Terms §2, Terms §5   |
 
 The one point that is genuinely new rather than an extension of what the pages
@@ -154,8 +155,8 @@ Suggested placement: after "Closed accounts".
   anyone. The underlying records are permanently deleted
   <strong class="go-gold">180 days</strong> later. A deleted option is kept for
   longer where a value you still hold refers to it, because its label is what
-  makes that value readable. Pictures are deleted from our image storage as part
-  of the same process.
+  makes that value readable. Pictures are the exception: a picture in a deleted
+  section, tab or field is deleted from our image storage straight away.
 </li>
 ```
 

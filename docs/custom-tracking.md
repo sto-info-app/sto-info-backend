@@ -161,6 +161,16 @@ user's point of view. There is no undelete.
   such a value may keep the selection or replace it with an active option.
 - Definitions, values and their audit records are hard-deleted 180 days after
   soft deletion, by a scheduled job. See [Retention](#retention).
+- Pictures are not kept. Deleting a section, tab or field removes its picture
+  answers in the same transaction, as removing one picture does, and
+  `CustomTrackingFieldPictureService` then withdraws each picture through the
+  registry ("Its field was deleted"): revoked, deleted from Cloudflare and its
+  purge recorded. The answers have to go too, because the retention purge
+  queues every picture an expired answer still holds and Cloudflare refuses to
+  delete one already gone. `DeletedCustomTrackingPictureSweepService` runs at
+  every start, under advisory lock `1798400000`, and does the same for any
+  still-served picture a deleted field holds: those deleted before 19 October
+  2026, and any whose withdrawal failed.
 - An option is retained past 180 days for as long as any retained value
   references it. Referential integrity prevents the hard delete regardless.
 
@@ -320,7 +330,9 @@ it, and the whole night's job fails on a constraint.
 up:
 
 1. the answers' option selections
-2. the answers' pictures — queued for Cloudflare first
+2. the answers' pictures — queued for Cloudflare first (a deleted field's
+   pictures went when it was deleted, so these are pictures of answers
+   deleted on their own, or of closed accounts)
 3. the answers
 4. the options
 5. the fields

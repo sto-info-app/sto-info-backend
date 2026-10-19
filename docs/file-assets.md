@@ -345,8 +345,15 @@ profile picture and every portrait once the closure has committed ("The account 
 rather than leaving them published until the account is erased. `DeletedPersonalPictureSweepService`
 runs in the background at every start, under advisory lock `1798300000`, and withdraws any such
 picture a closed account, deleted STO account or deleted Character still holds that is still
-served, recording the widest deletion that took it. Both sweeps share the lock, loop and logging in
-`DeletedRecordPictureSweep`.
+served, recording the widest deletion that took it.
+
+**A deleted Custom Tracking field takes its pictures with it.** Deleting a section, tab or field
+keeps the definitions and typed answers for 180 days, but removes its picture answers in the same
+transaction and withdraws the pictures at once ("Its field was deleted"). The answers go too,
+because the retention purge would otherwise queue each picture for a Cloudflare delete that fails
+on one already gone. `DeletedCustomTrackingPictureSweepService` runs at every start, under advisory
+lock `1798400000`, and does the same for any still-served picture a deleted field holds. All three
+sweeps share the lock, loop and logging in `DeletedRecordPictureSweep`.
 
 Downloads already in somebody's possession cannot be recalled. What must hold is that no _new_
 fetch succeeds.
