@@ -352,8 +352,10 @@ keeps the definitions and typed answers for 180 days, but removes its picture an
 transaction and withdraws the pictures at once ("Its field was deleted"). The answers go too,
 because the retention purge would otherwise queue each picture for a Cloudflare delete that fails
 on one already gone. `DeletedCustomTrackingPictureSweepService` runs at every start, under advisory
-lock `1798400000`, and does the same for any still-served picture a deleted field holds. All three
-sweeps share the lock, loop and logging in `DeletedRecordPictureSweep`.
+lock `1798400000`, and does the same for any still-served picture a deleted field holds. Deleting
+an STO account or a Character, or closing an account, takes down the Custom Tracking pictures
+describing it in the same way, through `STO_RECORD_DELETION`, and the same sweep catches those of
+earlier deletions. All three sweeps share the lock, loop and logging in `DeletedRecordPictureSweep`.
 
 Downloads already in somebody's possession cannot be recalled. What must hold is that no _new_
 fetch succeeds.

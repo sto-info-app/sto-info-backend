@@ -171,6 +171,17 @@ user's point of view. There is no undelete.
   every start, under advisory lock `1798400000`, and does the same for any
   still-served picture a deleted field holds: those deleted before 19 October
   2026, and any whose withdrawal failed.
+- Deleting an STO account or a Character takes its answers with it. They are
+  already out of sight, since neither the owner nor the public can reach a
+  deleted account or Character, and the retention purge removes them 180 days
+  after the account or Character was deleted (a Character on a deleted account
+  counts from the account). Their pictures go at once: the STO and user modules
+  call `STO_RECORD_DELETION`, which Custom Tracking provides globally through
+  `CustomTrackingRecordDeletionService`, after deleting an STO account ("Its STO
+  account was deleted"), a Character ("Its Character was deleted") or closing
+  an account ("The account was closed"). The same sweep catches the pictures of
+  any deleted before 19 October 2026, recording the widest deletion that took
+  each one.
 - An option is retained past 180 days for as long as any retained value
   references it. Referential integrity prevents the hard delete regardless.
 
@@ -361,7 +372,9 @@ is a day older tomorrow and goes then.
 Closing an account hides the member's custom data from the public immediately —
 the public projection already refuses a member whose `deletedAt` is set or
 whose account is disabled — and the rows go when the closed-account job erases
-the member, `CLOSED_ACCOUNT_RETENTION_DAYS` later.
+the member, `CLOSED_ACCOUNT_RETENTION_DAYS` later. The pictures go sooner: the
+closure takes down those describing the member's STO accounts and Characters
+as it happens.
 
 `UserAccountCleanupService` purges Custom Tracking explicitly, before the user
 row goes, rather than leaving it to the cascade. The cascade would take the
