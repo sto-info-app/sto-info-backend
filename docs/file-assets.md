@@ -360,6 +360,18 @@ earlier deletions. All three sweeps share the lock, loop and logging in `Deleted
 Downloads already in somebody's possession cannot be recalled. What must hold is that no _new_
 fetch succeeds.
 
+**Withdrawal purges the edge cache too.** Deleting an image from Cloudflare Images does not empty
+the custom domain's cache: on tribble on 19 October 2026 a deleted picture went on being served,
+`CF-Cache-Status: HIT`, at an address fetched just before the deletion, and would have been until
+its cache lifetime ran out at the end of the next day. `imagedelivery.net` answered 404 at once. So
+once the image has gone, `ImageCachePurgeService` purges every address it may be cached at on the
+custom domain: each of `DELIVERY_VARIANTS` unsigned, signed for today's expiry and signed for
+yesterday's, thirty to a request. The purge is confirmed only once both have worked; if the cache
+purge fails the asset stays revoked with its purge owed, and `OwedPurgeSweepService` tries both
+again every hour. It needs `cloudflareZoneId` and `cloudflareCachePurgeToken` in the application's
+AWS secret; without them nothing is purged and the start-up log says so. A variant added to the
+Cloudflare Images account must be added to `DELIVERY_VARIANTS` as well.
+
 ### The asset-deny ledger (FC-042)
 
 Steve's decisions of 30 September 2026. A restore from a backup taken before a withdrawal, a rescan
