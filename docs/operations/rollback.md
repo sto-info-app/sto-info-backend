@@ -90,12 +90,11 @@ its next beat once the migration is re-applied.
 
 ## Retiring the old credentials at release
 
-Steve's decisions of 30 September 2026: the Cloudflare Images token and the public R2 key pair move
-to new secret names holding new tokens, and the old tokens are revoked, so a rolled-back build has
-nothing that works. Production 1.4.23 reads the old names until the moment it is replaced, so the
-order matters.
+The Cloudflare Images token and the public R2 key pair move to new secret names holding new tokens,
+and the old tokens are revoked, so a rolled-back build has nothing that works. Production 1.4.23
+reads the old names until the moment it is replaced, so the order matters.
 
-1. **Create the new tokens in Cloudflare** (Steve): an Images token that can publish, sign, list and
+1. **Create the new tokens in Cloudflare**: an Images token that can publish, sign, list and
    delete pictures, and an R2 key pair for the public bucket that can read and delete objects.
 2. **Add them to the production secret** under `cloudflareImagesGatedApiKey`,
    `cloudflareR2GatedAccessKey` and `cloudflareR2GatedSecret`, beside the old keys, which 1.4.23 is
@@ -108,7 +107,7 @@ order matters.
 5. **Revoke the old tokens in Cloudflare.** Check first that nothing else uses them. From here, a
    build that reads the old names can upload nothing.
 6. **Optionally, delete the old keys** — `cloudflareImagesApiKey`, `cloudflareR2AccessKey` and
-   `cloudflareR2Secret` — from the secret. Steve's call: with them gone an old build does not start
-   at all, which is louder; with them kept but revoked it starts and fails every upload.
+   `cloudflareR2Secret` — from the secret. A judgement call: with them gone an old build does not
+   start at all, which is louder; with them kept but revoked it starts and fails every upload.
 7. **Record it**: when each token was created and revoked, and whether the old keys were deleted.
    Never the values.

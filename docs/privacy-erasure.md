@@ -1,7 +1,7 @@
 # Privacy: erasure, departures and telemetry
 
 How the Fleet Community meets privacy claims (FC-038, R06, R10, R23, R27 and R29). The decisions
-below are Steve's, from 29 September 2026.
+below are from 29 September 2026.
 
 - [Unlinking is not erasure](#unlinking-is-not-erasure)
 - [Verified roster erasure](#verified-roster-erasure)
@@ -92,9 +92,8 @@ erased, and the hash is unique. Nobody has to press anything; FC-042 removed the
 
 ### The restore check (FC-042)
 
-Steve's decisions of 30 September 2026: the backend checks four ledgers kept outside the database
-against it at every boot, brings back whatever an older backup lacks, and serves nothing until it
-has.
+The backend checks four ledgers kept outside the database against it at every boot, brings back
+whatever an older backup lacks, and serves nothing until it has.
 
 | Ledger           | Key, under `<NODE_ENV>/` in the quarantine bucket                           | Written                                                                                                                                   | Brought back                                                   |
 | ---------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |

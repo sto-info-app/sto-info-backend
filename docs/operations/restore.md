@@ -111,18 +111,16 @@ the database before the API serves anything. The detail is in
 
 ## What is not brought back
 
-Steve's decisions of 30 September 2026: only erasures, holds, asset denies and account closures
-have ledgers.
+Only erasures, holds, asset denies and account closures have ledgers.
 
 - **Retention purges.** Rows purged after the backup come back, and are forgotten again before the
-  API serves (Steve's decision of 1 October 2026, FC-043). After the ledgers, the restore check runs
-  every Fleet retention job that forgets by age — roster files, scoped news, retracted Character
-  Fleet memberships, chat messages, chat reports, transcripts and activity — round after round until
-  each says it is done, each run recorded as on its schedule. Holds are replayed first, so what a
-  hold keeps is still kept. A job that fails fails the check, which waits and tries again like any
-  other failure. The summary line ends `RetentionMs: …, Forgotten: CHAT_MESSAGES messages=n; …`
-  (or `Forgotten: nothing`). The site-wide jobs below are not Fleet data and are left to their
-  schedules:
+  API serves (FC-043). After the ledgers, the restore check runs every Fleet retention job that
+  forgets by age — roster files, scoped news, retracted Character Fleet memberships, chat messages,
+  chat reports, transcripts and activity — round after round until each says it is done, each run
+  recorded as on its schedule. Holds are replayed first, so what a hold keeps is still kept. A job
+  that fails fails the check, which waits and tries again like any other failure. The summary line
+  ends `RetentionMs: …, Forgotten: CHAT_MESSAGES messages=n; …` (or `Forgotten: nothing`). The
+  site-wide jobs below are not Fleet data and are left to their schedules:
 
   | Job                                                                                                 | Runs (UTC)               |
   | --------------------------------------------------------------------------------------------------- | ------------------------ |

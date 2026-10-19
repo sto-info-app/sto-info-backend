@@ -4,7 +4,7 @@ Every published picture is a private Cloudflare Images object. Only an address t
 reach it, and the API signs one only while the picture's asset may be shown. Before FC-040, every
 picture was public at two hostnames for as long as it existed, whatever the registry said about it.
 
-Steve's decisions of 29 September 2026:
+Decisions of 29 September 2026:
 
 | Question                                              | Decision                                                                       |
 | ----------------------------------------------------- | ------------------------------------------------------------------------------ |

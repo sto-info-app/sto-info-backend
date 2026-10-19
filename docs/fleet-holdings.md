@@ -1,7 +1,7 @@
 # Fleet holdings
 
 The tier of each of a Fleet's holdings, recorded by hand, and how it changed (FC-023). The code
-is in `src/fleet/holdings`. The decisions below are Steve's, from 28 September 2026.
+is in `src/fleet/holdings`. The decisions below are from 28 September 2026.
 
 There is no XP here, and nothing is worked out from contributions: a tier is what somebody
 recorded, and nothing else sets it.

@@ -468,9 +468,9 @@ object costs on each one.
 ### The exports bucket
 
 A **third, private R2 bucket**, named by `CLOUDFLARE_R2_EXPORTS_BUCKET_NAME`, holding chat
-transcripts (FC-035) for the 24 hours their requester may download them. Steve chose a bucket of
-its own on 29 September 2026: the delivery bucket is served publicly through the CDN, and a prefix
-in it would be private only for as long as nobody pointed a rule at it.
+transcripts (FC-035) for the 24 hours their requester may download them. It is a bucket of its own:
+the delivery bucket is served publicly through the CDN, and a prefix in it would be private only for
+as long as nobody pointed a rule at it.
 
 - **Layout.** Keys are `<environment>/chat-transcripts/<transcript ID>.txt`, and nothing a person
   typed ever reaches a key. Objects are written `Cache-Control: no-store`.
@@ -576,10 +576,10 @@ refused by every route exactly as a properly closed one is. See
 
 ### Origin proxy trust
 
-Only what comes through Cloudflare is served (FC-044, Steve's decision of 2 October 2026).
-`CF-Connecting-IP` and `X-Forwarded-For` are only headers: anybody who reaches the origin without
-Cloudflare, by its `onrender.com` address or by connecting to Render with the API's hostname, can
-write them, and every rate limit keyed on them could be dodged with a new value per request.
+Only what comes through Cloudflare is served (FC-044). `CF-Connecting-IP` and `X-Forwarded-For` are
+only headers: anybody who reaches the origin without Cloudflare, by its `onrender.com` address or by
+connecting to Render with the API's hostname, can write them, and every rate limit keyed on them
+could be dodged with a new value per request.
 
 - **Cloudflare proves it.** A Cloudflare Transform Rule on `api.startrekonline.info` (and on
   `dev-api.` with the dev secret) sets the request header `X-Origin-Verify` to the secret's

@@ -42,9 +42,9 @@ unproven, and it falls only as rescans clear it.
 
 **FC-040 gates their delivery, and still does not call them clean.** Every published picture,
 `UNVERIFIED` included, is copied to a private Cloudflare Images object that only a signed address
-reaches, and the API signs one only while the asset may be shown. Steve's decision of 29 September
-2026 keeps an `UNVERIFIED` picture on the site until FC-041 scans it. The copy records each
-picture's SHA-256, size and type for that scan. See [Private image delivery](image-delivery.md).
+reaches, and the API signs one only while the asset may be shown. An `UNVERIFIED` picture stays on
+the site until FC-041 scans it. The copy records each picture's SHA-256, size and type for that
+scan. See [Private image delivery](image-delivery.md).
 
 **FC-041 scans them.** After release, a legacy rescan campaign stages a copy of every `UNVERIFIED`
 published picture in quarantine and has the worker scan it like an upload. A clean picture becomes
@@ -369,13 +369,13 @@ hour and a half later. That is why a signed address lasts only to the end of the
 
 ### The asset-deny ledger (FC-042)
 
-Steve's decisions of 30 September 2026. A restore from a backup taken before a withdrawal, a rescan
-infection or a policy take-down would put the picture back. So every move of a `file_asset` into a
-denied state — `REJECTED` (`FileAssetService.reject`), `REVOKED` (`revoke`, which every withdrawal,
-rescan take-down and site admin take-down goes through) or `DELETED` (`discard`, which the
-superseded-upload, stale-upload and roster import paths use) — is also written to a ledger outside
-the database. The service checks the move against the state machine, writes the marker, and only
-then writes the row. A move the state machine refuses writes nothing.
+A restore from a backup taken before a withdrawal, a rescan infection or a policy take-down would
+put the picture back. So every move of a `file_asset` into a denied state — `REJECTED`
+(`FileAssetService.reject`), `REVOKED` (`revoke`, which every withdrawal, rescan take-down and site
+admin take-down goes through) or `DELETED` (`discard`, which the superseded-upload, stale-upload and
+roster import paths use) — is also written to a ledger outside the database. The service checks the
+move against the state machine, writes the marker, and only then writes the row. A move the state
+machine refuses writes nothing.
 
 - **Where.** One object per move in the private quarantine bucket:
   `<NODE_ENV>/asset-deny-ledger/<createdAt>_<assetId>_<REJECTED|REVOKED|DELETED>.json`, so the
@@ -619,13 +619,13 @@ which is when it is most needed.
 | `publication` | The publication pause (FC-042): whether it is on, since when and by whom (`pausedByUserId`, and `pausedByUsername`, null for an account since gone), whether the queue itself is paused, and how many cleared uploads are held.                                        |
 | `owedPurges`  | The registry's owed purges (FC-043): `owed`, how many of those are `overdue` (owed for more than a day, as `PURGE_OWED` judges), and `oldestHours`, null when none is owed. Counted by the database against its own clock.                                             |
 
-**Every read is logged** (FC-042, Steve's decision of 30 September 2026). The diagnostics stay
-ADMIN-only, and each page view writes one `SCAN_DIAGNOSTICS_VIEWED` entry to the site admin log —
-see [Admin audit](admin-audit.md#operations-fc-042). The Scan Diagnostics page does not poll: it
-reads this route, the first page of refusals and the first page of every queue's failed jobs when
-it opens and on Refresh. So this route logs each read, and the other two log only a deliberate
-read — a later page, or for the failed jobs one queue chosen; their first page is covered by the
-diagnostics entry it is read with. One asset's outcome logs its own read.
+**Every read is logged** (FC-042). The diagnostics stay ADMIN-only, and each page view writes one
+`SCAN_DIAGNOSTICS_VIEWED` entry to the site admin log — see
+[Admin audit](admin-audit.md#operations-fc-042). The Scan Diagnostics page does not poll: it reads
+this route, the first page of refusals and the first page of every queue's failed jobs when it opens
+and on Refresh. So this route logs each read, and the other two log only a deliberate read — a later
+page, or for the failed jobs one queue chosen; their first page is covered by the diagnostics entry
+it is read with. One asset's outcome logs its own read.
 
 **This application cannot read the worker's attempt table, and does not need to.** The worker's
 migration `1794800000000-RecordScanUsage` grants the two views, which carry totals only, to the
@@ -644,10 +644,9 @@ nothing else about the asset. See [Admin audit](admin-audit.md#why-an-upload-was
 
 ## Running the pipeline (FC-042)
 
-Steve's decisions of 30 September 2026: every site admin is told in-app when the file pipeline
-needs a person, once per problem until it clears; a site admin can retry a failed job, with a
-reason; and publication can be paused without stopping uploads. The runbooks that use these are
-in [`docs/operations/`](operations/).
+Every site admin is told in-app when the file pipeline needs a person, once per problem until it
+clears; a site admin can retry a failed job, with a reason; and publication can be paused without
+stopping uploads. The runbooks that use these are in [`docs/operations/`](operations/).
 
 ### Alerts
 
@@ -708,11 +707,11 @@ one entry with the counts.
 
 `POST /admin/file-scanning/failed-jobs/:queue/:jobId/discard` and
 `POST /admin/file-scanning/failed-jobs/discard-unretryable` (optional `queue`) each take a reason,
-remove failed jobs from BullMQ, and write a `SCAN_JOB_DISCARDED` entry (Steve's decision of 30
-September 2026). A single discard removes any failed job, whether or not a retry could help it;
-"Discard unretryable" removes only those the check below says a retry cannot help, up to 500 a
-press, and logs one entry with the counts. `retryable` on each listed job tells the page which to
-offer. `FAILED_JOBS` counts every failed job, so it clears once each has been retried or discarded.
+remove failed jobs from BullMQ, and write a `SCAN_JOB_DISCARDED` entry. A single discard removes any
+failed job, whether or not a retry could help it; "Discard unretryable" removes only those the check
+below says a retry cannot help, up to 500 a press, and logs one entry with the counts. `retryable`
+on each listed job tells the page which to offer. `FAILED_JOBS` counts every failed job, so it
+clears once each has been retried or discarded.
 
 **A retry is only sent when it can change something.** Every job is read against its record when
 it runs, so one whose record has moved on would do nothing; retrying it is refused with a 409 that
@@ -800,13 +799,12 @@ PNG to every header check — could hide a payload past that point and come back
 scan rehearsal shows it. Step 2a closes it before the scanner: sharp decodes every picture and
 writes it out again in the same encoding, so appended bytes, archives in ancillary chunks or APP
 segments, comments and every kind of metadata are gone before anything is hashed, stored, scanned
-or published. With Steve's choices of 1 October 2026, the orientation a camera recorded is applied
-first so a phone photograph is not published on its side; then all metadata goes, the location
-included; PNG stays lossless and JPEG is written at quality 90 with mozjpeg; and a picture of more
-than 50 megapixels (`IMAGE_MAX_PIXELS`) is refused before it is decoded, as "too large to
-process". A picture sharp cannot decode is refused as "not a readable PNG or JPEG image".
-`test/asset-upload-matrix.spec.ts` drives every caller through it with real pictures, and checks
-that what is quarantined carries nothing that was appended.
+or published. The orientation a camera recorded is applied first so a phone photograph is not
+published on its side; then all metadata goes, the location included; PNG stays lossless and JPEG is
+written at quality 90 with mozjpeg; and a picture of more than 50 megapixels (`IMAGE_MAX_PIXELS`) is
+refused before it is decoded, as "too large to process". A picture sharp cannot decode is refused as
+"not a readable PNG or JPEG image". `test/asset-upload-matrix.spec.ts` drives every caller through
+it with real pictures, and checks that what is quarantined carries nothing that was appended.
 
 **The owning feature's row is not written until step 6.** That is the third acceptance
 criterion: whatever picture a record shows goes on being shown until the replacement has been
@@ -870,7 +868,7 @@ acceptance criterion is met: not by stripping fields but by there being none to 
 
 ### Uploads made while Redis is down
 
-Steve's decision of 1 October 2026: accept, queue later (FC-042).
+Accept, queue later (FC-042).
 
 - **Queueing a scan waits at most five seconds** (`redisWithin()`), because BullMQ holds a command
   while Redis is away rather than failing it. If Redis does not take it, the asset goes back to
@@ -913,9 +911,8 @@ holds for a day after `QUEUES_UNREACHABLE` clears, so even an upload made just b
 outage is re-queued with the best part of a day to spare. An upload the worker keeps answering
 `RETRY` for is still abandoned after its day, as before.
 
-**Not while the pipeline is stopped** (FC-042, Steve's decision of 30 September 2026). The day
-counts from the later of the upload and the moment things started again, so the sweep abandons
-nothing at all while:
+**Not while the pipeline is stopped** (FC-042). The day counts from the later of the upload and the
+moment things started again, so the sweep abandons nothing at all while:
 
 - the worker is silent or paused now — no worker has beaten in two minutes, the heartbeat view
   cannot be read, or every live worker is `PAUSED` (the alerts' definitions, without their grace

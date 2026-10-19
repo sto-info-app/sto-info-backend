@@ -14,10 +14,10 @@ Render or the live Cloudflare account is
 | All plan §5 Help/navigation journeys pass; campaign help matches FC-041; public/restricted sitemap and feature filtering are correct. | [Journeys](#journeys): `02-help-and-navigation` on desktop and phone, including the sitemap built as the build builds it and every Help address in it opened signed out; switched off and unreachable; `04-owed-admin` drives rescan campaigns against the guide's words.          |
 | All LCARS shared control/tab/dialog/colour requirements pass build and visual review.                                                 | [Visual review](#visual-review): 32 full-page screenshots reviewed tile by tile; every defect on Fleet's pages and the shared controls they use fixed, and the site-wide phone frame with them. `docs/ui-components.md` describes the controls and the Fleet colours as they are.  |
 | Four-hour/seven-day limits, presence choices and source timezone are clear to users.                                                  | Chat's note reads "You can read back the last four hours here." and the transcript dialog its days, both from the server's policy; presence and typing on Settings with their help; the export zone on import and Settings. Checked in `04-owed-chat` and `04-owed-news-activity`. |
-| Measured throughput/latency/memory/DB/Redis budgets support agreed launch load.                                                       | [Load](#load): every latency, throughput, connection and Redis budget met with room. The backend fits 512 MiB with its heap capped at 384 MiB, the configuration Steve chose for Render; its resident set there is FC-052's to confirm.                                            |
+| Measured throughput/latency/memory/DB/Redis budgets support agreed launch load.                                                       | [Load](#load): every latency, throughput, connection and Redis budget met with room. The backend fits 512 MiB with its heap capped at 384 MiB, the configuration chosen for Render; its resident set there is FC-052's to confirm.                                                 |
 | Accessibility, keyboard and reduced motion pass relevant checks.                                                                      | [Accessibility](#accessibility): axe (WCAG 2.0/2.1 A and AA) on every Fleet, chat, settings, Help and site admin page, with data in them; keyboard journeys; one global reduced-motion rule. Six defects found and fixed.                                                          |
 
-## Steve's decisions
+## Decisions
 
 Made on 2 October 2026, before anything was built, all as recommended:
 
@@ -96,7 +96,7 @@ Run 9, on 2 October, repeated the stack with Cloudflare's origin secret set: a r
 Cloudflare was refused `403` whatever address it claimed, `/health/ready` answered `200`, and every
 load still passed.
 
-**Backend memory:** Steve chose, on 4 October 2026, Render's 512 MB plan with
+**Backend memory:** on 4 October 2026, Render's 512 MB plan was chosen with
 `NODE_OPTIONS=--max-old-space-size=384`, the configuration every scenario passed under. The resident
 set on Render's Linux is FC-052's to measure ([Render services](../operations/render-services.md#the-backend)).
 

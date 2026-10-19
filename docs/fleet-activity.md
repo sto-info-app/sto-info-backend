@@ -2,7 +2,7 @@
 
 Activity feeds for Communities, Fleets and Armadas, a feed of each person's own, and the one
 targeted notice FC-029 adds (FC-029). The code is in `src/fleet/activity`. The decisions below are
-Steve's, from 28 September 2026.
+from 28 September 2026.
 
 ## What goes on a feed
 

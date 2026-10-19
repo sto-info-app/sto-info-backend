@@ -1,8 +1,8 @@
 # Fleet events
 
 A Community's, a Fleet's and an Armada's events (FC-028). The code is in `src/fleet/events`. The
-decisions below are Steve's, from 28 September 2026. FC-030 builds the pages, the attendance
-report and somebody's own list; see [Fleet reports](fleet-reports.md#attendance).
+decisions below are from 28 September 2026. FC-030 builds the pages, the attendance report and
+somebody's own list; see [Fleet reports](fleet-reports.md#attendance).
 
 ## An event
 

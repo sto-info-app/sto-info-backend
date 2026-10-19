@@ -265,10 +265,10 @@ nothing about the file's content.
 whether the export stamp, read through the chosen timezone, is more than ten minutes after now
 (`exportStampAhead`), and how many readable rows carry a date that is (`rowCount`). A New York
 export read as London's runs five hours fast, so a date in the future is almost always the wrong
-zone. Steve's decision of 1 October 2026: a warning, never a refusal, and never part of
-`canImport`; the import page asks the uploader to say the zone is right before it sends the file.
-A date counts only when every instant it could name is ahead: the morning a clock goes back is the
-ambiguity's question, not this one's. The ten minutes are `ROSTER_FUTURE_TOLERANCE_MINUTES`.
+zone. It is a warning, never a refusal, and never part of `canImport`; the import page asks the
+uploader to say the zone is right before it sends the file. A date counts only when every instant it
+could name is ahead: the morning a clock goes back is the ambiguity's question, not this one's. The
+ten minutes are `ROSTER_FUTURE_TOLERANCE_MINUTES`.
 
 The zone itself is never inferred here: the check and the import each refuse a request without
 an IANA zone, and the page starts on the zone chosen in Settings, or the device's, which the
@@ -281,12 +281,12 @@ renamed in game would stop matching its own older exports. `fleet_name_alias` ho
 Fleet was known by, each with the interval it was used, and an export matches one only when every
 instant its stamp could name lies inside that interval.
 
-**Recorded by people, never by files (FC-050).** Steve's decision of 30 September 2026: the Fleet's
-`roster.investigate` holders, its Owner and Admins by default, record a former name on the Fleet's
-Investigate tab with the dates it was used and a reason, and can remove one with a reason. Nothing
-learns a name from an upload: an importer that did could be told a Fleet's name by whoever uploaded
-next. A name cannot be the Fleet's current one, nor overlap the same name recorded for part of that
-time, and its interval has to have ended.
+**Recorded by people, never by files (FC-050).** The Fleet's `roster.investigate` holders, its Owner
+and Admins by default, record a former name on the Fleet's Investigate tab with the dates it was
+used and a reason, and can remove one with a reason. Nothing learns a name from an upload: an
+importer that did could be told a Fleet's name by whoever uploaded next. A name cannot be the
+Fleet's current one, nor overlap the same name recorded for part of that time, and its interval has
+to have ended.
 
 **Removal keeps the record.** A removed name is soft-deleted with who removed it and why
 (`removedByUserId`, `removalReason`, `CHK_fleet_name_alias_removal`), so an import that matched it

@@ -2,9 +2,9 @@
 
 Chat for Communities, Fleets and Armadas, and between friends (FC-031), its live socket (FC-032),
 mentions, replies and notices (FC-033), blocks, presence and typing (FC-034), transcripts and
-reports (FC-035), and site administrators' holds on its evidence (FC-036). The code is in `src/fleet/chat`. The decisions below are Steve's, from 28 and 29
-September 2026. The page itself is the frontend's (`/chat`), as is the site admins' queue of
-reports (`/admin/chat-reports`).
+reports (FC-035), and site administrators' holds on its evidence (FC-036). The code is in
+`src/fleet/chat`. The decisions below are from 28 and 29 September 2026. The page itself is the
+frontend's (`/chat`), as is the site admins' queue of reports (`/admin/chat-reports`).
 
 - [Who takes part](#who-takes-part)
 - [Channels](#channels)
@@ -177,7 +177,7 @@ FC-034. Nothing here ever says there is a block, or why.
 
 ## Transcripts and reports
 
-FC-035, with Steve's decisions of 28 and 29 September 2026.
+FC-035, with the decisions of 28 and 29 September 2026.
 
 - **Who exports.** `chat.transcript.export` holders at a channel's own scope — its Admins and
   Owner, by default — export that channel. Nobody exports a conversation between friends, a
@@ -240,7 +240,7 @@ FC-035, with Steve's decisions of 28 and 29 September 2026.
 
 ## Holds
 
-FC-036, plan section 9 and Steve's decisions of 29 September 2026 (`src/fleet/chat/holds`).
+FC-036, plan section 9 and the decisions of 29 September 2026 (`src/fleet/chat/holds`).
 
 - **What.** A site administrator holds a chat report's evidence past its 90 days, or everything
   one member wrote in chat — every channel and conversation, direct messages included — past the
@@ -267,10 +267,10 @@ FC-036, plan section 9 and Steve's decisions of 29 September 2026 (`src/fleet/ch
 
 ### The hold ledger (FC-042)
 
-Steve's decisions of 30 September 2026. A restore from a backup taken before a hold was placed
-would let the purge take what it keeps; one taken before a release would keep what should go. So
-every placing, extension and release — the system's automatic release included — is also written
-to a ledger outside the database, before the database, in the same step that logs it.
+A restore from a backup taken before a hold was placed would let the purge take what it keeps; one
+taken before a release would keep what should go. So every placing, extension and release — the
+system's automatic release included — is also written to a ledger outside the database, before the
+database, in the same step that logs it.
 
 - **Where.** One object per event in the private quarantine bucket:
   `<NODE_ENV>/hold-ledger/<createdAt>_<actionId>_<PLACED|EXTENDED|RELEASED>.json`. The action ID is

@@ -1,7 +1,7 @@
 # Fleet news
 
 A Community's, a Fleet's and an Armada's own news (FC-027). The code is in `src/fleet/news`. The
-decisions below are Steve's, from 28 September 2026.
+decisions below are from 28 September 2026.
 
 There is one news system. A scoped post is a row of the site's own `news_post` table that names
 its scope; the site's news is unchanged, and every query for it asks for `communityId IS NULL`

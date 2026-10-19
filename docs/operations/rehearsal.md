@@ -6,7 +6,7 @@ throwaway containers on a developer's machine, here, and on Render in FC-052
 
 ## Locally
 
-Steve's decision of 30 September 2026: a script that builds its own throwaway stack, as the
+A script that builds its own throwaway stack, as the
 [migration rehearsal](../../scripts/migration-rehearsal/README.md) does, and leaves the developer's
 own containers alone — `postgres1`, `sto-redis` and the `stoi-` containers are never touched.
 
@@ -68,7 +68,7 @@ then lost with Redis's data is rehearsed, in S9 (FC-045).
 
 ## Timings
 
-From a run on 1 October 2026 (00:20 to 00:44 UTC), on Steve's Windows 11 machine with Docker
+From a run on 1 October 2026 (00:20 to 00:44 UTC), on the developer's Windows 11 machine with Docker
 Desktop, Node 24.21: 103 checks passed, none failed. The machine was busier than in earlier runs
 (the cold start took 59 s against 42–46 s before), so most steps here are a second or two slower
 than they need be.

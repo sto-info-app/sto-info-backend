@@ -280,9 +280,9 @@ outage.
   Key Value instance takes longer than a count is allowed.
 - For the next **10 seconds** nothing asks Redis, so an outage costs one slow request every ten
   seconds rather than a second on every request. After that, the next request asks Redis again.
-- Limits keep applying throughout, sign-in's included (Steve's decision of 1 October 2026: counting
-  locally rather than letting requests through). While Redis is away each instance keeps its own
-  count, so with several instances a client can make that many more requests.
+- Limits keep applying throughout, sign-in's included (counting locally rather than letting requests
+  through). While Redis is away each instance keeps its own count, so with several instances a
+  client can make that many more requests.
 - The switch is logged once each way: a warning `Rate limits counted in memory while Redis cannot
 answer - Limiter: <name>`, and `Rate limits counted in Redis again` when it answers. Counts made in
   memory are not copied back to Redis.

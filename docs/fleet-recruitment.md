@@ -8,7 +8,7 @@ See also [Roster history](roster-history.md), whose evidence a decider is shown,
 
 ## Three ways in, one record
 
-Steve decided on 26 September 2026 what each recruitment state lets an outsider do:
+What each recruitment state lets an outsider do:
 
 | State         | Outsiders                                                            | Officers   |
 | ------------- | -------------------------------------------------------------------- | ---------- |

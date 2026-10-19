@@ -2,7 +2,7 @@
 
 Who governs a Community or Fleet: role labels, delegated capabilities, ownership and closure
 (FC-022), and a site administrator's disputes, suspensions and looks into a Fleet (FC-036). The
-code is in `src/fleet/governance`. The decisions below are Steve's, from 27 and 29 September 2026.
+code is in `src/fleet/governance`. The decisions below are from 27 and 29 September 2026.
 
 An Armada has roles and delegation too (FC-025): the Community's Owner appoints its Admins and
 Officers from the approved members of the Fleets placed in it, and a role there ends when its
@@ -63,14 +63,13 @@ For an Owner who has vanished or a Community that has been reported, a site admi
 Each needs a reason, or for a look a purpose, and each is logged as a site administrator's
 (`asSiteAdmin`).
 
-**Any Community (FC-050).** Steve's decision of 30 September 2026: a site administrator reaches
-every Community's dispute page, members-only and private ones included. The admin routes below
-never asked who may see the Community; the page now finds it through
-`GET /admin/fleet-communities/by-slug/:slug`, which resolves a web address without the audience
-check, for a site administrator alone. Everybody else, a site administrator included everywhere
-else, is still answered by the public `GET /fleet-communities/by-slug/:slug`, and the page shows
-anybody who is not a site administrator that it is not for them. What each action logs is
-unchanged.
+**Any Community (FC-050).** A site administrator reaches every Community's dispute page,
+members-only and private ones included. The admin routes below never asked who may see the
+Community; the page now finds it through `GET /admin/fleet-communities/by-slug/:slug`, which
+resolves a web address without the audience check, for a site administrator alone. Everybody else, a
+site administrator included everywhere else, is still answered by the public
+`GET /fleet-communities/by-slug/:slug`, and the page shows anybody who is not a site administrator
+that it is not for them. What each action logs is unchanged.
 
 A site administrator reaches the page from the Admin area's Fleet Disputes, which finds
 Communities through `GET /admin/fleet-communities`: every live one whose name or web address holds
@@ -81,11 +80,10 @@ Manage hub finds the Community for a site administrator the same way as the disp
 Site administration entry is reached from the hub at a Community they cannot otherwise see; every
 other Manage page, and everybody else, still uses the public read.
 
-**The new Owner is told (FC-050).** Steve's decision of 30 September 2026: when a site
-administrator moves ownership, the new Owner gets an in-app notification that they now own the
-Community, linking to its page. It does not give the site administrator's reason, which stays in
-the governance history. It is sent once the move is committed, as the offer's and the departing
-Owner's notices are, and one that fails undoes nothing.
+**The new Owner is told (FC-050).** When a site administrator moves ownership, the new Owner gets an
+in-app notification that they now own the Community, linking to its page. It does not give the site
+administrator's reason, which stays in the governance history. It is sent once the move is
+committed, as the offer's and the departing Owner's notices are, and one that fails undoes nothing.
 
 **Competing registrations (FC-036).** The dispute view lists each of the Community's Fleets and
 Armadas with every other registration of the same exact name on the same platform, private ones
@@ -96,16 +94,16 @@ here says which registration is real, and the page says so.
 
 ### An Owner closing their account
 
-FC-038, Steve's decision of 29 September 2026. Each open Community goes to its longest-serving
-Admin who can take it, logged as a reassignment by the departing Owner, with the reason "The Owner
-closed their STO Info account."; the new Owner is told. One no Admin can take is closed. The
-closure dialog says which first. A closed Community keeps no Owner once the account is erased. See
+FC-038. Each open Community goes to its longest-serving Admin who can take it, logged as a
+reassignment by the departing Owner, with the reason "The Owner closed their STO Info account."; the
+new Owner is told. One no Admin can take is closed. The closure dialog says which first. A closed
+Community keeps no Owner once the account is erased. See
 [Privacy: erasure](privacy-erasure.md#an-owner-closing-their-account).
 
 ### Suspension
 
-FC-036, Steve's decision of 29 September 2026. A site administrator suspends a Community, Fleet or
-Armada, with a reason, and reinstates it with another (`ScopeSuspensionService`).
+FC-036. A site administrator suspends a Community, Fleet or Armada, with a reason, and reinstates it
+with another (`ScopeSuspensionService`).
 
 - A suspended scope stays readable and accepts nothing new: the resolver withdraws every mutating
   capability there, as it does at a closed one, so nothing changes and nobody posts in its chat. A
@@ -116,21 +114,21 @@ Armada, with a reason, and reinstates it with another (`ScopeSuspensionService`)
   and never a closed one. Suspending what is suspended, or reinstating what is active, changes
   nothing.
 - Its Owner and Admins are told in-app that it was suspended or reinstated, linking to its page,
-  without the reason (FC-050; Steve's decision of 30 September 2026). The Admins are those at the
-  scope and, at a Fleet or Armada, the Community's too, whose role reaches it. Each is told once,
-  the site administrator who made the change is not, and nothing goes in the activity feed. Whom to
-  tell is read in the same transaction as the change; the notices go once it is committed, and one
-  that fails undoes nothing. A Community's suspension tells the Community's Owner and Admins, not
-  each of its Fleets' and Armadas'.
+  without the reason (FC-050). The Admins are those at the scope and, at a Fleet or Armada, the
+  Community's too, whose role reaches it. Each is told once, the site administrator who made the
+  change is not, and nothing goes in the activity feed. Whom to tell is read in the same transaction
+  as the change; the notices go once it is committed, and one that fails undoes nothing. A
+  Community's suspension tells the Community's Owner and Admins, not each of its Fleets' and
+  Armadas'.
 - Suspending a member, by a holder of `members.manage`, is recruitment's; see
   [Fleet recruitment](fleet-recruitment.md#leaving-and-removal).
 
 ### A site administrator's look into a Fleet
 
-FC-036, Steve's decision of 29 September 2026. A site administrator gives a purpose (10 to 500
-characters) on the dispute page, and may then read that Fleet's Investigate pages for 24 hours:
-its imports and their rows, conflicting exports, identity decisions and rank order. They change
-nothing, and there is still no way to see a raw roster file.
+FC-036. A site administrator gives a purpose (10 to 500 characters) on the dispute page, and may
+then read that Fleet's Investigate pages for 24 hours: its imports and their rows, conflicting
+exports, identity decisions and rank order. They change nothing, and there is still no way to see a
+raw roster file.
 
 - The grant is a row in `fleet_investigation_grant` (write-once): who, which Fleet, why and until
   when. It is the record of the look.
@@ -144,10 +142,10 @@ nothing, and there is still no way to see a raw roster file.
 
 ## Who a Community's audience admits
 
-FC-050, Steve's decisions of 30 September 2026. A Community's visibility, and anything published
-at the Community to one of these audiences (news, events, activity, images), counts the approved
-members of every Fleet in it. A Fleet page asks its Community first, so without this a Fleet's
-members who did not follow their Community could not open their own Fleet.
+FC-050. A Community's visibility, and anything published at the Community to one of these audiences
+(news, events, activity, images), counts the approved members of every Fleet in it. A Fleet page
+asks its Community first, so without this a Fleet's members who did not follow their Community could
+not open their own Fleet.
 
 "Community members" means the same wherever it is set inside the Community: on a Fleet, on an
 Armada's content, and on anything published in either, it admits whom it admits on the Community.
@@ -162,8 +160,7 @@ differs by scope.
 | Fleet members (`FLEET_MEMBERS`) | The approved members of any of its Fleets; an approved member of the Community itself; anybody holding `members.view` there — the Owner, Admins and whoever it is delegated to. Never a follower | The Fleet's own approved members, or an Armada's through its placed Fleets; anybody holding `members.view` there. Never a sibling Fleet's member, never a follower                                        |
 | Only me (`PRIVATE`)             | The Owner                                                                                                                                                                                        | The Community's Owner                                                                                                                                                                                     |
 
-Community content published to "Fleet members" reaching the members of every Fleet is intended
-(Steve, 30 September 2026).
+Community content published to "Fleet members" reaching the members of every Fleet is intended.
 
 - **Approved means approved.** A pending, rejected, left, revoked, suspended or deleted Fleet
   membership counts for nothing; one suspended in a Fleet still counts through another Fleet they

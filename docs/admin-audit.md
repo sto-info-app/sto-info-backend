@@ -5,7 +5,7 @@ somebody can read it later. This is the record a site admin answers to: every
 site-level admin action takes a reason, and the reason is kept with the action
 in the same transaction that makes the change.
 
-Steve's decisions of 29 September 2026:
+Decisions of 29 September 2026:
 
 | Question                          | Decision                                                                                                                                                                                                 |
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -147,12 +147,12 @@ uploader is only ever told the file was not accepted.
 
 ## Operations (FC-042)
 
-Steve's decisions of 30 September 2026: Scan Diagnostics stays `ADMIN` only, and every view of it
-is logged as `SCAN_DIAGNOSTICS_VIEWED` with a fixed reason — one entry per page view. The page
-reads the diagnostics, the first page of refused assets and the first page of failed jobs when it
-opens and on Refresh; it does not poll. So the diagnostics route logs, and the other two log only
-a deliberate read: a later page, or for failed jobs one queue chosen. One asset's outcome logs its
-own read; a read that finds no asset writes nothing.
+Decisions of 30 September 2026: Scan Diagnostics stays `ADMIN` only, and every view of it is logged
+as `SCAN_DIAGNOSTICS_VIEWED` with a fixed reason — one entry per page view. The page reads the
+diagnostics, the first page of refused assets and the first page of failed jobs when it opens and on
+Refresh; it does not poll. So the diagnostics route logs, and the other two log only a deliberate
+read: a later page, or for failed jobs one queue chosen. One asset's outcome logs its own read; a
+read that finds no asset writes nothing.
 
 **Rolling back.** Migration `1797500000000` refuses its `down` once the log holds any of these
 five actions: removing them would lose Security Log history, so the answer is to roll forward.

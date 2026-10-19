@@ -6,9 +6,9 @@ See also [Roster history](roster-history.md), which the reports are built from.
 
 ## Who may see a report
 
-Plan R13 has Admins choose public aggregates. Steve decided on 25 September 2026 that the choice is
-made per report, by the Owner alone — the holder of `scope.settings.manage`, which is not
-delegable — from the Fleet's own four audiences:
+Plan R13 has Admins choose public aggregates. Since 25 September 2026, the choice is made per
+report, by the Owner alone — the holder of `scope.settings.manage`, which is not delegable — from
+the Fleet's own four audiences:
 
 | Audience               | Who                                          | What they see                                                               |
 | ---------------------- | -------------------------------------------- | --------------------------------------------------------------------------- |
@@ -29,7 +29,7 @@ audience a report already has is refused.
 The Owner and Admins can read every report's audience and change. Anybody else learns only
 whether a report is shown to them.
 
-Steve's decisions of 28 September 2026 (FC-030) add three more:
+The decisions of 28 September 2026 (FC-030) add three more:
 
 - **Attendance** has an audience the Owner chooses, but only `reports.view` holders see it per
   person. Its members, like anybody else it is shown to, see counts and rates.
@@ -51,12 +51,12 @@ never as forbidden, so the answer does not confirm what a private Fleet has.
 
 The Community's followers and anybody else see counts and totals only: never a name, a handle, a
 comment or a member's own figure, and no drilldown to them. Every figure is hidden — null in the
-API and `< 5` in an export — when it counts from 1 to 4 members (Steve's decision of 25 September
-2026). In a group that makes up a whole, such as a report's bands or rank labels, the smallest
-counts still shown are then hidden too, one by one, until the hidden counts together count at
-least five, or every count is hidden. Otherwise a hidden count could be got back by subtracting
-the rest from a total shown beside them. A zero goes first, as it gives the least away. A
-contribution total is hidden when fewer than five members' deltas make it up.
+API and `< 5` in an export — when it counts from 1 to 4 members. In a group that makes up a whole,
+such as a report's bands or rank labels, the smallest counts still shown are then hidden too, one by
+one, until the hidden counts together count at least five, or every count is hidden. Otherwise a
+hidden count could be got back by subtracting the rest from a total shown beside them. A zero goes
+first, as it gives the least away. A contribution total is hidden when fewer than five members'
+deltas make it up.
 
 Members are counted as roster identities: a Character, across its renames. One member listed twice
 on an export, when both names of a confirmed rename are still listed, counts once. Where a report
@@ -83,7 +83,7 @@ excluded.
 FC-019's interval summaries, one row per interval between two consecutive effective exports:
 members at each end, and how many joined, rejoined and left, were left unknown by a partial
 export, or were revealed across a gap. Beside them, the account handles each end listed — observed
-accounts, never people (Steve's decision of 25 September 2026).
+accounts, never people.
 
 For an aggregate audience, the five movements are one group: with the members at each end shown,
 any one of them could otherwise be worked out from the rest.
@@ -91,17 +91,17 @@ any one of them could otherwise be worked out from the rest.
 ### Activity
 
 Each export's members, banded by how long before the export's own instant their latest Last
-Active was: within 7, 30 or 90 days, longer, or not given (Steve's decision of 25 September 2026).
-A Last Active after the export, which a clock or zone mismatch can give, is within 7 days. The
-bands are one group, beside the total they make up.
+Active was: within 7, 30 or 90 days, longer, or not given. A Last Active after the export, which a
+clock or zone mismatch can give, is within 7 days. The bands are one group, beside the total they
+make up.
 
 ### Tenure
 
-Observed, never the game's Join Date (Steve's decision of 25 September 2026). Each export's members
-are banded by how long before it the episode it falls in was first listed: under 30 days, 30 to
-90, 90 days to a year, one to two years, or two or more. A member whose episode no earlier export
-bounds — first seen on the Fleet's first export, or after exports that did not list them either
-way — had been listed at least that long, and each band says how many of its members that is.
+Observed, never the game's Join Date. Each export's members are banded by how long before it the
+episode it falls in was first listed: under 30 days, 30 to 90, 90 days to a year, one to two years,
+or two or more. A member whose episode no earlier export bounds — first seen on the Fleet's first
+export, or after exports that did not list them either way — had been listed at least that long, and
+each band says how many of its members that is.
 
 A full view also lists the members at one export, longest listed first, each named as that export
 listed them.
@@ -130,8 +130,8 @@ Plan section 3.7 and R13 hold throughout:
 - Nothing says what was given.
 
 A full view also lists, for one interval, each member's rise, largest first, then each reset, with
-the totals either side (Steve's decision of 25 September 2026). A change bounded more widely than
-the interval is listed, marked, and is in no interval's total.
+the totals either side. A change bounded more widely than the interval is listed, marked, and is in
+no interval's total.
 
 For an aggregate audience the four counts are one group, since they account for every member at
 either end exactly once, and the total is hidden when fewer than five members' deltas make it up.
@@ -146,9 +146,9 @@ attendance and recruitment ever have an audience stored.
 
 ### Attendance
 
-The Fleet's own events only (Steve's decision of 28 September 2026); a Community's and an
-Armada's have no attendance report in v1, and their managers see attendance on each occurrence.
-Each occurrence that started in the span and was not cancelled gives:
+The Fleet's own events only; a Community's and an Armada's have no attendance report in v1, and
+their managers see attendance on each occurrence. Each occurrence that started in the span and was
+not cancelled gives:
 
 - how many are Going with a place, as it stands now;
 - how many were recorded as coming and as not coming;
@@ -176,10 +176,9 @@ the reason.
 
 ## CSV export
 
-Each report can be downloaded as CSV. It holds the tables exactly as the viewer is shown them
-(Steve's decision of 25 September 2026), so an aggregate audience's export names nobody, and
-every figure its view hides is written `< 5`. A full view's member list follows the report's
-own tables, after a blank line.
+Each report can be downloaded as CSV. It holds the tables exactly as the viewer is shown them, so an
+aggregate audience's export names nobody, and every figure its view hides is written `< 5`. A full
+view's member list follows the report's own tables, after a blank line.
 
 Comment lines starting `#` come first. They name the report and the Fleet, the revision and when
 it was published, the span and how many exports it covers, and the view, and say when the file

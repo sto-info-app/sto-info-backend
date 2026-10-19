@@ -17,13 +17,12 @@ run takes about ten minutes.
 
 ## No real data
 
-Steve's decision of 6 October 2026: the rehearsal is synthetic. Nothing is read from production or
-from any `.env`. The rows are production's own demo seed (118 members with their accounts and
-Characters) and [`sql/production-seed.sql`](sql/production-seed.sql), which adds a row of every kind
-the release's migrations read or change: preferences to move, entered days with a time of day,
-pictures in every column the backfill reads (a Character whose picture is still its name among
-them), site news, notifications, Storytime, Custom Tracking, audit snapshots, reports, and both
-feature switches on.
+The rehearsal is synthetic. Nothing is read from production or from any `.env`. The rows are
+production's own demo seed (118 members with their accounts and Characters) and
+[`sql/production-seed.sql`](sql/production-seed.sql), which adds a row of every kind the release's
+migrations read or change: preferences to move, entered days with a time of day, pictures in every
+column the backfill reads (a Character whose picture is still its name among them), site news,
+notifications, Storytime, Custom Tracking, audit snapshots, reports, and both feature switches on.
 
 Production's migrations run as `start:render` runs them, through ts-node on its own configuration.
 `NODE_ENV` is `local` only so that the throwaway database needs no TLS and the demo seed runs; the

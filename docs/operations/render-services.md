@@ -31,14 +31,13 @@ its [infrastructure documentation](../../../sto-info-file-scan-worker/docs/infra
 - **Health check `/health/ready`.** A database ping. Because the server does not listen until the
   restore check has finished, a deploy whose check cannot finish never goes healthy, and the
   previous instance keeps serving. See [Readiness and heartbeats](readiness-and-heartbeats.md).
-- **Plan: 512 MB, with the heap capped at 384 MiB** (FC-044, Steve's decision of 4 October 2026).
-  Set `NODE_OPTIONS=--max-old-space-size=384` in the start command, not as an environment
-  variable, which Render would give the build too, and `nest build` needs more than 384 MB.
-  Uncapped, Node let the heap grow to 775 MiB after the launch load's longest replay and the
-  process to about 1 GB; capped, every load
-  scenario still passed with the heap at most 322 MiB and about 550 MiB resident on Windows. The
-  resident set on Render's Linux is measured in FC-052; FC-044's acceptance evidence, kept with
-  the Fleet Community plans, has the load figures.
+- **Plan: 512 MB, with the heap capped at 384 MiB** (FC-044). Set
+  `NODE_OPTIONS=--max-old-space-size=384` in the start command, not as an environment variable,
+  which Render would give the build too, and `nest build` needs more than 384 MB. Uncapped, Node let
+  the heap grow to 775 MiB after the launch load's longest replay and the process to about 1 GB;
+  capped, every load scenario still passed with the heap at most 322 MiB and about 550 MiB resident
+  on Windows. The resident set on Render's Linux is measured in FC-052; FC-044's acceptance
+  evidence, kept with the Fleet Community plans, has the load figures.
 - **Instances.** One, with auto-scaling off ([Infrastructure](../infrastructure.md#scaling-configuration)).
   More are safe: the restore check and the alert cron each hold a PostgreSQL advisory lock, and
   chat's socket.io traffic goes through the Redis adapter.
@@ -164,7 +163,7 @@ reads, and retiring them is half of what stops such a build publishing unscanned
 [Rollback](rollback.md#retiring-the-old-credentials-at-release). `cloudmersiveApiKey` is no longer
 read either.
 
-**Still to add to production before the Fleet Community v1 release** (Steve):
+**Still to add to production before the Fleet Community v1 release**:
 
 - `cloudflareR2ExportsAccessKey` and `cloudflareR2ExportsSecret`;
 - `rosterErasureKey` — a long random string, kept for good: without it the suppression list
@@ -227,8 +226,7 @@ larger plan by default.
 
 ## To confirm on Render (FC-052)
 
-Steve's decision of 30 September 2026: these are not known, and are checked on the live account in
-FC-052 rather than guessed here.
+These are not known, and are checked on the live account in FC-052 rather than guessed here.
 
 - **The production PostgreSQL plan.** [Infrastructure](../infrastructure.md#database-service-configuration)
   records Basic-256mb, but under a TODO nobody has closed.

@@ -87,8 +87,7 @@ Redis cannot answer` in the backend's log, then `Rate limits counted in Redis ag
 [Backend](../backend.md#when-redis-cannot-answer-fc-042). The rehearsal measured about six seconds
 for the page and five for the failed-jobs list's 503 ([Rehearsal](rehearsal.md#timings)).
 
-Steve's decisions of 30 September 2026: the diagnostics stay `ADMIN` only, and every read of them
-is logged.
+The diagnostics stay `ADMIN` only, and every read of them is logged.
 
 - **Who.** Site admins only: every diagnostics route needs the `ADMIN` role.
 - **Logged, one entry per page view.** Each view of Scan Diagnostics writes one
@@ -138,7 +137,7 @@ Three things are never done, in an incident or out of one:
 
 Write the incident up while it is fresh.
 
-> TODO: Confirm with Steve where incident records are kept.
+> TODO: Decide where incident records are kept.
 
 What to write down:
 

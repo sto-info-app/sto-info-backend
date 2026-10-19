@@ -2,7 +2,7 @@
 
 How the Fleet Community forgets what it no longer needs (FC-037, R22, R27 and R28). The schedule
 is in `src/fleet/retention`. Each job's code lives with what it deletes. The decisions below are
-Steve's, from 29 September 2026.
+from 29 September 2026.
 
 - [The jobs](#the-jobs)
 - [How each run works](#how-each-run-works)

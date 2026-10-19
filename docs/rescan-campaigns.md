@@ -5,7 +5,7 @@ policy. It is how the legacy estate, uploaded before scanning began and still `U
 finally scanned, and how a site admin rescans pictures after a signature update or a policy
 change.
 
-Steve's decisions of 29 September 2026:
+Decisions of 29 September 2026:
 
 | Question                                   | Decision                                                                                                         |
 | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
@@ -100,7 +100,7 @@ Each is written to the site admin log as `RESCAN_STARTED`, `RESCAN_PAUSED`, `RES
 
 ### Deciding a policy refusal
 
-Steve's decision of 30 September 2026 (FC-050). `POST
+FC-050. `POST
 /admin/rescan-campaigns/findings/:rescanId/decision` takes `{ decision: TAKEN_DOWN | KEPT, reason }`
 for a rescan that refused its picture for policy and has not been decided:
 

@@ -4,7 +4,7 @@ How Fleets are arranged in Armadas: requests to join, where each Fleet sits, mov
 departures, and the history (FC-024 to FC-026). The code is in `src/fleet/armadas`; the placement
 rules themselves are plain functions in `utilities/armada-arrangement.utility.ts`, so the Fleet
 domain and governance can end placements on closure without depending on the module. The decisions
-below are Steve's, from 28 September 2026.
+below are from 28 September 2026.
 
 An Armada is optional: a Community holds Fleets directly, and an Armada groups some of them. It is
 a manual, temporal association, never read from a roster export.

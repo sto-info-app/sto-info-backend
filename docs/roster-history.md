@@ -15,7 +15,7 @@ could have shown it.
 
 ## What the exports can and cannot say
 
-Plan section 3.6, with Steve's decisions of 25 September 2026:
+Plan section 3.6, with the decisions of 25 September 2026:
 
 - **Presence is evidence; absence only from a complete export.** A member missing from an export
   marked partial, or whose row an investigator excluded, is _unknown_ there. An unknown never ends
@@ -150,15 +150,14 @@ moments in the new zone needs one of them chosen, as at upload. The moment it mo
 — the lock an upload claiming that moment takes is taken first. The Fleet-name match made at upload
 is not redone: a former name's validity runs to months, and a correction moves the stamp by hours.
 
-An import in a conflict group can be corrected at once (Steve's decision of 30 September 2026): a
-wrong clock is usually why it clashed, and correcting it is the answer rather than something to
-wait for. A group belongs to its moment, not to its exports, so the corrected export leaves it and
-the group stays for anything that claims the moment later. If the export was the one selected
-there, the selection goes with it, and the moment falls back to the first version the site saw
-until an investigator selects again. The group's other held exports are published again, so the
-publisher decides afresh which of them stands. At its new moment the export joins whatever group is
-already there, as an upload of that moment would; the moment is free, so nothing there disagrees
-with it and nothing reopens.
+An import in a conflict group can be corrected at once: a wrong clock is usually why it clashed, and
+correcting it is the answer rather than something to wait for. A group belongs to its moment, not to
+its exports, so the corrected export leaves it and the group stays for anything that claims the
+moment later. If the export was the one selected there, the selection goes with it, and the moment
+falls back to the first version the site saw until an investigator selects again. The group's other
+held exports are published again, so the publisher decides afresh which of them stands. At its new
+moment the export joins whatever group is already there, as an upload of that moment would; the
+moment is free, so nothing there disagrees with it and nothing reopens.
 
 A held export has no rows yet: it is read when it is published. Its stored file is read through the
 new zone first, as the publisher will read it, so a date that never happened there refuses the
@@ -173,11 +172,10 @@ for the moment, and a copy of it is `SAME_AS_EFFECTIVE`. A held export has never
 selecting one queues it for publication; the publisher is asked again, finds it selected and reads
 it into force, and its going into force queues the replay.
 
-There is one group per Fleet and instant, ever (Steve's decision of 25 September 2026). An export
-arriving for a settled moment joins its group; if it says something different from the selection,
-the group is reopened and the newcomer held, while the selection stays in force. Selecting again
-settles it. An import that is merely held asks for no replay, so it appears among a revision's
-inputs from the next one.
+There is one group per Fleet and instant, ever. An export arriving for a settled moment joins its
+group; if it says something different from the selection, the group is reopened and the newcomer
+held, while the selection stays in force. Selecting again settles it. An import that is merely held
+asks for no replay, so it appears among a revision's inputs from the next one.
 
 An import's detail shows an investigator its excluded lines, its corrections newest first with the
 investigator's STO Info username, and its conflict group's selection and when the group was last
@@ -191,7 +189,7 @@ themselves rather than from a revision's inputs, since a revision can be one beh
 
 Plan section 3.7: a Fleet's rank labels are its own, with no order common to Fleets, so a change of
 label is "rank changed" and never a promotion — unless an investigator has ordered the Fleet's
-labels (FC-020, Steve's decisions of 25 September 2026):
+labels (FC-020):
 
 - **An order is tiers.** Tier 1 is the highest, and a tier holds one or more labels. A move between
   tiers is a promotion or a demotion. A move within a tier — which is what renaming a rank looks
@@ -222,8 +220,8 @@ made of each. It reads the revision number first and then only that revision's i
 
 `GET …/fleets/:fleetId/roster` (FC-020) shows a Fleet's approved members — `roster.view` holders —
 the roster as one export listed it. See
-[the API](api-endpoints.md#get-fleet-communitiescommunityidfleetsfleetidroster). Steve's decisions
-of 25 September 2026:
+[the API](api-endpoints.md#get-fleet-communitiescommunityidfleetsfleetidroster). Decisions of 25
+September 2026:
 
 - **Which export.** The last of the published revision's effective exports at or before the
   instant asked for, or the latest. An excluded export, or one not selected for its moment, is
@@ -250,8 +248,8 @@ of 25 September 2026:
 
 `GET …/roster/history` shows `roster.view` holders the history interval by interval, newest first,
 and `GET …/roster/members/:identityId` one member's. See
-[the API](api-endpoints.md#get-fleet-communitiescommunityidfleetsfleetidrosterhistory). Steve's
-decisions of 25 September 2026:
+[the API](api-endpoints.md#get-fleet-communitiescommunityidfleetsfleetidrosterhistory). Decisions of
+25 September 2026:
 
 - **By interval.** Each interval shows its summary, and beneath it the changes its later export
   revealed. A change across a gap sits under the export that revealed it, showing its wider bounds,
