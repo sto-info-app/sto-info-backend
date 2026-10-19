@@ -34,9 +34,11 @@ import { CustomTrackingSectionEntity } from './entities/custom-tracking-section.
 import { CustomTrackingTabEntity } from './entities/custom-tracking-tab.entity';
 import { CustomTrackingValueOptionEntity } from './entities/custom-tracking-value-option.entity';
 import { CustomTrackingValueEntity } from './entities/custom-tracking-value.entity';
+import { CustomTrackingFieldPictureService } from './images/custom-tracking-field-picture.service';
 import { CustomTrackingImagePublisher } from './images/custom-tracking-image.publisher';
 import { CustomTrackingImageService } from './images/custom-tracking-image.service';
 import { CustomTrackingImagesController } from './images/custom-tracking-images.controller';
+import { DeletedCustomTrackingPictureSweepService } from './images/deleted-custom-tracking-picture-sweep.service';
 import { CustomTrackingModerationController } from './moderation/custom-tracking-moderation.controller';
 import { CustomTrackingModerationService } from './moderation/custom-tracking-moderation.service';
 import { CustomTrackingObservabilityService } from './observability/custom-tracking-observability.service';
@@ -125,6 +127,9 @@ import { CustomTrackingValuesController } from './values/custom-tracking-values.
     CustomTrackingValueEditingGuard,
     CustomTrackingImageService,
     CustomTrackingImagePublisher,
+    // A deleted Field's pictures go at once; the sweep catches earlier ones.
+    CustomTrackingFieldPictureService,
+    DeletedCustomTrackingPictureSweepService,
     CustomTrackingPublicService,
     CustomTrackingPublicMapper,
     CustomTrackingImageCleanupService,

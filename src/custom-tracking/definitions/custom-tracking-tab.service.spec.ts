@@ -7,6 +7,7 @@ import { CUSTOM_TRACKING_LIMITS } from '../constants/custom-tracking-limits.cons
 import { CustomTrackingSectionEntity } from '../entities/custom-tracking-section.entity';
 import { CustomTrackingTabEntity } from '../entities/custom-tracking-tab.entity';
 import { CustomTrackingTargetScope } from '../enums/custom-tracking-target-scope.enum';
+import { CustomTrackingFieldPicture } from '../images/custom-tracking-field-picture.service';
 import {
   createDataSourceDouble,
   createEntityManagerDouble,
@@ -25,7 +26,15 @@ describe('CustomTrackingTabService', () => {
   let findOwnedSection: jest.Mock<
     (userId: string, sectionId: string) => Promise<CustomTrackingSectionEntity>
   >;
-  let deleteTabs: jest.Mock<() => Promise<void>>;
+  let deleteTabs: jest.Mock<() => Promise<CustomTrackingFieldPicture[]>>;
+  let withdraw: jest.Mock<(...args: unknown[]) => Promise<void>>;
+  const picture: CustomTrackingFieldPicture = {
+    imageValueId: 'image-value-1',
+    valueId: 'value-1',
+    fieldId: 'field-1',
+    targetId: 'account-1',
+    imageId: 'image-1',
+  };
   let describeTabDeletion: jest.Mock<
     () => Promise<{ tabs: number; fields: number }>
   >;
@@ -48,7 +57,10 @@ describe('CustomTrackingTabService', () => {
         ) => Promise<CustomTrackingSectionEntity>
       >()
       .mockResolvedValue(section());
-    deleteTabs = jest.fn<() => Promise<void>>().mockResolvedValue();
+    deleteTabs = jest
+      .fn<() => Promise<CustomTrackingFieldPicture[]>>()
+      .mockResolvedValue([]);
+    withdraw = jest.fn(async () => undefined);
     describeTabDeletion = jest
       .fn<() => Promise<{ tabs: number; fields: number }>>()
       .mockResolvedValue({ tabs: 0, fields: 0 });
@@ -62,6 +74,7 @@ describe('CustomTrackingTabService', () => {
       createSupportService().support,
       {
         deleteTabs,
+        withdraw,
         describeTabDeletion,
       } as unknown as CustomTrackingCascadeService,
       createDataSourceDouble(managerDouble.manager) as unknown as DataSource,
@@ -235,6 +248,19 @@ describe('CustomTrackingTabService', () => {
         expect.anything(),
         ['tab-1'],
         expect.any(Date),
+      );
+    });
+
+    // The deletion commits first; only then are its pictures withdrawn.
+    it('withdraws the pictures the deletion took, once it has committed', async () => {
+      tabs.double.findOne.mockResolvedValue(existing());
+      deleteTabs.mockResolvedValue([picture]);
+
+      await service.remove(userId, 'tab-1');
+
+      expect(withdraw).toHaveBeenCalledWith([picture]);
+      expect(deleteTabs.mock.invocationCallOrder[0]).toBeLessThan(
+        withdraw.mock.invocationCallOrder[0],
       );
     });
   });

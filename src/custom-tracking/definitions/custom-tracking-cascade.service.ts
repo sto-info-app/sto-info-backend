@@ -7,6 +7,10 @@ import { CustomTrackingOptionEntity } from '../entities/custom-tracking-option.e
 import { CustomTrackingSectionEntity } from '../entities/custom-tracking-section.entity';
 import { CustomTrackingTabEntity } from '../entities/custom-tracking-tab.entity';
 import { CustomTrackingValueEntity } from '../entities/custom-tracking-value.entity';
+import {
+  CustomTrackingFieldPicture,
+  CustomTrackingFieldPictureService,
+} from '../images/custom-tracking-field-picture.service';
 
 /**
  * What a deletion would take with it.
@@ -38,30 +42,56 @@ export interface CustomTrackingDeletionImpact {
  * Tabs, which is deleting their Fields, which is deleting their options, and
  * writing that chain out once per level is how the option step comes to be
  * forgotten in one of them.
+ *
+ * Pictures are the one thing a deletion does not keep. The deleted Fields'
+ * picture answers are removed in the same transaction, and the pictures are
+ * returned so the caller can withdraw them through {@link withdraw} once it
+ * has committed.
  */
 @Injectable()
 export class CustomTrackingCascadeService {
+  /**
+   * Creates an instance of CustomTrackingCascadeService.
+   *
+   * @param _pictures - Removes and withdraws the deleted Fields' pictures.
+   */
+  constructor(private readonly _pictures: CustomTrackingFieldPictureService) {}
+
+  /**
+   * Withdraws the pictures a committed deletion took with it.
+   *
+   * @param pictures - What the deletion returned.
+   */
+  async withdraw(
+    pictures: readonly CustomTrackingFieldPicture[],
+  ): Promise<void> {
+    await this._pictures.withdrawEach(pictures);
+  }
+
   /**
    * Marks a Section and everything beneath it as deleted.
    *
    * @param manager - The transaction to write in.
    * @param sectionId - The Section being deleted.
    * @param deletedAt - The moment to record against every row.
+   * @returns The pictures to withdraw once it commits.
    */
   async deleteSection(
     manager: EntityManager,
     sectionId: string,
     deletedAt: Date,
-  ): Promise<void> {
+  ): Promise<CustomTrackingFieldPicture[]> {
     const tabIds = await this.liveTabIdsOf(manager, sectionId);
 
-    await this.deleteTabs(manager, tabIds, deletedAt);
+    const pictures = await this.deleteTabs(manager, tabIds, deletedAt);
 
     await manager.update(
       CustomTrackingSectionEntity,
       { id: sectionId },
       { deletedAt },
     );
+
+    return pictures;
   }
 
   /**
@@ -70,17 +100,18 @@ export class CustomTrackingCascadeService {
    * @param manager - The transaction to write in.
    * @param tabIds - The Tabs being deleted.
    * @param deletedAt - The moment to record against every row.
+   * @returns The pictures to withdraw once it commits.
    */
   async deleteTabs(
     manager: EntityManager,
     tabIds: string[],
     deletedAt: Date,
-  ): Promise<void> {
+  ): Promise<CustomTrackingFieldPicture[]> {
     if (tabIds.length === 0) {
-      return;
+      return [];
     }
 
-    await this.deleteFields(
+    const pictures = await this.deleteFields(
       manager,
       await this.liveFieldIdsOf(manager, tabIds),
       deletedAt,
@@ -91,23 +122,29 @@ export class CustomTrackingCascadeService {
       { id: In(tabIds) },
       { deletedAt },
     );
+
+    return pictures;
   }
 
   /**
-   * Marks Fields and their options as deleted.
+   * Marks Fields and their options as deleted, and removes their picture
+   * answers.
    *
    * @param manager - The transaction to write in.
    * @param fieldIds - The Fields being deleted.
    * @param deletedAt - The moment to record against every row.
+   * @returns The pictures to withdraw once it commits.
    */
   async deleteFields(
     manager: EntityManager,
     fieldIds: string[],
     deletedAt: Date,
-  ): Promise<void> {
+  ): Promise<CustomTrackingFieldPicture[]> {
     if (fieldIds.length === 0) {
-      return;
+      return [];
     }
+
+    const pictures = await this._pictures.detach(manager, fieldIds);
 
     await manager.update(
       CustomTrackingOptionEntity,
@@ -120,6 +157,8 @@ export class CustomTrackingCascadeService {
       { id: In(fieldIds) },
       { deletedAt },
     );
+
+    return pictures;
   }
 
   /**

@@ -6,6 +6,7 @@ import { DataSource } from 'typeorm';
 import { CUSTOM_TRACKING_LIMITS } from '../constants/custom-tracking-limits.constants';
 import { CustomTrackingSectionEntity } from '../entities/custom-tracking-section.entity';
 import { CustomTrackingTargetScope } from '../enums/custom-tracking-target-scope.enum';
+import { CustomTrackingFieldPicture } from '../images/custom-tracking-field-picture.service';
 import {
   createDataSourceDouble,
   createEntityManagerDouble,
@@ -24,20 +25,32 @@ describe('CustomTrackingSectionService', () => {
     typeof createRepositoryDouble<CustomTrackingSectionEntity>
   >;
   let cascade: CustomTrackingCascadeService;
-  let deleteSection: jest.Mock<() => Promise<void>>;
+  let deleteSection: jest.Mock<() => Promise<CustomTrackingFieldPicture[]>>;
+  let withdraw: jest.Mock<(...args: unknown[]) => Promise<void>>;
+  const picture: CustomTrackingFieldPicture = {
+    imageValueId: 'image-value-1',
+    valueId: 'value-1',
+    fieldId: 'field-1',
+    targetId: 'account-1',
+    imageId: 'image-1',
+  };
   let describeSectionDeletion: jest.Mock<
     () => Promise<{ tabs: number; fields: number }>
   >;
 
   beforeEach(() => {
     sections = createRepositoryDouble<CustomTrackingSectionEntity>();
-    deleteSection = jest.fn<() => Promise<void>>().mockResolvedValue();
+    deleteSection = jest
+      .fn<() => Promise<CustomTrackingFieldPicture[]>>()
+      .mockResolvedValue([]);
+    withdraw = jest.fn(async () => undefined);
     describeSectionDeletion = jest
       .fn<() => Promise<{ tabs: number; fields: number }>>()
       .mockResolvedValue({ tabs: 0, fields: 0 });
 
     cascade = {
       deleteSection,
+      withdraw,
       describeSectionDeletion,
     } as unknown as CustomTrackingCascadeService;
 
@@ -249,6 +262,19 @@ describe('CustomTrackingSectionService', () => {
         expect.anything(),
         'section-1',
         expect.any(Date),
+      );
+    });
+
+    // The deletion commits first; only then are its pictures withdrawn.
+    it('withdraws the pictures the deletion took, once it has committed', async () => {
+      sections.double.findOne.mockResolvedValue(existing());
+      deleteSection.mockResolvedValue([picture]);
+
+      await service.remove(userId, 'section-1');
+
+      expect(withdraw).toHaveBeenCalledWith([picture]);
+      expect(deleteSection.mock.invocationCallOrder[0]).toBeLessThan(
+        withdraw.mock.invocationCallOrder[0],
       );
     });
 
