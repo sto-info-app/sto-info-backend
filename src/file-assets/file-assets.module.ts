@@ -12,6 +12,7 @@ import { SharedModule } from 'src/shared/shared.module';
 
 import { AssetStatusController } from './asset-status.controller';
 import { FILE_ASSET_PUBLICATION_QUEUE } from './constants/file-asset-publication.constants';
+import { ImageAddressRenewalService } from './delivery/image-address-renewal.service';
 import { FileAssetPlacementEntity } from './entities/file-asset-placement.entity';
 import { FileAssetEntity } from './entities/file-asset.entity';
 import { ImageEstateRunEntity } from './estate/image-estate-run.entity';
@@ -23,6 +24,7 @@ import { ImageEstateService } from './estate/image-estate.service';
 import { ImageInventoryRunEntity } from './estate/image-inventory-run.entity';
 import { ImageInventoryService } from './estate/image-inventory.service';
 import { FileAssetDeliveryController } from './file-asset-delivery.controller';
+import { ImageAddressRenewalController } from './image-address-renewal.controller';
 import { AssetDenyLedgerService } from './ledger/asset-deny-ledger.service';
 import { AssetDenyReconciliationService } from './ledger/asset-deny-reconciliation.service';
 import { AssetPublicationProcessor } from './processors/asset-publication.processor';
@@ -86,9 +88,11 @@ import { StaleUploadSweepService } from './services/stale-upload-sweep.service';
     AssetStatusController,
     ImageEstateController,
     PublicationPauseController,
+    ImageAddressRenewalController,
   ],
   providers: [
     FileAssetService,
+    ImageAddressRenewalService,
     FileAssetDeliveryService,
     FileAssetPlacementService,
     QuarantineStorageService,

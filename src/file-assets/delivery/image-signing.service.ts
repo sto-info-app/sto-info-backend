@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 
@@ -110,5 +110,38 @@ export class ImageSigningService implements OnModuleInit {
       .digest('hex');
 
     return `exp=${exp}&sig=${sig}`;
+  }
+
+  /**
+   * Whether an address's `exp` and `sig` were made with this key, expired or
+   * not.
+   *
+   * @param hash - The account hash.
+   * @param imageId - The image.
+   * @param variant - The variant.
+   * @param exp - The address's `exp`, as it was sent.
+   * @param sig - The address's `sig`, as it was sent.
+   * @returns True when this key signed it.
+   */
+  isGenuine(
+    hash: string,
+    imageId: string,
+    variant: string,
+    exp: string,
+    sig: string,
+  ): boolean {
+    if (
+      this._key === null ||
+      !/^\d{1,12}$/.test(exp) ||
+      !/^[0-9a-f]{64}$/.test(sig)
+    ) {
+      return false;
+    }
+
+    const expected = createHmac('sha256', this._key)
+      .update(`/${hash}/${imageId}/${variant}?exp=${exp}`)
+      .digest();
+
+    return timingSafeEqual(expected, Buffer.from(sig, 'hex'));
   }
 }

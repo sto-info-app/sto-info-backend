@@ -215,6 +215,9 @@ const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   FileAssetDeliveryController:
     'Serves an asset only to the audience it was published for, and ' +
     'nothing not AVAILABLE (FC-008).',
+  'ImageAddressRenewalController.renew':
+    'Changes nothing: renews only a picture address the API signed itself, ' +
+    'until a day after it expired, for a page left open.',
   RegistryController:
     'Public profiles, as each owner’s privacy settings allow.',
   PublicStorytimeArcsController: STORYTIME_PUBLIC,
