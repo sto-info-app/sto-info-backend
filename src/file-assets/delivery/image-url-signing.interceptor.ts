@@ -78,7 +78,7 @@ export function readImageAddress(
  * address in it is looked up in the registry by its image ID:
  *
  * - a picture that may be shown gets a signed address, the same for
- *   everyone that day;
+ *   everyone that hour;
  * - a picture that may not (revoked, rejected, deleted, or never published)
  *   is replaced by the "photo unavailable" image, so a stale reference
  *   never reaches a browser;

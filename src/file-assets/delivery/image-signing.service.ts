@@ -4,25 +4,29 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 
 import { SecretsService } from 'src/shared/secrets/secrets.service';
 
-/** A day, in seconds. */
-const DAY_SECONDS = 24 * 60 * 60;
+/** An hour, in seconds. */
+const HOUR_SECONDS = 60 * 60;
 
 /**
- * When an address signed at a moment expires: the end of the next UTC day
- * (FC-040). Everybody who asks on one day gets the same address, so
- * Cloudflare and browsers can cache it, and none lasts more than two days.
+ * When an address signed at a moment expires: the end of the next UTC hour.
+ * Everybody who asks within one hour gets the same address, so Cloudflare
+ * and browsers can cache it, and none lasts more than two hours.
+ *
+ * That is also the longest a withdrawn picture can go on being served.
+ * Cloudflare keeps a signed address cached until it expires, deleting the
+ * image does not empty that cache, and a `/cdn-cgi/` address cannot be
+ * purged (error 1142). On tribble on 19 October 2026 a picture fetched
+ * seconds after its deletion was still served on both hostnames an hour and
+ * a half later. Until then an address lasted to the end of the next day.
  *
  * @param now - When it is signed.
  * @returns The expiry, in seconds since the epoch.
  */
 export function signedImageExpiry(now: Date): number {
-  const startOfToday = Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate(),
-  );
+  const startOfHour =
+    Math.floor(now.getTime() / 1000 / HOUR_SECONDS) * HOUR_SECONDS;
 
-  return startOfToday / 1000 + 2 * DAY_SECONDS;
+  return startOfHour + 2 * HOUR_SECONDS;
 }
 
 /**

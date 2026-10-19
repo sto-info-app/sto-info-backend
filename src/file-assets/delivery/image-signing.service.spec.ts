@@ -24,10 +24,11 @@ describe('ImageSigningService (FC-040)', () => {
 
   describe('signedImageExpiry', () => {
     it.each([
-      ['2026-09-29T00:00:00.000Z', '2026-10-01T00:00:00.000Z'],
-      ['2026-09-29T23:59:59.999Z', '2026-10-01T00:00:00.000Z'],
-      ['2026-09-30T00:00:00.001Z', '2026-10-02T00:00:00.000Z'],
-    ])('signs at %s until %s, the end of the next UTC day', (at, until) => {
+      ['2026-09-29T12:00:00.000Z', '2026-09-29T14:00:00.000Z'],
+      ['2026-09-29T12:59:59.999Z', '2026-09-29T14:00:00.000Z'],
+      ['2026-09-29T13:00:00.001Z', '2026-09-29T15:00:00.000Z'],
+      ['2026-09-29T23:30:00.000Z', '2026-09-30T01:00:00.000Z'],
+    ])('signs at %s until %s, the end of the next UTC hour', (at, until) => {
       expect(signedImageExpiry(new Date(at))).toBe(
         new Date(until).getTime() / 1000,
       );
@@ -38,7 +39,7 @@ describe('ImageSigningService (FC-040)', () => {
     await service.onModuleInit();
 
     const now = new Date('2026-09-29T12:00:00.000Z');
-    const exp = new Date('2026-10-01T00:00:00.000Z').getTime() / 1000;
+    const exp = new Date('2026-09-29T14:00:00.000Z').getTime() / 1000;
     const sig = createHmac('sha256', 'test-signing-key')
       .update(`/hash-1/image-1/public?exp=${exp}`)
       .digest('hex');
