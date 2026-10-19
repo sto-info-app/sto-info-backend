@@ -473,6 +473,19 @@ Upload a new user profile picture.
 
 - `profilePicture`: Image file (PNG/JPG/JPEG only, max size controlled by `MAX_IMAGE_SIZE_IN_BYTES`)
 
+### DELETE /user/profile-pic
+
+Remove the current user's profile picture.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Response:** `204 No Content`, whether the profile had a picture or not.
+
+**Behavior:**
+
+- Takes the picture off the profile, then revokes it in the file registry and deletes it from
+  Cloudflare Images ("Removed by the owner").
+
 ### DELETE /user/close-account
 
 Close the current authenticated user account.
@@ -491,6 +504,8 @@ Close the current authenticated user account.
 
 - Revokes active refresh tokens for the user.
 - Marks user-linked records as deleted (soft delete): `user`, `user_profile`, `account`, and `character`.
+- Withdraws the profile picture and every Character portrait once the closure has committed
+  ("The account was closed").
 - Permanent deletion of closed-account data is handled later by the scheduled retention cleanup job.
 
 ## STO Reference Data Endpoints
@@ -1268,7 +1283,8 @@ timestamp.
 
 ### DELETE /account/:id
 
-Soft-delete an account by id.
+Soft-delete an account by id, and withdraw its Characters' portraits ("Its STO account was
+deleted").
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1302,9 +1318,22 @@ Update a character by id.
 
 ### DELETE /character/:id
 
-Soft-delete a character by id.
+Soft-delete a character by id, and withdraw its portrait ("Its Character was deleted").
 
 **Headers:** `Authorization: Bearer <access_token>`
+
+### DELETE /character/:id/profile-image
+
+Remove a character's portrait.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Response:** `204 No Content`, whether the character had a portrait or not.
+
+**Behavior:**
+
+- Takes the portrait off the character, then revokes it in the file registry and deletes it from
+  Cloudflare Images ("Removed by the owner").
 
 ### POST /character/:id/profile-image
 

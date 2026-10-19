@@ -377,8 +377,10 @@ Only the following image types are accepted:
 
 ### Upload Endpoints
 
-- **User Profile Image**: `POST /user/update-profile-pic` (authenticated)
-- **Character Image**: `POST /character/:id/profile-image` (authenticated, ownership check)
+- **User Profile Image**: `POST /user/update-profile-pic` (authenticated); removed with
+  `DELETE /user/profile-pic`
+- **Character Image**: `POST /character/:id/profile-image` (authenticated, ownership check);
+  removed with `DELETE /character/:id/profile-image`
 - **Roster export**: `POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports`
   (authenticated, `roster.import` capability at the Fleet)
 

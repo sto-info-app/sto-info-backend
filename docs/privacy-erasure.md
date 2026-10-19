@@ -170,7 +170,9 @@ The nightly closed-account cleanup:
   hold is released. Holds end within their review date plus 14 days.
 - **Pictures.** It takes down the account's own pictures from Cloudflare: the profile picture,
   Character portraits and Storytime artwork. The rows that pointed at them go with the account;
-  without this, the objects would stay.
+  without this, the objects would stay. Closing the account already withdrew the profile picture
+  and the portraits, so for an account closed since 18 October 2026 this finds only its Storytime
+  artwork.
 
 ## Telemetry
 

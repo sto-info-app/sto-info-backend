@@ -320,18 +320,33 @@ old public copy from the image estate retired. A 404 from Cloudflare counts as g
 every withdrawal, because the first delete may have worked with only its answer lost. One owed for
 a day opens the `PURGE_OWED` alert, and Scan Diagnostics counts what is owed under Publication.
 
-**Deleted Storytime work takes its pictures with it.** A deleted Story, Chapter, Character or Arc
-can never be brought back, so deleting one withdraws what it showed. Deleting a Story soft-deletes
-its Chapters and their videos, its cast, its credits and its places in Arcs in one transaction, then
-withdraws the banner, profile image, every Chapter cover and every portrait ("Its Story was
-deleted"). Deleting one Chapter or one Character withdraws its cover or portrait ("Its Chapter was
-deleted", "Its Character was deleted"), and deleting an Arc withdraws its banner and profile image
-("Its Arc was deleted") while its Story memberships stay as a record of what was agreed. A
-withdrawal that fails is logged and the delete still stands. `StorytimeDeletedArtworkSweepService`
-runs in the background at every start, under advisory lock `1798200000`, and withdraws any picture
-a deleted Story, Chapter, Character or Arc still holds that is still served. That covers a failed withdrawal and the work deleted before 18 October
-2026, whose leftover Chapters, cast, credits, videos and Arc places
+**Deleted Storytime work takes its pictures with it.** A deleted Story, Chapter, Character, Arc or
+Spotlight entry can never be brought back, so deleting one withdraws what it showed. Deleting a
+Story soft-deletes its Chapters and their videos, its cast, its credits and its places in Arcs in
+one transaction, then withdraws the banner, profile image, every Chapter cover and every portrait
+("Its Story was deleted"). Deleting one Chapter or one Character withdraws its cover or portrait
+("Its Chapter was deleted", "Its Character was deleted"), deleting an Arc withdraws its banner and
+profile image ("Its Arc was deleted") while its Story memberships stay as a record of what was
+agreed, and deleting a Spotlight entry withdraws its override artwork ("Its Spotlight entry was
+deleted"). A withdrawal that fails is logged and the delete still stands.
+`StorytimeDeletedArtworkSweepService` runs in the background at every start, under advisory lock
+`1798200000`, and withdraws any picture a deleted Story, Chapter, Character, Arc or Spotlight entry
+still holds that is still served. That covers a failed withdrawal and the work deleted before 18
+October 2026, whose leftover Chapters, cast, credits, videos and Arc places
 `DeleteLeftoversOfDeletedStories1798200000000` marked deleted with their Story.
+
+**A member's own pictures go when they are removed or their record is deleted.** A member can take
+off their profile picture (`DELETE /user/profile-pic`) or a Character's portrait
+(`DELETE /character/:id/profile-image`) from the photo dialog: the record stops pointing at the
+picture, then `PersonalPictureWithdrawalService` withdraws it ("Removed by the owner"). Deleting a
+Character withdraws its portrait ("Its Character was deleted"), deleting an STO account withdraws
+its Characters' portraits ("Its STO account was deleted"), and closing an account withdraws the
+profile picture and every portrait once the closure has committed ("The account was closed"),
+rather than leaving them published until the account is erased. `DeletedPersonalPictureSweepService`
+runs in the background at every start, under advisory lock `1798300000`, and withdraws any such
+picture a closed account, deleted STO account or deleted Character still holds that is still
+served, recording the widest deletion that took it. Both sweeps share the lock, loop and logging in
+`DeletedRecordPictureSweep`.
 
 Downloads already in somebody's possession cannot be recalled. What must hold is that no _new_
 fetch succeeds.

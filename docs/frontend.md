@@ -82,6 +82,7 @@ Client expectations:
 
 - `POST /user/update-profile-pic` (multipart/form-data)
 - `POST /character/:id/profile-image` (multipart/form-data)
+- `DELETE /user/profile-pic` and `DELETE /character/:id/profile-image` remove the picture
 
 ### Requirements
 
