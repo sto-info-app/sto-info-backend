@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
 
-import { ImageCachePurgeService } from '../delivery/image-cache-purge.service';
 import { FileAssetEntity } from '../entities/file-asset.entity';
 import { FileAssetPlacementState } from '../enums/file-asset-placement-state.enum';
 import { FileAssetSlot } from '../enums/file-asset-slot.enum';
@@ -15,10 +14,7 @@ import { FileAssetService } from './file-asset.service';
 
 /** What became of an attempt to take a picture down. */
 export interface WithdrawalOutcome {
-  /**
-   * Whether Cloudflare agreed the image has gone, and its custom-domain
-   * addresses were purged from the edge cache.
-   */
+  /** Whether Cloudflare agreed the image has gone. */
   readonly deleted: boolean;
   /** Whether a registry row was moved to `REVOKED`. */
   readonly revoked: boolean;
@@ -36,14 +32,11 @@ export interface WithdrawalOutcome {
  * the window in which the bytes are still out there.
  *
  * So: revoke the row, which is what `purgeRequiredAt` records as owed;
- * delete the object, which is what actually stops the nine variants; purge
- * the custom domain's edge cache, because the delete does not empty it and an
- * address already cached there went on being served after the picture had
- * gone (19 October 2026); and only then confirm the purge. A delete or a
- * cache purge that fails leaves the asset revoked with a purge outstanding,
- * which `OwedPurgeSweepService` retries every hour and the operations alerts
- * report once it is a day old (FC-043), rather than a failure nobody hears
- * about.
+ * delete the object, which is what actually stops the nine variants; and
+ * only then confirm the purge. A delete that fails leaves the asset revoked
+ * with a purge outstanding, which `OwedPurgeSweepService` retries every
+ * hour and the operations alerts report once it is a day old (FC-043),
+ * rather than a failure nobody hears about.
  *
  * **Legacy images go through here too.** An estate row is `UNVERIFIED` and
  * still served, and the backfill gave it the same delivery reference the
@@ -61,14 +54,12 @@ export class AssetWithdrawalService {
    * @param _placements - Which picture is in which slot.
    * @param _images - Cloudflare Images.
    * @param _estate - The image estate's copies (FC-040).
-   * @param _cache - Purges the custom domain's edge cache.
    */
   constructor(
     private readonly _fileAssets: FileAssetService,
     private readonly _placements: FileAssetPlacementService,
     private readonly _images: ImageUploadsService,
     private readonly _estate: ImageEstateService,
-    private readonly _cache: ImageCachePurgeService,
   ) {}
 
   /**
@@ -102,7 +93,7 @@ export class AssetWithdrawalService {
       );
     }
 
-    const deleted = await this.takeDown(
+    const deleted = await this.deleteFromCloudflare(
       deliveryReference,
       asset?.storage === FileAssetStorage.LEGACY_PUBLIC_R2,
     );
@@ -176,9 +167,8 @@ export class AssetWithdrawalService {
   /**
    * Settles a purge an earlier withdrawal left owed (FC-043).
    *
-   * Deletes the object and purges the edge cache again, confirms the purge
-   * once both have worked, and retires any old public copy of it, as a
-   * withdrawal does.
+   * Deletes the object again, confirms the purge once Cloudflare agrees it
+   * has gone, and retires any old public copy of it, as a withdrawal does.
    * An object Cloudflare no longer has counts as gone: the first delete may
    * have worked with only its answer lost.
    *
@@ -188,7 +178,7 @@ export class AssetWithdrawalService {
   async settleOwedPurge(asset: FileAssetEntity): Promise<boolean> {
     const deleted =
       asset.deliveryReference === null ||
-      (await this.takeDown(
+      (await this.deleteFromCloudflare(
         asset.deliveryReference,
         asset.storage === FileAssetStorage.LEGACY_PUBLIC_R2,
       ));
@@ -223,29 +213,6 @@ export class AssetWithdrawalService {
     return (
       state === FileAssetState.AVAILABLE || state === FileAssetState.UNVERIFIED
     );
-  }
-
-  /**
-   * Deletes an object, and purges an image from the edge cache, reporting
-   * rather than throwing.
-   *
-   * The cache is purged only once the object has gone, so nothing can fill
-   * it again afterwards. A legacy R2 object is not served through the
-   * images' custom domain, so there is no cache of it to purge here.
-   *
-   * @param deliveryReference - The image identifier, or an R2 key.
-   * @param r2 - Whether it is a legacy R2 object rather than an image.
-   * @returns True when the object has gone and no cached copy is left.
-   */
-  private async takeDown(
-    deliveryReference: string,
-    r2: boolean,
-  ): Promise<boolean> {
-    if (!(await this.deleteFromCloudflare(deliveryReference, r2))) {
-      return false;
-    }
-
-    return r2 || this._cache.purge(deliveryReference);
   }
 
   /**

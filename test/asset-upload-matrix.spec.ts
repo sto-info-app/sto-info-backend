@@ -428,8 +428,6 @@ describe('every upload caller, end to end', () => {
         images,
         // No picture here has been copied to private delivery (FC-040).
         { retireFor: () => Promise.resolve() } as never,
-        // Nothing here is served through the custom domain's cache.
-        { purge: () => Promise.resolve(true) } as never,
       ),
       // Pictures are never activated in a transaction; only a restricted
       // placement is, and there is none here.

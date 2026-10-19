@@ -12,7 +12,6 @@ import { SharedModule } from 'src/shared/shared.module';
 
 import { AssetStatusController } from './asset-status.controller';
 import { FILE_ASSET_PUBLICATION_QUEUE } from './constants/file-asset-publication.constants';
-import { ImageCachePurgeService } from './delivery/image-cache-purge.service';
 import { FileAssetPlacementEntity } from './entities/file-asset-placement.entity';
 import { FileAssetEntity } from './entities/file-asset.entity';
 import { ImageEstateRunEntity } from './estate/image-estate-run.entity';
@@ -98,8 +97,6 @@ import { StaleUploadSweepService } from './services/stale-upload-sweep.service';
     AssetPublicationService,
     AssetPublicationProcessor,
     AssetWithdrawalService,
-    // Withdrawal empties the custom domain's edge cache too.
-    ImageCachePurgeService,
     AssetStatusService,
     OwedPurgeSweepService,
     StaleUploadSweepService,
