@@ -15,6 +15,7 @@ import { NotificationTarget } from '../../notification/enums/notification-target
 import { NotificationService } from '../../notification/notification.service';
 import { StorytimeArcEntity } from '../arcs/entities/storytime-arc.entity';
 import { StorytimeArcService } from '../arcs/storytime-arc.service';
+import { STORYTIME_DELETION_REASONS } from '../constants/storytime-deletion.constants';
 import { StorytimeAuthorDto } from '../dto/storytime-author.dto';
 import { SpotlightEntityType } from '../enums/spotlight-entity-type.enum';
 import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
@@ -438,7 +439,13 @@ export class StorytimeSpotlightService {
   }
 
   /**
-   * Deletes a Spotlight entry.
+   * Deletes a Spotlight entry, and withdraws its artwork.
+   *
+   * A deleted entry cannot be brought back, so its override artwork is
+   * withdrawn rather than left to be served from its old address, as the
+   * editor is told it will be. The entry stops pointing at it first, by being
+   * deleted, as a picture's removal always runs in that order; one whose
+   * withdrawal fails is found again by the sweep at the next start.
    *
    * @param spotlightId - The entry.
    * @param actingUserId - The editor.
@@ -447,6 +454,13 @@ export class StorytimeSpotlightService {
     const entry = await this.findOneOrFail(spotlightId);
 
     await this._spotlightRepository.softDelete(entry.id);
+
+    await this._imageService.withdraw(
+      StorytimeImageSlot.SPOTLIGHT_OVERRIDE,
+      entry.id,
+      entry.overrideImageId,
+      STORYTIME_DELETION_REASONS.SPOTLIGHT,
+    );
 
     this._logger.log(`Spotlight ${entry.id} deleted by ${actingUserId}`);
   }

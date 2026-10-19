@@ -2,10 +2,10 @@
  * Why a Storytime picture was withdrawn when the work it belonged to was
  * deleted, as the file registry records it.
  *
- * A deleted Story, Chapter, Character or Arc can never be brought back, so the
- * pictures it carried are withdrawn with it rather than left to be served
- * from their old addresses: revoked in the registry and deleted from
- * Cloudflare, as a deleted news post's cover is.
+ * A deleted Story, Chapter, Character, Arc or Spotlight entry can never be
+ * brought back, so the pictures it carried are withdrawn with it rather than
+ * left to be served from their old addresses: revoked in the registry and
+ * deleted from Cloudflare, as a deleted news post's cover is.
  */
 export const STORYTIME_DELETION_REASONS = {
   /** The Story was deleted, and its Chapters and cast with it. */
@@ -16,4 +16,6 @@ export const STORYTIME_DELETION_REASONS = {
   CHARACTER: 'Its Character was deleted',
   /** The Arc was deleted. */
   ARC: 'Its Arc was deleted',
+  /** The Spotlight entry was deleted. */
+  SPOTLIGHT: 'Its Spotlight entry was deleted',
 } as const;

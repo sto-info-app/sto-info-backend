@@ -5,6 +5,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { NotificationService } from '../../notification/notification.service';
 import { StorytimeArcEntity } from '../arcs/entities/storytime-arc.entity';
 import { StorytimeArcService } from '../arcs/storytime-arc.service';
+import { STORYTIME_DELETION_REASONS } from '../constants/storytime-deletion.constants';
 import { SpotlightEntityType } from '../enums/spotlight-entity-type.enum';
 import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
 import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
@@ -945,6 +946,26 @@ describe('StorytimeSpotlightService', () => {
       await service.remove(spotlightId, editorId);
 
       expect(spotlightRepository.softDelete).toHaveBeenCalledWith(spotlightId);
+    });
+
+    // The editor is told its artwork goes with it, and nothing brings a
+    // deleted entry back to show it again.
+    it('withdraws its artwork once the entry is deleted', async () => {
+      spotlightRepository.findOne.mockResolvedValue(
+        buildEntry({ overrideImageId: 'override-1' }),
+      );
+
+      await service.remove(spotlightId, editorId);
+
+      expect(imageService.withdraw).toHaveBeenCalledWith(
+        StorytimeImageSlot.SPOTLIGHT_OVERRIDE,
+        spotlightId,
+        'override-1',
+        STORYTIME_DELETION_REASONS.SPOTLIGHT,
+      );
+      expect(
+        spotlightRepository.softDelete.mock.invocationCallOrder[0],
+      ).toBeLessThan(imageService.withdraw.mock.invocationCallOrder[0]);
     });
 
     it('reports an entry that is not there', async () => {

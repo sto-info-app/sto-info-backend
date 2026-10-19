@@ -10,6 +10,7 @@ import { StorytimeChapterEntity } from '../chapters/entities/storytime-chapter.e
 import { StorytimeCharacterEntity } from '../characters/entities/storytime-character.entity';
 import { STORYTIME_DELETION_REASONS } from '../constants/storytime-deletion.constants';
 import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
+import { StorytimeSpotlightEntity } from '../spotlight/entities/storytime-spotlight.entity';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import {
   DeletedWorkPicture,
@@ -33,6 +34,10 @@ const TABLES = new Map<unknown, { schema?: string; tableName: string }>([
     { schema: 'sto_info_app', tableName: 'storytime_character' },
   ],
   [StorytimeArcEntity, { schema: 'sto_info_app', tableName: 'storytime_arc' }],
+  [
+    StorytimeSpotlightEntity,
+    { schema: 'sto_info_app', tableName: 'storytime_spotlight' },
+  ],
   [FileAssetEntity, { schema: 'sto_info_app', tableName: 'file_asset' }],
 ]);
 
@@ -94,7 +99,7 @@ describe('StorytimeDeletedArtworkSweepService', () => {
   });
 
   describe('findPictures', () => {
-    it('looks for still-served pictures on deleted Stories, Chapters, Characters and Arcs', async () => {
+    it('looks for still-served pictures on deleted Stories, Chapters, Characters, Arcs and Spotlight entries', async () => {
       await service.findPictures();
 
       const [sql, parameters] = dataSource.query.mock.calls[0] as [
@@ -106,6 +111,7 @@ describe('StorytimeDeletedArtworkSweepService', () => {
       expect(sql).toContain('"sto_info_app"."storytime_chapter" c');
       expect(sql).toContain('"sto_info_app"."storytime_character" ch');
       expect(sql).toContain('"sto_info_app"."storytime_arc" r');
+      expect(sql).toContain('"sto_info_app"."storytime_spotlight" sp');
       expect(sql).toContain('JOIN "sto_info_app"."file_asset" a');
       expect(sql).toContain('s."bannerImageId"');
       expect(sql).toContain('s."profileImageId"');
@@ -113,6 +119,7 @@ describe('StorytimeDeletedArtworkSweepService', () => {
       expect(sql).toContain('ch."portraitImageId"');
       expect(sql).toContain('r."bannerImageId"');
       expect(sql).toContain('r."profileImageId"');
+      expect(sql).toContain('sp."overrideImageId"');
       expect(sql).toContain('a."state"::text = ANY($8::text[])');
       expect(parameters).toEqual([
         StorytimeImageSlot.STORY_BANNER,
@@ -126,6 +133,8 @@ describe('StorytimeDeletedArtworkSweepService', () => {
         StorytimeImageSlot.ARC_BANNER,
         StorytimeImageSlot.ARC_PROFILE,
         STORYTIME_DELETION_REASONS.ARC,
+        StorytimeImageSlot.SPOTLIGHT_OVERRIDE,
+        STORYTIME_DELETION_REASONS.SPOTLIGHT,
       ]);
     });
 

@@ -1,15 +1,19 @@
-import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 
-import { DataSource, EntityTarget, ObjectLiteral } from 'typeorm';
+import { DataSource } from 'typeorm';
 
 import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
-import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
+import {
+  DeletedRecordPictureSweep,
+  SERVED_PICTURE_STATES,
+} from 'src/file-assets/sweeps/deleted-record-picture-sweep';
 
 import { StorytimeArcEntity } from '../arcs/entities/storytime-arc.entity';
 import { StorytimeChapterEntity } from '../chapters/entities/storytime-chapter.entity';
 import { StorytimeCharacterEntity } from '../characters/entities/storytime-character.entity';
 import { STORYTIME_DELETION_REASONS } from '../constants/storytime-deletion.constants';
 import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
+import { StorytimeSpotlightEntity } from '../spotlight/entities/storytime-spotlight.entity';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeImageService } from './storytime-image.service';
 
@@ -20,7 +24,7 @@ export const STORYTIME_DELETED_ARTWORK_SWEEP_LOCK = 1_798_200_000;
 export interface DeletedWorkPicture {
   /** Which slot it fills. */
   readonly slot: StorytimeImageSlot;
-  /** The Story, Chapter, Character or Arc it belongs to. */
+  /** The Story, Chapter, Character, Arc or Spotlight entry it belongs to. */
   readonly entityId: string;
   /** Its delivery reference. */
   readonly imageId: string;
@@ -28,124 +32,33 @@ export interface DeletedWorkPicture {
   readonly reason: string;
 }
 
-/** The states in which a picture is still served. */
-const SERVED_STATES = [FileAssetState.AVAILABLE, FileAssetState.UNVERIFIED];
-
 /**
  * Withdraws, at every start, the pictures deleted Storytime work still holds.
  *
- * Deleting a Story, a Chapter, a Character or an Arc withdraws its pictures
- * as it goes. This catches the rest: the pictures of work deleted before
- * deletion withdrew anything (Stories and Arcs deleted before 18 October
- * 2026 kept their banners, profile images, covers and portraits), and any
- * picture whose withdrawal failed after its work had been deleted. A deleted work can never be brought back,
- * so nothing is lost by it.
- *
- * It runs in the background so it never holds the start up, and instances
- * starting together take turns through a PostgreSQL advisory lock. Each
- * picture is withdrawn on its own; one that fails is logged and found again
- * at the next start.
+ * Deleting a Story, a Chapter, a Character, an Arc or a Spotlight entry
+ * withdraws its pictures as it goes. This catches the rest: the pictures of
+ * work deleted before deletion withdrew anything (Stories, Arcs and
+ * Spotlight entries deleted before 18 October 2026 kept their banners,
+ * profile images, covers, portraits and artwork), and any picture whose
+ * withdrawal failed after its work had been deleted.
  */
 @Injectable()
-export class StorytimeDeletedArtworkSweepService implements OnApplicationBootstrap {
-  private readonly _logger = new Logger(
-    StorytimeDeletedArtworkSweepService.name,
-  );
-
+export class StorytimeDeletedArtworkSweepService extends DeletedRecordPictureSweep<DeletedWorkPicture> {
   /**
    * Creates an instance of StorytimeDeletedArtworkSweepService.
    *
-   * @param _dataSource - The database, for the search and the lock.
+   * @param dataSource - The database, for the search and the lock.
    * @param _images - Withdraws each picture.
    */
   constructor(
-    private readonly _dataSource: DataSource,
+    dataSource: DataSource,
     private readonly _images: StorytimeImageService,
-  ) {}
-
-  /**
-   * Starts a run without holding the start up.
-   */
-  onApplicationBootstrap(): void {
-    void this.run();
-  }
-
-  /**
-   * Takes the lock and sweeps, once.
-   *
-   * Errors are caught and logged: a sweep that fails is tried again at the
-   * next start, and must never take the process down.
-   *
-   * @returns How many pictures were withdrawn, or null when another instance
-   *   held the lock or the run failed.
-   */
-  async run(): Promise<number | null> {
-    const runner = this._dataSource.createQueryRunner();
-
-    try {
-      await runner.connect();
-
-      const [{ locked }] = (await runner.query(
-        'SELECT pg_try_advisory_lock($1::bigint) AS "locked"',
-        [STORYTIME_DELETED_ARTWORK_SWEEP_LOCK],
-      )) as Array<{ locked: boolean }>;
-
-      if (!locked) {
-        return null;
-      }
-
-      try {
-        return await this.sweep();
-      } finally {
-        await runner.query('SELECT pg_advisory_unlock($1::bigint)', [
-          STORYTIME_DELETED_ARTWORK_SWEEP_LOCK,
-        ]);
-      }
-    } catch (error: unknown) {
-      this._logger.error(
-        '[run] Deleted Storytime artwork not swept',
-        error instanceof Error ? error.stack : String(error),
-      );
-
-      return null;
-    } finally {
-      await runner.release();
-    }
-  }
-
-  /**
-   * Withdraws every picture a deleted work still holds.
-   *
-   * @returns How many were withdrawn.
-   */
-  async sweep(): Promise<number> {
-    const pictures = await this.findPictures();
-    let withdrawn = 0;
-
-    for (const picture of pictures) {
-      try {
-        await this._images.withdraw(
-          picture.slot,
-          picture.entityId,
-          picture.imageId,
-          picture.reason,
-        );
-        withdrawn += 1;
-      } catch (error: unknown) {
-        this._logger.error(
-          `[sweep] Not withdrawn - Slot: ${picture.slot}, EntityId: ${picture.entityId}, ImageId: ${picture.imageId}`,
-          error instanceof Error ? error.stack : String(error),
-        );
-      }
-    }
-
-    if (pictures.length > 0) {
-      this._logger.log(
-        `[sweep] Deleted Storytime artwork withdrawn - Withdrawn: ${withdrawn}, Failed: ${pictures.length - withdrawn}`,
-      );
-    }
-
-    return withdrawn;
+  ) {
+    super(
+      dataSource,
+      STORYTIME_DELETED_ARTWORK_SWEEP_LOCK,
+      'Deleted Storytime artwork',
+    );
   }
 
   /**
@@ -161,6 +74,7 @@ export class StorytimeDeletedArtworkSweepService implements OnApplicationBootstr
     const chapter = this.tableOf(StorytimeChapterEntity);
     const character = this.tableOf(StorytimeCharacterEntity);
     const arc = this.tableOf(StorytimeArcEntity);
+    const spotlight = this.tableOf(StorytimeSpotlightEntity);
     const asset = this.tableOf(FileAssetEntity);
 
     return (await this._dataSource.query(
@@ -194,6 +108,10 @@ export class StorytimeDeletedArtworkSweepService implements OnApplicationBootstr
           SELECT $10::text, r."id"::text, r."profileImageId"::text, $11::text
             FROM ${arc} r
            WHERE r."deletedAt" IS NOT NULL AND r."profileImageId" IS NOT NULL
+          UNION ALL
+          SELECT $12::text, sp."id"::text, sp."overrideImageId"::text, $13::text
+            FROM ${spotlight} sp
+           WHERE sp."deletedAt" IS NOT NULL AND sp."overrideImageId" IS NOT NULL
         ) picture
         JOIN ${asset} a ON a."deliveryReference" = picture."imageId"
        WHERE a."state"::text = ANY($8::text[])
@@ -207,25 +125,37 @@ export class StorytimeDeletedArtworkSweepService implements OnApplicationBootstr
         STORYTIME_DELETION_REASONS.STORY,
         STORYTIME_DELETION_REASONS.CHAPTER,
         STORYTIME_DELETION_REASONS.CHARACTER,
-        SERVED_STATES,
+        SERVED_PICTURE_STATES,
         StorytimeImageSlot.ARC_BANNER,
         StorytimeImageSlot.ARC_PROFILE,
         STORYTIME_DELETION_REASONS.ARC,
+        StorytimeImageSlot.SPOTLIGHT_OVERRIDE,
+        STORYTIME_DELETION_REASONS.SPOTLIGHT,
       ],
     )) as DeletedWorkPicture[];
   }
 
   /**
-   * An entity's table, quoted, with its schema when it has one.
+   * Withdraws one picture with the reason found for it.
    *
-   * @param entity - The entity.
-   * @returns The name, for raw SQL.
+   * @param picture - The picture.
    */
-  private tableOf(entity: EntityTarget<ObjectLiteral>): string {
-    const metadata = this._dataSource.getMetadata(entity);
+  protected async withdraw(picture: DeletedWorkPicture): Promise<void> {
+    await this._images.withdraw(
+      picture.slot,
+      picture.entityId,
+      picture.imageId,
+      picture.reason,
+    );
+  }
 
-    return metadata.schema
-      ? `"${metadata.schema}"."${metadata.tableName}"`
-      : `"${metadata.tableName}"`;
+  /**
+   * Names a picture in the log.
+   *
+   * @param picture - The picture.
+   * @returns Its slot, work and reference.
+   */
+  protected describe(picture: DeletedWorkPicture): string {
+    return `Slot: ${picture.slot}, EntityId: ${picture.entityId}, ImageId: ${picture.imageId}`;
   }
 }
