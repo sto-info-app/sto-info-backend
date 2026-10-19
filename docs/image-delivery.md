@@ -13,7 +13,7 @@ Steve's decisions of 29 September 2026:
 | How the estate moves                                  | An admin-run, checkpointed job on Scan Diagnostics, undoable, deleting nothing |
 | Cloudflare objects nothing points at                  | Reported, not deleted                                                          |
 | Legacy R2 Character portraits                         | Copied into Cloudflare Images; the R2 bucket's public access closed afterwards |
-| How long a signed address lasts                       | Until the end of the next UTC day                                              |
+| How long a signed address lasts                       | Until the end of the next UTC hour (the next UTC day until 19 October 2026)    |
 | Where admins run it                                   | A new section of Scan Diagnostics                                              |
 | The old public copies                                 | Deleted by a separate "Retire old copies" run, after checking the site         |
 | Which pictures                                        | Every published picture, legacy or since FC-012                                |
@@ -42,8 +42,28 @@ established:
 ## Signing
 
 `ImageSigningService` reads `cloudflareImagesSigningKey` from the application's AWS secret. An
-address signed at any moment expires at the end of the next UTC day, so everybody who asks on the
-same day gets the same address, and Cloudflare and browsers can cache it.
+address signed at any moment expires at the end of the next UTC hour, so everybody who asks within
+the same hour gets the same address, and Cloudflare and browsers can cache it.
+
+**The expiry is also how long a withdrawn picture can stay up.** Cloudflare keeps a signed address
+cached until it expires, deleting the image does not empty that cache, and an address under
+`/cdn-cgi/` cannot be purged (error 1142, answered with HTTP 200 and `"success": false`). On tribble
+on 19 October 2026 a profile picture was removed, and a fetch seven seconds later was still served
+by Cloudflare Images; that copy was then served from cache on both hostnames for over an hour and a
+half. With addresses lasting to the end of the next day, it would have stayed until then. They now
+last at most two hours, so a withdrawn picture is gone within two hours whatever was fetched.
+
+**A page left open renews its pictures.** A page open for longer than an address lasts can redraw a
+picture at an address Cloudflare now refuses. The frontend's `SignedImageRenewalService` listens for
+every picture that fails to load; when its address is signed and has expired, it holds back the
+picture's own error handling and sends the address to `POST /file-assets/image-addresses/renew`
+(public, up to 50 addresses a request, gathered from the pictures that fail together). The API
+renews only an address it signed itself, checked against the signing key, and only until a day after
+it expired, so an image ID cannot be guessed into an address and an address copied off the site
+cannot be kept alive for good. It answers with the picture's address unsigned, which
+`ImageUrlSigningInterceptor` then signs or replaces like any other: signed again while the picture
+may be shown, the "photo unavailable" picture once it may not. The picture tries once more at that
+address, and if it is not renewed, or fails again, its own error handling runs as before.
 
 `ImageUrlSigningInterceptor` is a global interceptor, registered outside the serialiser. It walks
 every response once it is serialised and looks up each Cloudflare Images address in the registry

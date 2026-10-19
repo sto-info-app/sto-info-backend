@@ -200,11 +200,6 @@ The secret referenced by `AWS_SECRET_NAME` is expected to be JSON with at least:
   Cloudflare's R2 and Images → Images → Keys. Without it nothing is signed, new pictures go up
   public and the estate cannot be copied to private; with it, a private picture shows only to a
   signed address. See [Private image delivery](image-delivery.md)
-- `cloudflareZoneId` and `cloudflareCachePurgeToken`: The `startrekonline.info` zone, and an API
-  token allowed only Zone → Cache Purge → Purge on it. Withdrawing a picture purges its addresses
-  from the custom domain's edge cache with them; without them a withdrawn picture stays cached at
-  an address already fetched until the end of the next day, and the start-up log says so. See
-  [File assets](file-assets.md)
 
 - `cloudflareOriginVerifySecret`: The secret a Cloudflare Transform Rule adds, as
   `X-Origin-Verify`, to every request it forwards to the API (FC-044). Required outside `local`

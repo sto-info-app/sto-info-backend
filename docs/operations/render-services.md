@@ -156,7 +156,6 @@ From the code (`SecretsService.getSecret` callers), as of FC-042:
 | `cloudflareR2ExportsAccessKey`, `cloudflareR2ExportsSecret`       | The exports bucket: chat transcripts (FC-035)                       | Transcripts fail                                                                   |
 | `rosterErasureKey`                                                | Roster erasure's HMAC (FC-038)                                      | Erasure and preview answer 503; once anybody is erased, roster uploads are refused |
 | `cloudflareImagesSigningKey`                                      | Signed picture addresses (FC-040)                                   | Nothing is signed; new pictures go up public                                       |
-| `cloudflareZoneId`, `cloudflareCachePurgeToken`                   | Purging a withdrawn picture from the edge cache                     | A withdrawn picture stays cached until the end of the next day                     |
 
 The three `Gated` keys are required at boot: `ImageUploadsService` names every missing one and the
 API does not start. They replaced `cloudflareImagesApiKey`, `cloudflareR2AccessKey` and
@@ -171,8 +170,6 @@ read either.
 - `rosterErasureKey` — a long random string, kept for good: without it the suppression list
   cannot be matched;
 - `cloudflareImagesSigningKey`, from Cloudflare's R2 and Images › Images › Keys;
-- `cloudflareZoneId`, the `startrekonline.info` zone's ID, and `cloudflareCachePurgeToken`, an API
-  token allowed only Zone › Cache Purge › Purge on that zone;
 - the three renamed keys, `cloudflareImagesGatedApiKey`, `cloudflareR2GatedAccessKey` and
   `cloudflareR2GatedSecret`, holding **new** tokens.
 
