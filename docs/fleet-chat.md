@@ -198,10 +198,14 @@ FC-035, with the decisions of 28 and 29 September 2026.
     is hidden, as chat hides them.
   - It goes to the private exports bucket (see [Infrastructure](infrastructure.md)), under
     `<environment>/chat-transcripts/<id>.txt`, marked `no-store`. The requester gets an in-app
-    notice, and it shows in their transcripts on the chat page.
+    notice, linking `/chat/transcripts`, and it shows in their transcripts on the chat page.
+  - Their list marks `jobFailed` on one still waiting whose job is among the queue's failed jobs:
+    by the failed-jobs rule, one a site admin may still retry, so the page tells them to check
+    back. When Redis does not answer, none is marked.
 - **Download.** Only its requester, for 24 hours. Each time, the server asks again whether they
   may export the channel. The answer is sent `Cache-Control: no-store, private`, as an
-  attachment, and each download is logged (`TRANSCRIPT_DOWNLOADED`).
+  attachment named `stoinfo-chat-<channel>-<date>.txt`, and each download is logged
+  (`TRANSCRIPT_DOWNLOADED`).
   - An expired link answers 410, one not yet written 409, one no longer theirs to export 403.
 - **Sweep.** Hourly, expired transcripts are deleted from the bucket and marked `EXPIRED`. Any
   still waiting after an hour is marked `FAILED`.
