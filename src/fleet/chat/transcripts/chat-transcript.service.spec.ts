@@ -463,7 +463,7 @@ describe('ChatTranscriptService', () => {
         body:
           'Your transcript of General is ready. It can be downloaded from ' +
           'Chat for 24 hours.',
-        linkUrl: '/chat',
+        linkUrl: '/chat/transcripts',
       });
     });
 

@@ -280,7 +280,7 @@ export class ChatTranscriptService {
         body:
           `Your transcript of ${place.channel.name} is ready. ` +
           'It can be downloaded from Chat for 24 hours.',
-        linkUrl: '/chat',
+        linkUrl: '/chat/transcripts',
       });
     } catch (error) {
       this._logger.warn(
