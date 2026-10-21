@@ -36,6 +36,23 @@ export interface PaginatedNews {
   categoryCounts?: NewsCategoryCounts;
 }
 
+/** Enough of a neighbouring post to link to it by name. */
+export interface NewsNeighbour {
+  slug: string;
+  title: string;
+}
+
+/**
+ * A published post as the public reads it, with the posts either side of it
+ * in the site's news so that its page can lead to them.
+ */
+export type PublishedNewsPost = NewsPostEntity & {
+  /** The post published before this one, or null when this is the oldest. */
+  previous: NewsNeighbour | null;
+  /** The post published after this one, or null when this is the newest. */
+  next: NewsNeighbour | null;
+};
+
 /**
  * The site's own news.
  *
@@ -107,13 +124,14 @@ export class NewsService {
   }
 
   /**
-   * Finds a single published post by its slug.
+   * Finds a single published post by its slug, with the posts either side of
+   * it in the site's news.
    *
    * @param slug - The post slug.
-   * @returns The published post.
+   * @returns The published post and its neighbours.
    * @throws NotFoundException when no published post matches the slug.
    */
-  async findPublishedBySlug(slug: string): Promise<NewsPostEntity> {
+  async findPublishedBySlug(slug: string): Promise<PublishedNewsPost> {
     const post = await this._newsRepository.findOne({
       where: { slug, communityId: IsNull(), status: NewsStatus.PUBLISHED },
     });
@@ -122,7 +140,55 @@ export class NewsService {
       throw new NotFoundException('News post not found');
     }
 
-    return post;
+    const [previous, next] = await Promise.all([
+      this.neighbourOf(post, 'previous'),
+      this.neighbourOf(post, 'next'),
+    ]);
+
+    return { ...post, previous, next };
+  }
+
+  /**
+   * Finds the published post either side of one in the site's news, which
+   * lists newest first by `publishedAt`, then `createdAt`. The previous post
+   * is the older one, the next the newer, whatever their categories.
+   *
+   * @param post - The post whose neighbour is wanted.
+   * @param direction - Which neighbour.
+   * @returns The neighbour's slug and title, or null when there is none.
+   */
+  private async neighbourOf(
+    post: NewsPostEntity,
+    direction: 'previous' | 'next',
+  ): Promise<NewsNeighbour | null> {
+    const older = direction === 'previous';
+    const order = older ? 'DESC' : 'ASC';
+
+    // The post's own place, read back from its row rather than sent as
+    // parameters: the database keeps these times to the microsecond, and a
+    // Date sent back to it is truncated to the millisecond, which made the
+    // post come out newer than itself.
+    const self = this._newsRepository
+      .createQueryBuilder('self')
+      .select(['self.publishedAt', 'self.createdAt'])
+      .where('self.id = :id', { id: post.id });
+
+    // Row-wise comparison, so the neighbour is found exactly where the list
+    // orders the posts, including two published at the same moment.
+    const neighbour = await this._newsRepository
+      .createQueryBuilder('post')
+      .select(['post.slug', 'post.title'])
+      .where('post.communityId IS NULL')
+      .andWhere('post.status = :status', { status: NewsStatus.PUBLISHED })
+      .andWhere(
+        `(post.publishedAt, post.createdAt) ${older ? '<' : '>'} (${self.getQuery()})`,
+      )
+      .setParameters(self.getParameters())
+      .orderBy('post.publishedAt', order)
+      .addOrderBy('post.createdAt', order)
+      .getOne();
+
+    return neighbour ? { slug: neighbour.slug, title: neighbour.title } : null;
   }
 
   /**

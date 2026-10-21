@@ -19,9 +19,15 @@ describe('NewsService', () => {
     where: jest.Mock;
     andWhere: jest.Mock;
     groupBy: jest.Mock;
+    orderBy: jest.Mock;
+    addOrderBy: jest.Mock;
+    setParameters: jest.Mock;
+    getQuery: jest.Mock<() => string>;
+    getParameters: jest.Mock<() => Record<string, unknown>>;
     getRawMany: jest.Mock<
       () => Promise<Array<{ category: NewsCategory; count: string }>>
     >;
+    getOne: jest.Mock<() => Promise<Partial<NewsPostEntity> | null>>;
   };
 
   beforeEach(async () => {
@@ -31,9 +37,15 @@ describe('NewsService', () => {
       where: jest.fn(() => queryBuilder),
       andWhere: jest.fn(() => queryBuilder),
       groupBy: jest.fn(() => queryBuilder),
+      orderBy: jest.fn(() => queryBuilder),
+      addOrderBy: jest.fn(() => queryBuilder),
+      setParameters: jest.fn(() => queryBuilder),
+      getQuery: jest.fn(() => 'SELECT self'),
+      getParameters: jest.fn(() => ({ id: '1' })),
       getRawMany: jest.fn(() =>
         Promise.resolve([] as Array<{ category: NewsCategory; count: string }>),
       ),
+      getOne: jest.fn(() => Promise.resolve(null)),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -132,11 +144,18 @@ describe('NewsService', () => {
   });
 
   describe('findPublishedBySlug', () => {
-    it('returns the post when found', async () => {
-      const post = { id: '1' } as NewsPostEntity;
+    const publishedAt = new Date('2026-10-21T18:00:00.000Z');
+    const createdAt = new Date('2026-10-21T17:00:00.000Z');
+
+    it('returns the post with no neighbours when it stands alone', async () => {
+      const post = { id: '1', publishedAt, createdAt } as NewsPostEntity;
       repository.findOne.mockResolvedValue(post);
 
-      await expect(service.findPublishedBySlug('slug')).resolves.toBe(post);
+      await expect(service.findPublishedBySlug('slug')).resolves.toEqual({
+        ...post,
+        previous: null,
+        next: null,
+      });
       expect(repository.findOne).toHaveBeenCalledWith({
         where: {
           slug: 'slug',
@@ -144,6 +163,71 @@ describe('NewsService', () => {
           status: NewsStatus.PUBLISHED,
         },
       });
+    });
+
+    // The previous post is the older one and the next the newer, found where
+    // the list orders them: by publishedAt, then createdAt, newest first. The
+    // post's own place is read from its row, never sent as a parameter.
+    it('names the older post as previous and the newer as next', async () => {
+      repository.findOne.mockResolvedValue({
+        id: '1',
+        publishedAt,
+        createdAt,
+      } as NewsPostEntity);
+      queryBuilder.getOne
+        .mockResolvedValueOnce({ slug: 'older', title: 'Older post' })
+        .mockResolvedValueOnce({ slug: 'newer', title: 'Newer post' });
+
+      const result = await service.findPublishedBySlug('slug');
+
+      expect(result.previous).toEqual({ slug: 'older', title: 'Older post' });
+      expect(result.next).toEqual({ slug: 'newer', title: 'Newer post' });
+
+      expect(queryBuilder.select).toHaveBeenCalledWith([
+        'post.slug',
+        'post.title',
+      ]);
+      expect(queryBuilder.where).toHaveBeenCalledWith(
+        'post.communityId IS NULL',
+      );
+      expect(queryBuilder.andWhere).toHaveBeenCalledWith(
+        'post.status = :status',
+        { status: NewsStatus.PUBLISHED },
+      );
+      expect(queryBuilder.select).toHaveBeenCalledWith([
+        'self.publishedAt',
+        'self.createdAt',
+      ]);
+      expect(queryBuilder.where).toHaveBeenCalledWith('self.id = :id', {
+        id: '1',
+      });
+      expect(queryBuilder.andWhere).toHaveBeenCalledWith(
+        '(post.publishedAt, post.createdAt) < (SELECT self)',
+      );
+      expect(queryBuilder.andWhere).toHaveBeenCalledWith(
+        '(post.publishedAt, post.createdAt) > (SELECT self)',
+      );
+      expect(queryBuilder.setParameters).toHaveBeenCalledWith({ id: '1' });
+      expect(queryBuilder.orderBy).toHaveBeenNthCalledWith(
+        1,
+        'post.publishedAt',
+        'DESC',
+      );
+      expect(queryBuilder.addOrderBy).toHaveBeenNthCalledWith(
+        1,
+        'post.createdAt',
+        'DESC',
+      );
+      expect(queryBuilder.orderBy).toHaveBeenNthCalledWith(
+        2,
+        'post.publishedAt',
+        'ASC',
+      );
+      expect(queryBuilder.addOrderBy).toHaveBeenNthCalledWith(
+        2,
+        'post.createdAt',
+        'ASC',
+      );
     });
 
     it('throws when not found', async () => {
