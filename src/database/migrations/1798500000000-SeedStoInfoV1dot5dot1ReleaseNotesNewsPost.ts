@@ -92,6 +92,7 @@ Contact us offers a Fleet Communities topic for anything about the Fleet section
 ### Other improvements
 
 - A news post now takes the whole width of the page, with Previous and Next at its foot leading to the posts either side of it.
+- The Developers, Volunteers and Supporters pages under About show each person as an LCARS panel, in the shape the rest of the site uses.
 - A day you typed, such as when an STO account or a Character was created, is now kept as a date and no longer shifts with the clock.
 - A Captain's page links to its account's Endeavour Perks, and its rank icon is named by its rank for screen readers.
 - Chat, its log and every message's actions can be used from the keyboard, and the site honours reduced motion throughout.
