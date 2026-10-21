@@ -100,7 +100,7 @@ describe('ChatTranscriptService', () => {
     buildObjectKey: (id: string) => string;
   };
   let notifications: { createNotification: AsyncMock };
-  let queue: { add: AsyncMock };
+  let queue: { add: AsyncMock; getFailed: AsyncMock };
   let service: ChatTranscriptService;
 
   beforeEach(() => {
@@ -124,7 +124,10 @@ describe('ChatTranscriptService', () => {
     notifications = {
       createNotification: jest.fn(() => Promise.resolve({})) as AsyncMock,
     };
-    queue = { add: jest.fn(() => Promise.resolve({})) as AsyncMock };
+    queue = {
+      add: jest.fn(() => Promise.resolve({})) as AsyncMock,
+      getFailed: jest.fn(() => Promise.resolve([])) as AsyncMock,
+    };
     service = new ChatTranscriptService(
       world.db.asDataSource(),
       world.messages,
@@ -561,7 +564,7 @@ describe('ChatTranscriptService', () => {
 
       const download = await service.download(TRANSCRIPT_ID, MODERATOR_ID);
 
-      expect(download.filename).toBe('chat-general-2026-09-28.txt');
+      expect(download.filename).toBe('stoinfo-chat-general-2026-09-28.txt');
       expect(download.byteCount).toBe(4);
       expect(storage.getStream).toHaveBeenCalledWith(
         'test/chat-transcripts/key.txt',
@@ -577,8 +580,8 @@ describe('ChatTranscriptService', () => {
     });
 
     it.each([
-      ['<script>', 'chat-script-2026-09-28.txt'],
-      ['!!!', 'chat-channel-2026-09-28.txt'],
+      ['<script>', 'stoinfo-chat-script-2026-09-28.txt'],
+      ['!!!', 'stoinfo-chat-channel-2026-09-28.txt'],
     ])('names the file for %s safely', async (name, filename) => {
       ready();
       table<ChatChannelEntity>(ChatChannelEntity)[0].name = name;
@@ -639,6 +642,50 @@ describe('ChatTranscriptService', () => {
       const [transcript] = await service.mine(MODERATOR_ID);
 
       expect(transcript.scopeName).toBeNull();
+    });
+
+    // FC-042: by the site admins' rule, a failed job a retry can still help.
+    it('says which waiting ones have a failed job, and no settled one', async () => {
+      seedTranscript({ id: 'waiting', createdAt: ago(3 * HOUR) });
+      seedTranscript({ id: 'failed', createdAt: ago(2 * HOUR) });
+      seedTranscript({
+        id: 'settled',
+        status: ChatTranscriptStatus.FAILED,
+        createdAt: ago(HOUR),
+      });
+      queue.getFailed.mockResolvedValue([
+        { data: { transcriptId: 'failed' } },
+        { data: { transcriptId: 'settled' } },
+        { data: null },
+        { data: { transcriptId: 7 } },
+      ]);
+
+      const mine = await service.mine(MODERATOR_ID);
+
+      expect(mine.map(each => [each.id, each.jobFailed])).toEqual([
+        ['settled', false],
+        ['failed', true],
+        ['waiting', false],
+      ]);
+      expect(queue.getFailed).toHaveBeenCalledWith(0, 499);
+    });
+
+    it('asks the queue nothing when nothing waits', async () => {
+      seedTranscript({ status: ChatTranscriptStatus.READY });
+
+      const [transcript] = await service.mine(MODERATOR_ID);
+
+      expect(transcript.jobFailed).toBe(false);
+      expect(queue.getFailed).not.toHaveBeenCalled();
+    });
+
+    it('lists them all the same when the queue cannot be read', async () => {
+      seedTranscript();
+      queue.getFailed.mockRejectedValue(new Error('down'));
+
+      const [transcript] = await service.mine(MODERATOR_ID);
+
+      expect(transcript.jobFailed).toBe(false);
     });
   });
 

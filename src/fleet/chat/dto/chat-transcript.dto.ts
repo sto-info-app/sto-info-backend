@@ -77,4 +77,11 @@ export class ChatTranscriptDto {
     description: 'When its download link stops working.',
   })
   expiresAt: Date | null;
+
+  @ApiProperty({
+    description:
+      'Whether its job ran out of attempts while it still waits to be ' +
+      'written: the case in which a site admin may retry it (FC-042).',
+  })
+  jobFailed: boolean;
 }

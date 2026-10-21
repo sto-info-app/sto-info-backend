@@ -26,6 +26,7 @@ import {
 import { NotificationSeverity } from 'src/notification/enums/notification-severity.enum';
 import { NotificationTarget } from 'src/notification/enums/notification-target.enum';
 import { NotificationService } from 'src/notification/notification.service';
+import { redisWithin } from 'src/shared/queue/redis-within.utility';
 
 import { FleetScopeKind } from '../../enums/fleet-scope-kind.enum';
 import { FleetPolicyService } from '../../fleet-policy.service';
@@ -49,6 +50,7 @@ import {
   CHAT_TRANSCRIPT_ATTEMPTS,
   CHAT_TRANSCRIPT_BACKOFF_MS,
   CHAT_TRANSCRIPT_BATCH,
+  CHAT_TRANSCRIPT_FAILED_JOBS_READ,
   CHAT_TRANSCRIPT_JOB,
   CHAT_TRANSCRIPT_LIFETIME_MS,
   CHAT_TRANSCRIPT_QUEUE,
@@ -366,7 +368,50 @@ export class ChatTranscriptService {
       },
     );
 
-    return this.toDtos(transcripts);
+    return this.toDtos(transcripts, await this.failedWhileWaiting(transcripts));
+  }
+
+  /**
+   * Which waiting transcripts' jobs have run out of attempts: by the site
+   * admins' own rule, the failed jobs a retry can still help (FC-042), so
+   * their requester can be told to check back rather than to ask again.
+   *
+   * Redis is asked only when something waits, and given
+   * `REDIS_TIMEOUT_MS`; when it does not answer, none is said to
+   * have failed, and the list is shown all the same.
+   *
+   * @param transcripts - The transcripts.
+   * @returns The IDs of those whose job has failed.
+   */
+  private async failedWhileWaiting(
+    transcripts: readonly ChatTranscriptEntity[],
+  ): Promise<ReadonlySet<string>> {
+    if (
+      !transcripts.some(each => each.status === ChatTranscriptStatus.PENDING)
+    ) {
+      return new Set();
+    }
+
+    try {
+      const failed = await redisWithin(() =>
+        this._queue.getFailed(0, CHAT_TRANSCRIPT_FAILED_JOBS_READ - 1),
+      );
+
+      return new Set(
+        failed
+          .map(
+            job =>
+              (job.data as { transcriptId?: unknown } | null)?.transcriptId,
+          )
+          .filter((id): id is string => typeof id === 'string'),
+      );
+    } catch (error) {
+      this._logger.warn(
+        `[mine] Failed transcript jobs not read - Reason: ${(error as Error).name}`,
+      );
+
+      return new Set();
+    }
   }
 
   /**
@@ -580,6 +625,7 @@ export class ChatTranscriptService {
    */
   private async toDtos(
     transcripts: readonly ChatTranscriptEntity[],
+    jobFailed: ReadonlySet<string> = new Set(),
   ): Promise<ChatTranscriptDto[]> {
     const manager = this._dataSource.manager;
     const channelIds = [...new Set(transcripts.map(each => each.channelId))];
@@ -631,6 +677,9 @@ export class ChatTranscriptService {
         createdAt: transcript.createdAt,
         readyAt: transcript.readyAt,
         expiresAt: transcript.expiresAt,
+        jobFailed:
+          transcript.status === ChatTranscriptStatus.PENDING &&
+          jobFailed.has(transcript.id),
       };
     });
   }
@@ -721,5 +770,5 @@ function filenameOf(
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '') || 'channel';
 
-  return `chat-${slug}-${stamp(transcript.toAt).slice(0, 10)}.txt`;
+  return `stoinfo-chat-${slug}-${stamp(transcript.toAt).slice(0, 10)}.txt`;
 }
