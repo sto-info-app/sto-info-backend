@@ -54,7 +54,7 @@ No part of the agreed scope is held back for later.
 1. **The backend.** It runs the release's migrations as it starts: all of them in one
    transaction, so a failure changes nothing. They rewrite the `account` and `character` tables
    once, briefly.
-2. **Check Fleet Community is off**: Admin › Operations › Features shows Fleet Communities
+2. **Check Fleet Community is off**: Admin › Operations › Site Settings shows Fleet Communities
    **Off**.
 3. **The worker**, by hand, then check its heartbeat on Scan Diagnostics.
 4. **The frontend.**
@@ -96,7 +96,7 @@ checked:
 - [ ] **Operations**: no operations alert is open; Scan Diagnostics shows the worker `RUNNING`.
 - [ ] **Support**: Contact us and both report queues work.
 
-Then: **Admin › Operations › Features › Fleet Communities › Switch on**, with a reason. Every
+Then: **Admin › Operations › Site Settings › Fleet Communities › Switch on**, with a reason. Every
 server applies it within ten seconds, and the Security Log records it.
 
 For the first days, watch Scan Diagnostics and its alerts, the report queues, and the Security Log.

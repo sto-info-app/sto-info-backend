@@ -84,10 +84,11 @@ Contact us offers a Fleet Communities topic for anything about the Fleet section
 
 ### For site administrators
 
-- Features can be switched on and off from Admin › Operations › Features, with a reason, and every site admin action asks for a reason and is kept in a new Security Log.
+- Features can be switched on and off, and publication paused, from Admin › Operations › Site Settings, each setting in a panel of its own and each change with a reason, and every site admin action asks for a reason and is kept in a new Security Log.
 - Scan Diagnostics shows the worker's heartbeat, scan usage, the backlog, alerts, failed jobs with retry or discard, withdrawn pictures still to be deleted, rescan campaigns, private image delivery and a publication pause.
 - Fleet tools: suspend, reinstate or close a Community, Fleet or Armada; settle a dispute by moving ownership; read a Fleet's roster imports for 24 hours, with the look logged; decide reported members and chat messages; hold chat evidence for an investigation; and verify and carry out roster erasures.
 - Alerts are raised when the file pipeline needs attention, such as a purge owed for a day, and Help has a Running the site section covering every tool.
+- A Site Statistics page under Admin › Operations counts members and how many are active, sign-ups, Storytime content published, Fleet Communities and chat, STO records, news and the open reports, over today, seven days, thirty days and all time, with sign-ups and members last seen by week.
 
 ### Other improvements
 

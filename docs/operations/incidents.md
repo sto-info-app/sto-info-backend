@@ -51,7 +51,7 @@ unscanned is published.
    paused, and counts its 24 hours from when things started again (see
    [File assets](../file-assets.md#uploads-nothing-comes-back-for)), so a long stop costs no
    uploads — but people are waiting, so do not leave it stopped without a reason.
-3. **Switch a feature off** when the worry is one feature: Admin › Operations › Features, with a
+3. **Switch a feature off** when the worry is one feature: Admin › Operations › Site Settings, with a
    reason (FC-045). Fleet Communities, Storytime and Custom Tracking each have a switch there;
    each instance sees a change within ten seconds, and the Security Log records it as
    `FEATURE_SWITCHED_OFF`. Only when the API itself cannot be reached is it an `UPDATE` of
