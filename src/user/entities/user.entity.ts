@@ -58,6 +58,15 @@ export class UserEntity {
   @Column({ type: 'timestamp', nullable: true })
   lastLoginAt: Date | null;
 
+  /**
+   * When the user was last seen on the site (FC-053): set at sign-in and
+   * touched at most once an hour on any authenticated request, so a member
+   * who stays signed in through token refresh still reads as seen. Null for a
+   * user not seen since the column arrived.
+   */
+  @Column({ type: 'timestamp', nullable: true })
+  lastSeenAt: Date | null;
+
   @Column({ type: 'timestamp', nullable: true })
   lastPasswordReset: Date | null;
 

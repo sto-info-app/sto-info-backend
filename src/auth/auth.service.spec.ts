@@ -4,6 +4,7 @@ import {
   HttpException,
   HttpStatus,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -82,6 +83,7 @@ describe('AuthService', () => {
             create: jest.fn().mockImplementation(val => val),
             save: jest.fn(),
             findOne: jest.fn(),
+            update: jest.fn(),
           },
         },
         {
@@ -519,6 +521,108 @@ describe('AuthService', () => {
       } as any);
       expect(result).toBeNull();
     });
+
+    // FC-053: the request is how a signed-in member is seen, since a session
+    // kept alive by token refresh never signs in again.
+    describe('recording that the user was seen', () => {
+      const payload = { sub: 'uuid-123', email: 'test@example.com' } as any;
+      let update: jest.Mock<(...args: any[]) => Promise<any>>;
+
+      beforeEach(() => {
+        update = userRepository.update as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >;
+        update.mockResolvedValue({ affected: 1 });
+        jest.useFakeTimers({ now: new Date('2026-10-22T12:00:00.000Z') });
+      });
+
+      afterEach(() => {
+        jest.useRealTimers();
+      });
+
+      it('records a user never seen before', async () => {
+        const user = {
+          id: 'uuid-123',
+          email: 'test@example.com',
+          lastSeenAt: null,
+        };
+        (
+          userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+        ).mockResolvedValue(user);
+
+        await service.validateUserFromPayload(payload);
+
+        expect(update).toHaveBeenCalledWith(
+          { id: 'uuid-123' },
+          { lastSeenAt: new Date('2026-10-22T12:00:00.000Z') },
+        );
+        expect(user.lastSeenAt).toEqual(new Date('2026-10-22T12:00:00.000Z'));
+      });
+
+      it('records a user last seen an hour or more ago', async () => {
+        const user = {
+          id: 'uuid-123',
+          email: 'test@example.com',
+          lastSeenAt: new Date('2026-10-22T11:00:00.000Z'),
+        };
+        (
+          userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+        ).mockResolvedValue(user);
+
+        await service.validateUserFromPayload(payload);
+
+        expect(update).toHaveBeenCalledTimes(1);
+      });
+
+      it('leaves a user seen within the hour alone', async () => {
+        const user = {
+          id: 'uuid-123',
+          email: 'test@example.com',
+          lastSeenAt: new Date('2026-10-22T11:00:00.001Z'),
+        };
+        (
+          userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+        ).mockResolvedValue(user);
+
+        await service.validateUserFromPayload(payload);
+
+        expect(update).not.toHaveBeenCalled();
+      });
+
+      it('still admits the user when the write fails', async () => {
+        const user = {
+          id: 'uuid-123',
+          email: 'test@example.com',
+          lastSeenAt: null,
+        };
+        (
+          userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+        ).mockResolvedValue(user);
+        update.mockRejectedValue(new Error('connection lost'));
+        const warn = jest
+          .spyOn(Logger.prototype, 'warn')
+          .mockImplementation(() => undefined);
+
+        await expect(service.validateUserFromPayload(payload)).resolves.toBe(
+          user,
+        );
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining('connection lost'),
+        );
+        expect(user.lastSeenAt).toBeNull();
+        warn.mockRestore();
+      });
+
+      it('does not record a disabled account', async () => {
+        (
+          userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+        ).mockResolvedValue({ id: 'uuid-123', isAccountDisabled: true });
+
+        await service.validateUserFromPayload(payload);
+
+        expect(update).not.toHaveBeenCalled();
+      });
+    });
   });
 
   describe('login', () => {
@@ -541,6 +645,28 @@ describe('AuthService', () => {
         'test@example.com',
         'Test',
       );
+    });
+
+    // FC-053: signing in is the first sighting of the visit.
+    it('records the sign-in as the last time seen', async () => {
+      const user = {
+        id: '1',
+        email: 'test@example.com',
+        emailVerified: true,
+        isAccountDisabled: false,
+        deletedAt: null,
+        profile: { firstName: 'Test' },
+        lastLoginAt: null as Date | null,
+        lastSeenAt: null as Date | null,
+      };
+      jest.spyOn(service, 'validateUser').mockResolvedValue(user);
+      (jwtService.sign as jest.Mock).mockReturnValue('token');
+
+      await service.login({ email: 'e', password: 'p' });
+
+      expect(user.lastLoginAt).toBeInstanceOf(Date);
+      expect(user.lastSeenAt).toBe(user.lastLoginAt);
+      expect(userRepository.save).toHaveBeenCalledWith(user);
     });
 
     it('should use fallback "Captain!" if profile name is missing in login', async () => {
