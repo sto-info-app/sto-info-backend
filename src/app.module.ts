@@ -61,6 +61,7 @@ import { DEFAULT_MULTER_LIMITS } from './shared/constants/file-upload.constants'
 import { TypeOrmExceptionFilter } from './shared/filters/typeorm-exception.filter';
 import { SharedModule } from './shared/shared.module';
 import { ValidatorsService } from './shared/utilities/validators.service';
+import { SiteStatisticsModule } from './site-statistics/site-statistics.module';
 import { AccountModule } from './sto/account/account.module';
 import { CharacterAdmiraltyModule } from './sto/character-admiralty/character-admiralty.module';
 import { CharacterCommendationModule } from './sto/character-commendation/character-commendation.module';
@@ -120,6 +121,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     }),
     SettingsModule,
     FeatureSwitchesModule,
+    SiteStatisticsModule,
     AccessControlModule,
     StorytimeModule,
     CustomTrackingModule,
