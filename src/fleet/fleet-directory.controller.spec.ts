@@ -50,7 +50,7 @@ describe('FleetDirectoryController', () => {
   let controller: FleetDirectoryController;
   let communityService: { findDirectoryPage: jest.Mock };
   let fleetService: { findDirectoryPage: jest.Mock };
-  let armadaService: { findDirectoryPage: jest.Mock };
+  let armadaService: { findDirectoryPage: jest.Mock; placementsOf: jest.Mock };
   let featureService: {
     assertEnabled: jest.Mock;
     assertFlagEnabled: jest.Mock;
@@ -74,6 +74,7 @@ describe('FleetDirectoryController', () => {
       findDirectoryPage: jest.fn(() =>
         Promise.resolve(pageOf([{ record: ARMADA, duplicateCount: 0 }])),
       ),
+      placementsOf: jest.fn(() => Promise.resolve(new Map())),
     };
 
     featureService = {
@@ -83,10 +84,13 @@ describe('FleetDirectoryController', () => {
 
     communityMapper = { toCardDto: jest.fn(() => ({ id: COMMUNITY.id })) };
     fleetMapper = {
-      toCardDto: jest.fn((entry: { duplicateCount: number }) => ({
-        id: FLEET.id,
-        duplicateCount: entry.duplicateCount,
-      })),
+      toCardDto: jest.fn(
+        (entry: { duplicateCount: number }, armada: unknown = null) => ({
+          id: FLEET.id,
+          duplicateCount: entry.duplicateCount,
+          armada,
+        }),
+      ),
     };
     armadaMapper = { toCardDto: jest.fn(() => ({ id: ARMADA.id })) };
 
@@ -135,7 +139,30 @@ describe('FleetDirectoryController', () => {
     it('answers a page of cards, each with its duplicate count', async () => {
       const page = await controller.listFleets({});
 
-      expect(page.items).toStrictEqual([{ id: FLEET.id, duplicateCount: 3 }]);
+      expect(page.items).toStrictEqual([
+        { id: FLEET.id, duplicateCount: 3, armada: null },
+      ]);
+    });
+
+    // FC-056: one placements query for the page, and each card gets its own.
+    it('puts each Fleet’s Armada and position on its card', async () => {
+      const armada = {
+        id: ARMADA.id,
+        name: 'Sol Armada',
+        slug: 'sol-armada',
+        position: 'BETA',
+      };
+
+      armadaService.placementsOf.mockResolvedValue(
+        new Map([[FLEET.id, armada]]),
+      );
+
+      const page = await controller.listFleets({});
+
+      expect(armadaService.placementsOf).toHaveBeenCalledWith([FLEET.id]);
+      expect(page.items).toStrictEqual([
+        { id: FLEET.id, duplicateCount: 3, armada },
+      ]);
     });
 
     it('passes the query through rather than interpreting it', async () => {

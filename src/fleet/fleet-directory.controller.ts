@@ -121,9 +121,18 @@ export class FleetDirectoryController {
     await this._featureService.assertEnabled();
 
     const found = await this._fleetService.findDirectoryPage(query);
+    // Where each sits, for the card's Armada line (FC-056).
+    const placements = await this._armadaService.placementsOf(
+      found.items.map(entry => entry.record.id),
+    );
 
     return {
-      items: found.items.map(entry => this._fleetMapper.toCardDto(entry)),
+      items: found.items.map(entry =>
+        this._fleetMapper.toCardDto(
+          entry,
+          placements.get(entry.record.id) ?? null,
+        ),
+      ),
       total: found.total,
       page: found.page,
       pageSize: found.pageSize,

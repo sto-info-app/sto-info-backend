@@ -6,7 +6,10 @@ import {
   imageUrlOf,
 } from 'src/shared/constants/image.constants';
 
-import { StoFleetCardDto } from '../dto/fleet-directory.dto';
+import {
+  FleetCardArmadaDto,
+  StoFleetCardDto,
+} from '../dto/fleet-directory.dto';
 import { FleetDuplicateDto, StoFleetDto } from '../dto/sto-fleet.dto';
 import { StoFleetEntity } from '../entities/sto-fleet.entity';
 import { DirectoryEntry } from '../services/fleet-directory-page.interface';
@@ -100,9 +103,14 @@ export class StoFleetMapper {
    *
    * @param entry - The Fleet, with its platform and Community loaded, and
    *   how many other listed records answer to its name.
+   * @param armada - The Armada it sits in and where, or null for none
+   *   (FC-056).
    * @returns The directory card.
    */
-  toCardDto(entry: DirectoryEntry<StoFleetEntity>): StoFleetCardDto {
+  toCardDto(
+    entry: DirectoryEntry<StoFleetEntity>,
+    armada: FleetCardArmadaDto | null = null,
+  ): StoFleetCardDto {
     const fleet = entry.record;
 
     return {
@@ -125,6 +133,7 @@ export class StoFleetMapper {
       allegianceFactionId: fleet.allegianceFactionId,
       platformProvidesRosterExport: fleet.platform.providesRosterExport,
       lastEffectiveImportAt: fleet.lastEffectiveImportAt,
+      armada,
     };
   }
 }

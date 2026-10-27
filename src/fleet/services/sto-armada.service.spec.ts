@@ -931,6 +931,61 @@ describe('StoArmadaService', () => {
     });
   });
 
+  // FC-056: where a page of Fleets sits, for their directory cards.
+  describe('placementsOf', () => {
+    it('reads the open placements of the Fleets asked for, with their Armadas, in one query', async () => {
+      placements = [
+        {
+          fleetId: 'fleet-a',
+          position: 'BETA',
+          armada: {
+            id: armadaId,
+            exactGameName: 'Sol Armada',
+            slug: 'sol-armada',
+            deletedAt: null,
+          },
+        },
+        {
+          fleetId: 'fleet-b',
+          position: 'GAMMA',
+          armada: {
+            id: 'armada-gone',
+            exactGameName: 'Gone Armada',
+            slug: 'gone-armada',
+            deletedAt: new Date(),
+          },
+        },
+      ];
+
+      const found = await service.placementsOf([
+        'fleet-a',
+        'fleet-b',
+        'fleet-c',
+      ]);
+
+      expect(manager.find).toHaveBeenCalledTimes(1);
+      expect(manager.find.mock.calls[0][1]).toMatchObject({
+        relations: { armada: true },
+      });
+      expect([...found.entries()]).toEqual([
+        [
+          'fleet-a',
+          {
+            id: armadaId,
+            name: 'Sol Armada',
+            slug: 'sol-armada',
+            position: 'BETA',
+          },
+        ],
+      ]);
+    });
+
+    it('asks nothing for no Fleets', async () => {
+      expect([...(await service.placementsOf([])).entries()]).toEqual([]);
+      expect(manager.find).not.toHaveBeenCalled();
+    });
+  });
+
   describe('findDirectoryPage', () => {
     /** The listing query, which is always the first one built. */
     const listing = (): MockQueryBuilder => builders[0];

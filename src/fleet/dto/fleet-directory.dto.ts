@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 
 import { EmblemImageUrls } from 'src/shared/constants/image.constants';
 
+import { ArmadaPosition } from '../enums/armada-position.enum';
 import { FleetRecruitmentState } from '../enums/fleet-recruitment-state.enum';
 import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
 
@@ -142,12 +143,44 @@ export class InGameScopeCardDto extends FleetDirectoryCardDto {
 /**
  * One Fleet in the directory.
  */
+/**
+ * The Armada a listed Fleet sits in, and where (FC-056).
+ *
+ * The Armada is in the Fleet's own Community and on its platform, so its page
+ * is addressed from the card's Community and platform segments with the slug
+ * here.
+ */
+export class FleetCardArmadaDto {
+  @ApiProperty({ description: 'The Armada.' })
+  id: string;
+
+  @ApiProperty({ description: 'Its name, exactly as the game has it.' })
+  name: string;
+
+  @ApiProperty({ description: 'The segment its address is built from.' })
+  slug: string;
+
+  @ApiProperty({
+    enum: ArmadaPosition,
+    description: 'Where the Fleet sits in it: Alpha, Beta or Gamma.',
+  })
+  position: ArmadaPosition;
+}
+
 export class StoFleetCardDto extends InGameScopeCardDto {
   @ApiProperty({
     enum: FleetRecruitmentState,
     description: 'Whether and how the Fleet accepts applications.',
   })
   recruitmentState: FleetRecruitmentState;
+
+  @ApiProperty({
+    type: FleetCardArmadaDto,
+    nullable: true,
+    description:
+      'The Armada it sits in and where, or null for a Fleet in none.',
+  })
+  armada: FleetCardArmadaDto | null;
 
   @ApiProperty({ description: 'Allegiance, if known.', nullable: true })
   allegianceFactionId: string | null;

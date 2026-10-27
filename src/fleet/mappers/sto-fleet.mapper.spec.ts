@@ -4,6 +4,7 @@ import { emblemUrlsOf, imageUrlOf } from 'src/shared/constants/image.constants';
 
 import { FleetCommunityEntity } from '../entities/fleet-community.entity';
 import { StoFleetEntity } from '../entities/sto-fleet.entity';
+import { ArmadaPosition } from '../enums/armada-position.enum';
 import { FleetAudience } from '../enums/fleet-audience.enum';
 import { FleetRecruitmentState } from '../enums/fleet-recruitment-state.enum';
 import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
@@ -241,7 +242,23 @@ describe('StoFleetMapper', () => {
         allegianceFactionId: 'd0000000-0000-4000-8000-000000000004',
         platformProvidesRosterExport: true,
         lastEffectiveImportAt: importedAt,
+        armada: null,
       });
+    });
+
+    // FC-056: where the Fleet sits, when the caller knows.
+    it('carries the Armada the Fleet sits in, and where', () => {
+      const armada = {
+        id: 'd0000000-0000-4000-8000-000000000009',
+        name: 'Sol Armada',
+        slug: 'sol-armada',
+        position: ArmadaPosition.GAMMA,
+      };
+
+      expect(
+        mapper.toCardDto({ record: buildFleet(), duplicateCount: 0 }, armada)
+          .armada,
+      ).toEqual(armada);
     });
 
     /**

@@ -9,6 +9,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import {
   EntityManager,
   FindOptionsWhere,
+  In,
   IsNull,
   Not,
   QueryFailedError,
@@ -27,7 +28,9 @@ import {
 import { FleetAuthorisationRevisionService } from '../authorisation/fleet-authorisation-revision.service';
 import { CreateStoArmadaDto } from '../dto/create-sto-armada.dto';
 import { StoArmadaDirectoryQueryDto } from '../dto/fleet-directory-query.dto';
+import { FleetCardArmadaDto } from '../dto/fleet-directory.dto';
 import { UpdateStoArmadaDto } from '../dto/update-sto-armada.dto';
+import { ArmadaFleetMembershipEntity } from '../entities/armada-fleet-membership.entity';
 import { StoArmadaEntity } from '../entities/sto-armada.entity';
 import { FleetAudience } from '../enums/fleet-audience.enum';
 import { FleetDirectorySort } from '../enums/fleet-directory-sort.enum';
@@ -119,6 +122,50 @@ export class StoArmadaService {
     private readonly _slugService: FleetSlugService,
     private readonly _revisionService: FleetAuthorisationRevisionService,
   ) {}
+
+  /**
+   * Where each of a page of Fleets sits, for their directory cards (FC-056).
+   *
+   * One query for the page rather than one per card: the open placement of
+   * every Fleet asked for, with its Armada, which is in the Fleet's own
+   * Community and on its platform. A Fleet in no Armada has no entry.
+   *
+   * @param fleetIds - The Fleets on the page.
+   * @returns Each placed Fleet's Armada and position, by Fleet.
+   */
+  async placementsOf(
+    fleetIds: readonly string[],
+  ): Promise<Map<string, FleetCardArmadaDto>> {
+    if (fleetIds.length === 0) {
+      return new Map();
+    }
+
+    const placements = await this._armadaRepository.manager.find(
+      ArmadaFleetMembershipEntity,
+      {
+        where: {
+          fleetId: In([...fleetIds]),
+          validTo: IsNull(),
+          deletedAt: IsNull(),
+        },
+        relations: { armada: true },
+      },
+    );
+
+    return new Map(
+      placements
+        .filter(placement => placement.armada?.deletedAt === null)
+        .map(placement => [
+          placement.fleetId,
+          {
+            id: placement.armada.id,
+            name: placement.armada.exactGameName,
+            slug: placement.armada.slug,
+            position: placement.position,
+          },
+        ]),
+    );
+  }
 
   /**
    * Registers an Armada under a Community.
