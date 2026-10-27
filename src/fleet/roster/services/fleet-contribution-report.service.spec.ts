@@ -208,6 +208,79 @@ describe('FleetContributionReportService', () => {
     });
   });
 
+  // FC-058: a player's characters are each listed on their own, so the
+  // same rises are summed by handle, folded as identities are matched.
+  it('sums each account’s rises over its characters, largest first', async () => {
+    names.names.mockResolvedValue(
+      new Map([
+        [
+          'import-2/identity-big',
+          { characterName: 'Kell Marr', accountHandle: '@fixture003' },
+        ],
+        [
+          'import-2/identity-small',
+          { characterName: 'Kell Marr II', accountHandle: '@FIXTURE003' },
+        ],
+        [
+          'import-2/identity-tie-b',
+          { characterName: 'Aria Venn', accountHandle: '@fixture001' },
+        ],
+        [
+          'import-2/identity-reset',
+          { characterName: 'Aria Venn II', accountHandle: '@fixture001' },
+        ],
+        [
+          'import-2/identity-tie-a',
+          { characterName: 'Zara Quell', accountHandle: '@fixture050' },
+        ],
+        [
+          'import-2/identity-gap',
+          { characterName: 'Zara Quell II', accountHandle: '@fixture050' },
+        ],
+      ]),
+    );
+
+    const report = await service.contribution(context(FleetReportView.FULL));
+
+    expect(report.accounts).toEqual([
+      // Named as the export wrote it for the larger rise, whatever the case
+      // of the other.
+      {
+        accountHandle: '@fixture003',
+        characters: 2,
+        delta: '9000000000100',
+        resets: 0,
+        acrossGap: 0,
+      },
+      {
+        accountHandle: '@fixture050',
+        characters: 2,
+        delta: '1200',
+        resets: 0,
+        acrossGap: 1,
+      },
+      {
+        accountHandle: '@fixture001',
+        characters: 2,
+        delta: '500',
+        resets: 1,
+        acrossGap: 0,
+      },
+    ]);
+  });
+
+  it('leaves a member nobody named out of the accounts, and ties handles by name', async () => {
+    const report = await service.contribution(context(FleetReportView.FULL));
+
+    expect(
+      report.accounts?.map(account => [account.accountHandle, account.delta]),
+    ).toEqual([
+      ['@fixture003', '9000000000000'],
+      ['@fixture001', '500'],
+      ['@fixture050', '500'],
+    ]);
+  });
+
   it('asks only for the rises and resets the detail export revealed', async () => {
     await service.contribution(context(FleetReportView.FULL));
 
@@ -271,6 +344,7 @@ describe('FleetContributionReportService', () => {
 
     expect(report.at).toBeNull();
     expect(report.members).toBeNull();
+    expect(report.accounts).toBeNull();
     expect(changes.find).not.toHaveBeenCalled();
     expect(report.intervals[0]).toMatchObject({
       contributionDelta: '98100',

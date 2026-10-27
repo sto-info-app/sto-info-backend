@@ -444,7 +444,8 @@ function ranks(report: FleetRanksReportDto): CsvValue[][][] {
  * Lays out the contribution report.
  *
  * @param report - The report.
- * @returns Its tables: the intervals, and for a full view the members.
+ * @returns Its tables: the intervals, and for a full view the members and
+ *   the same summed by account (FC-058).
  */
 function contribution(report: FleetContributionReportDto): CsvValue[][][] {
   const intervals = [
@@ -474,12 +475,12 @@ function contribution(report: FleetContributionReportDto): CsvValue[][][] {
     return [intervals];
   }
 
+  const ending = report.at.exportedAt.toISOString();
+
   return [
     intervals,
     [
-      [
-        `# Members in the interval ending ${report.at.exportedAt.toISOString()}`,
-      ],
+      [`# Members in the interval ending ${ending}`],
       [
         'Character',
         'Account handle',
@@ -499,6 +500,17 @@ function contribution(report: FleetContributionReportDto): CsvValue[][][] {
         member.toContribution,
         member.from?.exportedAt ?? null,
         member.acrossGap,
+      ]),
+    ],
+    [
+      [`# Accounts in the interval ending ${ending}`],
+      ['Account handle', 'Characters', 'Rise', 'Resets', 'Across a gap'],
+      ...(report.accounts ?? []).map(account => [
+        account.accountHandle,
+        account.characters,
+        account.delta,
+        account.resets,
+        account.acrossGap,
       ]),
     ],
   ];

@@ -96,6 +96,39 @@ export class ContributionMemberDto {
   acrossGap: boolean;
 }
 
+/**
+ * One account's rises and resets in the detail interval, summed over its
+ * characters (FC-058).
+ */
+export class ContributionAccountDto {
+  @ApiProperty({
+    description: 'The handle, as the later export wrote it.',
+  })
+  accountHandle: string;
+
+  @ApiProperty({
+    description: 'How many of its characters rose or reset.',
+  })
+  characters: number;
+
+  @ApiProperty({
+    description:
+      'The sum of its characters’ rises, as a decimal string; "0" where ' +
+      'every one reset.',
+  })
+  delta: string;
+
+  @ApiProperty({ description: 'How many of its characters reset.' })
+  resets: number;
+
+  @ApiProperty({
+    description:
+      'How many of its rises are across a gap, counted in no interval’s ' +
+      'total.',
+  })
+  acrossGap: number;
+}
+
 /** Contribution, interval by interval, oldest first (FC-020). */
 export class FleetContributionReportDto extends FleetReportHeaderDto {
   @ApiProperty({ type: [ContributionIntervalDto] })
@@ -117,4 +150,13 @@ export class FleetContributionReportDto extends FleetReportHeaderDto {
       'ending at `at`. Full view only.',
   })
   members: ContributionMemberDto[] | null;
+
+  @ApiProperty({
+    type: [ContributionAccountDto],
+    nullable: true,
+    description:
+      'The same rises and resets summed by account handle, largest rise ' +
+      'first, in the interval ending at `at`. Full view only.',
+  })
+  accounts: ContributionAccountDto[] | null;
 }

@@ -260,7 +260,7 @@ describe('FleetReportCsvService', () => {
       unknown: 11,
     };
 
-    it('writes the intervals and, for a full view, the members apart', () => {
+    it('writes the intervals and, for a full view, the members and accounts apart', () => {
       const report: FleetContributionReportDto = {
         ...header(FleetReport.CONTRIBUTION),
         intervals: [interval],
@@ -290,6 +290,15 @@ describe('FleetReportCsvService', () => {
             acrossGap: true,
           },
         ],
+        accounts: [
+          {
+            accountHandle: '@fixture003',
+            characters: 1,
+            delta: '1000',
+            resets: 0,
+            acrossGap: 0,
+          },
+        ],
       };
 
       expect(lines(service.render(report, 'Fleet', NOW)).slice(6)).toEqual([
@@ -300,6 +309,10 @@ describe('FleetReportCsvService', () => {
         'Character,Account handle,Change,Delta,Total before,Total after,After export,Across a gap',
         "Kell Marr,'@fixture003,Rise,1000,4414000,4415000,2024-11-15T12:00:00.000Z,false",
         ',,Reset,,120600,120500,,true',
+        '',
+        '# Accounts in the interval ending 2024-12-01T12:00:00.000Z',
+        'Account handle,Characters,Rise,Resets,Across a gap',
+        "'@fixture003,1,1000,0,0",
       ]);
     });
 
@@ -309,6 +322,7 @@ describe('FleetReportCsvService', () => {
         intervals: [{ ...interval, contributionDelta: null }],
         at: null,
         members: null,
+        accounts: null,
       };
       const csv = lines(service.render(report, 'Fleet', NOW));
 
@@ -552,6 +566,15 @@ describe('FleetReportCsvService', () => {
               toContribution: '2',
               from: FROM,
               acrossGap: false,
+            },
+          ],
+          accounts: [
+            {
+              accountHandle: '+44 hack',
+              characters: 1,
+              delta: '1',
+              resets: 0,
+              acrossGap: 0,
             },
           ],
         },

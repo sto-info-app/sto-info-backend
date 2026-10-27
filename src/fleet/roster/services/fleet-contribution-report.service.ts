@@ -5,10 +5,12 @@ import { In, Repository } from 'typeorm';
 
 import { compareText } from 'src/shared/utilities/compare-text.utility';
 
+import { normaliseRosterAccountHandle } from '../../imports/utilities/roster-identity.utility';
 import { RosterChangeEntity } from '../../projection/entities/roster-change.entity';
 import { RosterIntervalSummaryEntity } from '../../projection/entities/roster-interval-summary.entity';
 import { RosterChangeKind } from '../../projection/enums/roster-change-kind.enum';
 import {
+  ContributionAccountDto,
   ContributionIntervalDto,
   ContributionMemberDto,
   FleetContributionReportDto,
@@ -34,8 +36,10 @@ import {
  * negative gift, and nothing says what was given.
  *
  * A full view also lists each member's rise, largest first, and each reset,
- * in one interval. An aggregate view sees the totals and counts only, with a
- * total hidden when fewer than five members' deltas make it up.
+ * in one interval, and the same summed by account handle (FC-058), since a
+ * player's characters are each listed on their own. An aggregate view sees
+ * the totals and counts only, with a total hidden when fewer than five
+ * members' deltas make it up.
  */
 @Injectable()
 export class FleetContributionReportService {
@@ -76,6 +80,8 @@ export class FleetContributionReportService {
             order: { toAt: 'ASC' },
           });
     const aggregate = header.view === FleetReportView.AGGREGATE;
+    const members =
+      at === null ? null : await this.members(context, at.importId);
 
     return {
       ...header,
@@ -86,7 +92,8 @@ export class FleetContributionReportService {
         at === null
           ? null
           : { importId: at.importId, exportedAt: at.exportedAt },
-      members: at === null ? null : await this.members(context, at.importId),
+      members,
+      accounts: members === null ? null : accountsOf(members),
     };
   }
 
@@ -167,6 +174,71 @@ function largestFirst(
     compareText(a.member?.characterName ?? '', b.member?.characterName ?? '') ||
     compareText(a.identityId, b.identityId)
   );
+}
+
+/**
+ * Sums the members' rises and resets by account handle (FC-058).
+ *
+ * Handles are folded as identities are matched, so a handle the game wrote
+ * in two cases is one account, named as the later export wrote it for the
+ * character listed first: the one with the largest rise, since the members
+ * come largest first. A member no export named has no handle to sit under,
+ * and is left out. A rise across a gap is summed and counted, as the member
+ * list shows it, though no interval's total holds it.
+ *
+ * @param members - The members, largest rise first, then the resets.
+ * @returns One row an account, largest rise first, then by handle.
+ */
+function accountsOf(
+  members: readonly ContributionMemberDto[],
+): ContributionAccountDto[] {
+  const accounts = new Map<string, ContributionAccountDto>();
+
+  for (const member of members) {
+    if (member.member === null) {
+      continue;
+    }
+
+    const key = normaliseRosterAccountHandle(member.member.accountHandle);
+    const account = accounts.get(key) ?? {
+      accountHandle: member.member.accountHandle,
+      characters: 0,
+      delta: '0',
+      resets: 0,
+      acrossGap: 0,
+    };
+
+    account.characters += 1;
+    if (member.delta === null) {
+      account.resets += 1;
+    } else {
+      account.delta = (BigInt(account.delta) + BigInt(member.delta)).toString();
+    }
+    if (member.acrossGap) {
+      account.acrossGap += 1;
+    }
+    accounts.set(key, account);
+  }
+
+  return [...accounts.values()].sort(largestAccountFirst);
+}
+
+/**
+ * Orders accounts largest rise first, then by handle.
+ *
+ * @param a - One account.
+ * @param b - The other.
+ * @returns Their order.
+ */
+function largestAccountFirst(
+  a: ContributionAccountDto,
+  b: ContributionAccountDto,
+): number {
+  if (a.delta !== b.delta) {
+    return BigInt(b.delta) > BigInt(a.delta) ? 1 : -1;
+  }
+
+  return compareText(a.accountHandle, b.accountHandle);
 }
 
 /**
