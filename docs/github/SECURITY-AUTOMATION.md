@@ -54,6 +54,15 @@ SonarCloud provides continuous inspection of code quality and security.
 - **Security Hotspots**: Focuses on potential security risks that require human review.
 - **Rules**: Checks against a wide range of security rules (OWASP Top 10, CWE, etc.).
 - **Results**: Integrated with the SonarCloud dashboard and reported as a status check on PRs.
+- **Scanner**: `SonarSource/sonarqube-scan-action`, pinned by commit SHA in `lint-test.yml`. Raised to `v8.4.0` (SonarScanner CLI `8.3.0`) on 2026-10-27 following Sonar's eMudhra certificate advisory.
+
+## Dependabot
+
+- **Schedule**: Daily, for both npm and GitHub Actions.
+- **Grouping**: Minor and patch version updates are grouped into one PR per ecosystem; majors arrive individually so they can be assessed on their own.
+- **CI**: The full pipeline is skipped on Dependabot PRs, so a merged major has not been built or tested. Re-run the build and test suite after merging one.
+- **Ignored**: TypeScript major updates. TypeScript 7 drops the compiler API that ts-jest, typescript-eslint and the build tooling load, so a TypeScript 7 bump breaks the build. The rule comes out when those tools support it (see `docs/security.md`).
+- **Config**: [.github/dependabot.yml](../../.github/dependabot.yml)
 
 ## Workflow Security
 

@@ -8,11 +8,10 @@ against them, and the first place where that material can be made public on
 their account and captain pages. Both published policies need to say so before
 the feature is switched on.
 
-These are drafts rather than edits to the live pages on purpose. Publishing
-them changes what members are legally told, moves the "Last updated" date on
-both pages, and is the site owner's decision rather than an implementation
-detail. The wording below is ready to paste; the decision to paste it is not
-being made here.
+These are drafts, not edits to the live pages. Publishing them changes what
+members are legally told and moves the "Last updated" date on both pages, so it
+is a separate step from shipping the feature. The wording below is ready to
+paste and has not been applied.
 
 The pages live in the frontend repository:
 

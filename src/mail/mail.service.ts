@@ -4,12 +4,18 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { MailerService } from '@nestjs-modules/mailer';
 import sgMail from '@sendgrid/mail';
-import type { MailDataRequired } from '@sendgrid/mail';
 import * as ejs from 'ejs';
 import { convert as htmlToText } from 'html-to-text';
 
 import { SecretsService } from 'src/shared/secrets/secrets.service';
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
+
+/**
+ * SendGrid's single-message shape, taken from `send()` rather than imported:
+ * the package declares `export =` beside named exports, which TypeScript 7
+ * no longer resolves.
+ */
+type MailDataRequired = Exclude<Parameters<typeof sgMail.send>[0], unknown[]>;
 
 /** Shape of an internal email message used for both SES and SendGrid */
 export interface EmailMessage {
