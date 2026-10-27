@@ -906,6 +906,7 @@ describe('RosterImportStatusService', () => {
           Promise.resolve([
             { label: 'Member', members: '80' },
             { label: 'Captain', members: '13' },
+            { label: 'Ensign', members: '0' },
           ]);
 
         return chain;
@@ -934,8 +935,10 @@ describe('RosterImportStatusService', () => {
             excluded: true,
           },
         ],
+        // Placed labels by tier, then the unplaced by name.
         ranks: [
           { label: 'Captain', tier: 1, members: 13 },
+          { label: 'Ensign', tier: null, members: 0 },
           { label: 'Member', tier: null, members: 80 },
         ],
         total: 93,

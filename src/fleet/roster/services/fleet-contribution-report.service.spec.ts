@@ -269,6 +269,36 @@ describe('FleetContributionReportService', () => {
     ]);
   });
 
+  it('puts an account whose characters sum past a larger single rise first', async () => {
+    names.names.mockResolvedValue(
+      new Map([
+        [
+          'import-2/identity-gap',
+          { characterName: 'Zara Quell', accountHandle: '@fixture050' },
+        ],
+        [
+          'import-2/identity-tie-b',
+          { characterName: 'Aria Venn', accountHandle: '@fixture001' },
+        ],
+        [
+          'import-2/identity-tie-a',
+          { characterName: 'Aria Venn II', accountHandle: '@fixture001' },
+        ],
+      ]),
+    );
+
+    const report = await service.contribution(context(FleetReportView.FULL));
+
+    // Zara's 700 is the larger rise of any one character, but Aria's two 500s
+    // make the larger account.
+    expect(
+      report.accounts?.map(account => [account.accountHandle, account.delta]),
+    ).toEqual([
+      ['@fixture001', '1000'],
+      ['@fixture050', '700'],
+    ]);
+  });
+
   it('leaves a member nobody named out of the accounts, and ties handles by name', async () => {
     const report = await service.contribution(context(FleetReportView.FULL));
 

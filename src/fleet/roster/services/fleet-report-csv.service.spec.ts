@@ -316,6 +316,22 @@ describe('FleetReportCsvService', () => {
       ]);
     });
 
+    it('writes an empty accounts table for a report that carries no accounts', () => {
+      const report: FleetContributionReportDto = {
+        ...header(FleetReport.CONTRIBUTION),
+        intervals: [interval],
+        at: TO,
+        members: [],
+        accounts: null,
+      };
+
+      expect(lines(service.render(report, 'Fleet', NOW)).slice(-3)).toEqual([
+        '',
+        '# Accounts in the interval ending 2024-12-01T12:00:00.000Z',
+        'Account handle,Characters,Rise,Resets,Across a gap',
+      ]);
+    });
+
     it('writes the intervals alone for an aggregate view', () => {
       const report: FleetContributionReportDto = {
         ...header(FleetReport.CONTRIBUTION, FleetReportView.AGGREGATE),
