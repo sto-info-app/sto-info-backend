@@ -15,6 +15,7 @@ import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetPlacementState } from 'src/file-assets/enums/file-asset-placement-state.enum';
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
 import { FileAssetPlacementService } from 'src/file-assets/services/file-asset-placement.service';
+import { RosterSortDirection } from 'src/fleet/roster/enums/roster-sort.enum';
 import { UserEntity } from 'src/user/entities/user.entity';
 
 import { RosterImportActionEntity } from '../entities/roster-import-action.entity';
@@ -23,6 +24,7 @@ import { RosterImportSourceEntity } from '../entities/roster-import-source.entit
 import { RosterObservationEntity } from '../entities/roster-observation.entity';
 import { RosterImportActionKind } from '../enums/roster-import-action-kind.enum';
 import { RosterImportConflictFilter } from '../enums/roster-import-conflict-filter.enum';
+import { RosterImportRowSort } from '../enums/roster-import-row-sort.enum';
 import { RosterImportStatus } from '../enums/roster-import-status.enum';
 import { RosterRowRejectionCode } from '../enums/roster-row-rejection-code.enum';
 import { RosterSourceHeaderShape } from '../enums/roster-source-header-shape.enum';
@@ -119,6 +121,8 @@ describe('RosterImportStatusService', () => {
   let observations: {
     find: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
     findAndCount: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
+    createQueryBuilder?: jest.Mock<(...args: unknown[]) => unknown>;
+    manager?: { find: jest.Mock<(...args: unknown[]) => Promise<unknown>> };
   };
   let actions: { find: jest.Mock<(...args: unknown[]) => Promise<unknown>> };
   let conflicts: {
@@ -836,10 +840,87 @@ describe('RosterImportStatusService', () => {
       excluded: true,
     };
 
-    it('lists an import’s rows in line order, a page at a time', async () => {
-      observations.findAndCount.mockResolvedValue([[row], 93]);
+    /** One query the fake builder was asked for: each call, in order. */
+    let calls: [string, unknown[]][];
 
-      await expect(service.rows(FLEET_ID, 'import-1', 2, 20)).resolves.toEqual({
+    /**
+     * The text arguments of a builder's calls, joined, so a test can ask what
+     * a query filtered and ordered on.
+     *
+     * @returns The text.
+     */
+    const sqlOf = (): string =>
+      calls
+        .flatMap(([, args]) => args.filter(arg => typeof arg === 'string'))
+        .join('\n');
+
+    /**
+     * The parameters a query was given, merged across every call that set
+     * some.
+     *
+     * @returns The parameters.
+     */
+    const parametersOf = (): Record<string, unknown> =>
+      Object.assign(
+        {},
+        ...calls.flatMap(([, args]) =>
+          args.filter(arg => typeof arg === 'object' && arg !== null),
+        ),
+      );
+
+    /**
+     * The order the query asked for: each orderBy and addOrderBy, in turn.
+     *
+     * @returns Each column with its direction.
+     */
+    const orderOf = (): unknown[][] =>
+      calls
+        .filter(([step]) => step === 'orderBy' || step === 'addOrderBy')
+        .map(([, args]) => args);
+
+    beforeEach(() => {
+      calls = [];
+      observations.createQueryBuilder = jest.fn(() => {
+        const chain: Record<string, (...args: unknown[]) => unknown> = {};
+
+        for (const step of [
+          'leftJoin',
+          'where',
+          'andWhere',
+          'orderBy',
+          'addOrderBy',
+          'skip',
+          'take',
+          'select',
+          'addSelect',
+          'groupBy',
+        ]) {
+          chain[step] = (...args: unknown[]) => {
+            calls.push([step, args]);
+
+            return chain;
+          };
+        }
+        chain.getManyAndCount = () => Promise.resolve([[row], 93]);
+        chain.getRawMany = () =>
+          Promise.resolve([
+            { label: 'Member', members: '80' },
+            { label: 'Captain', members: '13' },
+          ]);
+
+        return chain;
+      });
+      observations.manager = {
+        find: jest.fn(() =>
+          Promise.resolve([{ fleetId: FLEET_ID, label: 'Captain', tier: 1 }]),
+        ),
+      };
+    });
+
+    it('lists an import’s rows in line order, a page at a time, with its rank counts', async () => {
+      await expect(
+        service.rows(FLEET_ID, 'import-1', { page: 2, pageSize: 20 }),
+      ).resolves.toEqual({
         items: [
           {
             line: 2,
@@ -853,18 +934,69 @@ describe('RosterImportStatusService', () => {
             excluded: true,
           },
         ],
+        ranks: [
+          { label: 'Captain', tier: 1, members: 13 },
+          { label: 'Member', tier: null, members: 80 },
+        ],
         total: 93,
         page: 2,
         pageSize: 20,
       });
-      expect(observations.findAndCount).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { importSourceId: 'import-1' },
-          order: { line: 'ASC' },
-          skip: 20,
-          take: 20,
-        }),
+      expect(parametersOf()).toMatchObject({ importId: 'import-1' });
+      expect(orderOf()).toEqual([['o.line', 'ASC', 'NULLS LAST']]);
+      expect(calls).toContainEqual(['skip', [20]]);
+      expect(calls).toContainEqual(['take', [20]]);
+      expect(sqlOf()).not.toContain(':search');
+      expect(sqlOf()).not.toContain(':rank');
+    });
+
+    it('lists the rows in line order when nothing is asked', async () => {
+      await service.rows(FLEET_ID, 'import-1');
+
+      expect(orderOf()).toEqual([['o.line', 'ASC', 'NULLS LAST']]);
+    });
+
+    // FC-055: found and ordered as the roster page is, ending on line.
+    it('finds rows by part of a name or handle, narrowed to a rank', async () => {
+      await service.rows(FLEET_ID, 'import-1', {
+        search: 'Tova R',
+        rank: 'Member',
+      });
+
+      expect(sqlOf()).toContain(
+        '(o.characterNameNormalised LIKE :search OR o.accountHandleNormalised LIKE :search)',
       );
+      expect(sqlOf()).toContain('o.guildRank = :rank');
+      expect(parametersOf()).toMatchObject({
+        search: '%tova r%',
+        rank: 'Member',
+      });
+    });
+
+    it('orders by a column, ending on line, and by rank through the rank order', async () => {
+      await service.rows(FLEET_ID, 'import-1', {
+        sort: RosterImportRowSort.LEVEL,
+        direction: RosterSortDirection.DESC,
+      });
+
+      expect(orderOf()).toEqual([
+        ['o.level', 'DESC', 'NULLS LAST'],
+        ['o.line', 'ASC'],
+      ]);
+
+      calls = [];
+      await service.rows(FLEET_ID, 'import-1', {
+        sort: RosterImportRowSort.RANK,
+      });
+
+      expect(sqlOf()).toContain(
+        'r.fleetId = o.fleetId AND r.label = o.guildRank',
+      );
+      expect(orderOf()).toEqual([
+        ['r.tier', 'ASC', 'NULLS LAST'],
+        ['o.guildRank', 'ASC'],
+        ['o.line', 'ASC'],
+      ]);
     });
 
     it('reports an import of another Fleet as absent', async () => {
@@ -873,7 +1005,7 @@ describe('RosterImportStatusService', () => {
       await expect(service.rows(FLEET_ID, 'import-9')).rejects.toBeInstanceOf(
         NotFoundException,
       );
-      expect(observations.findAndCount).not.toHaveBeenCalled();
+      expect(observations.createQueryBuilder).not.toHaveBeenCalled();
     });
   });
 

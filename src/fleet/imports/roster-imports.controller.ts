@@ -65,6 +65,7 @@ import { PreviewRosterImportDto } from './dto/preview-roster-import.dto';
 import { RosterImportDetailDto } from './dto/roster-import-detail.dto';
 import { RosterImportPageDto } from './dto/roster-import-page.dto';
 import { RosterImportPreviewDto } from './dto/roster-import-preview.dto';
+import { RosterImportRowsQueryDto } from './dto/roster-import-rows-query.dto';
 import { RosterImportRowPageDto } from './dto/roster-import-rows.dto';
 import { RosterImportSourceDto } from './dto/roster-import-source.dto';
 import { UploadRosterImportDto } from './dto/upload-roster-import.dto';
@@ -248,13 +249,14 @@ export class RosterImportsController {
   }
 
   /**
-   * Lists one import's rows, in line order, for an investigator choosing
-   * rows to exclude (FC-020).
+   * Lists one import's rows, for an investigator choosing rows to exclude
+   * (FC-020): in line order unless asked otherwise, found by name or handle
+   * and narrowed to a rank (FC-055).
    *
    * @param fleetId - The Fleet.
    * @param importId - The import.
-   * @param query - Which page.
-   * @returns The page.
+   * @param query - Which page, in what order, within what filters.
+   * @returns The page, with the import's rank counts.
    */
   @Get(':importId/rows')
   @UseGuards(JwtAuthGuard, ScopeCapabilityGuard)
@@ -265,18 +267,13 @@ export class RosterImportsController {
   async rows(
     @Param('fleetId', ParseUUIDPipe) fleetId: string,
     @Param('importId', ParseUUIDPipe) importId: string,
-    @Query() query: PaginatedQueryDto,
+    @Query() query: RosterImportRowsQueryDto,
   ): Promise<RosterImportRowPageDto> {
     await this._featureService.assertFlagEnabled(
       FLEET_FEATURE_FLAGS.IMPORTS_ENABLED,
     );
 
-    return this._statusService.rows(
-      fleetId,
-      importId,
-      query.page,
-      query.pageSize,
-    );
+    return this._statusService.rows(fleetId, importId, query);
   }
 
   /**

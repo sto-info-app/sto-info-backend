@@ -6,10 +6,13 @@ import {
 import { HTTP_CODE_METADATA } from '@nestjs/common/constants';
 
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 import type { Response } from 'express';
 
 import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
+import { RosterSortDirection } from 'src/fleet/roster/enums/roster-sort.enum';
 
 import { FleetAuthorisationService } from '../authorisation/fleet-authorisation.service';
 import { FLEET_CAPABILITIES } from '../authorisation/fleet-capability.constants';
@@ -25,8 +28,10 @@ import { StoFleetService } from '../services/sto-fleet.service';
 import { RosterImportDetailDto } from './dto/roster-import-detail.dto';
 import { RosterImportPageDto } from './dto/roster-import-page.dto';
 import { RosterImportPreviewDto } from './dto/roster-import-preview.dto';
+import { RosterImportRowsQueryDto } from './dto/roster-import-rows-query.dto';
 import { RosterImportSourceDto } from './dto/roster-import-source.dto';
 import { RosterImportSourceEntity } from './entities/roster-import-source.entity';
+import { RosterImportRowSort } from './enums/roster-import-row-sort.enum';
 import { RosterImportStatus } from './enums/roster-import-status.enum';
 import { RosterSourceHeaderShape } from './enums/roster-source-header-shape.enum';
 import { RosterImportsController } from './roster-imports.controller';
@@ -654,16 +659,50 @@ describe('RosterImportsController', () => {
       });
     });
 
-    it('asks for the page it was given', async () => {
+    // The whole query goes through: the page, and the order and filters
+    // (FC-055).
+    it('asks for the page, order and filters it was given', async () => {
+      const query = {
+        page: 2,
+        pageSize: 50,
+        sort: RosterImportRowSort.RANK,
+        direction: RosterSortDirection.DESC,
+        search: 'reen',
+        rank: 'Member',
+      };
+
       await expect(
-        controller.rows(FLEET_ID, IMPORT_ID, { page: 2, pageSize: 50 }),
+        controller.rows(FLEET_ID, IMPORT_ID, query),
       ).resolves.toEqual({ items: [], total: 0, page: 1, pageSize: 20 });
       expect(statusService.rows).toHaveBeenCalledWith(
         FLEET_ID,
         IMPORT_ID,
-        2,
-        50,
+        query,
       );
+    });
+
+    it('takes only an order and a direction it knows', async () => {
+      const refused = await validate(
+        plainToInstance(RosterImportRowsQueryDto, {
+          sort: 'COLOUR',
+          direction: 'SIDEWAYS',
+        }),
+      );
+      const accepted = await validate(
+        plainToInstance(RosterImportRowsQueryDto, {
+          sort: 'LEVEL',
+          direction: 'DESC',
+          search: '  reen ',
+          rank: 'Member',
+          page: '2',
+        }),
+      );
+
+      expect(refused.map(error => error.property).sort()).toEqual([
+        'direction',
+        'sort',
+      ]);
+      expect(accepted).toEqual([]);
     });
 
     it('is hidden while imports are switched off', async () => {

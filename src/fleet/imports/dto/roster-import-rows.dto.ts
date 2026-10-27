@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+import { RosterRankCountDto } from 'src/fleet/roster/dto/roster-page.dto';
+
 /**
  * One row of an import, as an investigator choosing rows to exclude sees it
  * (FC-020).
@@ -36,12 +38,23 @@ export class RosterImportRowDto {
   excluded: boolean;
 }
 
-/** A page of an import's rows, in line order. */
+/**
+ * A page of an import's rows, in the order and within the filters asked for
+ * (FC-055); in line order when nothing was asked.
+ */
 export class RosterImportRowPageDto {
   @ApiProperty({ type: [RosterImportRowDto] })
   items: RosterImportRowDto[];
 
-  @ApiProperty()
+  @ApiProperty({
+    type: [RosterRankCountDto],
+    description:
+      'Each rank label the import’s rows hold, with how many hold it, for ' +
+      'the Rank filter; across the whole import, whatever the filters.',
+  })
+  ranks: RosterRankCountDto[];
+
+  @ApiProperty({ description: 'How many rows match, across every page.' })
   total: number;
 
   @ApiProperty()

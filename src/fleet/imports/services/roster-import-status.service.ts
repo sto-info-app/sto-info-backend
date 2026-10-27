@@ -1,12 +1,24 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { FindOptionsRelations, In, IsNull, Not, Repository } from 'typeorm';
+import {
+  FindOptionsRelations,
+  In,
+  IsNull,
+  Not,
+  Repository,
+  SelectQueryBuilder,
+} from 'typeorm';
 
 import { FileAssetPlacementEntity } from 'src/file-assets/entities/file-asset-placement.entity';
 import { FileAssetPlacementState } from 'src/file-assets/enums/file-asset-placement-state.enum';
 import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
 import { FileAssetPlacementService } from 'src/file-assets/services/file-asset-placement.service';
+import { RosterRankCountDto } from 'src/fleet/roster/dto/roster-page.dto';
+import { RosterRankOrderEntity } from 'src/fleet/roster/entities/roster-rank-order.entity';
+import { RosterSortDirection } from 'src/fleet/roster/enums/roster-sort.enum';
+import { compareText } from 'src/shared/utilities/compare-text.utility';
+import { escapeSqlLikeTerm } from 'src/shared/utilities/sql-like.utility';
 
 import {
   resolveDirectoryPage,
@@ -16,6 +28,7 @@ import { RosterImportActionDto } from '../dto/roster-import-action.dto';
 import { RosterImportConflictPageDto } from '../dto/roster-import-conflicts.dto';
 import { RosterImportDetailDto } from '../dto/roster-import-detail.dto';
 import { RosterImportPageDto } from '../dto/roster-import-page.dto';
+import { RosterImportRowsQueryDto } from '../dto/roster-import-rows-query.dto';
 import { RosterImportRowPageDto } from '../dto/roster-import-rows.dto';
 import { RosterImportSourceDto } from '../dto/roster-import-source.dto';
 import { RosterImportActionEntity } from '../entities/roster-import-action.entity';
@@ -25,9 +38,23 @@ import { RosterObservationEntity } from '../entities/roster-observation.entity';
 import { RosterCsvRejectionCode } from '../enums/roster-csv-rejection-code.enum';
 import { RosterHoldReason } from '../enums/roster-hold-reason.enum';
 import { RosterImportConflictFilter } from '../enums/roster-import-conflict-filter.enum';
+import { RosterImportRowSort } from '../enums/roster-import-row-sort.enum';
 import { RosterImportStatus } from '../enums/roster-import-status.enum';
 import { RosterPublicationRejectionCode } from '../enums/roster-publication-rejection-code.enum';
+import { normaliseRosterCharacterName } from '../utilities/roster-identity.utility';
 import { ROSTER_SOURCE_ERASED_REASON } from './roster-source-retention.service';
+
+/** The column each ordering of an import's rows sorts by first (FC-055). */
+const ROW_SORT_COLUMNS: Readonly<Record<RosterImportRowSort, string>> = {
+  [RosterImportRowSort.LINE]: 'o.line',
+  [RosterImportRowSort.NAME]: 'o.characterNameNormalised',
+  [RosterImportRowSort.HANDLE]: 'o.accountHandleNormalised',
+  [RosterImportRowSort.RANK]: 'r.tier',
+  [RosterImportRowSort.LEVEL]: 'o.level',
+  [RosterImportRowSort.JOINED]: 'o.joinedAt',
+  [RosterImportRowSort.CONTRIBUTION]: 'o.contributionTotal',
+  [RosterImportRowSort.LAST_ACTIVE]: 'o.lastActiveAt',
+};
 
 /**
  * What a refusal is reported as when this feature did not make it.
@@ -266,30 +293,18 @@ export class RosterImportStatusService {
   async rows(
     fleetId: string,
     importId: string,
-    page?: number,
-    pageSize?: number,
+    query: RosterImportRowsQueryDto = {},
   ): Promise<RosterImportRowPageDto> {
     const record = await this.require(fleetId, importId);
-    const resolvedPage = resolveDirectoryPage(page);
-    const resolvedPageSize = resolveDirectoryPageSize(pageSize);
-    const [rows, total] = await this._observations.findAndCount({
-      where: { importSourceId: record.id },
-      select: {
-        id: true,
-        line: true,
-        characterName: true,
-        accountHandle: true,
-        guildRank: true,
-        level: true,
-        contributionTotal: true,
-        joinedAt: true,
-        lastActiveAt: true,
-        excluded: true,
-      },
-      order: { line: 'ASC' },
-      skip: (resolvedPage - 1) * resolvedPageSize,
-      take: resolvedPageSize,
-    });
+    const resolvedPage = resolveDirectoryPage(query.page);
+    const resolvedPageSize = resolveDirectoryPageSize(query.pageSize);
+    const [[rows, total], ranks] = await Promise.all([
+      this.rowsQuery(record.id, query)
+        .skip((resolvedPage - 1) * resolvedPageSize)
+        .take(resolvedPageSize)
+        .getManyAndCount(),
+      this.rankCounts(record.id, fleetId),
+    ]);
 
     return {
       items: rows.map(row => ({
@@ -303,10 +318,111 @@ export class RosterImportStatusService {
         lastActiveAt: row.lastActiveAt,
         excluded: row.excluded,
       })),
+      ranks,
       total,
       page: resolvedPage,
       pageSize: resolvedPageSize,
     };
+  }
+
+  /**
+   * Builds the query for one import's rows, within the filters and in the
+   * order asked for (FC-055).
+   *
+   * Mirrors the roster page's: a search matches a Character name or an
+   * account handle through the same folds the import stored, a rank is
+   * matched exactly, and a rank ordering goes by the Fleet's rank order,
+   * joined for the sort alone. Every ordering ends on line, so a page
+   * boundary never falls differently between two requests.
+   *
+   * @param importId - The import.
+   * @param query - The filters and ordering asked for.
+   * @returns The query, unpaged.
+   */
+  private rowsQuery(
+    importId: string,
+    query: RosterImportRowsQueryDto,
+  ): SelectQueryBuilder<RosterObservationEntity> {
+    const sort = query.sort ?? RosterImportRowSort.LINE;
+    const direction = query.direction ?? RosterSortDirection.ASC;
+    const builder = this._observations
+      .createQueryBuilder('o')
+      .leftJoin(
+        RosterRankOrderEntity,
+        'r',
+        'r.fleetId = o.fleetId AND r.label = o.guildRank',
+      )
+      .where('o.importSourceId = :importId', { importId });
+
+    if (query.search) {
+      // Both folds lower-case, and a handle's also trims, which the DTO has
+      // already done to the term.
+      const term = escapeSqlLikeTerm(
+        normaliseRosterCharacterName(query.search),
+      );
+
+      builder.andWhere(
+        '(o.characterNameNormalised LIKE :search OR o.accountHandleNormalised LIKE :search)',
+        { search: `%${term}%` },
+      );
+    }
+
+    if (query.rank !== undefined) {
+      builder.andWhere('o.guildRank = :rank', { rank: query.rank });
+    }
+
+    builder.orderBy(ROW_SORT_COLUMNS[sort], direction, 'NULLS LAST');
+
+    if (sort === RosterImportRowSort.RANK) {
+      builder.addOrderBy('o.guildRank', direction);
+    }
+
+    if (sort !== RosterImportRowSort.LINE) {
+      builder.addOrderBy('o.line', 'ASC');
+    }
+
+    return builder;
+  }
+
+  /**
+   * Counts the rows holding each rank label on the import, for the Rank
+   * filter (FC-055): across the whole import, whatever is being shown.
+   *
+   * @param importId - The import.
+   * @param fleetId - The Fleet, whose rank order places the labels.
+   * @returns Each label, highest tier first and unplaced labels last.
+   */
+  private async rankCounts(
+    importId: string,
+    fleetId: string,
+  ): Promise<RosterRankCountDto[]> {
+    const [counts, placed] = await Promise.all([
+      this._observations
+        .createQueryBuilder('o')
+        .select('o.guildRank', 'label')
+        .addSelect('COUNT(*)', 'members')
+        .where('o.importSourceId = :importId', { importId })
+        .groupBy('o.guildRank')
+        .getRawMany<{ label: string; members: string }>(),
+      this._observations.manager.find(RosterRankOrderEntity, {
+        where: { fleetId },
+        select: { fleetId: true, label: true, tier: true },
+      }),
+    ]);
+    const tiers = new Map(placed.map(entry => [entry.label, entry.tier]));
+
+    return counts
+      .map(count => ({
+        label: count.label,
+        tier: tiers.get(count.label) ?? null,
+        members: Number(count.members),
+      }))
+      .sort(
+        (a, b) =>
+          (a.tier ?? Number.MAX_SAFE_INTEGER) -
+            (b.tier ?? Number.MAX_SAFE_INTEGER) ||
+          compareText(a.label, b.label),
+      );
   }
 
   /**
