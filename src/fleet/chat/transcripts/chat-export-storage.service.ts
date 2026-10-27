@@ -3,12 +3,12 @@ import { Readable } from 'node:stream';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+
 import {
-  DeleteObjectCommand,
-  GetObjectCommand,
-  PutObjectCommand,
-  S3Client,
-} from '@aws-sdk/client-s3';
+  deleteBucketObject,
+  streamBucketObject,
+} from 'src/shared/utilities/bucket-object.utility';
 
 /** The S3 client for the private exports bucket (FC-035). */
 export const CHAT_EXPORTS_S3_CLIENT = Symbol('CHAT_EXPORTS_S3_CLIENT');
@@ -77,16 +77,13 @@ export class ChatExportStorageService {
    * @returns Its bytes, as a stream.
    * @throws Error when the object has no body.
    */
-  async getStream(objectKey: string): Promise<Readable> {
-    const response = await this._s3Client.send(
-      new GetObjectCommand({ Bucket: this._bucketName, Key: objectKey }),
+  getStream(objectKey: string): Promise<Readable> {
+    return streamBucketObject(
+      this._s3Client,
+      this._bucketName,
+      objectKey,
+      'Transcript',
     );
-
-    if (!response.Body) {
-      throw new Error(`Transcript has no body: ${objectKey}`);
-    }
-
-    return response.Body as Readable;
   }
 
   /**
@@ -95,9 +92,7 @@ export class ChatExportStorageService {
    * @param objectKey - Its key.
    */
   async remove(objectKey: string): Promise<void> {
-    await this._s3Client.send(
-      new DeleteObjectCommand({ Bucket: this._bucketName, Key: objectKey }),
-    );
+    await deleteBucketObject(this._s3Client, this._bucketName, objectKey);
 
     this._logger.log(`[remove] Transcript deleted - Key: ${objectKey}`);
   }

@@ -4,12 +4,15 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import {
-  DeleteObjectCommand,
-  GetObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
+
+import {
+  deleteBucketObject,
+  streamBucketObject,
+} from 'src/shared/utilities/bucket-object.utility';
 
 /**
  * The injection token for the quarantine bucket's own S3 client.
@@ -136,16 +139,13 @@ export class QuarantineStorageService {
    * @returns The object's bytes.
    * @throws Error when the provider returns no body.
    */
-  async getStream(objectKey: string): Promise<Readable> {
-    const response = await this._s3Client.send(
-      new GetObjectCommand({ Bucket: this._bucketName, Key: objectKey }),
+  getStream(objectKey: string): Promise<Readable> {
+    return streamBucketObject(
+      this._s3Client,
+      this._bucketName,
+      objectKey,
+      'Quarantine object',
     );
-
-    if (!response.Body) {
-      throw new Error(`Quarantine object has no body: ${objectKey}`);
-    }
-
-    return response.Body as Readable;
   }
 
   /**
@@ -154,9 +154,7 @@ export class QuarantineStorageService {
    * @param objectKey - The key to remove.
    */
   async remove(objectKey: string): Promise<void> {
-    await this._s3Client.send(
-      new DeleteObjectCommand({ Bucket: this._bucketName, Key: objectKey }),
-    );
+    await deleteBucketObject(this._s3Client, this._bucketName, objectKey);
 
     this._logger.log(`[remove] Removed from quarantine - Key: ${objectKey}`);
   }
