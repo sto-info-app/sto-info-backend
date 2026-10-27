@@ -555,16 +555,48 @@ describe('ArmadaViewService', () => {
       expect(view.choices).toEqual([]);
     });
 
-    it('offers a placed Fleet’s requester nothing to join', async () => {
+    // FC-057: a placed Fleet is offered the other Armadas it could move to.
+    it('offers a placed Fleet’s requester the other Armadas, not its own', async () => {
       reader('user-admin', {
         capabilities: [FLEET_CAPABILITIES.ARMADA_REQUEST],
       });
+      db.seed(StoArmadaEntity, [
+        {
+          ...(armada as unknown as Row),
+          id: 'armada-other',
+          exactGameName: 'Other Armada',
+          slug: 'other-armada',
+        },
+      ]);
       place([['b1', BETA]]);
 
       const view = await service.fleetView(fleet('b1'), 'user-admin');
 
-      expect(view.choices).toEqual([]);
+      expect(view.choices.map(choice => choice.id)).toEqual(['armada-other']);
       expect(view.openRequest).toBeNull();
+    });
+
+    it('says where a Fleet with a request open sits now, which approval moves it from', async () => {
+      reader('user-admin', {
+        capabilities: [FLEET_CAPABILITIES.ARMADA_REQUEST],
+      });
+      db.seed(StoArmadaEntity, [
+        {
+          ...(armada as unknown as Row),
+          id: 'armada-other',
+          exactGameName: 'Other Armada',
+          slug: 'other-armada',
+        },
+      ]);
+      place([['b1', BETA]]);
+      request({ fleetId: 'b1', armadaId: 'armada-other' });
+
+      const view = await service.fleetView(fleet('b1'), 'user-admin');
+
+      expect(view.openRequest?.movingFrom).toEqual(
+        expect.objectContaining({ id: ARMADA_ID, name: 'Sol Armada' }),
+      );
+      expect(view.choices).toEqual([]);
     });
 
     it.each([

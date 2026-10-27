@@ -241,6 +241,16 @@ export class ArmadaRequestDto {
     nullable: true,
   })
   reason: string | null;
+
+  @ApiPropertyOptional({
+    type: ArmadaRefDto,
+    description:
+      'The Armada the Fleet sits in while this request is open, which it ' +
+      'leaves on approval (FC-057); null for a Fleet in none, and once the ' +
+      'request is answered.',
+    nullable: true,
+  })
+  movingFrom: ArmadaRefDto | null;
 }
 
 /** Which of an Armada's requests to list. */

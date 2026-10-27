@@ -112,7 +112,7 @@ export class ArmadaRequestService {
    * @throws NotFoundException for an unknown Fleet or Armada.
    * @throws BadRequestException for another platform or allegiance.
    * @throws ConflictException when either is closed, the Armada has no
-   *   allegiance, the Fleet is placed already or has a request open.
+   *   allegiance, the Fleet is in that Armada already or has a request open.
    */
   async request(
     communityId: string,
@@ -133,10 +133,13 @@ export class ArmadaRequestService {
 
         this.assertMayJoin(fleet, armada);
 
-        if ((await openPlacementOf(manager, fleet.id)) !== null) {
-          throw new ConflictException(
-            'This Fleet is in an Armada already. It has to leave that one first.',
-          );
+        // A placed Fleet may ask to move (FC-057): it keeps its place while
+        // the request waits, and leaves on approval. Only its own Armada is
+        // not worth asking.
+        if (
+          (await openPlacementOf(manager, fleet.id))?.armadaId === armada.id
+        ) {
+          throw new ConflictException('This Fleet is in that Armada already.');
         }
 
         const now = new Date();
@@ -223,8 +226,8 @@ export class ArmadaRequestService {
    * @param requestId - The request.
    * @param dto - Where the Fleet goes.
    * @param userId - The approver, holding `armada.manage` there.
-   * @throws ConflictException when the request is not open, or the Fleet can
-   *   no longer join.
+   * @throws ConflictException when the request is not open, the Fleet can
+   *   no longer join, or it has Gammas under it where it is now.
    * @throws BadRequestException when the place does not fit.
    */
   async approve(
@@ -248,11 +251,26 @@ export class ArmadaRequestService {
 
       this.assertMayJoin(fleet, armada);
 
-      if ((await openPlacementOf(manager, fleet.id)) !== null) {
-        throw new ConflictException('That Fleet is in an Armada already.');
+      const now = new Date();
+      const current = await openPlacementOf(manager, fleet.id);
+
+      if (current !== null) {
+        if (current.armadaId === armada.id) {
+          throw new ConflictException('That Fleet is in this Armada already.');
+        }
+
+        // A move (FC-057): the Fleet leaves where it is in the same change
+        // that places it, so it is never in two Armadas or in none. The old
+        // Armada is locked after this one; two approvals crossing between
+        // the same pair would be settled by the database, one of them
+        // failing to be tried again.
+        await this.leaveForMove(manager, communityId, current, fleet, armada, {
+          actorUserId: userId,
+          requestId: open.id,
+          now,
+        });
       }
 
-      const now = new Date();
       const started = await applyArmadaChange(
         manager,
         armada,
@@ -351,6 +369,55 @@ export class ArmadaRequestService {
     }
 
     return lapsed;
+  }
+
+  /**
+   * Takes a Fleet out of the Armada it sits in, as part of placing it in
+   * another (FC-057). The old Armada's history records the move, naming
+   * the Armada joined.
+   *
+   * @param manager - The approval's transaction.
+   * @param communityId - The Community named in the route.
+   * @param current - Where the Fleet sits now.
+   * @param fleet - The Fleet.
+   * @param joining - The Armada it is moving to.
+   * @param context - Who approved, which request, and when.
+   * @throws ConflictException when the Fleet has Gammas under it, which an
+   *   Armada manager has to move or remove first, as for leaving.
+   */
+  private async leaveForMove(
+    manager: EntityManager,
+    communityId: string,
+    current: ArmadaFleetMembershipEntity,
+    fleet: StoFleetEntity,
+    joining: StoArmadaEntity,
+    context: { actorUserId: string; requestId: string; now: Date },
+  ): Promise<void> {
+    const leaving = await lockArmada(manager, communityId, current.armadaId);
+    const placements = await openPlacements(manager, leaving.id);
+
+    if (
+      placements.some(placement => placement.parentMembershipId === current.id)
+    ) {
+      throw new ConflictException(
+        `${fleet.exactGameName} has Gammas under it in ` +
+          `${leaving.exactGameName}. An Armada manager has to move or ` +
+          'remove them before it can be moved.',
+      );
+    }
+
+    await applyArmadaChange(
+      manager,
+      leaving,
+      placements,
+      new Map([[fleet.id, { slot: null, action: ArmadaActionKind.LEFT }]]),
+      {
+        actorUserId: context.actorUserId,
+        reason: `Moved to ${joining.exactGameName}`,
+        requestId: context.requestId,
+        now: context.now,
+      },
+    );
   }
 
   /**

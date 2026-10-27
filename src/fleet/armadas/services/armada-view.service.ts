@@ -274,10 +274,16 @@ export class ArmadaViewService {
         request => request.status !== ArmadaJoinRequestStatus.PENDING,
       ) ?? null;
 
-    if (placement === null && open === undefined) {
+    // A placed Fleet may ask to move (FC-057), so it is offered the other
+    // Armadas it could join; one with a request open is offered nothing more.
+    if (open === undefined) {
       view.cannotRequestBecause = await this.cannotRequest(fleet);
       view.choices =
-        view.cannotRequestBecause === null ? await this.choicesFor(fleet) : [];
+        view.cannotRequestBecause === null
+          ? (await this.choicesFor(fleet)).filter(
+              choice => choice.id !== placement?.armadaId,
+            )
+          : [];
     }
 
     return view;
@@ -380,6 +386,13 @@ export class ArmadaViewService {
     ]);
     const refs = await this.armadaRefs(armadas);
     const now = Date.now();
+    // Where each Fleet with a request open sits now, which approval moves it
+    // out of (FC-057).
+    const movingFrom = await this.movingFrom(
+      requests.filter(
+        request => request.status === ArmadaJoinRequestStatus.PENDING,
+      ),
+    );
 
     return requests.map(request => ({
       id: request.id,
@@ -405,7 +418,58 @@ export class ArmadaViewService {
           ? null
           : (names.get(request.answeredByUserId) ?? null),
       reason: request.reason,
+      movingFrom: movingFrom.get(request.id) ?? null,
     }));
+  }
+
+  /**
+   * The Armada each open request's Fleet would leave on approval (FC-057):
+   * its open placement, where that is in another Armada.
+   *
+   * @param open - The open requests.
+   * @returns Each request's Armada to leave, by request; none for a Fleet in
+   *   no Armada.
+   */
+  private async movingFrom(
+    open: readonly ArmadaJoinRequestEntity[],
+  ): Promise<Map<string, ArmadaRefDto>> {
+    if (open.length === 0) {
+      return new Map();
+    }
+
+    const manager = this._dataSource.manager;
+    const placements = await manager.find(ArmadaFleetMembershipEntity, {
+      where: {
+        fleetId: In(open.map(request => request.fleetId)),
+        validTo: IsNull(),
+        deletedAt: IsNull(),
+      },
+    });
+    const armadaIds = [
+      ...new Set(placements.map(placement => placement.armadaId)),
+    ];
+    const armadas =
+      armadaIds.length === 0
+        ? []
+        : await manager.find(StoArmadaEntity, { where: { id: In(armadaIds) } });
+    const refs = await this.armadaRefs(armadas);
+    const refOf = new Map(
+      armadas.map((armada, index) => [armada.id, refs[index]]),
+    );
+
+    return new Map(
+      open.flatMap(request => {
+        const placement = placements.find(
+          candidate => candidate.fleetId === request.fleetId,
+        );
+        const ref =
+          placement === undefined || placement.armadaId === request.armadaId
+            ? undefined
+            : refOf.get(placement.armadaId);
+
+        return ref === undefined ? [] : [[request.id, ref] as const];
+      }),
+    );
   }
 
   /**

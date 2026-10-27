@@ -12,7 +12,9 @@ import { StoArmadaEntity } from '../../entities/sto-armada.entity';
 import { StoFleetEntity } from '../../entities/sto-fleet.entity';
 import { ArmadaPosition } from '../../enums/armada-position.enum';
 import { FleetScopeStatus } from '../../enums/fleet-scope-status.enum';
+import { ArmadaActionEntity } from '../entities/armada-action.entity';
 import { ArmadaJoinRequestEntity } from '../entities/armada-join-request.entity';
+import { ArmadaActionKind } from '../enums/armada-action-kind.enum';
 import { ArmadaJoinRequestStatus } from '../enums/armada-join-request-status.enum';
 import { ArmadaNotifierService } from './armada-notifier.service';
 import {
@@ -76,6 +78,7 @@ describe('ArmadaRequestService', () => {
     armada = {
       id: ARMADA_ID,
       communityId: COMMUNITY_ID,
+      exactGameName: 'Sol Armada',
       platformId: 'pc',
       allegianceFactionId: 'federation',
       status: FleetScopeStatus.ACTIVE,
@@ -148,6 +151,25 @@ describe('ArmadaRequestService', () => {
       expect(db.locks).toContain(StoFleetEntity);
     });
 
+    // FC-057: a placed Fleet asks to move, keeping its place meanwhile.
+    it('lets a Fleet in another Armada ask, keeping its place', async () => {
+      db.seed(ArmadaFleetMembershipEntity, [
+        {
+          id: 'placement-old',
+          armadaId: 'armada-old',
+          fleetId: FLEET_ID,
+          position: ArmadaPosition.BETA,
+          validTo: null,
+          deletedAt: null,
+        },
+      ]);
+
+      await ask();
+
+      expect(db.rows<Row>(ArmadaJoinRequestEntity)).toHaveLength(1);
+      expect(db.rows<Row>(ArmadaFleetMembershipEntity)[0].validTo).toBeNull();
+    });
+
     it('lapses an expired open request first, so a new one can be made', async () => {
       requestRow({ expiresAt: new Date(Date.now() - 1000) });
 
@@ -215,15 +237,18 @@ describe('ArmadaRequestService', () => {
         ),
       ],
       [
-        'a Fleet placed already',
+        'a Fleet in that Armada already',
         () => {
           db.seed(ArmadaFleetMembershipEntity, [
-            { fleetId: FLEET_ID, validTo: null, deletedAt: null },
+            {
+              armadaId: ARMADA_ID,
+              fleetId: FLEET_ID,
+              validTo: null,
+              deletedAt: null,
+            },
           ]);
         },
-        new ConflictException(
-          'This Fleet is in an Armada already. It has to leave that one first.',
-        ),
+        new ConflictException('This Fleet is in that Armada already.'),
       ],
       [
         'a Fleet with a request open',
@@ -348,11 +373,11 @@ describe('ArmadaRequestService', () => {
       await expect(approve()).rejects.toBeInstanceOf(BadRequestException);
     });
 
-    it('refuses a Fleet placed meanwhile', async () => {
+    it('refuses a Fleet placed in this Armada meanwhile', async () => {
       requestRow();
       db.seed(ArmadaFleetMembershipEntity, [
         {
-          armadaId: 'another',
+          armadaId: ARMADA_ID,
           fleetId: FLEET_ID,
           validTo: null,
           deletedAt: null,
@@ -360,8 +385,97 @@ describe('ArmadaRequestService', () => {
       ]);
 
       await expect(approve()).rejects.toThrow(
-        new ConflictException('That Fleet is in an Armada already.'),
+        new ConflictException('That Fleet is in this Armada already.'),
       );
+    });
+
+    // FC-057: approval moves a placed Fleet out of its old Armada as it
+    // places it, the old history saying where it went.
+    describe('a move', () => {
+      beforeEach(() => {
+        db.seed(StoArmadaEntity, [
+          {
+            ...armada,
+            id: 'armada-old',
+            exactGameName: 'Old Armada',
+          },
+        ]).seed(ArmadaFleetMembershipEntity, [
+          {
+            id: 'placement-old',
+            communityId: COMMUNITY_ID,
+            armadaId: 'armada-old',
+            fleetId: FLEET_ID,
+            position: ArmadaPosition.BETA,
+            parentMembershipId: null,
+            validFrom: new Date(Date.now() - 2 * DAY),
+            validTo: null,
+            deletedAt: null,
+          },
+        ]);
+      });
+
+      it('takes the Fleet out of its old Armada as it places it in the new', async () => {
+        const request = requestRow();
+
+        await approve();
+
+        const placements = db.rows<Row>(ArmadaFleetMembershipEntity);
+        const old = placements.find(row => row.id === 'placement-old');
+        const placed = placements.find(
+          row => row.armadaId === ARMADA_ID && !row.validTo,
+        );
+
+        expect(old?.validTo).not.toBeNull();
+        expect(placed).toMatchObject({
+          fleetId: FLEET_ID,
+          position: ArmadaPosition.BETA,
+        });
+        expect(request).toMatchObject({
+          status: ArmadaJoinRequestStatus.APPROVED,
+          membershipId: placed?.id,
+        });
+        expect(db.locks).toEqual([StoArmadaEntity, StoArmadaEntity]);
+        expect(
+          db
+            .rows<Row>(ArmadaActionEntity)
+            .filter(row => row.armadaId === 'armada-old')
+            .map(row => [row.action, row.reason]),
+        ).toEqual([[ArmadaActionKind.LEFT, 'Moved to Sol Armada']]);
+        expect(notifier.approved).toHaveBeenCalledWith(
+          request,
+          ArmadaPosition.BETA,
+        );
+      });
+
+      it('refuses to move a Beta with Gammas under it', async () => {
+        requestRow();
+        db.seed(ArmadaFleetMembershipEntity, [
+          {
+            id: 'placement-gamma',
+            communityId: COMMUNITY_ID,
+            armadaId: 'armada-old',
+            fleetId: 'fleet-gamma',
+            position: ArmadaPosition.GAMMA,
+            parentMembershipId: 'placement-old',
+            validFrom: new Date(Date.now() - DAY),
+            validTo: null,
+            deletedAt: null,
+          },
+        ]);
+
+        await expect(approve()).rejects.toThrow(
+          new ConflictException(
+            'Ninth Fleet has Gammas under it in Old Armada. An Armada ' +
+              'manager has to move or remove them before it can be moved.',
+          ),
+        );
+        expect(
+          db
+            .rows<Row>(ArmadaFleetMembershipEntity)
+            .find(row => row.id === 'placement-old')?.validTo,
+        ).toBeNull();
+        expect(notifier.approved).not.toHaveBeenCalled();
+      });
     });
 
     it('refuses a place that does not fit', async () => {
