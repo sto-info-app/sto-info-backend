@@ -1,6 +1,6 @@
 {
   "name": "sto-info-backend",
-  "version": "1.4.41",
+  "version": "1.4.42",
   "description": "Star Trek Online Information APIs",
   "author": "Steve Roberts",
   "private": true,
@@ -130,8 +130,12 @@
     "typescript": "^6.0.3"
   },
   "overrides": {
-    "argparse": "^2.0.1",
-    "qs": "^6.16.0"
+    "@nestjs/platform-express": {
+      "multer": "$multer"
+    },
+    "typed-rest-client": {
+      "qs": "^6.16.1"
+    }
   },
   "lint-staged": {
     "*.ts": [
