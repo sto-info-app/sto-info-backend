@@ -48,7 +48,7 @@ A Fleet can also be recorded with no Community at all, as a Fleet nobody here ru
 
 ### Find a Fleet, or follow a Community
 
-The new **Fleet Directory**, under Fleets in the side bar, lists the public Communities, Fleets and Armadas on three tabs. Search them by name, and narrow the Fleets by platform, allegiance, whether they are recruiting and when their roster was last imported. Every card tells two records of the same name apart.
+The new **Fleet Directory**, under Fleets in the side bar, lists the public Communities, Fleets and Armadas on three tabs. Search them by name, and narrow the Fleets by platform, allegiance, whether they are recruiting and when their roster was last imported. Every card tells two records of the same name apart, and a Fleet's names the Armada it sits in and its position there.
 
 Signed in, you can **follow a Community** to see what it publishes to its followers. The Communities you follow are gathered on a new Fleets tile on your Dashboard, with your upcoming events and your Fleet activity beneath them.
 
@@ -74,13 +74,13 @@ Those who run a Fleet decide applications, invite people by their STO Info usern
 
 If your Fleet is on Windows, you can import the roster export the game writes. STO Info checks the file before anything is kept, tells you how it would be read, and discards the officer-only comment columns before it reads a single row.
 
-Each export is a snapshot of one moment, and the more of them a Fleet imports, the more its **History** can say: who joined, rejoined or left, who was renamed, whose rank changed, and how contribution rose between one export and the next. Renames are suggested with a confidence, never assumed, and a Fleet's investigators can confirm or reject them, order the Fleet's ranks, correct an import read on the wrong clock, and settle two exports that disagree.
+Each export is a snapshot of one moment, and the more of them a Fleet imports, the more its **History** can say: who joined, rejoined or left, who was renamed, whose rank changed, and how contribution rose between one export and the next. Renames are suggested with a confidence, never assumed, and a Fleet's investigators can confirm or reject them, order the Fleet's ranks, correct an import read on the wrong clock, and settle two exports that disagree. Each import's rows can be sorted, and searched by name or by rank.
 
-Eight **Reports** turn those records into tables and charts: Growth, Activity, Tenure, Ranks and Contribution from the roster history, and Attendance, Recruitment and Holdings from what the Fleet does on STO Info. The Fleet's Owner chooses who sees each one, any report can be downloaded as a CSV file, and a figure that would let a single member be picked out is hidden.
+Eight **Reports** turn those records into tables and charts: Growth, Activity, Tenure, Ranks and Contribution from the roster history, and Attendance, Recruitment and Holdings from what the Fleet does on STO Info. Contribution can be read by Character or summed by account handle, since a player's Characters are each listed on their own. The Fleet's Owner chooses who sees each one, any report can be downloaded as a CSV file, and a figure that would let a single member be picked out is hidden.
 
 ### Armadas and holdings
 
-A Fleet asks to join an Armada from its own page, and the Armada's managers approve it into an Alpha, Beta or Gamma position, move it, or let it go, with every placement kept in the Armada's history. While a Fleet is in an Armada, its members are members of the Armada too.
+A Fleet asks to join an Armada from its own page, or to move to another from its Settings page, and the Armada's managers approve it into an Alpha, Beta or Gamma position, move it, or let it go, with every placement kept in the Armada's history. While a Fleet is in an Armada, its members are members of the Armada too.
 
 A Fleet's **Holdings** tab records how far it has got with each of its holdings, from the Fleet Starbase to the Fleet Colony World, track by track, with a history of every change.
 

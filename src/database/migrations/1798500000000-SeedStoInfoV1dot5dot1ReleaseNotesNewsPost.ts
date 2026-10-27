@@ -40,14 +40,14 @@ STO Info 1.5.1 is the largest update the site has had. It introduces Fleet Commu
 
 Fleet Communities records the groups you play with. You can now:
 
-- browse the Fleet Directory's Communities, Fleets and Armadas, and follow a Community;
+- browse the Fleet Directory's Communities, Fleets and Armadas, each Fleet's card naming its Armada and position, and follow a Community;
 - register your own Community, its Fleets and its Armadas, with artwork, a description and a choice of who can see each;
 - run each one through four roles, Owner, Admin, Officer and Member, delegating exactly what each Officer may do;
 - say which Fleet each of your Captains is in, and answer when a roster asks;
 - recruit, with open joining, application forms of up to 20 questions, or invitations, and follow your own applications from your Dashboard;
 - import the game's roster exports, read a Fleet's history of joins, departures, renames, rank changes and contribution, and correct it;
-- read eight reports, Growth, Activity, Tenure, Ranks, Contribution, Attendance, Recruitment and Holdings, and download them as CSV files;
-- arrange Fleets into Armadas, and record each Fleet's holdings tier by tier;
+- read eight reports, Growth, Activity, Tenure, Ranks, Contribution, Attendance, Recruitment and Holdings, with Contribution by Character or by account handle, and download them as CSV files;
+- arrange Fleets into Armadas, move a Fleet from one to another, and record each Fleet's holdings tier by tier;
 - publish news with covers, follow an activity feed, and schedule once-only or repeating events with answers, waitlists, reminders and attendance;
 - chat in channels for your Fleet, Armada and Community, and with friends, with replies, mentions, emoji, presence and typing;
 - report a member or a message to the site's administrators, and ask for your roster data to be erased.
@@ -96,6 +96,8 @@ Contact us offers a Fleet Communities topic for anything about the Fleet section
 - The Developers, Volunteers and Supporters pages under About show each person as an LCARS panel, in the shape the rest of the site uses.
 - A day you typed, such as when an STO account or a Character was created, is now kept as a date and no longer shifts with the clock.
 - A Captain's page links to its account's Endeavour Perks, and its rank icon is named by its rank for screen readers.
+- Your Accounts copies an STO account's username or email to the clipboard from its card.
+- STO Resources lists the STO Keybind Tool under Build Tools & DPS Resources.
 - Chat, its log and every message's actions can be used from the keyboard, and the site honours reduced motion throughout.
 - Storytime closes a removed item's open reports, and deleting a Story deletes its Chapters, cast and pictures with it.
 - Custom Tracking takes a deleted account's or Character's answers with it.
