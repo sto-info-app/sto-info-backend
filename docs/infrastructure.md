@@ -26,7 +26,7 @@ npm install && npm run build
 npm run start:prod
 ```
 
-**Environment:** Node
+**Environment:** Node. Render's native runtime reads the version from `.nvmrc` (currently `24.22.1`, the October 2026 security release that drops trust in the compromised eMudhra intermediates). A change to `.nvmrc` takes effect on the next build, so redeploy after bumping it.
 
 **Deployment:**
 

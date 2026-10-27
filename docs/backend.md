@@ -6,6 +6,8 @@ This project is built with TypeScript strict mode enabled.
 
 - `strict` is enabled in `tsconfig.json`.
 - `strictPropertyInitialization` is disabled to accommodate TypeORM entity patterns (entities are typically constructed by the ORM rather than via constructors).
+- Imports may start with `src/` (e.g. `import { SecretsService } from 'src/shared/secrets/secrets.service'`). That alias is a `paths` entry (`"src/*": ["./src/*"]`) resolved relative to `tsconfig.json`; there is no `baseUrl`, so any other top-level folder (such as `config/`) must be imported with a relative path. Jest mirrors the alias in `moduleNameMapper`, `nest build` rewrites it in the emitted JavaScript, and `ts-node` scripts load it through `tsconfig-paths/register`.
+- The project compiles with TypeScript 6 but is kept free of options TypeScript 7 removes (no `baseUrl`, no `ignoreDeprecations`). See [security.md](security.md#typescript-compatibility-gate-re-checked-2026-10-27) for why it has not moved to 7 yet.
 
 ## Authentication and Authorisation
 
