@@ -53,7 +53,7 @@ export class ContactService {
       supportHtmlContent,
     );
 
-    await this._mailService.sendEmailWithFallback({
+    await this._mailService.sendEmail({
       ...supportMessage,
       replyTo: {
         email: payload.email,
@@ -71,7 +71,7 @@ export class ContactService {
       userHtmlContent,
     );
 
-    await this._mailService.sendEmailWithFallback(userMessage);
+    await this._mailService.sendEmail(userMessage);
   }
 
   /**

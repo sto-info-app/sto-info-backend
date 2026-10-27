@@ -12,16 +12,16 @@ import { ContactRequestEntity } from './entities/contact-request.entity';
 describe('ContactService', () => {
   let service: ContactService;
   type MailServiceMock = jest.Mocked<
-    Pick<MailService, 'generateEmailMessageObject' | 'sendEmailWithFallback'>
+    Pick<MailService, 'generateEmailMessageObject' | 'sendEmail'>
   >;
-  type EmailMessage = Parameters<MailService['sendEmailWithFallback']>[0];
+  type EmailMessage = Parameters<MailService['sendEmail']>[0];
   let mailService: MailServiceMock;
   let repository: Repository<ContactRequestEntity>;
 
   beforeEach(async () => {
     mailService = {
       generateEmailMessageObject: jest.fn(),
-      sendEmailWithFallback: jest.fn(),
+      sendEmail: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -97,14 +97,12 @@ describe('ContactService', () => {
 
     expect(supportTextContent).toContain('Hello <b>there</b>');
     expect(supportHtmlContent).toContain('Hello &lt;b&gt;there&lt;/b&gt;');
-    expect(mailService.sendEmailWithFallback).toHaveBeenCalledWith({
+    expect(mailService.sendEmail).toHaveBeenCalledWith({
       ...supportMessageStub,
       replyTo: { email: payload.email, name: payload.name },
     });
 
-    expect(mailService.sendEmailWithFallback).toHaveBeenCalledWith(
-      userMessageStub,
-    );
+    expect(mailService.sendEmail).toHaveBeenCalledWith(userMessageStub);
   });
 
   it('should mask short email local parts', async () => {
