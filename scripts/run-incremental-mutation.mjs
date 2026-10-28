@@ -128,12 +128,32 @@ function main() {
     `Mutating ${changedFiles.length} file(s): ${mutateArg}\n`,
   );
 
+  // Concurrency 2 and a shorter runner reuse keep the run inside a 16GB
+  // GitHub runner. At the config's concurrency of 4, mutating
+  // mail.service.ts alone peaked at 18.3GB across Stryker's processes, with
+  // one test runner reaching 6.9GB before its eighth reuse, and the hosted
+  // runner was shut down mid-run on two attempts. The full workflow passes
+  // --concurrency 2 for the same reason.
+  //
   // `shell` is required on Windows, where `npx` resolves to `npx.cmd` and a
   // shell-less spawn fails with ENOENT, so the script cannot be run locally.
-  const result = spawnSync('npx', ['stryker', 'run', '--mutate', mutateArg], {
-    stdio: 'inherit',
-    shell: process.platform === 'win32',
-  });
+  const result = spawnSync(
+    'npx',
+    [
+      'stryker',
+      'run',
+      '--mutate',
+      mutateArg,
+      '--concurrency',
+      '2',
+      '--maxTestRunnerReuse',
+      '4',
+    ],
+    {
+      stdio: 'inherit',
+      shell: process.platform === 'win32',
+    },
+  );
 
   if (result.error) {
     throw result.error;

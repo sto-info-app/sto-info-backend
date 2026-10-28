@@ -13,6 +13,11 @@ updates:
     rebase-strategy: 'auto'
     labels:
       - 'dependencies'
+    ignore:
+      # TypeScript 7 drops the compiler API that Angular, typescript-eslint,
+      # ts-jest and the Nest CLI load; hold majors until they support it.
+      - dependency-name: 'typescript'
+        update-types: ['version-update:semver-major']
     groups:
       minor-and-patch:
         applies-to: version-updates

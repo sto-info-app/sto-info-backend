@@ -6,6 +6,8 @@ This project is built with TypeScript strict mode enabled.
 
 - `strict` is enabled in `tsconfig.json`.
 - `strictPropertyInitialization` is disabled to accommodate TypeORM entity patterns (entities are typically constructed by the ORM rather than via constructors).
+- Imports may start with `src/` (e.g. `import { SecretsService } from 'src/shared/secrets/secrets.service'`). That alias is a `paths` entry (`"src/*": ["./src/*"]`) resolved relative to `tsconfig.json`; there is no `baseUrl`, so any other top-level folder (such as `config/`) must be imported with a relative path. Jest mirrors the alias in `moduleNameMapper`, `nest build` rewrites it in the emitted JavaScript, and `ts-node` scripts load it through `tsconfig-paths/register`.
+- The project compiles with TypeScript 6 but is kept free of options TypeScript 7 removes (no `baseUrl`, no `ignoreDeprecations`). See [security.md](security.md#typescript-compatibility-gate-re-checked-2026-10-27) for why it has not moved to 7 yet.
 
 ## Authentication and Authorisation
 
@@ -324,18 +326,17 @@ If legitimate traffic is being throttled:
 
 ## Email
 
-`MailService` (`src/mail/mail.service.ts`) sends every email through Amazon SES and falls back to
-SendGrid when SES refuses one. Sign-up, verification, password changes, account closure, the
-contact form and **every successful sign-in** send one, in every environment; only the subject
-says which (`[local]`, for instance).
+`MailService` (`src/mail/mail.service.ts`) sends every email through Amazon SES, the only email
+sender. A failed send is logged rather than thrown. Sign-up, verification, password changes,
+account closure, the contact form and **every successful sign-in** send one, in every
+environment; only the subject says which (`[local]`, for instance).
 
-**Reserved domains are never mailed (FC-044).** Before sending, `sendEmailWithFallback` skips any
+**Reserved domains are never mailed (FC-044).** Before sending, `sendEmail` skips any
 address at `example.com`, `example.net` or `example.org`, or under `.example`, `.invalid`, `.test`
 or `.localhost` (`src/mail/utilities/reserved-mail-domain.utility.ts`), and logs the domain and
 subject it skipped. RFC 2606 and RFC 6761 reserve those names, so no mailbox can exist there.
 Seeded demonstration members and the end-to-end journeys' disposable accounts live at them, and a
-sign-in of theirs would otherwise bounce, or reach SendGrid after SES refused it, at a cost to the
-sender's standing for real mail.
+sign-in of theirs would otherwise bounce, at a cost to the sender's standing for real mail.
 
 ## File Upload Endpoints
 

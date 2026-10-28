@@ -485,9 +485,9 @@ content without deleting it.
 
 That wording is drafted in
 [custom-tracking-policy-changes.md](./custom-tracking-policy-changes.md)
-and has deliberately not been published. Editing the live pages moves their
-effective date and changes what members are legally told, which is the site
-owner's decision rather than an implementation detail.
+and is not yet published. Editing the live pages moves their effective date and
+changes what members are legally told, so publishing is a separate step from
+releasing the code.
 
 ## Releasing it
 

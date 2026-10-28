@@ -16,8 +16,8 @@ const RESERVED_TOP_LEVEL = new Set(['example', 'invalid', 'test', 'localhost']);
  * (FC-044).
  *
  * Test and demonstration accounts use these domains, and every sign-in sends
- * an email: sent, it would bounce, or go to SendGrid after SES refused it,
- * and either harms the sender's standing for real mail.
+ * an email: sent, it would bounce, and that harms the sender's standing for
+ * real mail.
  *
  * @param address - The recipient's address.
  * @returns The domain when it is reserved, otherwise null.

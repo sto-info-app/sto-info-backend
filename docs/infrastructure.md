@@ -35,7 +35,7 @@ pending migrations before the API starts. A rollback does the same with the olde
 migrations, which against a newer database is a no-op; see
 [Rolling back the application](image-delivery.md#rolling-back-the-application).
 
-**Environment:** Node
+**Environment:** Node. Render's native runtime reads the version from `.nvmrc` (currently `24.22.1`, the October 2026 security release that drops trust in the compromised eMudhra intermediates). A change to `.nvmrc` takes effect on the next build, so redeploy after bumping it.
 
 **Deployment:**
 

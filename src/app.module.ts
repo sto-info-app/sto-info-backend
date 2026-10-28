@@ -10,9 +10,9 @@ import { MulterModule } from '@nestjs/platform-express';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { SentryModule } from '@sentry/nestjs/setup';
-import { getTypeOrmConfig } from 'config/typeorm.config';
 import { ClsModule } from 'nestjs-cls';
 
+import { getTypeOrmConfig } from '../config/typeorm.config';
 import { AccessControlModule } from './access-control/access-control.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';

@@ -80,7 +80,7 @@ Documentation is in [docs/](docs/).
 
 ### Prerequisites
 
-- Node.js (version 24.x)
+- Node.js 24.22.1 or later 24.x (pinned in `.nvmrc`; 24.22.1 is the October 2026 security release)
 - npm (version 10.x or higher)
 - PostgreSQL database (version 14.x or higher)
 - Redis (version 6.x or higher)

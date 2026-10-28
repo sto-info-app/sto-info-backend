@@ -3,17 +3,14 @@ import * as path from 'node:path';
 import { Injectable, Logger } from '@nestjs/common';
 
 import { MailerService } from '@nestjs-modules/mailer';
-import sgMail from '@sendgrid/mail';
-import type { MailDataRequired } from '@sendgrid/mail';
 import * as ejs from 'ejs';
 import { convert as htmlToText } from 'html-to-text';
 
-import { SecretsService } from 'src/shared/secrets/secrets.service';
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
 
 import { reservedMailDomain } from './utilities/reserved-mail-domain.utility';
 
-/** Shape of an internal email message used for both SES and SendGrid */
+/** Shape of an internal email message, sent through Amazon SES */
 export interface EmailMessage {
   to: string;
   from: { name: string; email: string };
@@ -26,13 +23,6 @@ export interface EmailMessage {
 @Injectable()
 export class MailService {
   private readonly _logger = new Logger('MailService');
-
-  /**
-   * Whether the AWS secret carried a SendGrid key. SES is the primary sender
-   * and the key is optional: without it there is no fallback, and a failed
-   * SES send is reported rather than retried.
-   */
-  private _sendGridConfigured = false;
 
   private readonly _noReplyEmailFromSender: { name: string; email: string } = {
     name: process.env.APP_TITLE!,
@@ -49,12 +39,10 @@ export class MailService {
   /**
    * Creates an instance of MailService.
    *
-   * @param _secretsService - The secrets service.
    * @param _validatorsService - The validators service.
    * @param _mailerService - The mailer service.
    */
   constructor(
-    private readonly _secretsService: SecretsService,
     private readonly _validatorsService: ValidatorsService,
     private readonly _mailerService: MailerService,
   ) {
@@ -72,7 +60,6 @@ export class MailService {
       'APP_TITLE',
       'EMAIL_NOREPLY_SENDER',
       'APP_FRONTEND_URL',
-      'AWS_SECRET_NAME',
       'AWS_SES_CONFIGURATION_SET',
     ];
     for (const envVar of requiredEnvVars) {
@@ -80,43 +67,6 @@ export class MailService {
         throw new Error(`Environment variable ${envVar} is not set`);
       }
     }
-  }
-
-  /**
-   * Initialise the mail service by setting the SendGrid API key, when the
-   * secret has one.
-   *
-   * @returns A promise that resolves when initialisation is complete.
-   */
-  async onModuleInit() {
-    await this.init();
-  }
-
-  /**
-   * Initialise the mail service — fetches secrets for the SendGrid fallback.
-   *
-   * A secret without a `sendGridApiKey` is allowed: SES sends the mail, and
-   * the service records that there is no fallback rather than handing
-   * SendGrid an empty key.
-   *
-   * @returns A promise that resolves when primary initialisation is complete.
-   */
-  private async init() {
-    const secretObject = await this._secretsService.getSecret(
-      process.env.AWS_SECRET_NAME!,
-    );
-    const sendGridApiKey: unknown = secretObject?.sendGridApiKey;
-
-    if (typeof sendGridApiKey === 'string' && sendGridApiKey.trim() !== '') {
-      sgMail.setApiKey(sendGridApiKey);
-      this._sendGridConfigured = true;
-
-      return;
-    }
-
-    this._logger.warn(
-      'The AWS secret has no sendGridApiKey. SES is the only sender; there is no fallback.',
-    );
   }
 
   /**
@@ -165,7 +115,7 @@ export class MailService {
       emailHtmlContent,
     );
 
-    await this.sendEmailWithFallback(msg);
+    await this.sendEmail(msg);
   }
 
   /**
@@ -199,7 +149,7 @@ export class MailService {
       emailHtmlContent,
     );
 
-    await this.sendEmailWithFallback(msg);
+    await this.sendEmail(msg);
   }
 
   /**
@@ -225,7 +175,7 @@ export class MailService {
       emailHtmlContent,
     );
 
-    await this.sendEmailWithFallback(msg);
+    await this.sendEmail(msg);
   }
 
   /**
@@ -250,7 +200,7 @@ export class MailService {
       emailHtmlContent,
     );
 
-    await this.sendEmailWithFallback(msg);
+    await this.sendEmail(msg);
   }
 
   /**
@@ -276,7 +226,7 @@ export class MailService {
       emailHtmlContent,
     );
 
-    await this.sendEmailWithFallback(msg);
+    await this.sendEmail(msg);
   }
 
   /**
@@ -301,19 +251,20 @@ export class MailService {
       htmlContent,
     );
 
-    await this.sendEmailWithFallback(msg);
+    await this.sendEmail(msg);
   }
 
   /**
-   * Send an email via Amazon SES (primary), falling back to SendGrid on failure.
+   * Send an email via Amazon SES.
    *
-   * Without a SendGrid key the failure is logged as an error and the message
-   * is not retried, which is the same outcome a failed SendGrid send has.
+   * A failed send is logged as an error rather than thrown, so a caller's
+   * request is not failed by an email it triggered as a side effect. The
+   * mailer retries transient SES failures itself before giving up.
    *
    * @param message - The email message to send.
-   * @returns A promise that resolves when the email has been sent (via either provider).
+   * @returns A promise that resolves once SES has accepted the email or the failure has been logged.
    */
-  async sendEmailWithFallback(message: EmailMessage): Promise<void> {
+  async sendEmail(message: EmailMessage): Promise<void> {
     // No mailbox can exist at a reserved domain, which is where test and
     // demonstration accounts live (FC-044); sent, it would only bounce.
     const reserved = reservedMailDomain(message.to);
@@ -332,20 +283,7 @@ export class MailService {
       const reason =
         sesError instanceof Error ? sesError.message : String(sesError);
 
-      if (!this._sendGridConfigured) {
-        this._logger.error(
-          'Amazon SES sending failed and there is no SendGrid fallback.',
-          reason,
-        );
-
-        return;
-      }
-
-      this._logger.warn(
-        'Amazon SES sending failed — falling back to SendGrid.',
-        reason,
-      );
-      await this.sendEmailViaSendGrid(this.toSendGridMessage(message));
+      this._logger.error('Amazon SES sending failed.', reason);
     }
   }
 
@@ -402,42 +340,6 @@ export class MailService {
   }
 
   /**
-   * Send an email via SendGrid (fallback).
-   *
-   * @param message - The SendGrid email message to send.
-   * @returns A promise that resolves when the email has been sent via SendGrid.
-   */
-  async sendEmailViaSendGrid(message: MailDataRequired) {
-    try {
-      await sgMail.send(message);
-    } catch (error) {
-      const err = error as any;
-      if (err?.response?.body?.errors) {
-        this._logger.error(err.response.body.errors);
-      } else {
-        this._logger.error(err);
-      }
-    }
-  }
-
-  /**
-   * Convert an internal EmailMessage to a SendGrid MailDataRequired object.
-   *
-   * @param message - The internal email message.
-   * @returns A SendGrid MailDataRequired object.
-   */
-  toSendGridMessage(message: EmailMessage): MailDataRequired {
-    return {
-      to: message.to,
-      from: message.from,
-      subject: message.subject,
-      text: message.text,
-      html: message.html,
-      ...(message.replyTo ? { replyTo: message.replyTo } : {}),
-    };
-  }
-
-  /**
    * Validate email format using the internal validators service.
    *
    * @param email - The email address to validate.
@@ -457,7 +359,7 @@ export class MailService {
    * @param subject - The subject of the email.
    * @param text - The plain text content of the email.
    * @param html - The HTML content of the email.
-   * @returns An EmailMessage object ready for use by SES or SendGrid.
+   * @returns An EmailMessage object ready to send through SES.
    */
   generateEmailMessageObject(
     to: string,

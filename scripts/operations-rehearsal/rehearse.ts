@@ -291,7 +291,6 @@ export class Rehearsal {
     this.secret = {
       dbPassword: this.config.postgresPassword,
       jwtSecret: generated(),
-      sendGridApiKey: generated(),
       sesEmailHmacSecret: generated(),
       rosterErasureKey: generated(),
       cloudflareImagesAccountId: 'ops-rehearsal',

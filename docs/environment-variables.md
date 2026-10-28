@@ -52,7 +52,7 @@ connection budget to be sized and monitored separately from the limiter's.
 
 ### Email
 
-- `EMAIL_NOREPLY_SENDER`: From address for all outbound email (used by both SES and SendGrid fallback)
+- `EMAIL_NOREPLY_SENDER`: From address for all outbound email, which is sent through Amazon SES
 
 ### AWS Secrets Manager
 
@@ -181,7 +181,7 @@ The secret referenced by `AWS_SECRET_NAME` is expected to be JSON with at least:
 
 - `jwtSecret`: Used to sign JWT access tokens
 - `dbPassword`: Used as the PostgreSQL password for TypeORM
-- `sendGridApiKey`: Optional. Used by SendGrid for outbound email (fallback when SES fails). Without it the backend starts, logs once that SES is the only sender, and reports a failed SES send instead of retrying it.
+- `sendGridApiKey`: No longer read. SendGrid was removed on 2026-10-27 and Amazon SES is the only email sender, so the key can be deleted from the secret.
 - `cloudflareR2GatedAccessKey`: Reads and deletes objects in the public R2 bucket (the legacy
   Character portraits). Required: the API refuses to start without it
 - `cloudflareR2GatedSecret`: The secret half of that key pair. Required

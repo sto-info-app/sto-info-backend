@@ -60,7 +60,7 @@ unscanned is published.
 4. **Take a picture down** through the feature that shows it: Custom Tracking and Storytime
    moderation, or a rescan finding (take down, with a reason). There is no site admin route to
    withdraw a picture by its ID alone.
-5. **Revoke a secret** you think has leaked. Revoke it at the provider (Cloudflare, AWS, SendGrid),
+5. **Revoke a secret** you think has leaked. Revoke it at the provider (Cloudflare, AWS),
    put the new value in the AWS secret, and redeploy the service that reads it: both applications
    read their secret once and keep it for the life of the process. See
    [Security](../security.md#secrets-management-policy-silvergold) and the key list in

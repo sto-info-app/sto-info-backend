@@ -21,9 +21,11 @@ Current overrides in `package.json`:
 ```json
 "overrides": {
   "argparse": "^2.0.1",
-  "qs": "^6.16.0"
+  "qs": "^6.17.0"
 }
 ```
+
+Re-checked on **2026-10-27** during the Node.js 24.22.1 / dependency refresh: both entries are still needed, and `npm audit` reports nothing at any severity.
 
 As of **2026-10-06**, rechecked after the `@nestjs-modules/mailer@3` / `ejs@7` refresh, these are the only two overrides the backend needs. The `nodemailer` entry added on 2026-10-04 was dropped the same day `mailer@3` removed its reason to exist, and the `mailparser`, `nanoid`, `js-yaml`, and `typeorm.ioredis` entries were verified redundant earlier — see [Recently Removed Overrides](#recently-removed-overrides). Each remaining entry was re-confirmed on 2026-10-06 by removing it, reinstalling, and re-auditing: without it an advisory returns.
 
@@ -44,15 +46,46 @@ npm ls sprintf-js
 
 - **Vulnerabilities**: [GHSA-q8mj-m7cp-5q26](https://github.com/advisories/GHSA-q8mj-m7cp-5q26) — remotely triggerable DoS (`qs.stringify` crashes on null/undefined entries in comma-format arrays); [GHSA-x5fp-wj9c-mxmx](https://github.com/advisories/GHSA-x5fp-wj9c-mxmx) — array-limit bypass via bracket-key comma parsing; [GHSA-4mjr-xmp4-gh2g](https://github.com/advisories/GHSA-4mjr-xmp4-gh2g) — DoS via attacker-controlled `isBuffer`. Together these cover `qs 2.2.5 - 6.15.3`; `6.16.0` is the first release patched against all three.
 - **Root cause**: `typed-rest-client@2.3.1` (via `@stryker-mutator/core`) pins `qs@6.15.1` exactly.
-- **Override**: `"qs": "^6.16.0"` — global pin; the whole tree dedupes to a single patched `qs` (currently `6.16.0`). A nested `"typed-rest-client": { "qs": ... }` form was tried first but npm did not reify it reliably, so the global form is used.
+- **Override**: `"qs": "^6.17.0"` — global pin; the whole tree dedupes to a single patched `qs` (currently `6.17.0`, raised from `^6.16.0` on 2026-10-27 to track the current release). A nested `"typed-rest-client": { "qs": ... }` form was tried first but npm did not reify it reliably, so the global form is used.
 - **Raised from `^6.15.2` on 2026-09-03**: the two later advisories extended the vulnerable range up to and including `6.15.3`, which the old caret range still permitted.
 
-**When it can be removed**: When Stryker moves to `typed-rest-client@3`. Re-checked 2026-10-06: `typed-rest-client@3.1.2` already depends on `qs@^6.16.0`, but `@stryker-mutator/core@10.0.0` still pins `typed-rest-client@~2.3.0`, whose newest release (`2.3.1`) keeps the exact `qs@6.15.1` pin. Check with:
+**When it can be removed**: When Stryker moves to `typed-rest-client@3`. Re-checked 2026-10-27: `typed-rest-client@3.1.2` already depends on `qs@^6.16.0`, but `@stryker-mutator/core@10.1.1` still pins `typed-rest-client@~2.3.0`, whose newest release (`2.3.1`) keeps the exact `qs@6.15.1` pin. Check with:
 
 ```sh
 npm view @stryker-mutator/core@latest dependencies.typed-rest-client
 npm view typed-rest-client@2 dependencies.qs
 ```
+
+#### `@nestjs-modules/mailer@4` and SendGrid removed (2026-10-27)
+
+Amazon SES is now the only email sender. `@sendgrid/mail` and the SendGrid
+fallback are gone, and `MailService` no longer reads the AWS secret:
+`sendEmail` sends through SES and logs a failure instead of throwing, which is
+what a failed send without a SendGrid key already did. Removing
+`@sendgrid/mail` also removed the only production path to `deepmerge`
+(GHSA-gcqx-w48m-w2h4, low, no patched release); see
+[SECURITY.md](../SECURITY.md#known-dependency-advisory-follow-up).
+
+`@nestjs-modules/mailer` moved from `3.0.2` to `4.0.0` in the same change.
+The application only calls `MailerService.sendMail` through nodemailer's SES
+transport, so of v4's breaking changes these apply:
+
+- **Retries are on by default.** A transient SES failure (timeout, dropped
+  connection, 4xx/429/5xx) is retried up to three attempts in total, backing
+  off from 1s, before `sendEmail` logs it. Without SendGrid this is the only
+  recovery a failed send gets.
+- **Errors are typed** (`MailerError` subclasses). `sendEmail` only reads
+  `message`, which is unchanged.
+- **Messages are validated before sending.** A malformed address now fails
+  with `MailerMessageError`; `ValidatorsService` already rejects those
+  first. The `"Name" <address>` and empty-name `"" <address>` forms that
+  `sendEmailViaSES` builds were checked against a real v4 `MailerService`
+  (nodemailer `jsonTransport`) and are accepted.
+- **A plain-text part is added when missing.** Every message already carries
+  `text`, so the MIME structure is unchanged.
+
+The event emitter, preview module and test module changes do not apply: the
+backend has no mailer event listeners and imports neither module.
 
 #### `@nestjs-modules/mailer@3` and `ejs@7` (2026-10-06)
 
@@ -157,27 +190,42 @@ What the cutover did and did not involve:
 - `@nestjs/cli@12` builds with plain `tsc` (it no longer bundles webpack);
   `nest-cli.json` declares no builder, so nothing changed for `npm run build`.
 
-#### TypeScript compatibility gate (re-checked 2026-10-06)
+#### TypeScript compatibility gate (re-checked 2026-10-27)
 
-`typescript@7.0.2` is published, but the backend stays on `^6.0.3`. Two hard
-constraints block it:
+`typescript@7.0.2` is published, but the backend stays on `^6.0.3`. TypeScript
+7 no longer ships the JavaScript compiler API (its package exports only
+`unstable/*` entry points), and three tools that load that API gate on 6.x:
 
-| Blocker              | Declared constraint            | Effect                                                                               |
-| -------------------- | ------------------------------ | ------------------------------------------------------------------------------------ |
-| `ts-jest@29.4.12`    | peer `typescript >=4.3 <7`     | The Jest transform chain excludes TypeScript 7 outright; `ts-jest` has no 30.x line. |
-| `@nestjs/cli@12.0.0` | dependency `typescript ~6.0.2` | Even the newest Nest CLI still installs a TypeScript 6 compiler for itself.          |
+| Blocker                            | Declared constraint            | Effect                                                                               |
+| ---------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------ |
+| `ts-jest@29.4.15`                  | peer `typescript >=4.3 <7`     | The Jest transform chain excludes TypeScript 7 outright; `ts-jest` has no 30.x line. |
+| `@nestjs/cli@12.0.11`              | dependency `typescript ~6.0.2` | Even the newest Nest CLI still installs a TypeScript 6 compiler for itself.          |
+| `@typescript-eslint/parser@8.72.1` | peer `typescript <6.1.0`       | ESLint's TypeScript parser refuses to load ("does not support TS 7.0").              |
 
 The Nest CLI also fails at runtime under TypeScript 7 with
 `The installed TypeScript version (7.0.2) does not expose the programmatic
 compiler API that the Nest CLI requires.`
 
+`.github/dependabot.yml` ignores TypeScript major updates so a Dependabot PR
+(which skips CI) cannot land one by accident.
+
+**Ready for TypeScript 7** (done 2026-10-27): `tsconfig.json` no longer sets
+`baseUrl` or `ignoreDeprecations` (both removed in 7.0); the `src/*` alias is
+an explicit `paths` entry relative to the config file, and the one `config/`
+import that relied on `baseUrl` is now relative. The one TypeScript 7 type
+error, a named import from `@sendgrid/mail` (which declared `export =` beside
+named exports), went when SendGrid was removed on 2026-10-27. With those
+changes `npx -p typescript@7.0.2 tsc -p tsconfig.spec.json --noEmit`
+reports no errors.
+
 **When it can be retried**: when `ts-jest` publishes a release whose peer range
-admits TypeScript 7 (or the project moves off `ts-jest`), and the Nest CLI
-depends on a TypeScript 7 compiler. Check with:
+admits TypeScript 7 (or the project moves off `ts-jest`), the Nest CLI depends
+on a TypeScript 7 compiler, and `typescript-eslint` admits it. Check with:
 
 ```sh
 npm view ts-jest@latest peerDependencies.typescript
 npm view @nestjs/cli@latest dependencies.typescript
+npm view @typescript-eslint/parser@latest peerDependencies.typescript
 ```
 
 #### Unused dependencies removed (2026-09-03)

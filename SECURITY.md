@@ -130,16 +130,31 @@ Both fast-check and ZAP are updated regularly via Dependabot to ensure the lates
 
 ## Known Dependency Advisory Follow-up
 
-Both the full dependency audit (`npm audit`) and the production audit gate (`npm audit --audit-level=high --omit=dev`) currently pass with **zero advisories at any severity** (last verified 2026-10-06).
+The production audit gate (`npm audit --audit-level=high --omit=dev`) passes, and `npm audit --omit=dev` reports **zero advisories at any severity** (last verified 2026-10-27). The full audit (`npm audit`) reports one development-only advisory with no patched release: `deepmerge` [GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4) (low, prototype poisoning in `mergeObject()`, every version from `4.2.0` to `4.3.1`), reached through `jest` → `jest-config`. The production path through `@sendgrid/mail` went when SendGrid was removed.
 
 The current overrides remediate these upstream dependency advisories:
 
-- `qs` [GHSA-q8mj-m7cp-5q26](https://github.com/advisories/GHSA-q8mj-m7cp-5q26), [GHSA-x5fp-wj9c-mxmx](https://github.com/advisories/GHSA-x5fp-wj9c-mxmx), [GHSA-4mjr-xmp4-gh2g](https://github.com/advisories/GHSA-4mjr-xmp4-gh2g) — `typed-rest-client@2.3.1` (via `@stryker-mutator/core`) exact-pins `qs@6.15.1`; the global override keeps the tree on `6.16.0`, the first release patched against all three.
+- `qs` [GHSA-q8mj-m7cp-5q26](https://github.com/advisories/GHSA-q8mj-m7cp-5q26), [GHSA-x5fp-wj9c-mxmx](https://github.com/advisories/GHSA-x5fp-wj9c-mxmx), [GHSA-4mjr-xmp4-gh2g](https://github.com/advisories/GHSA-4mjr-xmp4-gh2g) — `typed-rest-client@2.3.1` (via `@stryker-mutator/core`) exact-pins `qs@6.15.1`; the global override (`^6.17.0` since 2026-10-27) keeps the tree on a release patched against all three.
 - `argparse` [GHSA-hp3w-g68c-fv3c](https://github.com/advisories/GHSA-hp3w-g68c-fv3c) — `sprintf-js` has no patched release at all; its only consumer is `argparse@1` under `js-yaml@3` (via `ts-jest` → `@istanbuljs/load-nyc-config`), and `argparse@2` has no dependencies, so the global override removes `sprintf-js` from the development tree without touching any code path that runs.
 
 As of **2026-10-06**, these are the only two overrides this repository needs. The short-lived `nodemailer` entry (2026-10-04) went with the `@nestjs-modules/mailer@3` upgrade, which also removed the `preview-email` / `mailparser` / `mjml` family from the tree and retired the `postinstall` nested-package patch script; the former `mailparser`, `nanoid`, `js-yaml`, and TypeORM `ioredis` entries were each verified redundant and removed earlier. See `docs/security.md` for the evidence and for the removal criteria on the remaining entries.
 
-The backend has been on **NestJS 12** since 2026-09-11. TypeScript stays on `^6.0.3`: `@nestjs/cli` cannot drive `typescript@7.0` (it needs the programmatic compiler API, which TypeScript 7.0 does not ship) and `ts-jest` still declares `typescript <7`. See `docs/security.md`.
+The backend has been on **NestJS 12** since 2026-09-11. TypeScript stays on `^6.0.3`: `@nestjs/cli` cannot drive `typescript@7.0` (it needs the programmatic compiler API, which TypeScript 7.0 does not ship), `ts-jest` still declares `typescript <7`, and `typescript-eslint` declares `<6.1.0`. Dependabot ignores TypeScript majors until that changes, and the code already type-checks under TypeScript 7. See `docs/security.md`.
+
+### Runtime and CA trust (2026-10-27)
+
+In October 2026 the private keys of eight eMudhra (emSign) intermediate certificates were confirmed compromised, and Node.js shipped security releases that distrust them and fix TLS hostname-check and Brotli flaws. The backend's response:
+
+- **Node.js `24.22.1`** everywhere: `.nvmrc`, the `package.json` engine range (`>=24.22.1 <25`) and every workflow's `NODE_VERSION`. Render's native Node runtime takes the version from `.nvmrc`, so the next deploy picks it up. Node's TLS client uses its own compiled-in CA list rather than the OS store, so the Node upgrade, not an OS update, is what removes the eMudhra trust.
+- **SonarQube scan action `v8.4.0`** (scanner CLI `8.3.0`), pinned by commit SHA in `lint-test.yml`, in line with Sonar's eMudhra advisory.
+- Dependencies refreshed to their latest minor/patch releases; `npm audit` is clean at every severity.
+
+To confirm a running service no longer trusts the affected chains, both of these must fail with a certificate error from inside it:
+
+```bash
+node -e "fetch('https://dv-g3b-emudhra.we-have-a-problem.com/').then(() => console.log('TRUSTED'), e => console.log('rejected:', e.cause?.code))"
+node -e "fetch('https://dv-g3b-aaa-emudhra.we-have-a-problem.com/').then(() => console.log('TRUSTED'), e => console.log('rejected:', e.cause?.code))"
+```
 
 ### Non-breaking remediation strategy
 
