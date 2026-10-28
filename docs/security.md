@@ -56,6 +56,37 @@ npm view @stryker-mutator/core@latest dependencies.typed-rest-client
 npm view typed-rest-client@2 dependencies.qs
 ```
 
+#### `@nestjs-modules/mailer@4` and SendGrid removed (2026-10-27)
+
+Amazon SES is now the only email sender. `@sendgrid/mail` and the SendGrid
+fallback are gone, and `MailService` no longer reads the AWS secret:
+`sendEmail` sends through SES and logs a failure instead of throwing, which is
+what a failed send without a SendGrid key already did. Removing
+`@sendgrid/mail` also removed the only production path to `deepmerge`
+(GHSA-gcqx-w48m-w2h4, low, no patched release); see
+[SECURITY.md](../SECURITY.md#known-dependency-advisory-follow-up).
+
+`@nestjs-modules/mailer` moved from `3.0.2` to `4.0.0` in the same change.
+The application only calls `MailerService.sendMail` through nodemailer's SES
+transport, so of v4's breaking changes these apply:
+
+- **Retries are on by default.** A transient SES failure (timeout, dropped
+  connection, 4xx/429/5xx) is retried up to three attempts in total, backing
+  off from 1s, before `sendEmail` logs it. Without SendGrid this is the only
+  recovery a failed send gets.
+- **Errors are typed** (`MailerError` subclasses). `sendEmail` only reads
+  `message`, which is unchanged.
+- **Messages are validated before sending.** A malformed address now fails
+  with `MailerMessageError`; `ValidatorsService` already rejects those
+  first. The `"Name" <address>` and empty-name `"" <address>` forms that
+  `sendEmailViaSES` builds were checked against a real v4 `MailerService`
+  (nodemailer `jsonTransport`) and are accepted.
+- **A plain-text part is added when missing.** Every message already carries
+  `text`, so the MIME structure is unchanged.
+
+The event emitter, preview module and test module changes do not apply: the
+backend has no mailer event listeners and imports neither module.
+
 #### `@nestjs-modules/mailer@3` and `ejs@7` (2026-10-06)
 
 Both majors were taken together because the first one changes what the second
@@ -181,10 +212,10 @@ compiler API that the Nest CLI requires.`
 **Ready for TypeScript 7** (done 2026-10-27): `tsconfig.json` no longer sets
 `baseUrl` or `ignoreDeprecations` (both removed in 7.0); the `src/*` alias is
 an explicit `paths` entry relative to the config file, and the one `config/`
-import that relied on `baseUrl` is now relative. `MailService` derives
-SendGrid's message type from `sgMail.send` because `@sendgrid/mail` declares
-`export =` beside named exports, which TypeScript 7 does not resolve. With
-those changes `npx -p typescript@7.0.2 tsc -p tsconfig.spec.json --noEmit`
+import that relied on `baseUrl` is now relative. The one TypeScript 7 type
+error, a named import from `@sendgrid/mail` (which declared `export =` beside
+named exports), went when SendGrid was removed on 2026-10-27. With those
+changes `npx -p typescript@7.0.2 tsc -p tsconfig.spec.json --noEmit`
 reports no errors.
 
 **When it can be retried**: when `ts-jest` publishes a release whose peer range
