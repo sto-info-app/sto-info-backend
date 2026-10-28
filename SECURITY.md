@@ -130,7 +130,7 @@ Both fast-check and ZAP are updated regularly via Dependabot to ensure the lates
 
 ## Known Dependency Advisory Follow-up
 
-Both the full dependency audit (`npm audit`) and the production audit gate (`npm audit --audit-level=high --omit=dev`) currently pass with **zero advisories at any severity** (last verified 2026-10-27).
+The production audit gate (`npm audit --audit-level=high --omit=dev`) passes, and `npm audit --omit=dev` reports **zero advisories at any severity** (last verified 2026-10-27). The full audit (`npm audit`) reports one development-only advisory with no patched release: `deepmerge` [GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4) (low, prototype poisoning in `mergeObject()`, every version from `4.2.0` to `4.3.1`), reached through `jest` → `jest-config`. The production path through `@sendgrid/mail` went when SendGrid was removed.
 
 The current overrides remediate these upstream dependency advisories:
 

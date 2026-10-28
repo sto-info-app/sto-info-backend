@@ -3,23 +3,19 @@ import { Test, TestingModule } from '@nestjs/testing';
 
 import { jest } from '@jest/globals';
 import { MailerService } from '@nestjs-modules/mailer';
-import * as sgMail from '@sendgrid/mail';
 import * as ejs from 'ejs';
 import { convert as htmlToText } from 'html-to-text';
 
-import { SecretsService } from 'src/shared/secrets/secrets.service';
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
 
 import { EmailMessage, MailService } from './mail.service';
 
-jest.mock('@sendgrid/mail');
 jest.mock('@nestjs-modules/mailer');
 jest.mock('ejs');
 jest.mock('html-to-text');
 
 describe('MailService', () => {
   let service: MailService;
-  let mockSecretsService: SecretsService;
   let mockValidatorsService: ValidatorsService;
   let mockMailerService: MailerService;
 
@@ -27,20 +23,11 @@ describe('MailService', () => {
     process.env.APP_TITLE = 'Test App';
     process.env.EMAIL_NOREPLY_SENDER = 'no-reply@test.local';
     process.env.APP_FRONTEND_URL = 'https://test.local';
-    process.env.AWS_SECRET_NAME = 'test-secret';
     process.env.AWS_SES_CONFIGURATION_SET = 'test-config-set';
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MailService,
-        {
-          provide: SecretsService,
-          useValue: {
-            getSecret: jest
-              .fn<(...args: any[]) => Promise<any>>()
-              .mockResolvedValue({ sendGridApiKey: 'test-key' }),
-          },
-        },
         {
           provide: ValidatorsService,
           useValue: {
@@ -59,7 +46,6 @@ describe('MailService', () => {
     }).compile();
 
     service = module.get<MailService>(MailService);
-    mockSecretsService = module.get<SecretsService>(SecretsService);
     mockValidatorsService = module.get<ValidatorsService>(ValidatorsService);
     mockMailerService = module.get<MailerService>(MailerService);
 
@@ -77,50 +63,6 @@ describe('MailService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
-  });
-
-  describe('onModuleInit', () => {
-    it('should initialize correctly', async () => {
-      await service.onModuleInit();
-      expect(mockSecretsService.getSecret).toHaveBeenCalledWith('test-secret');
-      expect(sgMail.setApiKey).toHaveBeenCalledWith('test-key');
-    });
-
-    it('should leave SendGrid unset and warn when the secret has no key', async () => {
-      (
-        mockSecretsService.getSecret as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue({ dbPassword: 'db', jwtSecret: 'jwt' });
-      const warnSpy = jest
-        .spyOn(Logger.prototype, 'warn')
-        .mockImplementation(() => undefined);
-
-      await service.onModuleInit();
-
-      expect(sgMail.setApiKey).not.toHaveBeenCalled();
-      expect(warnSpy).toHaveBeenCalledWith(
-        'The AWS secret has no sendGridApiKey. SES is the only sender; there is no fallback.',
-      );
-      warnSpy.mockRestore();
-    });
-
-    it('should treat a blank key as absent', async () => {
-      (
-        mockSecretsService.getSecret as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue({ sendGridApiKey: '   ' });
-      const warnSpy = jest
-        .spyOn(Logger.prototype, 'warn')
-        .mockImplementation(() => undefined);
-
-      await service.onModuleInit();
-
-      expect(sgMail.setApiKey).not.toHaveBeenCalled();
-      expect(warnSpy).toHaveBeenCalled();
-      warnSpy.mockRestore();
-    });
   });
 
   describe('sendVerificationEmail', () => {
@@ -179,7 +121,7 @@ describe('MailService', () => {
     });
   });
 
-  describe('sendEmailWithFallback', () => {
+  describe('sendEmail', () => {
     const sampleMessage: EmailMessage = {
       to: 'test@example.com',
       from: { name: 'Test App', email: 'no-reply@test.local' },
@@ -188,14 +130,12 @@ describe('MailService', () => {
       html: '<html>Test html</html>',
     };
 
-    it('should send via SES when it succeeds', async () => {
-      await service.sendEmailWithFallback(sampleMessage);
+    it('should send via SES', async () => {
+      await service.sendEmail(sampleMessage);
       expect(mockMailerService.sendMail).toHaveBeenCalledTimes(1);
-      expect(sgMail.send).not.toHaveBeenCalled();
     });
 
-    it('should report the SES failure and not retry when SendGrid is not configured', async () => {
-      // No onModuleInit here, so no SendGrid key has been seen.
+    it('should log the SES failure rather than throw', async () => {
       (
         mockMailerService.sendMail as jest.Mock<
           (...args: any[]) => Promise<any>
@@ -204,117 +144,56 @@ describe('MailService', () => {
       const errorSpy = jest
         .spyOn(Logger.prototype, 'error')
         .mockImplementation(() => undefined);
-      const warnSpy = jest
-        .spyOn(Logger.prototype, 'warn')
-        .mockImplementation(() => undefined);
 
-      await expect(
-        service.sendEmailWithFallback(sampleMessage),
-      ).resolves.toBeUndefined();
+      await expect(service.sendEmail(sampleMessage)).resolves.toBeUndefined();
 
       expect(errorSpy).toHaveBeenCalledWith(
-        'Amazon SES sending failed and there is no SendGrid fallback.',
+        'Amazon SES sending failed.',
         'SES error',
       );
-      expect(warnSpy).not.toHaveBeenCalled();
-      expect(sgMail.send).not.toHaveBeenCalled();
       errorSpy.mockRestore();
-      warnSpy.mockRestore();
     });
 
-    describe('with a SendGrid key', () => {
-      beforeEach(async () => {
-        await service.onModuleInit();
+    it('should log rejected recipients as an SES failure', async () => {
+      (
+        mockMailerService.sendMail as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
+        accepted: [],
+        rejected: ['test@example.com'],
+        response: '550 rejected',
       });
+      const errorSpy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
 
-      it('should fall back to SendGrid when SES fails', async () => {
-        (
-          mockMailerService.sendMail as jest.Mock<
-            (...args: any[]) => Promise<any>
-          >
-        ).mockRejectedValue(new Error('SES error'));
-        const warnSpy = jest
-          .spyOn(Logger.prototype, 'warn')
-          .mockImplementation(() => undefined);
+      await service.sendEmail(sampleMessage);
 
-        await service.sendEmailWithFallback(sampleMessage);
+      expect(errorSpy).toHaveBeenCalledWith(
+        'Amazon SES sending failed.',
+        'SES rejected recipient(s): test@example.com',
+      );
+      errorSpy.mockRestore();
+    });
 
-        expect(warnSpy).toHaveBeenCalled();
-        expect(sgMail.send).toHaveBeenCalled();
-        warnSpy.mockRestore();
-      });
+    it('should stringify a non-Error SES failure', async () => {
+      (
+        mockMailerService.sendMail as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockRejectedValue('plain string error');
+      const errorSpy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
 
-      it('should fall back to SendGrid when SES resolves with rejected recipients', async () => {
-        (
-          mockMailerService.sendMail as jest.Mock<
-            (...args: any[]) => Promise<any>
-          >
-        ).mockResolvedValue({
-          accepted: [],
-          rejected: ['test@example.com'],
-          response: '550 rejected',
-        });
-        const warnSpy = jest
-          .spyOn(Logger.prototype, 'warn')
-          .mockImplementation(() => undefined);
+      await service.sendEmail(sampleMessage);
 
-        await service.sendEmailWithFallback(sampleMessage);
-
-        expect(warnSpy).toHaveBeenCalledWith(
-          'Amazon SES sending failed — falling back to SendGrid.',
-          'SES rejected recipient(s): test@example.com',
-        );
-        expect(sgMail.send).toHaveBeenCalled();
-        warnSpy.mockRestore();
-      });
-
-      it('should log SendGrid errors when both SES and SendGrid fail', async () => {
-        (
-          mockMailerService.sendMail as jest.Mock<
-            (...args: any[]) => Promise<any>
-          >
-        ).mockRejectedValue(new Error('SES error'));
-        const sendGridError = {
-          response: { body: { errors: ['SendGrid error'] } },
-        };
-        (
-          sgMail.send as jest.Mock<(...args: any[]) => Promise<any>>
-        ).mockRejectedValue(sendGridError);
-        const warnSpy = jest
-          .spyOn(Logger.prototype, 'warn')
-          .mockImplementation(() => undefined);
-        const errorSpy = jest
-          .spyOn(Logger.prototype, 'error')
-          .mockImplementation(() => undefined);
-
-        await service.sendEmailWithFallback(sampleMessage);
-
-        expect(warnSpy).toHaveBeenCalled();
-        expect(errorSpy).toHaveBeenCalledWith(['SendGrid error']);
-        warnSpy.mockRestore();
-        errorSpy.mockRestore();
-      });
-
-      it('should fall back to SendGrid and stringify non-Error sesError', async () => {
-        // Exercises the `String(sesError)` branch (sesError is not an instance of Error)
-        (
-          mockMailerService.sendMail as jest.Mock<
-            (...args: any[]) => Promise<any>
-          >
-        ).mockRejectedValue('plain string error');
-        const warnSpy = jest
-          .spyOn(Logger.prototype, 'warn')
-          .mockImplementation(() => undefined);
-
-        await service.sendEmailWithFallback(sampleMessage);
-
-        expect(warnSpy).toHaveBeenCalledWith(
-          'Amazon SES sending failed — falling back to SendGrid.',
-          'plain string error',
-        );
-        expect(sgMail.send).toHaveBeenCalled();
-        warnSpy.mockRestore();
-      });
+      expect(errorSpy).toHaveBeenCalledWith(
+        'Amazon SES sending failed.',
+        'plain string error',
+      );
+      errorSpy.mockRestore();
     });
   });
 
@@ -451,116 +330,6 @@ describe('MailService', () => {
     });
   });
 
-  describe('sendEmailViaSendGrid', () => {
-    it('should log error if sending fails with response errors', async () => {
-      const error = { response: { body: { errors: ['SendGrid error'] } } };
-      (
-        sgMail.send as jest.Mock<(...args: any[]) => Promise<any>>
-      ).mockRejectedValue(error);
-      const loggerSpy = jest
-        .spyOn(Logger.prototype, 'error')
-        .mockImplementation(() => undefined);
-
-      await service.sendEmailViaSendGrid({} as any);
-      expect(loggerSpy).toHaveBeenCalledWith(['SendGrid error']);
-      loggerSpy.mockRestore();
-    });
-
-    it('should log generic error if sending fails without response errors', async () => {
-      const error = new Error('Generic error');
-      (
-        sgMail.send as jest.Mock<(...args: any[]) => Promise<any>>
-      ).mockRejectedValue(error);
-      const loggerSpy = jest
-        .spyOn(Logger.prototype, 'error')
-        .mockImplementation(() => undefined);
-
-      await service.sendEmailViaSendGrid({} as any);
-      expect(loggerSpy).toHaveBeenCalledWith(error);
-      loggerSpy.mockRestore();
-    });
-
-    it('should log generic error if sending fails with partial response object', async () => {
-      const error = { response: {} };
-      (
-        sgMail.send as jest.Mock<(...args: any[]) => Promise<any>>
-      ).mockRejectedValue(error);
-      const loggerSpy = jest
-        .spyOn(Logger.prototype, 'error')
-        .mockImplementation(() => undefined);
-
-      await service.sendEmailViaSendGrid({} as any);
-      expect(loggerSpy).toHaveBeenCalledWith(error);
-      loggerSpy.mockRestore();
-    });
-
-    it('should log generic error if sending fails with partial response body object', async () => {
-      const error = { response: { body: {} } };
-      (
-        sgMail.send as jest.Mock<(...args: any[]) => Promise<any>>
-      ).mockRejectedValue(error);
-      const loggerSpy = jest
-        .spyOn(Logger.prototype, 'error')
-        .mockImplementation(() => undefined);
-
-      await service.sendEmailViaSendGrid({} as any);
-      expect(loggerSpy).toHaveBeenCalledWith(error);
-      loggerSpy.mockRestore();
-    });
-
-    it('should log generic error if sending fails with null error', async () => {
-      (
-        sgMail.send as jest.Mock<(...args: any[]) => Promise<any>>
-      ).mockRejectedValue(null);
-      const loggerSpy = jest
-        .spyOn(Logger.prototype, 'error')
-        .mockImplementation(() => undefined);
-
-      await service.sendEmailViaSendGrid({} as any);
-      expect(loggerSpy).toHaveBeenCalledWith(null);
-      loggerSpy.mockRestore();
-    });
-  });
-
-  describe('toSendGridMessage', () => {
-    it('should convert an EmailMessage to a SendGrid MailDataRequired object', () => {
-      const message: EmailMessage = {
-        to: 'test@example.com',
-        from: { name: 'Test App', email: 'no-reply@test.local' },
-        subject: 'Test Subject',
-        text: 'Test text',
-        html: '<html>Test html</html>',
-      };
-
-      const result = service.toSendGridMessage(message);
-
-      expect(result).toEqual({
-        to: 'test@example.com',
-        from: { name: 'Test App', email: 'no-reply@test.local' },
-        subject: 'Test Subject',
-        text: 'Test text',
-        html: '<html>Test html</html>',
-      });
-    });
-
-    it('should include replyTo when provided', () => {
-      const message: EmailMessage = {
-        to: 'test@example.com',
-        from: { name: 'Test App', email: 'no-reply@test.local' },
-        subject: 'Test Subject',
-        text: 'Test text',
-        html: '<html>Test html</html>',
-        replyTo: { email: 'reply@test.local', name: 'Reply' },
-      };
-
-      const result = service.toSendGridMessage(message);
-
-      expect(result).toMatchObject({
-        replyTo: { email: 'reply@test.local', name: 'Reply' },
-      });
-    });
-  });
-
   describe('validateEmailFormat', () => {
     it('should return false if email is null', () => {
       expect(service.validateEmailFormat(null)).toBe(false);
@@ -619,17 +388,12 @@ describe('MailService', () => {
       'APP_TITLE',
       'EMAIL_NOREPLY_SENDER',
       'APP_FRONTEND_URL',
-      'AWS_SECRET_NAME',
       'AWS_SES_CONFIGURATION_SET',
     ])('should throw if %s is missing', envVar => {
       const original = process.env[envVar];
       delete process.env[envVar];
       expect(() => {
-        const _s = new MailService(
-          mockSecretsService,
-          mockValidatorsService,
-          mockMailerService,
-        );
+        const _s = new MailService(mockValidatorsService, mockMailerService);
         return _s;
       }).toThrow(`Environment variable ${envVar} is not set`);
       process.env[envVar] = original;
