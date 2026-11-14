@@ -20,36 +20,54 @@ Current overrides in `package.json`:
 
 ```json
 "overrides": {
-  "argparse": "^2.0.1",
-  "qs": "^6.17.0"
+  "glob@>=9.0.0 <14.0.2": "^14.0.6",
+  "minimatch@>=7.0.0 <11.0.1": "^11.0.8",
+  "typed-rest-client": {
+    "qs": "^6.17.1"
+  }
 }
 ```
 
-Re-checked on **2026-10-27** during the Node.js 24.22.1 / dependency refresh: both entries are still needed, and `npm audit` reports nothing at any severity.
+Re-checked on **2026-11-13** during the dependency refresh. Each entry was confirmed by removing it, resolving the tree again and re-auditing: without it an advisory returns. `npm audit --omit=dev` reports nothing at any severity; the full `npm audit` reports only `deepmerge` (GHSA-gcqx-w48m-w2h4, low, development tree, no patched release), see [SECURITY.md](../SECURITY.md#known-dependency-advisory-follow-up).
 
-As of **2026-10-06**, rechecked after the `@nestjs-modules/mailer@3` / `ejs@7` refresh, these are the only two overrides the backend needs. The `nodemailer` entry added on 2026-10-04 was dropped the same day `mailer@3` removed its reason to exist, and the `mailparser`, `nanoid`, `js-yaml`, and `typeorm.ioredis` entries were verified redundant earlier — see [Recently Removed Overrides](#recently-removed-overrides). Each remaining entry was re-confirmed on 2026-10-06 by removing it, reinstalling, and re-auditing: without it an advisory returns.
+The `glob` and `minimatch` keys carry a version range, so each applies only to copies inside its advisory and leaves patched copies alone. Once every consumer asks for a fixed release the key matches nothing and can be deleted. Both move a dependency across a major version from what its parent declared, so `npm run lint`, `npm run build`, the full test suite with coverage and `npm run test:fuzz` were run against them on 2026-11-13.
 
-#### `argparse`
+#### `glob`
 
-- **Vulnerability**: [GHSA-hp3w-g68c-fv3c](https://github.com/advisories/GHSA-hp3w-g68c-fv3c) — `sprintf-js` denial of service through unbounded precision specifiers. Moderate. **Every published `sprintf-js` release (`<=1.1.3`) is affected**, so there is nothing to pin to; `npm audit fix --force` can only offer a downgrade of `jest` to `25.0.0`.
-- **Root cause**: `ts-jest` → `@jest/transform` → `babel-plugin-istanbul@8.0.0` → `@istanbuljs/load-nyc-config@1.1.0` → `js-yaml@^3.13.1` → `argparse@^1.0.7` → `sprintf-js@1.0.3`. Development tree only; it is the sole `argparse@1` consumer.
-- **Override**: `"argparse": "^2.0.1"` — global. `argparse@2` has no dependencies at all, so this removes `sprintf-js` from the tree. It is safe because `js-yaml@3` only `require`s `argparse` from `bin/js-yaml.js`, its command-line tool, which nothing in this project runs; the library entry that `load-nyc-config` imports (`lib/`) never loads it. Every other `js-yaml` in the tree (`@nestjs/swagger` → `js-yaml@5`) already asks for `argparse@^2`, so nothing else changes.
+- **Vulnerability**: [GHSA-3g3m-2fjr-6pw4](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4) — cancelling a glob walk through its `AbortSignal` does not stop it, so the walk keeps traversing the filesystem after a timeout. Moderate. Covers every `glob` from `9.0.0` to `14.0.1`; the fix (`14.0.2`) was not backported to the 10.x or 13.x lines.
+- **Root cause**: `@nestjs-modules/mailer@4.0.0` exact-pins `glob@13.0.6`, which puts it in the **production** tree, although the backend never passes the mailer a template directory to glob. In the development tree `test-exclude@7.0.2` (under `babel-plugin-istanbul`) asks for `glob@^10.4.1`, and `@jest/reporters`, `jest-config` and `jest-runtime` `30.5.2` for `glob@^13.0.6`.
+- **Override**: `"glob@>=9.0.0 <14.0.2": "^14.0.6"` — every vulnerable copy resolves to the same `glob@14` that `rimraf` and `@sentry/bundler-plugins` already use.
 
-**When it can be removed**: When `@istanbuljs/load-nyc-config` publishes a release on `js-yaml@4` or later (every 4.x/5.x line uses `argparse@2`). Check with:
+**When it can be removed**: when the mailer, `test-exclude` and Jest all ask for `glob@14.0.2` or later. Check with:
 
 ```sh
-npm view @istanbuljs/load-nyc-config@latest dependencies.js-yaml
-npm ls sprintf-js
+npm view @nestjs-modules/mailer@latest dependencies.glob
+npm view test-exclude@latest dependencies.glob
+npm view jest-config@latest dependencies.glob
+```
+
+#### `minimatch`
+
+- **Vulnerability**: [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249) — a crafted pattern multiplies the number of pattern parts `minimatch` builds (denial of service). Moderate. Covers `7.0.0` to `11.0.0`; the fix (`11.0.1`) was not backported to the 9.x or 10.x lines.
+- **Root cause**: development tree only. `eslint@10.14.0`, `@eslint/config-array@0.23.5`, `@typescript-eslint/typescript-estree@8.72.2`, `test-exclude@7.0.2` and `@stryker-mutator/core@10.1.1` all ask for `minimatch@^10` (`~10.2.4` for Stryker), and the `glob@10` under `test-exclude` for `minimatch@^9`.
+- **Override**: `"minimatch@>=7.0.0 <11.0.1": "^11.0.8"`. `@nestjs/cli@12.0.13` already uses `minimatch@11.0.5` and `glob@14` uses `11.0.8`, so no new major enters the tree.
+
+**When it can be removed**: when `npm ls minimatch` shows nothing below `11.0.1` with the entry deleted. Check with:
+
+```sh
+npm view eslint@latest dependencies.minimatch
+npm view @typescript-eslint/typescript-estree@latest dependencies.minimatch
+npm view @stryker-mutator/core@latest dependencies.minimatch
 ```
 
 #### `qs`
 
-- **Vulnerabilities**: [GHSA-q8mj-m7cp-5q26](https://github.com/advisories/GHSA-q8mj-m7cp-5q26) — remotely triggerable DoS (`qs.stringify` crashes on null/undefined entries in comma-format arrays); [GHSA-x5fp-wj9c-mxmx](https://github.com/advisories/GHSA-x5fp-wj9c-mxmx) — array-limit bypass via bracket-key comma parsing; [GHSA-4mjr-xmp4-gh2g](https://github.com/advisories/GHSA-4mjr-xmp4-gh2g) — DoS via attacker-controlled `isBuffer`. Together these cover `qs 2.2.5 - 6.15.3`; `6.16.0` is the first release patched against all three.
-- **Root cause**: `typed-rest-client@2.3.1` (via `@stryker-mutator/core`) pins `qs@6.15.1` exactly.
-- **Override**: `"qs": "^6.17.0"` — global pin; the whole tree dedupes to a single patched `qs` (currently `6.17.0`, raised from `^6.16.0` on 2026-10-27 to track the current release). A nested `"typed-rest-client": { "qs": ... }` form was tried first but npm did not reify it reliably, so the global form is used.
-- **Raised from `^6.15.2` on 2026-09-03**: the two later advisories extended the vulnerable range up to and including `6.15.3`, which the old caret range still permitted.
+- **Vulnerabilities**: [GHSA-q8mj-m7cp-5q26](https://github.com/advisories/GHSA-q8mj-m7cp-5q26) — remotely triggerable DoS (`qs.stringify` crashes on null/undefined entries in comma-format arrays); [GHSA-x5fp-wj9c-mxmx](https://github.com/advisories/GHSA-x5fp-wj9c-mxmx) — array-limit bypass via bracket-key comma parsing; [GHSA-4mjr-xmp4-gh2g](https://github.com/advisories/GHSA-4mjr-xmp4-gh2g) — DoS via attacker-controlled `isBuffer`; [GHSA-6pq8-jhm2-2vcw](https://github.com/advisories/GHSA-6pq8-jhm2-2vcw) — `qs.stringify` throws on array elements with a non-callable own `toString`. Together these cover `qs` up to and including `6.16.0`; `6.16.1` is the first release patched against all four.
+- **Root cause**: `typed-rest-client@2.3.1` (via `@stryker-mutator/core`) pins `qs@6.15.1` exactly. Development tree only.
+- **Override**: `"typed-rest-client": { "qs": "^6.17.1" }` — scoped to the one consumer that pins a vulnerable version. Every other `qs` in the tree (Express, `body-parser`, `supertest`) resolves to a patched `6.16.1` or later from its own range. The scoped form replaced the global `"qs"` entry on 2026-10-27 and was raised from `^6.17.0` on 2026-11-13 to track the current release; `npm ls qs` shows `typed-rest-client` on `6.17.1`.
+- **Raised from `^6.15.2` on 2026-09-03**: the later advisories extended the vulnerable range past `6.15.3`, which the old caret range still permitted.
 
-**When it can be removed**: When Stryker moves to `typed-rest-client@3`. Re-checked 2026-10-27: `typed-rest-client@3.1.2` already depends on `qs@^6.16.0`, but `@stryker-mutator/core@10.1.1` still pins `typed-rest-client@~2.3.0`, whose newest release (`2.3.1`) keeps the exact `qs@6.15.1` pin. Check with:
+**When it can be removed**: When Stryker moves to `typed-rest-client@3`. Re-checked 2026-11-13: `typed-rest-client@3` already depends on `qs@^6.16.0`, but `@stryker-mutator/core@10.1.1`, still the newest Stryker, pins `typed-rest-client@~2.3.0`, whose newest release (`2.3.1`) keeps the exact `qs@6.15.1` pin. Check with:
 
 ```sh
 npm view @stryker-mutator/core@latest dependencies.typed-rest-client
@@ -199,8 +217,8 @@ What the cutover did and did not involve:
 | Blocker                            | Declared constraint            | Effect                                                                               |
 | ---------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------ |
 | `ts-jest@29.4.15`                  | peer `typescript >=4.3 <7`     | The Jest transform chain excludes TypeScript 7 outright; `ts-jest` has no 30.x line. |
-| `@nestjs/cli@12.0.11`              | dependency `typescript ~6.0.2` | Even the newest Nest CLI still installs a TypeScript 6 compiler for itself.          |
-| `@typescript-eslint/parser@8.72.1` | peer `typescript <6.1.0`       | ESLint's TypeScript parser refuses to load ("does not support TS 7.0").              |
+| `@nestjs/cli@12.0.13`              | dependency `typescript ~6.0.2` | Even the newest Nest CLI still installs a TypeScript 6 compiler for itself.          |
+| `@typescript-eslint/parser@8.72.2` | peer `typescript <6.1.0`       | ESLint's TypeScript parser refuses to load ("does not support TS 7.0").              |
 
 The Nest CLI also fails at runtime under TypeScript 7 with
 `The installed TypeScript version (7.0.2) does not expose the programmatic
@@ -331,6 +349,18 @@ Affected files: [src/common/http/request-id.middleware.ts](../src/common/http/re
 and its spec (whose `jest.mock('crypto', ...)` became `jest.mock('node:crypto', ...)`).
 
 #### Recently Removed Overrides
+
+Override removed on **2026-11-13** during the dependency refresh:
+
+| Override                          | Previously forced         | Resolves to without the override | Reason for removal                                                                                                                                                                                                                                                                            |
+| --------------------------------- | ------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@nestjs/platform-express.multer` | `$multer` (i.e. `^2.5.0`) | `multer@2.5.0`, one copy         | Added 2026-10-27 to hold the `multer` nested under `@nestjs/platform-express` on the application's own version, clear of GHSA-q7qp-rjg7-q26m (`<=2.4.0`). `@nestjs/platform-express@12.5.0` pins `multer@2.5.0` itself, so `npm ls multer` shows the same single copy with the entry deleted. |
+
+Override removed on **2026-10-27**:
+
+| Override   | Previously forced | Resolves to without the override                 | Reason for removal                                                                                                                                                                                                                                                               |
+| ---------- | ----------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `argparse` | `^2.0.1`          | `argparse@1.0.10` under `js-yaml@3`, as declared | It removed `sprintf-js` from the tree for GHSA-hp3w-g68c-fv3c, which GitHub withdrew on 2026-10-22. `sprintf-js@1.0.3` is installed again (`ts-jest` → `babel-plugin-istanbul` → `@istanbuljs/load-nyc-config` → `js-yaml@3` → `argparse@1`) and `npm audit` does not report it. |
 
 Override removed on **2026-10-06** with the `@nestjs-modules/mailer@3` upgrade:
 
