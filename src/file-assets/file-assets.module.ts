@@ -7,6 +7,7 @@ import { S3Client } from '@aws-sdk/client-s3';
 
 import { FleetModule } from 'src/fleet/fleet.module';
 import { QueueModule } from 'src/shared/queue/queue.module';
+import { requireSecretKeys } from 'src/shared/secrets/require-secret-keys';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
 import { SharedModule } from 'src/shared/shared.module';
 
@@ -117,7 +118,15 @@ import { StaleUploadSweepService } from './services/stale-upload-sweep.service';
         secretsService: SecretsService,
       ) => {
         const secretName = configService.get<string>('AWS_SECRET_NAME')!;
-        const secretObject = await secretsService.getSecret(secretName);
+        // Refuses to start without them, rather than failing the first upload.
+        const {
+          cloudflareR2QuarantineAccessKey,
+          cloudflareR2QuarantineSecret,
+        } = requireSecretKeys(
+          await secretsService.getSecret(secretName),
+          ['cloudflareR2QuarantineAccessKey', 'cloudflareR2QuarantineSecret'],
+          'quarantine',
+        );
 
         return new S3Client({
           region: 'auto',
@@ -126,8 +135,8 @@ import { StaleUploadSweepService } from './services/stale-upload-sweep.service';
           // matters is the credentials, which are this bucket's alone.
           endpoint: configService.get<string>('CLOUDFLARE_R2_ENDPOINT')!,
           credentials: {
-            accessKeyId: secretObject.cloudflareR2QuarantineAccessKey,
-            secretAccessKey: secretObject.cloudflareR2QuarantineSecret,
+            accessKeyId: cloudflareR2QuarantineAccessKey,
+            secretAccessKey: cloudflareR2QuarantineSecret,
           },
         });
       },

@@ -200,10 +200,13 @@ The secret referenced by `AWS_SECRET_NAME` is expected to be JSON with at least:
 - `cloudflareImagesAccountId`: Used for Cloudflare Images uploads
 - `cloudflareImagesGatedApiKey`: The Cloudflare Images token: publishes, signs, lists and deletes
   pictures. Required
-- `cloudflareR2QuarantineAccessKey`: Reads and writes the private quarantine bucket
-- `cloudflareR2QuarantineSecret`: Reads and writes the private quarantine bucket
-- `cloudflareR2ExportsAccessKey`: Reads, writes and deletes the private exports bucket (FC-035)
-- `cloudflareR2ExportsSecret`: Reads, writes and deletes the private exports bucket (FC-035)
+- `cloudflareR2QuarantineAccessKey`: Reads and writes the private quarantine bucket. Required: the
+  API refuses to start without it
+- `cloudflareR2QuarantineSecret`: Reads and writes the private quarantine bucket. Required
+- `cloudflareR2ExportsAccessKey`: Reads, writes and deletes the private exports bucket (FC-035).
+  Required: the API refuses to start without it
+- `cloudflareR2ExportsSecret`: Reads, writes and deletes the private exports bucket (FC-035).
+  Required
 - `rosterErasureKey`: Keys the HMAC of every erased Character name and @handle (FC-038). A long
   random string, kept for good: without it the suppression list can't be matched, erasure answers
   503, and once anybody is erased a roster upload is refused. See

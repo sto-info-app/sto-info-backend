@@ -11,6 +11,7 @@ import { CommunityModule } from 'src/community/community.module';
 import { FileAssetsModule } from 'src/file-assets/file-assets.module';
 import { NotificationModule } from 'src/notification/notification.module';
 import { QueueModule } from 'src/shared/queue/queue.module';
+import { requireSecretKeys } from 'src/shared/secrets/require-secret-keys';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
 import { SharedModule } from 'src/shared/shared.module';
 
@@ -133,14 +134,21 @@ import { ChatTranscriptService } from './transcripts/chat-transcript.service';
         secretsService: SecretsService,
       ) => {
         const secretName = configService.get<string>('AWS_SECRET_NAME')!;
-        const secretObject = await secretsService.getSecret(secretName);
+        // Refuses to start without them, rather than failing the first
+        // transcript request.
+        const { cloudflareR2ExportsAccessKey, cloudflareR2ExportsSecret } =
+          requireSecretKeys(
+            await secretsService.getSecret(secretName),
+            ['cloudflareR2ExportsAccessKey', 'cloudflareR2ExportsSecret'],
+            'exports',
+          );
 
         return new S3Client({
           region: 'auto',
           endpoint: configService.get<string>('CLOUDFLARE_R2_ENDPOINT')!,
           credentials: {
-            accessKeyId: secretObject.cloudflareR2ExportsAccessKey,
-            secretAccessKey: secretObject.cloudflareR2ExportsSecret,
+            accessKeyId: cloudflareR2ExportsAccessKey,
+            secretAccessKey: cloudflareR2ExportsSecret,
           },
         });
       },
