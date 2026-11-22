@@ -13,7 +13,7 @@ env:
 jobs:
   stryker_full:
     name: Full Mutation Analysis
-    if: github.actor != 'dependabot[bot]'
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     # Full analysis instruments ~9k mutants, then the dry run loads that tree
     # in one Jest process. --concurrency 2 (1 checker + 1 test runner) is what
