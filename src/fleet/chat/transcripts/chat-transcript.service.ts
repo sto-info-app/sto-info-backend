@@ -26,6 +26,10 @@ import {
 import { NotificationSeverity } from 'src/notification/enums/notification-severity.enum';
 import { NotificationTarget } from 'src/notification/enums/notification-target.enum';
 import { NotificationService } from 'src/notification/notification.service';
+import {
+  eachLimited,
+  POOLED_READ_CONCURRENCY,
+} from 'src/shared/ledger/ledger.utility';
 import { redisWithin } from 'src/shared/queue/redis-within.utility';
 
 import { FleetScopeKind } from '../../enums/fleet-scope-kind.enum';
@@ -638,14 +642,17 @@ export class ChatTranscriptService {
     const places = new Map<
       string,
       { channel: ChatChannelEntity; scope: ScopePlace | null }
-    >();
-
-    for (const channel of channels) {
-      places.set(channel.id, {
-        channel,
-        scope: await scopePlaceOf(manager, channel),
-      });
-    }
+    >(
+      await eachLimited(
+        channels,
+        POOLED_READ_CONCURRENCY,
+        async channel =>
+          [
+            channel.id,
+            { channel, scope: await scopePlaceOf(manager, channel) },
+          ] as const,
+      ),
+    );
 
     return transcripts.map(transcript => {
       const place = places.get(transcript.channelId) as {

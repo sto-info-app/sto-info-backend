@@ -5,6 +5,10 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { Queue } from 'bullmq';
 import { DataSource } from 'typeorm';
 
+import {
+  eachLimited,
+  POOLED_READ_CONCURRENCY,
+} from 'src/shared/ledger/ledger.utility';
 import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
 
 import { SHOWABLE_IMAGE_STATES } from '../delivery/image-url-signing.interceptor';
@@ -205,11 +209,17 @@ export class ImageInventoryService {
    * @returns One count a column.
    */
   private async countReferences(): Promise<ImageReferenceCount[]> {
-    const counts: ImageReferenceCount[] = [];
-
-    for (const column of IMAGE_REFERENCE_COLUMNS) {
-      const [count] = rowsOf<{ rows: number; registered: number; r2: number }>(
-        await this._dataSource.query(`
+    // A dozen reads, each standing alone, so a few go at once.
+    return eachLimited(
+      IMAGE_REFERENCE_COLUMNS,
+      POOLED_READ_CONCURRENCY,
+      async column => {
+        const [count] = rowsOf<{
+          rows: number;
+          registered: number;
+          r2: number;
+        }>(
+          await this._dataSource.query(`
           SELECT count(*)::int AS "rows",
                  count(*) FILTER (WHERE EXISTS (
                    SELECT 1 FROM "sto_info_app"."file_asset" known
@@ -218,12 +228,11 @@ export class ImageInventoryService {
                  count(*) FILTER (WHERE POSITION('/' IN row."${column.column}") > 0)::int AS "r2"
           FROM "sto_info_app"."${column.table}" row
           WHERE row."${column.column}" IS NOT NULL`),
-      );
+        );
 
-      counts.push({ table: column.table, column: column.column, ...count });
-    }
-
-    return counts;
+        return { table: column.table, column: column.column, ...count };
+      },
+    );
   }
 
   /**

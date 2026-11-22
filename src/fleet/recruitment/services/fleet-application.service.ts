@@ -598,13 +598,10 @@ export class FleetApplicationService {
     const statusByFleet = new Map(
       memberships.map(membership => [membership.fleetId, membership.status]),
     );
-    const visibleFleets = new Set<string>();
-
-    for (const fleetId of fleetIds) {
-      if (await this._eligibility.canSee(fleetId, userId)) {
-        visibleFleets.add(fleetId);
-      }
-    }
+    const seen = await Promise.all(
+      fleetIds.map(fleetId => this._eligibility.canSee(fleetId, userId)),
+    );
+    const visibleFleets = new Set(fleetIds.filter((_, index) => seen[index]));
 
     return applications.map(application => ({
       id: application.id,

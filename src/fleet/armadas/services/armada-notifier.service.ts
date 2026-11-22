@@ -6,6 +6,10 @@ import { DataSource, IsNull } from 'typeorm';
 import { NotificationSeverity } from 'src/notification/enums/notification-severity.enum';
 import { NotificationTarget } from 'src/notification/enums/notification-target.enum';
 import { NotificationService } from 'src/notification/notification.service';
+import {
+  eachLimited,
+  POOLED_READ_CONCURRENCY,
+} from 'src/shared/ledger/ledger.utility';
 
 import { FleetCommunityEntity } from '../../entities/fleet-community.entity';
 import { ScopeRoleAssignmentEntity } from '../../entities/scope-role-assignment.entity';
@@ -119,11 +123,13 @@ export class ArmadaNotifierService {
       where: { id: armadaId },
     });
 
-    for (const fleetId of fleetIds) {
+    // Each Fleet's lookup and notices stand alone, and a notice that fails is
+    // logged, so a few Fleets are told at once.
+    await eachLimited(fleetIds, POOLED_READ_CONCURRENCY, async fleetId => {
       const fleet = await this.fleetWithLink(fleetId);
 
       if (armada === null || fleet === null) {
-        continue;
+        return;
       }
 
       const admins = await manager.find(ScopeRoleAssignmentEntity, {
@@ -153,17 +159,19 @@ export class ArmadaNotifierService {
 
       recipients.delete(actorUserId);
 
-      for (const userId of recipients) {
-        await this.send(userId, {
-          title: `${fleet.fleet.exactGameName} was taken out of ${armada.exactGameName}`,
-          body:
-            `${fleet.fleet.exactGameName} is no longer in ` +
-            `${armada.exactGameName}. Reason: ${reason}`,
-          severity: NotificationSeverity.WARNING,
-          linkUrl: fleet.link,
-        });
-      }
-    }
+      await Promise.all(
+        [...recipients].map(userId =>
+          this.send(userId, {
+            title: `${fleet.fleet.exactGameName} was taken out of ${armada.exactGameName}`,
+            body:
+              `${fleet.fleet.exactGameName} is no longer in ` +
+              `${armada.exactGameName}. Reason: ${reason}`,
+            severity: NotificationSeverity.WARNING,
+            linkUrl: fleet.link,
+          }),
+        ),
+      );
+    });
   }
 
   /**

@@ -354,15 +354,18 @@ export class RescanVerdictService {
       select: { id: true },
     });
 
-    for (const admin of admins) {
-      await this.tell(admin.id, {
-        title: 'Infected picture taken down',
-        body:
-          `A rescan found asset ${asset.id} infected (${code}). It is no ` +
-          'longer served, and its image has been deleted.',
-        linkUrl: SCAN_DIAGNOSTICS_LINK,
-      });
-    }
+    // Each notice is its own row, and a failed one is only logged.
+    await Promise.all(
+      admins.map(admin =>
+        this.tell(admin.id, {
+          title: 'Infected picture taken down',
+          body:
+            `A rescan found asset ${asset.id} infected (${code}). It is no ` +
+            'longer served, and its image has been deleted.',
+          linkUrl: SCAN_DIAGNOSTICS_LINK,
+        }),
+      ),
+    );
 
     if (asset.ownerUserId !== null) {
       await this.tell(asset.ownerUserId, { ...OWNER_NOTICE, linkUrl: null });

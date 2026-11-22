@@ -743,22 +743,25 @@ export class OperationsAlertService {
       select: { id: true },
     });
 
-    for (const admin of admins) {
-      try {
-        await this._notifications.createNotification({
-          target: NotificationTarget.USER,
-          userId: admin.id,
-          severity:
-            change === 'opened'
-              ? NotificationSeverity.WARNING
-              : NotificationSeverity.INFO,
-          title: notice.title,
-          body: notice.body,
-          linkUrl: SCAN_DIAGNOSTICS_LINK,
-        });
-      } catch {
-        this._logger.warn(`[tell] Notice not sent - UserId: ${admin.id}`);
-      }
-    }
+    // Each notice is its own row and a failure is caught, so they go at once.
+    await Promise.all(
+      admins.map(async admin => {
+        try {
+          await this._notifications.createNotification({
+            target: NotificationTarget.USER,
+            userId: admin.id,
+            severity:
+              change === 'opened'
+                ? NotificationSeverity.WARNING
+                : NotificationSeverity.INFO,
+            title: notice.title,
+            body: notice.body,
+            linkUrl: SCAN_DIAGNOSTICS_LINK,
+          });
+        } catch {
+          this._logger.warn(`[tell] Notice not sent - UserId: ${admin.id}`);
+        }
+      }),
+    );
   }
 }

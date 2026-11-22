@@ -3,6 +3,11 @@ import { InjectDataSource } from '@nestjs/typeorm';
 
 import { DataSource, EntityManager, In, IsNull, Not } from 'typeorm';
 
+import {
+  eachLimited,
+  POOLED_READ_CONCURRENCY,
+} from 'src/shared/ledger/ledger.utility';
+
 import { FleetCommunityEntity } from '../../entities/fleet-community.entity';
 import { ScopeMembershipEntity } from '../../entities/scope-membership.entity';
 import { StoArmadaEntity } from '../../entities/sto-armada.entity';
@@ -62,13 +67,23 @@ export class DisputeRegistrationsService {
         order: { exactGameName: 'ASC' },
       }),
     ]);
-    const scopes: DisputeScopeDto[] = [];
+    const own = [
+      ...fleets.map(
+        registration =>
+          [FleetScopeKind.FLEET, registration, StoFleetEntity] as const,
+      ),
+      ...armadas.map(
+        registration =>
+          [FleetScopeKind.ARMADA, registration, StoArmadaEntity] as const,
+      ),
+    ];
 
-    for (const [kind, own, entity] of [
-      [FleetScopeKind.FLEET, fleets, StoFleetEntity],
-      [FleetScopeKind.ARMADA, armadas, StoArmadaEntity],
-    ] as const) {
-      for (const registration of own) {
+    // Read-only, and each registration stands alone, so a few are read at
+    // once; the results keep the same order.
+    return eachLimited(
+      own,
+      POOLED_READ_CONCURRENCY,
+      async ([kind, registration, entity]) => {
         const duplicates = await manager.find<Registration>(entity, {
           where: {
             platformId: registration.platformId,
@@ -84,11 +99,9 @@ export class DisputeRegistrationsService {
           ...duplicates,
         ]);
 
-        scopes.push({ ...described[0], duplicates: described.slice(1) });
-      }
-    }
-
-    return scopes;
+        return { ...described[0], duplicates: described.slice(1) };
+      },
+    );
   }
 }
 

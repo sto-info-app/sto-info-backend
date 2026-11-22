@@ -24,6 +24,10 @@ import { SiteAdminActionKind } from 'src/audit/site-admin/site-admin-action.enum
 import { recordSiteAdminAction } from 'src/audit/site-admin/site-admin-action.utility';
 import { UserReportEntity } from 'src/moderation/entities/user-report.entity';
 import { ReportStatus } from 'src/moderation/enums/report-status.enum';
+import {
+  eachLimited,
+  POOLED_READ_CONCURRENCY,
+} from 'src/shared/ledger/ledger.utility';
 
 import { usernamesFor } from '../../recruitment/utilities/recruitment-names.utility';
 import { purgeInBatches } from '../../retention/purge-in-batches.utility';
@@ -520,20 +524,23 @@ export class ChatReportService {
         : await manager.find(ChatChannelEntity, {
             where: { id: In(channelIds) },
           });
-    const places = new Map<string, ChatReportPlaceDto>();
+    const places = new Map<string, ChatReportPlaceDto>(
+      await eachLimited(channels, POOLED_READ_CONCURRENCY, async channel => {
+        const scope = await scopePlaceOf(manager, channel);
 
-    for (const channel of channels) {
-      const scope = await scopePlaceOf(manager, channel);
-
-      places.set(channel.id, {
-        kind: 'CHANNEL',
-        channelId: channel.id,
-        channelName: channel.name,
-        scopeKind: scope?.kind ?? null,
-        scopeName: scope?.name ?? null,
-        conversationId: null,
-      });
-    }
+        return [
+          channel.id,
+          {
+            kind: 'CHANNEL',
+            channelId: channel.id,
+            channelName: channel.name,
+            scopeKind: scope?.kind ?? null,
+            scopeName: scope?.name ?? null,
+            conversationId: null,
+          },
+        ] as const;
+      }),
+    );
 
     const named = (id: string | null): ChatPersonDto | null =>
       personOf(id, id === null ? null : (names.get(id) ?? null));

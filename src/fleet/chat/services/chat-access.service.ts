@@ -214,20 +214,24 @@ export class ChatAccessService {
       return {};
     }
 
-    let mayPost = false;
-    let mayReport = false;
-
-    for (const membership of memberships) {
-      const atFleet = await this._authorisation.authorise(
-        userId,
-        toScopeRef(fleetScope(scope.communityId, membership.fleetId as string)),
-      );
-
-      mayPost ||=
-        atFleet?.capabilities.has(FLEET_CAPABILITIES.CHAT_POST) ?? false;
-      mayReport ||=
-        atFleet?.capabilities.has(FLEET_CAPABILITIES.CONTENT_REPORT) ?? false;
-    }
+    const atFleets = await Promise.all(
+      memberships.map(membership =>
+        this._authorisation.authorise(
+          userId,
+          toScopeRef(
+            fleetScope(scope.communityId, membership.fleetId as string),
+          ),
+        ),
+      ),
+    );
+    const mayPost = atFleets.some(
+      atFleet =>
+        atFleet?.capabilities.has(FLEET_CAPABILITIES.CHAT_POST) ?? false,
+    );
+    const mayReport = atFleets.some(
+      atFleet =>
+        atFleet?.capabilities.has(FLEET_CAPABILITIES.CONTENT_REPORT) ?? false,
+    );
 
     return { rank: 1, mayPost, mayReport };
   }

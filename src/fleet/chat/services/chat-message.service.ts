@@ -30,6 +30,10 @@ import {
   OutboxEntry,
   queueOutbox,
 } from 'src/notification/outbox/notification-outbox.utility';
+import {
+  eachLimited,
+  POOLED_READ_CONCURRENCY,
+} from 'src/shared/ledger/ledger.utility';
 import { escapeSqlLikeTerm } from 'src/shared/utilities/sql-like.utility';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 
@@ -719,20 +723,16 @@ export class ChatMessageService {
     userIds: readonly string[],
   ): Promise<string[]> {
     const scope = this._access.scopeOf(channel);
-    const readers: string[] = [];
+    // A few dozen people at most, each weighed on their own, a few at a time.
+    const standings = await eachLimited(
+      userIds,
+      POOLED_READ_CONCURRENCY,
+      userId => this._access.standingAt(scope, userId),
+    );
 
-    for (const userId of userIds) {
-      if (
-        this._access.canRead(
-          channel,
-          await this._access.standingAt(scope, userId),
-        )
-      ) {
-        readers.push(userId);
-      }
-    }
-
-    return readers;
+    return userIds.filter((_userId, index) =>
+      this._access.canRead(channel, standings[index]),
+    );
   }
 
   /**

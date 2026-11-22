@@ -175,17 +175,17 @@ export class AccountClosureReconciliationService {
    * @returns The open ones.
    */
   private async openAccounts(ids: readonly string[]): Promise<Set<string>> {
-    const open = new Set<string>();
+    // Read-only chunks, a few at a time, as the ledger itself is read.
+    const found = await eachLimited(
+      chunksOf(ids, LEDGER_CHUNK_SIZE),
+      LEDGER_CONCURRENCY,
+      chunk =>
+        this._users.find({
+          where: { id: In(chunk) },
+          select: { id: true },
+        }),
+    );
 
-    for (const chunk of chunksOf(ids, LEDGER_CHUNK_SIZE)) {
-      for (const user of await this._users.find({
-        where: { id: In(chunk) },
-        select: { id: true },
-      })) {
-        open.add(user.id);
-      }
-    }
-
-    return open;
+    return new Set(found.flat().map(user => user.id));
   }
 }

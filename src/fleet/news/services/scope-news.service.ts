@@ -604,15 +604,13 @@ export class ScopeNewsService {
     ref: ScopeRef,
     viewerId: string | null,
   ): Promise<FleetAudience[]> {
-    const audiences: FleetAudience[] = [];
+    const visible = await Promise.all(
+      SCOPE_NEWS_AUDIENCES.map(audience =>
+        this._audience.canView(audience, ref, viewerId),
+      ),
+    );
 
-    for (const audience of SCOPE_NEWS_AUDIENCES) {
-      if (await this._audience.canView(audience, ref, viewerId)) {
-        audiences.push(audience);
-      }
-    }
-
-    return audiences;
+    return SCOPE_NEWS_AUDIENCES.filter((_, index) => visible[index]);
   }
 
   /**

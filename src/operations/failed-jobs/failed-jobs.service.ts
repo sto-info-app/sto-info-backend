@@ -31,6 +31,10 @@ import { ChatTranscriptStatus } from 'src/fleet/chat/enums/chat.enums';
 import { CHAT_TRANSCRIPT_QUEUE } from 'src/fleet/chat/transcripts/chat-transcript.constants';
 import { RosterProjectionEntity } from 'src/fleet/projection/entities/roster-projection.entity';
 import {
+  eachLimited,
+  POOLED_READ_CONCURRENCY,
+} from 'src/shared/ledger/ledger.utility';
+import {
   RedisTimeoutError,
   redisWithin,
 } from 'src/shared/queue/redis-within.utility';
@@ -210,9 +214,13 @@ export class FailedJobsService {
 
       skip = 0;
 
-      for (const job of jobs) {
-        items.push(await this.describe(name, job));
-      }
+      // Describing a job only reads the record it was for, so the page's
+      // jobs are read a few at a time.
+      items.push(
+        ...(await eachLimited(jobs, POOLED_READ_CONCURRENCY, job =>
+          this.describe(name, job),
+        )),
+      );
 
       if (items.length >= FAILED_JOB_PAGE_SIZE) {
         break;

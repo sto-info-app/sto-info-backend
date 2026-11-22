@@ -4,6 +4,10 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, Not } from 'typeorm';
 
 import {
+  eachLimited,
+  POOLED_READ_CONCURRENCY,
+} from 'src/shared/ledger/ledger.utility';
+import {
   AccountDeparture,
   OwnedCommunityOutcome,
 } from 'src/user/account-departure';
@@ -57,17 +61,17 @@ export class CommunityOwnerDepartureService implements AccountDeparture {
    */
   async preview(userId: string): Promise<OwnedCommunityOutcome[]> {
     const manager = this._dataSource.manager;
-    const outcomes: Array<Omit<OwnedCommunityOutcome, 'toUsername'>> = [];
-
-    for (const community of await this.openOwnedBy(userId)) {
-      const toUserId = await this._transfers.successorFor(
-        manager,
-        community.id,
-        userId,
-      );
-
-      outcomes.push(outcomeOf(community, toUserId));
-    }
+    // Nothing is handed over here, so each Community's successor is read
+    // independently, a few at a time.
+    const outcomes = await eachLimited(
+      await this.openOwnedBy(userId),
+      POOLED_READ_CONCURRENCY,
+      async community =>
+        outcomeOf(
+          community,
+          await this._transfers.successorFor(manager, community.id, userId),
+        ),
+    );
 
     return this.named(outcomes);
   }

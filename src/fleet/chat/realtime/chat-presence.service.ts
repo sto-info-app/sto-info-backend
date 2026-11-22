@@ -4,6 +4,10 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import type { Redis } from 'ioredis';
 import { DataSource, In, IsNull } from 'typeorm';
 
+import {
+  eachLimited,
+  POOLED_READ_CONCURRENCY,
+} from 'src/shared/ledger/ledger.utility';
 import { UserPreferenceEntity } from 'src/user/entities/user-preference.entity';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 import { PresenceVisibility } from 'src/user/enums/presence-visibility.enum';
@@ -121,13 +125,17 @@ export class ChatPresenceService implements OnModuleDestroy {
    * @param userIds - The people.
    */
   async refresh(userIds: readonly string[]): Promise<void> {
-    for (const userId of userIds) {
-      this._preferences.delete(userId);
+    // One person's answer never touches another's, and a change names one
+    // or two people, so they are asked together.
+    await Promise.all(
+      userIds.map(async userId => {
+        this._preferences.delete(userId);
 
-      if ((await this.preferencesOf(userId)).appearOffline) {
-        await this.leave(userId);
-      }
-    }
+        if ((await this.preferencesOf(userId)).appearOffline) {
+          await this.leave(userId);
+        }
+      }),
+    );
   }
 
   /**
@@ -169,10 +177,16 @@ export class ChatPresenceService implements OnModuleDestroy {
       this._direct.friendsAmong(viewerId, ids),
       this.sharingWith(viewerId),
     ]);
+    // At most fifty people, each read on their own, a few at a time.
+    const preferencesOf = await eachLimited(
+      profiles,
+      POOLED_READ_CONCURRENCY,
+      profile => this.preferencesOf(profile.userId),
+    );
     const answers: ChatPresenceDto[] = [];
 
     for (const [index, profile] of profiles.entries()) {
-      const preferences = await this.preferencesOf(profile.userId);
+      const preferences = preferencesOf[index];
       const audience =
         profile.userId === viewerId ||
         preferences.visibility === PresenceVisibility.EVERYONE ||

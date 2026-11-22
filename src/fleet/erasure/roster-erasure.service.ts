@@ -607,18 +607,23 @@ export class RosterErasureService {
   private async pairsByHash(): Promise<Map<string, NormalisedPair[]>> {
     const manager = this._dataSource.manager;
     const seen = new Map<string, NormalisedPair>();
+    // Two reads outside any transaction, so they go together; their rows are
+    // still taken in the same order as before.
+    const tables = await Promise.all(
+      [RosterObservationEntity, RosterIdentityAliasEntity].map(entity =>
+        manager
+          .createQueryBuilder(entity, 'row')
+          .select('row.characterNameNormalised', 'characterNameNormalised')
+          .addSelect('row.accountHandleNormalised', 'accountHandleNormalised')
+          .distinct(true)
+          .getRawMany<{
+            characterNameNormalised: string;
+            accountHandleNormalised: string;
+          }>(),
+      ),
+    );
 
-    for (const entity of [RosterObservationEntity, RosterIdentityAliasEntity]) {
-      const rows: Array<{
-        characterNameNormalised: string;
-        accountHandleNormalised: string;
-      }> = await manager
-        .createQueryBuilder(entity, 'row')
-        .select('row.characterNameNormalised', 'characterNameNormalised')
-        .addSelect('row.accountHandleNormalised', 'accountHandleNormalised')
-        .distinct(true)
-        .getRawMany();
-
+    for (const rows of tables) {
       for (const row of rows) {
         seen.set(
           `${row.characterNameNormalised}\n${row.accountHandleNormalised}`,

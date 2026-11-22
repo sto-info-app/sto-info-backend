@@ -327,11 +327,12 @@ export class AssetDenyReconciliationService {
    * @returns Those the database has.
    */
   private async assetsById(ids: readonly string[]): Promise<FileAssetEntity[]> {
-    const found: FileAssetEntity[] = [];
-
-    for (const chunk of chunksOf(ids, LEDGER_CHUNK_SIZE)) {
-      found.push(
-        ...(await this._assets.find({
+    // Reads only, each on its own pooled connection, so a few at a time.
+    const chunks = await eachLimited(
+      chunksOf(ids, LEDGER_CHUNK_SIZE),
+      LEDGER_CONCURRENCY,
+      chunk =>
+        this._assets.find({
           where: { id: In(chunk) },
           select: {
             id: true,
@@ -339,10 +340,9 @@ export class AssetDenyReconciliationService {
             storage: true,
             deliveryReference: true,
           },
-        })),
-      );
-    }
+        }),
+    );
 
-    return found;
+    return chunks.flat();
   }
 }

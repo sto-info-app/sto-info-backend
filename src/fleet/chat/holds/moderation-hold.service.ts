@@ -23,6 +23,10 @@ import {
 import { NotificationSeverity } from 'src/notification/enums/notification-severity.enum';
 import { NotificationTarget } from 'src/notification/enums/notification-target.enum';
 import { NotificationService } from 'src/notification/notification.service';
+import {
+  eachLimited,
+  POOLED_READ_CONCURRENCY,
+} from 'src/shared/ledger/ledger.utility';
 import { UserEntity } from 'src/user/entities/user.entity';
 import { UserRole } from 'src/user/enums/user-role.enum';
 
@@ -585,23 +589,26 @@ export class ModerationHoldService {
     title: string,
     body: string,
   ): Promise<void> {
-    for (const userId of userIds) {
-      try {
-        await this._notifications.createNotification({
-          target: NotificationTarget.USER,
-          userId,
-          severity: NotificationSeverity.WARNING,
-          title,
-          body,
-          linkUrl: HOLDS_LINK,
-        });
-      } catch (error) {
-        this._logger.warn(
-          `[tell] Hold notice not sent - UserId: ${userId}, ` +
-            `Reason: ${(error as Error).name}`,
-        );
-      }
-    }
+    // Each notice is its own row and a failure is caught, so they go at once.
+    await Promise.all(
+      userIds.map(async userId => {
+        try {
+          await this._notifications.createNotification({
+            target: NotificationTarget.USER,
+            userId,
+            severity: NotificationSeverity.WARNING,
+            title,
+            body,
+            linkUrl: HOLDS_LINK,
+          });
+        } catch (error) {
+          this._logger.warn(
+            `[tell] Hold notice not sent - UserId: ${userId}, ` +
+              `Reason: ${(error as Error).name}`,
+          );
+        }
+      }),
+    );
   }
 
   /**
@@ -935,8 +942,13 @@ async function placesOf(
         });
   const places = new Map<string, ChatReportPlaceDto>();
 
-  for (const channel of channels) {
-    const scope = await scopePlaceOf(manager, channel);
+  // Read-only lookups, one a channel on the page, a few at a time.
+  const scopes = await eachLimited(channels, POOLED_READ_CONCURRENCY, channel =>
+    scopePlaceOf(manager, channel),
+  );
+
+  channels.forEach((channel, index) => {
+    const scope = scopes[index];
 
     places.set(channel.id, {
       kind: 'CHANNEL',
@@ -946,7 +958,7 @@ async function placesOf(
       scopeName: scope?.name ?? null,
       conversationId: null,
     });
-  }
+  });
 
   const otherOf = new Map(
     conversations.map(conversation => [

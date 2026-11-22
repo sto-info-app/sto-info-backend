@@ -6,6 +6,13 @@ export const LEDGER_CHUNK_SIZE = 500;
 /** How many objects a ledger check writes or reads at once. */
 export const LEDGER_CONCURRENCY = 8;
 
+/**
+ * How many independent reads one request or job starts at once on the shared
+ * database pool. The pool holds the driver's default of ten connections, so
+ * one caller fanning out wider would leave every other request queueing.
+ */
+export const POOLED_READ_CONCURRENCY = 4;
+
 /** What every ID a ledger names looks like: a UUID. */
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
