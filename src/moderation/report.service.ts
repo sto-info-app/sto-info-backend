@@ -6,9 +6,13 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { In, IsNull, Repository } from 'typeorm';
+import { EntityManager, In, IsNull, Repository } from 'typeorm';
+
+import { SiteAdminActionKind } from 'src/audit/site-admin/site-admin-action.enum';
+import { recordSiteAdminAction } from 'src/audit/site-admin/site-admin-action.utility';
 
 import { PublicMemberService } from '../community/public-member.service';
+import { ChatMessageReportEntity } from '../fleet/chat/entities/chat-message-report.entity';
 import { UserEntity } from '../user/entities/user.entity';
 import { CreateUserReportDto } from './dto/create-user-report.dto';
 import { ReportQueryDto } from './dto/report-query.dto';
@@ -24,6 +28,16 @@ import { ReportStatus } from './enums/report-status.enum';
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
 
+/**
+ * What the site admin log says of a report moved without a reason (FC-039):
+ * only a live one, since closing one needs a reason.
+ */
+export const REPORT_MOVED_REASONS: Readonly<Record<ReportStatus, string>> = {
+  [ReportStatus.OPEN]: 'Reopened.',
+  [ReportStatus.UNDER_REVIEW]: 'Taken for review.',
+  [ReportStatus.ACTIONED]: 'Closed as actioned.',
+  [ReportStatus.DISMISSED]: 'Dismissed.',
+};
 /** The states a report is still waiting on someone for. */
 export const UNRESOLVED_STATUSES = [
   ReportStatus.OPEN,
@@ -153,7 +167,9 @@ export class ReportService {
       .getManyAndCount();
 
     return {
-      items: reports.map(report => this.toReport(report)),
+      items: await this.withChatCounts(
+        reports.map(report => this.toReport(report)),
+      ),
       total,
       page,
       pageSize,
@@ -169,7 +185,11 @@ export class ReportService {
    * @throws {NotFoundException} When no such live report exists.
    */
   async findOneForAdmin(reportId: string): Promise<UserReportDto> {
-    return this.toReport(await this.requireReport(reportId));
+    return (
+      await this.withChatCounts([
+        this.toReport(await this.requireReport(reportId)),
+      ])
+    )[0];
   }
 
   /**
@@ -190,15 +210,26 @@ export class ReportService {
     dto: UpdateReportDto,
   ): Promise<UserReportDto> {
     const report = await this.requireReport(reportId);
+    const from = report.status;
 
     report.status = dto.status;
     report.moderatorNotes = dto.moderatorNotes ?? report.moderatorNotes;
     report.reviewedById = adminUserId;
     report.reviewedAt = new Date();
 
-    await this._reportRepository.save(report);
+    await this._reportRepository.manager.transaction(async manager => {
+      await manager.save(UserReportEntity, report);
+      await recordSiteAdminAction(manager, {
+        action: SiteAdminActionKind.USER_REPORT_DECIDED,
+        actorUserId: adminUserId,
+        targetUserId: report.reportedId,
+        subject: { kind: 'USER_REPORT', id: report.id },
+        reason: dto.reason ?? REPORT_MOVED_REASONS[dto.status],
+        detail: { from, to: dto.status },
+      });
+    });
 
-    return this.toReport(await this.requireReport(reportId));
+    return this.findOneForAdmin(reportId);
   }
 
   /**
@@ -250,37 +281,140 @@ export class ReportService {
   }
 
   /**
-   * Resolves every unresolved report naming a member as actioned.
+   * Counts the chat reports still waiting on an administrator (FC-036).
+   *
+   * @returns The number of open chat reports.
+   */
+  countUnresolvedChat(): Promise<number> {
+    return this._reportRepository.manager.count(ChatMessageReportEntity, {
+      where: { status: In(UNRESOLVED_STATUSES) },
+    });
+  }
+
+  /**
+   * Resolves every unresolved report naming a member as actioned: member
+   * reports, and reports of their chat messages (FC-036).
    *
    * Called when an administrator disables an account: the reports that led
    * there are closed in the same breath, so the queue does not keep offering
    * complaints that have already been acted on.
    *
+   * Each report closed is a decision of its own in the site admin log
+   * (FC-039), with the disabling's reason, so no bulk close goes unrecorded.
+   *
+   * @param manager - The disabling's transaction.
    * @param reportedId - The disabled member's user ID.
    * @param adminUserId - The acting administrator's user ID.
+   * @param reason - Why the account was disabled.
    * @returns The number of reports closed.
    */
   async actionReportsAgainst(
+    manager: EntityManager,
     reportedId: string,
     adminUserId: string,
+    reason: string,
   ): Promise<number> {
-    const result = await this._reportRepository.update(
-      {
+    const now = new Date();
+    const members = await manager.find(UserReportEntity, {
+      where: {
         reportedId,
         status: In(UNRESOLVED_STATUSES),
         deletedAt: IsNull(),
       },
-      {
-        status: ReportStatus.ACTIONED,
-        reviewedById: adminUserId,
-        reviewedAt: new Date(),
-      },
-    );
+      select: { id: true, status: true },
+    });
+    const chats = await manager.find(ChatMessageReportEntity, {
+      where: { authorUserId: reportedId, status: In(UNRESOLVED_STATUSES) },
+      select: { id: true, status: true },
+    });
 
-    return result.affected ?? 0;
+    if (members.length > 0) {
+      await manager.update(
+        UserReportEntity,
+        { id: In(members.map(report => report.id)) },
+        {
+          status: ReportStatus.ACTIONED,
+          reviewedById: adminUserId,
+          reviewedAt: now,
+        },
+      );
+    }
+
+    if (chats.length > 0) {
+      await manager.update(
+        ChatMessageReportEntity,
+        { id: In(chats.map(report => report.id)) },
+        {
+          status: ReportStatus.ACTIONED,
+          resolutionNote: 'Closed when the account was disabled.',
+          resolvedByUserId: adminUserId,
+          resolvedAt: now,
+        },
+      );
+    }
+
+    for (const [reports, kind, action] of [
+      [members, 'USER_REPORT', SiteAdminActionKind.USER_REPORT_DECIDED],
+      [chats, 'CHAT_REPORT', SiteAdminActionKind.CHAT_REPORT_DECIDED],
+    ] as const) {
+      for (const report of reports as ReadonlyArray<{
+        id: string;
+        status: ReportStatus;
+      }>) {
+        await recordSiteAdminAction(manager, {
+          action,
+          actorUserId: adminUserId,
+          targetUserId: reportedId,
+          subject: { kind, id: report.id },
+          reason,
+          detail: {
+            from: report.status,
+            to: ReportStatus.ACTIONED,
+            withDisabling: true,
+          },
+        });
+      }
+    }
+
+    return members.length + chats.length;
   }
 
   // ----- Helpers -----
+
+  /**
+   * Adds how many open chat reports there are about each reported member
+   * (FC-036), so the two queues point at each other.
+   *
+   * @param reports - The reports.
+   * @returns The same reports, counted.
+   */
+  private async withChatCounts(
+    reports: UserReportDto[],
+  ): Promise<UserReportDto[]> {
+    const ids = [...new Set(reports.map(report => report.reported.userId))];
+    const open =
+      ids.length === 0
+        ? []
+        : await this._reportRepository.manager.find(ChatMessageReportEntity, {
+            where: {
+              authorUserId: In(ids),
+              status: In(UNRESOLVED_STATUSES),
+            },
+            select: { id: true, authorUserId: true },
+          });
+    const counts = new Map<string, number>();
+
+    for (const report of open) {
+      const author = report.authorUserId as string;
+
+      counts.set(author, (counts.get(author) ?? 0) + 1);
+    }
+
+    return reports.map(report => ({
+      ...report,
+      openChatReportCount: counts.get(report.reported.userId) ?? 0,
+    }));
+  }
 
   /**
    * Loads a live report with both members and the reviewer attached.
@@ -343,6 +477,7 @@ export class ReportService {
         null,
       reviewedAt: report.reviewedAt,
       createdAt: report.createdAt,
+      openChatReportCount: 0,
     };
   }
 

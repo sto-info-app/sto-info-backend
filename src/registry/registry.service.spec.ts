@@ -144,7 +144,7 @@ function buildAccount(overrides: Partial<AccountEntity> = {}): AccountEntity {
     platform: { name: 'Steam' },
     launcher: { name: 'Arc' },
     lifetimeSubscription: true,
-    accountCreatedDate: new Date('2015-03-04T00:00:00.000Z'),
+    accountCreatedDate: '2015-03-04',
     publiclyVisible: true,
     ...overrides,
   } as unknown as AccountEntity;
@@ -183,7 +183,7 @@ function buildCharacter(
     lastName: 'Sorek',
     biography: 'A long and storied career.',
     notes: 'private captain notes',
-    createdDate: new Date('2020-06-01T00:00:00.000Z'),
+    createdDate: '2020-06-01',
     publiclyVisible: true,
     ...overrides,
   } as unknown as CharacterEntity;
@@ -518,7 +518,7 @@ describe('RegistryService', () => {
             {
               accountCount: 2,
               characterCount: 11,
-              playingSince: new Date('2015-03-04T00:00:00.000Z'),
+              playingSince: '2015-03-04',
             },
           ],
         ]),
@@ -528,9 +528,7 @@ describe('RegistryService', () => {
 
       expect(result.items[0].publicAccountCount).toBe(2);
       expect(result.items[0].publicCharacterCount).toBe(11);
-      expect(result.items[0].playingSince).toEqual(
-        new Date('2015-03-04T00:00:00.000Z'),
-      );
+      expect(result.items[0].playingSince).toBe('2015-03-04');
     });
 
     it('should report zero counts for a member with no visible accounts', async () => {
@@ -605,7 +603,7 @@ describe('RegistryService', () => {
             {
               accountCount: 1,
               characterCount: 4,
-              playingSince: new Date('2015-03-04T00:00:00.000Z'),
+              playingSince: '2015-03-04',
             },
           ],
         ]),
@@ -613,7 +611,7 @@ describe('RegistryService', () => {
 
       const result = await service.findProfileByUsername('captain.picard');
 
-      expect(result.playingSince).toEqual(new Date('2015-03-04T00:00:00.000Z'));
+      expect(result.playingSince).toBe('2015-03-04');
     });
 
     it('should report a zero captain count for an account with none visible', async () => {
@@ -706,9 +704,7 @@ describe('RegistryService', () => {
 
       expect(result.handle).toBe('SteveX#1234');
       expect(result.lifetimeSubscription).toBe(true);
-      expect(result.accountCreatedDate).toEqual(
-        new Date('2015-03-04T00:00:00.000Z'),
-      );
+      expect(result.accountCreatedDate).toBe('2015-03-04');
       expect(result.publicCharacterCount).toBe(1);
       expect(result.characters).toHaveLength(1);
       expect(result.characters[0].handle).toBe('Rex');
@@ -805,7 +801,7 @@ describe('RegistryService', () => {
       expect(result.middleName).toBeNull();
       expect(result.lastName).toBe('Sorek');
       expect(result.biography).toBe('A long and storied career.');
-      expect(result.createdDate).toEqual(new Date('2020-06-01T00:00:00.000Z'));
+      expect(result.createdDate).toBe('2020-06-01');
     });
 
     it('should map the derived rank', async () => {
@@ -906,6 +902,126 @@ describe('RegistryService', () => {
 
       expect(result.species?.iconUrl).toBeNull();
       expect(result.rank?.iconUrl).toBeNull();
+    });
+  });
+
+  describe('findVisibleProfileUserIds', () => {
+    it('asks nothing when nobody is named', async () => {
+      const ids = await service.findVisibleProfileUserIds([], 'viewer-1');
+
+      expect(ids.size).toBe(0);
+      expect(blockService.getBlockedUserIds).not.toHaveBeenCalled();
+    });
+
+    it('holds each member to the public profile chain, once each', async () => {
+      profileQb.getRawMany.mockResolvedValue([{ userId: 'user-1' }]);
+
+      const ids = await service.findVisibleProfileUserIds(
+        ['user-1', 'user-2', 'user-1'],
+        'viewer-1',
+      );
+
+      expect([...ids]).toEqual(['user-1']);
+      expect(profileQb.andWhere).toHaveBeenCalledWith(
+        'profile.userId IN (:...userIds)',
+        { userIds: ['user-1', 'user-2'] },
+      );
+      expect(profileQb.where).toHaveBeenCalledWith(
+        'profile.publiclyVisible = true',
+      );
+      expect(profileQb.select).toHaveBeenCalledWith('profile.userId', 'userId');
+    });
+
+    it('leaves out a member blocked either way', async () => {
+      blockService.getBlockedUserIds.mockResolvedValue(['user-2']);
+
+      await service.findVisibleProfileUserIds(['user-2'], 'viewer-1');
+
+      expect(blockService.getBlockedUserIds).toHaveBeenCalledWith('viewer-1');
+      expect(profileQb.andWhere).toHaveBeenCalledWith(
+        'profile.userId NOT IN (:...blockedUserIds)',
+        { blockedUserIds: ['user-2'] },
+      );
+    });
+  });
+
+  describe('findVisibleCharacterPaths', () => {
+    it('asks nothing when no captain is named', async () => {
+      const paths = await service.findVisibleCharacterPaths([], 'viewer-1');
+
+      expect(paths.size).toBe(0);
+      expect(characterRepository.createQueryBuilder).not.toHaveBeenCalled();
+      expect(blockService.getBlockedUserIds).not.toHaveBeenCalled();
+    });
+
+    it('holds each captain to the whole opt-in chain', async () => {
+      await service.findVisibleCharacterPaths(['character-1'], 'viewer-1');
+
+      expect(characterQb.where).toHaveBeenCalledWith(
+        'character.id IN (:...characterIds)',
+        { characterIds: ['character-1'] },
+      );
+
+      for (const condition of [
+        'character.publiclyVisible = true',
+        'character.deletedAt IS NULL',
+        'account.publiclyVisible = true',
+        'account.deletedAt IS NULL',
+        'profile.publiclyVisible = true',
+        'profile.deletedAt IS NULL',
+        'user.deletedAt IS NULL',
+        'user.isAccountDisabled = false',
+      ]) {
+        expect(characterQb.andWhere).toHaveBeenCalledWith(condition);
+      }
+    });
+
+    it('returns each openable captain by ID', async () => {
+      characterQb.getRawMany.mockResolvedValue([
+        {
+          characterId: 'character-1',
+          username: 'captain.picard',
+          accountSlug: 'SteveX~1234',
+          characterSlug: 'rex@stevex~1234',
+        },
+      ]);
+
+      const paths = await service.findVisibleCharacterPaths(
+        ['character-1', 'character-2'],
+        null,
+      );
+
+      expect([...paths.entries()]).toEqual([
+        [
+          'character-1',
+          {
+            username: 'captain.picard',
+            accountSlug: 'SteveX~1234',
+            characterSlug: 'rex@stevex~1234',
+          },
+        ],
+      ]);
+    });
+
+    it('leaves out a captain whose member is blocked either way', async () => {
+      blockService.getBlockedUserIds.mockResolvedValue(['user-9']);
+
+      await service.findVisibleCharacterPaths(['character-1'], 'viewer-1');
+
+      expect(blockService.getBlockedUserIds).toHaveBeenCalledWith('viewer-1');
+      expect(characterQb.andWhere).toHaveBeenCalledWith(
+        'account.userId NOT IN (:...blockedUserIds)',
+        { blockedUserIds: ['user-9'] },
+      );
+    });
+
+    it('adds no block clause when nobody is blocked', async () => {
+      await service.findVisibleCharacterPaths(['character-1'], null);
+
+      expect(characterQb.andWhere).not.toHaveBeenCalledWith(
+        'account.userId NOT IN (:...blockedUserIds)',
+        expect.anything(),
+      );
     });
   });
 

@@ -34,11 +34,39 @@ If the test suite passes but the job fails, check the per-file coverage output i
 
 Mutation testing is used to validate the effectiveness of tests (i.e., tests should fail when the code is mutated).
 
-- **Full run**: `npm run test:mutation`
-- **Incremental (PRs)**: The `lint-test` workflow runs incremental mutation testing on pull requests.
+- **Full run**: `npm run test:mutation` locally. In CI it runs weekly, split into shards: see [Weekly full run](#weekly-full-run).
+- **Incremental (PRs)**: `.github/workflows/mutation-testing-incremental.yml` runs incremental mutation testing on pull requests to `development`, `production` and `epic/*`.
   - It computes relevant changed files under `src/**/*.ts` (excluding specs, modules, and other non-runtime files) and mutates only those.
-  - It uses Stryker incremental mode to cache results between runs.
+  - It does not use Stryker's incremental mode: restricting `--mutate` to the changed files would overwrite a shared cache with results for those files alone (see the comment in `scripts/run-incremental-mutation.mjs`).
+  - A PR that changes more than 150 mutatable files (`MUTATION_MAX_FILES` in the workflow) skips it and is left to the weekly run. A diff that wide cannot finish inside the job's 240 minutes: PR #975's 164 files were tracking at about 3 hours 45 minutes.
   - You can reproduce locally with: `BASE_REF=origin/<base-branch> npm run test:mutation:incremental`
+
+### Weekly full run
+
+`.github/workflows/mutation-testing.yml` runs every Sunday at midnight UTC, and can be started by hand from the Actions tab.
+
+**Why it is split.** A GitHub-hosted job is stopped at 6 hours, whatever its `timeout-minutes` says. As a single job the run was cancelled at 6 hours every week from October 2026 (12,364 mutants, 76% done at best), and on 22 November 2026 the runner ran out of memory at 52%. The Fleet Community merge takes the mutate set from ~240 to ~520 files (about 27,000 mutants, roughly 15 hours in one job).
+
+**How it is split.**
+
+- `scripts/mutation-shards.mjs` expands the `mutate` globs in `stryker.config.mjs` and puts each file in one of `SHARD_TOTAL` shards (6) by a hash of its path. A file stays in the same shard as other files are added or removed, so its saved results stay with it.
+- Each shard is a matrix job (`Full Mutation Analysis (shard N)`), with its own 6-hour limit and 16 GB runner. It runs Stryker on its files with `stryker.shard.config.mjs`, which is the base config without the `break` threshold, at `--concurrency 2` for the dry run's memory. From cold a shard takes about 2.5 hours. The Stryker step stops at 330 minutes, so the upload steps still run if it overruns.
+- The `Full Mutation Analysis` job then merges the shard reports into one `mutation.json` and `mutation.html`, writes the score and mutant counts to the run summary, and fails if a shard's report is missing or the combined score is below the `break` threshold (currently 0, so only a missing shard fails it).
+
+**Incremental results.** Each shard runs Stryker with `--incremental` and keeps its results file (`reports/stryker-incremental/shard-N-of-T.json`) in the Actions cache. The next run re-tests only mutants whose source or covering tests changed, so a quiet week is quick. The cache is saved only when the shard's Stryker step succeeds. To test every mutant again, for example after changing mutators or Stryker's version, start the workflow by hand with **force** ticked.
+
+**Changing the shard count.** Change `SHARD_TOTAL` and the matrix's `shard` list together; a matrix cannot read `env`. The cache key includes the total, so every shard starts afresh and the next run is a cold one. Keep each shard comfortably under 330 minutes from cold.
+
+**Locally.**
+
+```sh
+npm run test:mutation:shard -- list 2 6   # files in shard 2 of 6
+npm run test:mutation:shard -- run 2 6    # run shard 2 of 6 (add --force to ignore saved results)
+npm run test:mutation:shard -- merge <dir with shard reports> reports/mutation 6
+npm run test:scripts                      # tests for the shard script
+```
+
+`scripts/mutation-shards.mjs` and its tests are the same in the backend and the frontend. Change them in both.
 
 ## SonarCloud Quality Gate
 

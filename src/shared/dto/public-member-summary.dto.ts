@@ -27,11 +27,13 @@ export class PublicMemberSummaryDto {
 
   @ApiPropertyOptional({
     description:
-      'When the member started playing STO, taken from the oldest of their ' +
-      'publicly visible accounts. Null when none of them records a date.',
+      'The day the member started playing STO, taken from the oldest of ' +
+      'their publicly visible accounts, as YYYY-MM-DD. Null when none of ' +
+      'them records a date.',
     nullable: true,
+    example: '2015-03-04',
   })
-  playingSince: Date | null;
+  playingSince: string | null;
 
   @ApiProperty({
     description: 'Number of publicly visible STO accounts.',

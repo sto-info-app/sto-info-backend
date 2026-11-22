@@ -1,0 +1,160 @@
+{
+  "description": "Synthetic STO roster CSV fixtures. No value is copied from the real corpus. Officer fields carry an OFFICER-CANARY token that must never appear outside these files.",
+  "generator": "scripts/generate-fleet-corpus-fixtures.ts",
+  "fixtures": [
+    {
+      "filename": "Fixture Basic Fleet_20240101-120000.Csv",
+      "expectation": "accept",
+      "purpose": "The 12-column normal header with unremarkable rows. Baseline happy path.",
+      "bom": false,
+      "bytes": 479
+    },
+    {
+      "filename": "Fixture Officer Fleet_20240102-120000.Csv",
+      "expectation": "accept",
+      "purpose": "The 15-column officer header where every row carries the officer tail. The officer author and its date are unquoted.",
+      "bom": false,
+      "bytes": 656
+    },
+    {
+      "filename": "Fixture Officer Fleet_20240103-120000.Csv",
+      "expectation": "accept",
+      "purpose": "A 15-column officer header where only some rows carry the officer tail. Omitted tails are a legitimate observed variant and must not shift columns or reject the file.",
+      "bom": false,
+      "bytes": 722
+    },
+    {
+      "filename": "Fixture Quoting Fleet_20240104-120000.Csv",
+      "expectation": "accept",
+      "purpose": "Embedded quotes and commas in Public Comment and Status, matching the corpus shapes that defeat both strict and permissive CSV parsing.",
+      "bom": false,
+      "bytes": 874
+    },
+    {
+      "filename": "Fixture Duplicate Fleet_20240105-120000.Csv",
+      "expectation": "reject",
+      "purpose": "The same Character name and account handle appears twice in one export. The snapshot must not become effective and must not be map-overwritten.",
+      "bom": false,
+      "bytes": 525
+    },
+    {
+      "filename": "Fixture Timezone Fleet_20260824-011338.Csv",
+      "expectation": "accept",
+      "purpose": "Paired export taken in America/New_York. Filename stamp 01:13:38 local resolves to 2026-08-24T05:13:38Z.",
+      "bom": false,
+      "bytes": 733
+    },
+    {
+      "filename": "Fixture Timezone Fleet_20260824-061342.Csv",
+      "expectation": "accept",
+      "purpose": "Paired export taken in Europe/London four seconds later. Filename stamp 06:13:42 local resolves to 2026-08-24T05:13:42Z. Every row date must normalise to the same instant as its Eastern counterpart.",
+      "bom": false,
+      "bytes": 733
+    },
+    {
+      "filename": "Fixture Reset Fleet_20220328-035909.Csv",
+      "expectation": "accept",
+      "purpose": "Earlier snapshot of a contribution reset pair. Cumulative total is high.",
+      "bom": false,
+      "bytes": 350
+    },
+    {
+      "filename": "Fixture Reset Fleet_20220426-230735.Csv",
+      "expectation": "accept",
+      "purpose": "Later snapshot where the cumulative total drops to zero AND the join date changes. This is a rejoin discontinuity, never a negative donation.",
+      "bom": false,
+      "bytes": 346
+    },
+    {
+      "filename": "Fixture Rename Fleet_20211221-034426.Csv",
+      "expectation": "accept",
+      "purpose": "Earlier snapshot of a Character rename candidate: same account handle, join date and Class; contribution differs, which does not disqualify it.",
+      "bom": false,
+      "bytes": 289
+    },
+    {
+      "filename": "Fixture Rename Fleet_20220112-014309.Csv",
+      "expectation": "accept",
+      "purpose": "Later snapshot where the Character name changed but handle, join date and Class did not. A unique two-way match, so a rename PROPOSAL only.",
+      "bom": false,
+      "bytes": 292
+    },
+    {
+      "filename": "Fixture Account Rename Fleet_20230604-021823.Csv",
+      "expectation": "accept",
+      "purpose": "Earlier snapshot of the account-rename shape: Character name, join date and Class are stable while the handle is about to change.",
+      "bom": false,
+      "bytes": 289
+    },
+    {
+      "filename": "Fixture Account Rename Fleet_20230715-001404.Csv",
+      "expectation": "accept",
+      "purpose": "Later snapshot with a changed handle. A single corroborating alt is not enough to confirm; this must stay a proposal and must never rewrite an STO Info account handle.",
+      "bom": false,
+      "bytes": 291
+    },
+    {
+      "filename": "Fixture Bom Fleet_20240107-120000.Csv",
+      "expectation": "accept",
+      "purpose": "A UTF-8 BOM prefix, which is explicitly allowed.",
+      "bom": true,
+      "bytes": 288
+    },
+    {
+      "filename": ".Fixture Dotted Fleet._20240111-120000.Csv",
+      "expectation": "accept",
+      "purpose": "Fleet label \".Fixture Dotted Fleet.\" exercises punctuation that must survive exactly and must not be stripped, case-folded or slug-matched.",
+      "bom": false,
+      "bytes": 286
+    },
+    {
+      "filename": "« Fixture Guillemet Fleet »_20240112-120000.Csv",
+      "expectation": "accept",
+      "purpose": "Fleet label \"« Fixture Guillemet Fleet »\" exercises punctuation that must survive exactly and must not be stripped, case-folded or slug-matched.",
+      "bom": false,
+      "bytes": 286
+    },
+    {
+      "filename": "- Fixture Hyphen Fleet -_20240113-120000.Csv",
+      "expectation": "accept",
+      "purpose": "Fleet label \"- Fixture Hyphen Fleet -\" exercises punctuation that must survive exactly and must not be stripped, case-folded or slug-matched.",
+      "bom": false,
+      "bytes": 286
+    },
+    {
+      "filename": "Fixture qa'Hom Fleet_20240114-120000.Csv",
+      "expectation": "accept",
+      "purpose": "Fleet label \"Fixture qa'Hom Fleet\" exercises punctuation that must survive exactly and must not be stripped, case-folded or slug-matched.",
+      "bom": false,
+      "bytes": 286
+    },
+    {
+      "filename": "Fixture Ambiguous Fleet_20240108-120000.Csv",
+      "expectation": "reject",
+      "purpose": "An ambiguous tail. Under the 15-column header this row matches BOTH the officer-tail shape and the 12-column shape, so the tail boundary is not unique. It must be rejected with a row number and a safe code, never resolved by guessing.",
+      "bom": false,
+      "bytes": 357
+    },
+    {
+      "filename": "Fixture Bad Header Fleet_20240110-120000.Csv",
+      "expectation": "reject",
+      "purpose": "Header is neither the normal nor the officer shape. Reject the file; do not fall back to permissive parsing.",
+      "bom": false,
+      "bytes": 59
+    },
+    {
+      "filename": "Fixture Suffixed Fleet_20240109-120000 - Steve Export.Csv",
+      "expectation": "reject",
+      "purpose": "A manually renamed export. The filename contract is anchored at both ends, so this is rejected. No suffix stripping is permitted.",
+      "bom": false,
+      "bytes": 287
+    },
+    {
+      "filename": "Fixture Dst Gap Fleet_20240310-030000.Csv",
+      "expectation": "reject",
+      "purpose": "A row date that does not exist in America/New_York because the clock jumps 2am to 3am on 10 March 2024. Must be rejected explicitly, not silently shifted.",
+      "bom": false,
+      "bytes": 287
+    }
+  ]
+}

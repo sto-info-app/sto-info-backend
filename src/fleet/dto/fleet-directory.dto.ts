@@ -1,0 +1,277 @@
+import { ApiProperty } from '@nestjs/swagger';
+
+import { EmblemImageUrls } from 'src/shared/constants/image.constants';
+
+import { ArmadaPosition } from '../enums/armada-position.enum';
+import { FleetRecruitmentState } from '../enums/fleet-recruitment-state.enum';
+import { FleetScopeStatus } from '../enums/fleet-scope-status.enum';
+
+/**
+ * What every directory card says, whatever scope it describes.
+ *
+ * The four fields below are the ones a reader compares. `duplicateCount` is
+ * the reason this listing is called duplicate-aware rather than merely
+ * ordered: a card that sits beside three others answering to the same name
+ * says so on its face, so somebody about to register a fourth is told before
+ * they start rather than after they finish.
+ */
+export class FleetDirectoryCardDto {
+  @ApiProperty({ description: 'Unique identifier.' })
+  id: string;
+
+  @ApiProperty({ description: 'Lowercase URL segment.' })
+  slug: string;
+
+  @ApiProperty({ enum: FleetScopeStatus, description: 'Lifecycle state.' })
+  status: FleetScopeStatus;
+
+  @ApiProperty({ description: 'When the record was registered.' })
+  createdAt: Date;
+
+  /*
+   * The emblem and no banner. A card is a row in a list and the emblem is
+   * what a list draws; a banner is five times as wide as it is tall and
+   * belongs across the top of the scope's own page, so carrying one per row
+   * would be bytes for a picture no card layout has room for. Somebody who
+   * opens the scope is served both.
+   */
+  @ApiProperty({
+    description: 'Delivery reference of the square emblem.',
+    nullable: true,
+  })
+  emblemImageId: string | null;
+
+  @ApiProperty({
+    description: 'What the emblem shows, for readers who cannot see it.',
+    nullable: true,
+  })
+  emblemImageAlt: string | null;
+
+  @ApiProperty({
+    description:
+      'The emblem’s signed addresses, by variant (square100, square300), ' +
+      'for the browser to draw (FC-040).',
+    nullable: true,
+    type: Object,
+  })
+  emblemImageUrls: EmblemImageUrls | null;
+}
+
+/**
+ * One Fleet Community in the directory.
+ *
+ * No duplicate count. A Community's name is its own — it names a group of
+ * people rather than claiming an in-game entity — so two Communities sharing
+ * one are not two records of the same thing, and there is no folded name
+ * column to group them by. The Fleet and Armada cards carry a count because
+ * those records do claim to describe something that exists in game exactly
+ * once.
+ */
+export class FleetCommunityCardDto extends FleetDirectoryCardDto {
+  @ApiProperty({ description: 'Display name, as the owner wrote it.' })
+  name: string;
+
+  @ApiProperty({ description: 'What the Community is.', nullable: true })
+  description: string | null;
+
+  @ApiProperty({
+    enum: FleetRecruitmentState,
+    description: 'Whether and how it accepts new subscribers.',
+  })
+  recruitmentState: FleetRecruitmentState;
+}
+
+/**
+ * A card describing a record of something that exists in game.
+ *
+ * Both a Fleet and an Armada are one Community's record of a thing the game
+ * holds once, which is what makes a second record for the same name worth
+ * pointing at. The three fields here are what tell two such records apart:
+ * whose it is, which platform it is on, and — for a Fleet — how current it is.
+ */
+export class InGameScopeCardDto extends FleetDirectoryCardDto {
+  @ApiProperty({
+    description:
+      'The name exactly as it appears in game. Any leading or trailing ' +
+      'space is part of the name and must stay visible wherever the name is ' +
+      'shown: it may be the only thing telling two records apart.',
+  })
+  exactGameName: string;
+
+  @ApiProperty({
+    description: 'The Community holding it, or null when unregistered.',
+    nullable: true,
+  })
+  communityId: string | null;
+
+  @ApiProperty({
+    description: 'That Community’s name, or null when unregistered.',
+    nullable: true,
+  })
+  communityName: string | null;
+
+  @ApiProperty({
+    description: 'That Community’s URL segment, or null when unregistered.',
+    nullable: true,
+  })
+  communitySlug: string | null;
+
+  @ApiProperty({ description: 'The platform it is recorded on.' })
+  platformId: string;
+
+  @ApiProperty({ description: 'The platform, as the catalogue names it.' })
+  platformName: string;
+
+  @ApiProperty({
+    description:
+      'The platform as a URL segment, derived from its name rather than ' +
+      'stored, so the two can never disagree.',
+  })
+  platformSegment: string;
+
+  @ApiProperty({
+    description:
+      'How many *other* listed records answer to the same name on the same ' +
+      'platform. Zero for all but a handful. It counts what this caller ' +
+      'could actually reach and compare — the same audience and the same ' +
+      'lifecycle filter as the list itself — so the number never promises a ' +
+      'record the reader cannot open.',
+  })
+  duplicateCount: number;
+}
+
+/**
+ * One Fleet in the directory.
+ */
+/**
+ * The Armada a listed Fleet sits in, and where (FC-056).
+ *
+ * The Armada is in the Fleet's own Community and on its platform, so its page
+ * is addressed from the card's Community and platform segments with the slug
+ * here.
+ */
+export class FleetCardArmadaDto {
+  @ApiProperty({ description: 'The Armada.' })
+  id: string;
+
+  @ApiProperty({ description: 'Its name, exactly as the game has it.' })
+  name: string;
+
+  @ApiProperty({ description: 'The segment its address is built from.' })
+  slug: string;
+
+  @ApiProperty({
+    enum: ArmadaPosition,
+    description: 'Where the Fleet sits in it: Alpha, Beta or Gamma.',
+  })
+  position: ArmadaPosition;
+}
+
+export class StoFleetCardDto extends InGameScopeCardDto {
+  @ApiProperty({
+    enum: FleetRecruitmentState,
+    description: 'Whether and how the Fleet accepts applications.',
+  })
+  recruitmentState: FleetRecruitmentState;
+
+  @ApiProperty({
+    type: FleetCardArmadaDto,
+    nullable: true,
+    description:
+      'The Armada it sits in and where, or null for a Fleet in none.',
+  })
+  armada: FleetCardArmadaDto | null;
+
+  @ApiProperty({ description: 'Allegiance, if known.', nullable: true })
+  allegianceFactionId: string | null;
+
+  @ApiProperty({
+    description:
+      'Whether the game provides a fleet roster export on this Fleet’s ' +
+      'platform. False means no roster can ever be imported for it, so a ' +
+      'null import date is the platform rather than neglect.',
+  })
+  platformProvidesRosterExport: boolean;
+
+  @ApiProperty({
+    description:
+      'Export instant of its newest effective roster import, which is how ' +
+      'fresh the record is. Null means nothing has ever been imported for ' +
+      'it, which is itself the most useful thing to know about it.',
+    nullable: true,
+  })
+  lastEffectiveImportAt: Date | null;
+}
+
+/**
+ * One Armada in the directory.
+ *
+ * Always has a Community — the schema requires one — so the inherited
+ * nullable Community fields are never null here. They stay nullable rather
+ * than being redeclared, because the shape a client writes against is shared
+ * with the Fleet card and a type that differed only in nullability would make
+ * one component into two.
+ */
+export class StoArmadaCardDto extends InGameScopeCardDto {
+  @ApiProperty({
+    description: 'What the Community prefers to call it.',
+    nullable: true,
+  })
+  displayName: string | null;
+}
+
+/**
+ * A page of directory cards.
+ *
+ * Offset paging rather than a cursor, matching every other listing in the
+ * application. A directory is read by somebody scanning and jumping, and the
+ * total is part of the answer — "17 Fleets answer to this" is most of what a
+ * search for a duplicate is asking.
+ */
+export class FleetCommunityDirectoryPageDto {
+  @ApiProperty({ type: [FleetCommunityCardDto] })
+  items: FleetCommunityCardDto[];
+
+  @ApiProperty({ description: 'Total matching records.', example: 128 })
+  total: number;
+
+  @ApiProperty({ description: 'The page returned.', example: 1 })
+  page: number;
+
+  @ApiProperty({ description: 'Records per page.', example: 20 })
+  pageSize: number;
+}
+
+/**
+ * A page of Fleet directory cards.
+ */
+export class StoFleetDirectoryPageDto {
+  @ApiProperty({ type: [StoFleetCardDto] })
+  items: StoFleetCardDto[];
+
+  @ApiProperty({ description: 'Total matching records.', example: 128 })
+  total: number;
+
+  @ApiProperty({ description: 'The page returned.', example: 1 })
+  page: number;
+
+  @ApiProperty({ description: 'Records per page.', example: 20 })
+  pageSize: number;
+}
+
+/**
+ * A page of Armada directory cards.
+ */
+export class StoArmadaDirectoryPageDto {
+  @ApiProperty({ type: [StoArmadaCardDto] })
+  items: StoArmadaCardDto[];
+
+  @ApiProperty({ description: 'Total matching records.', example: 128 })
+  total: number;
+
+  @ApiProperty({ description: 'The page returned.', example: 1 })
+  page: number;
+
+  @ApiProperty({ description: 'Records per page.', example: 20 })
+  pageSize: number;
+}

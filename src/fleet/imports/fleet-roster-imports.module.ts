@@ -1,0 +1,88 @@
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+
+import { FileAssetsModule } from 'src/file-assets/file-assets.module';
+import { FileScanningModule } from 'src/file-scanning/file-scanning.module';
+
+import { FleetNameAliasEntity } from '../entities/fleet-name-alias.entity';
+import { StoFleetEntity } from '../entities/sto-fleet.entity';
+import { FleetErasureCoreModule } from '../erasure/fleet-erasure-core.module';
+import { FleetModule } from '../fleet.module';
+import { FleetRosterIdentityModule } from '../identity/fleet-roster-identity.module';
+import { FleetRosterProjectionModule } from '../projection/fleet-roster-projection.module';
+import { RosterImportActionEntity } from './entities/roster-import-action.entity';
+import { RosterImportConflictEntity } from './entities/roster-import-conflict.entity';
+import { RosterImportSourceEntity } from './entities/roster-import-source.entity';
+import { RosterObservationEntity } from './entities/roster-observation.entity';
+import { FleetFormerNamesController } from './fleet-former-names.controller';
+import { RosterImportConflictsController } from './roster-import-conflicts.controller';
+import { RosterImportsController } from './roster-imports.controller';
+import { FleetFormerNameService } from './services/fleet-former-name.service';
+import { RosterCsvPrivacyParserService } from './services/roster-csv-privacy-parser.service';
+import { RosterExportIdentityService } from './services/roster-export-identity.service';
+import { RosterImportConflictService } from './services/roster-import-conflict.service';
+import { RosterImportCorrectionService } from './services/roster-import-correction.service';
+import { RosterImportIngressService } from './services/roster-import-ingress.service';
+import { RosterImportPreviewService } from './services/roster-import-preview.service';
+import { RosterImportStatusService } from './services/roster-import-status.service';
+import { RosterImportPublisher } from './services/roster-import.publisher';
+import { RosterSourceRetentionService } from './services/roster-source-retention.service';
+import { RosterTypedParserService } from './services/roster-typed-parser.service';
+
+/**
+ * Roster CSV ingress: the privacy boundary and the route that runs it.
+ *
+ * Its own module rather than part of {@link FleetModule}, and that is a
+ * dependency decision rather than a filing one. {@link FileAssetsModule}
+ * already imports `FleetModule` for the audience service (ADR-0015), so a
+ * roster importer registered inside `FleetModule` and needing the asset
+ * registry would close the loop. This module sits below both of them:
+ * imports → file-assets → fleet, in one direction.
+ *
+ * It is wired into `AppModule` directly for the same reason.
+ */
+@Module({
+  imports: [
+    FleetModule,
+    FleetErasureCoreModule,
+    FileAssetsModule,
+    FileScanningModule,
+    FleetRosterIdentityModule,
+    FleetRosterProjectionModule,
+    TypeOrmModule.forFeature([
+      RosterImportSourceEntity,
+      RosterImportConflictEntity,
+      RosterImportActionEntity,
+      RosterObservationEntity,
+      FleetNameAliasEntity,
+      StoFleetEntity,
+    ]),
+  ],
+  controllers: [
+    RosterImportsController,
+    RosterImportConflictsController,
+    FleetFormerNamesController,
+  ],
+  providers: [
+    FleetFormerNameService,
+    RosterCsvPrivacyParserService,
+    RosterTypedParserService,
+    RosterExportIdentityService,
+    RosterImportConflictService,
+    RosterImportCorrectionService,
+    RosterImportIngressService,
+    RosterImportPreviewService,
+    RosterImportStatusService,
+    RosterImportPublisher,
+    RosterSourceRetentionService,
+  ],
+  exports: [
+    RosterSourceRetentionService,
+    RosterCsvPrivacyParserService,
+    RosterTypedParserService,
+    RosterExportIdentityService,
+    RosterImportIngressService,
+    RosterImportPreviewService,
+  ],
+})
+export class FleetRosterImportsModule {}

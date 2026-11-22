@@ -36,10 +36,14 @@ export class RegistryAccountSummaryDto {
   lifetimeSubscription: boolean;
 
   @ApiPropertyOptional({
-    description: 'When the STO account was created, if the owner recorded it.',
+    description:
+      'The day the STO account was created, if the owner recorded it, as ' +
+      'YYYY-MM-DD. A day rather than an instant: it carries no time and no ' +
+      'timezone, and must not be converted to one.',
     nullable: true,
+    example: '2015-03-04',
   })
-  accountCreatedDate: Date | null;
+  accountCreatedDate: string | null;
 
   @ApiProperty({
     description: 'Number of publicly visible captains on this account.',

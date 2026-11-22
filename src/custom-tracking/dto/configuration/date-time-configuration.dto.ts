@@ -10,6 +10,8 @@ import {
   Validate,
 } from 'class-validator';
 
+import { IsCalendarDateConstraint } from '../../../shared/utilities/is-calendar-date.constraint';
+import { IsIanaTimezoneConstraint } from '../../../shared/utilities/is-iana-timezone.constraint';
 import {
   CUSTOM_TRACKING_MAX_YEAR,
   CUSTOM_TRACKING_MIN_YEAR,
@@ -18,8 +20,6 @@ import { CustomTrackingDateFormat } from '../../enums/custom-tracking-date-forma
 import { CustomTrackingDurationFormat } from '../../enums/custom-tracking-duration-format.enum';
 import { CustomTrackingMonthYearFormat } from '../../enums/custom-tracking-month-year-format.enum';
 import { CustomTrackingTimeFormat } from '../../enums/custom-tracking-time-format.enum';
-import { IsCalendarDateConstraint } from '../../validation/is-calendar-date.constraint';
-import { IsIanaTimezoneConstraint } from '../../validation/is-iana-timezone.constraint';
 
 /**
  * How a date Field is bounded and written out.

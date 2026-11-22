@@ -1,14 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import {
-  Column,
-  CreateDateColumn,
-  DeleteDateColumn,
-  Entity,
-  Index,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Column, Entity, Index } from 'typeorm';
+
+import { SoftDeletableRecordEntity } from '../../shared/entities/soft-deletable-record.entity';
 
 /**
  * A per-user replacement for a configured numeric limit.
@@ -24,11 +18,7 @@ import {
  */
 @Entity({ name: 'user_limit_override' })
 @Index(['userId', 'limitKey'])
-export class UserLimitOverrideEntity {
-  @ApiProperty({ description: 'Unique identifier.' })
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
+export class UserLimitOverrideEntity extends SoftDeletableRecordEntity {
   @ApiProperty({ description: 'The user the exemption applies to.' })
   @Column({ type: 'uuid', nullable: false })
   userId: string;
@@ -61,13 +51,4 @@ export class UserLimitOverrideEntity {
   })
   @Column({ type: 'timestamp', nullable: true, default: null })
   expiresAt: Date | null;
-
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
-
-  @DeleteDateColumn()
-  deletedAt: Date | null;
 }

@@ -16,6 +16,7 @@ import { getTypeOrmConfig } from '../config/typeorm.config';
 import { AccessControlModule } from './access-control/access-control.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { SecurityLogModule } from './audit/security-log/security-log.module';
 import { AuthModule } from './auth/auth.module';
 import { UserIdMiddleware } from './auth/user-id.middleware';
 import { RequestIdMiddleware } from './common/http/request-id.middleware';
@@ -23,21 +24,44 @@ import { CommunityModule } from './community/community.module';
 import { ConfigCheckService } from './config-check/config-check.service';
 import { ContactModule } from './contact/contact.module';
 import { CronModule } from './cron/cron.module';
+import { CustomTrackingRecordDeletionModule } from './custom-tracking/custom-tracking-record-deletion.module';
 import { CustomTrackingModule } from './custom-tracking/custom-tracking.module';
 import { DatabaseModule } from './database/database.module';
 import { DiagnosticsModule } from './diagnostics/diagnostics.module';
+import { ImageUrlSigningInterceptor } from './file-assets/delivery/image-url-signing.interceptor';
+import { FileAssetsModule } from './file-assets/file-assets.module';
+import { FileScanningModule } from './file-scanning/file-scanning.module';
+import { ActivityModule } from './fleet/activity/activity.module';
+import { FleetArmadasModule } from './fleet/armadas/fleet-armadas.module';
+import { ChatModule } from './fleet/chat/chat.module';
+import { FleetErasureModule } from './fleet/erasure/fleet-erasure.module';
+import { ScopeEventsModule } from './fleet/events/scope-events.module';
+import { FleetModule } from './fleet/fleet.module';
+import { AccountDepartureModule } from './fleet/governance/account-departure.module';
+import { FleetGovernanceModule } from './fleet/governance/fleet-governance.module';
+import { FleetHoldingsModule } from './fleet/holdings/fleet-holdings.module';
+import { FleetImagesModule } from './fleet/images/fleet-images.module';
+import { FleetRosterImportsModule } from './fleet/imports/fleet-roster-imports.module';
+import { ScopeNewsModule } from './fleet/news/scope-news.module';
+import { FleetRecruitmentModule } from './fleet/recruitment/fleet-recruitment.module';
+import { FleetRetentionModule } from './fleet/retention/fleet-retention.module';
+import { FleetRosterModule } from './fleet/roster/fleet-roster.module';
 import { HealthModule } from './health/health.module';
 import { MailModule } from './mail/mail.module';
 import { MailService } from './mail/mail.service';
 import { ModerationModule } from './moderation/moderation.module';
 import { NewsModule } from './news/news.module';
 import { NotificationModule } from './notification/notification.module';
+import { OperationsModule } from './operations/operations.module';
+import { RestoreModule } from './operations/restore/restore.module';
 import { RegistryModule } from './registry/registry.module';
+import { FeatureSwitchesModule } from './settings/feature-switches/feature-switches.module';
 import { SettingsModule } from './settings/settings.module';
 import { DEFAULT_MULTER_LIMITS } from './shared/constants/file-upload.constants';
 import { TypeOrmExceptionFilter } from './shared/filters/typeorm-exception.filter';
 import { SharedModule } from './shared/shared.module';
 import { ValidatorsService } from './shared/utilities/validators.service';
+import { SiteStatisticsModule } from './site-statistics/site-statistics.module';
 import { AccountModule } from './sto/account/account.module';
 import { CharacterAdmiraltyModule } from './sto/character-admiralty/character-admiralty.module';
 import { CharacterCommendationModule } from './sto/character-commendation/character-commendation.module';
@@ -96,9 +120,12 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
       middleware: { mount: true },
     }),
     SettingsModule,
+    FeatureSwitchesModule,
+    SiteStatisticsModule,
     AccessControlModule,
     StorytimeModule,
     CustomTrackingModule,
+    CustomTrackingRecordDeletionModule,
     UserModule,
     AuthModule,
     MailModule,
@@ -126,8 +153,28 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     NewsModule,
     NotificationModule,
     CommunityModule,
+    FleetModule,
+    FileAssetsModule,
+    FileScanningModule,
+    FleetRosterImportsModule,
+    FleetRosterModule,
+    FleetRecruitmentModule,
+    FleetGovernanceModule,
+    FleetHoldingsModule,
+    FleetArmadasModule,
+    FleetImagesModule,
+    ScopeNewsModule,
+    ScopeEventsModule,
+    ActivityModule,
+    ChatModule,
+    FleetRetentionModule,
+    AccountDepartureModule,
+    FleetErasureModule,
+    SecurityLogModule,
     RegistryModule,
     ModerationModule,
+    RestoreModule,
+    OperationsModule,
   ],
   controllers: [AppController],
   providers: [
@@ -138,6 +185,12 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     {
       provide: APP_FILTER,
       useClass: TypeOrmExceptionFilter,
+    },
+    // Registered before the serialiser, so it wraps it and signs the
+    // picture addresses in what the serialiser produced (FC-040).
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: ImageUrlSigningInterceptor,
     },
     {
       provide: APP_INTERCEPTOR,

@@ -12,9 +12,18 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
-import { json, NextFunction, Request, Response, urlencoded } from 'express';
+import { createAdapter } from '@socket.io/redis-adapter';
+import {
+  json,
+  NextFunction,
+  Request,
+  RequestHandler,
+  Response,
+  urlencoded,
+} from 'express';
 import rateLimit, {
   ipKeyGenerator,
+  MemoryStore,
   RateLimitRequestHandler,
 } from 'express-rate-limit';
 import helmet from 'helmet';
@@ -23,9 +32,12 @@ import { RedisStore, type RedisReply } from 'rate-limit-redis';
 
 import { AppModule } from './app.module';
 import { NonceMiddleware } from './auth/nonce.middleware';
-import { clientIpMiddleware } from './common/http/client-ip.middleware';
+import { CloudflareOrigin } from './common/http/cloudflare-origin';
+import { FallbackRateLimitStore } from './common/http/fallback-rate-limit.store';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { ConfigCheckService } from './config-check/config-check.service';
+import { ChatIoAdapter } from './fleet/chat/realtime/chat-io.adapter';
+import { RestoreCheckService } from './operations/restore/restore-check.service';
 import {
   isOnMachineEnvironment,
   isProductionEnvironment,
@@ -40,6 +52,7 @@ import {
   REGISTRY_RATE_LIMITED_ROUTES,
 } from './shared/constants/rate-limit.constants';
 import { SWAGGER_UI_DARK_THEME_CSS } from './shared/constants/swagger.constants';
+import { SecretsService } from './shared/secrets/secrets.service';
 import { getAppVersion } from './shared/utilities/version.utility';
 
 config({ path: 'config/environments/.env' });
@@ -118,11 +131,268 @@ function createRateLimiter(
       return ipKeyGenerator(ip, 64);
     },
 
-    store: new RedisStore({
-      sendCommand: (command: string, ...args: string[]) =>
-        redis.call(command, ...args) as Promise<RedisReply>,
-      prefix: `rl:${prefix}:`,
-    }),
+    // Counted in memory while Redis cannot answer, so an outage never holds
+    // every request up (FC-042).
+    store: new FallbackRateLimitStore(
+      new RedisStore({
+        sendCommand: (command: string, ...args: string[]) =>
+          redis.call(command, ...args) as Promise<RedisReply>,
+        prefix: `rl:${prefix}:`,
+      }),
+      new MemoryStore(),
+      prefix,
+    ),
+  });
+}
+
+/**
+ * Makes the logger for the startup diagnostics, which records how long each
+ * step took and how much memory was in use after it.
+ *
+ * Hybrid diagnostics logging:
+ * - Prefer Nest Logger when 'log' level is enabled.
+ * - Fall back to console when it isn't (so prod with strict levels still shows diagnostics).
+ * Note: the effective logger override happens during NestFactory.create.
+ *
+ * @param enabled - Whether the diagnostics are on; when not, nothing is logged.
+ * @param useNestLogger - Whether the 'log' level is enabled.
+ * @param startupLogger - The Nest logger to prefer.
+ * @param startTime - When the bootstrap began.
+ * @returns A function that logs the step it is given.
+ */
+function startupStepLogger(
+  enabled: boolean,
+  useNestLogger: boolean,
+  startupLogger: Logger,
+  startTime: number,
+): (step: string) => void {
+  return (step: string) => {
+    if (!enabled) {
+      return;
+    }
+
+    const line = formatStartupMemory(
+      `${step} (+${(performance.now() - startTime).toFixed(0)}ms)`,
+    );
+
+    if (useNestLogger) {
+      startupLogger.log(line);
+      return;
+    }
+
+    console.log(line);
+  };
+}
+
+/**
+ * Works out the origins CORS and the chat socket accept.
+ *
+ * @param configService - The configuration.
+ * @param inProduction - Whether this is production.
+ * @returns The allowed origins.
+ */
+function allowedOriginsFor(
+  configService: ConfigService,
+  inProduction: boolean,
+): string[] {
+  const devAllowedOrigins = [
+    'http://localhost:4200',
+    'https://dev.startrekonline.info',
+  ];
+
+  // A local checkout may serve the site on another port, and a staging site
+  // has a hostname of its own (tribble).
+  // That address is APP_FRONTEND_URL, honoured everywhere but production,
+  // which keeps its fixed list.
+  if (!inProduction) {
+    const frontendUrl = configService.get<string>('APP_FRONTEND_URL')?.trim();
+
+    if (frontendUrl && !devAllowedOrigins.includes(frontendUrl)) {
+      devAllowedOrigins.push(frontendUrl);
+    }
+  }
+
+  const prodAllowedOrigins = ['https://startrekonline.info'];
+
+  let allowedOrigins = devAllowedOrigins;
+  if (inProduction) {
+    allowedOrigins = prodAllowedOrigins;
+  }
+
+  return allowedOrigins;
+}
+
+/**
+ * Reads the Cloudflare origin secret, which must be set off a developer's
+ * machine.
+ *
+ * @param secrets - The application's secrets.
+ * @param inLocal - Whether the browser, server and database share a machine.
+ * @returns The secret, or null when it is not set.
+ * @throws Error when it is not set outside local and e2etest.
+ */
+function originSecretFrom(
+  secrets: { cloudflareOriginVerifySecret?: unknown },
+  inLocal: boolean,
+): string | null {
+  const originSecret =
+    typeof secrets.cloudflareOriginVerifySecret === 'string'
+      ? secrets.cloudflareOriginVerifySecret
+      : null;
+
+  if (!inLocal && !originSecret) {
+    throw new Error(
+      'cloudflareOriginVerifySecret is not set: outside local and e2etest the backend serves only what Cloudflare forwards (see docs/infrastructure.md#origin-proxy-trust).',
+    );
+  }
+
+  return originSecret;
+}
+
+/**
+ * Creates the middleware that refuses a request whose declared size is over
+ * the limit, before anything reads it.
+ *
+ * @param maxTotalPayloadSize - The largest size allowed, in bytes.
+ * @returns The middleware.
+ */
+function payloadSizeGuard(maxTotalPayloadSize: number): RequestHandler {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const contentLength = req.headers['content-length'];
+    if (
+      contentLength &&
+      Number.parseInt(contentLength, 10) > maxTotalPayloadSize
+    ) {
+      return res.status(HttpStatus.PAYLOAD_TOO_LARGE).json({
+        statusCode: HttpStatus.PAYLOAD_TOO_LARGE,
+        message: `Payload too large. Maximum allowed size is ${maxTotalPayloadSize} bytes.`,
+        error: 'Payload Too Large',
+      });
+    }
+    next();
+  };
+}
+
+/**
+ * Creates the middleware that sets the caching and Content-Security-Policy
+ * headers.
+ *
+ * @param inDevelopment - Whether this is the development environment.
+ * @param inLocal - Whether the browser, server and database share a machine.
+ * @returns The middleware.
+ */
+function securityHeaders(
+  inDevelopment: boolean,
+  inLocal: boolean,
+): RequestHandler {
+  return (req: Request, res: Response, next: NextFunction) => {
+    // Use the random nonce generated in the middleware
+    const nonce: string = res.locals.nonce;
+
+    // Caching headers
+    res.header(
+      'Cache-Control',
+      'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+    ); // sets Cache-Control HTTP header to no-store to prevent caching of the response
+    res.header('Pragma', 'no-cache'); // sets Pragma HTTP header to no-cache to prevent caching of the response
+    res.header('Expires', '0'); // sets Expires HTTP header to 0 to prevent caching of the response
+    res.header('Surrogate-Control', 'no-store'); // sets Surrogate-Control HTTP header to no-store to prevent caching of the response
+    res.header('Vary', '*'); // sets Vary HTTP header to * to prevent caching of the response
+
+    // Use a more relaxed CSP for Swagger, otherwise use the strict one
+    const isSwagger = req.originalUrl.startsWith('/swagger');
+    if (isSwagger && (inDevelopment || inLocal)) {
+      // Allow inline styles and external fonts for swagger
+      let fontsProtocol = 'https';
+      let connectSrcUrl = 'https://dev-api.startrekonline.info';
+      if (inLocal) {
+        fontsProtocol = 'http';
+        connectSrcUrl = 'http://localhost:3000';
+      }
+
+      res.header(
+        'Content-Security-Policy',
+        `default-src 'none'; ` +
+          `frame-ancestors 'none'; ` +
+          `style-src 'self' 'unsafe-inline' ${fontsProtocol}://fonts.googleapis.com; ` +
+          `font-src 'self' ${fontsProtocol}://fonts.gstatic.com; ` +
+          `img-src 'self' data: blob:; ` +
+          `script-src 'self' 'unsafe-inline'; ` +
+          `connect-src 'self' ${connectSrcUrl};`,
+      );
+    } else {
+      // Sets the Content-Security-Policy to prevent various types of attacks
+      res.header(
+        'Content-Security-Policy',
+        `default-src 'none'; ` +
+          `frame-ancestors 'none'; ` +
+          `style-src 'self'; ` +
+          `img-src 'self'; ` +
+          `script-src 'self' 'nonce-${nonce}';`,
+      );
+    }
+
+    next();
+  };
+}
+
+/**
+ * Creates the middleware that rate limits by HTTP method whatever the
+ * dedicated limiters do not cover.
+ *
+ * @param readLimiter - The limiter for reads.
+ * @param writeLimiter - The limiter for writes.
+ * @returns The middleware.
+ */
+function methodRateLimiter(
+  readLimiter: RateLimitRequestHandler,
+  writeLimiter: RateLimitRequestHandler,
+): RequestHandler {
+  return (req: Request, res: Response, next: NextFunction) => {
+    // Skip explicitly excluded paths
+    if (RATE_LIMIT_EXCLUDED_PATHS.some(path => req.path.startsWith(path))) {
+      return next();
+    }
+    // Skip registry paths — already handled by the dedicated registryLimiter above
+    if (REGISTRY_RATE_LIMITED_ROUTES.some(path => req.path.startsWith(path))) {
+      return next();
+    }
+
+    // Apply different limits based on HTTP method
+    if (req.method === 'GET' || req.method === 'HEAD') {
+      return readLimiter(req, res, next);
+    } else {
+      // POST, PUT, PATCH, DELETE (OPTIONS handled by skip function)
+      return writeLimiter(req, res, next);
+    }
+  };
+}
+
+/**
+ * Sets up Swagger for the API documentation, with its dark theme.
+ *
+ * @param app - The application.
+ */
+function setUpSwagger(app: NestExpressApplication): void {
+  const require = createRequire(__filename);
+
+  // swagger-ui-themes is CSS-only; resolve the CSS file directly
+  const themeCssPath =
+    require.resolve('swagger-ui-themes/themes/3.x/theme-monokai.css');
+  const themeCss = readFileSync(themeCssPath, 'utf8');
+
+  // Set up Swagger for API documentation
+  const config = new DocumentBuilder()
+    .setTitle('STO Info API')
+    .setDescription('The STO Info API documentation')
+    .setVersion(getAppVersion())
+    .addBearerAuth() // Enable JWT authentication in Swagger UI
+    .build();
+
+  // Set up Swagger UI endpoint
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('swagger', app, document, {
+    customCss: themeCss + SWAGGER_UI_DARK_THEME_CSS,
   });
 }
 
@@ -136,10 +406,6 @@ async function bootstrap() {
     (process.env.STARTUP_DIAGNOSTICS ?? '').toLowerCase() === 'true';
   const startTime = performance.now();
 
-  // Hybrid diagnostics logging:
-  // - Prefer Nest Logger when 'log' level is enabled.
-  // - Fall back to console when it isn't (so prod with strict levels still shows diagnostics).
-  // Note: the effective logger override happens during NestFactory.create.
   const startupLogger = new Logger('Startup');
 
   if (startupDiagnosticsEnabled) {
@@ -188,17 +454,12 @@ async function bootstrap() {
     process.env.LOG_LEVEL,
   );
 
-  const shouldUseNestLoggerForStartup = logLevels.includes('log');
-  const logStartup = (message: string) => {
-    const line = formatStartupMemory(message);
-
-    if (shouldUseNestLoggerForStartup) {
-      startupLogger.log(line);
-      return;
-    }
-
-    console.log(line);
-  };
+  const logStartupStep = startupStepLogger(
+    startupDiagnosticsEnabled,
+    logLevels.includes('log'),
+    startupLogger,
+    startTime,
+  );
 
   // Create NestJS application with custom body parser limits and configured logger
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -206,11 +467,16 @@ async function bootstrap() {
     logger: logLevels,
   });
 
-  if (startupDiagnosticsEnabled) {
-    logStartup(
-      `after NestFactory.create (+${(performance.now() - startTime).toFixed(0)}ms)`,
-    );
-  }
+  logStartupStep('after NestFactory.create');
+
+  // The restore check (FC-042), before anything serves. `create()` builds the
+  // providers — the database connection, the buckets' clients, the queues —
+  // but runs no lifecycle hook: no route or socket is bound, no queue worker
+  // started and no scheduled job registered until `app.init()`. It waits,
+  // retrying, until the ledgers have been read and the database agrees.
+  await app.get(RestoreCheckService).run();
+
+  logStartupStep('after the restore check');
 
   // Use environment vars
   const configService = app.get(ConfigService);
@@ -221,27 +487,7 @@ async function bootstrap() {
   // `local` and `e2etest`: the browser, server and database share a machine.
   const inLocal = isOnMachineEnvironment(appEnv);
 
-  const devAllowedOrigins = [
-    'http://localhost:4200',
-    'https://dev.startrekonline.info',
-  ];
-
-  // A local checkout may serve the site on another port. That address is
-  // APP_FRONTEND_URL. Development and production keep the fixed lists.
-  if (inLocal) {
-    const frontendUrl = configService.get<string>('APP_FRONTEND_URL')?.trim();
-
-    if (frontendUrl && !devAllowedOrigins.includes(frontendUrl)) {
-      devAllowedOrigins.push(frontendUrl);
-    }
-  }
-
-  const prodAllowedOrigins = ['https://startrekonline.info'];
-
-  let allowedOrigins = devAllowedOrigins;
-  if (inProduction) {
-    allowedOrigins = prodAllowedOrigins;
-  }
+  const allowedOrigins = allowedOriginsFor(configService, inProduction);
 
   const allowedMethods = 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS';
   const allowedHeaders =
@@ -257,10 +503,39 @@ async function bootstrap() {
     allowedHeaders: allowedHeaders,
   });
 
-  // Trust only the first proxy (Cloudflare used as a proxy) - needed for rate limiting
+  // Only what came through Cloudflare is served outside a developer's machine
+  // (FC-044): a request must carry the origin secret Cloudflare adds, and only
+  // then is its CF-Connecting-IP believed. Without the secret the backend
+  // would serve anybody who found the origin, keyed on whatever address they
+  // claimed, so it does not start.
+  const secrets = await app
+    .get(SecretsService)
+    .getSecret(configService.get<string>('AWS_SECRET_NAME')!);
+  const originSecret = originSecretFrom(secrets, inLocal);
+
+  const cloudflareOrigin = new CloudflareOrigin(originSecret);
+
+  // Before anything reads a body, so a request that bypassed Cloudflare costs
+  // nothing more than its refusal.
+  app.use(cloudflareOrigin.middleware());
+
+  // Chat's socket (FC-032): WebSocket only, from the same origins, with rooms
+  // shared between instances through two more Redis connections.
+  app.useWebSocketAdapter(
+    new ChatIoAdapter(
+      app,
+      allowedOrigins,
+      redis.duplicate(),
+      createAdapter,
+      cloudflareOrigin,
+    ),
+  );
+
+  // Express's own view of the proxies in front, for what Express derives from
+  // them. The client address is CloudflareOrigin's, never `req.ip` (FC-044).
   const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 1);
 
-  // Set trust proxy if not in local environment
+  // Set trust proxy unless the server shares a machine with its browser
   if (!inLocal) {
     app.set('trust proxy', trustProxyHops);
   }
@@ -275,23 +550,7 @@ async function bootstrap() {
   app.use(urlencoded({ limit: '1mb', extended: true }));
 
   // Global Content-Length check to prevent early processing of oversized requests
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    const contentLength = req.headers['content-length'];
-    if (
-      contentLength &&
-      Number.parseInt(contentLength, 10) > maxTotalPayloadSize
-    ) {
-      return res.status(HttpStatus.PAYLOAD_TOO_LARGE).json({
-        statusCode: HttpStatus.PAYLOAD_TOO_LARGE,
-        message: `Payload too large. Maximum allowed size is ${maxTotalPayloadSize} bytes.`,
-        error: 'Payload Too Large',
-      });
-    }
-    next();
-  });
-
-  // Use the client IP middleware
-  app.use(clientIpMiddleware);
+  app.use(payloadSizeGuard(maxTotalPayloadSize));
 
   // Use the nonce middleware
   app.use(new NonceMiddleware().use);
@@ -306,55 +565,7 @@ async function bootstrap() {
   ); // Enable data validation with transform option
 
   // Add HTTP headers
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    // Use the random nonce generated in the middleware
-    const nonce: string = res.locals.nonce;
-
-    // Caching headers
-    res.header(
-      'Cache-Control',
-      'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
-    ); // sets Cache-Control HTTP header to no-store to prevent caching of the response
-    res.header('Pragma', 'no-cache'); // sets Pragma HTTP header to no-cache to prevent caching of the response
-    res.header('Expires', '0'); // sets Expires HTTP header to 0 to prevent caching of the response
-    res.header('Surrogate-Control', 'no-store'); // sets Surrogate-Control HTTP header to no-store to prevent caching of the response
-    res.header('Vary', '*'); // sets Vary HTTP header to * to prevent caching of the response
-
-    // Use a more relaxed CSP for Swagger, otherwise use the strict one
-    const isSwagger = req.originalUrl.startsWith('/swagger');
-    if (isSwagger && (inDevelopment || inLocal)) {
-      // Allow inline styles and external fonts for swagger
-      let fontsProtocol = 'https';
-      let connectSrcUrl = 'https://dev-api.startrekonline.info';
-      if (inLocal) {
-        fontsProtocol = 'http';
-        connectSrcUrl = 'http://localhost:3000';
-      }
-
-      res.header(
-        'Content-Security-Policy',
-        `default-src 'none'; ` +
-          `frame-ancestors 'none'; ` +
-          `style-src 'self' 'unsafe-inline' ${fontsProtocol}://fonts.googleapis.com; ` +
-          `font-src 'self' ${fontsProtocol}://fonts.gstatic.com; ` +
-          `img-src 'self' data: blob:; ` +
-          `script-src 'self' 'unsafe-inline'; ` +
-          `connect-src 'self' ${connectSrcUrl};`,
-      );
-    } else {
-      // Sets the Content-Security-Policy to prevent various types of attacks
-      res.header(
-        'Content-Security-Policy',
-        `default-src 'none'; ` +
-          `frame-ancestors 'none'; ` +
-          `style-src 'self'; ` +
-          `img-src 'self'; ` +
-          `script-src 'self' 'nonce-${nonce}';`,
-      );
-    }
-
-    next();
-  });
+  app.use(securityHeaders(inDevelopment, inLocal));
 
   // Enable Helmet, a collection of 11 smaller middleware functions that set security-related HTTP headers
   app.use(
@@ -375,49 +586,13 @@ async function bootstrap() {
   app.use([...REGISTRY_RATE_LIMITED_ROUTES], registryLimiter);
 
   // Apply method-based rate limiting (general rules)
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    // Skip explicitly excluded paths
-    if (RATE_LIMIT_EXCLUDED_PATHS.some(path => req.path.startsWith(path))) {
-      return next();
-    }
-    // Skip registry paths — already handled by the dedicated registryLimiter above
-    if (REGISTRY_RATE_LIMITED_ROUTES.some(path => req.path.startsWith(path))) {
-      return next();
-    }
-
-    // Apply different limits based on HTTP method
-    if (req.method === 'GET' || req.method === 'HEAD') {
-      return readLimiter(req, res, next);
-    } else {
-      // POST, PUT, PATCH, DELETE (OPTIONS handled by skip function)
-      return writeLimiter(req, res, next);
-    }
-  });
+  app.use(methodRateLimiter(readLimiter, writeLimiter));
 
   // Global Interceptors
   app.useGlobalInterceptors(new LoggingInterceptor());
 
   if (!inProduction) {
-    const require = createRequire(__filename);
-
-    // swagger-ui-themes is CSS-only; resolve the CSS file directly
-    const themeCssPath =
-      require.resolve('swagger-ui-themes/themes/3.x/theme-monokai.css');
-    const themeCss = readFileSync(themeCssPath, 'utf8');
-
-    // Set up Swagger for API documentation
-    const config = new DocumentBuilder()
-      .setTitle('STO Info API')
-      .setDescription('The STO Info API documentation')
-      .setVersion(getAppVersion())
-      .addBearerAuth() // Enable JWT authentication in Swagger UI
-      .build();
-
-    // Set up Swagger UI endpoint
-    const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('swagger', app, document, {
-      customCss: themeCss + SWAGGER_UI_DARK_THEME_CSS,
-    });
+    setUpSwagger(app);
   }
 
   // Force module initialisation before listening so we can log a stable "post-init" baseline.
@@ -425,17 +600,11 @@ async function bootstrap() {
   app.enableShutdownHooks(['SIGTERM', 'SIGINT']);
   await app.init();
 
-  if (startupDiagnosticsEnabled) {
-    logStartup(
-      `after app.init (+${(performance.now() - startTime).toFixed(0)}ms)`,
-    );
-  }
+  logStartupStep('after app.init');
 
   // Start listening for requests on the specified port
   await app.listen(Number.parseInt(process.env.APP_PORT ?? '', 10) || 3000);
 
-  if (startupDiagnosticsEnabled) {
-    logStartup(`listening (+${(performance.now() - startTime).toFixed(0)}ms)`);
-  }
+  logStartupStep('listening');
 }
 bootstrap(); // NOSONAR - ignore Sonar warning S7785

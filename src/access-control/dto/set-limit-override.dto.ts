@@ -1,18 +1,12 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 
-import { Transform, Type } from 'class-transformer';
+import { Type } from 'class-transformer';
+import { IsInt, IsString, Matches, Max, Min } from 'class-validator';
+
 import {
-  IsDate,
-  IsInt,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  Matches,
-  Max,
-  MaxLength,
-  Min,
-  MinDate,
-} from 'class-validator';
+  OverrideExpiryProperty,
+  OverrideReasonProperty,
+} from './override-fields.decorator';
 
 /**
  * Pattern a limit key must match.
@@ -62,27 +56,11 @@ export class SetLimitOverrideDto {
   @Max(MAX_LIMIT_VALUE)
   readonly limitValue: number;
 
-  @ApiProperty({
-    description: 'Why the exemption is being granted.',
-    maxLength: 500,
-  })
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(500)
+  @OverrideReasonProperty('Why the exemption is being granted.')
   readonly reason: string;
 
-  @ApiPropertyOptional({
-    description:
-      'When the exemption should lapse. Omit for an indefinite exemption.',
-  })
-  @IsOptional()
-  @Type(() => Date)
-  @IsDate()
-  @MinDate(() => new Date(), {
-    message: 'expiresAt must be in the future',
-  })
+  @OverrideExpiryProperty(
+    'When the exemption should lapse. Omit for an indefinite exemption.',
+  )
   readonly expiresAt?: Date;
 }

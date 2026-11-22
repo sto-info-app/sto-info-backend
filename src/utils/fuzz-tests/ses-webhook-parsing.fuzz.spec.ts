@@ -37,41 +37,48 @@ describe('SesWebhookController Fuzz Tests', () => {
   });
 
   it('should handle arbitrary bodies and headers without crashing', async () => {
-    await fc.assert(
-      fc.asyncProperty(
-        fc.oneof(fc.string(), fc.object(), fc.array(fc.anything())),
-        fc.oneof(fc.string(), fc.constant(undefined)),
-        async (body, messageType) => {
-          try {
-            await controller.handleSnsNotification(messageType as string, body);
-          } catch (err) {
-            // Exceptions like ForbiddenException are expected outcomes of validation, not crashes
-            if (!(err instanceof ForbiddenException)) {
-              throw err;
+    await expect(
+      fc.assert(
+        fc.asyncProperty(
+          fc.oneof(fc.string(), fc.object(), fc.array(fc.anything())),
+          fc.oneof(fc.string(), fc.constant(undefined)),
+          async (body, messageType) => {
+            try {
+              await controller.handleSnsNotification(
+                messageType as string,
+                body,
+              );
+            } catch (err) {
+              // Exceptions like ForbiddenException are expected outcomes of validation, not crashes
+              if (!(err instanceof ForbiddenException)) {
+                throw err;
+              }
             }
-          }
-        },
+          },
+        ),
+        { numRuns },
       ),
-      { numRuns },
-    );
+    ).resolves.toBeUndefined();
   });
 
   it('should handle deeply nested JSON strings without crashing', async () => {
     // Generate complex objects that can be serialized to JSON
     const objectArb = fc.object({ maxDepth: 10 });
 
-    await fc.assert(
-      fc.asyncProperty(objectArb, async obj => {
-        const body = JSON.stringify(obj);
-        try {
-          await controller.handleSnsNotification('Notification', body);
-        } catch (err) {
-          if (!(err instanceof ForbiddenException)) {
-            throw err;
+    await expect(
+      fc.assert(
+        fc.asyncProperty(objectArb, async obj => {
+          const body = JSON.stringify(obj);
+          try {
+            await controller.handleSnsNotification('Notification', body);
+          } catch (err) {
+            if (!(err instanceof ForbiddenException)) {
+              throw err;
+            }
           }
-        }
-      }),
-      { numRuns },
-    );
+        }),
+        { numRuns },
+      ),
+    ).resolves.toBeUndefined();
   });
 });

@@ -19,11 +19,13 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
+  ApiAcceptedResponse,
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
   ApiConflictResponse,
   ApiConsumes,
+  ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -38,12 +40,14 @@ import { memoryStorage } from 'multer';
 
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
+import { AssetScanStatusDto } from 'src/file-assets/dto/asset-scan-status.dto';
 import {
   DEFAULT_MULTER_LIMITS,
   isAllowedImageMimeType,
 } from 'src/shared/constants/file-upload.constants';
 import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
 
+import { OwnedCommunityOutcomeDto } from './dto/owned-community-outcome.dto';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 import { UpdateUserSettingsDto } from './dto/update-user-settings.dto';
 import { UpdatedUserProfileResultDto } from './dto/updated-user-profile-result.dto';
@@ -149,12 +153,36 @@ export class UserController {
   }
 
   /**
+   * What closing the account would do to the Fleet Communities the user
+   * owns (FC-038).
+   *
+   * @param userId - Authenticated user ID (injected).
+   * @returns Each open Community they own, and what would become of it.
+   */
+  @ApiOperation({
+    summary: 'What closing the account does to the Communities it owns',
+    description:
+      'Each open Fleet Community the user owns goes to its longest-serving ' +
+      'Admin who can take it, or is closed when none can.',
+  })
+  @ApiOkResponse({ type: [OwnedCommunityOutcomeDto] })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid access token.' })
+  @Get('close-account/communities')
+  closurePreview(
+    @UserId() userId: string,
+  ): Promise<OwnedCommunityOutcomeDto[]> {
+    return this._userService.closurePreview(userId);
+  }
+
+  /**
    * Closes the authenticated user's account.
    *
    * Marks user-linked data as deleted immediately and schedules permanent
-   * deletion via retention cron jobs.
+   * deletion via retention cron jobs. Each open Fleet Community they own goes
+   * to an Admin, or is closed, first (FC-038).
    *
    * @param userId Authenticated user ID (injected).
+   * @returns Success.
    */
   @ApiOperation({
     summary: 'Close the current user account',
@@ -247,9 +275,11 @@ export class UserController {
       },
     },
   })
-  @ApiOkResponse({
-    description: 'Profile picture updated successfully.',
-    type: UpdatedUserProfileResultDto,
+  @ApiAcceptedResponse({
+    description:
+      'The picture was accepted and is being scanned. It replaces the ' +
+      'current one only once a scanner has cleared it.',
+    type: AssetScanStatusDto,
   })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid access token.' })
   @ApiBadRequestResponse({
@@ -263,7 +293,7 @@ export class UserController {
     description: 'User/profile not found for the authenticated user id.',
   })
   @Post('update-profile-pic')
-  @HttpCode(HttpStatus.OK)
+  @HttpCode(HttpStatus.ACCEPTED)
   @UseFilters(FileSizeExceptionFilter)
   @UseInterceptors(
     FileInterceptor('profilePicture', {
@@ -292,11 +322,29 @@ export class UserController {
     const uniqueSuffix = Date.now().toString() + '-' + crypto.randomUUID();
     file.filename = `${file.fieldname}-${uniqueSuffix}${extname(file.originalname)}`;
 
-    const result = await this._userService.uploadProfilePicture(userId, file);
+    return this._userService.uploadProfilePicture(userId, file);
+  }
 
-    return new UpdatedUserProfileResultDto(
-      result.affected,
-      instanceToPlain(result.userProfileData),
-    );
+  /**
+   * Takes the authenticated user's profile picture off, and withdraws it.
+   *
+   * @param userId Authenticated user ID (injected).
+   */
+  @ApiOperation({
+    summary: 'Remove the profile picture',
+    description:
+      'Takes the picture off the profile, revokes it in the file registry and deletes it from Cloudflare Images. A profile with no picture is left as it is.',
+  })
+  @ApiNoContentResponse({
+    description: 'The picture was removed, or the profile had none.',
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid access token.' })
+  @ApiNotFoundResponse({
+    description: 'User/profile not found for the authenticated user id.',
+  })
+  @Delete('profile-pic')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async removeUserProfilePic(@UserId() userId: string): Promise<void> {
+    await this._userService.removeProfilePicture(userId);
   }
 }

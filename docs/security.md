@@ -509,7 +509,10 @@ origin: [
 - CORS allows both localhost and dev subdomain
 - Credentials: `true` (allows cookies/auth headers)
 
-> TODO: Confirm the full list of allowed origins for dev (including any additional hostnames like preview/staging/admin tools).
+**Outside production** (`local`, `e2etest`, `dev` and `staging`), `APP_FRONTEND_URL` is added to
+that list when it names something else. A local checkout serving the site on another port and the
+staging site, `https://tribble.startrekonline.info` (its blueprint sets the variable), are let in
+that way; the chat socket accepts the same origins. Production keeps its fixed list.
 
 ### Production CORS Settings
 
@@ -612,13 +615,71 @@ Always block SVG uploads unless you have a specific need and implement SVG sanit
 
 1. **Frontend Validation**: Check MIME type and size before upload
 2. **Backend Validation**: Multer checks MIME type and size
-3. **Virus scanning**: Uploads are scanned via Cloudmersive before being stored
+3. **Signature check**: the encoding is read out of the bytes, so a file that claims to be a
+   PNG and is not one is refused before it is stored anywhere
+4. **Malware scanning**: the bytes are held in a private bucket and scanned by ClamAV in the
+   file scan worker, and nothing is published until it answers
+
+**What a rejected upload is told.** The word `REJECTED`, and nothing else. Since FC-012 the API
+carries no sentence about a refusal at all: the status endpoint answers with an asset identifier
+and one of five words, and the wording a person reads lives in the frontend, in
+`asset-scan.constants.ts`. The rejection code, the engine and the signature stay on the
+`file_asset` row, where an administrator can reach them.
+
+That is deliberate rather than incidental. Naming what matched tells somebody probing the
+scanner precisely what gets through it, which is information the person who uploaded a holiday
+photograph has no use for. One word covers an infection, an unsupported payload and a scanner
+that would not answer, because to the uploader those are the same event.
+
+**How an upload actually goes, since FC-012.** There is no synchronous scan any more, and no
+Cloudmersive: the call, the client and the key were removed when the last caller moved across.
+A picture is checked against its slot, registered in `file_asset`, written to the private
+quarantine bucket, and scanned by ClamAV in the worker. Only when the verdict is clean does a
+separate publication job push it to Cloudflare Images, mark the asset `AVAILABLE` and point the
+owning record at it — in that order, so no reference ever names bytes the registry has not
+published.
+
+Two consequences are worth stating here rather than in the registry's own document.
+**There is no route to a bucket that goes round the registry**, which is what makes the gate
+unconditional rather than a rule each caller remembers.
+**A refused upload changes nothing**: the record keeps the picture it had, and the person is
+told the file was not accepted and nothing more.
+
+See [File assets](file-assets.md) for the registry, the inventory of every delivery path, what
+withdrawing an object costs on each one, and
+[ADR-0021](../../../Plans/Fleets/ADR/0021-asynchronous-publication-and-placements.md) for why
+publication is a queue rather than a step in the verdict.
 
 **Magic Bytes Validation:**
 
 Consider checking file magic bytes (file signature) to verify file type independently of MIME type and extension (prevents type spoofing).
 
 > TODO: Decide whether to implement magic-bytes validation (and document the chosen approach/library if implemented).
+
+### Roster CSV uploads are a different boundary
+
+Everything above is about images. A roster CSV upload
+(`POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports`) follows different rules,
+and the differences are deliberate:
+
+- **No MIME filter.** A CSV has no magic number, and a browser sends `text/csv`,
+  `application/vnd.ms-excel` or `application/octet-stream` for the same file depending on the
+  operating system's file association. Filtering on it would refuse real uploads while stopping
+  nothing, since the header is supplied by whoever is uploading. What the bytes are is decided by
+  parsing them.
+- **A 2 MiB ceiling**, not 10 MB, along with caps on rows, line length, field length, quotes per
+  line and the work one row's parse may cost.
+- **Memory storage is load-bearing**, not a performance choice. Multer's disk storage would write
+  the received bytes to a temporary file before any of this application's code had seen them, and
+  those bytes may contain private officer notes.
+- **The received bytes are overwritten** once parsed, on the failure path as well as the success
+  one.
+- **A refused upload leaves nothing**: no sample in the response, the log, a dead-letter payload
+  or Sentry. The caller gets a structural code and a line number, both produced by this
+  application rather than read out of the file.
+
+See [Roster imports](roster-imports.md) for the grammar, the limits and how the absence of officer
+data is tested.
 
 ### MIME Type Constants
 
@@ -719,7 +780,9 @@ Document current token expiry (e.g., 1 hour, 24 hours).
 - Standard window length is 15 minutes
 - GET/HEAD (read): 1500 per window (only failed requests are counted)
 - POST/PUT/PATCH/DELETE (write): 200 per window
-- Rate limit state is stored in **Redis** to ensure scalability and prevent memory leaks.
+- Rate limit state is stored in **Redis** to ensure scalability and prevent memory leaks. While Redis
+  cannot answer, each instance counts in its own memory, so limits still apply (FC-042; see
+  [Rate Limiting](backend.md#when-redis-cannot-answer-fc-042)).
 - Each rate limiting category (Read, Write, Auth, Expensive) uses a dedicated RedisStore instance with its own key prefix (e.g., `rl:read:`, `rl:auth:`).
 
 **Purpose:**
@@ -751,10 +814,16 @@ Document current token expiry (e.g., 1 hour, 24 hours).
 
 ## Proxy, client IP, and IPv6
 
-- The backend runs behind Cloudflare; `req.ip` will reflect Cloudflare unless proxy trust is configured
-- The backend sets Express `trust proxy` to `TRUST_PROXY_HOPS` when not running in `local` or `e2etest`
-- Client IP is derived in this order: `CF-Connecting-IP`, first `X-Forwarded-For`, then `req.ip`
+- The backend serves only what comes through Cloudflare (FC-044): a request must carry the origin
+  secret Cloudflare adds in `X-Origin-Verify`, or it is refused `403`, `/health/` aside. Chat's
+  socket too. Outside `local` and `e2etest` the backend does not start without the
+  secret
+- Only on such a request is `CF-Connecting-IP` believed; no other header the caller wrote is. A
+  request Cloudflare named no address for is keyed on its connection's own peer
+- That one address (`req.clientIp`) keys every rate limit and fills the login, audit and site
+  admin logs, so none of them can be steered by a forged header
 - IPv6-mapped IPv4 values like `::ffff:192.0.2.1` are normalised to IPv4
+- See [Infrastructure: origin proxy trust](infrastructure.md#origin-proxy-trust)
 
 ## Compliance & OpenSSF Best Practices
 
@@ -795,12 +864,13 @@ The project adheres to the following cryptographic standards:
 
 ### Audit tables
 
-| Table                  | PII stored                                  | Retention                                                                                                                                                              |
-| ---------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `_audit`               | `ipAddress` (nullable), `userId`            | `ipAddress` nulled after `AUDIT_IP_NUKE_THRESHOLD_DAYS`; records deleted after `AUDIT_DATA_NUKE_THRESHOLD_DAYS`                                                        |
-| `_audit_login_attempt` | `email` (nullable), `ipAddress` (nullable)  | Same as above                                                                                                                                                          |
-| `_audit_ses_event`     | `emailHashed` (HMAC-SHA256 — not plaintext) | Non-suppressing records deleted after `SES_AUDIT_RETENTION_DAYS` (180 days); suppression records deleted after `SES_SUPPRESSION_RETENTION_DAYS` (2557 days / ~7 years) |
-| `contact_request`      | `emailMasked` (nullable)                    | Email nulled after `CONTACT_REQUEST_EMAIL_MASK_RETENTION_DAYS`; records deleted after `CONTACT_REQUEST_RECORD_RETENTION_DAYS`                                          |
+| Table                  | PII stored                                   | Retention                                                                                                                                                              |
+| ---------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `_audit`               | `ipAddress` (nullable), `userId`             | `ipAddress` nulled after `AUDIT_IP_NUKE_THRESHOLD_DAYS`; records deleted after `AUDIT_DATA_NUKE_THRESHOLD_DAYS`                                                        |
+| `_audit_login_attempt` | `email` (nullable), `ipAddress` (nullable)   | Same as above                                                                                                                                                          |
+| `site_admin_action`    | `ipAddress` (nullable), the actor and target | Same as above (FC-039); see [Admin audit](admin-audit.md)                                                                                                              |
+| `_audit_ses_event`     | `emailHashed` (HMAC-SHA256 — not plaintext)  | Non-suppressing records deleted after `SES_AUDIT_RETENTION_DAYS` (180 days); suppression records deleted after `SES_SUPPRESSION_RETENTION_DAYS` (2557 days / ~7 years) |
+| `contact_request`      | `emailMasked` (nullable)                     | Email nulled after `CONTACT_REQUEST_EMAIL_MASK_RETENTION_DAYS`; records deleted after `CONTACT_REQUEST_RECORD_RETENTION_DAYS`                                          |
 
 - A daily cron job (UTC, 03:26 and 00:00) runs all retention cleanup jobs in sequence.
 - A failed individual job is logged and swallowed so the others continue.
@@ -863,6 +933,12 @@ value from one of our own enumerations. There is no parameter that could carry
 what somebody wrote, so no later edit can start logging it by accident. The
 reason a value was refused is deliberately not recorded either — validation
 messages name the rule, and one of them could one day name the value.
+
+Fleet content goes further (FC-038). Chat, roster, news and form-content
+entities are marked `@AuditIdentifiersOnly()`, so the audit trail keeps their
+`id` and every `…Id` and nothing a person wrote; Sentry and LogRocket never see
+a request's body, and replays mask every text and input. See
+[Privacy: erasure, departures and telemetry](privacy-erasure.md#telemetry).
 
 The same rule holds in the audit trail. Value fragments and picture
 descriptions are marked `@RedactFromAudit()`, so they are not copied into a
@@ -938,6 +1014,35 @@ it the feature with the widest input surface on the site.
 
 Retention, hard-deletion order and the Cloudflare deletion queue are described
 in `docs/custom-tracking.md`.
+
+## What travels to the file scan worker
+
+The worker is a separate application with its own credentials, and the only things that cross
+between them are two queue messages. What a scan request carries is fixed by
+[ADR-0006](../../../Plans/Fleets/ADR/0006-worker-job-transport-and-ownership.md) and is worth
+reading as a list of absences:
+
+| Carried                                 | Not carried                             |
+| --------------------------------------- | --------------------------------------- |
+| The asset's identifier                  | Any URL                                 |
+| The object key the registry built       | Any bucket or endpoint name             |
+| The object version and the SHA-256      | Any credential                          |
+| The policy version, a campaign, a trace | The original filename                   |
+|                                         | Any row, field or byte of a user's file |
+
+The worker resolves where to read from out of its own configuration, so there is no code path in
+which a message can influence where a request goes. That is why there is no SSRF surface to defend
+here rather than a defence against one.
+
+**The queue is a sink, and the officer-canary sweep treats it as one.** FC-009's
+`officer-canary-sinks.spec.ts` drives the whole roster ingress and asserts the canary reaches none
+of seven places; FC-010 added the queue message as the sixth, using the real producer rather than a
+stand-in so that what is swept is the message that would actually be sent.
+
+A verdict coming back is untrusted input. It is parsed against the contract before a single field
+is read, and then rechecked against the registry: a verdict whose object key, version or expected
+hash no longer match the row is discarded, because the asset was replaced while the scanner was
+working.
 
 ## API Key Management
 

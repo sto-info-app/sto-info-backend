@@ -3,7 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { jest } from '@jest/globals';
-import { QueryFailedError, Repository } from 'typeorm';
+import { IsNull, QueryFailedError, Repository } from 'typeorm';
 
 import { NewsPostEntity } from './entities/news-post.entity';
 import { NewsCategory } from './enums/news-category.enum';
@@ -17,10 +17,17 @@ describe('NewsService', () => {
     select: jest.Mock;
     addSelect: jest.Mock;
     where: jest.Mock;
+    andWhere: jest.Mock;
     groupBy: jest.Mock;
+    orderBy: jest.Mock;
+    addOrderBy: jest.Mock;
+    setParameters: jest.Mock;
+    getQuery: jest.Mock<() => string>;
+    getParameters: jest.Mock<() => Record<string, unknown>>;
     getRawMany: jest.Mock<
       () => Promise<Array<{ category: NewsCategory; count: string }>>
     >;
+    getOne: jest.Mock<() => Promise<Partial<NewsPostEntity> | null>>;
   };
 
   beforeEach(async () => {
@@ -28,10 +35,17 @@ describe('NewsService', () => {
       select: jest.fn(() => queryBuilder),
       addSelect: jest.fn(() => queryBuilder),
       where: jest.fn(() => queryBuilder),
+      andWhere: jest.fn(() => queryBuilder),
       groupBy: jest.fn(() => queryBuilder),
+      orderBy: jest.fn(() => queryBuilder),
+      addOrderBy: jest.fn(() => queryBuilder),
+      setParameters: jest.fn(() => queryBuilder),
+      getQuery: jest.fn(() => 'SELECT self'),
+      getParameters: jest.fn(() => ({ id: '1' })),
       getRawMany: jest.fn(() =>
         Promise.resolve([] as Array<{ category: NewsCategory; count: string }>),
       ),
+      getOne: jest.fn(() => Promise.resolve(null)),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -74,7 +88,7 @@ describe('NewsService', () => {
       });
       expect(repository.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { status: NewsStatus.PUBLISHED },
+          where: { communityId: IsNull(), status: NewsStatus.PUBLISHED },
           skip: 0,
           take: 10,
         }),
@@ -93,6 +107,7 @@ describe('NewsService', () => {
       expect(repository.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
+            communityId: IsNull(),
             status: NewsStatus.PUBLISHED,
             category: NewsCategory.RELEASE_NOTES,
           },
@@ -116,14 +131,103 @@ describe('NewsService', () => {
         [NewsCategory.RELEASE_NOTES]: 1,
       });
     });
+
+    it('counts only the site’s own posts, never a Fleet’s', async () => {
+      repository.findAndCount.mockResolvedValue([[], 0]);
+
+      await service.findPublished({});
+
+      expect(queryBuilder.where).toHaveBeenCalledWith(
+        'post.communityId IS NULL',
+      );
+    });
   });
 
   describe('findPublishedBySlug', () => {
-    it('returns the post when found', async () => {
-      const post = { id: '1' } as NewsPostEntity;
+    const publishedAt = new Date('2026-10-21T18:00:00.000Z');
+    const createdAt = new Date('2026-10-21T17:00:00.000Z');
+
+    it('returns the post with no neighbours when it stands alone', async () => {
+      const post = { id: '1', publishedAt, createdAt } as NewsPostEntity;
       repository.findOne.mockResolvedValue(post);
 
-      await expect(service.findPublishedBySlug('slug')).resolves.toBe(post);
+      await expect(service.findPublishedBySlug('slug')).resolves.toEqual({
+        ...post,
+        previous: null,
+        next: null,
+      });
+      expect(repository.findOne).toHaveBeenCalledWith({
+        where: {
+          slug: 'slug',
+          communityId: IsNull(),
+          status: NewsStatus.PUBLISHED,
+        },
+      });
+    });
+
+    // The previous post is the older one and the next the newer, found where
+    // the list orders them: by publishedAt, then createdAt, newest first. The
+    // post's own place is read from its row, never sent as a parameter.
+    it('names the older post as previous and the newer as next', async () => {
+      repository.findOne.mockResolvedValue({
+        id: '1',
+        publishedAt,
+        createdAt,
+      } as NewsPostEntity);
+      queryBuilder.getOne
+        .mockResolvedValueOnce({ slug: 'older', title: 'Older post' })
+        .mockResolvedValueOnce({ slug: 'newer', title: 'Newer post' });
+
+      const result = await service.findPublishedBySlug('slug');
+
+      expect(result.previous).toEqual({ slug: 'older', title: 'Older post' });
+      expect(result.next).toEqual({ slug: 'newer', title: 'Newer post' });
+
+      expect(queryBuilder.select).toHaveBeenCalledWith([
+        'post.slug',
+        'post.title',
+      ]);
+      expect(queryBuilder.where).toHaveBeenCalledWith(
+        'post.communityId IS NULL',
+      );
+      expect(queryBuilder.andWhere).toHaveBeenCalledWith(
+        'post.status = :status',
+        { status: NewsStatus.PUBLISHED },
+      );
+      expect(queryBuilder.select).toHaveBeenCalledWith([
+        'self.publishedAt',
+        'self.createdAt',
+      ]);
+      expect(queryBuilder.where).toHaveBeenCalledWith('self.id = :id', {
+        id: '1',
+      });
+      expect(queryBuilder.andWhere).toHaveBeenCalledWith(
+        '(post.publishedAt, post.createdAt) < (SELECT self)',
+      );
+      expect(queryBuilder.andWhere).toHaveBeenCalledWith(
+        '(post.publishedAt, post.createdAt) > (SELECT self)',
+      );
+      expect(queryBuilder.setParameters).toHaveBeenCalledWith({ id: '1' });
+      expect(queryBuilder.orderBy).toHaveBeenNthCalledWith(
+        1,
+        'post.publishedAt',
+        'DESC',
+      );
+      expect(queryBuilder.addOrderBy).toHaveBeenNthCalledWith(
+        1,
+        'post.createdAt',
+        'DESC',
+      );
+      expect(queryBuilder.orderBy).toHaveBeenNthCalledWith(
+        2,
+        'post.publishedAt',
+        'ASC',
+      );
+      expect(queryBuilder.addOrderBy).toHaveBeenNthCalledWith(
+        2,
+        'post.createdAt',
+        'ASC',
+      );
     });
 
     it('throws when not found', async () => {
@@ -371,7 +475,7 @@ describe('NewsService', () => {
       });
       expect(repository.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: {},
+          where: { communityId: IsNull() },
           skip: 0,
           take: 10,
         }),
@@ -389,7 +493,7 @@ describe('NewsService', () => {
 
       expect(repository.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { category: NewsCategory.GENERAL },
+          where: { communityId: IsNull(), category: NewsCategory.GENERAL },
           skip: 25,
           take: 25,
         }),
@@ -429,6 +533,9 @@ describe('NewsService', () => {
       const result = await service.findOneById('1');
 
       expect(result).toBe(post);
+      expect(repository.findOne).toHaveBeenCalledWith({
+        where: { id: '1', communityId: IsNull() },
+      });
     });
 
     it('throws NotFoundException when not found', async () => {

@@ -24,10 +24,10 @@ import { StorytimeUserStoryProgressEntity } from './entities/storytime-user-stor
  * Reading on must not drag a Story out of one of these; a reader who put a
  * Story on hold and then dipped back in has not changed their mind.
  */
-const DELIBERATE_STATUSES = [
+const DELIBERATE_STATUSES = new Set([
   ReaderStoryStatus.ON_HOLD,
   ReaderStoryStatus.ABANDONED,
-];
+]);
 
 /**
  * A Story's progress with the figures a reader is shown.
@@ -434,7 +434,7 @@ export class StorytimeProgressService {
     totalChapters: number,
     now: Date,
   ): void {
-    if (DELIBERATE_STATUSES.includes(progress.status)) {
+    if (DELIBERATE_STATUSES.has(progress.status)) {
       return;
     }
 

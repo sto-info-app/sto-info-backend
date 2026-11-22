@@ -3,6 +3,8 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 
+import { compareCalendarDates } from '../../shared/utilities/calendar-date.utility';
+import { canonicaliseTimezone } from '../../shared/utilities/timezone.utility';
 import { CustomTrackingFieldConfiguration } from '../constants/custom-tracking-field-configuration.interface';
 import {
   ImageConfigurationDto,
@@ -29,13 +31,11 @@ import {
   TextConfigurationDto,
 } from '../dto/configuration/text-configuration.dto';
 import { CustomTrackingFieldType } from '../enums/custom-tracking-field-type.enum';
-import { compareCalendarDates } from '../shared/custom-tracking-calendar.utility';
 import {
   canonicaliseDecimal,
   compareDecimals,
   decimalPlaces,
 } from '../shared/custom-tracking-decimal.utility';
-import { canonicaliseTimezone } from '../shared/custom-tracking-timezone.utility';
 
 /** The largest and smallest a percentage may be. */
 const PERCENTAGE_MINIMUM = '0';

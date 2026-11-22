@@ -7,8 +7,14 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { DataSource, EntityManager, Repository } from 'typeorm';
 
+import { FileAssetAudience } from 'src/file-assets/enums/file-asset-audience.enum';
+import { FileAssetKind } from 'src/file-assets/enums/file-asset-kind.enum';
+import { FileAssetSlot } from 'src/file-assets/enums/file-asset-slot.enum';
+import { FileAssetSubject } from 'src/file-assets/enums/file-asset-subject.enum';
+import { AcceptedAsset } from 'src/file-assets/services/asset-ingress.service';
+import { AssetWithdrawalService } from 'src/file-assets/services/asset-withdrawal.service';
+import { ImageIngressService } from 'src/file-assets/services/image-ingress.service';
 import { DEFAULT_MULTER_LIMITS } from 'src/shared/constants/file-upload.constants';
-import { ImageSlotService } from 'src/shared/images/image-slot.service';
 
 import {
   CUSTOM_TRACKING_IMAGE_SPECS,
@@ -29,6 +35,7 @@ import {
   CustomTrackingTarget,
   CustomTrackingTargetService,
 } from '../values/custom-tracking-target.service';
+import { customTrackingSubjectId } from './custom-tracking-image-subject.utility';
 
 /** What a picture write produced, and what it displaced. */
 interface CustomTrackingImageWrite {
@@ -76,7 +83,8 @@ export class CustomTrackingImageService {
    * @param _imageValueRepository - Repository of picture answers.
    * @param _fields - Establishes ownership of the Field.
    * @param _targets - Establishes ownership of the record.
-   * @param _images - Checks a picture over and stores it.
+   * @param _ingress - Checks a picture over and sends it to be scanned.
+   * @param _withdrawal - Takes a published picture down.
    * @param _cleanup - Queues pictures nothing points at any more.
    * @param _observability - Records uploads that failed or were abandoned.
    * @param _dataSource - Opens the transaction the write needs.
@@ -86,25 +94,33 @@ export class CustomTrackingImageService {
     private readonly _imageValueRepository: Repository<CustomTrackingImageValueEntity>,
     private readonly _fields: CustomTrackingFieldService,
     private readonly _targets: CustomTrackingTargetService,
-    private readonly _images: ImageSlotService,
+    private readonly _ingress: ImageIngressService,
+    private readonly _withdrawal: AssetWithdrawalService,
     private readonly _cleanup: CustomTrackingImageCleanupService,
     private readonly _observability: CustomTrackingObservabilityService,
     private readonly _dataSource: DataSource,
   ) {}
 
   /**
-   * Stores a picture against one Field and record, replacing any already
-   * there.
+   * Checks a picture over and sends it to be scanned.
+   *
+   * Nothing is written. The Field goes on showing whatever picture it has
+   * until a scanner has cleared the new one, at which point
+   * {@link publish} writes the answer and its description together —
+   * FC-012.
+   *
+   * The description is checked here even though it is not stored here.
+   * The moment of upload is the only moment its author certainly knows what
+   * the picture shows, and refusing a missing one a minute later, after the
+   * dialogue has closed, would be no use to anybody.
    *
    * @param upload - The Field, the record, the description and the file.
-   * @returns The stored picture.
+   * @returns The asset to ask about, and how far along it is.
    * @throws NotFoundException when the Field or record is not the caller's.
    * @throws BadRequestException when the Field takes no picture, the
    *   description is missing, or the file is unacceptable.
    */
-  async store(
-    upload: CustomTrackingImageUpload,
-  ): Promise<CustomTrackingImageValueEntity> {
+  async accept(upload: CustomTrackingImageUpload): Promise<AcceptedAsset> {
     const field = await this._fields.findOwned(upload.userId, upload.fieldId);
     const target = await this._targets.findOwned(
       upload.userId,
@@ -118,52 +134,35 @@ export class CustomTrackingImageService {
     const altText = this.checkedAltText(upload.altText);
     const spec = this.specOf(field);
 
-    // Uploaded before anything is written, so a picture that turns out to be
-    // the wrong shape never disturbs what is already stored.
-    const cloudflareImageId = await this.upload(upload, field, target, spec);
-
-    const { saved, replaced } = await this.commit(cloudflareImageId, manager =>
-      this.write(manager, field, target, {
-        cloudflareImageId,
-        altText,
-        // Copied onto the picture rather than read back from the Field, so a
-        // later change to the Field cannot misdescribe a picture already
-        // stored under the shape it was actually cropped to.
-        shape: this.shapeOf(field),
-      }),
-    );
-
-    // Deleted last, and only once the queue entry naming it has committed. An
-    // image left behind in Cloudflare costs storage; a record pointing at one
-    // that has gone costs the reader a broken picture.
-    await this._cleanup.flush(replaced ? [replaced] : []);
-
-    return saved;
-  }
-
-  /**
-   * Sends the file to Cloudflare, recording a refusal on the way past.
-   *
-   * @param upload - The upload being served.
-   * @param field - The image Field.
-   * @param target - The record described.
-   * @param spec - The rules the picture is held to.
-   * @returns The stored picture's Cloudflare identifier.
-   */
-  private async upload(
-    upload: CustomTrackingImageUpload,
-    field: CustomTrackingFieldEntity,
-    target: CustomTrackingTarget,
-    spec: CustomTrackingImageSpec,
-  ): Promise<string> {
     try {
-      return await this._images.store({
+      return await this._ingress.accept({
         spec,
         userId: upload.userId,
+        kind: FileAssetKind.CUSTOM_TRACKING_IMAGE,
+        // As it has always been. A Custom Tracking picture answers a private
+        // record and is nonetheless delivered by the public CDN behind an
+        // unguessable identifier, exactly as it was before FC-012: this
+        // ticket changes when a picture is published, not who may see one.
+        audience: FileAssetAudience.PUBLIC,
+        subject: FileAssetSubject.CUSTOM_TRACKING_VALUE,
+        subjectId: customTrackingSubjectId(field.id, target.id),
+        slot: FileAssetSlot.PICTURE,
+        entityTag: spec.entityTag,
         entityId: `${field.id}:${target.id}`,
         maximumBytes: DEFAULT_MULTER_LIMITS.fileSize,
         sizeLimitLabel: 'Custom tracking images',
         file: upload.file,
+        // Everything the publisher will need and cannot work out for
+        // itself. The row that holds the description does not exist until
+        // the picture is published, so it has nowhere else to wait.
+        feature: {
+          altText,
+          shape: this.shapeOf(field),
+          fieldId: field.id,
+          scope: target.scope,
+          targetId: target.id,
+          userId: upload.userId,
+        },
       });
     } catch (error: unknown) {
       // The class of failure, never its message. A refusal names the bound it
@@ -176,6 +175,53 @@ export class CustomTrackingImageService {
 
       throw error;
     }
+  }
+
+  /**
+   * Writes a cleared picture as the answer to one Field and record.
+   *
+   * Ownership is established again rather than taken from the upload. A
+   * minute has passed, the Field may have been deleted and the record may
+   * have changed hands, and ADR-0006 requires publication to be performed
+   * against current permissions rather than against the ones that applied
+   * when the file arrived.
+   *
+   * @param published - The cleared picture and what it answers.
+   * @returns The identifier it replaced, or null where there was none.
+   */
+  async publish(published: {
+    userId: string;
+    fieldId: string;
+    scope: CustomTrackingTargetScope;
+    targetId: string;
+    cloudflareImageId: string;
+    altText: string;
+    shape: CustomTrackingImageShape;
+  }): Promise<string | null> {
+    const field = await this._fields.findOwned(
+      published.userId,
+      published.fieldId,
+    );
+    const target = await this._targets.findOwned(
+      published.userId,
+      published.scope,
+      published.targetId,
+    );
+
+    const { replaced } = await this.commit(
+      published.cloudflareImageId,
+      manager =>
+        this.write(manager, field, target, {
+          cloudflareImageId: published.cloudflareImageId,
+          altText: published.altText,
+          // Copied onto the picture rather than read back from the Field, so
+          // a later change to the Field cannot misdescribe a picture already
+          // stored under the shape it was actually cropped to.
+          shape: published.shape,
+        }),
+    );
+
+    return replaced;
   }
 
   /**
@@ -207,6 +253,33 @@ export class CustomTrackingImageService {
 
       throw error;
     }
+  }
+
+  /**
+   * Reports the picture answering one Field and record.
+   *
+   * Added with FC-012, because a picture no longer exists when the upload
+   * request finishes: the dialogue that sent it waits for a scanner and
+   * then asks what landed, rather than being told at upload time about a
+   * picture that had not been checked yet.
+   *
+   * @param userId - The owner.
+   * @param fieldId - The image Field.
+   * @param scope - Whether an Account or a Character is described.
+   * @param targetId - The record described.
+   * @returns The picture, or null when there is none.
+   * @throws NotFoundException when the Field or record is not the caller's.
+   */
+  async find(
+    userId: string,
+    fieldId: string,
+    scope: CustomTrackingTargetScope,
+    targetId: string,
+  ): Promise<CustomTrackingImageValueEntity | null> {
+    const field = await this._fields.findOwned(userId, fieldId);
+    const target = await this._targets.findOwned(userId, scope, targetId);
+
+    return this.findExisting(this._dataSource.manager, field, target);
   }
 
   /**
@@ -242,16 +315,21 @@ export class CustomTrackingImageService {
         id: existing.id,
       });
       await manager.delete(CustomTrackingValueEntity, { id: existing.valueId });
-      // Queued inside the transaction that drops the reference. Once it has
-      // committed, nothing else knows the picture is there.
-      await this._cleanup.enqueue(
-        manager,
-        [existing.cloudflareImageId],
-        CustomTrackingImageCleanupReason.REMOVED,
-      );
     });
 
-    await this._cleanup.flush([existing.cloudflareImageId]);
+    // Withdrawn through the registry rather than queued for deletion, so the
+    // row that says whether these bytes may be served stops saying yes at
+    // the moment the answer stops pointing at them, and an outstanding purge
+    // is recorded where W10 can find it — ADR-0016. The cleanup queue still
+    // exists for the retention sweep and for account closure, which delete
+    // pictures the registry has no reason to hear about one at a time.
+    await this._withdrawal.withdrawSlot(
+      FileAssetSubject.CUSTOM_TRACKING_VALUE,
+      customTrackingSubjectId(field.id, target.id),
+      FileAssetSlot.PICTURE,
+      existing.cloudflareImageId,
+      'Removed by the owner',
+    );
   }
 
   /**
@@ -290,14 +368,11 @@ export class CustomTrackingImageService {
 
     const saved = await manager.save(CustomTrackingImageValueEntity, row);
 
-    // Queued here rather than after the transaction, so a write that rolls
-    // back cannot leave the site pointing at a picture it promised to delete.
-    await this._cleanup.enqueue(
-      manager,
-      replaced ? [replaced] : [],
-      CustomTrackingImageCleanupReason.REPLACED,
-    );
-
+    // The replaced picture is reported rather than queued. Since FC-012 the
+    // publication path withdraws it through the registry, which revokes the
+    // row, deletes the object and records whether the purge happened; a
+    // second deleter here would race that and leave `purgedAt` unset for a
+    // picture that had in fact gone.
     return { saved, replaced };
   }
 

@@ -43,6 +43,12 @@ Note: the app reads `config/environments/.env` at startup (see `src/main.ts`).
 ### Redis
 
 - `REDIS_URL`: Full connection string for Redis (e.g. `redis://localhost:6379`). Render provides this automatically for managed Redis.
+- `QUEUE_PREFIX`: Prefix for BullMQ keys (default `bull:sto-info:`). It must match the file scan worker's, or the two will be talking to different queues in the same Redis and each will look idle to the other.
+
+Redis is used for two unrelated things: rate limiting, and the file scan queues. Since FC-010 it is
+**load-bearing for file safety** as well as for throttling — an upload cannot be scanned, and
+therefore cannot be published, while it is down. ADR-0006 accepted that and asked for the queue's
+connection budget to be sized and monitored separately from the limiter's.
 
 ### Email
 
@@ -67,8 +73,32 @@ Note: the app reads `config/environments/.env` at startup (see `src/main.ts`).
 - `CLOUDFLARE_R2_BUCKET_NAME`: R2 bucket name
 - `CLOUDFLARE_CDN_ROOT_URL`: Base Cloudflare URL used to construct delivery URLs
 - `CLOUDFLARE_IMAGES_HASH`: Cloudflare Images account hash
+- `CLOUDFLARE_R2_QUARANTINE_BUCKET_NAME`: The private bucket uploaded bytes land in before they are scanned
+- `CLOUDFLARE_R2_EXPORTS_BUCKET_NAME`: The private bucket chat transcripts are kept in for their 24 hours (FC-035). Locally, the MinIO bucket `stoi-exports`
+
+That bucket name is the **only** variable quarantine adds. R2's S3 endpoint is scoped to the
+account, not to a bucket, so `CLOUDFLARE_R2_ENDPOINT` reaches the quarantine bucket as well — the
+separation that matters is the credentials, not the URL. The one exception is a bucket created
+under a [jurisdiction](https://developers.cloudflare.com/r2/reference/data-location/), which is
+reachable only through that jurisdiction's own endpoint (`<account>.eu.r2.cloudflarestorage.com`)
+and cannot be moved afterwards; giving quarantine a different jurisdiction from the delivery bucket
+would mean adding an endpoint variable for it.
 
 > TODO: Confirm the correct `CLOUDFLARE_CDN_ROOT_URL` and `CLOUDFLARE_IMAGES_HASH` values for each environment.
+
+The quarantine bucket is a **separate bucket**, not a prefix in `CLOUDFLARE_R2_BUCKET_NAME`. It must
+have no public access, no custom domain, no `r2.dev` subdomain and no Cloudflare Images variant.
+Nothing in the application validates that — a config validator cannot see a Cloudflare account — so
+it is checked by running `npm run probe:asset-delivery` against the environment.
+
+**One bucket serves every environment**, with the environment as the first key segment, the same way
+`CLOUDFLARE_R2_BUCKET_NAME` is laid out. `CLOUDFLARE_R2_QUARANTINE_BUCKET_NAME` therefore holds the
+same value in every environment; it stays a configuration value rather than a constant so that a
+future split needs no code change. See [File assets](file-assets.md) for the full bucket settings.
+
+The exports bucket follows the same rules for the same reason: a transcript is somebody's
+conversation, and the delivery bucket is served publicly through the CDN. See
+[Infrastructure](infrastructure.md#the-exports-bucket).
 
 ### Upload limits
 
@@ -119,11 +149,24 @@ All default to enabled, so once Custom Tracking itself is switched on its parts 
 
 The structural limits are fixed rather than configurable. They decide how large a hierarchy the value editor and the detail pages have to render in one go, so raising one for a single user would produce a page nobody can use on a phone rather than unlocking anything for them. See `custom-tracking.md`.
 
-> `CUSTOM_TRACKING_ENABLED` is **not** an environment variable. It is a runtime switch in the `app_setting` table, seeded off by the feature's first migration, so the feature can be taken offline without a redeployment — which matters here because it stores content users write themselves.
+> `CUSTOM_TRACKING_ENABLED` is **not** an environment variable. It is a runtime switch in the `app_setting` table, seeded off by the feature's first migration, so the feature can be taken offline without a redeployment — which matters here because it stores content users write themselves. It is thrown from the Admin page's Features panel, with a reason, as are `STORYTIME_ENABLED` and `FLEET_COMMUNITIES_ENABLED`.
+
+## Optional (Fleet Community)
+
+All default to enabled, so once Fleet Community itself is switched on its parts work unless an environment deliberately disables one. Set to `false` to disable; any other value that is not `true` stops the API at startup.
+
+- `FLEET_REGISTRATION_ENABLED`: Whether a user may register a Community, Fleet or Armada
+- `FLEET_IMPORTS_ENABLED`: Whether roster CSV imports may be submitted
+- `FLEET_CHAT_ENABLED`: Whether scoped chat channels and direct messages are served
+- `CHAT_RETENTION_DAYS`: How long chat messages are kept (integer, at least the seven-day transcript window). A value above the published privacy-policy figure logs a warning at startup
+- `IMPORT_SOURCE_RETENTION_DAYS`: How long uploaded roster sources are kept (integer, at least `1`). A value above the published figure logs a warning at startup
+
+> `FLEET_COMMUNITIES_ENABLED` is **not** an environment variable. It is the runtime switch in the `app_setting` table, thrown from the Admin page's Features panel.
 
 ## Optional
 
-- `TRUST_PROXY_HOPS`: Express trust proxy hops (default is `1` when not provided)
+- `TRUST_PROXY_HOPS`: Express trust proxy hops (default is `1` when not provided). It no longer
+  decides the client's address, which is `CloudflareOrigin`'s (FC-044)
 - `STARTUP_DIAGNOSTICS`: `true` | `false` (default `false`). When `true`, logs process memory usage (RSS/heap/external) at key startup stages to help diagnose intermittent memory jumps.
 - `FUZZ_NUM_RUNS`: Number of iterations for property-based fuzz tests (default `100` for light tests, `1000` for full tests). Used by `fast-check`.
 
@@ -137,6 +180,13 @@ These are read by seeders when `NODE_ENV` is not `prod`. The `EnsureSeedUser` mi
 - `DATASEED_USER_LASTNAME`
 - `DATASEED_USER_PASSWORD`
 
+Local only (`NODE_ENV=local`), read by the Fleet fixture migrations:
+
+- `DATASEED_FLEET_OWNER_EMAIL`: the account that owns the seeded Fixture Community.
+- `DATASEED_FLEET_APPLICANT_EMAIL`, `DATASEED_FLEET_APPLICANT_USERNAME`,
+  `DATASEED_FLEET_APPLICANT_PASSWORD`: a second person, with a Windows Character, to apply to the
+  Fixture Basic Fleet with. All three or nothing. See [Fleet recruitment](fleet-recruitment.md#local-testing).
+
 ## AWS Secrets Manager secret shape
 
 The secret referenced by `AWS_SECRET_NAME` is expected to be JSON with at least:
@@ -144,11 +194,52 @@ The secret referenced by `AWS_SECRET_NAME` is expected to be JSON with at least:
 - `jwtSecret`: Used to sign JWT access tokens
 - `dbPassword`: Used as the PostgreSQL password for TypeORM
 - `sendGridApiKey`: No longer read. SendGrid was removed on 2026-10-27 and Amazon SES is the only email sender, so the key can be deleted from the secret.
-- `cloudflareR2AccessKey`: Used to write objects to Cloudflare R2
-- `cloudflareR2Secret`: Used to write objects to Cloudflare R2
+- `cloudflareR2GatedAccessKey`: Reads and deletes objects in the public R2 bucket (the legacy
+  Character portraits). Required: the API refuses to start without it
+- `cloudflareR2GatedSecret`: The secret half of that key pair. Required
 - `cloudflareImagesAccountId`: Used for Cloudflare Images uploads
-- `cloudflareImagesApiKey`: Used for Cloudflare Images uploads
-- `cloudmersiveApiKey`: Used for virus scanning of uploads
+- `cloudflareImagesGatedApiKey`: The Cloudflare Images token: publishes, signs, lists and deletes
+  pictures. Required
+- `cloudflareR2QuarantineAccessKey`: Reads and writes the private quarantine bucket. Required: the
+  API refuses to start without it
+- `cloudflareR2QuarantineSecret`: Reads and writes the private quarantine bucket. Required
+- `cloudflareR2ExportsAccessKey`: Reads, writes and deletes the private exports bucket (FC-035).
+  Required: the API refuses to start without it
+- `cloudflareR2ExportsSecret`: Reads, writes and deletes the private exports bucket (FC-035).
+  Required
+- `rosterErasureKey`: Keys the HMAC of every erased Character name and @handle (FC-038). A long
+  random string, kept for good: without it the suppression list can't be matched, erasure answers
+  503, and once anybody is erased a roster upload is refused. See
+  [Privacy: erasure](privacy-erasure.md#verified-roster-erasure)
+- `cloudflareImagesSigningKey`: Signs every picture address the API sends (FC-040), from
+  Cloudflare's R2 and Images → Images → Keys. Without it nothing is signed, new pictures go up
+  public and the estate cannot be copied to private; with it, a private picture shows only to a
+  signed address. See [Private image delivery](image-delivery.md)
+
+- `cloudflareOriginVerifySecret`: The secret a Cloudflare Transform Rule adds, as
+  `X-Origin-Verify`, to every request it forwards to the API (FC-044). Required outside `local`
+  and `e2etest`: the API refuses to start without it, and then refuses any request that lacks it,
+  except `/health/`. A long random string, set in Cloudflare and here together. Leave it out of the local
+  secret, or the local API will refuse your browser. See
+  [Infrastructure: origin proxy trust](infrastructure.md#origin-proxy-trust)
+
+Locally, the two exports keys are the MinIO credentials, as the quarantine keys are.
+
+`cloudflareR2AccessKey`, `cloudflareR2Secret` and `cloudflareImagesApiKey` are **no longer
+read** (FC-042). They are the names a build from before FC-012 reads, and such a build publishes
+uploads without scanning them. The credentials moved to the `Gated` names above, with new tokens in
+production, so that once the old tokens are revoked a rolled-back build has nothing that works. There
+is no fallback to the old names, and the API names every missing key when it refuses to start. See
+[Private image delivery](image-delivery.md#rolling-back-the-application).
+
+`cloudmersiveApiKey` is **no longer read**. FC-012 removed the synchronous scanner call along
+with the last caller that used it; malware scanning is ClamAV in the file scan worker, whose
+credentials are the worker's own. The key may be removed from the secret once nothing else in
+the estate refers to it.
+
+The quarantine credentials are deliberately separate from `cloudflareR2GatedAccessKey`. The key that
+publishes must not be able to read quarantine, and the key that reads quarantine must not be able to
+publish; a shared credential would put back exactly what the separate bucket exists to prevent.
 
 ## Validation
 

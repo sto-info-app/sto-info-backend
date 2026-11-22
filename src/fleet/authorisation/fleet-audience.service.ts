@@ -1,0 +1,368 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+
+import { IsNull, Not, Repository } from 'typeorm';
+
+import { CommunitySubscriptionEntity } from '../entities/community-subscription.entity';
+import { ScopeMembershipEntity } from '../entities/scope-membership.entity';
+import { FleetAudience } from '../enums/fleet-audience.enum';
+import { FleetScopeKind } from '../enums/fleet-scope-kind.enum';
+import { ScopeMembershipStatus } from '../enums/scope-membership-status.enum';
+import { FleetInvitationEntity } from '../recruitment/entities/fleet-invitation.entity';
+import { FleetInvitationStatus } from '../recruitment/enums/fleet-invitation-status.enum';
+import { FleetAuthorisationService } from './fleet-authorisation.service';
+import { FLEET_CAPABILITIES } from './fleet-capability.constants';
+import { ScopeAuthorisation, ScopeRef } from './scope-authorisation.interface';
+
+/**
+ * Answers "may this person *see* this", as distinct from "may they do this".
+ *
+ * Visibility and access are different questions and are answered by different
+ * records — ADR-0002. A public Fleet page is readable by a signed-out visitor
+ * who may do nothing at all to it; a Community follower may read Community
+ * content and still has no approved membership anywhere. Keeping the two
+ * services apart is what stops "can see the Fleet" from drifting into "is in
+ * the Fleet" as more features are added.
+ *
+ * This is the only place `community_subscription` is read for an authorisation
+ * decision, and it is read for exactly one audience: `COMMUNITY`. It is not
+ * consulted for `FLEET_MEMBERS`, which is FC-005's second acceptance criterion
+ * — following a Community never opens a private roster (R07).
+ *
+ * A Community's own audience counts the approved members of every Fleet in it,
+ * whether it is set to its followers and members or to its members alone
+ * (FC-050). Otherwise a Fleet's members who do not follow their Community could
+ * not open their own Fleet's pages, since a Fleet page asks about its Community
+ * first. "Community members" means the same wherever it is set inside the
+ * Community — on a Fleet, an Armada or anything published in either — so it
+ * counts them there too. "Fleet members" set on a Fleet or an Armada stays that
+ * scope's own members; a membership of one Fleet opens nothing a sibling keeps
+ * for its own.
+ *
+ * An open invitation is the one other thing that shows somebody a Fleet
+ * (FC-021). A Fleet only its Community can see has no other way to reach a
+ * person, so while the invitation is open the invitee sees the Fleet as
+ * anybody allowed to see it would — its page, and what that page shows
+ * everybody. Nothing published to a narrower audience opens with it.
+ *
+ * The four audiences are matched by name rather than compared as an ordering.
+ * {@link FleetAudience} is written widest-first and it would be tempting to
+ * treat it as a number, but then inserting a value later would silently widen
+ * every check that had been written as "at least this".
+ */
+@Injectable()
+export class FleetAudienceService {
+  /**
+   * Creates an instance of FleetAudienceService.
+   *
+   * @param _authorisationService - Resolves roles, capabilities and membership.
+   * @param _subscriptionRepository - Repository of Community subscriptions.
+   * @param _invitationRepository - Repository of invitations to join a Fleet.
+   * @param _membershipRepository - Repository of scope memberships, read for
+   *   a Community's Fleet members.
+   */
+  constructor(
+    private readonly _authorisationService: FleetAuthorisationService,
+    @InjectRepository(CommunitySubscriptionEntity)
+    private readonly _subscriptionRepository: Repository<CommunitySubscriptionEntity>,
+    @InjectRepository(FleetInvitationEntity)
+    private readonly _invitationRepository: Repository<FleetInvitationEntity>,
+    @InjectRepository(ScopeMembershipEntity)
+    private readonly _membershipRepository: Repository<ScopeMembershipEntity>,
+  ) {}
+
+  /**
+   * Reports whether somebody may see content published to an audience.
+   *
+   * @param audience - The audience the content is published to.
+   * @param ref - The scope the content belongs to.
+   * @param userId - The viewer, or null when signed out.
+   * @returns True when the content may be shown. A scope that does not resolve
+   *   is false rather than an error, so a listing can filter without catching.
+   */
+  async canView(
+    audience: FleetAudience,
+    ref: ScopeRef,
+    userId: string | null,
+  ): Promise<boolean> {
+    if (audience === FleetAudience.PUBLIC) {
+      return true;
+    }
+
+    if (userId === null) {
+      return false;
+    }
+
+    const authorisation = await this._authorisationService.authorise(
+      userId,
+      ref,
+    );
+
+    if (authorisation === null || authorisation.isSuspended) {
+      return false;
+    }
+
+    switch (audience) {
+      case FleetAudience.COMMUNITY:
+        return this.isInCommunity(authorisation, userId);
+      case FleetAudience.FLEET_MEMBERS:
+        // At a Community its members are its Fleets' members; a Fleet or an
+        // Armada answers for its own.
+        return (
+          this.isScopeMember(authorisation) ||
+          (authorisation.scope.kind === FleetScopeKind.COMMUNITY &&
+            (await this.isCommunityFleetMember(authorisation, userId)))
+        );
+      // Every audience is named, so one added to the enum without a branch here
+      // is a compile error rather than content that quietly becomes visible.
+      case FleetAudience.PRIVATE:
+        return authorisation.scope.communityOwnerUserId === userId;
+    }
+  }
+
+  /**
+   * Requires that somebody may see content published to an audience.
+   *
+   * @param audience - The audience the content is published to.
+   * @param ref - The scope the content belongs to.
+   * @param userId - The viewer, or null when signed out.
+   * @throws NotFoundException when they may not. Content they cannot see is
+   *   reported as absent rather than forbidden, so the response does not
+   *   confirm that a private Fleet exists — plan section 5.
+   */
+  async assertCanView(
+    audience: FleetAudience,
+    ref: ScopeRef,
+    userId: string | null,
+  ): Promise<void> {
+    if (await this.canView(audience, ref, userId)) {
+      return;
+    }
+
+    throw new NotFoundException('Not found');
+  }
+
+  /**
+   * Requires that somebody may see a Fleet.
+   *
+   * Its own audience and, where given, its Community's — or an open
+   * invitation to it, which shows the invitee the Fleet whatever either
+   * audience is.
+   *
+   * @param fleet - The Fleet.
+   * @param userId - The viewer, or null when signed out.
+   * @param community - The Community holding it, when the caller checks that
+   *   too.
+   * @throws NotFoundException when they may not, for the reason
+   *   {@link assertCanView} gives.
+   */
+  async assertCanViewFleet(
+    fleet: { id: string; visibility: FleetAudience },
+    userId: string | null,
+    community?: { id: string; visibility: FleetAudience },
+  ): Promise<void> {
+    const byAudience =
+      (community === undefined ||
+        (await this.canView(
+          community.visibility,
+          { kind: FleetScopeKind.COMMUNITY, id: community.id },
+          userId,
+        ))) &&
+      (await this.canView(
+        fleet.visibility,
+        { kind: FleetScopeKind.FLEET, id: fleet.id },
+        userId,
+      ));
+
+    if (byAudience || (await this.isInvitedTo(fleet.id, userId))) {
+      return;
+    }
+
+    throw new NotFoundException('Not found');
+  }
+
+  /**
+   * Reports whether somebody may see a scope at all.
+   *
+   * The same two questions the page reads ask: whether they may see the
+   * owning Community and, for a Fleet, whether they may see the Fleet. An
+   * Armada has no audience of its own, so its Community's is the whole of it.
+   * Kept in step with those reads so that a route which refuses somebody can
+   * tell whether the refusal would confirm something the page denies exists.
+   *
+   * An open invitation to a Fleet shows it to the invitee, as it does on
+   * the page.
+   *
+   * @param ref - The scope.
+   * @param userId - The viewer, or null when signed out.
+   * @returns True when they may see it. A scope that does not resolve is false.
+   */
+  async canViewScope(ref: ScopeRef, userId: string | null): Promise<boolean> {
+    const authorisation = await this._authorisationService.authorise(
+      userId,
+      ref,
+    );
+
+    if (authorisation === null) {
+      return false;
+    }
+
+    const { scope } = authorisation;
+
+    const canViewCommunity = await this.canView(
+      scope.communityAudience,
+      { kind: FleetScopeKind.COMMUNITY, id: scope.communityId },
+      userId,
+    );
+
+    if (scope.fleetAudience === null) {
+      // A site admin looking into one of its Fleets may open the Community
+      // on the way (FC-036).
+      return (
+        canViewCommunity ||
+        (userId !== null &&
+          scope.kind === FleetScopeKind.COMMUNITY &&
+          (await this._authorisationService.isInvestigating(userId, {
+            communityId: scope.communityId,
+          })))
+      );
+    }
+
+    if (
+      canViewCommunity &&
+      (await this.canView(
+        scope.fleetAudience,
+        { kind: FleetScopeKind.FLEET, id: scope.id },
+        userId,
+      ))
+    ) {
+      return true;
+    }
+
+    return (
+      (await this.isInvitedTo(scope.id, userId)) ||
+      authorisation.capabilities.has(FLEET_CAPABILITIES.ROSTER_INVESTIGATE_READ)
+    );
+  }
+
+  /**
+   * Reports whether somebody holds an open invitation to a Fleet.
+   *
+   * Open while it is waiting and has not lapsed, which is read from its
+   * `expiresAt` rather than a status (see {@link FleetInvitationStatus}).
+   *
+   * @param fleetId - The Fleet.
+   * @param userId - The viewer, or null when signed out.
+   * @returns True when an invitation to them is open.
+   */
+  private async isInvitedTo(
+    fleetId: string,
+    userId: string | null,
+  ): Promise<boolean> {
+    if (userId === null) {
+      return false;
+    }
+
+    // At most one is waiting, by the partial unique index; its lapse is
+    // compared here rather than in the query.
+    const invitation = await this._invitationRepository.findOne({
+      where: {
+        fleetId,
+        invitedUserId: userId,
+        status: FleetInvitationStatus.PENDING,
+      },
+      select: { id: true, expiresAt: true },
+    });
+
+    return invitation !== null && invitation.expiresAt > new Date();
+  }
+
+  /**
+   * Reports whether somebody counts as part of the owning Community.
+   *
+   * Following counts here and nowhere else. So does holding any role, grant
+   * or approved membership at the scope, including one that reaches it from
+   * the Community, because somebody who administers a Fleet is plainly part
+   * of the Community that owns it. So does an approved membership of any of
+   * the Community's Fleets, whichever scope inside it is asked about, so that
+   * "Community members" on a Fleet admits whom it admits on its Community.
+   *
+   * @param authorisation - The resolved authorisation.
+   * @param userId - The viewer.
+   * @returns True when they are part of the Community.
+   */
+  private async isInCommunity(
+    authorisation: ScopeAuthorisation,
+    userId: string,
+  ): Promise<boolean> {
+    if (
+      authorisation.roles.size > 0 ||
+      authorisation.isApprovedMember ||
+      authorisation.capabilities.size > 0 ||
+      (await this.isCommunityFleetMember(authorisation, userId))
+    ) {
+      return true;
+    }
+
+    const subscription = await this._subscriptionRepository.findOne({
+      where: {
+        communityId: authorisation.scope.communityId,
+        userId,
+        leftAt: IsNull(),
+        deletedAt: IsNull(),
+      },
+      select: { id: true },
+    });
+
+    return subscription !== null;
+  }
+
+  /**
+   * Reports whether somebody is an approved member of one of the owning
+   * Community's Fleets (FC-050).
+   *
+   * Approved is what a Fleet's own member audience asks for, so a pending,
+   * suspended, rejected, left or revoked membership does not count, while an
+   * approved one of another Fleet still does. A suspension at the scope
+   * asked about or at its Community has already refused them before this is
+   * asked.
+   *
+   * @param authorisation - The resolved authorisation.
+   * @param userId - The viewer.
+   * @returns True when they are.
+   */
+  private async isCommunityFleetMember(
+    authorisation: ScopeAuthorisation,
+    userId: string,
+  ): Promise<boolean> {
+    const membership = await this._membershipRepository.findOne({
+      where: {
+        communityId: authorisation.scope.communityId,
+        userId,
+        fleetId: Not(IsNull()),
+        status: ScopeMembershipStatus.APPROVED,
+        deletedAt: IsNull(),
+      },
+      select: { id: true },
+    });
+
+    return membership !== null;
+  }
+
+  /**
+   * Reports whether somebody is a member of this exact scope.
+   *
+   * An approved membership at the scope, or a capability that already carries
+   * the right to see who the members are — which a Community-scope Admin has
+   * over the Fleets their Community owns, and which a follower never has.
+   *
+   * @param authorisation - The resolved authorisation.
+   * @returns True when they are a member of the scope.
+   */
+  private isScopeMember(authorisation: ScopeAuthorisation): boolean {
+    return (
+      authorisation.isApprovedMember ||
+      authorisation.capabilities.has(FLEET_CAPABILITIES.MEMBERS_VIEW)
+    );
+  }
+}

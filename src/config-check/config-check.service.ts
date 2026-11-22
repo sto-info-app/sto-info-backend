@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 import { plainToClass } from 'class-transformer';
 import {
   IsBooleanString,
   IsEmail,
   IsIn,
+  IsInt,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -17,6 +18,11 @@ import {
   validateSync,
 } from 'class-validator';
 
+import {
+  CHAT_TRANSCRIPT_HISTORY_DAYS,
+  PUBLISHED_CHAT_RETENTION_DAYS,
+  PUBLISHED_IMPORT_SOURCE_RETENTION_DAYS,
+} from 'src/fleet/constants/fleet-policy.constants';
 import { NODE_ENVIRONMENTS } from 'src/shared/constants/environment.constants';
 import {
   LOG_LEVEL_PATTERN,
@@ -179,6 +185,22 @@ class EnvironmentVariables {
   @IsString()
   DATASEED_USER_PASSWORD?: string;
 
+  @IsOptional()
+  @IsEmail()
+  DATASEED_FLEET_OWNER_EMAIL?: string;
+
+  @IsOptional()
+  @IsEmail()
+  DATASEED_FLEET_APPLICANT_EMAIL?: string;
+
+  @IsOptional()
+  @IsString()
+  DATASEED_FLEET_APPLICANT_USERNAME?: string;
+
+  @IsOptional()
+  @IsString()
+  DATASEED_FLEET_APPLICANT_PASSWORD?: string;
+
   @IsNotEmpty()
   @ValidateIf(o => !o.CLOUDFLARE_R2_ENDPOINT.startsWith('https://'))
   @IsUrl()
@@ -196,6 +218,37 @@ class EnvironmentVariables {
   @IsNotEmpty()
   @IsString()
   CLOUDFLARE_IMAGES_HASH: string;
+
+  /**
+   * The private bucket uploaded bytes land in.
+   *
+   * The only new variable quarantine needs. R2's S3 endpoint is scoped to the
+   * account rather than to a bucket, so `CLOUDFLARE_R2_ENDPOINT` reaches this
+   * one too — the exception being a bucket created under a **jurisdiction**,
+   * which is reachable only through that jurisdiction's own endpoint and
+   * cannot be moved afterwards. Should quarantine ever be given a different
+   * jurisdiction from the delivery bucket, it needs its own endpoint variable
+   * and this comment is the reason why.
+   *
+   * It must not be the bucket the site delivers from. Nothing checks that here
+   * — a validator cannot see a Cloudflare account — which is why
+   * `scripts/asset-delivery-probe` exists and why the second acceptance
+   * criterion is evidenced by running it rather than by reading this file.
+   */
+  @IsNotEmpty()
+  @IsString()
+  CLOUDFLARE_R2_QUARANTINE_BUCKET_NAME: string;
+
+  /**
+   * The private bucket chat transcripts wait in for their 24-hour link
+   * (FC-035). Like quarantine, it must not be served publicly — no custom
+   * domain, no `r2.dev` subdomain — and has its own credentials. It reuses
+   * `CLOUDFLARE_R2_ENDPOINT`. Nothing here can check it is private; FC-052
+   * does, live.
+   */
+  @IsNotEmpty()
+  @IsString()
+  CLOUDFLARE_R2_EXPORTS_BUCKET_NAME: string;
 
   @IsNotEmpty()
   @IsNumber()
@@ -232,6 +285,15 @@ class EnvironmentVariables {
       'REDIS_URL must be a valid Redis connection string (redis:// or rediss://)',
   })
   REDIS_URL: string;
+
+  // The BullMQ key prefix. Optional because QueueModule falls back to
+  // `bull:sto-info:`, but refused when blank: `??` keeps an empty string, and
+  // a backend whose prefix differs from the file scan worker's is talking to
+  // queues nobody consumes.
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  QUEUE_PREFIX?: string;
 
   //NOTE: Storytime capability flags. Optional because each defaults to enabled,
   //NOTE: but validated when present so a typo fails at startup rather than
@@ -273,6 +335,38 @@ class EnvironmentVariables {
   @IsOptional()
   @IsNumber()
   STORYTIME_UPLOAD_MAX_BYTES?: number;
+
+  //NOTE: Fleet capability flags (FLEET_FEATURE_FLAGS). Optional and validated
+  //NOTE: when present for the same reason as Storytime's. FLEET_COMMUNITIES_ENABLED
+  //NOTE: is deliberately absent - it is a runtime switch in app_setting.
+  @IsOptional()
+  @IsBooleanString()
+  FLEET_REGISTRATION_ENABLED?: string;
+
+  @IsOptional()
+  @IsBooleanString()
+  FLEET_IMPORTS_ENABLED?: string;
+
+  @IsOptional()
+  @IsBooleanString()
+  FLEET_CHAT_ENABLED?: string;
+
+  // The only two Fleet policy figures that read from the environment. R22 calls
+  // chat retention "environment configurable" and R27 says import-source
+  // retention "starts at" 180 days; the four-hour history window, the seven-day
+  // transcript window and the three custom channels per level are constants in
+  // fleet-policy.constants.ts with nothing behind them, because nothing in the
+  // requirements describes those as configurable and a policy an operator can
+  // quietly widen is one that can stop being true without being corrected.
+  @IsOptional()
+  @IsInt()
+  @Min(CHAT_TRANSCRIPT_HISTORY_DAYS)
+  CHAT_RETENTION_DAYS?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  IMPORT_SOURCE_RETENTION_DAYS?: number;
 }
 
 @Injectable()
@@ -304,6 +398,33 @@ export class ConfigCheckService {
     ) {
       throw new Error(
         `Validation error: CLOSED_ACCOUNT_RETENTION_DAYS (${config.CLOSED_ACCOUNT_RETENTION_DAYS}) must be greater than or equal to AUDIT_DATA_NUKE_THRESHOLD_DAYS (${config.AUDIT_DATA_NUKE_THRESHOLD_DAYS}).`,
+      );
+    }
+
+    // Warned about rather than refused. R22 makes this configurable, so an
+    // environment is entitled to set it — but the figure is published in the
+    // privacy policy, and a deployment that quietly retains chat for longer
+    // than the policy says is the failure plan section 9 calls an undocumented
+    // increase. Refusing it would contradict the requirement; saying nothing
+    // would let the two drift apart unnoticed.
+    if (
+      config.CHAT_RETENTION_DAYS !== undefined &&
+      config.CHAT_RETENTION_DAYS > PUBLISHED_CHAT_RETENTION_DAYS
+    ) {
+      Logger.warn(
+        `CHAT_RETENTION_DAYS (${config.CHAT_RETENTION_DAYS}) exceeds the published policy of ${PUBLISHED_CHAT_RETENTION_DAYS} days. Publish the change before this reaches production.`,
+        ConfigCheckService.name,
+      );
+    }
+
+    if (
+      config.IMPORT_SOURCE_RETENTION_DAYS !== undefined &&
+      config.IMPORT_SOURCE_RETENTION_DAYS >
+        PUBLISHED_IMPORT_SOURCE_RETENTION_DAYS
+    ) {
+      Logger.warn(
+        `IMPORT_SOURCE_RETENTION_DAYS (${config.IMPORT_SOURCE_RETENTION_DAYS}) exceeds the published policy of ${PUBLISHED_IMPORT_SOURCE_RETENTION_DAYS} days. Publish the change before this reaches production.`,
+        ConfigCheckService.name,
       );
     }
 

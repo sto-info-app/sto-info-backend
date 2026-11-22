@@ -1,0 +1,215 @@
+import { BadRequestException } from '@nestjs/common';
+
+import { jest } from '@jest/globals';
+
+import { FleetAudience } from 'src/fleet/enums/fleet-audience.enum';
+import { ImageReencodeService } from 'src/shared/images/image-reencode.service';
+import {
+  ImageSlotService,
+  ImageSlotSpec,
+} from 'src/shared/images/image-slot.service';
+
+import { FileAssetAudience } from '../enums/file-asset-audience.enum';
+import { FileAssetKind } from '../enums/file-asset-kind.enum';
+import { FileAssetSlot } from '../enums/file-asset-slot.enum';
+import { FileAssetSubject } from '../enums/file-asset-subject.enum';
+import { AssetIngressService } from './asset-ingress.service';
+import { ImageIngressService } from './image-ingress.service';
+
+describe('ImageIngressService', () => {
+  const spec: ImageSlotSpec = {
+    label: 'Story banner',
+    aspectRatio: [5, 1],
+    minimumWidth: 2400,
+    minimumHeight: 480,
+    recommendedWidth: 2400,
+    recommendedHeight: 480,
+    outputFormat: 'jpeg',
+    entityTag: 'storytime-story-banner',
+  };
+
+  const file = {
+    buffer: Buffer.from('a picture'),
+    mimetype: 'image/jpg',
+    size: 9,
+    originalname: 'banner.jpg',
+  } as Express.Multer.File;
+
+  let inspect: jest.Mock;
+  let reencode: jest.Mock<(...args: any[]) => Promise<Buffer>>;
+  let accept: jest.Mock<(...args: any[]) => Promise<any>>;
+  let service: ImageIngressService;
+
+  const request = () => ({
+    spec,
+    userId: 'user-1',
+    kind: FileAssetKind.STORYTIME_IMAGE,
+    audience: FileAssetAudience.PUBLIC,
+    subject: FileAssetSubject.STORYTIME_STORY,
+    subjectId: 'story-1',
+    slot: FileAssetSlot.BANNER,
+    entityTag: 'storytime-story-banner',
+    entityId: 'story-1',
+    maximumBytes: 1_048_576,
+    sizeLimitLabel: 'Storytime images',
+    file,
+    feature: { altText: 'A ship' },
+  });
+
+  beforeEach(() => {
+    inspect = jest.fn(() => ({
+      bytes: Buffer.from('a picture'),
+      safeFileName: 'banner.jpg',
+      detectedContentType: 'image/jpeg',
+      format: 'jpeg',
+    }));
+    reencode = jest
+      .fn<(...args: any[]) => Promise<Buffer>>()
+      .mockResolvedValue(Buffer.from('only pixels'));
+    accept = jest
+      .fn<(...args: any[]) => Promise<any>>()
+      .mockResolvedValue({ assetId: 'asset-1', status: 'SCANNING' });
+
+    service = new ImageIngressService(
+      { inspect } as unknown as ImageSlotService,
+      { accept } as unknown as AssetIngressService,
+      { reencode } as unknown as ImageReencodeService,
+    );
+  });
+
+  // FC-044: a Fleet's and an Armada's callers hand over the Community too,
+  // and the registry holds exactly one scope; naming two was refused.
+  it.each([
+    [
+      'a Fleet in a Community',
+      { communityId: 'c', fleetId: 'f', armadaId: null },
+      { communityId: null, fleetId: 'f', armadaId: null },
+    ],
+    [
+      'an Armada',
+      { communityId: 'c', fleetId: null, armadaId: 'a' },
+      { communityId: null, fleetId: null, armadaId: 'a' },
+    ],
+    [
+      'a Community',
+      { communityId: 'c', fleetId: null, armadaId: null },
+      { communityId: 'c', fleetId: null, armadaId: null },
+    ],
+    [
+      'a standalone Fleet',
+      { communityId: null, fleetId: 'f', armadaId: null },
+      { communityId: null, fleetId: 'f', armadaId: null },
+    ],
+  ])('names only the narrowest scope for %s', async (_what, given, named) => {
+    await service.accept({
+      ...request(),
+      audience: FileAssetAudience.SCOPE,
+      scope: { ...given, audience: FleetAudience.PUBLIC },
+    });
+
+    expect(accept).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ...named,
+        scopeAudience: FleetAudience.PUBLIC,
+      }),
+    );
+  });
+
+  it('names no scope for a picture that has none', async () => {
+    await service.accept(request());
+
+    expect(accept).toHaveBeenCalledWith(
+      expect.objectContaining({
+        communityId: null,
+        fleetId: null,
+        armadaId: null,
+        scopeAudience: null,
+      }),
+    );
+  });
+
+  it('checks the picture against its slot before registering anything', async () => {
+    await service.accept(request());
+
+    expect(inspect).toHaveBeenCalledWith({
+      spec,
+      userId: 'user-1',
+      maximumBytes: 1_048_576,
+      sizeLimitLabel: 'Storytime images',
+      file,
+    });
+  });
+
+  // What the browser claimed is kept as a claim and checked against the
+  // bytes by the worker; what the bytes turned out to be is recorded
+  // separately — ADR-0020.
+  it('records the claim and the evidence separately', async () => {
+    await service.accept(request());
+
+    expect(accept).toHaveBeenCalledWith(
+      expect.objectContaining({
+        declaredContentType: 'image/jpg',
+        detectedContentType: 'image/jpeg',
+        originalFilename: 'banner.jpg',
+      }),
+    );
+  });
+
+  // FC-043: what is quarantined, scanned and published is the picture
+  // written out again, never the bytes as uploaded.
+  it('registers the re-encoded picture, not the upload', async () => {
+    await service.accept(request());
+
+    expect(reencode).toHaveBeenCalledWith(Buffer.from('a picture'), 'jpeg');
+    expect(accept).toHaveBeenCalledWith(
+      expect.objectContaining({ bytes: Buffer.from('only pixels') }),
+    );
+  });
+
+  it('registers nothing when the picture cannot be re-encoded', async () => {
+    reencode.mockRejectedValue(
+      new BadRequestException('That image is too large to process.'),
+    );
+
+    await expect(service.accept(request())).rejects.toThrow(
+      'too large to process',
+    );
+    expect(accept).not.toHaveBeenCalled();
+  });
+
+  it('answers with the asset to ask about', async () => {
+    await expect(service.accept(request())).resolves.toEqual({
+      assetId: 'asset-1',
+      status: 'SCANNING',
+    });
+  });
+
+  it('passes the feature detail through', async () => {
+    await service.accept(request());
+
+    expect(accept).toHaveBeenCalledWith(
+      expect.objectContaining({ feature: { altText: 'A ship' } }),
+    );
+  });
+
+  it('passes no detail through for a feature that needs none', async () => {
+    await service.accept({ ...request(), feature: undefined });
+
+    expect(accept).toHaveBeenCalledWith(
+      expect.objectContaining({ feature: null }),
+    );
+  });
+
+  // A wrong-shaped crop is a refusal the person reads immediately rather
+  // than a state they discover a minute later.
+  it('registers nothing when the picture is refused', async () => {
+    inspect.mockImplementation(() => {
+      throw new BadRequestException('must be cropped to 5:1');
+    });
+
+    await expect(service.accept(request())).rejects.toThrow(
+      'must be cropped to 5:1',
+    );
+    expect(accept).not.toHaveBeenCalled();
+  });
+});

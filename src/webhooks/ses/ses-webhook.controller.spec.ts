@@ -110,41 +110,27 @@ describe('SesWebhookController', () => {
       expect(service.confirmSubscription).not.toHaveBeenCalled();
     });
 
-    it('should set isValid to false when SubscribeURL parsing fails', async () => {
-      const envelope = makeEnvelope({
-        Type: 'SubscriptionConfirmation',
-        SubscribeURL: 'not-a-url',
-      });
-      await controller.handleSnsNotification(
-        'SubscriptionConfirmation',
-        envelope,
-      );
-      expect(service.confirmSubscription).not.toHaveBeenCalled();
-    });
-
-    it('should reject non-https SubscribeURL', async () => {
-      const envelope = makeEnvelope({
-        Type: 'SubscriptionConfirmation',
-        SubscribeURL: 'http://sns.amazonaws.com/confirm',
-      });
-      await controller.handleSnsNotification(
-        'SubscriptionConfirmation',
-        envelope,
-      );
-      expect(service.confirmSubscription).not.toHaveBeenCalled();
-    });
-
-    it('should reject invalid subdomains of amazonaws.com', async () => {
-      const envelope = makeEnvelope({
-        Type: 'SubscriptionConfirmation',
-        SubscribeURL: 'https://other.amazonaws.com/confirm',
-      });
-      await controller.handleSnsNotification(
-        'SubscriptionConfirmation',
-        envelope,
-      );
-      expect(service.confirmSubscription).not.toHaveBeenCalled();
-    });
+    it.each([
+      ['cannot be parsed', 'not-a-url'],
+      ['is not https', 'http://sns.amazonaws.com/confirm'],
+      [
+        'is an invalid subdomain of amazonaws.com',
+        'https://other.amazonaws.com/confirm',
+      ],
+    ])(
+      'should not confirm when SubscribeURL %s',
+      async (_case, subscribeUrl) => {
+        const envelope = makeEnvelope({
+          Type: 'SubscriptionConfirmation',
+          SubscribeURL: subscribeUrl,
+        });
+        await controller.handleSnsNotification(
+          'SubscriptionConfirmation',
+          envelope,
+        );
+        expect(service.confirmSubscription).not.toHaveBeenCalled();
+      },
+    );
 
     it('should process a valid Notification', async () => {
       const sesNotification = {

@@ -82,6 +82,12 @@ export class UserReportDto {
 
   @ApiProperty({ description: 'When the report was raised.' })
   createdAt: Date;
+
+  @ApiProperty({
+    description:
+      'Open reports of chat messages the reported member wrote (FC-036).',
+  })
+  openChatReportCount: number;
 }
 
 /**
@@ -109,4 +115,16 @@ export class PaginatedReportsDto {
       'regardless of the filter applied.',
   })
   openCount: number;
+}
+
+/** What still waits on an administrator (FC-036). */
+export class OpenReportCountsDto {
+  @ApiProperty({ description: 'Open member reports.' })
+  userReports: number;
+
+  @ApiProperty({ description: 'Open chat reports.' })
+  chatReports: number;
+
+  @ApiProperty({ description: 'Both together.' })
+  total: number;
 }

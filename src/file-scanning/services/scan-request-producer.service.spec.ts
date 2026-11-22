@@ -1,0 +1,367 @@
+import { ConflictException, Logger } from '@nestjs/common';
+
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { Queue } from 'bullmq';
+
+import { FileAssetEntity } from 'src/file-assets/entities/file-asset.entity';
+import { FileAssetKind } from 'src/file-assets/enums/file-asset-kind.enum';
+import { FileAssetState } from 'src/file-assets/enums/file-asset-state.enum';
+import { FileAssetService } from 'src/file-assets/services/file-asset.service';
+import { REDIS_TIMEOUT_MS } from 'src/shared/queue/redis-within.utility';
+
+import { parseScanRequestMessage } from '../contract/file-scan-contract';
+import { ScanRequestProducerService } from './scan-request-producer.service';
+
+const ASSET_ID = '4f1a0e2c-8b3d-4a59-9c21-6f7e5d4c3b2a';
+
+/**
+ * Builds a quarantined asset.
+ *
+ * @param changes - Fields to override.
+ * @returns The asset.
+ */
+function asset(changes: Partial<FileAssetEntity> = {}): FileAssetEntity {
+  return {
+    id: ASSET_ID,
+    kind: FileAssetKind.ROSTER_IMPORT_SOURCE,
+    state: FileAssetState.QUARANTINED,
+    objectKey: `local/assets/${ASSET_ID}`,
+    objectVersion: null,
+    sha256: 'a'.repeat(64),
+    declaredContentType: 'text/csv',
+    policyVersion: 1,
+    ...changes,
+  } as FileAssetEntity;
+}
+
+describe('ScanRequestProducerService', () => {
+  let add: jest.Mock;
+  let markScanning: jest.Mock;
+  let markRetryPending: jest.Mock;
+  let service: ScanRequestProducerService;
+
+  beforeEach(() => {
+    add = jest.fn(() => Promise.resolve({}));
+    markScanning = jest.fn(() =>
+      Promise.resolve(asset({ state: FileAssetState.SCANNING })),
+    );
+    markRetryPending = jest.fn(() =>
+      Promise.resolve(asset({ state: FileAssetState.RETRY_PENDING })),
+    );
+
+    service = new ScanRequestProducerService(
+      { add } as unknown as Queue,
+      { markScanning, markRetryPending } as unknown as FileAssetService,
+    );
+
+    jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+  });
+
+  /** The message the producer put on the queue. */
+  function sent(): unknown {
+    return (add.mock.calls[0] as unknown[])[1];
+  }
+
+  // FC-041: a rescan leaves the picture alone and queues behind uploads.
+  describe('a rescan', () => {
+    it('asks for a scan of the staged copy, with a priority and the campaign', async () => {
+      await service.requestRescan({
+        rescanId: 'rescan-1',
+        assetId: 'asset-1',
+        objectKey: 'test/rescans/rescan-1',
+        objectVersion: null,
+        sha256: 'a'.repeat(64),
+        declaredContentType: 'image/png',
+        policyVersion: 1,
+        campaignId: 'campaign-1',
+        priority: 100,
+      });
+
+      expect(markScanning).not.toHaveBeenCalled();
+      expect(add).toHaveBeenCalledWith(
+        'scan-asset',
+        expect.objectContaining({
+          assetId: 'asset-1',
+          objectKey: 'test/rescans/rescan-1',
+          expectedSha256: 'a'.repeat(64),
+          declaredContentType: 'image/png',
+          campaignId: 'campaign-1',
+        }),
+        expect.objectContaining({ jobId: 'rescan_rescan-1', priority: 100 }),
+      );
+    });
+
+    it('counts what is waiting, prioritised or not', async () => {
+      const getJobCounts = jest.fn(() =>
+        Promise.resolve({ waiting: 3, prioritized: 4 }),
+      );
+      const counting = new ScanRequestProducerService(
+        { getJobCounts } as unknown as Queue,
+        {} as FileAssetService,
+      );
+
+      await expect(counting.waiting()).resolves.toBe(7);
+
+      getJobCounts.mockResolvedValue({} as never);
+
+      await expect(counting.waiting()).resolves.toBe(0);
+    });
+  });
+
+  describe('the message it sends', () => {
+    it('matches the contract', async () => {
+      await service.requestScan(asset());
+
+      expect(() => parseScanRequestMessage(sent())).not.toThrow();
+    });
+
+    it('names the object the registry recorded', async () => {
+      await service.requestScan(asset());
+
+      expect(sent()).toEqual(
+        expect.objectContaining({
+          assetId: ASSET_ID,
+          objectKey: `local/assets/${ASSET_ID}`,
+          objectVersion: null,
+          expectedSha256: 'a'.repeat(64),
+          declaredContentType: 'text/csv',
+          policyVersion: 1,
+          campaignId: null,
+        }),
+      );
+    });
+
+    it('carries nothing that says where to fetch from', async () => {
+      // The first acceptance criterion. No URL, no bucket, no endpoint, no
+      // credentials, no filename and no row of anybody's data — the worker
+      // resolves all of that from its own configuration, so no message can
+      // point it anywhere else.
+      await service.requestScan(asset());
+
+      expect(Object.keys(sent() as object).sort()).toEqual([
+        'assetId',
+        'campaignId',
+        'declaredContentType',
+        'expectedSha256',
+        'objectKey',
+        'objectVersion',
+        'policyVersion',
+        'schemaVersion',
+        'traceId',
+      ]);
+    });
+
+    it('carries a fresh trace each time', async () => {
+      await service.requestScan(asset());
+      await service.requestScan(asset());
+
+      const traces = add.mock.calls.map(
+        call => (call[1] as { traceId: string }).traceId,
+      );
+
+      expect(new Set(traces).size).toBe(2);
+    });
+
+    it('names the campaign when it belongs to one', async () => {
+      const campaignId = '5d2c1b0a-9e8f-4d7c-8b6a-5f4e3d2c1b0a';
+
+      await service.requestScan(asset(), campaignId);
+
+      expect(sent()).toEqual(expect.objectContaining({ campaignId }));
+    });
+
+    it('keys the job on the asset and the policy that applies to it', async () => {
+      // Two requests for the same asset under the same policy collapse; a
+      // policy change is a new question and gets its own job.
+      await service.requestScan(asset());
+
+      expect(add.mock.calls[0][2]).toEqual(
+        expect.objectContaining({ jobId: `${ASSET_ID}_1` }),
+      );
+    });
+
+    it('keeps a colon out of the job, which BullMQ refuses', async () => {
+      await service.requestScan(asset());
+
+      const { jobId } = add.mock.calls[0][2] as { jobId: string };
+
+      expect(jobId).not.toContain(':');
+    });
+
+    it('asks BullMQ to retry with backoff rather than giving up at once', async () => {
+      await service.requestScan(asset());
+
+      expect(add.mock.calls[0][2]).toEqual(
+        expect.objectContaining({
+          attempts: 5,
+          backoff: { type: 'exponential', delay: 1_000 },
+          removeOnFail: false,
+        }),
+      );
+    });
+  });
+
+  describe('the order it does things in', () => {
+    it('moves the asset to scanning before it sends anything', async () => {
+      // A second request then fails the state check rather than queueing a
+      // duplicate, and an asset stuck in SCANNING becomes the visible
+      // symptom of a queue that is not moving.
+      await service.requestScan(asset());
+
+      expect(markScanning.mock.invocationCallOrder[0]).toBeLessThan(
+        add.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('answers with the asset as it now stands', async () => {
+      const requested = await service.requestScan(asset());
+
+      expect(requested.asset.state).toBe(FileAssetState.SCANNING);
+      expect(requested.traceId).toEqual(expect.any(String));
+    });
+
+    it('answers that the queue took it', async () => {
+      await expect(service.requestScan(asset())).resolves.toEqual(
+        expect.objectContaining({ queued: true }),
+      );
+    });
+
+    // FC-042: accept, queue later. The upload is answered as usual and
+    // shows as waiting to be scanned; the re-queue sweep sends it.
+    it('puts the asset back, and answers as usual, when the queue will not take it', async () => {
+      // An asset left in SCANNING with nothing scanning it is the one
+      // outcome nobody would notice.
+      add.mockImplementationOnce(() => Promise.reject(new Error('no redis')));
+
+      const requested = await service.requestScan(asset());
+
+      expect(markRetryPending).toHaveBeenCalledWith(ASSET_ID);
+      expect(requested).toEqual({
+        asset: expect.objectContaining({ state: FileAssetState.RETRY_PENDING }),
+        traceId: expect.any(String),
+        queued: false,
+      });
+      expect(Logger.prototype.error).toHaveBeenCalledWith(
+        `[requestScan] Could not queue a scan; it will be queued when the ` +
+          `queue answers - AssetId: ${ASSET_ID}, Error: Error`,
+      );
+    });
+
+    // BullMQ holds a command while Redis is down rather than failing it.
+    it('gives up on a queue that does not answer, and answers as usual', async () => {
+      jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
+
+      try {
+        add.mockImplementationOnce(() => new Promise(() => {}));
+
+        const requesting = service.requestScan(asset());
+
+        await jest.advanceTimersByTimeAsync(REDIS_TIMEOUT_MS);
+
+        await expect(requesting).resolves.toEqual(
+          expect.objectContaining({ queued: false }),
+        );
+        expect(markRetryPending).toHaveBeenCalledWith(ASSET_ID);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('logs something that is not an error by its type', async () => {
+      add.mockImplementationOnce(() => Promise.reject('refused'));
+
+      await service.requestScan(asset());
+
+      expect(Logger.prototype.error).toHaveBeenCalledWith(
+        expect.stringContaining('Error: string'),
+      );
+    });
+  });
+
+  // FC-042: an upload in SCANNING whose job has gone is sent again as it is.
+  describe('sending a request again', () => {
+    it('sends the same job, with a fresh trace, and leaves the asset alone', async () => {
+      await service.resend(asset({ state: FileAssetState.SCANNING }));
+
+      expect(add).toHaveBeenCalledWith(
+        'scan-asset',
+        expect.objectContaining({ assetId: ASSET_ID, campaignId: null }),
+        expect.objectContaining({ jobId: `${ASSET_ID}_1` }),
+      );
+      expect(markScanning).not.toHaveBeenCalled();
+      expect(markRetryPending).not.toHaveBeenCalled();
+    });
+
+    it('refuses an asset that is not scanning', async () => {
+      await expect(service.resend(asset())).rejects.toThrow(ConflictException);
+      expect(add).not.toHaveBeenCalled();
+    });
+
+    it('refuses an asset with nothing to scan', async () => {
+      await expect(
+        service.resend(
+          asset({ state: FileAssetState.SCANNING, objectKey: null }),
+        ),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('lets a queue that does not take it say so', async () => {
+      add.mockImplementationOnce(() => Promise.reject(new Error('no redis')));
+
+      await expect(
+        service.resend(asset({ state: FileAssetState.SCANNING })),
+      ).rejects.toThrow('no redis');
+    });
+  });
+
+  describe('assets it will not send', () => {
+    it('accepts one waiting for its first scan', async () => {
+      await expect(service.requestScan(asset())).resolves.toBeDefined();
+    });
+
+    it('accepts one waiting for another go', async () => {
+      await expect(
+        service.requestScan(asset({ state: FileAssetState.RETRY_PENDING })),
+      ).resolves.toBeDefined();
+    });
+
+    it.each([
+      FileAssetState.UNVERIFIED,
+      FileAssetState.RECEIVING,
+      FileAssetState.SCANNING,
+      FileAssetState.CLEAN,
+      FileAssetState.AVAILABLE,
+      FileAssetState.REJECTED,
+      FileAssetState.REVOKED,
+      FileAssetState.DELETED,
+    ])('refuses one in %s', async state => {
+      await expect(
+        service.requestScan(asset({ state })),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(add).not.toHaveBeenCalled();
+      expect(markScanning).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['no object key', { objectKey: null }],
+      ['no hash', { sha256: null }],
+    ])('refuses one with %s', async (_description, changes) => {
+      await expect(service.requestScan(asset(changes))).rejects.toThrow(
+        'has no stored object to scan',
+      );
+    });
+
+    it('refuses one that declares no content type', async () => {
+      // The worker checks the claim against the bytes, so an asset with no
+      // claim cannot be checked. Refusing here means the check never
+      // quietly stops applying to a subset of the estate — ADR-0020.
+      await expect(
+        service.requestScan(asset({ declaredContentType: null })),
+      ).rejects.toThrow('has no declared content type to check against');
+
+      expect(add).not.toHaveBeenCalled();
+      expect(markScanning).not.toHaveBeenCalled();
+    });
+  });
+});

@@ -5,17 +5,36 @@ import { CustomTrackingOptionEntity } from '../entities/custom-tracking-option.e
 import { CustomTrackingSectionEntity } from '../entities/custom-tracking-section.entity';
 import { CustomTrackingTabEntity } from '../entities/custom-tracking-tab.entity';
 import { CustomTrackingValueEntity } from '../entities/custom-tracking-value.entity';
+import {
+  CustomTrackingFieldPicture,
+  CustomTrackingFieldPictureService,
+} from '../images/custom-tracking-field-picture.service';
 import { createEntityManagerDouble } from '../testing/custom-tracking-test.doubles';
 import { CustomTrackingCascadeService } from './custom-tracking-cascade.service';
 
 describe('CustomTrackingCascadeService', () => {
   const deletedAt = new Date('2026-09-04T12:00:00Z');
 
+  const picture: CustomTrackingFieldPicture = {
+    imageValueId: 'image-value-1',
+    valueId: 'value-1',
+    fieldId: 'field-1',
+    targetId: 'account-1',
+    imageId: 'image-1',
+  };
+
   let service: CustomTrackingCascadeService;
   let doubles: ReturnType<typeof createEntityManagerDouble>;
+  let pictures: { detach: jest.Mock; withdrawEach: jest.Mock };
 
   beforeEach(() => {
-    service = new CustomTrackingCascadeService();
+    pictures = {
+      detach: jest.fn().mockResolvedValue([]),
+      withdrawEach: jest.fn().mockResolvedValue(0),
+    };
+    service = new CustomTrackingCascadeService(
+      pictures as unknown as CustomTrackingFieldPictureService,
+    );
     doubles = createEntityManagerDouble();
   });
 
@@ -108,7 +127,9 @@ describe('CustomTrackingCascadeService', () => {
 
   describe('deleteTabs', () => {
     it('does nothing when there are no Tabs to delete', async () => {
-      await service.deleteTabs(doubles.manager, [], deletedAt);
+      await expect(
+        service.deleteTabs(doubles.manager, [], deletedAt),
+      ).resolves.toEqual([]);
 
       expect(doubles.double.update).not.toHaveBeenCalled();
     });
@@ -128,9 +149,26 @@ describe('CustomTrackingCascadeService', () => {
 
   describe('deleteFields', () => {
     it('does nothing when there are no Fields to delete', async () => {
-      await service.deleteFields(doubles.manager, [], deletedAt);
+      await expect(
+        service.deleteFields(doubles.manager, [], deletedAt),
+      ).resolves.toEqual([]);
 
       expect(doubles.double.update).not.toHaveBeenCalled();
+      expect(pictures.detach).not.toHaveBeenCalled();
+    });
+
+    // A picture is published, so it is the one thing a deletion does not
+    // keep: its answer goes in the same transaction as the Field.
+    it("removes the Fields' picture answers in the same transaction", async () => {
+      pictures.detach.mockResolvedValue([picture]);
+
+      await expect(
+        service.deleteFields(doubles.manager, ['field-1'], deletedAt),
+      ).resolves.toEqual([picture]);
+
+      expect(pictures.detach).toHaveBeenCalledWith(doubles.manager, [
+        'field-1',
+      ]);
     });
 
     // Only live options are touched. One withdrawn earlier keeps the moment it
@@ -144,6 +182,22 @@ describe('CustomTrackingCascadeService', () => {
         { deletedAt },
       );
     });
+  });
+
+  // Deleting a Section reaches every Field beneath it, and so every picture.
+  it('passes the pictures up from every level', async () => {
+    findReturns(['tab-1'], ['field-1']);
+    pictures.detach.mockResolvedValue([picture]);
+
+    await expect(
+      service.deleteSection(doubles.manager, 'section-1', deletedAt),
+    ).resolves.toEqual([picture]);
+  });
+
+  it('withdraws what a committed deletion took with it', async () => {
+    await service.withdraw([picture]);
+
+    expect(pictures.withdrawEach).toHaveBeenCalledWith([picture]);
   });
 
   describe('describeSectionDeletion', () => {

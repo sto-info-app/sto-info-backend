@@ -1,15 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import {
-  Column,
-  CreateDateColumn,
-  DeleteDateColumn,
-  Entity,
-  Index,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Column, Entity, Index } from 'typeorm';
 
+import { SoftDeletableRecordEntity } from '../../shared/entities/soft-deletable-record.entity';
 import { PermissionEffect } from '../enums/permission-effect.enum';
 
 /**
@@ -27,11 +20,7 @@ import { PermissionEffect } from '../enums/permission-effect.enum';
  */
 @Entity({ name: 'user_permission_override' })
 @Index(['userId', 'permissionId'])
-export class UserPermissionOverrideEntity {
-  @ApiProperty({ description: 'Unique identifier.' })
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
+export class UserPermissionOverrideEntity extends SoftDeletableRecordEntity {
   @ApiProperty({ description: 'The user the override applies to.' })
   @Column({ type: 'uuid', nullable: false })
   userId: string;
@@ -68,13 +57,4 @@ export class UserPermissionOverrideEntity {
   })
   @Column({ type: 'timestamp', nullable: true, default: null })
   expiresAt: Date | null;
-
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
-
-  @DeleteDateColumn()
-  deletedAt: Date | null;
 }

@@ -4,6 +4,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
 
+import {
+  AccountClosureEvent,
+  AccountClosureLedgerService,
+} from 'src/user/closure/account-closure-ledger.service';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
 
@@ -14,7 +18,7 @@ export class UserSeederService {
    *
    * @param _userRepository - The user repository.
    * @param _userProfileRepository - The user profile repository.
-   * @param userService - The user service.
+   * @param _closures - Records the seed user being opened again (FC-042).
    */
   constructor(
     @InjectRepository(UserEntity)
@@ -22,6 +26,8 @@ export class UserSeederService {
 
     @InjectRepository(UserProfileEntity)
     private readonly _userProfileRepository: Repository<UserProfileEntity>,
+
+    private readonly _closures: AccountClosureLedgerService,
   ) {}
 
   /**
@@ -87,9 +93,14 @@ export class UserSeederService {
    * Restores the configured seed user when the record exists but has been
    * soft-deleted by local account-closure testing.
    *
+   * The reopening is written to the account-closure ledger first (FC-042),
+   * so the restore check at the next boot does not close the seed user
+   * again from its closure's marker.
+   *
    * @param existingUser - The matching soft-deleted user entity.
    */
   private async restoreSeededUser(existingUser: UserEntity): Promise<void> {
+    await this._closures.record(existingUser.id, AccountClosureEvent.REOPENED);
     await this._userRepository.restore(existingUser.id);
 
     existingUser.password = await bcrypt.hash(

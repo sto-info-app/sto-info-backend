@@ -2,7 +2,6 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
-  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
@@ -12,7 +11,11 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { jest } from '@jest/globals';
 import { Repository } from 'typeorm';
 
-import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
+import { ImageIngressService } from 'src/file-assets/services/image-ingress.service';
+import {
+  PERSONAL_PICTURE_REASONS,
+  PersonalPictureWithdrawalService,
+} from 'src/user/images/personal-picture-withdrawal.service';
 
 import { AccountEntity } from '../account/entities/account.entity';
 import { CharacterSortBy, CharacterSortOrder } from './character-sort.utility';
@@ -35,7 +38,11 @@ describe('CharacterService', () => {
   let classRepository: Repository<CharacterClassEntity>;
   let recruitTypeRepository: Repository<RecruitTypeEntity>;
   let speciesRepository: Repository<SpeciesEntity>;
-  let imageUploadsService: ImageUploadsService;
+  let imageIngress: ImageIngressService;
+  let pictures: {
+    withdraw: jest.Mock<(...args: unknown[]) => Promise<void>>;
+    withdrawEach: jest.Mock<(...args: unknown[]) => Promise<number>>;
+  };
 
   beforeEach(async () => {
     process.env.CLOUDFLARE_CDN_ROOT_URL = 'https://cdn.startrekonline.info';
@@ -102,10 +109,16 @@ describe('CharacterService', () => {
           },
         },
         {
-          provide: ImageUploadsService,
+          provide: ImageIngressService,
           useValue: {
-            uploadImageToCloudflareImages: jest.fn(),
-            deleteImageFromCloudflareImages: jest.fn(),
+            accept: jest.fn(),
+          },
+        },
+        {
+          provide: PersonalPictureWithdrawalService,
+          useValue: {
+            withdraw: jest.fn(async () => undefined),
+            withdrawEach: jest.fn(async () => 0),
           },
         },
       ],
@@ -136,7 +149,8 @@ describe('CharacterService', () => {
     speciesRepository = module.get<Repository<SpeciesEntity>>(
       getRepositoryToken(SpeciesEntity),
     );
-    imageUploadsService = module.get<ImageUploadsService>(ImageUploadsService);
+    imageIngress = module.get<ImageIngressService>(ImageIngressService);
+    pictures = module.get(PersonalPictureWithdrawalService);
     jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
     jest.spyOn(Logger.prototype, 'debug').mockImplementation(() => undefined);
@@ -834,6 +848,61 @@ describe('CharacterService', () => {
       expect(characterRepository.softDelete).toHaveBeenCalledWith('char-1');
     });
 
+    // Nothing brings a deleted Character back to show it again.
+    it('asks Custom Tracking to take down what it holds about the Character', async () => {
+      const recordDeletion = {
+        charactersDeleted: jest.fn(async () => undefined),
+        accountsDeleted: jest.fn(async () => undefined),
+      };
+
+      Object.assign(service, { _recordDeletion: recordDeletion });
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({ id: 'char-1', account: { userId: 'user-1' } });
+      (
+        characterRepository.softDelete as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({ affected: 1 });
+
+      await service.removeForUser('char-1', 'user-1');
+
+      expect(recordDeletion.charactersDeleted).toHaveBeenCalledWith(
+        ['char-1'],
+        PERSONAL_PICTURE_REASONS.CHARACTER_DELETED,
+      );
+    });
+
+    it('withdraws the portrait once the Character is deleted', async () => {
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
+        id: 'char-1',
+        profilePictureId: 'portrait-1',
+        account: { userId: 'user-1' },
+      });
+      (
+        characterRepository.softDelete as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({ affected: 1 });
+
+      await service.removeForUser('char-1', 'user-1');
+
+      expect(pictures.withdrawEach).toHaveBeenCalledWith(
+        [PersonalPictureWithdrawalService.portrait('char-1', 'portrait-1')],
+        PERSONAL_PICTURE_REASONS.CHARACTER_DELETED,
+      );
+      expect(
+        (characterRepository.softDelete as jest.Mock).mock
+          .invocationCallOrder[0],
+      ).toBeLessThan(pictures.withdrawEach.mock.invocationCallOrder[0]);
+    });
+
     it('should throw BadRequestException if id is missing', async () => {
       await expect(service.removeForUser('', 'user-1')).rejects.toThrow(
         BadRequestException,
@@ -844,6 +913,68 @@ describe('CharacterService', () => {
       await expect(service.removeForUser('char-1', '')).rejects.toThrow(
         BadRequestException,
       );
+    });
+  });
+
+  describe('removeProfileImage', () => {
+    /**
+     * Arranges one of the caller's Characters showing the portrait given.
+     *
+     * @param profilePictureId - The portrait, or null.
+     */
+    const arrangeCharacter = (profilePictureId: string | null): void => {
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
+        id: 'char-1',
+        profilePictureId,
+        account: { userId: 'user-1' },
+      });
+    };
+
+    it('takes the portrait off the Character, then withdraws it', async () => {
+      arrangeCharacter('portrait-1');
+
+      await service.removeProfileImage('char-1', 'user-1');
+
+      expect(characterRepository.update).toHaveBeenCalledWith('char-1', {
+        profilePictureId: null,
+      });
+      expect(pictures.withdraw).toHaveBeenCalledWith(
+        PersonalPictureWithdrawalService.portrait('char-1', 'portrait-1'),
+        PERSONAL_PICTURE_REASONS.REMOVED,
+      );
+      expect(
+        (characterRepository.update as jest.Mock).mock.invocationCallOrder[0],
+      ).toBeLessThan(pictures.withdraw.mock.invocationCallOrder[0]);
+    });
+
+    it('leaves a Character with no portrait as it is', async () => {
+      arrangeCharacter(null);
+
+      await service.removeProfileImage('char-1', 'user-1');
+
+      expect(characterRepository.update).not.toHaveBeenCalled();
+      expect(pictures.withdraw).not.toHaveBeenCalled();
+    });
+
+    it("refuses a Character that is not the caller's", async () => {
+      (
+        characterRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({
+        id: 'char-1',
+        profilePictureId: 'portrait-1',
+        account: { userId: 'someone-else' },
+      });
+
+      await expect(
+        service.removeProfileImage('char-1', 'user-1'),
+      ).rejects.toThrow();
+      expect(pictures.withdraw).not.toHaveBeenCalled();
     });
   });
 
@@ -1051,33 +1182,31 @@ describe('CharacterService', () => {
       size: 100,
     } as any;
 
-    it('should upload a profile image and update character', async () => {
-      const character = {
-        id: 'char-1',
-        account: { userId: 'user-1' },
-        profilePictureId: 'old-img-id',
-      };
+    /**
+     * Arranges a Character the caller owns.
+     *
+     * @param profilePictureId - What the Character is showing already.
+     */
+    const arrangeCharacter = (profilePictureId: string | null = null): void => {
       (
         characterRepository.findOne as jest.Mock<
           (...args: any[]) => Promise<any>
         >
-      ).mockResolvedValue(character);
-      (
-        imageUploadsService.uploadImageToCloudflareImages as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue('new-img-id');
-      (
-        characterRepository.save as jest.Mock<(...args: any[]) => Promise<any>>
       ).mockResolvedValue({
-        ...character,
-        profilePictureId: 'new-img-id',
+        id: 'char-1',
+        account: { userId: 'user-1' },
+        profilePictureId,
       });
+    };
+
+    beforeEach(() => {
       (
-        imageUploadsService.deleteImageFromCloudflareImages as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue('old-img-id');
+        imageIngress.accept as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ assetId: 'asset-1', status: 'SCANNING' });
+    });
+
+    it('sends the portrait to be scanned and answers with the asset', async () => {
+      arrangeCharacter('old-img-id');
 
       const result = await service.uploadProfileImage(
         'char-1',
@@ -1085,31 +1214,27 @@ describe('CharacterService', () => {
         mockFile,
       );
 
-      expect(result.profilePictureId).toBe('new-img-id');
-      expect(
-        imageUploadsService.uploadImageToCloudflareImages,
-      ).toHaveBeenCalledWith('user-1', mockFile, 'character', 'char-1');
-      expect(
-        imageUploadsService.deleteImageFromCloudflareImages,
-      ).toHaveBeenCalledWith('old-img-id');
+      expect(result).toEqual({ assetId: 'asset-1', status: 'SCANNING' });
+      expect(imageIngress.accept).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'user-1',
+          subjectId: 'char-1',
+          entityTag: 'character',
+          entityId: 'char-1',
+          sizeLimitLabel: 'Character portraits',
+          file: mockFile,
+        }),
+      );
     });
 
-    it('should throw InternalServerErrorException if upload returns no key', async () => {
-      const character = { id: 'char-1', account: { userId: 'user-1' } };
-      (
-        characterRepository.findOne as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue(character);
-      (
-        imageUploadsService.uploadImageToCloudflareImages as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue(null);
+    // The third acceptance criterion: the Character keeps the portrait it
+    // has until a scanner clears the replacement.
+    it('does not touch the Character', async () => {
+      arrangeCharacter('old-img-id');
 
-      await expect(
-        service.uploadProfileImage('char-1', 'user-1', mockFile),
-      ).rejects.toThrow(InternalServerErrorException);
+      await service.uploadProfileImage('char-1', 'user-1', mockFile);
+
+      expect(characterRepository.save).not.toHaveBeenCalled();
     });
 
     it('should log and rethrow non-Error thrown values from the upload flow', async () => {
@@ -1122,116 +1247,23 @@ describe('CharacterService', () => {
       await expect(
         service.uploadProfileImage('char-1', 'user-1', mockFile),
       ).rejects.toBe('boom');
-
-      const loggerErrorSpy = Logger.prototype.error as unknown as jest.Mock;
-      expect(loggerErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[uploadProfileImage] Upload failed'),
-        undefined,
-      );
     });
 
-    it('should swallow error if old image deletion fails', async () => {
-      const character = {
-        id: 'char-1',
-        account: { userId: 'user-1' },
-        profilePictureId: 'old-img-id',
-      };
-      (
-        characterRepository.findOne as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue(character);
-      (
-        imageUploadsService.uploadImageToCloudflareImages as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue('new-img-id');
-      (
-        characterRepository.save as jest.Mock<(...args: any[]) => Promise<any>>
-      ).mockResolvedValue({
-        ...character,
-        profilePictureId: 'new-img-id',
-      });
-      (
-        imageUploadsService.deleteImageFromCloudflareImages as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockRejectedValue(new Error('Delete failed'));
+    it('falls back to the default ceiling when none is configured', async () => {
+      const previous = process.env.MAX_IMAGE_SIZE_IN_BYTES;
 
-      const result = await service.uploadProfileImage(
-        'char-1',
-        'user-1',
-        mockFile,
-      );
-
-      expect(result.profilePictureId).toBe('new-img-id');
-    });
-
-    it('should swallow non-Error thrown values if old image deletion fails', async () => {
-      const character = {
-        id: 'char-1',
-        account: { userId: 'user-1' },
-        profilePictureId: 'old-img-id',
-      };
-      (
-        characterRepository.findOne as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue(character);
-      (
-        imageUploadsService.uploadImageToCloudflareImages as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue('new-img-id');
-      (
-        characterRepository.save as jest.Mock<(...args: any[]) => Promise<any>>
-      ).mockResolvedValue({
-        ...character,
-        profilePictureId: 'new-img-id',
-      });
-      (
-        imageUploadsService.deleteImageFromCloudflareImages as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockRejectedValue('Delete failed');
-
-      const result = await service.uploadProfileImage(
-        'char-1',
-        'user-1',
-        mockFile,
-      );
-
-      expect(result.profilePictureId).toBe('new-img-id');
-    });
-
-    it('should not try to delete if no old image exists', async () => {
-      const character = {
-        id: 'char-1',
-        account: { userId: 'user-1' },
-        profilePictureId: null,
-      };
-      (
-        characterRepository.findOne as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue(character);
-      (
-        imageUploadsService.uploadImageToCloudflareImages as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue('new-img-id');
-      (
-        characterRepository.save as jest.Mock<(...args: any[]) => Promise<any>>
-      ).mockResolvedValue({
-        ...character,
-        profilePictureId: 'new-img-id',
-      });
+      delete process.env.MAX_IMAGE_SIZE_IN_BYTES;
+      arrangeCharacter();
 
       await service.uploadProfileImage('char-1', 'user-1', mockFile);
 
-      expect(
-        imageUploadsService.deleteImageFromCloudflareImages,
-      ).not.toHaveBeenCalled();
+      expect(imageIngress.accept).toHaveBeenCalledWith(
+        expect.objectContaining({ maximumBytes: 10485760 }),
+      );
+
+      if (previous !== undefined) {
+        process.env.MAX_IMAGE_SIZE_IN_BYTES = previous;
+      }
     });
 
     it('should throw BadRequestException if id is missing', async () => {

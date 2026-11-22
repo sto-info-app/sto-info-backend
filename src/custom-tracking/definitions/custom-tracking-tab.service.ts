@@ -230,9 +230,11 @@ export class CustomTrackingTabService {
   async remove(userId: string, tabId: string): Promise<void> {
     const tab = await this.findOwned(userId, tabId);
 
-    await this._dataSource.transaction(manager =>
+    const pictures = await this._dataSource.transaction(manager =>
       this._cascade.deleteTabs(manager, [tab.id], new Date()),
     );
+
+    await this._cascade.withdraw(pictures);
   }
 
   /**

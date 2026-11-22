@@ -18,7 +18,7 @@ export interface PublicMemberStats {
    * The earliest creation date across the member's visible accounts, or null
    * when none of them records one.
    */
-  playingSince: Date | null;
+  playingSince: string | null;
 }
 
 /**
@@ -29,7 +29,7 @@ interface PublicMemberStatsRow {
   userId: string;
   accountCount: string;
   characterCount: string;
-  playingSince: Date | null;
+  playingSince: string | null;
 }
 
 /**
@@ -148,7 +148,15 @@ export class PublicMemberService {
       // The oldest account a member has made public is the earliest date the
       // fleet can see them playing from. Accounts with no recorded date are
       // ignored by MIN rather than dragging the answer to null.
-      .addSelect('MIN(account.accountCreatedDate)', 'playingSince')
+      //
+      // Formatted in SQL rather than read as a date. The driver parses a
+      // `date` column into a JavaScript `Date` at local midnight, and anything
+      // that then serialises it is back to shifting the day across timezones —
+      // which is the whole problem this column type exists to avoid.
+      .addSelect(
+        "to_char(MIN(account.accountCreatedDate), 'YYYY-MM-DD')",
+        'playingSince',
+      )
       .leftJoin(
         'account.characters',
         'character',
@@ -164,7 +172,7 @@ export class PublicMemberService {
       stats.set(row.userId, {
         accountCount: Number(row.accountCount),
         characterCount: Number(row.characterCount),
-        playingSince: row.playingSince ? new Date(row.playingSince) : null,
+        playingSince: row.playingSince ?? null,
       });
     }
 

@@ -1,0 +1,208 @@
+#!/usr/bin/env bash
+#
+# Rehearses a migration against a real, throwaway PostgreSQL instance.
+#
+# Everything the unit specs can prove about a migration is a property of its
+# SQL text. Whether PostgreSQL actually accepts that SQL, and whether the
+# constraints in it reject what they are supposed to reject, is a different
+# question — and it is the one that matters on deploy day. This script answers
+# it by starting a container, replaying the migration into it, and then
+# deliberately trying to break every rule the migration claims to enforce.
+#
+# It never touches a real database. It talks only to the container it started,
+# over `docker exec`, and it reads no database environment variable — so it
+# cannot be pointed at a developer or hosted database by a stray .env. The
+# container is removed on exit, including on failure or interrupt.
+#
+# Usage:
+#   bash scripts/migration-rehearsal/run-rehearsal.sh <migration.ts>[,<migration.ts>...] <name>
+#
+# <name> selects sql/<name>-seed.sql and sql/<name>-assert.sql, and
+# sql/../race-<name>.sh, sql/<name>-pre-up.sql and sql/<name>-post-down.sql
+# when they exist.
+#
+# The two optional files exist for a migration that moves existing data rather
+# than only adding to the schema. A pre-up file loads rows into the stub tables
+# before the migration runs, so there is something for it to move; a post-down
+# file runs after the rollback and before the table count, which is the only
+# place a claim that the rollback put the data back can be tested.
+#
+# A migration that builds on an earlier one is given the whole chain, comma
+# separated and in application order. The ups are applied in that order and the
+# downs in the reverse, so the rollback check still ends at the bare stubs.
+#
+# A migration whose down refuses (FC-042's published-picture guard) stops the
+# rollback there, as it would stop `migration:revert`. The rehearsal checks the
+# down threw before changing anything, runs sql/<name>-post-refusal.sql to prove
+# what it protects still holds with the data present, and re-applies only the
+# migrations after it. The rollback-to-stubs check does not apply to such a
+# chain, because the rollback is meant not to get there.
+#
+set -euo pipefail
+
+MIGRATIONS="${1:-src/database/migrations/1791600000000-CreateFleetCommunityDomainTables.ts}"
+SUITE="${2:-fleet-community}"
+
+IFS=',' read -r -a MIGRATION_LIST <<<"${MIGRATIONS}"
+
+PG_IMAGE="${REHEARSAL_PG_IMAGE:-postgres:18-alpine}"
+CONTAINER="migration-rehearsal-$$"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(cd "${HERE}/../.." && pwd)"
+WORK="$(mktemp -d)"
+
+SEED="${HERE}/sql/${SUITE}-seed.sql"
+ASSERT="${HERE}/sql/${SUITE}-assert.sql"
+PRE_UP="${HERE}/sql/${SUITE}-pre-up.sql"
+POST_DOWN="${HERE}/sql/${SUITE}-post-down.sql"
+POST_REFUSAL="${HERE}/sql/${SUITE}-post-refusal.sql"
+
+cleanup() {
+  docker rm -f "${CONTAINER}" >/dev/null 2>&1 || true
+  rm -rf "${WORK}"
+}
+trap cleanup EXIT INT TERM
+
+step() { printf '\n=== %s ===\n' "$1"; }
+
+# Runs a SQL file inside the container, aborting the rehearsal on any error.
+psql_file() {
+  docker exec -i -e PGPASSWORD=rehearsal "${CONTAINER}" \
+    psql -v ON_ERROR_STOP=1 -U postgres -d rehearsal -q <"$1"
+}
+
+# Runs a single statement and prints only its result.
+psql_value() {
+  docker exec -i -e PGPASSWORD=rehearsal "${CONTAINER}" \
+    psql -qtA -U postgres -d rehearsal -c "$1"
+}
+
+for file in "${MIGRATION_LIST[@]}" "${SEED}" "${ASSERT}"; do
+  if [ ! -f "${REPO}/${file}" ] && [ ! -f "${file}" ]; then
+    echo "Not found: ${file}" >&2
+    exit 1
+  fi
+done
+
+if ! docker version >/dev/null 2>&1; then
+  echo 'Docker is not available; this rehearsal needs it.' >&2
+  exit 1
+fi
+
+cd "${REPO}"
+for index in "${!MIGRATION_LIST[@]}"; do
+  step "Emitting SQL from ${MIGRATION_LIST[${index}]}"
+  npx ts-node -r tsconfig-paths/register \
+    "${HERE}/emit-migration-sql.ts" "${MIGRATION_LIST[${index}]}" \
+    "${WORK}/up.${index}.sql" "${WORK}/down.${index}.sql"
+done
+
+step "Starting ${PG_IMAGE}"
+docker run -d --name "${CONTAINER}" \
+  -e POSTGRES_PASSWORD=rehearsal -e POSTGRES_DB=rehearsal \
+  "${PG_IMAGE}" >/dev/null
+ready=0
+until [ "${ready}" -ge 3 ]; do
+  if docker exec "${CONTAINER}" psql -U postgres -d rehearsal -c 'SELECT 1' >/dev/null 2>&1; then
+    ready=$((ready + 1))
+  else
+    ready=0
+  fi
+  sleep 1
+done
+
+# The migration references tables other migrations created. Stand-ins carrying
+# only the columns its foreign keys need are enough, and keep the rehearsal
+# independent of every earlier migration.
+step 'Applying stub parent tables'
+psql_file "${HERE}/sql/stubs.sql"
+
+if [ -f "${PRE_UP}" ]; then
+  step 'Loading rows the migration will have to carry across'
+  psql_file "${PRE_UP}"
+fi
+
+step 'Applying the migrations (up)'
+for index in "${!MIGRATION_LIST[@]}"; do
+  psql_file "${WORK}/up.${index}.sql"
+done
+
+step 'Seeding'
+psql_file "${SEED}"
+
+step 'Asserting — every statement below is meant to be rejected'
+psql_file "${ASSERT}"
+
+if [ -f "${HERE}/race-${SUITE}.sh" ]; then
+  step 'Racing concurrent writers'
+  bash "${HERE}/race-${SUITE}.sh" "${CONTAINER}"
+fi
+
+# Rolling back an empty schema proves very little. This rolls back over the
+# rows the assertions left behind, which is the case that actually goes wrong.
+step 'Rolling back (down) with data present'
+# The index of a migration whose down refused, or -1 when every down ran.
+refused=-1
+for ((index = ${#MIGRATION_LIST[@]} - 1; index >= 0; index--)); do
+  if [ -f "${WORK}/down.${index}.sql.refused" ]; then
+    refused="${index}"
+    echo "PASS: ${MIGRATION_LIST[${index}]} refuses its down, before changing anything:"
+    sed 's/^/  /' "${WORK}/down.${index}.sql.refused"
+    break
+  fi
+  psql_file "${WORK}/down.${index}.sql"
+done
+
+if [ "${refused}" -ge 0 ]; then
+  if [ ! -f "${POST_REFUSAL}" ]; then
+    echo "FAIL: a down refused, and there is no ${POST_REFUSAL} to prove what it protects" >&2
+    exit 1
+  fi
+
+  step 'Asserting what the refused rollback kept'
+  psql_file "${POST_REFUSAL}"
+
+  step 'Re-applying the migrations the rollback did revert'
+  for ((index = refused + 1; index < ${#MIGRATION_LIST[@]}; index++)); do
+    psql_file "${WORK}/up.${index}.sql"
+  done
+
+  printf '\nREHEARSAL PASSED: up -> assert -> down (refused at %s, with data) -> up, on %s\n' \
+    "${MIGRATION_LIST[${refused}]}" "${PG_IMAGE}"
+  exit 0
+fi
+
+if [ -f "${POST_DOWN}" ]; then
+  step 'Asserting what the rollback put back'
+  psql_file "${POST_DOWN}"
+fi
+
+remaining="$(psql_value "SELECT count(*) FROM information_schema.tables WHERE table_schema='sto_info_app'")"
+types="$(psql_value "SELECT count(*) FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='sto_info_app' AND t.typtype='e'")"
+expected_stubs="$(grep -c '^CREATE TABLE' "${HERE}/sql/stubs.sql")"
+
+# A suite rehearsing a data migration may bring a table of its own, because
+# the rows have to exist before the migration runs and the real table is
+# built by migrations this suite is not rehearsing. Those count as stubs
+# too: what this check is for is a rollback that drops or leaves a table it
+# should not have, and a fixture table the suite created itself is neither.
+if [ -f "${PRE_UP}" ]; then
+  expected_stubs=$((expected_stubs + $(grep -c '^CREATE TABLE' "${PRE_UP}" || true)))
+fi
+
+if [ "${types}" -ne 0 ]; then
+  echo "FAIL: ${types} enum type(s) survived the rollback" >&2
+  exit 1
+fi
+if [ "${remaining}" -ne "${expected_stubs}" ]; then
+  echo "FAIL: ${remaining} tables left after rollback, expected the ${expected_stubs} stubs" >&2
+  exit 1
+fi
+echo "PASS: rollback left only the ${expected_stubs} stub tables and no enum types"
+
+step 'Re-applying the migrations to the same database'
+for index in "${!MIGRATION_LIST[@]}"; do
+  psql_file "${WORK}/up.${index}.sql"
+done
+
+printf '\nREHEARSAL PASSED: up -> assert -> down (with data) -> up, on %s\n' "${PG_IMAGE}"

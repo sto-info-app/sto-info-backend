@@ -8,6 +8,8 @@ import { convert as htmlToText } from 'html-to-text';
 
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
 
+import { reservedMailDomain } from './utilities/reserved-mail-domain.utility';
+
 /** Shape of an internal email message, sent through Amazon SES */
 export interface EmailMessage {
   to: string;
@@ -263,6 +265,18 @@ export class MailService {
    * @returns A promise that resolves once SES has accepted the email or the failure has been logged.
    */
   async sendEmail(message: EmailMessage): Promise<void> {
+    // No mailbox can exist at a reserved domain, which is where test and
+    // demonstration accounts live (FC-044); sent, it would only bounce.
+    const reserved = reservedMailDomain(message.to);
+
+    if (reserved !== null) {
+      this._logger.log(
+        `Email not sent: ${reserved} is reserved for testing, and no mailbox exists there - Subject: ${message.subject}`,
+      );
+
+      return;
+    }
+
     try {
       await this.sendEmailViaSES(message);
     } catch (sesError) {

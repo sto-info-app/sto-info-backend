@@ -1,3 +1,5 @@
+import { compareCalendarDates } from 'src/shared/utilities/calendar-date.utility';
+
 /**
  * Ordering of an account's own captain list.
  *
@@ -39,7 +41,7 @@ interface SortableNamed {
 export interface SortableCharacter {
   handle: string;
   level?: number | null;
-  createdDate: Date | null;
+  createdDate: string | null;
   pinnedAt: Date | null;
   species?: SortableNamed | null;
   faction?: SortableNamed | null;
@@ -149,7 +151,7 @@ function compareField(
       return compareOptional(
         a.createdDate,
         b.createdDate,
-        (aDate, bDate) => direction * (aDate.getTime() - bDate.getTime()),
+        (aDate, bDate) => direction * compareCalendarDates(aDate, bDate),
       );
     case CharacterSortBy.Species:
       return compareNames(a.species, b.species, direction);

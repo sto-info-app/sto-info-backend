@@ -168,10 +168,18 @@ export class StorytimeMediaService {
 
     const media = await this.findEditableOrFail(mediaId, actingUserId);
 
-    const startSeconds =
-      dto.startSeconds === undefined ? media.startSeconds : dto.startSeconds;
-    const endSeconds =
-      dto.endSeconds === undefined ? media.endSeconds : dto.endSeconds;
+    // Only an absent offset keeps the stored one. The fields are optional, so a
+    // null arrives as itself and clears the offset, which `??` would not do.
+    let startSeconds = media.startSeconds;
+    let endSeconds = media.endSeconds;
+
+    if (dto.startSeconds !== undefined) {
+      startSeconds = dto.startSeconds;
+    }
+
+    if (dto.endSeconds !== undefined) {
+      endSeconds = dto.endSeconds;
+    }
 
     this.assertOffsetsMakeSense(startSeconds, endSeconds);
 

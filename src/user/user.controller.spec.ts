@@ -37,6 +37,8 @@ describe('UserController', () => {
             updateUserProfile: updateUserProfileMock,
             uploadProfilePicture: uploadProfilePictureMock,
             closeAccount: closeAccountMock,
+            removeProfilePicture: jest.fn(async () => undefined),
+            closurePreview: jest.fn(async () => []),
             getSettings: getSettingsMock,
             updateSettings: updateSettingsMock,
           },
@@ -121,6 +123,14 @@ describe('UserController', () => {
     });
   });
 
+  describe('removeUserProfilePic', () => {
+    it('asks the service to take the picture off', async () => {
+      await controller.removeUserProfilePic('1');
+
+      expect(userService.removeProfilePicture).toHaveBeenCalledWith('1');
+    });
+  });
+
   describe('updateUserProfilePic', () => {
     it('should upload profile picture', async () => {
       const fileStub: Pick<
@@ -135,10 +145,7 @@ describe('UserController', () => {
 
       const req = { user: { id: '1' }, file: fileStub };
 
-      const result = {
-        affected: 1,
-        userProfileData: { profilePictureId: 'new' },
-      };
+      const result = { assetId: 'asset-1', status: 'SCANNING' };
       jest
         .spyOn(userService, 'uploadProfilePicture')
         .mockResolvedValue(
@@ -151,7 +158,9 @@ describe('UserController', () => {
 
       expect(fileStub.filename).toContain('profilePicture-');
       expect(fileStub.filename).toContain('.png');
-      expect(response.affected).toBe(1);
+      // The picture is not the account's yet, so what comes back is
+      // something to ask about rather than a changed profile.
+      expect(response).toEqual({ assetId: 'asset-1', status: 'SCANNING' });
     });
 
     it('should throw if file missing', async () => {
@@ -211,5 +220,9 @@ describe('UserController', () => {
       );
       expect(cb).toHaveBeenCalledWith(expect.any(BadRequestException), false);
     });
+  });
+
+  it('says what closing would do to the Communities owned (FC-038)', async () => {
+    await expect(controller.closurePreview('user-1')).resolves.toEqual([]);
   });
 });

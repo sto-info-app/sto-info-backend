@@ -154,10 +154,11 @@ export class AddTagsToSearchVectors1789300000000 implements MigrationInterface {
     const columns = weights
       .map(([weight, names]) => {
         const text = names
-          .map(
-            column =>
-              `coalesce(${qualifier ? `${qualifier}."${column}"` : `"${column}"`}, '')`,
-          )
+          .map(column => {
+            const read = qualifier ? `${qualifier}."${column}"` : `"${column}"`;
+
+            return `coalesce(${read}, '')`;
+          })
           .join(" || ' ' || ");
 
         return `setweight(to_tsvector('english', ${text}), '${weight}')`;

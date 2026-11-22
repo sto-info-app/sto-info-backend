@@ -66,6 +66,11 @@ import {
   readAuthLink,
   readContactRequest,
 } from './e2e-external';
+import {
+  isFleetAppCommand,
+  runFleetAppSupport,
+  runFleetSupport,
+} from './e2e-fleet-support';
 
 const SCHEMA = process.env.DB_SCHEMA ?? 'sto_info_app';
 
@@ -484,7 +489,22 @@ const COMMANDS: Record<
 
 async function main(): Promise<void> {
   const [name, ...args] = process.argv.slice(2);
-  const command = COMMANDS[name];
+
+  // The Fleet journeys' people (FC-044) need only the database, so they are
+  // made without starting the application; only the commands that run one
+  // of its jobs start it.
+  if (name?.startsWith('fleet-') && !isFleetAppCommand(name)) {
+    const result = await runFleetSupport(name, args);
+
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+
+    return;
+  }
+
+  const command = isFleetAppCommand(name)
+    ? (context: SupportContext, ...rest: string[]) =>
+        runFleetAppSupport(context.app, name, rest)
+    : COMMANDS[name];
 
   if (!command) {
     throw new Error(

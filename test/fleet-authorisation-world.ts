@@ -1,0 +1,362 @@
+import { ClsService } from 'nestjs-cls';
+import { FindOperator, Repository } from 'typeorm';
+
+import { FileAssetEntity } from '../src/file-assets/entities/file-asset.entity';
+import { FleetAudienceService } from '../src/fleet/authorisation/fleet-audience.service';
+import { FleetAuthorisationRevisionService } from '../src/fleet/authorisation/fleet-authorisation-revision.service';
+import { FleetAuthorisationService } from '../src/fleet/authorisation/fleet-authorisation.service';
+import { ArmadaFleetMembershipEntity } from '../src/fleet/entities/armada-fleet-membership.entity';
+import { CommunitySubscriptionEntity } from '../src/fleet/entities/community-subscription.entity';
+import { FleetCommunityEntity } from '../src/fleet/entities/fleet-community.entity';
+import { ScopeCapabilityGrantEntity } from '../src/fleet/entities/scope-capability-grant.entity';
+import { ScopeMembershipEntity } from '../src/fleet/entities/scope-membership.entity';
+import { ScopeRoleAssignmentEntity } from '../src/fleet/entities/scope-role-assignment.entity';
+import { StoArmadaEntity } from '../src/fleet/entities/sto-armada.entity';
+import { StoFleetEntity } from '../src/fleet/entities/sto-fleet.entity';
+import { FleetInvestigationGrantEntity } from '../src/fleet/governance/entities/fleet-investigation-grant.entity';
+import { FleetInvitationEntity } from '../src/fleet/recruitment/entities/fleet-invitation.entity';
+import { CommunitySubscriptionService } from '../src/fleet/services/community-subscription.service';
+import { FleetScopeViewerService } from '../src/fleet/services/fleet-scope-viewer.service';
+import { UserEntity } from '../src/user/entities/user.entity';
+
+/**
+ * An in-memory stand-in for the rows the Fleet authorisation policy reads.
+ *
+ * The policy is a set of rules about how several tables combine, so testing it
+ * one mocked `findOne` at a time would mostly test the mocks: each rule would
+ * be asserted against the exact call it makes rather than against the situation
+ * it is about. Here a test describes a world — these Communities, these Fleets,
+ * this person with this role — and asks the real services real questions.
+ *
+ * It lives under `test/` rather than `src/` so it is not measured for coverage;
+ * it is scaffolding, not shipped code.
+ */
+
+/** Anything the fake repositories can hold. */
+type Row = Record<string, unknown>;
+
+/** A `where` clause, or a list of them meaning "any of these". */
+type Where = Row | Row[];
+
+/**
+ * Reports whether one stored value satisfies one condition.
+ *
+ * Supports the two TypeORM operators the policy uses — `IsNull()` and
+ * `Not(IsNull())` — and plain equality for everything else. An operator the
+ * policy does not use throws rather than guessing, so adding one to the service
+ * without teaching this harness fails loudly instead of matching everything.
+ *
+ * @param actual - The value on the row.
+ * @param expected - The value or operator in the `where` clause.
+ * @returns True when the row satisfies it.
+ */
+function matchesValue(actual: unknown, expected: unknown): boolean {
+  if (expected instanceof FindOperator) {
+    if (expected.type === 'isNull') {
+      return actual === null || actual === undefined;
+    }
+
+    if (expected.type === 'not') {
+      return !matchesValue(actual, expected.child ?? expected.value);
+    }
+
+    if (expected.type === 'in') {
+      return (expected.value as unknown[]).includes(actual);
+    }
+
+    if (expected.type === 'moreThan') {
+      return (actual as Date) > (expected.value as Date);
+    }
+
+    throw new Error(`Unsupported find operator '${expected.type}'`);
+  }
+
+  return actual === expected;
+}
+
+/**
+ * Reports whether a row satisfies a `where` clause.
+ *
+ * @param row - The stored row.
+ * @param where - The clause, or a list of clauses meaning "any of these".
+ * @returns True when the row matches.
+ */
+function matchesWhere(row: Row, where: Where | undefined): boolean {
+  if (where === undefined) {
+    return true;
+  }
+
+  if (Array.isArray(where)) {
+    return where.some(clause => matchesWhere(row, clause));
+  }
+
+  return Object.entries(where).every(([key, expected]) =>
+    matchesValue(row[key], expected),
+  );
+}
+
+/** The columns a find asks for. */
+type Select = Record<string, boolean>;
+
+/**
+ * Keeps only the columns a find asked for, as the database does.
+ *
+ * Without this a service that reads a column it never selected would pass
+ * here and see `undefined` in production. An empty selection reads every
+ * column, which is what TypeORM does with one.
+ *
+ * @param row - The stored row.
+ * @param select - The columns asked for, if any.
+ * @returns The row as the query would return it.
+ */
+function project<T extends Row>(row: T, select: Select | undefined): T {
+  if (select === undefined || Object.keys(select).length === 0) {
+    return row;
+  }
+
+  return Object.fromEntries(
+    Object.entries(select)
+      .filter(([, wanted]) => wanted)
+      .map(([column]) => [column, row[column]]),
+  ) as T;
+}
+
+/** The repository surface the authorisation services actually use. */
+export class InMemoryRepository<T extends Row> {
+  /**
+   * Creates an in-memory repository.
+   *
+   * @param rows - The rows it holds. Mutated in place by `increment`.
+   */
+  constructor(readonly rows: T[]) {}
+
+  /**
+   * Finds every matching row.
+   *
+   * @param options - The find options.
+   * @returns The matching rows.
+   */
+  find(options?: { where?: Where; select?: Select }): Promise<T[]> {
+    return Promise.resolve(
+      this.rows
+        .filter(row => matchesWhere(row, options?.where))
+        .map(row => project(row, options?.select)),
+    );
+  }
+
+  /**
+   * Finds the first matching row.
+   *
+   * @param options - The find options.
+   * @returns The row, or null.
+   */
+  findOne(options: { where?: Where; select?: Select }): Promise<T | null> {
+    const found = this.rows.find(row => matchesWhere(row, options.where));
+
+    return Promise.resolve(
+      found === undefined ? null : project(found, options.select),
+    );
+  }
+
+  /**
+   * Counts the matching rows.
+   *
+   * @param options - The find options.
+   * @returns How many rows match.
+   */
+  count(options?: { where?: Where }): Promise<number> {
+    return Promise.resolve(
+      this.rows.filter(row => matchesWhere(row, options?.where)).length,
+    );
+  }
+
+  /**
+   * Adds to a numeric column on every matching row.
+   *
+   * @param criteria - Which rows to change.
+   * @param column - The column to add to.
+   * @param by - How much to add.
+   */
+  increment(criteria: Row, column: string, by: number): Promise<void> {
+    for (const row of this.rows.filter(candidate =>
+      matchesWhere(candidate, criteria),
+    )) {
+      (row as Row)[column] = ((row[column] as number) ?? 0) + by;
+    }
+
+    return Promise.resolve();
+  }
+}
+
+/** The rows a test wants in the world. Anything omitted is empty. */
+export interface WorldRows {
+  users?: Partial<UserEntity>[];
+  communities?: Partial<FleetCommunityEntity>[];
+  fleets?: Partial<StoFleetEntity>[];
+  armadas?: Partial<StoArmadaEntity>[];
+  /** Fleets placed in Armadas, which make their members Armada members. */
+  placements?: Partial<ArmadaFleetMembershipEntity>[];
+  memberships?: Partial<ScopeMembershipEntity>[];
+  roles?: Partial<ScopeRoleAssignmentEntity>[];
+  grants?: Partial<ScopeCapabilityGrantEntity>[];
+  subscriptions?: Partial<CommunitySubscriptionEntity>[];
+  invitations?: Partial<FleetInvitationEntity>[];
+  /** Site admins' looks into Fleets (FC-036). */
+  investigations?: Partial<FleetInvestigationGrantEntity>[];
+}
+
+/** The services under test, wired to the world's rows. */
+export interface AuthorisationWorld {
+  authorisation: FleetAuthorisationService;
+  audience: FleetAudienceService;
+  subscription: CommunitySubscriptionService;
+  viewer: FleetScopeViewerService;
+  revision: FleetAuthorisationRevisionService;
+  rows: Required<WorldRows>;
+}
+
+/**
+ * Fills in the nullable scope columns a row may omit.
+ *
+ * Tests name only the column they mean — a Fleet-scoped role gives `fleetId`
+ * and nothing else — and the policy reads both, because "neither is set" is
+ * what makes a row Community-wide.
+ *
+ * @param rows - The partial rows.
+ * @returns The same rows with the scope columns present.
+ */
+function withScopeColumns<T extends Row>(rows: T[]): T[] {
+  return rows.map(row => ({
+    fleetId: null,
+    armadaId: null,
+    deletedAt: null,
+    ...row,
+  }));
+}
+
+/**
+ * Builds the authorisation services over a described world.
+ *
+ * @param rows - The rows the world contains.
+ * @param clsActive - Whether a request context is active, which decides whether
+ *   answers are memoised. Off by default so a test that changes a row between
+ *   two questions sees the change.
+ * @returns The wired services and the row arrays, which stay live.
+ */
+export function createAuthorisationWorld(
+  rows: WorldRows,
+  clsActive = false,
+): AuthorisationWorld {
+  // Outside a request nestjs-cls reads nothing and refuses to write, so a
+  // service that forgets to ask whether a request is active fails here too.
+  const store = new Map<string, unknown>();
+  const cls = {
+    isActive: () => clsActive,
+    get: (key: string) => (clsActive ? store.get(key) : undefined),
+    set: (key: string, value: unknown) => {
+      if (!clsActive) {
+        throw new Error(
+          `Cannot set the key "${key}". No CLS context available`,
+        );
+      }
+
+      store.set(key, value);
+    },
+  } as unknown as ClsService;
+
+  const filled: Required<WorldRows> = {
+    users: rows.users ?? [],
+    communities: (rows.communities ?? []).map(row => ({
+      deletedAt: null,
+      ...row,
+    })),
+    fleets: (rows.fleets ?? []).map(row => ({ deletedAt: null, ...row })),
+    armadas: (rows.armadas ?? []).map(row => ({ deletedAt: null, ...row })),
+    placements: (rows.placements ?? []).map(row => ({
+      validTo: null,
+      deletedAt: null,
+      ...row,
+    })),
+    memberships: withScopeColumns(rows.memberships ?? []),
+    roles: withScopeColumns(rows.roles ?? []).map(row => ({
+      validTo: null,
+      ...row,
+    })),
+    grants: withScopeColumns(rows.grants ?? []).map(row => ({
+      validTo: null,
+      subjectUserId: null,
+      subjectRole: null,
+      ...row,
+    })),
+    subscriptions: (rows.subscriptions ?? []).map(row => ({
+      leftAt: null,
+      deletedAt: null,
+      ...row,
+    })),
+    invitations: rows.invitations ?? [],
+    investigations: rows.investigations ?? [],
+  };
+
+  const repository = <T extends Row>(source: unknown): Repository<never> =>
+    new InMemoryRepository(source as T[]) as unknown as Repository<never>;
+
+  // The policy reads placements through the Armada repository's manager,
+  // to find an Armada's members among its Fleets' (FC-025).
+  const armadas = Object.assign(repository(filled.armadas), {
+    manager: {
+      find: (_entity: unknown, options: { where?: Where }) =>
+        new InMemoryRepository(filled.placements as Row[]).find(options),
+    },
+  });
+
+  const authorisation = new FleetAuthorisationService(
+    repository(filled.communities),
+    repository(filled.fleets),
+    armadas as unknown as Repository<never>,
+    repository(filled.memberships),
+    repository(filled.roles),
+    repository(filled.grants),
+    // The resolver reads site admins' looks into a Fleet through the user
+    // repository's manager (FC-036).
+    Object.assign(repository(filled.users), {
+      manager: {
+        exists: (_entity: unknown, options: { where?: Where }) =>
+          Promise.resolve(
+            filled.investigations.some(row =>
+              matchesWhere(row as Row, options.where),
+            ),
+          ),
+      },
+    }) as unknown as Repository<never>,
+    cls,
+  );
+
+  const subscription = new CommunitySubscriptionService(
+    repository(filled.subscriptions),
+  );
+
+  return {
+    authorisation,
+    audience: new FleetAudienceService(
+      authorisation,
+      repository(filled.subscriptions),
+      repository(filled.invitations),
+      repository(filled.memberships),
+    ),
+    subscription,
+    // No assets: the viewer service reads them only for a Fleet nobody has
+    // registered, which is not a scope and so never reaches this world.
+    viewer: new FleetScopeViewerService(
+      authorisation,
+      subscription,
+      repository<Partial<FileAssetEntity>>([]),
+    ),
+    revision: new FleetAuthorisationRevisionService(
+      repository(filled.communities),
+      repository(filled.fleets),
+      repository(filled.armadas),
+      authorisation,
+    ),
+    rows: filled,
+  };
+}

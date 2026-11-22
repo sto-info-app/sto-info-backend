@@ -11,6 +11,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { ArcCapability } from '../collaboration/storytime-arc-capability.enum';
 import { StorytimeArcCollaboratorAccessService } from '../collaboration/storytime-arc-collaborator-access.service';
+import { STORYTIME_DELETION_REASONS } from '../constants/storytime-deletion.constants';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
 import { ArcStatus } from '../enums/arc-status.enum';
 import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
@@ -82,17 +83,19 @@ describe('StorytimeArcService', () => {
     });
 
   let imageService: {
-    store: jest.Mock;
-    release: jest.Mock;
+    accept: jest.Mock;
+    withdraw: jest.Mock;
   };
 
   beforeEach(async () => {
-    // The upload pipeline is stubbed: what a real Cloudflare call would do is
-    // its own service's business, and these tests are about what the work
-    // records afterwards.
+    // The upload pipeline is stubbed: what a real scanner and a real
+    // Cloudflare call would do is their own services' business, and these
+    // tests are about what an Arc does with an upload before either.
     imageService = {
-      store: jest.fn().mockResolvedValue('stored-image-id'),
-      release: jest.fn().mockResolvedValue(undefined),
+      accept: jest
+        .fn()
+        .mockResolvedValue({ assetId: 'asset-1', status: 'SCANNING' }),
+      withdraw: jest.fn().mockResolvedValue(undefined),
     };
 
     arcRepository = {
@@ -330,10 +333,10 @@ describe('StorytimeArcService', () => {
   describe('artwork', () => {
     const file = { originalname: 'banner.jpg' } as Express.Multer.File;
 
-    it('records the stored image and what it shows', async () => {
+    it('sends the upload to be scanned, with what it shows', async () => {
       arcRepository.findOne.mockResolvedValue(buildArc());
 
-      const saved = await service.setImage(
+      const accepted = await service.setImage(
         arcId,
         curatorId,
         StorytimeImageSlot.ARC_BANNER,
@@ -341,37 +344,22 @@ describe('StorytimeArcService', () => {
         'A fleet at anchor',
       );
 
-      expect(imageService.store).toHaveBeenCalledWith({
+      expect(imageService.accept).toHaveBeenCalledWith({
         slot: StorytimeImageSlot.ARC_BANNER,
         userId: curatorId,
         entityId: arcId,
         file,
+        altText: 'A fleet at anchor',
       });
-      expect(saved.bannerImageId).toBe('stored-image-id');
-      expect(saved.bannerImageAlt).toBe('A fleet at anchor');
-      expect(saved.version).toBe(2);
+      expect(accepted).toEqual({ assetId: 'asset-1', status: 'SCANNING' });
     });
 
-    it('sets the profile image without touching the banner', async () => {
+    // The third acceptance criterion: an Arc goes on showing the artwork it
+    // has until a scanner has cleared the replacement, so a refused upload
+    // costs its curator nothing.
+    it('leaves the Arc untouched while the upload is scanned', async () => {
       arcRepository.findOne.mockResolvedValue(
         buildArc({ bannerImageId: 'banner-1', bannerImageAlt: 'A fleet' }),
-      );
-
-      const saved = await service.setImage(
-        arcId,
-        curatorId,
-        StorytimeImageSlot.ARC_PROFILE,
-        file,
-        'An Arc badge',
-      );
-
-      expect(saved.profileImageId).toBe('stored-image-id');
-      expect(saved.bannerImageId).toBe('banner-1');
-    });
-
-    it('releases the image it replaced', async () => {
-      arcRepository.findOne.mockResolvedValue(
-        buildArc({ bannerImageId: 'old-banner' }),
       );
 
       await service.setImage(
@@ -379,10 +367,10 @@ describe('StorytimeArcService', () => {
         curatorId,
         StorytimeImageSlot.ARC_BANNER,
         file,
-        'A fleet',
+        'A newer fleet',
       );
 
-      expect(imageService.release).toHaveBeenCalledWith('old-banner');
+      expect(arcRepository.save).not.toHaveBeenCalled();
     });
 
     it('refuses somebody with no access to the Arc', async () => {
@@ -398,7 +386,7 @@ describe('StorytimeArcService', () => {
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
 
-      expect(imageService.store).not.toHaveBeenCalled();
+      expect(imageService.accept).not.toHaveBeenCalled();
     });
 
     it('clears the description along with the image', async () => {
@@ -414,7 +402,11 @@ describe('StorytimeArcService', () => {
 
       expect(saved.profileImageId).toBeNull();
       expect(saved.profileImageAlt).toBeNull();
-      expect(imageService.release).toHaveBeenCalledWith('profile-1');
+      expect(imageService.withdraw).toHaveBeenCalledWith(
+        StorytimeImageSlot.ARC_PROFILE,
+        arcId,
+        'profile-1',
+      );
     });
 
     it('refuses a removal from somebody with no access', async () => {
@@ -569,12 +561,56 @@ describe('StorytimeArcService', () => {
       );
     });
 
+    // A deleted Arc cannot be brought back, so nothing should go on serving
+    // its artwork.
+    it('withdraws its banner and profile image once it is deleted', async () => {
+      arcRepository.findOne.mockResolvedValue(
+        buildArc({ bannerImageId: 'banner-1', profileImageId: 'profile-1' }),
+      );
+
+      await service.remove(arcId, curatorId);
+
+      expect(imageService.withdraw.mock.calls).toEqual([
+        [
+          StorytimeImageSlot.ARC_BANNER,
+          arcId,
+          'banner-1',
+          STORYTIME_DELETION_REASONS.ARC,
+        ],
+        [
+          StorytimeImageSlot.ARC_PROFILE,
+          arcId,
+          'profile-1',
+          STORYTIME_DELETION_REASONS.ARC,
+        ],
+      ]);
+      expect(arcRepository.softDelete.mock.invocationCallOrder[0]).toBeLessThan(
+        imageService.withdraw.mock.invocationCallOrder[0],
+      );
+    });
+
+    // The image service settles an empty slot itself, as clearing one does.
+    it('hands over an empty slot as it is', async () => {
+      arcRepository.findOne.mockResolvedValue(buildArc());
+
+      await service.remove(arcId, curatorId);
+
+      expect(imageService.withdraw).toHaveBeenCalledWith(
+        StorytimeImageSlot.ARC_BANNER,
+        arcId,
+        null,
+        STORYTIME_DELETION_REASONS.ARC,
+      );
+    });
+
     it('refuses to delete an Arc the caller does not curate', async () => {
       arcRepository.findOne.mockResolvedValue(buildArc());
 
       await expect(service.remove(arcId, strangerId)).rejects.toThrow(
         ForbiddenException,
       );
+      expect(arcRepository.softDelete).not.toHaveBeenCalled();
+      expect(imageService.withdraw).not.toHaveBeenCalled();
     });
   });
 

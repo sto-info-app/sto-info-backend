@@ -23,6 +23,7 @@ import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { Roles } from 'src/auth/roles.decorator';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { UserId } from 'src/auth/user-id.decorator';
+import { AdminReasonDto } from 'src/shared/dto/admin-reason.dto';
 import { UserRole } from 'src/user/enums/user-role.enum';
 
 import { DisableUserDto } from './dto/disable-user.dto';
@@ -33,7 +34,11 @@ import {
 import { ReportQueryDto } from './dto/report-query.dto';
 import { UpdateReportDto } from './dto/update-report.dto';
 import { ModeratedUserQueryDto } from './dto/user-query.dto';
-import { PaginatedReportsDto, UserReportDto } from './dto/user-report.dto';
+import {
+  OpenReportCountsDto,
+  PaginatedReportsDto,
+  UserReportDto,
+} from './dto/user-report.dto';
 import { ReportService } from './report.service';
 import { UserModerationService } from './user-moderation.service';
 
@@ -115,6 +120,24 @@ export class ModerationAdminController {
     return this._reportService.updateForAdmin(reportId, userId, dto);
   }
 
+  /**
+   * Counts what still waits on an administrator: member reports and chat
+   * reports (FC-036).
+   *
+   * @returns Both counts, and their total.
+   */
+  @Get('open-counts')
+  @ApiOperation({ summary: 'Count open reports of both kinds (admin)' })
+  @ApiOkResponse({ type: OpenReportCountsDto })
+  async openCounts(): Promise<OpenReportCountsDto> {
+    const [userReports, chatReports] = await Promise.all([
+      this._reportService.countUnresolved(),
+      this._reportService.countUnresolvedChat(),
+    ]);
+
+    return { userReports, chatReports, total: userReports + chatReports };
+  }
+
   // ----- Members -----
 
   /**
@@ -194,7 +217,12 @@ export class ModerationAdminController {
   enableUser(
     @UserId() userId: string,
     @Param('moderatedUserId', ParseUUIDPipe) moderatedUserId: string,
+    @Body() dto: AdminReasonDto,
   ): Promise<ModeratedUserDto> {
-    return this._userModerationService.enableUser(moderatedUserId, userId);
+    return this._userModerationService.enableUser(
+      moderatedUserId,
+      userId,
+      dto.reason,
+    );
   }
 }

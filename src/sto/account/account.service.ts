@@ -2,9 +2,11 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
@@ -15,6 +17,14 @@ import {
   generateSlug,
   normalizeHandle,
 } from 'src/shared/utilities/handle.utility';
+import {
+  STO_RECORD_DELETION,
+  StoRecordDeletion,
+} from 'src/sto/shared/sto-record-deletion';
+import {
+  PERSONAL_PICTURE_REASONS,
+  PersonalPictureWithdrawalService,
+} from 'src/user/images/personal-picture-withdrawal.service';
 
 import { sortCharacters } from '../character/character-sort.utility';
 import { CharacterEntity } from '../character/entities/character.entity';
@@ -58,6 +68,10 @@ export class AccountService {
     private readonly _accountRepository: Repository<AccountEntity>,
     @InjectRepository(PlatformLauncherEntity)
     private readonly _platformLauncherRepository: Repository<PlatformLauncherEntity>,
+    private readonly _pictures: PersonalPictureWithdrawalService,
+    @Optional()
+    @Inject(STO_RECORD_DELETION)
+    private readonly _recordDeletion?: StoRecordDeletion,
   ) {}
 
   /**
@@ -513,7 +527,14 @@ export class AccountService {
   }
 
   /**
-   * Soft-deletes an account owned by the specified user.
+   * Soft-deletes an account owned by the specified user, and withdraws its
+   * Characters' portraits.
+   *
+   * Nothing brings a deleted account back, and its Characters cannot be
+   * reached without it, so their portraits are withdrawn rather than left to
+   * be served from their old addresses, recorded as "Its STO account was
+   * deleted". One whose withdrawal fails is logged and found again by the
+   * sweep at the next start.
    *
    * @param id Account ID.
    * @param userId Owner user ID.
@@ -530,10 +551,34 @@ export class AccountService {
     }
 
     const account = await this.requireOwnedAccount(id, userId);
+    const characters = await this._accountRepository.manager.find(
+      CharacterEntity,
+      {
+        where: { accountId: account.id },
+        select: { id: true, profilePictureId: true },
+      },
+    );
     const deleteResponse = await this._accountRepository.softDelete(account.id);
     if (!deleteResponse.affected) {
       throw new NotFoundException(`Account with ID "${id}" not found`);
     }
+
+    await this._pictures.withdrawEach(
+      characters.map(character =>
+        PersonalPictureWithdrawalService.portrait(
+          character.id,
+          character.profilePictureId,
+        ),
+      ),
+      PERSONAL_PICTURE_REASONS.STO_ACCOUNT_DELETED,
+    );
+
+    // The Custom Tracking pictures recorded about it and its Characters go
+    // too.
+    await this._recordDeletion?.accountsDeleted(
+      [account.id],
+      PERSONAL_PICTURE_REASONS.STO_ACCOUNT_DELETED,
+    );
   }
 
   /**

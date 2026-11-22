@@ -26,6 +26,7 @@ import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { Roles } from 'src/auth/roles.decorator';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { UserId } from 'src/auth/user-id.decorator';
+import { AdminReasonDto } from 'src/shared/dto/admin-reason.dto';
 import { UserRole } from 'src/user/enums/user-role.enum';
 
 import { AccessControlAdminService } from './access-control-admin.service';
@@ -113,6 +114,7 @@ export class AccessControlAdminController {
    *
    * @param userId - The user the override applies to.
    * @param permissionCode - The permission code to stop overriding.
+   * @param dto - Why (FC-039).
    * @param actingUserId - The administrator making the change.
    * @returns The user's updated access summary.
    */
@@ -126,11 +128,13 @@ export class AccessControlAdminController {
   removePermissionOverride(
     @Param('userId', ParseUUIDPipe) userId: string,
     @Param('permissionCode') permissionCode: string,
+    @Body() dto: AdminReasonDto,
     @UserId() actingUserId: string,
   ): Promise<UserAccessSummaryDto> {
     return this._adminService.removePermissionOverride(
       userId,
       permissionCode,
+      dto.reason,
       actingUserId,
     );
   }
@@ -209,6 +213,7 @@ export class AccessControlAdminController {
    *
    * @param userId - The user the exemption applies to.
    * @param limitKey - The configuration key to stop overriding.
+   * @param dto - Why (FC-039).
    * @param actingUserId - The administrator making the change.
    */
   @Delete('users/:userId/limit-overrides/:limitKey')
@@ -220,11 +225,13 @@ export class AccessControlAdminController {
   removeLimitOverride(
     @Param('userId', ParseUUIDPipe) userId: string,
     @Param('limitKey') limitKey: string,
+    @Body() dto: AdminReasonDto,
     @UserId() actingUserId: string,
   ): Promise<void> {
     return this._adminService.removeLimitOverride(
       userId,
       limitKey,
+      dto.reason,
       actingUserId,
     );
   }

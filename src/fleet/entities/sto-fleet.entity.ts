@@ -1,0 +1,152 @@
+import { ApiProperty } from '@nestjs/swagger';
+
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
+
+import { GeneralFactionEntity } from 'src/sto/character/entities/general-faction.entity';
+import { PlatformEntity } from 'src/sto/platform/entities/platform.entity';
+
+import { FleetAudience } from '../enums/fleet-audience.enum';
+import { FleetRecruitmentState } from '../enums/fleet-recruitment-state.enum';
+import { FleetCommunityEntity } from './fleet-community.entity';
+import { FleetScopeEntity } from './fleet-scope.entity';
+
+/**
+ * A Star Trek Online Fleet as STO Info records it.
+ *
+ * Deliberately **not** a tenant-wide claim on the real in-game Fleet. There is
+ * no unique constraint on `(platformId, exactGameName)`, so two Communities may
+ * each hold a record for a Fleet of the same name and neither is authoritative
+ * — plan section 4.1, and FC-004's first acceptance criterion. Duplicates are
+ * surfaced to people through `exactGameNameNormalized`, never merged
+ * automatically.
+ *
+ * `communityId` is nullable so a roster can be held against an explicitly
+ * confirmed unregistered observation target. Such a Fleet has no Armada
+ * placement — the composite foreign key requires a Community — but it does
+ * have a URL: it is addressed under the reserved `standalone` segment, and
+ * its slug is unique among the standalone records on its platform.
+ *
+ * `exactGameName` is stored at 255 characters to match the existing
+ * `character.handle` ceiling. That is storage headroom, **not** the naming rule
+ * — ADR-0003 is still a proposal and whatever it settles on is enforced in the
+ * application, so ruling either way needs no migration.
+ *
+ * The lifecycle, artwork, revision and date columns every scope carries
+ * come from {@link FleetScopeEntity}.
+ */
+@Entity({ name: 'sto_fleet' })
+@Index('UX_sto_fleet_community_slug', ['communityId', 'platformId', 'slug'], {
+  unique: true,
+  where: '"deletedAt" IS NULL AND "communityId" IS NOT NULL',
+})
+// A Fleet with no Community is addressed under the reserved `standalone`
+// segment, so its slug is an address too, unique among the standalone
+// records on the same platform. Two partial indexes rather than one over a
+// nullable column: Postgres treats NULLs as distinct, so a single index
+// including `communityId` would enforce nothing at all for these rows.
+@Index('UX_sto_fleet_standalone_slug', ['platformId', 'slug'], {
+  unique: true,
+  where: '"deletedAt" IS NULL AND "communityId" IS NULL',
+})
+@Index('IDX_sto_fleet_platform_name', ['platformId', 'exactGameNameNormalized'])
+@Index('IDX_sto_fleet_community', ['communityId'])
+export class StoFleetEntity extends FleetScopeEntity {
+  @ApiProperty({
+    description: 'Owning Community, or null for an unregistered record.',
+    nullable: true,
+  })
+  @Column({ type: 'uuid', nullable: true, default: null })
+  communityId: string | null;
+
+  @ApiProperty({ description: 'The platform the Fleet exists on.' })
+  @Column({ type: 'uuid', nullable: false })
+  platformId: string;
+
+  /**
+   * Allegiance, from the existing general faction reference data.
+   *
+   * Nullable and never guessed. Plan section 4.1 is explicit that faction
+   * compatibility comes from master data, not from inferring it out of a CSV
+   * Class column.
+   */
+  @ApiProperty({ description: 'Allegiance, if known.', nullable: true })
+  @Column({ type: 'uuid', nullable: true, default: null })
+  allegianceFactionId: string | null;
+
+  @ApiProperty({ description: 'The Fleet name exactly as it appears in game.' })
+  @Column({ type: 'varchar', length: 255, nullable: false })
+  exactGameName: string;
+
+  /**
+   * Case-folded name, for finding duplicates rather than preventing them.
+   *
+   * Indexed non-uniquely with the platform. FC-013 uses it to warn a registrant
+   * that a record already exists; it must never become a unique constraint.
+   */
+  @ApiProperty({ description: 'Case-folded name, for duplicate detection.' })
+  @Column({ type: 'varchar', length: 255, nullable: false })
+  exactGameNameNormalized: string;
+
+  /**
+   * Lowercase URL segment, unique within the Community *and* platform.
+   *
+   * The platform is part of the key because it is part of the canonical URL —
+   * ADR-0022. One Community may hold a Fleet called the same thing on PC and
+   * on Xbox, and both keep the readable slug rather than the second one being
+   * suffixed to avoid a collision that only existed in the index.
+   */
+  @ApiProperty({
+    description: 'Lowercase URL segment, unique per Community and platform.',
+  })
+  @Column({ type: 'varchar', length: 80, nullable: false })
+  slug: string;
+
+  @ApiProperty({
+    enum: FleetRecruitmentState,
+    description: 'Whether and how the Fleet accepts applications.',
+  })
+  @Column({
+    type: 'enum',
+    enum: FleetRecruitmentState,
+    enumName: 'fleet_recruitment_state_enum',
+    default: FleetRecruitmentState.CLOSED,
+  })
+  recruitmentState: FleetRecruitmentState;
+
+  @ApiProperty({
+    enum: FleetAudience,
+    description: 'Who may see the Fleet record.',
+  })
+  @Column({
+    type: 'enum',
+    enum: FleetAudience,
+    enumName: 'fleet_audience_enum',
+    default: FleetAudience.COMMUNITY,
+  })
+  visibility: FleetAudience;
+
+  /**
+   * Export instant of the most recent import chosen as effective.
+   *
+   * A cached answer to "how current is this roster", maintained by the import
+   * workflow in FC-017. It is not evidence and nothing is derived from it.
+   */
+  @ApiProperty({
+    description: 'Export instant of the newest effective roster import.',
+    nullable: true,
+  })
+  @Column({ type: 'timestamptz', nullable: true, default: null })
+  lastEffectiveImportAt: Date | null;
+
+  @ManyToOne(() => FleetCommunityEntity, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'communityId' })
+  community: FleetCommunityEntity | null;
+
+  @ManyToOne(() => PlatformEntity, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'platformId' })
+  platform: PlatformEntity;
+
+  @ManyToOne(() => GeneralFactionEntity, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'allegianceFactionId' })
+  allegianceFaction: GeneralFactionEntity | null;
+}

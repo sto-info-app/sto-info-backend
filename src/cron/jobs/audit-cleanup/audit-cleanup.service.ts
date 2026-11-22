@@ -1,9 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { LessThan, Repository } from 'typeorm';
+import { IsNull, LessThan, Not, Repository } from 'typeorm';
 
 import { AuditEntity } from 'src/audit/entities/audit.entity';
+import { SiteAdminActionEntity } from 'src/audit/site-admin/site-admin-action.entity';
 import {
   AUDIT_DATA_NUKE_THRESHOLD_DAYS,
   AUDIT_IP_NUKE_THRESHOLD_DAYS,
@@ -54,6 +55,21 @@ export class AuditCleanupService {
 
     this._logger.log(
       `Set IP address to null for ${updateResult.affected} audit records older than ${AUDIT_IP_NUKE_THRESHOLD_DAYS} days.`,
+    );
+
+    // The site admin log follows the same policy (FC-039).
+    const manager = this._auditRepository.manager;
+    const adminDeleted = await manager.delete(SiteAdminActionEntity, {
+      createdAt: LessThan(thresholdDate),
+    });
+    const adminForgotten = await manager.update(
+      SiteAdminActionEntity,
+      { createdAt: LessThan(ipNukeThresholdDate), ipAddress: Not(IsNull()) },
+      { ipAddress: null },
+    );
+
+    this._logger.log(
+      `Site admin log: deleted ${adminDeleted.affected} record(s), and forgot the IP address of ${adminForgotten.affected}.`,
     );
   }
 }

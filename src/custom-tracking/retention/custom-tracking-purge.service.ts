@@ -157,8 +157,15 @@ export class CustomTrackingPurgeService {
     );
 
     // Every answer to an expired Field, whether or not the answer itself was
-    // ever deleted: the Field is going, so nothing could read them again.
-    const valueIds = await this.valueIdsOfFields(manager, fieldIds);
+    // ever deleted: the Field is going, so nothing could read them again. And
+    // every answer describing an STO Account or Character deleted that long
+    // ago, which nothing can reach either.
+    const valueIds = [
+      ...new Set([
+        ...(await this.valueIdsOfFields(manager, fieldIds)),
+        ...(await this.valueIdsOfDeletedRecords(manager, threshold)),
+      ]),
+    ];
     const optionIds = await this.unreferencedOptions(
       manager,
       expiredOptionIds,
@@ -385,6 +392,39 @@ export class CustomTrackingPurgeService {
         where: { fieldId: In(chunk) },
         withDeleted: true,
         select: { id: true },
+      }),
+    );
+  }
+
+  /**
+   * Finds the answers describing STO Accounts and Characters deleted before
+   * the threshold.
+   *
+   * Asked of the record rather than the answer, because deleting an Account
+   * or Character never touched its answers: counting from the record covers
+   * every one deleted, whenever it was. A Character on a deleted Account
+   * counts from the Account.
+   *
+   * @param manager - The transaction to read through.
+   * @param threshold - The moment before which a deletion has expired.
+   * @returns The answers.
+   */
+  private async valueIdsOfDeletedRecords(
+    manager: EntityManager,
+    threshold: Date,
+  ): Promise<string[]> {
+    const expired = LessThan(threshold);
+
+    return this.idsOf(
+      manager.find(CustomTrackingValueEntity, {
+        where: [
+          { account: { deletedAt: expired } },
+          { character: { deletedAt: expired } },
+          { character: { account: { deletedAt: expired } } },
+        ],
+        withDeleted: true,
+        select: { id: true },
+        take: CUSTOM_TRACKING_PURGE_BATCH,
       }),
     );
   }

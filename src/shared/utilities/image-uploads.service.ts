@@ -3,28 +3,87 @@ import { ConfigService } from '@nestjs/config';
 
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
 import axios from 'axios';
-import * as Cloudmersive from 'cloudmersive-virus-api-client';
 import FormData from 'form-data';
+
+import { ImageSigningService } from 'src/file-assets/delivery/image-signing.service';
 
 import {
   SAFE_FILENAME_PATTERN,
   UNSAFE_FILENAME_PATTERN,
 } from '../constants/regex-patterns.constants';
 import { SecretsService } from '../secrets/secrets.service';
-import { ensureError, stringifyError } from './error.utility';
+import { stringifyError } from './error.utility';
+
+/** One cleared picture, on its way to Cloudflare Images. */
+export interface PublishImageInput {
+  /** The person the image is recorded under, when one is known. */
+  readonly userId: string | null;
+  /** The bytes, read back out of quarantine. */
+  readonly buffer: Buffer;
+  /** The filename as uploaded, sanitised again here. */
+  readonly filename: string | null;
+  /** What reading the bytes found the image to be. */
+  readonly contentType: string | null;
+  /** What kind of thing it is, as Cloudflare records it. */
+  readonly entityType: string | null;
+  /** What it belongs to, as Cloudflare records it. */
+  readonly entityId: string | null;
+  /**
+   * Whether it is private, reachable only by a signed address (FC-040).
+   * Private by default whenever addresses can be signed.
+   */
+  readonly private?: boolean;
+}
+
+/** One image in Cloudflare's listing (FC-040). */
+export interface CloudflareImageListing {
+  readonly id: string;
+  readonly requireSignedURLs: boolean;
+  /** What the uploader recorded with it, such as the environment. */
+  readonly meta: Record<string, unknown>;
+}
+
+/** A page of Cloudflare's listing. */
+export interface CloudflareImagePage {
+  readonly images: readonly CloudflareImageListing[];
+  /** Where the next page starts, or null after the last. */
+  readonly continuationToken: string | null;
+}
+
+/**
+ * What a file with no usable name is called in Cloudflare.
+ *
+ * A filename is user-supplied text and a missing one is ordinary: nothing
+ * about an image needs it, and the registry keeps the original separately
+ * for the features that show it back.
+ */
+const FALLBACK_IMAGE_FILENAME = 'upload';
+
+/**
+ * The secret keys that hold the credentials to publish pictures (FC-042):
+ * the public R2 bucket's key pair and the Cloudflare Images token. Every one
+ * is required at boot.
+ */
+export const GATED_CLOUDFLARE_SECRET_KEYS = [
+  'cloudflareR2GatedAccessKey',
+  'cloudflareR2GatedSecret',
+  'cloudflareImagesGatedApiKey',
+] as const;
 
 @Injectable()
 export class ImageUploadsService {
   private readonly _logger = new Logger(ImageUploadsService.name);
   private readonly _bucketName: string;
   private readonly _environment: string;
-  private cloudmersiveApiKey: string;
   private cloudflareImagesAccountId: string;
   private cloudflareImagesApiKey: string;
+  /** The secrets' one fetch, once something has asked for it. */
+  private _ready: Promise<void> | undefined;
 
   /**
    * Creates an instance of ImageUploadsService.
@@ -32,11 +91,13 @@ export class ImageUploadsService {
    * @param _secretsService - The secrets service.
    * @param _configService - The config service.
    * @param _s3Client - The s3 client.
+   * @param _signing - Whether pictures can be private (FC-040).
    */
   constructor(
     private readonly _secretsService: SecretsService,
     private readonly _configService: ConfigService,
     private readonly _s3Client: S3Client,
+    private readonly _signing: ImageSigningService,
   ) {
     this._bucketName = this._configService.get<string>(
       'CLOUDFLARE_R2_BUCKET_NAME',
@@ -50,13 +111,36 @@ export class ImageUploadsService {
    * @returns A promise that resolves when the service is fully initialised.
    */
   async onModuleInit() {
-    await this.init();
+    await this.ready();
+  }
+
+  /**
+   * Fetches the Cloudflare secrets once, for whichever asks first: Nest's
+   * initialisation, or the restore check (FC-042), which withdraws pictures
+   * before the application is initialised. A failed fetch is tried again by
+   * the next caller.
+   *
+   * @returns A promise that resolves once the secrets are loaded.
+   */
+  ready(): Promise<void> {
+    this._ready ??= this.init().catch((error: unknown) => {
+      this._ready = undefined;
+      throw error;
+    });
+
+    return this._ready;
   }
 
   /**
    * Internal initialisation method that fetches secrets from AWS.
    *
-   * @throws BadRequestException if the Cloudflare R2 or Cloudmersive secrets are missing.
+   * The Cloudflare credentials are read only under the names FC-042 gave
+   * them. The old names are what a build from before FC-012 reads, and that
+   * build can publish pictures nobody scanned; once the old tokens are
+   * revoked, a rolled-back build finds nothing usable. There is deliberately
+   * no fallback to them.
+   *
+   * @throws BadRequestException naming every missing key, if any is missing.
    * @returns A promise that resolves when initialisation is complete.
    */
   private async init() {
@@ -64,98 +148,39 @@ export class ImageUploadsService {
       process.env.AWS_SECRET_NAME!,
     );
 
-    const errorMsgMissingCloudflareR2 =
-      'Missing Cloudflare R2 access key or secret';
-    const errorMsgMissingCloudmersiveApiKey = 'Missing Cloudmersive API key';
+    const missing = GATED_CLOUDFLARE_SECRET_KEYS.filter(
+      key => !secretObject?.[key],
+    );
 
-    if (!secretObject) {
-      throw new BadRequestException(errorMsgMissingCloudflareR2);
-    }
-
-    if (!secretObject.cloudflareR2AccessKey) {
-      throw new BadRequestException(errorMsgMissingCloudflareR2);
-    }
-
-    if (!secretObject.cloudflareR2Secret) {
-      throw new BadRequestException(errorMsgMissingCloudflareR2);
-    }
-
-    if (!secretObject.cloudmersiveApiKey) {
-      throw new BadRequestException(errorMsgMissingCloudmersiveApiKey);
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        `Missing Cloudflare secret keys: ${missing.join(', ')}. FC-042 ` +
+          'moved the Cloudflare credentials to new names, and the old ' +
+          'cloudflareR2AccessKey, cloudflareR2Secret and ' +
+          'cloudflareImagesApiKey are no longer read.',
+      );
     }
 
     // Set the variables from the AWS Secrets object
-    this.cloudmersiveApiKey = secretObject.cloudmersiveApiKey;
     this.cloudflareImagesAccountId = secretObject.cloudflareImagesAccountId;
-    this.cloudflareImagesApiKey = secretObject.cloudflareImagesApiKey;
-  }
-
-  /**
-   * Scan a file buffer for viruses using the Cloudmersive Scan API.
-   *
-   * @param fileBuffer - The buffer containing the raw file data to scan.
-   * @throws BadRequestException if a virus is detected or the scan fails.
-   * @returns A promise that resolves if the file is clean.
-   */
-  private async scanFileForViruses(fileBuffer: Buffer): Promise<void> {
-    this._logger.debug(
-      `[scanFileForViruses] Starting virus scan - BufferSize: ${fileBuffer.length} bytes`,
-    );
-
-    const apiClient = Cloudmersive.ApiClient.instance;
-
-    const apiKey = apiClient.authentications['Apikey'];
-    apiKey.apiKey = this.cloudmersiveApiKey;
-
-    const virusApi = new Cloudmersive.ScanApi();
-
-    try {
-      const scanResult = await new Promise<Cloudmersive.VirusScanResult>(
-        (resolve, reject) => {
-          try {
-            virusApi.scanFile(
-              fileBuffer,
-              (error: unknown, data: Cloudmersive.VirusScanResult) => {
-                if (error) {
-                  reject(ensureError(error));
-                } else {
-                  resolve(data);
-                }
-              },
-            );
-          } catch (error: unknown) {
-            reject(ensureError(error));
-          }
-        },
-      );
-
-      if (scanResult.FoundViruses && scanResult.FoundViruses.length > 0) {
-        const virusNames = scanResult.FoundViruses.map(
-          (v: Cloudmersive.VirusFound) => v.VirusName,
-        ).join(', ');
-
-        this._logger.error(
-          `[scanFileForViruses] Viruses detected: ${virusNames}`,
-        );
-        throw new BadRequestException(
-          `File is infected with viruses: ${virusNames}`,
-        );
-      }
-
-      this._logger.debug(
-        '[scanFileForViruses] Virus scan passed - No threats found',
-      );
-    } catch (error: unknown) {
-      this._logger.error(
-        `[scanFileForViruses] Virus scan failed - Error: ${(error as Error).message}`,
-        (error as Error).stack,
-      );
-      throw error;
-    }
+    this.cloudflareImagesApiKey = secretObject.cloudflareImagesGatedApiKey;
   }
 
   /**
    * Upload an image to Cloudflare R2 bucket.
+   *
+   * **Currently unused.** Every upload the site accepts goes to Cloudflare
+   * Images through {@link publishImageToCloudflareImages}; the R2 bucket now
+   * only serves Character portraits stored before that move. Kept because
+   * document uploads are a likely future feature and Cloudflare Images cannot
+   * serve a PDF.
+   *
+   * **Do not wire a new feature to this method.** It builds its key from the
+   * uploaded filename, which is safe for an image that is scanned before it is
+   * stored and unsafe for anything that is scanned afterwards: R2 has no
+   * object versioning, so a reusable key lets a second upload overwrite the
+   * first and inherit its clean verdict. New uploads belong in the asset
+   * registry — see `docs/file-assets.md`, "Adding a new kind of upload later".
    *
    * @param userId - The ID of the user uploading the image.
    * @param file - The Multer file object containing the image.
@@ -172,7 +197,7 @@ export class ImageUploadsService {
     );
 
     try {
-      const { fileBuffer, safeFileName } = await this.validateAndSanitiseFile(
+      const { fileBuffer, safeFileName } = this.validateAndSanitiseFile(
         userId,
         file,
       );
@@ -221,6 +246,14 @@ export class ImageUploadsService {
   /**
    * Delete an image from the Cloudflare R2 bucket.
    *
+   * **Currently unused**, and kept for the same reason as
+   * {@link uploadImageToCloudflareR2}. Note that deleting the object is only
+   * half of withdrawing it: an object served through the CDN root may sit in
+   * a cache, and the resized `cdn-cgi/image` variants of it are separate URLs.
+   * A caller that needs the bytes to stop being reachable also needs a purge —
+   * which is why the registry tracks `purgeRequiredAt` and `purgedAt`
+   * separately rather than treating a delete as the whole job.
+   *
    * @param userId - The user ID associated with the image.
    * @param imageUrl - The full URL or key of the image to delete.
    * @returns A promise that resolves to the key of the deleted image.
@@ -250,60 +283,62 @@ export class ImageUploadsService {
   }
 
   /**
-   * Upload an image to the Cloudflare Images service.
+   * Publishes cleared bytes to the Cloudflare Images service.
    *
-   * @param userId - The ID of the uploading user.
-   * @param file - The image file to upload.
-   * @param entityType - Optional category for the image (e.g., 'user', 'character').
-   * @param entityId - Optional ID of the related entity.
+   * **This is publication, not upload.** Since FC-012 nothing reaches
+   * Cloudflare until a scanner has cleared it and the registry has been
+   * moved to `AVAILABLE`, so what arrives here is a buffer read back out of
+   * quarantine rather than a file off a request. That is the whole of the
+   * difference and it is why the parameter is no longer a Multer file: by
+   * this point the request that carried it finished minutes ago, in another
+   * process.
+   *
+   * Nothing is validated here. The bytes were checked against the slot's
+   * rules at ingress, hashed, quarantined and scanned; re-deciding any of
+   * that now would be a second opinion formed with less evidence.
+   *
+   * @param input - The bytes, and what Cloudflare records them against.
    * @returns A promise that resolves to the unique Cloudflare Image ID.
    */
-  async uploadImageToCloudflareImages(
-    userId: string,
-    file: Express.Multer.File,
-    entityType?: string,
-    entityId?: string,
-  ) {
+  async publishImageToCloudflareImages(
+    input: PublishImageInput,
+  ): Promise<string> {
+    const userId = input.userId ?? 'unknown';
+    const safeFileName = this.sanitiseFilename(input.filename);
+
     this._logger.debug(
-      `[uploadImageToCloudflareImages] Starting upload - UserId: ${userId}, EntityType: ${entityType || 'none'}, EntityId: ${entityId || 'none'}, FileName: ${file?.originalname}`,
+      `[publishImageToCloudflareImages] Starting publication - UserId: ${userId}, EntityType: ${input.entityType || 'none'}, EntityId: ${input.entityId || 'none'}, FileName: ${safeFileName}`,
     );
 
     const errorMsgFailedUpload = 'Failed to upload image to Cloudflare Images';
-    const { fileBuffer, safeFileName } = await this.validateAndSanitiseFile(
-      userId,
-      file,
-    );
 
     // Create a FormData instance and append the file
     const formData = new FormData();
-    formData.append('file', fileBuffer, {
+    formData.append('file', input.buffer, {
       filename: safeFileName,
-      contentType: file.mimetype,
+      contentType: input.contentType ?? 'application/octet-stream',
     });
 
-    const customId = this.buildCloudflareCustomId(userId, entityType, entityId);
-
-    this._logger.debug(
-      `[uploadImageToCloudflareImages] Generated custom ID: ${customId}`,
+    // FC-040: Cloudflare generates the ID. It will not make a custom-ID image
+    // private, and a custom ID also put the uploader's user ID in every
+    // address the site served.
+    formData.append(
+      'requireSignedURLs',
+      String(input.private ?? this.publishesPrivate),
     );
 
-    // Append the custom ID
-    formData.append('id', customId);
-
-    // Append metadata as a JSON string for additional context
+    // What the inventory reads back: which environment, and what for.
     const metadata = {
-      userId,
-      originalFileName: safeFileName,
       env: this._environment,
       uploadedAt: new Date().toISOString(),
-      ...(entityType && { entityType }),
-      ...(entityId && { entityId }),
+      ...(input.entityType && { entityType: input.entityType }),
+      ...(input.entityId && { entityId: input.entityId }),
     };
 
     formData.append('metadata', JSON.stringify(metadata));
 
     this._logger.debug(
-      `[uploadImageToCloudflareImages] Metadata: ${JSON.stringify(metadata)}`,
+      `[publishImageToCloudflareImages] Metadata: ${JSON.stringify(metadata)}`,
     );
 
     try {
@@ -325,7 +360,7 @@ export class ImageUploadsService {
       );
 
       this._logger.log(
-        `[uploadImageToCloudflareImages] Successfully uploaded - ImageId: ${imageId}`,
+        `[publishImageToCloudflareImages] Successfully published - ImageId: ${imageId}`,
       );
 
       return imageId;
@@ -335,7 +370,7 @@ export class ImageUploadsService {
       const errorDetails = this.getCloudflareUploadErrorDetails(error);
 
       this._logger.error(
-        `[uploadImageToCloudflareImages] Upload failed - Error: ${errorMessage}`,
+        `[publishImageToCloudflareImages] Publication failed - Error: ${errorMessage}`,
         errorDetails,
       );
       throw new BadRequestException(errorMsgFailedUpload);
@@ -343,29 +378,145 @@ export class ImageUploadsService {
   }
 
   /**
-   * Builds the Cloudflare custom identifier.
+   * Whether a picture published now is private (FC-040): whenever the
+   * addresses the API sends can be signed.
    *
-   * @param userId - The user id.
-   * @param entityType - The entity type.
-   * @param entityId - The entity id.
-   * @returns The result of the operation.
+   * @returns True when new pictures are private.
    */
-  private buildCloudflareCustomId(
-    userId: string,
-    entityType?: string,
-    entityId?: string,
-  ): string {
-    // Format: env-userId-entityType-entityId-timestamp
-    const timestamp = Date.now();
-    const parts = [this._environment, userId];
-    if (entityType) {
-      parts.push(entityType);
+  get publishesPrivate(): boolean {
+    return this._signing.enabled;
+  }
+
+  /**
+   * The environment pictures are recorded against.
+   *
+   * @returns Its name, as `NODE_ENV` gives it.
+   */
+  get environment(): string {
+    return this._environment;
+  }
+
+  /**
+   * Makes an image need a signed address, or no longer need one (FC-040).
+   * Cloudflare refuses this for a custom-ID image, which has to be copied.
+   *
+   * @param imageId - The image.
+   * @param required - Whether it needs one.
+   */
+  async setImageRequiresSignature(
+    imageId: string,
+    required: boolean,
+  ): Promise<void> {
+    await axios.patch(
+      `${this.imagesApi}/v1/${encodeURIComponent(imageId)}`,
+      { requireSignedURLs: required },
+      { headers: this.imagesAuth },
+    );
+  }
+
+  /**
+   * Reads an image's original bytes back from Cloudflare (FC-040).
+   *
+   * @param imageId - The image.
+   * @returns The bytes, as uploaded.
+   */
+  async readImage(imageId: string): Promise<Buffer> {
+    const response = await axios.get<ArrayBuffer>(
+      `${this.imagesApi}/v1/${encodeURIComponent(imageId)}/blob`,
+      { headers: this.imagesAuth, responseType: 'arraybuffer' },
+    );
+
+    return Buffer.from(response.data);
+  }
+
+  /**
+   * Reads a page of the account's images (FC-040).
+   *
+   * @param continuationToken - Where the page starts, or null for the first.
+   * @param perPage - How many to a page.
+   * @returns The page.
+   */
+  async listImages(
+    continuationToken: string | null,
+    perPage = 1000,
+  ): Promise<CloudflareImagePage> {
+    const response = await axios.get<{
+      result: {
+        images: {
+          id: string;
+          requireSignedURLs?: boolean;
+          meta?: Record<string, unknown> | null;
+        }[];
+        continuation_token?: string | null;
+      };
+    }>(`${this.imagesApi}/v2`, {
+      headers: this.imagesAuth,
+      params: {
+        per_page: perPage,
+        ...(continuationToken === null
+          ? {}
+          : { continuation_token: continuationToken }),
+      },
+    });
+    const { images, continuation_token } = response.data.result;
+
+    return {
+      images: images.map(image => ({
+        id: image.id,
+        requireSignedURLs: image.requireSignedURLs === true,
+        meta: image.meta ?? {},
+      })),
+      continuationToken: continuation_token ?? null,
+    };
+  }
+
+  /**
+   * Reads an object from the public R2 bucket (FC-040): a legacy Character
+   * portrait on its way into Cloudflare Images.
+   *
+   * @param key - The object key.
+   * @returns Its bytes.
+   */
+  async readR2Object(key: string): Promise<Buffer> {
+    const response = await this._s3Client.send(
+      new GetObjectCommand({ Bucket: this._bucketName, Key: key }),
+    );
+    const chunks: Buffer[] = [];
+
+    for await (const chunk of response.Body as AsyncIterable<Uint8Array>) {
+      chunks.push(Buffer.from(chunk));
     }
-    if (entityId) {
-      parts.push(entityId);
-    }
-    parts.push(String(timestamp));
-    return parts.join('-');
+
+    return Buffer.concat(chunks);
+  }
+
+  /**
+   * Deletes an object from the public R2 bucket (FC-040).
+   *
+   * @param key - The object key.
+   */
+  async deleteR2Object(key: string): Promise<void> {
+    await this._s3Client.send(
+      new DeleteObjectCommand({ Bucket: this._bucketName, Key: key }),
+    );
+  }
+
+  /**
+   * The account's Cloudflare Images API.
+   *
+   * @returns Its base address.
+   */
+  private get imagesApi(): string {
+    return `https://api.cloudflare.com/client/v4/accounts/${this.cloudflareImagesAccountId}/images`;
+  }
+
+  /**
+   * The Images API's authorisation header.
+   *
+   * @returns The header.
+   */
+  private get imagesAuth(): { Authorization: string } {
+    return { Authorization: `Bearer ${this.cloudflareImagesApiKey}` };
   }
 
   /**
@@ -381,7 +532,7 @@ export class ImageUploadsService {
   ): string {
     if (!response || typeof response !== 'object') {
       this._logger.error(
-        '[uploadImageToCloudflareImages] Response is missing or invalid',
+        '[publishImageToCloudflareImages] Response is missing or invalid',
       );
       throw new BadRequestException(errorMsgFailedUpload);
     }
@@ -389,7 +540,7 @@ export class ImageUploadsService {
     const status = (response as { status?: unknown }).status;
     if (status !== 200) {
       this._logger.error(
-        `[uploadImageToCloudflareImages] Upload failed with status ${stringifyError(status)}`,
+        `[publishImageToCloudflareImages] Upload failed with status ${stringifyError(status)}`,
       );
 
       throw new BadRequestException(errorMsgFailedUpload);
@@ -398,14 +549,14 @@ export class ImageUploadsService {
     const data = (response as { data?: any }).data;
     if (!data) {
       this._logger.error(
-        '[uploadImageToCloudflareImages] Response data is missing',
+        '[publishImageToCloudflareImages] Response data is missing',
       );
       throw new BadRequestException(errorMsgFailedUpload);
     }
 
     if (!data.result) {
       this._logger.error(
-        '[uploadImageToCloudflareImages] Response result is missing',
+        '[publishImageToCloudflareImages] Response result is missing',
       );
       throw new BadRequestException(errorMsgFailedUpload);
     }
@@ -413,7 +564,7 @@ export class ImageUploadsService {
     const id = data.result.id as unknown;
     if (typeof id !== 'string' || id.length === 0) {
       this._logger.error(
-        '[uploadImageToCloudflareImages] Response result ID is missing',
+        '[publishImageToCloudflareImages] Response result ID is missing',
       );
       throw new BadRequestException(errorMsgFailedUpload);
     }
@@ -468,19 +619,30 @@ export class ImageUploadsService {
   }
 
   /**
-   * Validates and sanitises a file before upload.
+   * Checks an uploaded file over and gives its name a safe spelling.
    *
-   * Checks for valid mimetype, file size, virus presence, and sanitises the filename.
+   * Everything a request can establish about a file without looking at what
+   * the bytes are: that there is a user, that there is a file, that its
+   * claimed type is one of the three the site accepts, that it is within the
+   * configured ceiling and that its name can be written down. What the bytes
+   * actually are is decided by the image reader at ingress and by the
+   * scanner afterwards.
+   *
+   * **It no longer scans.** The synchronous Cloudmersive call that used to
+   * sit at the end of this was removed with FC-012: ADR-0005 replaced that
+   * engine with ClamAV in the worker, and a scan performed here looked at a
+   * buffer in memory, left no durable record, and cleared bytes that were
+   * then stored separately — which is the gap the registry exists to close.
    *
    * @param userId - The ID of the user owning the file.
    * @param file - The Multer file object to validate.
-   * @returns A promise that resolves to an object containing the cleaned buffer and safe filename.
-   * @throws BadRequestException if the file is invalid, too large, or infected.
+   * @returns The bytes and a filename safe to record.
+   * @throws BadRequestException if the file is invalid or too large.
    */
-  private async validateAndSanitiseFile(
+  validateAndSanitiseFile(
     userId: string,
     file: Express.Multer.File,
-  ): Promise<{ fileBuffer: Buffer; safeFileName: string }> {
+  ): { fileBuffer: Buffer; safeFileName: string } {
     this._logger.debug(
       `[validateAndSanitiseFile] Starting validation - UserId: ${userId}, FileName: ${file?.originalname}, FileSize: ${file?.size} bytes, MimeType: ${file?.mimetype}`,
     );
@@ -539,9 +701,6 @@ export class ImageUploadsService {
       `[validateAndSanitiseFile] File structure validated - BufferSize: ${fileBuffer.length} bytes`,
     );
 
-    // Scan the file for viruses
-    await this.scanFileForViruses(fileBuffer);
-
     // Sanitize the filename using the SAFE_FILENAME_PATTERN
     const originalFileName = file.filename ? file.filename : file.originalname;
     const safeFileName = originalFileName.replaceAll(
@@ -561,5 +720,31 @@ export class ImageUploadsService {
     );
 
     return { fileBuffer, safeFileName };
+  }
+
+  /**
+   * Gives a filename a spelling that is safe to send anywhere.
+   *
+   * The same substitution {@link validateAndSanitiseFile} applies, done
+   * again at publication rather than carried across from ingress. What the
+   * registry stored is the name as uploaded, deliberately — it is evidence
+   * of what somebody sent — so the sanitised form is derived when it is
+   * needed rather than stored beside it and trusted later.
+   *
+   * @param filename - The filename as uploaded, when there was one.
+   * @returns A filename made of characters the pattern allows.
+   */
+  private sanitiseFilename(filename: string | null): string {
+    if (filename === null || filename.length === 0) {
+      return FALLBACK_IMAGE_FILENAME;
+    }
+
+    // No second check afterwards. UNSAFE_FILENAME_PATTERN is the exact
+    // complement of SAFE_FILENAME_PATTERN, so a substitution that replaces
+    // every character matching the first cannot leave one that fails the
+    // second; a check here would be an unreachable branch pretending to be
+    // a safeguard. The two patterns are defined next to each other for
+    // precisely this reason.
+    return filename.replaceAll(UNSAFE_FILENAME_PATTERN, '_');
   }
 }

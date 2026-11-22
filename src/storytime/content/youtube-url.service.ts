@@ -197,7 +197,7 @@ export class YouTubeUrlService {
 
     // The duration pattern makes every component optional, so it also matches
     // an empty string. A match with no components at all is not an offset.
-    if (!duration || !duration.slice(1).some(Boolean)) {
+    if (!duration?.slice(1).some(Boolean)) {
       return null;
     }
 

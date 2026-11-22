@@ -1,1 +1,6 @@
 * text=auto eol=lf
+
+# Real STO roster exports are CRLF-delimited. These fixtures reproduce those
+# bytes exactly and their recorded byte lengths depend on it, so they must not
+# be line-ending normalised.
+test/fixtures/fleet-community/** -text

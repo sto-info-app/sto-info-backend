@@ -1,3 +1,5 @@
+import { compareCalendarDates } from 'src/shared/utilities/calendar-date.utility';
+
 /**
  * Ordering of a user's own STO account list.
  *
@@ -34,7 +36,7 @@ export interface SortableAccount {
   handle: string;
   characterCount: number;
   endeavourTotalNodes: number;
-  accountCreatedDate: Date | null;
+  accountCreatedDate: string | null;
   pinnedAt: Date | null;
 }
 
@@ -92,7 +94,7 @@ function compareCreatedDates(
     return aDate ? -1 : 1;
   }
 
-  return direction * (aDate.getTime() - bDate.getTime());
+  return direction * compareCalendarDates(aDate, bDate);
 }
 
 /**

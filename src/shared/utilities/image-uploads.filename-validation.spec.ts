@@ -5,7 +5,6 @@ describe('ImageUploadsService SAFE_FILENAME_PATTERN branch', () => {
     jest.resetModules();
 
     const mockS3Send = jest.fn<(...args: any[]) => Promise<any>>();
-    const mockScanFile = jest.fn<(...args: any[]) => any>();
 
     jest.doMock('../constants/regex-patterns.constants', () => {
       const actual: typeof import('../constants/regex-patterns.constants') =
@@ -31,28 +30,13 @@ describe('ImageUploadsService SAFE_FILENAME_PATTERN branch', () => {
 
     jest.doMock('axios', () => ({}));
 
-    jest.doMock('cloudmersive-virus-api-client', () => {
-      const ApiClient = {
-        instance: {
-          authentications: {
-            Apikey: { apiKey: '' },
-          },
-        },
-      };
-
-      return {
-        ScanApi: jest.fn().mockImplementation(() => ({
-          scanFile: mockScanFile,
-        })),
-        ApiClient,
-      };
-    });
-
     const { Test } = await import('@nestjs/testing');
     const { ConfigService } = await import('@nestjs/config');
     const { SecretsService } = await import('../secrets/secrets.service');
     const { S3Client } = await import('@aws-sdk/client-s3');
     const { ImageUploadsService } = await import('./image-uploads.service');
+    const { ImageSigningService } =
+      await import('src/file-assets/delivery/image-signing.service');
     const { Logger } = await import('@nestjs/common');
 
     jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
@@ -63,27 +47,21 @@ describe('ImageUploadsService SAFE_FILENAME_PATTERN branch', () => {
     process.env.MAX_IMAGE_SIZE_IN_BYTES = '1048576';
     process.env.CLOUDFLARE_CDN_ROOT_URL = 'https://cdn.local';
 
-    mockScanFile.mockImplementation(
-      (
-        _buf: unknown,
-        cb: (err: unknown, data: { FoundViruses: string[] }) => void,
-      ) => cb(null, { FoundViruses: [] }),
-    );
-
     const moduleRef = await Test.createTestingModule({
       providers: [
         ImageUploadsService,
+        // FC-040: public unless addresses can be signed.
+        { provide: ImageSigningService, useValue: { enabled: false } },
         {
           provide: SecretsService,
           useValue: {
             getSecret: jest
               .fn<(...args: any[]) => Promise<any>>()
               .mockResolvedValue({
-                cloudflareR2AccessKey: 'key',
-                cloudflareR2Secret: 'secret',
-                cloudmersiveApiKey: 'cv-key',
+                cloudflareR2GatedAccessKey: 'key',
+                cloudflareR2GatedSecret: 'secret',
                 cloudflareImagesAccountId: 'acc-id',
-                cloudflareImagesApiKey: 'cf-key',
+                cloudflareImagesGatedApiKey: 'cf-key',
               }),
           } satisfies { getSecret: (name: string) => Promise<unknown> },
         },

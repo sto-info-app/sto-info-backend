@@ -1,4 +1,15 @@
+import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+
+import { jest } from '@jest/globals';
+
+import {
+  CHAT_MEMBER_HISTORY_HOURS,
+  CHAT_TRANSCRIPT_HISTORY_DAYS,
+  FLEET_CUSTOM_CHANNEL_LIMIT,
+  PUBLISHED_CHAT_RETENTION_DAYS,
+  PUBLISHED_IMPORT_SOURCE_RETENTION_DAYS,
+} from 'src/fleet/constants/fleet-policy.constants';
 
 import { ConfigCheckService } from './config-check.service';
 
@@ -52,6 +63,8 @@ describe('ConfigCheckService', () => {
       CLOUDFLARE_R2_BUCKET_NAME: 'test-bucket',
       CLOUDFLARE_CDN_ROOT_URL: 'https://cdn.test.com',
       CLOUDFLARE_IMAGES_HASH: 'test-hash',
+      CLOUDFLARE_R2_QUARANTINE_BUCKET_NAME: 'sto-info-quarantine-test',
+      CLOUDFLARE_R2_EXPORTS_BUCKET_NAME: 'sto-info-exports-test',
       MAX_IMAGE_SIZE_IN_BYTES: '5242880',
       AUDIT_DATA_NUKE_THRESHOLD_DAYS: '90',
       AUDIT_IP_NUKE_THRESHOLD_DAYS: '30',
@@ -243,6 +256,23 @@ describe('ConfigCheckService', () => {
       );
     });
 
+    it('should accept a QUEUE_PREFIX', () => {
+      const result = service.validateInput({
+        ...validConfig,
+        QUEUE_PREFIX: 'bull:sto-info:',
+      });
+
+      expect(result.QUEUE_PREFIX).toBe('bull:sto-info:');
+    });
+
+    // QueueModule keeps an empty string rather than falling back to the
+    // default, which would put the backend's jobs where the worker never looks.
+    it('should throw error for a blank QUEUE_PREFIX', () => {
+      expect(() =>
+        service.validateInput({ ...validConfig, QUEUE_PREFIX: '' }),
+      ).toThrow('Validation error');
+    });
+
     it('should throw error for missing CLOSED_ACCOUNT_RETENTION_DAYS', () => {
       const invalidConfig = { ...validConfig };
       delete (invalidConfig as any).CLOSED_ACCOUNT_RETENTION_DAYS;
@@ -334,6 +364,183 @@ describe('ConfigCheckService', () => {
         const config = { ...validConfig, STORYTIME_ENABLED: 'not-a-boolean' };
 
         expect(() => service.validateInput(config)).not.toThrow();
+      });
+    });
+
+    describe('Fleet retention configuration', () => {
+      let warn: jest.SpiedFunction<typeof Logger.warn>;
+
+      beforeEach(() => {
+        warn = jest.spyOn(Logger, 'warn').mockImplementation(() => undefined);
+      });
+
+      afterEach(() => {
+        jest.restoreAllMocks();
+      });
+
+      // An environment that has never heard of Fleet must still start, and the
+      // published figures apply when nothing overrides them.
+      it('should accept a configuration with no Fleet variables at all', () => {
+        expect(() => service.validateInput({ ...validConfig })).not.toThrow();
+        expect(warn).not.toHaveBeenCalled();
+      });
+
+      it('should accept the published figures', () => {
+        const result = service.validateInput({
+          ...validConfig,
+          CHAT_RETENTION_DAYS: String(PUBLISHED_CHAT_RETENTION_DAYS),
+          IMPORT_SOURCE_RETENTION_DAYS: String(
+            PUBLISHED_IMPORT_SOURCE_RETENTION_DAYS,
+          ),
+        });
+
+        expect(result.CHAT_RETENTION_DAYS).toBe(PUBLISHED_CHAT_RETENTION_DAYS);
+        expect(result.IMPORT_SOURCE_RETENTION_DAYS).toBe(
+          PUBLISHED_IMPORT_SOURCE_RETENTION_DAYS,
+        );
+        expect(warn).not.toHaveBeenCalled();
+      });
+
+      // Tightening is always allowed: a deployment that keeps less than the
+      // policy promises is more protective, not less.
+      it('should accept a retention shorter than the published figure', () => {
+        expect(() =>
+          service.validateInput({ ...validConfig, CHAT_RETENTION_DAYS: '14' }),
+        ).not.toThrow();
+      });
+
+      /**
+       * The one refusal. A transcript covering seven days of history that is
+       * only retained for three is an export that silently returns less than it
+       * offers, which plan section 9 names directly.
+       */
+      it('should refuse a retention shorter than the transcript window', () => {
+        expect(() =>
+          service.validateInput({
+            ...validConfig,
+            CHAT_RETENTION_DAYS: String(CHAT_TRANSCRIPT_HISTORY_DAYS - 1),
+          }),
+        ).toThrow('Validation error');
+      });
+
+      it('should accept a retention equal to the transcript window', () => {
+        expect(() =>
+          service.validateInput({
+            ...validConfig,
+            CHAT_RETENTION_DAYS: String(CHAT_TRANSCRIPT_HISTORY_DAYS),
+          }),
+        ).not.toThrow();
+      });
+
+      /**
+       * Warned about rather than refused. R22 makes the figure configurable, so
+       * an environment is entitled to raise it — but it is published in the
+       * privacy policy, and a deployment that quietly retains chat for longer
+       * than the policy states is the undocumented increase plan section 9
+       * warns about.
+       */
+      it('should warn when chat retention exceeds the published policy', () => {
+        service.validateInput({ ...validConfig, CHAT_RETENTION_DAYS: '90' });
+
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining('exceeds the published policy'),
+          'ConfigCheckService',
+        );
+      });
+
+      it('should warn when source retention exceeds the published policy', () => {
+        service.validateInput({
+          ...validConfig,
+          IMPORT_SOURCE_RETENTION_DAYS: '365',
+        });
+
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining('IMPORT_SOURCE_RETENTION_DAYS'),
+          'ConfigCheckService',
+        );
+      });
+
+      it('should refuse a source retention of zero days', () => {
+        expect(() =>
+          service.validateInput({
+            ...validConfig,
+            IMPORT_SOURCE_RETENTION_DAYS: '0',
+          }),
+        ).toThrow('Validation error');
+      });
+
+      it.each(['CHAT_RETENTION_DAYS', 'IMPORT_SOURCE_RETENTION_DAYS'])(
+        'should reject a non-integer %s',
+        key => {
+          expect(() =>
+            service.validateInput({ ...validConfig, [key]: 'forever' }),
+          ).toThrow('Validation error');
+        },
+      );
+
+      /**
+       * The four-hour window, the seven-day transcript window and the three
+       * custom channels are constants with nothing behind them. An environment
+       * that sets these names is carried through untouched like any other
+       * unrecognised variable and changes nothing — which is the point. The
+       * companion assertion lives in `fleet-policy.constants.spec.ts`, where
+       * the file is read to prove it names neither `process.env` nor
+       * `ConfigService`.
+       */
+      it.each([
+        'CHAT_MEMBER_HISTORY_HOURS',
+        'CHAT_TRANSCRIPT_HISTORY_DAYS',
+        'FLEET_CUSTOM_CHANNEL_LIMIT',
+      ])('should leave %s fixed whatever the environment says', key => {
+        const before = {
+          CHAT_MEMBER_HISTORY_HOURS,
+          CHAT_TRANSCRIPT_HISTORY_DAYS,
+          FLEET_CUSTOM_CHANNEL_LIMIT,
+        };
+
+        expect(() =>
+          service.validateInput({ ...validConfig, [key]: '99' }),
+        ).not.toThrow();
+
+        expect({
+          CHAT_MEMBER_HISTORY_HOURS,
+          CHAT_TRANSCRIPT_HISTORY_DAYS,
+          FLEET_CUSTOM_CHANNEL_LIMIT,
+        }).toEqual(before);
+      });
+
+      it('should accept the Fleet capability flags', () => {
+        expect(() =>
+          service.validateInput({
+            ...validConfig,
+            FLEET_REGISTRATION_ENABLED: 'true',
+            FLEET_IMPORTS_ENABLED: 'false',
+            FLEET_CHAT_ENABLED: 'true',
+          }),
+        ).not.toThrow();
+      });
+
+      // A typo would otherwise leave a capability on that an environment meant
+      // to stage off, because the flags read anything but "false" as enabled.
+      it.each([
+        'FLEET_REGISTRATION_ENABLED',
+        'FLEET_IMPORTS_ENABLED',
+        'FLEET_CHAT_ENABLED',
+      ])('should reject a %s that is not a boolean', key => {
+        expect(() =>
+          service.validateInput({ ...validConfig, [key]: 'off' }),
+        ).toThrow('Validation error');
+      });
+
+      // The master switch is a runtime setting in app_setting, not an
+      // environment variable, so it must not be validated as one here.
+      it('should ignore FLEET_COMMUNITIES_ENABLED as an environment variable', () => {
+        expect(() =>
+          service.validateInput({
+            ...validConfig,
+            FLEET_COMMUNITIES_ENABLED: 'not-a-boolean',
+          }),
+        ).not.toThrow();
       });
     });
   });

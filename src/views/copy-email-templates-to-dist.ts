@@ -3,22 +3,6 @@ import * as path from 'node:path';
 
 import { Logger } from '@nestjs/common';
 
-const SRC_TEMPLATES_DIR = path.resolve(
-  process.cwd(),
-  'src',
-  'views',
-  'email-templates',
-);
-
-// IMPORTANT: copy next to compiled main.js (dist/src)
-const DIST_TEMPLATES_DIR = path.resolve(
-  process.cwd(),
-  'dist',
-  'src',
-  'views',
-  'email-templates',
-);
-
 /**
  * Copies files and directories recursively.
  *
@@ -42,10 +26,48 @@ function copyRecursive(src: string, dest: string): void {
   }
 }
 
-if (!fs.existsSync(SRC_TEMPLATES_DIR)) {
-  throw new Error(`Email templates source not found: ${SRC_TEMPLATES_DIR}`);
+/**
+ * Copies the email templates into the build output.
+ *
+ * @param root - The project root. Defaults to the working directory, which is
+ *   the project root whenever this runs through `npm run assets:copy`.
+ * @throws Error when the templates source folder does not exist.
+ */
+export function copyEmailTemplates(root: string = process.cwd()): void {
+  const srcTemplatesDir = path.resolve(root, 'src', 'views', 'email-templates');
+
+  // IMPORTANT: copy next to compiled main.js (dist/src)
+  const distTemplatesDir = path.resolve(
+    root,
+    'dist',
+    'src',
+    'views',
+    'email-templates',
+  );
+
+  if (!fs.existsSync(srcTemplatesDir)) {
+    throw new Error(`Email templates source not found: ${srcTemplatesDir}`);
+  }
+
+  copyRecursive(srcTemplatesDir, distTemplatesDir);
+  const logger = new Logger('CopyEmailTemplates');
+  logger.log('Email templates copied to dist folder');
 }
 
-copyRecursive(SRC_TEMPLATES_DIR, DIST_TEMPLATES_DIR);
-const logger = new Logger('CopyEmailTemplates');
-logger.log('Email templates copied to dist folder');
+/**
+ * Copies the email templates when this file is the program being run, and
+ * does nothing when it is only imported, as the spec does.
+ *
+ * @param entry - The module Node started with.
+ * @param self - This module.
+ */
+export function copyWhenRunDirectly(
+  entry: object | undefined,
+  self: object,
+): void {
+  if (entry === self) {
+    copyEmailTemplates();
+  }
+}
+
+copyWhenRunDirectly(require.main, module);

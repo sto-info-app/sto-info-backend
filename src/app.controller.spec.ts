@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { SecretsService } from './shared/secrets/secrets.service';
 
 describe('AppController', () => {
   let appController: AppController;
@@ -10,17 +9,7 @@ describe('AppController', () => {
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
       controllers: [AppController],
-      providers: [
-        AppService,
-        {
-          provide: SecretsService,
-          useValue: {
-            getSecret: jest
-              .fn()
-              .mockResolvedValue({ jwtSecret: 'test-secret' }),
-          },
-        },
-      ],
+      providers: [AppService],
     }).compile();
 
     appController = app.get<AppController>(AppController);

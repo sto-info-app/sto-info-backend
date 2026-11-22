@@ -8,6 +8,7 @@ import {
   HttpStatus,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -26,7 +27,10 @@ import { AuditEntity } from 'src/audit/entities/audit.entity';
 import { MailService } from 'src/mail/mail.service';
 import { EMAIL_PATTERN } from 'src/shared/constants/regex-patterns.constants';
 import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
-import { stringifyError } from 'src/shared/utilities/error.utility';
+import {
+  ensureError,
+  stringifyError,
+} from 'src/shared/utilities/error.utility';
 import { UserRefreshTokenService } from 'src/user-refresh-token/user-refresh-token.service';
 import { resolveSessionTimeoutMinutes } from 'src/user/constants/session-timeout.constants';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
@@ -37,11 +41,16 @@ import { UserService } from 'src/user/user.service';
 
 import { JwtPayloadInterface } from './entities/jwt-payload.entity';
 
+/** How long a user's `lastSeenAt` stands before a request touches it again. */
+export const SEEN_TOUCH_INTERVAL_MS = 60 * 60 * 1000;
+
 /**
  * AuthService provides methods for user authentication and management.
  */
 @Injectable()
 export class AuthService {
+  private readonly _logger = new Logger(AuthService.name);
+
   /**
    * Creates an instance of AuthService.
    *
@@ -274,10 +283,41 @@ export class AuthService {
         CurrentContextHelper.userUuid = user.id;
       }
 
+      await this.recordSeen(user);
+
       return user;
     }
 
     return null;
+  }
+
+  /**
+   * Notes that a user has been seen (FC-053), at most once an hour.
+   *
+   * Called on every authenticated request, so the write is skipped while the
+   * last one is under {@link SEEN_TOUCH_INTERVAL_MS} old, and a failure is
+   * logged rather than failing the request: the statistics are not worth a
+   * refused page.
+   *
+   * @param user - The user, as loaded for the request.
+   */
+  private async recordSeen(user: UserEntity): Promise<void> {
+    const now = new Date();
+    if (
+      user.lastSeenAt &&
+      now.getTime() - user.lastSeenAt.getTime() < SEEN_TOUCH_INTERVAL_MS
+    ) {
+      return;
+    }
+
+    try {
+      await this._userRepository.update({ id: user.id }, { lastSeenAt: now });
+      user.lastSeenAt = now;
+    } catch (error: unknown) {
+      this._logger.warn(
+        `Could not record that user ${user.id} was seen: ${ensureError(error).message}`,
+      );
+    }
   }
 
   /**
@@ -352,8 +392,9 @@ export class AuthService {
     };
     const newUserRefreshToken = await this.issueRefreshToken(user);
 
-    // Update last login time
+    // Update last login time, which is also the first time seen this visit
     user.lastLoginAt = new Date();
+    user.lastSeenAt = user.lastLoginAt;
     await this._userRepository.save(user);
 
     // Send user logged in notification
@@ -499,7 +540,7 @@ export class AuthService {
       // Load the user with their refresh tokens using the user ID
       const user = await this._userRepository.findOne({
         where: { id: payload.sub },
-        relations: { refreshTokens: true, profile: true },
+        relations: { refreshTokens: true, profile: true, preference: true },
       });
 
       if (!user || user.isAccountDisabled) {
@@ -571,11 +612,11 @@ export class AuthService {
   /**
    * Retrieves the inactivity window a user's sessions run to.
    *
-   * @param user - The user, with their profile loaded.
+   * @param user - The user, with their preferences loaded.
    * @returns The inactivity window, in minutes.
    */
-  getSessionTimeoutMinutes(user: Pick<UserEntity, 'profile'>): number {
-    return resolveSessionTimeoutMinutes(user.profile?.sessionTimeoutMinutes);
+  getSessionTimeoutMinutes(user: Pick<UserEntity, 'preference'>): number {
+    return resolveSessionTimeoutMinutes(user.preference?.sessionTimeoutMinutes);
   }
 
   /**
@@ -621,11 +662,11 @@ export class AuthService {
    * Generates, signs and persists a refresh token for a user, sized to the
    * inactivity window that user has chosen.
    *
-   * @param user - The user the token is issued to, with their profile loaded.
+   * @param user - The user the token is issued to, with their preferences loaded.
    * @returns A promise that resolves with the signed refresh token.
    */
   private async issueRefreshToken(
-    user: Pick<UserEntity, 'id' | 'email' | 'profile'>,
+    user: Pick<UserEntity, 'id' | 'email' | 'preference'>,
   ): Promise<string> {
     const expirySeconds = this.getRefreshTokenLifetimeSeconds(
       this.getSessionTimeoutMinutes(user),

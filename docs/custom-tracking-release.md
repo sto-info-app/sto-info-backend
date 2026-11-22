@@ -40,11 +40,11 @@ what is coming.
 Rehearsed against a copy of the local development database, which carries the
 seeded members, accounts and captains.
 
-| Step                                    | Result                                    |
-| --------------------------------------- | ----------------------------------------- |
-| Forward, all three migrations           | Applied; nine tables and three enum types. |
-| Rollback, all three                     | Clean: no tables, no enum types, no stray columns left behind. |
-| Forward again from the rolled-back state | Applied; identical schema.                |
+| Step                                     | Result                                                         |
+| ---------------------------------------- | -------------------------------------------------------------- |
+| Forward, all three migrations            | Applied; nine tables and three enum types.                     |
+| Rollback, all three                      | Clean: no tables, no enum types, no stray columns left behind. |
+| Forward again from the rolled-back state | Applied; identical schema.                                     |
 
 The third step is the one worth doing. A migration that only ever runs once on
 a fresh database can hide an assumption about what is already there, and a

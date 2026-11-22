@@ -1,27 +1,60 @@
-import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Inject,
+  Injectable,
+  Logger,
+  Optional,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import * as bcrypt from 'bcrypt';
 import { In, Repository } from 'typeorm';
 
+import { FileAssetAudience } from 'src/file-assets/enums/file-asset-audience.enum';
+import { FileAssetKind } from 'src/file-assets/enums/file-asset-kind.enum';
+import { FileAssetSlot } from 'src/file-assets/enums/file-asset-slot.enum';
+import { FileAssetSubject } from 'src/file-assets/enums/file-asset-subject.enum';
+import { AcceptedAsset } from 'src/file-assets/services/asset-ingress.service';
+import { ImageIngressService } from 'src/file-assets/services/image-ingress.service';
 import { MailService } from 'src/mail/mail.service';
 import { UserSearchQueryDto } from 'src/notification/dto/user-search-query.dto';
 import { UserSearchPageDto } from 'src/notification/dto/user-search-result.dto';
-import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
+import { DEFAULT_MULTER_LIMITS } from 'src/shared/constants/file-upload.constants';
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
 import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
+import {
+  STO_RECORD_DELETION,
+  StoRecordDeletion,
+} from 'src/sto/shared/sto-record-deletion';
 import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
 
+import {
+  ACCOUNT_DEPARTURE,
+  AccountDeparture,
+  OwnedCommunityOutcome,
+} from './account-departure';
+import {
+  AccountClosureEvent,
+  AccountClosureLedgerService,
+} from './closure/account-closure-ledger.service';
+import { PROFILE_IMAGE_ENTITY_TAG } from './constants/profile-image.constants';
 import { resolveSessionTimeoutMinutes } from './constants/session-timeout.constants';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 import { UpdateUserSettingsDto } from './dto/update-user-settings.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { UpdatedUserProfileResultDto } from './dto/updated-user-profile-result.dto';
 import { UserSettingsDto } from './dto/user-settings.dto';
+import { UserPreferenceEntity } from './entities/user-preference.entity';
 import { UserProfileEntity } from './entities/user-profile.entity';
 import { UserEntity } from './entities/user.entity';
+import {
+  PERSONAL_PICTURE_REASONS,
+  PersonalPicture,
+  PersonalPictureWithdrawalService,
+} from './images/personal-picture-withdrawal.service';
+import { UserPreferenceService } from './user-preference.service';
 
 @Injectable()
 export class UserService {
@@ -33,7 +66,13 @@ export class UserService {
    * @param _userRepository - The user repository.
    * @param _userProfileRepository - The user profile repository.
    * @param _validatorsService - The validators service.
-   * @param _imageUploadsService - The image uploads service.
+   * @param _imageIngress - Where an uploaded picture is checked and quarantined.
+   * @param _mailService - The mail service.
+   * @param _userPreferenceService - Reads and writes account preferences.
+   * @param _closures - Keeps each account closure outside the database
+   *   (FC-042).
+   * @param _departure - Hands on or closes each Community a closing account
+   *   owns (FC-038), when the Fleet is there to ask.
    */
   constructor(
     @InjectRepository(UserEntity)
@@ -43,9 +82,29 @@ export class UserService {
     private readonly _userProfileRepository: Repository<UserProfileEntity>,
 
     private readonly _validatorsService: ValidatorsService,
-    private readonly _imageUploadsService: ImageUploadsService,
+    private readonly _imageIngress: ImageIngressService,
     private readonly _mailService: MailService,
+    private readonly _userPreferenceService: UserPreferenceService,
+    private readonly _closures: AccountClosureLedgerService,
+    private readonly _pictures: PersonalPictureWithdrawalService,
+    @Optional()
+    @Inject(ACCOUNT_DEPARTURE)
+    private readonly _departure?: AccountDeparture,
+    @Optional()
+    @Inject(STO_RECORD_DELETION)
+    private readonly _recordDeletion?: StoRecordDeletion,
   ) {}
+
+  /**
+   * What closing the account would do to each open Fleet Community the user
+   * owns (FC-038), for the closure dialog to say before they confirm.
+   *
+   * @param userId - The authenticated user's UUID.
+   * @returns Each, with whether it goes to an Admin or is closed.
+   */
+  async closurePreview(userId: string): Promise<OwnedCommunityOutcome[]> {
+    return this._departure ? this._departure.preview(userId) : [];
+  }
 
   /**
    * Retrieves the authenticated user's application settings.
@@ -54,10 +113,16 @@ export class UserService {
    * @returns The user's settings.
    */
   async getSettings(userId: string): Promise<UserSettingsDto> {
-    const profile = await this._getUserProfile(userId);
+    // Still resolved through the profile so that a request for a user who does
+    // not exist fails the same way it always has, rather than quietly returning
+    // a set of defaults for an account that is not there.
+    await this._getUserProfile(userId);
+
+    const preference = await this._userPreferenceService.get(userId);
+
     return new UserSettingsDto(
-      profile.privacyMode,
-      this.getSessionTimeoutMinutes(profile),
+      preference,
+      this.getSessionTimeoutMinutes(preference),
     );
   }
 
@@ -72,32 +137,30 @@ export class UserService {
     userId: string,
     settings: UpdateUserSettingsDto,
   ): Promise<UserSettingsDto> {
-    const profile = await this._getUserProfile(userId);
-    profile.privacyMode = settings.privacyMode;
-    // A client that does not know about the timeout omits it; leave the
-    // stored choice alone rather than resetting it to the default.
-    if (settings.sessionTimeoutMinutes !== undefined) {
-      profile.sessionTimeoutMinutes = settings.sessionTimeoutMinutes;
-    }
-    const updatedProfile = await this._userProfileRepository.save(profile);
+    await this._getUserProfile(userId);
 
-    return new UserSettingsDto(
-      updatedProfile.privacyMode,
-      this.getSessionTimeoutMinutes(updatedProfile),
-    );
+    // Spread rather than assigned field by field: every optional field is
+    // absent when the client did not send it, and `UserPreferenceService`
+    // changes only what is present. Listing them here would mean a new
+    // preference silently failing to save until somebody remembered this line.
+    const updated = await this._userPreferenceService.update(userId, {
+      ...settings,
+    });
+
+    return new UserSettingsDto(updated, this.getSessionTimeoutMinutes(updated));
   }
 
   /**
    * Returns the user's inactivity timeout, falling back to the deployment
    * default when they have never chosen one.
    *
-   * @param profile - The profile holding the stored choice.
+   * @param preference - The preferences holding the stored choice.
    * @returns The inactivity timeout to apply, in minutes.
    */
   getSessionTimeoutMinutes(
-    profile: Pick<UserProfileEntity, 'sessionTimeoutMinutes'>,
+    preference: Pick<UserPreferenceEntity, 'sessionTimeoutMinutes'>,
   ): number {
-    return resolveSessionTimeoutMinutes(profile.sessionTimeoutMinutes);
+    return resolveSessionTimeoutMinutes(preference.sessionTimeoutMinutes);
   }
 
   /**
@@ -214,6 +277,10 @@ export class UserService {
    * STO accounts, and STO characters, and revokes active refresh tokens
    * immediately to terminate active sessions.
    *
+   * The closure is written to the account-closure ledger first (FC-042), so
+   * a restore from an older backup cannot open the account again: should
+   * anything after it fail, the next boot closes the account.
+   *
    * @param userId - The authenticated user's UUID.
    */
   async closeAccount(userId: string): Promise<void> {
@@ -233,34 +300,117 @@ export class UserService {
     const closureEmail = user.email;
     const closureFirstName = user.profile?.firstName || 'Captain!';
 
-    await this._userRepository.manager.transaction(async manager => {
-      await manager.update(
-        UserRefreshTokenEntity,
-        { userId, isRevoked: false },
-        { isRevoked: true },
-      );
-
-      const ownedAccounts = await manager.find(AccountEntity, {
-        where: { userId },
-        select: { id: true },
-      });
-
-      const accountIds = ownedAccounts.map(account => account.id);
-
-      if (accountIds.length) {
-        await manager.softDelete(CharacterEntity, {
-          accountId: In(accountIds),
-        });
-      }
-
-      await manager.softDelete(AccountEntity, { userId });
-      await manager.softDelete(UserProfileEntity, { userId });
-      await manager.softDelete(UserEntity, userId);
-    });
+    await this._closures.record(userId, AccountClosureEvent.CLOSED);
+    await this.close(userId, null);
 
     await this._mailService.sendAccountClosureEmail(
       closureEmail,
       closureFirstName,
+    );
+  }
+
+  /**
+   * Closes again an account a restore opened (FC-042): everything closing it
+   * did — its Communities handed on or closed, its sessions ended, its data
+   * soft-deleted — as of when it was first closed, so the nightly clean-up
+   * erases it when it would have. No email: they were told when they closed
+   * it, and the ledger already has it.
+   *
+   * @param userId - The account, open in the database.
+   * @param closedAt - When it was first closed.
+   */
+  async closeAgain(userId: string, closedAt: Date): Promise<void> {
+    await this.close(userId, closedAt);
+  }
+
+  /**
+   * Closes an account: its Communities first, then its sessions and data,
+   * in one transaction, and then its own pictures.
+   *
+   * The profile picture and every Character's portrait are withdrawn once the
+   * transaction has committed, recorded as "The account was closed". Nothing
+   * reopens a closed account, so they no longer wait for the account to be
+   * erased. One that cannot be withdrawn is logged rather than failing a
+   * closure that has already happened; the sweep at the next start finds it.
+   *
+   * @param userId - The account.
+   * @param closedAt - When to record it as closed, or null for now.
+   */
+  private async close(userId: string, closedAt: Date | null): Promise<void> {
+    // Each open Community they own goes to an Admin, or is closed, first
+    // (FC-038): nothing open may be left without an Owner.
+    await this._departure?.depart(userId);
+
+    const { pictures, accountIds } =
+      await this._userRepository.manager.transaction(async manager => {
+        await manager.update(
+          UserRefreshTokenEntity,
+          { userId, isRevoked: false },
+          { isRevoked: true },
+        );
+
+        const ownedAccounts = await manager.find(AccountEntity, {
+          where: { userId },
+          select: { id: true },
+        });
+
+        const accountIds = ownedAccounts.map(account => account.id);
+        const held: Array<PersonalPicture | null> = [];
+
+        const profile = await manager.findOne(UserProfileEntity, {
+          where: { userId },
+          select: { userId: true, profilePictureId: true },
+        });
+
+        held.push(
+          PersonalPictureWithdrawalService.profilePicture(
+            userId,
+            profile?.profilePictureId,
+          ),
+        );
+
+        if (accountIds.length) {
+          const characters = await manager.find(CharacterEntity, {
+            where: { accountId: In(accountIds) },
+            select: { id: true, profilePictureId: true },
+          });
+
+          held.push(
+            ...characters.map(character =>
+              PersonalPictureWithdrawalService.portrait(
+                character.id,
+                character.profilePictureId,
+              ),
+            ),
+          );
+
+          await manager.softDelete(CharacterEntity, {
+            accountId: In(accountIds),
+          });
+        }
+
+        await manager.softDelete(AccountEntity, { userId });
+        await manager.softDelete(UserProfileEntity, { userId });
+        await manager.softDelete(UserEntity, userId);
+
+        // The clean-up's retention clock runs from the user's deletedAt.
+        if (closedAt !== null) {
+          await manager.update(UserEntity, userId, { deletedAt: closedAt });
+        }
+
+        return { pictures: held, accountIds };
+      });
+
+    await this._pictures.withdrawEach(
+      pictures,
+      PERSONAL_PICTURE_REASONS.ACCOUNT_CLOSED,
+    );
+
+    // And the Custom Tracking pictures recorded about their STO accounts and
+    // Characters, rather than waiting for the account to be erased.
+    await this._recordDeletion?.accountsDeleted(
+      accountIds,
+      PERSONAL_PICTURE_REASONS.ACCOUNT_CLOSED,
     );
   }
 
@@ -300,9 +450,12 @@ export class UserService {
    * @returns A promise that resolves to the UserEntity or null if not found.
    */
   async findByEmail(email: string): Promise<UserEntity | null> {
+    // Preferences come along because the login path sizes the refresh token to
+    // the user's chosen inactivity window; without them every session would
+    // silently fall back to the deployment default.
     return await this._userRepository.findOne({
       where: { email: email },
-      relations: { profile: true },
+      relations: { profile: true, preference: true },
     });
   }
 
@@ -366,17 +519,15 @@ export class UserService {
   }
 
   /**
-   * Update a user's profile information.
+   * Loads a user together with the profile that belongs to them, for a
+   * change to that profile.
    *
-   * @param userId - The UUID of the user owning the profile.
-   * @param userProfileData - The updated profile details.
-   * @returns A promise resolving to the number of affected rows and the updated UserProfileEntity.
-   * @throws HttpException if the user or profile is not found, or if the username already exists.
+   * @param userId Authenticated user ID.
+   * @returns The user, with their profile loaded.
+   * @throws HttpException when the identifier is invalid, or the user or their
+   *   profile is absent.
    */
-  async updateUserProfile(
-    userId: string,
-    userProfileData: UpdateUserProfileDto,
-  ): Promise<{ affected: number; updatedProfile: UserProfileEntity }> {
+  private async _getUserWithOwnProfile(userId: string): Promise<UserEntity> {
     if (!userId || !this._validatorsService.validateUuid(userId)) {
       throw new HttpException('User not found', HttpStatus.NOT_FOUND);
     }
@@ -393,6 +544,23 @@ export class UserService {
     if (!user.profile?.userId || user.profile.userId !== userId) {
       throw new HttpException('User data not found', HttpStatus.NOT_FOUND);
     }
+
+    return user;
+  }
+
+  /**
+   * Update a user's profile information.
+   *
+   * @param userId - The UUID of the user owning the profile.
+   * @param userProfileData - The updated profile details.
+   * @returns A promise resolving to the number of affected rows and the updated UserProfileEntity.
+   * @throws HttpException if the user or profile is not found, or if the username already exists.
+   */
+  async updateUserProfile(
+    userId: string,
+    userProfileData: UpdateUserProfileDto,
+  ): Promise<{ affected: number; updatedProfile: UserProfileEntity }> {
+    const user = await this._getUserWithOwnProfile(userId);
 
     const keys = Object.keys(userProfileData) as Array<
       keyof UpdateUserProfileDto
@@ -477,74 +645,75 @@ export class UserService {
   }
 
   /**
-   * Uploads a profile picture for a user to Cloudflare Images.
+   * Accepts a new profile picture and sends it to be scanned.
    *
-   * Automatically deletes the old profile picture from Cloudflare if one existed.
+   * Nothing is published here and the profile is not written to. The picture
+   * reaches the account when a scanner has cleared it, which is seconds
+   * later and in another process; until then the account keeps the picture
+   * it had. FC-012.
    *
    * @param userId - The ID of the user.
    * @param file - The file to be uploaded.
-   * @returns A promise that resolves to the updated user profile result object.
-   * @throws HttpException if the user is not found or the upload fails.
+   * @returns The asset to ask about, and how far along it is.
+   * @throws HttpException if the user is not found.
    */
   async uploadProfilePicture(
     userId: string,
     file: Express.Multer.File,
-  ): Promise<UpdatedUserProfileResultDto> {
-    if (!userId || !this._validatorsService.validateUuid(userId)) {
-      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
-    }
+  ): Promise<AcceptedAsset> {
+    await this._getUserWithOwnProfile(userId);
 
-    const user = await this._userRepository.findOne({
-      where: { id: userId },
-      relations: { profile: true },
+    // The profile is left exactly as it is. Whatever picture it shows goes
+    // on being shown until a scanner has cleared the new one and
+    // UserProfileImagePublisher swaps the reference over, which is the
+    // third acceptance criterion: a replacement that is refused costs the
+    // uploader nothing.
+    return this._imageIngress.accept({
+      spec: null,
+      userId,
+      kind: FileAssetKind.PROFILE_IMAGE,
+      audience: FileAssetAudience.PUBLIC,
+      subject: FileAssetSubject.USER_PROFILE,
+      subjectId: userId,
+      slot: FileAssetSlot.PICTURE,
+      entityTag: PROFILE_IMAGE_ENTITY_TAG,
+      entityId: userId,
+      maximumBytes:
+        Number(process.env.MAX_IMAGE_SIZE_IN_BYTES) ||
+        DEFAULT_MULTER_LIMITS.fileSize,
+      sizeLimitLabel: 'Profile pictures',
+      file,
     });
+  }
 
-    if (!user) {
-      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
-    }
-
-    if (!user.profile?.userId || user.profile.userId !== userId) {
-      throw new HttpException('User data not found', HttpStatus.NOT_FOUND);
-    }
-
-    const existingProfilePictureId = user.profile.profilePictureId;
-
-    user.profile.profilePictureId =
-      await this._imageUploadsService.uploadImageToCloudflareImages(
-        userId,
-        file,
-        'user',
-        userId,
-      );
-
-    if (!user.profile.profilePictureId) {
-      throw new HttpException(
-        'Profile picture upload failed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-
-    const updatedUserProfile = await this._userProfileRepository.save(
-      user.profile,
+  /**
+   * Takes the member's profile picture off, and withdraws it.
+   *
+   * The profile stops pointing at the picture first, so a reader never meets
+   * a picture that has gone, and the picture is then revoked in the registry
+   * and deleted from Cloudflare. A profile with no picture is left as it is.
+   *
+   * @param userId - The member.
+   * @throws HttpException when the member or their profile cannot be found.
+   */
+  async removeProfilePicture(userId: string): Promise<void> {
+    const user = await this._getUserWithOwnProfile(userId);
+    const profile = user.profile as UserProfileEntity;
+    const picture = PersonalPictureWithdrawalService.profilePicture(
+      userId,
+      profile.profilePictureId,
     );
 
-    if (!updatedUserProfile.profilePictureId) {
-      throw new HttpException(
-        'Profile picture upload failed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+    if (picture === null) {
+      return;
     }
 
-    if (existingProfilePictureId) {
-      await this._imageUploadsService.deleteImageFromCloudflareImages(
-        existingProfilePictureId,
-      );
-    }
+    await this._userProfileRepository.update(
+      { userId },
+      { profilePictureId: null },
+    );
 
-    return {
-      affected: 1,
-      userProfileData: updatedUserProfile,
-    };
+    await this._pictures.withdraw(picture, PERSONAL_PICTURE_REASONS.REMOVED);
   }
 
   /**

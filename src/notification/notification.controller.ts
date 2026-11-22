@@ -111,6 +111,37 @@ export class NotificationController {
   }
 
   /**
+   * Deletes every notification the user has read from their inbox.
+   *
+   * @param userId - The authenticated user's ID.
+   * @returns The number deleted.
+   */
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Post('dismiss-read')
+  @ApiOperation({ summary: 'Delete every read notification from the inbox' })
+  async dismissAllRead(@UserId() userId: string) {
+    return {
+      dismissed: await this._notificationService.dismissAllRead(userId),
+    };
+  }
+
+  /**
+   * Deletes a single notification from the user's inbox.
+   *
+   * @param userId - The authenticated user's ID.
+   * @param id - The notification ID.
+   */
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a notification from the inbox' })
+  dismiss(@UserId() userId: string, @Param('id') id: string) {
+    return this._notificationService.dismiss(userId, id);
+  }
+
+  /**
    * Marks a single notification as read.
    *
    * @param userId - The authenticated user's ID.

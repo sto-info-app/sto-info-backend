@@ -91,13 +91,17 @@ This news post covers the following releases:
    * @param queryRunner - The TypeORM query runner.
    */
   public async up(queryRunner: QueryRunner): Promise<void> {
+    const conflictTarget = (await this.isNewsScoped(queryRunner))
+      ? '("slug") WHERE "communityId" IS NULL'
+      : '("slug")';
+
     for (const post of this._posts) {
       await queryRunner.query(
         `
           INSERT INTO "sto_info_app"."news_post"
             ("slug", "title", "summary", "body", "category", "status", "publishedAt")
           VALUES ($1, $2, $3, $4, $5, 'PUBLISHED', $6)
-          ON CONFLICT ("slug") DO UPDATE SET
+          ON CONFLICT ${conflictTarget} DO UPDATE SET
             "title" = EXCLUDED."title",
             "summary" = EXCLUDED."summary",
             "body" = EXCLUDED."body",
@@ -123,9 +127,39 @@ This news post covers the following releases:
    * @param queryRunner - The TypeORM query runner.
    */
   public async down(queryRunner: QueryRunner): Promise<void> {
+    const siteOnly = (await this.isNewsScoped(queryRunner))
+      ? ' AND "communityId" IS NULL'
+      : '';
+
     await queryRunner.query(
-      `DELETE FROM "sto_info_app"."news_post" WHERE "slug" = ANY($1)`,
+      `DELETE FROM "sto_info_app"."news_post" WHERE "slug" = ANY($1)${siteOnly}`,
       [this._posts.map(post => post.slug)],
     );
+  }
+
+  /**
+   * Whether Fleet Community has scoped news to Communities yet.
+   *
+   * Production runs this before Fleet Community's ScopeNewsPosts migration,
+   * but a database already on the Fleet Community schema runs it after.
+   * There the unique slug index covers only the site's own posts
+   * (`WHERE "communityId" IS NULL`): an upsert has to name that predicate to
+   * use it, and the way down must leave a Community's post of the same slug.
+   *
+   * @param queryRunner - The TypeORM query runner.
+   * @returns True once `news_post` has a `communityId` column.
+   */
+  private async isNewsScoped(queryRunner: QueryRunner): Promise<boolean> {
+    const scoped = (await queryRunner.query(
+      `
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'sto_info_app'
+          AND table_name = 'news_post'
+          AND column_name = 'communityId'
+      `,
+    )) as unknown[];
+
+    return scoped.length > 0;
   }
 }

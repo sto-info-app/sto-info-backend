@@ -12,6 +12,8 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+import { AuditIdentifiersOnly } from 'src/audit/audit-redaction';
+
 import { UserEntity } from '../../user/entities/user.entity';
 import { ReportReason } from '../enums/report-reason.enum';
 import { ReportStatus } from '../enums/report-status.enum';
@@ -28,6 +30,7 @@ import { ReportStatus } from '../enums/report-status.enum';
  * cannot be flooded with duplicates of the same complaint. Resolving a report
  * frees the pair, letting a reporter raise a fresh report about new conduct.
  */
+@AuditIdentifiersOnly()
 @Entity({ name: 'user_report' })
 @Index(['reportedId'])
 @Index(['reporterId'])

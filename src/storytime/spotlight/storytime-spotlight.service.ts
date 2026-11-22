@@ -8,11 +8,14 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { IsNull, LessThanOrEqual, MoreThan, Repository } from 'typeorm';
 
+import { AcceptedAsset } from 'src/file-assets/services/asset-ingress.service';
+
 import { NotificationSeverity } from '../../notification/enums/notification-severity.enum';
 import { NotificationTarget } from '../../notification/enums/notification-target.enum';
 import { NotificationService } from '../../notification/notification.service';
 import { StorytimeArcEntity } from '../arcs/entities/storytime-arc.entity';
 import { StorytimeArcService } from '../arcs/storytime-arc.service';
+import { STORYTIME_DELETION_REASONS } from '../constants/storytime-deletion.constants';
 import { StorytimeAuthorDto } from '../dto/storytime-author.dto';
 import { SpotlightEntityType } from '../enums/spotlight-entity-type.enum';
 import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
@@ -302,12 +305,15 @@ export class StorytimeSpotlightService {
     const previousSlug = entry.slug;
 
     const startsAt = dto.startsAt ? new Date(dto.startsAt) : entry.startsAt;
-    const endsAt =
-      dto.endsAt === undefined
-        ? entry.endsAt
-        : dto.endsAt === null
-          ? null
-          : new Date(dto.endsAt);
+    let endsAt: Date | null;
+
+    if (dto.endsAt === undefined) {
+      endsAt = entry.endsAt;
+    } else if (dto.endsAt === null) {
+      endsAt = null;
+    } else {
+      endsAt = new Date(dto.endsAt);
+    }
 
     this.assertPeriod(startsAt, endsAt);
 
@@ -433,7 +439,13 @@ export class StorytimeSpotlightService {
   }
 
   /**
-   * Deletes a Spotlight entry.
+   * Deletes a Spotlight entry, and withdraws its artwork.
+   *
+   * A deleted entry cannot be brought back, so its override artwork is
+   * withdrawn rather than left to be served from its old address, as the
+   * editor is told it will be. The entry stops pointing at it first, by being
+   * deleted, as a picture's removal always runs in that order; one whose
+   * withdrawal fails is found again by the sweep at the next start.
    *
    * @param spotlightId - The entry.
    * @param actingUserId - The editor.
@@ -442,6 +454,13 @@ export class StorytimeSpotlightService {
     const entry = await this.findOneOrFail(spotlightId);
 
     await this._spotlightRepository.softDelete(entry.id);
+
+    await this._imageService.withdraw(
+      StorytimeImageSlot.SPOTLIGHT_OVERRIDE,
+      entry.id,
+      entry.overrideImageId,
+      STORYTIME_DELETION_REASONS.SPOTLIGHT,
+    );
 
     this._logger.log(`Spotlight ${entry.id} deleted by ${actingUserId}`);
   }
@@ -457,7 +476,7 @@ export class StorytimeSpotlightService {
    * @param actingUserId - The editor.
    * @param file - The cropped upload.
    * @param altText - What the image shows.
-   * @returns The entry, carrying its new artwork.
+   * @returns The asset to ask about, and how far along it is.
    * @throws BadRequestException when the upload is not usable as a banner.
    */
   async setOverrideImage(
@@ -465,26 +484,18 @@ export class StorytimeSpotlightService {
     actingUserId: string,
     file: Express.Multer.File,
     altText: string,
-  ): Promise<StorytimeSpotlightEntity> {
-    const entry = await this.findOneOrFail(spotlightId);
-    const replacedImageId = entry.overrideImageId;
+  ): Promise<AcceptedAsset> {
+    await this.findOneOrFail(spotlightId);
 
-    entry.overrideImageId = await this._imageService.store({
+    // The panel keeps whatever artwork it has until a scanner clears the new
+    // picture and StorytimeSpotlightImagePublisher swaps it over — FC-012.
+    return this._imageService.accept({
       slot: StorytimeImageSlot.SPOTLIGHT_OVERRIDE,
       userId: actingUserId,
       entityId: spotlightId,
       file,
+      altText,
     });
-    entry.overrideImageAlt = altText;
-    entry.updatedByUserId = actingUserId;
-
-    const saved = await this._spotlightRepository.save(entry);
-
-    // Released only once the entry points at the new image, so a failed save
-    // leaves an unreferenced image rather than a panel referencing nothing.
-    await this._imageService.release(replacedImageId);
-
-    return saved;
   }
 
   /**
@@ -507,7 +518,11 @@ export class StorytimeSpotlightService {
 
     const saved = await this._spotlightRepository.save(entry);
 
-    await this._imageService.release(removedImageId);
+    await this._imageService.withdraw(
+      StorytimeImageSlot.SPOTLIGHT_OVERRIDE,
+      spotlightId,
+      removedImageId,
+    );
 
     return saved;
   }

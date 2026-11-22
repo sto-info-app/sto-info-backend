@@ -9,17 +9,25 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
+import { DataSource, EntityManager, In, IsNull } from 'typeorm';
+
 import { LimitService } from '../../access-control/limit.service';
+import { StorytimeArcStoryEntity } from '../arcs/entities/storytime-arc-story.entity';
+import { StorytimeChapterEntity } from '../chapters/entities/storytime-chapter.entity';
+import { StorytimeCharacterEntity } from '../characters/entities/storytime-character.entity';
 import { StorytimeCollaboratorAccessService } from '../collaboration/storytime-collaborator-access.service';
 import { StoryCapability } from '../collaboration/storytime-story-capability.enum';
+import { STORYTIME_DELETION_REASONS } from '../constants/storytime-deletion.constants';
 import { STORYTIME_POLICY_VERSION } from '../constants/storytime-policy.constants';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
+import { StorytimeCrewCreditEntity } from '../crew/entities/storytime-crew-credit.entity';
 import { StoryStatus } from '../enums/story-status.enum';
 import { StorytimeActivityType } from '../enums/storytime-activity-type.enum';
 import { StorytimeImageSlot } from '../enums/storytime-image-slot.enum';
 import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.enum';
 import { StorytimeVisibility } from '../enums/storytime-visibility.enum';
 import { StorytimeImageService } from '../images/storytime-image.service';
+import { StorytimeChapterMediaEntity } from '../media/entities/storytime-chapter-media.entity';
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
 import {
   SlugRequest,
@@ -64,9 +72,16 @@ describe('StorytimeStoryService', () => {
   };
   let queryBuilder: QueryBuilderStub;
   let imageService: {
-    store: jest.Mock;
-    release: jest.Mock;
+    accept: jest.Mock;
+    withdraw: jest.Mock;
   };
+  let manager: {
+    find: jest.Mock;
+    update: jest.Mock;
+    softDelete: jest.Mock;
+    save: jest.Mock;
+  };
+  let dataSource: { transaction: jest.Mock };
 
   const ownerId = 'e6d3a1b2-0000-4000-8000-000000000001';
   const otherUserId = 'e6d3a1b2-0000-4000-8000-000000000002';
@@ -115,8 +130,10 @@ describe('StorytimeStoryService', () => {
     // its own service's business, and these tests are about what the work
     // records afterwards.
     imageService = {
-      store: jest.fn().mockResolvedValue('stored-image-id'),
-      release: jest.fn().mockResolvedValue(undefined),
+      accept: jest
+        .fn()
+        .mockResolvedValue({ assetId: 'asset-1', status: 'SCANNING' }),
+      withdraw: jest.fn().mockResolvedValue(undefined),
     };
 
     queryBuilder = {
@@ -164,6 +181,21 @@ describe('StorytimeStoryService', () => {
     };
     feedService = { recordQuietly: jest.fn().mockResolvedValue(undefined) };
 
+    // What a Story holds is found and deleted inside one transaction; the
+    // manager answers with no Chapters or cast unless a test says otherwise.
+    manager = {
+      find: jest.fn().mockResolvedValue([]),
+      update: jest.fn().mockResolvedValue(undefined),
+      softDelete: jest.fn().mockResolvedValue(undefined),
+      save: jest.fn(input => Promise.resolve(input)),
+    };
+    dataSource = {
+      transaction: jest.fn(
+        (work: (transaction: EntityManager) => Promise<unknown>) =>
+          work(manager as unknown as EntityManager),
+      ),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         StorytimeStoryService,
@@ -181,6 +213,7 @@ describe('StorytimeStoryService', () => {
         },
         { provide: StorytimeActivityFeedService, useValue: feedService },
         { provide: StorytimeImageService, useValue: imageService },
+        { provide: DataSource, useValue: dataSource },
       ],
     }).compile();
 
@@ -682,25 +715,226 @@ describe('StorytimeStoryService', () => {
   });
 
   describe('remove', () => {
-    it('soft-deletes and records who did it', async () => {
+    const live = { storyId, deletedAt: IsNull() };
+
+    /**
+     * Gives the Story a Chapter and a Character, each with a picture or not.
+     *
+     * @param pictures - The Chapter's cover and the Character's portrait.
+     * @param pictures.cover - The cover, or null.
+     * @param pictures.portrait - The portrait, or null.
+     */
+    function holding(pictures: {
+      cover: string | null;
+      portrait: string | null;
+    }): void {
+      manager.find.mockImplementation((entity: unknown) =>
+        Promise.resolve(
+          entity === StorytimeChapterEntity
+            ? [{ id: 'chapter-1', coverImageId: pictures.cover }]
+            : [{ id: 'character-1', portraitImageId: pictures.portrait }],
+        ),
+      );
+    }
+
+    it('soft-deletes the Story and records who did it, in one transaction', async () => {
       storyRepository.findOne.mockResolvedValue(buildStory());
 
       await service.remove(storyId, ownerId);
 
-      expect(storyRepository.softDelete).toHaveBeenCalledWith(storyId);
-      expect(storyRepository.save).toHaveBeenCalledWith(
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+      expect(manager.save).toHaveBeenCalledWith(
         expect.objectContaining({ deletedByUserId: ownerId }),
       );
+      expect(manager.softDelete).toHaveBeenCalledWith(
+        StorytimeStoryEntity,
+        storyId,
+      );
+      // Nothing outside the transaction deletes anything.
+      expect(storyRepository.softDelete).not.toHaveBeenCalled();
+    });
+
+    // Nothing can bring a deleted Story back, so what it held goes with it,
+    // as the author is told it will (18 October 2026).
+    it('takes its Chapters, their videos, its cast, its credits and its Arc places with it', async () => {
+      storyRepository.findOne.mockResolvedValue(buildStory());
+      holding({ cover: null, portrait: null });
+
+      await service.remove(storyId, ownerId);
+
+      expect(manager.find).toHaveBeenCalledWith(StorytimeChapterEntity, {
+        where: live,
+        select: { id: true, coverImageId: true },
+      });
+      expect(manager.find).toHaveBeenCalledWith(StorytimeCharacterEntity, {
+        where: live,
+        select: { id: true, portraitImageId: true },
+      });
+      expect(manager.softDelete).toHaveBeenCalledWith(
+        StorytimeChapterMediaEntity,
+        { chapterId: In(['chapter-1']), deletedAt: IsNull() },
+      );
+      expect(manager.update).toHaveBeenCalledWith(
+        StorytimeChapterEntity,
+        { id: In(['chapter-1']) },
+        { deletedByUserId: ownerId },
+      );
+      expect(manager.softDelete).toHaveBeenCalledWith(StorytimeChapterEntity, {
+        id: In(['chapter-1']),
+      });
+      expect(manager.update).toHaveBeenCalledWith(
+        StorytimeCharacterEntity,
+        { id: In(['character-1']) },
+        { deletedByUserId: ownerId },
+      );
+      expect(manager.softDelete).toHaveBeenCalledWith(
+        StorytimeCharacterEntity,
+        { id: In(['character-1']) },
+      );
+      expect(manager.softDelete).toHaveBeenCalledWith(
+        StorytimeCrewCreditEntity,
+        live,
+      );
+      expect(manager.softDelete).toHaveBeenCalledWith(
+        StorytimeArcStoryEntity,
+        live,
+      );
+    });
+
+    it('touches no Chapter or Character when it has none', async () => {
+      storyRepository.findOne.mockResolvedValue(buildStory());
+
+      await service.remove(storyId, ownerId);
+
+      expect(manager.update).not.toHaveBeenCalled();
+      expect(manager.softDelete).not.toHaveBeenCalledWith(
+        StorytimeChapterEntity,
+        expect.anything(),
+      );
+      expect(manager.softDelete).not.toHaveBeenCalledWith(
+        StorytimeCharacterEntity,
+        expect.anything(),
+      );
+      expect(imageService.withdraw).not.toHaveBeenCalled();
+    });
+
+    it('withdraws every picture it held once the deletion has committed', async () => {
+      storyRepository.findOne.mockResolvedValue(
+        buildStory({ bannerImageId: 'banner-1', profileImageId: 'profile-1' }),
+      );
+      holding({ cover: 'cover-1', portrait: 'portrait-1' });
+      imageService.withdraw.mockImplementation(() => {
+        // Withdrawal expects the records to have stopped pointing first.
+        expect(manager.softDelete).toHaveBeenCalledWith(
+          StorytimeStoryEntity,
+          storyId,
+        );
+
+        return Promise.resolve(undefined);
+      });
+
+      await service.remove(storyId, ownerId);
+
+      expect(imageService.withdraw.mock.calls).toEqual([
+        [
+          StorytimeImageSlot.STORY_BANNER,
+          storyId,
+          'banner-1',
+          STORYTIME_DELETION_REASONS.STORY,
+        ],
+        [
+          StorytimeImageSlot.STORY_PROFILE,
+          storyId,
+          'profile-1',
+          STORYTIME_DELETION_REASONS.STORY,
+        ],
+        [
+          StorytimeImageSlot.CHAPTER_COVER,
+          'chapter-1',
+          'cover-1',
+          STORYTIME_DELETION_REASONS.STORY,
+        ],
+        [
+          StorytimeImageSlot.CHARACTER_PORTRAIT,
+          'character-1',
+          'portrait-1',
+          STORYTIME_DELETION_REASONS.STORY,
+        ],
+      ]);
+    });
+
+    it('withdraws only the pictures there are', async () => {
+      storyRepository.findOne.mockResolvedValue(
+        buildStory({ profileImageId: 'profile-1' }),
+      );
+      holding({ cover: null, portrait: 'portrait-1' });
+
+      await service.remove(storyId, ownerId);
+
+      expect(imageService.withdraw.mock.calls.map(call => call[2])).toEqual([
+        'profile-1',
+        'portrait-1',
+      ]);
+    });
+
+    // The delete has happened by then; the sweep at the next start finds
+    // whatever picture is left.
+    it('logs a picture it cannot withdraw and still withdraws the rest', async () => {
+      const failed = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+
+      storyRepository.findOne.mockResolvedValue(
+        buildStory({ bannerImageId: 'banner-1', profileImageId: 'profile-1' }),
+      );
+      imageService.withdraw
+        .mockRejectedValueOnce(new Error('registry down'))
+        .mockResolvedValueOnce(undefined);
+
+      await expect(service.remove(storyId, ownerId)).resolves.toBeUndefined();
+
+      expect(imageService.withdraw).toHaveBeenCalledTimes(2);
+      expect(failed).toHaveBeenCalledWith(
+        `[withdrawPictures] Not withdrawn - Slot: ${StorytimeImageSlot.STORY_BANNER}, EntityId: ${storyId}, ImageId: banner-1`,
+        expect.stringContaining('registry down'),
+      );
+    });
+
+    it('logs a failure that is not an Error as it is', async () => {
+      const failed = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+
+      storyRepository.findOne.mockResolvedValue(
+        buildStory({ bannerImageId: 'banner-1' }),
+      );
+      imageService.withdraw.mockRejectedValueOnce('refused');
+
+      await service.remove(storyId, ownerId);
+
+      expect(failed).toHaveBeenCalledWith(expect.any(String), 'refused');
+    });
+
+    it('withdraws nothing when the deletion fails', async () => {
+      storyRepository.findOne.mockResolvedValue(
+        buildStory({ bannerImageId: 'banner-1' }),
+      );
+      manager.softDelete.mockRejectedValueOnce(new Error('deadlock'));
+
+      await expect(service.remove(storyId, ownerId)).rejects.toThrow(
+        'deadlock',
+      );
+      expect(imageService.withdraw).not.toHaveBeenCalled();
     });
   });
 
   describe('artwork', () => {
     const file = { originalname: 'banner.jpg' } as Express.Multer.File;
 
-    it('records the stored image and what it shows', async () => {
+    it('sends the upload to be scanned, with what it shows', async () => {
       storyRepository.findOne.mockResolvedValue(buildStory());
 
-      const saved = await service.setImage(
+      const accepted = await service.setImage(
         storyId,
         ownerId,
         StorytimeImageSlot.STORY_BANNER,
@@ -708,24 +942,25 @@ describe('StorytimeStoryService', () => {
         'The USS Ares at warp',
       );
 
-      expect(imageService.store).toHaveBeenCalledWith({
+      expect(imageService.accept).toHaveBeenCalledWith({
         slot: StorytimeImageSlot.STORY_BANNER,
         userId: ownerId,
         entityId: storyId,
         file,
+        altText: 'The USS Ares at warp',
       });
-      expect(saved.bannerImageId).toBe('stored-image-id');
-      expect(saved.bannerImageAlt).toBe('The USS Ares at warp');
-      expect(saved.version).toBe(2);
-      expect(saved.updatedByUserId).toBe(ownerId);
+      expect(accepted).toEqual({ assetId: 'asset-1', status: 'SCANNING' });
     });
 
-    it('sets the profile image without touching the banner', async () => {
+    // The third acceptance criterion. A Story keeps the artwork it has
+    // until a scanner clears the replacement, so nothing is written here
+    // and a refused upload costs its author nothing.
+    it('leaves the Story untouched while the upload is scanned', async () => {
       storyRepository.findOne.mockResolvedValue(
         buildStory({ bannerImageId: 'banner-1', bannerImageAlt: 'A ship' }),
       );
 
-      const saved = await service.setImage(
+      await service.setImage(
         storyId,
         ownerId,
         StorytimeImageSlot.STORY_PROFILE,
@@ -733,50 +968,7 @@ describe('StorytimeStoryService', () => {
         'A crew badge',
       );
 
-      expect(saved.profileImageId).toBe('stored-image-id');
-      expect(saved.bannerImageId).toBe('banner-1');
-    });
-
-    // Released after the save rather than before it, so a failure leaves an
-    // image nothing points at rather than a Story pointing at nothing.
-    it('releases the image it replaced, once the Story is saved', async () => {
-      storyRepository.findOne.mockResolvedValue(
-        buildStory({ bannerImageId: 'old-banner' }),
-      );
-      const order: string[] = [];
-      storyRepository.save.mockImplementation((story: unknown) => {
-        order.push('save');
-        return Promise.resolve(story);
-      });
-      imageService.release.mockImplementation(() => {
-        order.push('release');
-        return Promise.resolve();
-      });
-
-      await service.setImage(
-        storyId,
-        ownerId,
-        StorytimeImageSlot.STORY_BANNER,
-        file,
-        'A ship',
-      );
-
-      expect(imageService.release).toHaveBeenCalledWith('old-banner');
-      expect(order).toEqual(['save', 'release']);
-    });
-
-    it('has nothing to release when there was no image', async () => {
-      storyRepository.findOne.mockResolvedValue(buildStory());
-
-      await service.setImage(
-        storyId,
-        ownerId,
-        StorytimeImageSlot.STORY_BANNER,
-        file,
-        'A ship',
-      );
-
-      expect(imageService.release).toHaveBeenCalledWith(null);
+      expect(storyRepository.save).not.toHaveBeenCalled();
     });
 
     it('refuses somebody with no access to the Story', async () => {
@@ -792,7 +984,7 @@ describe('StorytimeStoryService', () => {
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
 
-      expect(imageService.store).not.toHaveBeenCalled();
+      expect(imageService.accept).not.toHaveBeenCalled();
     });
 
     // The wording goes with the picture: a description left behind would be
@@ -810,7 +1002,11 @@ describe('StorytimeStoryService', () => {
 
       expect(saved.bannerImageId).toBeNull();
       expect(saved.bannerImageAlt).toBeNull();
-      expect(imageService.release).toHaveBeenCalledWith('banner-1');
+      expect(imageService.withdraw).toHaveBeenCalledWith(
+        StorytimeImageSlot.STORY_BANNER,
+        storyId,
+        'banner-1',
+      );
       expect(saved.version).toBe(2);
     });
 

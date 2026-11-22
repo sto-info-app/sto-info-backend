@@ -270,9 +270,11 @@ export class CustomTrackingFieldService {
   async remove(userId: string, fieldId: string): Promise<void> {
     const field = await this.findOwned(userId, fieldId);
 
-    await this._dataSource.transaction(manager =>
+    const pictures = await this._dataSource.transaction(manager =>
       this._cascade.deleteFields(manager, [field.id], new Date()),
     );
+
+    await this._cascade.withdraw(pictures);
   }
 
   /**

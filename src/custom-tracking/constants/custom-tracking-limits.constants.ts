@@ -13,6 +13,11 @@
  * frontend applies the same numbers so a user is warned before they lose work,
  * never so the server can trust that they were.
  */
+import {
+  MAX_CALENDAR_YEAR,
+  MIN_CALENDAR_YEAR,
+} from 'src/shared/utilities/calendar-date.utility';
+
 export const CUSTOM_TRACKING_LIMITS = {
   /** Active Sections one user may have in one target scope. */
   MAX_SECTIONS_PER_SCOPE: 10,
@@ -95,8 +100,8 @@ export const CUSTOM_TRACKING_MAX_NUMERIC_MAGNITUDE = 1_000_000_000;
  * the stardates of the fiction, and narrow enough that a mistyped or
  * generated year is refused rather than stored.
  */
-export const CUSTOM_TRACKING_MIN_YEAR = 1;
-export const CUSTOM_TRACKING_MAX_YEAR = 9999;
+export const CUSTOM_TRACKING_MIN_YEAR = MIN_CALENDAR_YEAR;
+export const CUSTOM_TRACKING_MAX_YEAR = MAX_CALENDAR_YEAR;
 
 /**
  * The longest pattern a single-line text Field may be constrained by.

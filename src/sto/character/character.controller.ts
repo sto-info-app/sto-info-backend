@@ -4,6 +4,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Logger,
   Param,
   Post,
@@ -16,10 +18,13 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
+  ApiAcceptedResponse,
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
   ApiConsumes,
+  ApiNoContentResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiPayloadTooLargeResponse,
   ApiTags,
@@ -30,6 +35,7 @@ import { memoryStorage } from 'multer';
 
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
+import { AssetScanStatusDto } from 'src/file-assets/dto/asset-scan-status.dto';
 import {
   DEFAULT_MULTER_LIMITS,
   isAllowedImageMimeType,
@@ -121,7 +127,13 @@ export class CharacterController {
       },
     }),
   )
-  @ApiOkResponse({ description: 'Successfully uploaded the profile image.' })
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiAcceptedResponse({
+    description:
+      'The portrait was accepted and is being scanned. It replaces the ' +
+      'current one only once a scanner has cleared it.',
+    type: AssetScanStatusDto,
+  })
   @ApiBadRequestResponse({ description: 'Failed to upload the profile image.' })
   @ApiPayloadTooLargeResponse({ description: 'The image is too large.' })
   async uploadProfileImage(
@@ -164,6 +176,27 @@ export class CharacterController {
       );
       throw error;
     }
+  }
+
+  /**
+   * Takes a character's portrait off, and withdraws it.
+   *
+   * @param userId Authenticated user ID (injected).
+   * @param id Character ID.
+   */
+  @Delete(':id/profile-image')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse({
+    description: 'The portrait was removed, or the character had none.',
+  })
+  @ApiNotFoundResponse({
+    description: 'The authenticated user has no such character.',
+  })
+  async removeProfileImage(
+    @UserId() userId: string,
+    @Param('id') id: string,
+  ): Promise<void> {
+    await this._characterService.removeProfileImage(id, userId);
   }
 
   /**

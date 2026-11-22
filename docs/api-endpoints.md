@@ -216,6 +216,8 @@ All routes below are under `/admin/access-control/*` and require the `ADMIN` rol
 
 Applying the same permission code or limit key twice updates the existing override rather than creating a second, so the write endpoints are safe to repeat. Withdrawal soft-deletes, leaving the pair free to be granted again.
 
+`PUT /admin/access-control/users/:userId/role` takes `{ role, reason }`, and each `DELETE` takes `{ reason }` in its body (FC-039). Every change here is kept in the site admin log with its reason; see [Admin audit](admin-audit.md).
+
 ## Storytime Endpoints
 
 ### GET /storytime/configuration
@@ -289,22 +291,22 @@ Publishing or unpublishing a Chapter updates its Story's `publishedChapterCount`
 
 Collaboration and credits are deliberately separate throughout. Inviting somebody hands them the ability to change the Story and needs the collaborator capability; crediting somebody is public thanks that confers nothing and needs only the crew one.
 
-| Method | Path                                                       | Purpose                                     |
-| ------ | ---------------------------------------------------------- | ------------------------------------------- |
-| GET    | `/storytime/crew-roles`                                    | List the roles a credit may be given in     |
-| GET    | `/storytime/stories/:storySlug/credits`                    | Read a published Story's credits            |
-| GET    | `/storytime/manage/stories/:storyId/collaborators`         | List who is helping write a Story           |
-| POST   | `/storytime/manage/stories/:storyId/collaborators`         | Invite somebody to help write a Story       |
-| PATCH  | `/storytime/manage/collaborators/:collaboratorId`          | Change what a collaborator may do           |
-| POST   | `/storytime/manage/collaborators/:collaboratorId/accept`   | Accept an invitation                        |
-| POST   | `/storytime/manage/collaborators/:collaboratorId/decline`  | Decline an invitation                       |
-| POST   | `/storytime/manage/collaborators/:collaboratorId/revoke`   | Withdraw an invitation, or step down        |
-| GET    | `/storytime/manage/collaborations/invitations`             | List the invitations waiting on you         |
-| GET    | `/storytime/manage/stories/:storyId/credits`               | List the credits on a Story you manage      |
-| GET    | `/storytime/manage/stories/:storyId/creditable-members`    | Find members you could credit               |
-| POST   | `/storytime/manage/stories/:storyId/credits`               | Credit somebody on a Story                  |
-| PATCH  | `/storytime/manage/credits/:creditId`                      | Reword a credit                             |
-| DELETE | `/storytime/manage/credits/:creditId`                      | Soft-delete a credit                        |
+| Method | Path                                                      | Purpose                                 |
+| ------ | --------------------------------------------------------- | --------------------------------------- |
+| GET    | `/storytime/crew-roles`                                   | List the roles a credit may be given in |
+| GET    | `/storytime/stories/:storySlug/credits`                   | Read a published Story's credits        |
+| GET    | `/storytime/manage/stories/:storyId/collaborators`        | List who is helping write a Story       |
+| POST   | `/storytime/manage/stories/:storyId/collaborators`        | Invite somebody to help write a Story   |
+| PATCH  | `/storytime/manage/collaborators/:collaboratorId`         | Change what a collaborator may do       |
+| POST   | `/storytime/manage/collaborators/:collaboratorId/accept`  | Accept an invitation                    |
+| POST   | `/storytime/manage/collaborators/:collaboratorId/decline` | Decline an invitation                   |
+| POST   | `/storytime/manage/collaborators/:collaboratorId/revoke`  | Withdraw an invitation, or step down    |
+| GET    | `/storytime/manage/collaborations/invitations`            | List the invitations waiting on you     |
+| GET    | `/storytime/manage/stories/:storyId/credits`              | List the credits on a Story you manage  |
+| GET    | `/storytime/manage/stories/:storyId/creditable-members`   | Find members you could credit           |
+| POST   | `/storytime/manage/stories/:storyId/credits`              | Credit somebody on a Story              |
+| PATCH  | `/storytime/manage/credits/:creditId`                     | Reword a credit                         |
+| DELETE | `/storytime/manage/credits/:creditId`                     | Soft-delete a credit                    |
 
 #### Naming the member
 
@@ -324,8 +326,8 @@ Managing credits needs the crew capability on the Story, which the owner always 
 
 ### Content
 
-| Method | Path                               | Purpose                                  |
-| ------ | ---------------------------------- | ---------------------------------------- |
+| Method | Path                                | Purpose                                  |
+| ------ | ----------------------------------- | ---------------------------------------- |
 | POST   | `/storytime/manage/content/preview` | Render Storytime Markdown without saving |
 
 Takes `{ contentSource }` and answers `{ html }` — the same HTML the same source would produce on save, because it is the same renderer. Answers `200`, since nothing is created.
@@ -336,11 +338,100 @@ The client does not render Markdown itself, on purpose. Storytime's renderer dem
 
 Behind sign-in alone rather than a creator permission, matching Arcs: the four fields are not all behind one permission, and this route reads nothing, writes nothing and returns only the caller's own text. Capped at the Chapter body's length whatever the caller may save, and counted against the general write rate limit — the editors fetch once per switch into Preview and cache the result against the source, so typing costs nothing.
 
+### GET /admin/file-scanning/diagnostics
+
+Scan usage over the last 24 hours, 7 days and 30 days, the engine and signatures the latest
+attempt reported, the scan request queue and the assets awaiting a verdict (FC-003). Since FC-042
+also each scan worker's heartbeat (`workers`), the operations alerts open now (`alerts`) and the
+publication pause (`publication`), and since FC-043 the withdrawn pictures Cloudflare has still to
+delete (`owedPurges`: `owed`, `overdue` past a day, `oldestHours`). Totals only. A part whose source cannot be reached is `null`.
+Every read is logged in the site admin log as `SCAN_DIAGNOSTICS_VIEWED`, one entry per page view.
+See
+[File assets](file-assets.md#watching-the-scanner-get-adminfile-scanningdiagnostics).
+
+**Authentication Required.** The `ADMIN` role.
+
+### Site admin reasons and the Security Log (FC-039)
+
+Every site-level admin action takes a reason, kept in the site admin log. Beyond the access
+control routes above:
+
+| Route                                                                    | Reason                                                                                      |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| `POST /admin/moderation/users/:moderatedUserId/disable`, `/enable`       | `{ reason }`, required for both                                                             |
+| `PATCH /admin/moderation/reports/:reportId`                              | `reason`, required to close a report as `ACTIONED` or `DISMISSED`; a claim needs none       |
+| `POST /admin/chat-reports/:reportId/decision`                            | `note`, now required                                                                        |
+| `POST /admin/moderation/custom-tracking/:level/:id/suppress`, `/restore` | `{ reason }`                                                                                |
+| Storytime moderation                                                     | A report's `resolution` is required to close it, and an appeal's `reviewNotes` to decide it |
+
+| Method | Path                                    | Purpose                                                                                                                                                               |
+| ------ | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/admin/security-log?source=&page=`     | What site admins and the retention jobs did, newest first, fifty to a page; `source` is one of `SITE_ADMIN`, `FLEET`, `HOLD`, `INVESTIGATION`, `ERASURE`, `RETENTION` |
+| GET    | `/admin/file-scanning/rejections?page=` | Refused assets, newest verdict first, 25 to a page; a page after the first is logged (FC-042)                                                                         |
+| GET    | `/admin/file-scanning/assets/:assetId`  | One asset's scan outcome: code and engine, never a signature name; the read is logged (FC-042)                                                                        |
+
+All three require the `ADMIN` role. See [Admin audit](admin-audit.md).
+
+### Private image delivery (FC-040)
+
+| Method | Path                                        | Purpose                                                                                                                               |
+| ------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/admin/image-estate`                       | Whether addresses are signed, how many pictures are still public, the copies by state, and the last run and inventory                 |
+| POST   | `/admin/image-estate/inventory`             | Reconcile the image columns, the registry and Cloudflare's listing; changes nothing                                                   |
+| POST   | `/admin/image-estate/runs`                  | `{ kind: COPY \| UNDO \| RETIRE, reason }`; 409 while another run is open, without the signing key, or with nothing to undo or retire |
+| POST   | `/admin/image-estate/runs/pause`, `/resume` | `{ reason }`                                                                                                                          |
+
+All require the `ADMIN` role. Every response's picture addresses are signed on the way out, and
+Community, Fleet, Armada, news and Custom Tracking responses now carry addresses
+(`bannerImageUrl`, `emblemImageUrls`, `coverImageUrls`, `imageUrl`) beside the IDs. See
+[Private image delivery](image-delivery.md).
+
+### Rescan campaigns (FC-041)
+
+| Method | Path                                                      | Purpose                                                                                                                                                                                                                                            |
+| ------ | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/admin/rescan-campaigns`                                 | The 20 latest campaigns with their counts, how many rescans are waiting, how many legacy pictures have never been scanned, and the 50 latest pictures found infected or refused for policy and not yet decided (rescan ID, asset ID and code only) |
+| POST   | `/admin/rescan-campaigns`                                 | `{ selection: { kinds?, uploadedFrom?, uploadedBefore?, notScannedForDays?, unverifiedOnly?, priority?: HIGH \| LOW }, reason }`; starts a campaign                                                                                                |
+| POST   | `/admin/rescan-campaigns/:id/pause`, `/resume`, `/cancel` | `{ reason }`; 409 when the campaign cannot do that now                                                                                                                                                                                             |
+| POST   | `/admin/rescan-campaigns/findings/:rescanId/decision`     | `{ decision: TAKEN_DOWN \| KEPT, reason }`; takes down or keeps a picture refused for policy, answering 204; 404 for no such rescan, 409 when it is not a policy refusal or has been decided (FC-050)                                              |
+
+All require the `ADMIN` role. See [Rescan campaigns](rescan-campaigns.md).
+
+### Failed jobs and the publication pause (FC-042)
+
+| Method | Path                                                     | Purpose                                                                                                                                                                                                                                                                                                                                                                        |
+| ------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GET    | `/admin/file-scanning/failed-jobs?queue=&page=`          | Failed jobs of `file-scan`, `file-scan-verdict`, `file-asset-publication`, `chat-transcript` and `fleet-roster-replay`, queue by queue and newest first, 25 to a page: job ID, name, attempts, when it failed, the asset, transcript or Fleet ID, a failure code, and whether a retry could help. A page after the first, or one queue, is logged as `SCAN_DIAGNOSTICS_VIEWED` |
+| POST   | `/admin/file-scanning/failed-jobs/:queue/:jobId/retry`   | `{ reason }`; sends the job round again with its attempts back, answering 204. 404 for no such job; 409 when it has not failed, when a retry would change nothing (the message says why), or when somebody retried it first. Logged as `SCAN_JOB_RETRIED`                                                                                                                      |
+| POST   | `/admin/file-scanning/failed-jobs/retry-all`             | `{ reason, queue? }`; retries every failed job a retry can help, up to 500 a press, and answers `{ retried, skipped, remaining, byQueue }`. Logged once as `SCAN_JOB_RETRIED`                                                                                                                                                                                                  |
+| POST   | `/admin/file-scanning/failed-jobs/:queue/:jobId/discard` | `{ reason }`; removes any failed job from its queue, answering 204. 404 for no such job; 409 when it has not failed or somebody retried or discarded it first. Logged as `SCAN_JOB_DISCARDED`                                                                                                                                                                                  |
+| POST   | `/admin/file-scanning/failed-jobs/discard-unretryable`   | `{ reason, queue? }`; removes every failed job a retry cannot help, up to 500 a press, and answers `{ discarded, kept, remaining, byQueue }`. Logged once as `SCAN_JOB_DISCARDED`                                                                                                                                                                                              |
+| GET    | `/admin/file-publication`                                | Whether publication is paused, since when and by whom (`pausedByUserId`, `pausedByUsername`), whether the queue is paused, and how many cleared uploads are held                                                                                                                                                                                                               |
+| POST   | `/admin/file-publication/pause`, `/resume`               | `{ reason }`; 409 when it is already paused, or not paused. Logged as `PUBLICATION_PAUSED` and `PUBLICATION_RESUMED`                                                                                                                                                                                                                                                           |
+
+All require the `ADMIN` role. The failed-jobs routes answer 503 "The job queues cannot be reached."
+when Redis cannot be reached or does not answer within 5 seconds. A pause or resume while Redis is
+down still succeeds on the switch, answering with `queuePaused` and `held` null. See
+[File assets](file-assets.md#running-the-pipeline-fc-042).
+
+### Feature switches (FC-045)
+
+| Method | Path                               | Purpose                                                                                                                                                                                                                                                                                                                                                      |
+| ------ | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GET    | `/admin/feature-switches`          | Fleet Communities, Storytime and Custom Tracking, in that order: whether each is on, when its switch was last written and by whom (`changedAt`, `changedByUsername`, null for a seeded or hand-set value), and the capability flags beneath it as the environment sets them (`subFlags`: `key`, `label`, `isEnabled`), read whether or not the feature is on |
+| PATCH  | `/admin/feature-switches/:feature` | `{ isEnabled, reason }`, where `:feature` is `FLEET_COMMUNITIES`, `STORYTIME` or `CUSTOM_TRACKING` (400 otherwise); answers the switch as it now stands. 409 when it is already in that position; 404 when its `app_setting` row is missing. Logged as `FEATURE_SWITCHED_ON` or `FEATURE_SWITCHED_OFF`                                                       |
+
+All require the `ADMIN` role. Gated by the role rather than any feature's own permission: those
+permissions are only meaningful while the feature is on, so gating the switch behind one would let
+the control that recovers the feature become unreachable. The capability flags cannot be changed
+here; they are environment variables. Every instance sees a change within the ten-second settings
+cache.
+
 ### PATCH /admin/storytime/configuration
 
-Switch Storytime on or off at runtime. `GET` on the same path reports the current state. Both require the `ADMIN` role.
-
-Gated by the role rather than a Storytime permission: those permissions are only meaningful while Storytime is on, so gating the switch behind one would let the control that recovers the feature become unreachable.
+Switch Storytime on or off at runtime: `{ isEnabled, reason }`. It writes through the feature
+switches above, so it answers 409 when Storytime is already in that position and is logged the same
+way. `GET` on the same path reports Storytime's feature state. Both require the `ADMIN` role.
 
 ## User Endpoints
 
@@ -382,6 +473,19 @@ Upload a new user profile picture.
 
 - `profilePicture`: Image file (PNG/JPG/JPEG only, max size controlled by `MAX_IMAGE_SIZE_IN_BYTES`)
 
+### DELETE /user/profile-pic
+
+Remove the current user's profile picture.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Response:** `204 No Content`, whether the profile had a picture or not.
+
+**Behavior:**
+
+- Takes the picture off the profile, then revokes it in the file registry and deletes it from
+  Cloudflare Images ("Removed by the owner").
+
 ### DELETE /user/close-account
 
 Close the current authenticated user account.
@@ -400,6 +504,8 @@ Close the current authenticated user account.
 
 - Revokes active refresh tokens for the user.
 - Marks user-linked records as deleted (soft delete): `user`, `user_profile`, `account`, and `character`.
+- Withdraws the profile picture and every Character portrait once the closure has committed
+  ("The account was closed").
 - Permanent deletion of closed-account data is handled later by the scheduled retention cleanup job.
 
 ## STO Reference Data Endpoints
@@ -427,6 +533,668 @@ Invalid Cloudflare image URLs are sanitised to `null` before returning.
 
 **No Authentication Required**
 
+## Fleet Community Endpoints
+
+Fleet Community is behind a master switch held in `app_setting`, and each area behind its own
+environment flag. A switched-off area answers `404` rather than "disabled", so a staged rollout
+does not advertise what is coming.
+
+### GET /fleet/configuration
+
+Report the feature switches and the published policy figures — retention windows, chat history
+limits, the custom channel limit.
+
+Reachable while Fleet Community is switched off: this is how the client learns that it is off.
+It says nothing about any Community, Fleet or person.
+
+**No Authentication Required**
+
+### Recruitment
+
+Joining, applying, invitations, decisions, leaving and removal. See
+[Fleet recruitment](fleet-recruitment.md#routes) for every route and who may call it.
+
+### Governance
+
+Roles, delegated capabilities, ownership offers, a site administrator's dispute actions, and
+closure. See [Fleet governance](fleet-governance.md#routes) for every route and who may call it.
+A site administrator's dispute routes work at any Community, whoever may see it,
+`GET /admin/fleet-communities/by-slug/:slug` finds one for them by its web address, and
+`GET /admin/fleet-communities?search=&page=&pageSize=` finds them by name or web address, a page at
+a time (FC-050).
+
+### Armadas
+
+Requests to join an Armada, where each Fleet sits, moves and departures, and the history. See
+[Fleet Armadas](fleet-armadas.md#routes) for every route and who may call it.
+
+### Holdings
+
+The tier of each of a Fleet's holdings, recorded by hand, and their history. See
+[Fleet holdings](fleet-holdings.md#routes) for every route and who may call it.
+
+### News
+
+A Community's, a Fleet's and an Armada's own news, its audiences and covers, and a site
+administrator's takedowns. See [Fleet news](fleet-news.md#routes) for every route and who may
+call it. The site's own `/news` routes never return a scoped post.
+
+### Events
+
+A Community's, a Fleet's and an Armada's events: their rules and occurrences, answers and the
+waitlist, attendance and reminders. See [Fleet events](fleet-events.md#routes) for every route and
+who may call it.
+
+### Activity
+
+A Community's, a Fleet's and an Armada's activity, and each person's own feed. See
+[Fleet activity](fleet-activity.md#routes) for every route and who may call it.
+
+### Chat
+
+A Community's, a Fleet's and an Armada's chat channels, conversations between friends, and the
+messages in each; a scope admin's transcripts, members' reports of messages, and the site admins'
+queue of those reports (`/admin/chat-reports`). See [Fleet chat](fleet-chat.md#routes) for every
+route and who may call it.
+
+### Privacy
+
+The site admins' verified erasure of roster data (`/admin/roster-erasures`, with a preview; after a
+restore the backend brings lost erasures back by itself at boot), and what closing an account does
+to the Fleet Communities it owns (`GET /user/close-account/communities`). See
+[Privacy: erasure](privacy-erasure.md#routes) for every route and who may call it.
+
+### POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports
+
+Upload an STO roster export for a Fleet.
+
+**Authentication Required.** The caller must hold the `roster.import` capability at that Fleet. A
+Fleet belonging to a different Community than the path claims resolves to nothing and the caller
+is told it does not exist.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Request:** `multipart/form-data` with a single `roster` file part and no other fields. Maximum
+2 MiB. There is no MIME filter — a CSV has no magic number and the browser's content type for one
+is whatever the operating system's file association happens to say, so it is recorded and never
+believed.
+
+**What happens to the file.** The three officer columns are discarded before any DTO, log line,
+queue payload, database row or stored byte exists, and the received bytes are overwritten in
+memory. What is retained is a canonical twelve-column CSV in the private quarantine bucket, which
+no route yet serves. See [Roster imports](roster-imports.md).
+
+**Response (201):** the provenance record — both hashes, both sizes, the header shape, the row
+count, **how many officer notes were discarded**, the parser version, the asset's state
+(`QUARANTINED`) and when the sanitised file may be destroyed. No roster content of any kind.
+
+**Response (400):** a structural code and, where one applies, the physical line at fault. The
+codes describe shape rather than content, and no part of the file appears in the response, the
+log or anywhere else. Refused uploads leave nothing behind.
+
+### POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports/:importId/exclusions
+
+Take an import out of the Fleet's history. See [Roster history](roster-history.md#corrections).
+
+**Authentication Required.** `roster.investigate` at that Fleet. An importer cannot correct their
+own upload.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Request:** `{ "reason": "..." }`. Required of every correction, trimmed, at most 500 characters.
+
+**Response (200):** the import as an investigator sees it, now `excluded`, with its corrections
+newest first. The Fleet's roster is replayed afterwards, on a queue.
+
+**Response (404):** the Fleet has no such import.
+
+**Response (409):** it is already excluded, or it is neither in force nor waiting on a conflicting
+export.
+
+### POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports/:importId/reinstate
+
+Put an excluded import back. As `exclusions`, with `{ "reason": "..." }`; **409** when it is not
+excluded.
+
+### POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports/:importId/partial
+
+Say whether an export may not list everybody. As `exclusions`, with
+`{ "partial": true | false, "reason": "..." }`; **409** when it is already as asked.
+
+### POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports/:importId/row-exclusions
+
+Exclude some of an import's rows, or put them back. As `exclusions`, with
+`{ "lines": [2, 5], "excluded": true | false, "reason": "..." }`. Lines are the sanitised file's,
+the header being line one, as the import's problems name them; each is a data line, listed once.
+
+**Response (400):** a line names no row of the import. **Response (409):** a row is already as
+asked — the whole request is refused, so the correction recorded names exactly the rows that
+changed — or the import's rows have not been read because it is held.
+
+### POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports/:importId/timezone-correction
+
+Read an export again through the timezone it was really taken in. As `exclusions`, with
+`{ "timezone": "America/New_York", "exportedAt": "...", "reason": "..." }`. `exportedAt` is needed
+only when the stamp names two moments in that zone, and must be one of them, exactly as at upload.
+
+The export's stamp and every date in its rows are read again from the local text kept for this.
+The response gives the new zone and instant, and the correction's detail records both readings.
+
+**Response (400):** through that zone the stamp or a row's date never happened, or the stamp names
+two moments and none, or neither, was given. The body is an upload refusal's: a `code` and every
+row `problem` as a line, a column and a code. Nothing is changed.
+
+An export in a conflict group can be corrected at once (FC-050). It leaves the group, which stays
+with its moment, and joins any group its new moment already has. If it was the export selected for
+its moment, the selection goes with it. The group's other held exports are published again, so
+the publisher decides which of them stands. A held export's stored file is read through the new
+zone before anything changes, and once corrected it is queued to be read.
+
+**Response (409):** it is already read through that zone, another export of the Fleet — named —
+already claims the new moment, or it is neither in force nor waiting.
+
+### POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports/:importId/selection
+
+Select the export that stands for a moment several exports claim. As `exclusions`, with
+`{ "reason": "..." }`. The selection can be changed by selecting another export of the moment.
+
+A held export has never been read, so selecting one queues it to be read into force, and the
+Fleet's roster is replayed once it is; the response still reports it `HELD`.
+
+**Response (409):** no other export claims its moment, it is excluded, it is already the one
+selected, or it is neither in force nor waiting.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/roster-imports/:importId/rows
+
+One import's rows, in line order, for an investigator choosing rows to exclude (FC-020).
+
+**Authentication Required.** `roster.investigate` at that Fleet.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Query:** `page` and `pageSize` (at most 50).
+
+**Response (200):** `{ items, total, page, pageSize }`. Each row gives its line, Character name,
+account handle, rank label, level, cumulative contribution as a decimal string, Join Date, Last
+Active and whether it is excluded. An import with no rows in force gives none.
+
+**Response (404):** the Fleet has no such import.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/roster-import-conflicts
+
+A Fleet's conflict groups, latest moment first (FC-020). See
+[Roster history](roster-history.md#selecting-between-exports-of-one-moment).
+
+**Authentication Required.** `roster.investigate` at that Fleet.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Query:** `page`, `pageSize` (at most 50) and `state`: `OPEN` (the default) for groups waiting
+for a selection, whether never settled or reopened, `SETTLED`, or `ALL`.
+
+**Response (200):** `{ items, total, page, pageSize }`. Each group gives the moment it claims,
+when it was opened and last settled, the selected export, and its exports in the order they
+arrived, each as the import list reports it. Selecting one is `POST
+…/roster-imports/:importId/selection`.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/roster-projection
+
+Where a Fleet's roster history stands. See [Roster history](roster-history.md).
+
+**Authentication Required.** `roster.import` or `roster.investigate` at that Fleet, as for its
+imports. A caller who cannot see the Fleet is told it does not exist.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Response (200):** `{ revision, publishedAt, stale, latestImportId, inputs }`. `revision` is 0
+before the first is built. `stale` is true when a change has been made since the published
+revision was built; it is still what is served until the next one is. `inputs` lists every import
+the revision considered, in export order, each with its filename, export instant, whether it was
+marked partial, how many rows were excluded, and its `outcome`: `EFFECTIVE`, `EXCLUDED`,
+`NOT_SELECTED`, `AWAITING_SELECTION` or `SAME_AS_EFFECTIVE`.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/roster
+
+A page of a Fleet's roster, as one effective export listed it (FC-020). See
+[Roster history](roster-history.md#reading-the-roster).
+
+**Authentication Required.** `roster.view` at that Fleet: its approved members and up. Following
+the Community never confers it. A caller who cannot see the Fleet is told it does not exist.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Query:**
+
+- `asOf` — an ISO 8601 instant. The roster is shown as the last effective export at or before it
+  listed it; the latest export when omitted.
+- `page` and `pageSize` — 50 rows a page unless fewer are asked for, and never more.
+- `sort` — `NAME` (the default), `HANDLE`, `RANK`, `LEVEL`, `JOINED`, `CONTRIBUTION` or
+  `LAST_ACTIVE`, and `direction`, `ASC` (the default) or `DESC`. `RANK` orders by the Fleet's rank
+  tiers, then label. Rows with no tier, Join Date or Last Active come last either way, and every
+  ordering ends on name, handle and line.
+- `search` — part of a Character name or an account handle, case-insensitively, at most 50
+  characters.
+- `rank` — only rows with exactly this rank label.
+
+**Response (200):** `{ revision, publishedAt, stale, coverage, export, ranks, items, total, page,
+pageSize }`.
+
+- `coverage` gives the number of effective exports the revision has, and the first and latest.
+- `export` is the export shown — its import, instant and whether it was marked partial, with the
+  one before and after it for stepping — or null when none is at or before `asOf`.
+- `ranks` counts the rows holding each label on that export, highest tier first.
+- Each item is a row: its line, Character name, account handle, level, class, profession, rank
+  label and tier, cumulative contribution as a decimal string, Join Date, rank-change date, Last
+  Active, status, Public Comment and when it was edited.
+- An item also carries the member it belongs to (`identityId`), and how many rows of the export
+  that member has (`identityRows`), so that two names a confirmed rename joined stay told apart.
+- `profile` is the path of the row's Character on the registry, or null. It is given only when
+  the Character's owner has recorded its membership of the Fleet for the export's moment, that
+  record's audience includes the caller, and the registry would show the caller the Character.
+- A row an investigator excluded is shown only to `roster.investigate` holders, with `excluded`
+  true.
+
+No officer field exists to return: they are discarded before anything is stored.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/roster/history
+
+A page of a Fleet's roster history, newest interval first (FC-020). See
+[Roster history](roster-history.md#reading-the-history).
+
+**Authentication Required.** `roster.view` at that Fleet. A caller who cannot see the Fleet is told
+it does not exist.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Query:** `page`, `pageSize` (10 intervals a page, and never more) and, optionally, `kinds` —
+comma-separated, from `JOINED`, `REJOINED`, `LEFT`, `RENAMED`, `RANK_CHANGED` and
+`JOIN_DATE_CHANGED`. Every one of them when omitted.
+
+**Response (200):** `{ revision, publishedAt, stale, items, total, page, pageSize }`. Each item is
+an interval between two consecutive effective exports, with its summary and the changes the later
+export revealed:
+
+- **The summary:** members at each end; how many joined, rejoined, left, were left unknown, were
+  renamed or changed rank or Join Date; how many changes were revealed across a gap; and the
+  contribution total with its known, reset, baseline and unknown counts.
+- **Each change:** its member and kind, and the exports it lies between, never a date.
+  - `acrossGap` marks bounds wider than the interval; such a change is in none of its totals.
+  - `member` is the name and handle as the export that showed them listed them: the later export,
+    or the earlier for a departure.
+  - `rankMove` is `PROMOTED` or `DEMOTED` only for a move between two tiers of the Fleet's rank
+    order, and otherwise null.
+  - A rename carries both names and handles, a rank change both labels, and a Join Date change
+    both dates.
+
+Contribution rises and resets are not listed here: they are in each interval's totals and on the
+member's timeline.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/roster/members/:identityId
+
+One member's history in a Fleet (FC-020).
+
+**Authentication Required.** `roster.view` at that Fleet.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Response (200):** `{ revision, publishedAt, stale, identityId, member, profile, episodes,
+changes, rows }`.
+
+- `member` is their name and handle on the latest effective export listing them.
+- `profile` is their Character's registry path, on the roster's terms, for that export.
+- `episodes` gives each stretch of membership: how it began and ended, and the exports bounding
+  each.
+- `changes` is every change, contribution rises and resets included, oldest first. A rise carries
+  its delta, and a reset none.
+- `rows` is their row on each effective export listing them: name, handle, level, rank and tier,
+  cumulative contribution and Last Active. A row an investigator excluded is shown only to
+  `roster.investigate` holders.
+
+**Response (404):** the published revision has nothing of that member. A member of another Fleet,
+or one whose names a confirmed rename has since joined to another member, is reported the same way.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/roster/rank-order
+
+A Fleet's rank order (FC-020). See [Roster history](roster-history.md#rank-order).
+
+**Authentication Required.** `roster.view` at that Fleet.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Response (200):** `{ tiers, labels, actions }`. `tiers` lists the tiers highest first, each a
+list of labels; it is empty when the Fleet has no order. For `roster.investigate` holders,
+`labels` lists every label the Fleet's imports have listed, with its tier or null. `actions` lists
+every edit, newest first, with the investigator's STO Info username, the reason, and the order
+before and after. Both are null for anybody else.
+
+### PUT /fleet-communities/:communityId/fleets/:fleetId/roster/rank-order
+
+Replace a Fleet's rank order.
+
+**Authentication Required.** `roster.investigate` at that Fleet.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Request:** `{ "tiers": [["Admiral"], ["Captain", "Commander"]], "expected": <the tiers as
+loaded>, "reason": "..." }`. Tiers run highest first, and each holds one or more labels exactly as
+exports list them. No label may be placed twice, and at most 255 may be placed. An empty list
+clears the order. A reason is required, at most 500 characters.
+
+**Response (200):** the order as an investigator sees it.
+
+**Response (400):** nothing would change, or the order places a label none of the Fleet's imports
+has listed, which the message names.
+
+**Response (409):** the order changed since it was loaded.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/reports
+
+The reports of a Fleet the caller may see, and how much of each (FC-020, FC-030). See
+[Fleet reports](fleet-reports.md#who-may-see-a-report).
+
+**Authentication Optional.** Signed-out callers are shown the public reports of a public Fleet.
+
+**Feature flag:** the Fleet Community switch. The roster's reports are listed only while
+`FLEET_IMPORTS_ENABLED` is on and the Fleet's game writes a roster; holdings, and attendance and
+recruitment where the caller may see them, are listed on every Fleet.
+
+**Response (200):** a list of `{ report, view }`, where `view` is `FULL` or `AGGREGATE`. A caller
+who may see none of them, or not the Fleet, or who names the wrong Community, is given an empty
+list.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/reports/growth
+
+A Fleet's growth and loss, interval by interval (FC-020). See
+[Fleet reports](fleet-reports.md#growth).
+
+**Authentication Optional.** As much of it as the caller is shown: see
+[who may see a report](fleet-reports.md#who-may-see-a-report).
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Query:** optionally `from` and `to`, ISO 8601 instants. An interval is covered when its later
+export was taken between them.
+
+**Response (200):** the report's header — `report`, `view`, `revision`, `publishedAt`, `stale`,
+`range`, `coverage` and `minimumCohort` — and `intervals`, oldest first. Each gives both exports,
+whether the later was partial, the members at each end, and how many joined, rejoined and left,
+were left unknown, or were revealed across a gap. It also gives the account handles listed at
+each end. In an aggregate view, a figure that is null was hidden.
+
+**Response (404):** the caller may not see it.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/reports/activity
+
+A Fleet's imported activity at each export (FC-020). See
+[Fleet reports](fleet-reports.md#activity).
+
+**Authentication Optional**, as for growth.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Query:** optionally `from` and `to`. An export is covered when it was taken between them.
+
+**Response (200):** the header, and `exports`, oldest first. Each gives the export, whether it was
+partial, the members it listed, and `bands`: how many were last active within 7, 30 or 90 days of
+it, longer ago, or with no Last Active.
+
+**Response (404):** the caller may not see it.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/reports/tenure
+
+How long a Fleet's members had been listed, at each export (FC-020). See
+[Fleet reports](fleet-reports.md#tenure).
+
+**Authentication Optional**, as for growth.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Query:** optionally `from` and `to`, and for a full view `at`, the effective export to list the
+members at. The latest in the span by default.
+
+**Response (200):** the header and `exports`, oldest first. Each gives the export, whether it was
+partial, the members it listed, and `bands`: how many had been listed under 30 days, 30 to 90
+days, 90 days to a year, one to two years, or two or more. `atLeast` gives, of each band, those
+whose episode no earlier export bounds. A full view also gives `at` and `members`: each member at
+that export, with the first export of their episode, whole days since, their band, and whether it
+is at least that long. Both are null in an aggregate view.
+
+**Response (400):** `at` is not an effective export in the span.
+
+**Response (404):** the caller may not see it.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/reports/ranks
+
+A Fleet's rank distribution at each export (FC-020). See [Fleet reports](fleet-reports.md#ranks).
+
+**Authentication Optional**, as for growth.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Query:** optionally `from` and `to`.
+
+**Response (200):** the header and `exports`, oldest first. Each gives the export, whether it was
+partial, and `labels`: each rank label it lists with its tier and members, highest tier first and
+unplaced labels last. `changes` gives the rank changes it revealed: `promoted` and `demoted`
+between tiers of the Fleet's rank order, `changed` for every other change of label, and
+`acrossGap` for those bounded more widely. It is null for the Fleet's first export.
+
+**Response (404):** the caller may not see it.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/reports/contribution
+
+What a Fleet's members contributed, interval by interval (FC-020). See
+[Fleet reports](fleet-reports.md#contribution).
+
+**Authentication Optional**, as for growth.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Query:** optionally `from` and `to`, and for a full view `at`, the effective export ending the
+interval whose members are listed. The latest in the span by default.
+
+**Response (200):** the header and `intervals`, oldest first. Each gives both exports, whether the
+later was partial, and `contributionDelta`, the sum of every known rise, as a decimal string. It
+also gives how many members that rests on (`known`), how many reset, how many began a new
+baseline, and how many are unknown. A full view also gives `at` and `members`: each member's rise
+in that interval, largest first, then each reset. Each carries the totals either side and the
+export it happened after, and one bounded more widely is marked `acrossGap`. Both are null in an
+aggregate view.
+
+**Response (400):** `at` is not an effective export in the span.
+
+**Response (404):** the caller may not see it.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/reports/attendance
+
+Who came to a Fleet's own events (FC-030). See [Fleet reports](fleet-reports.md#attendance).
+
+**Authentication Optional.** As much of it as the caller is shown: per person for `reports.view`
+holders, counts and rates for anybody else its audience lets see it, members included.
+
+**Feature flag:** the Fleet Community switch.
+
+**Query:** optionally `from` and `to`, ISO 8601 instants; the last twelve months by default.
+
+**Response (200):** `report`, `view`, `range`, `minimumCohort`; `occurrences`, each occurrence that
+started in the span with its event's title and how many were going, came and did not come, and
+the rate; `totals`; and `members`, each person's attendance, for a full view, otherwise null.
+
+**Response (400):** the span ends before it starts.
+
+**Response (404):** the caller may not see it.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/reports/recruitment
+
+How a Fleet's applications and invitations turned out (FC-030). See
+[Fleet reports](fleet-reports.md#recruitment).
+
+**Authentication Optional**, as for growth.
+
+**Feature flag:** the Fleet Community switch.
+
+**Query:** as for attendance.
+
+**Response (200):** the header and `months`, oldest first, one row per month and route
+(`APPLICATION`, `OPEN_JOIN`, `INVITATION`): how many came in, were accepted, declined, withdrawn,
+lapsed or are pending, and the median days to a decision. Never a name.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/reports/holdings
+
+How a Fleet's holdings changed (FC-030). See [Fleet reports](fleet-reports.md#holdings).
+
+**Authentication Optional.** Public: anybody who may see the Fleet.
+
+**Feature flag:** the Fleet Community switch.
+
+**Query:** as for attendance.
+
+**Response (200):** the header and `changes`, newest first: when, the holding, the track, and the
+tier it moved from and to. Never who recorded it.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/reports/:report/csv
+
+One of a Fleet's reports as CSV (FC-020, FC-030). See [Fleet reports](fleet-reports.md#csv-export).
+
+**Authentication Optional**, as for the report itself.
+
+**Feature flag:** as for the report itself.
+
+**Path:** `:report` is `growth`, `tenure`, `ranks`, `activity`, `contribution`, `attendance`,
+`recruitment` or `holdings`, in any case.
+
+**Query:** as for the report.
+
+**Response (200):** `text/csv; charset=utf-8`, UTF-8 with a byte order mark, offered as an
+attachment named for the Fleet, the report and the day. It holds the tables exactly as the caller
+is shown them, with every hidden figure written `< 5`, below comment lines giving the report,
+revision, span and view and when it was made. Instants are ISO 8601 UTC. `Cache-Control` is
+`private, no-store`.
+
+**Response (400):** `:report` names no report.
+
+**Response (404):** the caller may not see it.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/reports/audiences
+
+Who may see each of a Fleet's reports (FC-020). See [Fleet reports](fleet-reports.md).
+
+**Authentication Required.** `reports.view` at that Fleet: its Owner and Admins.
+
+**Feature flag:** the Fleet Community switch.
+
+**Response (200):** `{ reports, changes }`. `reports` gives each of `GROWTH`, `TENURE`, `RANKS`,
+`ACTIVITY`, `CONTRIBUTION`, `ATTENDANCE` and `RECRUITMENT` with its audience, and when that was last changed or null. A report
+never changed is `PRIVATE`. `changes` lists every change, newest first: the report, the audience
+before and after, and who made it by STO Info username.
+
+### PUT /fleet-communities/:communityId/fleets/:fleetId/reports/:report/audience
+
+Change who may see one of a Fleet's reports.
+
+**Authentication Required.** `scope.settings.manage` at that Fleet: its Owner.
+
+**Feature flag:** the Fleet Community switch.
+
+**Path:** any report but `holdings`, which is public, in any case.
+
+**Request:** `{ "audience": "PRIVATE" | "FLEET_MEMBERS" | "COMMUNITY" | "PUBLIC" }`.
+
+**Response (200):** every report's audience and change, as after it.
+
+**Response (400):** the report has that audience already, is `holdings`, or `:report` is not a
+report.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/roster-identities/candidates
+
+List a Fleet's rename candidates, open ones first. See [Roster identities](roster-identities.md).
+
+**Authentication Required.** The caller must hold `roster.investigate` at that Fleet. A caller who
+cannot see the Fleet is told it does not exist.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Query:** `page`, `pageSize` (at most 50) and, optionally, `state` — `OPEN`, `CONFIRMED` or
+`REJECTED`.
+
+**Response (200):** `{ items, total, page, pageSize }`. Each candidate carries its kind, state,
+whether it may be decided now, its confidence and each corroborating signal, any collision reasons,
+whether its evidence has moved since it was decided, its revision, the two exports it rests on
+with their export instants, the alias pairs it would join with their names and handles as
+exported, and every decision taken on it, newest first, naming the reviewer by STO Info username.
+
+### POST /fleet-communities/:communityId/fleets/:fleetId/roster-identities/candidates/:candidateId/decisions
+
+Confirm, reject or undo a rename candidate.
+
+**Authentication Required.** `roster.investigate` at that Fleet.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Request:** `{ "action": "CONFIRM" | "REJECT" | "UNDO", "revision": <the candidate's revision as
+loaded>, "reason": "..." }`. A reason is optional to confirm or reject and required to undo; at
+most 500 characters.
+
+**Response (200):** the candidate as it now stands. The Fleet's roster is replayed afterwards, on
+a queue, which recomputes its identities and history as one revision. No alias, account or account
+handle is changed by the request itself.
+
+**Response (404):** the Fleet has no such candidate. One of another Fleet is reported the same way.
+
+**Response (409):** it changed since it was loaded, it is a collision and cannot be decided, or it
+is not in a state the action applies to — only an open candidate is confirmed or rejected, and only
+a decided one undone.
+
+### GET /fleet-communities/:communityId/fleets/:fleetId/former-names
+
+List a Fleet's former names, which older roster exports are matched against (FC-050). See
+[Roster imports](roster-imports.md#former-fleet-names).
+
+**Authentication Required.** `roster.investigate` at that Fleet, or `roster.investigate.read` for a
+site admin looking in. A caller who cannot see the Fleet is told it does not exist.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Response (200):** `{ items, removed, mayChange }`. `items` are the names in use, the most recent
+first; `removed` the names removed, the most recently removed first. Each carries its exact name,
+`validFrom`, `validTo`, the reason, who recorded it by STO Info username and when, when and by whom
+it was removed and why, and how many of the Fleet's imports matched it. `mayChange` is whether the
+caller holds `roster.investigate`.
+
+### POST /fleet-communities/:communityId/fleets/:fleetId/former-names
+
+Record a former name.
+
+**Authentication Required.** `roster.investigate` at that Fleet.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Request:** `{ "exactName": "...", "validFrom": "<ISO instant>", "validTo": "<ISO instant>",
+"reason": "..." }`. The name is not trimmed and follows the Fleet name's rules; the reason is
+trimmed, required, and at most 500 characters.
+
+**Response (201):** the name as recorded.
+
+**Response (400):** the name stops before it began, or has not stopped yet.
+
+**Response (409):** it is the Fleet's name now, or the same name is already recorded for part of
+that time.
+
+### POST /fleet-communities/:communityId/fleets/:fleetId/former-names/:aliasId/removal
+
+Remove a former name. It matches nothing new; imports that matched it keep their match.
+
+**Authentication Required.** `roster.investigate` at that Fleet.
+
+**Feature flag:** `FLEET_IMPORTS_ENABLED`.
+
+**Request:** `{ "reason": "..." }`, required, at most 500 characters.
+
+**Response (200):** the name as it now stands, removed.
+
+**Response (404):** the Fleet has no such name in use. One of another Fleet is reported the same
+way.
+
 ## Account Endpoints
 
 All account endpoints are under `/account/*` and require authentication.
@@ -447,10 +1215,10 @@ Returned URL values are verified as valid Cloudflare Images delivery URLs.
 
 **Query parameters:**
 
-| Parameter   | Values                                                                 | Default  |
-| ----------- | ---------------------------------------------------------------------- | -------- |
+| Parameter   | Values                                                                  | Default  |
+| ----------- | ----------------------------------------------------------------------- | -------- |
 | `sortBy`    | `handle`, `characterCount`, `endeavourTotalNodes`, `accountCreatedDate` | `handle` |
-| `sortOrder` | `ASC`, `DESC`                                                          | `ASC`    |
+| `sortOrder` | `ASC`, `DESC`                                                           | `ASC`    |
 
 Pinned accounts always lead the list, whichever ordering is requested; the
 requested ordering then applies within the pinned and unpinned groups alike.
@@ -515,7 +1283,8 @@ timestamp.
 
 ### DELETE /account/:id
 
-Soft-delete an account by id.
+Soft-delete an account by id, and withdraw its Characters' portraits ("Its STO account was
+deleted").
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -549,9 +1318,22 @@ Update a character by id.
 
 ### DELETE /character/:id
 
-Soft-delete a character by id.
+Soft-delete a character by id, and withdraw its portrait ("Its Character was deleted").
 
 **Headers:** `Authorization: Bearer <access_token>`
+
+### DELETE /character/:id/profile-image
+
+Remove a character's portrait.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Response:** `204 No Content`, whether the character had a portrait or not.
+
+**Behavior:**
+
+- Takes the portrait off the character, then revokes it in the file registry and deletes it from
+  Cloudflare Images ("Removed by the owner").
 
 ### POST /character/:id/profile-image
 
@@ -880,6 +1662,37 @@ deleted is refused with `404`: it is invisible already.
 Put suppressed content back into public view. The timestamp and the
 administrator are both cleared; who did what stays in the audit trail.
 
+Both routes take `{ reason }` (FC-039), kept in the site admin log with the
+owner as the target.
+
+## File Asset Endpoints
+
+### GET /file-assets/:assetId/content
+
+Serve a stored file's bytes to a reader entitled to them.
+
+**Headers:** `Authorization: Bearer <access_token>` — optional. An asset published to everybody is
+readable by a signed-out visitor; a token is honoured when one is sent.
+
+The asset's own state and audience are re-read on **every** request. A file is served only when it
+is `AVAILABLE`; a clean scanner verdict is not enough, because publication additionally requires an
+allowed type, successful processing and an audience to publish to.
+
+**Responses**
+
+| Status | When                                                                                                                        |
+| ------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `200`  | The bytes, with `Cache-Control: no-store, private`, `Content-Disposition: attachment` and `X-Content-Type-Options: nosniff` |
+| `404`  | No such asset, the asset is not available, **or** the reader may not see it                                                 |
+
+The three `404` cases are deliberately indistinguishable. Telling them apart would let somebody
+enumerate what is stored and, for a quarantined file, confirm that the scanner rejected it — which
+is a fact about the scanner and belongs with the rest of its diagnostics.
+
+This route serves what is in the private quarantine bucket. An image delivered through Cloudflare
+Images or the legacy public CDN has its own URL and is refused here. See
+[File assets](file-assets.md).
+
 ## Contact Endpoint
 
 ### POST /contact
@@ -967,7 +1780,8 @@ The application automatically confirms the subscription by performing an HTTPS G
 
 ### GET /health/ready
 
-Application readiness check.
+Application readiness check. It cannot answer until the restore check has finished: the server
+does not listen before then (FC-042, see [Privacy: erasure](privacy-erasure.md#the-restore-check-fc-042)).
 
 **No Authentication Required**
 

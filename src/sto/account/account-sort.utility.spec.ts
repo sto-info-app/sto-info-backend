@@ -118,8 +118,8 @@ describe('sortAccounts', () => {
   });
 
   describe('by account created date', () => {
-    const dated = (handle: string, iso: string): SortableAccount =>
-      account(handle, { accountCreatedDate: new Date(iso) });
+    const dated = (handle: string, day: string): SortableAccount =>
+      account(handle, { accountCreatedDate: day });
 
     it('orders oldest first ascending', () => {
       const result = sortAccounts(

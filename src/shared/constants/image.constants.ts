@@ -177,3 +177,81 @@ export function isValidCloudflareImageUrl(
 export function getCloudflareCdnRootUrl(): string | undefined {
   return process.env.CLOUDFLARE_CDN_ROOT_URL?.trim() || undefined;
 }
+
+/**
+ * The variant a Community, Fleet or Armada banner is delivered at.
+ *
+ * The full 2400 by 480 a banner has to be uploaded at, so a high-density
+ * screen gets the detail it was given. `public` came out 1366 wide, soft at
+ * double density, where the banner's 1050 or so pixels need about 2100
+ * (18 October 2026). Storytime's banners already use this variant, so it
+ * exists on the account.
+ */
+export const BANNER_VARIANT = 'banner2400x480';
+
+/** The variants a Fleet emblem is drawn at: a listing's row and a page's head. */
+export const EMBLEM_VARIANTS = ['square100', 'square300'] as const;
+
+/** An emblem's addresses, by variant. */
+export type EmblemImageUrls = Record<(typeof EMBLEM_VARIANTS)[number], string>;
+
+/**
+ * The variants a news post's cover is drawn at: its card in a news list, and
+ * the head of the post. A single `public` address came out 1366 by 768, more
+ * than a card needs and soft across a post at double density (18 October
+ * 2026). Storytime's chapter covers already use both, so they exist on the
+ * account.
+ */
+export const COVER_VARIANTS = ['cover640x360', 'cover1920x1080'] as const;
+
+/** A cover's addresses, by variant. */
+export type CoverImageUrls = Record<(typeof COVER_VARIANTS)[number], string>;
+
+/**
+ * A picture's address, for a response (FC-040). The API signs it on the way
+ * out, so the browser never builds one itself.
+ *
+ * @param imageId - The image, or null.
+ * @param variant - The variant.
+ * @returns The address, or null when there is no picture.
+ */
+export function imageUrlOf(
+  imageId: string | null | undefined,
+  variant: string,
+): string | null {
+  return imageId ? buildCloudflareImageUrl(imageId, variant) : null;
+}
+
+/**
+ * A news post cover's addresses at each size the site draws one.
+ *
+ * @param imageId - The cover, or null.
+ * @returns Its addresses by variant, or null when there is no cover.
+ */
+export function coverUrlsOf(
+  imageId: string | null | undefined,
+): CoverImageUrls | null {
+  return imageId
+    ? {
+        cover640x360: buildCloudflareImageUrl(imageId, 'cover640x360'),
+        cover1920x1080: buildCloudflareImageUrl(imageId, 'cover1920x1080'),
+      }
+    : null;
+}
+
+/**
+ * An emblem's addresses at each size the site draws one (FC-040).
+ *
+ * @param imageId - The emblem, or null.
+ * @returns Its addresses by variant, or null when there is no emblem.
+ */
+export function emblemUrlsOf(
+  imageId: string | null | undefined,
+): EmblemImageUrls | null {
+  return imageId
+    ? {
+        square100: buildCloudflareImageUrl(imageId, 'square100'),
+        square300: buildCloudflareImageUrl(imageId, 'square300'),
+      }
+    : null;
+}

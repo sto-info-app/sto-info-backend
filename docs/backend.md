@@ -52,14 +52,14 @@ Alongside the coarse `USER`, `STORYTIME_CURATOR` and `ADMIN` roles, the applicat
 
 **Model**
 
-| Table | Purpose |
-| --- | --- |
-| `permission` | The registry of capabilities, keyed by a stable code such as `storytime.story.create`. Seeded by migration only. |
-| `permission_group` | A named bundle of permissions, for example *Storytime Creator*. |
-| `permission_group_permission` | Which permissions a group confers. |
-| `role_permission_group` | Which groups a `UserRole` receives by default. |
-| `user_permission_override` | A per-user `GRANT` or `DENY` that departs from the role default. |
-| `user_limit_override` | A per-user replacement for a configured numeric limit. |
+| Table                         | Purpose                                                                                                          |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `permission`                  | The registry of capabilities, keyed by a stable code such as `storytime.story.create`. Seeded by migration only. |
+| `permission_group`            | A named bundle of permissions, for example _Storytime Creator_.                                                  |
+| `permission_group_permission` | Which permissions a group confers.                                                                               |
+| `role_permission_group`       | Which groups a `UserRole` receives by default.                                                                   |
+| `user_permission_override`    | A per-user `GRANT` or `DENY` that departs from the role default.                                                 |
+| `user_limit_override`         | A per-user replacement for a configured numeric limit.                                                           |
 
 **Resolution order** — implemented once, in `AccessControlService`:
 
@@ -92,11 +92,11 @@ The framework is purely additive. `RolesGuard` and every existing `@Roles(UserRo
 
 `PUT /admin/access-control/users/:userId/role` moves a member between the roles in `ASSIGNABLE_USER_ROLES` — `USER` and `STORYTIME_CURATOR`. There are three roles in all:
 
-| Role | What it confers |
-| --- | --- |
-| `USER` | Read and write their own Storytime content (`storytime.reader`, `storytime.creator`). |
-| `STORYTIME_CURATOR` | Everything a `USER` has, plus `storytime.curator`: `storytime.moderate`, `storytime.spotlight.manage` and `storytime.tag.manage`. |
-| `ADMIN` | Everything a curator has, plus `storytime.configure`, and every `@Roles(UserRole.ADMIN)` surface: news, banners, notifications, member moderation, access control and the Storytime master switch. |
+| Role                | What it confers                                                                                                                                                                                    |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `USER`              | Read and write their own Storytime content (`storytime.reader`, `storytime.creator`).                                                                                                              |
+| `STORYTIME_CURATOR` | Everything a `USER` has, plus `storytime.curator`: `storytime.moderate`, `storytime.spotlight.manage` and `storytime.tag.manage`.                                                                  |
+| `ADMIN`             | Everything a curator has, plus `storytime.configure`, and every `@Roles(UserRole.ADMIN)` surface: news, banners, notifications, member moderation, access control and the Storytime master switch. |
 
 `storytime.configure` is the line between curator and administrator: feature flags and per-user limit exemptions change the rules everyone plays by. The Storytime master switch is stricter still — `AdminStorytimeConfigurationController` is gated by the `ADMIN` role itself, because a switch that turns Storytime off cannot be gated by a Storytime permission.
 
@@ -136,6 +136,8 @@ Two mechanisms, deliberately different in kind.
 
 **Capability flags** live in environment variables. These stage a rollout and vary by environment, which is what environment variables are for.
 
+The three feature master switches — `FLEET_COMMUNITIES_ENABLED`, `STORYTIME_ENABLED` and `CUSTOM_TRACKING_ENABLED` — are thrown from the Admin page's Features panel (FC-045), through `GET /admin/feature-switches` and `PATCH /admin/feature-switches/:feature`. Each change takes a reason and is logged in the site admin log as `FEATURE_SWITCHED_ON` or `FEATURE_SWITCHED_OFF`, in the same transaction as the write. The panel shows each feature's capability flags as the environment sets them, but cannot change them. None of the switches needs SQL any more, and none reaches the file gate.
+
 `STORYTIME_ENABLED` is the runtime master switch and is **seeded disabled**. Storytime ships as one complete feature, so it stays off until the whole agreed scope is production-ready. The capability flags (`STORYTIME_PUBLIC_READ_ENABLED`, `STORYTIME_CREATION_ENABLED`, `STORYTIME_YOUTUBE_ENABLED`, `STORYTIME_SPOTLIGHT_ENABLED`) default to enabled, so once Storytime itself is on its parts work unless an environment deliberately disables one.
 
 The master switch wins: with it off every capability reports as off, so callers need only ask about the specific thing they are about to do.
@@ -143,6 +145,8 @@ The master switch wins: with it off every capability reports as off, so callers 
 `StorytimeFeatureService.assertFlagEnabled` raises **NotFound**, not a "disabled" error. A feature that is switched off should be indistinguishable from one that does not exist, so a staged rollout does not advertise what is coming.
 
 `CUSTOM_TRACKING_ENABLED` follows the same pattern and is likewise **seeded disabled**, with capability flags `CUSTOM_TRACKING_PUBLIC_READ_ENABLED`, `CUSTOM_TRACKING_DEFINITION_EDITING_ENABLED`, `CUSTOM_TRACKING_VALUE_EDITING_ENABLED`, `CUSTOM_TRACKING_IMAGES_ENABLED` and `CUSTOM_TRACKING_YOUTUBE_ENABLED`. Having its master switch in the database matters more here than anywhere else: the feature stores content users write themselves, so an incident may need it stopped in minutes rather than at the next deploy.
+
+`FILE_PUBLICATION_PAUSED` (FC-042) is a runtime switch of a different kind: an operations kill switch, not a feature switch, and **seeded running**. While it is on, uploads are still accepted and scanned and nothing is published; turned off, everything held publishes. It holds a small JSON value — `{"paused":false}`, or whether it is paused, since when and by whom — and is thrown only from the Admin page's `POST /admin/file-publication/pause` and `/resume`, each with a reason for the site admin log. No feature switch governs it, and it governs none. Because a paused queue lives in Redis, the switch is re-applied to the `file-asset-publication` queue at startup and every minute, reading past the ten-second cache; see [File assets](file-assets.md#pausing-publication).
 
 Custom Tracking adds a second gate in front of everything that writes. `CustomTrackingEditingGuard` requires the capability **and** the current content agreement to have been accepted, in that order — asking somebody to agree to terms for a feature that is switched off would be strange, and would reveal that it is coming. Reading is deliberately not guarded: a user whose acceptance has been superseded keeps full sight of what they have already recorded.
 
@@ -164,31 +168,18 @@ Middleware executes in the following order:
 
 ### Client IP Middleware
 
-**Critical Implementation Detail:**
+`CloudflareOrigin` (`src/common/http/cloudflare-origin.ts`), mounted before the body parsers,
+decides once per request whether it came through Cloudflare and whose address it is (FC-044):
 
-The `clientIpMiddleware` extracts the real client IP address from Cloudflare headers, prioritising `CF-Connecting-IP` over `X-Forwarded-For`.
+- A request carrying the origin secret in `X-Origin-Verify` has `CF-Connecting-IP` as its address.
+- Any other request is refused `403`, except `/health/`, once the secret is set, which it must be
+  outside `local` and `e2etest`. Chat's socket is held to the same rule.
+- No header the caller wrote is ever believed: `X-Forwarded-For` is not read for the address.
+- Without a secret, on a developer's machine, every request's address is its connection's own.
 
-**Why This Matters:**
-
-- Cloudflare proxies all requests, so `req.ip` would show Cloudflare's IP, not the actual client
-- `CF-Connecting-IP` is the authoritative header from Cloudflare containing the real client IP
-- `X-Forwarded-For` can be spoofed or contain multiple IPs; only trust it when from Cloudflare
-- Proper client IP is essential for rate limiting, logging, and security
-
-**Implementation:**
-
-```typescript
-// Extract in this priority order:
-1. CF-Connecting-IP (Cloudflare's authoritative header)
-2. X-Forwarded-For (fallback, take first IP)
-3. req.ip (last resort)
-```
-
-**Testing:**
-
-- In production, `CF-Connecting-IP` should always be present
-- In local development, fallback headers will be used
-- Verify logs show correct client IPs, not Cloudflare infrastructure IPs
+The address is `req.clientIp`. The rate limits key on it, and `UserIdMiddleware` puts it in
+`CurrentContextHelper.ip` for the login, audit and site admin logs. See
+[Infrastructure: origin proxy trust](infrastructure.md#origin-proxy-trust).
 
 ## Logging Strategy
 
@@ -278,20 +269,39 @@ Stricter limits are applied to specific route groups before the method-based lim
 - Store uses type-safe `sendCommand` implementation with proper TypeScript typing (`RedisReply`)
 - Redis commands are executed via `ioredis` client's `call` method
 
+#### When Redis cannot answer (FC-042)
+
+Each `RedisStore` is wrapped in a `FallbackRateLimitStore` (`src/common/http/fallback-rate-limit.store.ts`)
+with an in-memory `MemoryStore` behind it. Before this, a Redis outage held every request for about
+70 seconds (ioredis retrying the command twenty times) and then failed it with a 500, which took
+the whole API down, including the Scan Diagnostics page and the publication pause meant for that
+outage.
+
+- A count Redis has not answered within **1 second** is made in memory instead. Start-up alone
+  waits **10 seconds**, since no request is behind it and a fresh instance's first command to a TLS
+  Key Value instance takes longer than a count is allowed.
+- For the next **10 seconds** nothing asks Redis, so an outage costs one slow request every ten
+  seconds rather than a second on every request. After that, the next request asks Redis again.
+- Limits keep applying throughout, sign-in's included (counting locally rather than letting requests
+  through). While Redis is away each instance keeps its own count, so with several instances a
+  client can make that many more requests.
+- The switch is logged once each way: a warning `Rate limits counted in memory while Redis cannot
+answer - Limiter: <name>`, and `Rate limits counted in Redis again` when it answers. Counts made in
+  memory are not copied back to Redis.
+
 **Key Generation:**
 
 - Rate limit keys are generated from client IP addresses
 - IPv4 addresses: Used directly (e.g., `192.0.2.1`)
 - IPv6 addresses: `/64` subnet prefix used for keying (common recommendation for IPv6 subnetting)
-- IPv6-mapped IPv4 addresses (`:ffff:192.0.2.1`) are normalized to IPv4 by `clientIpMiddleware` before reaching rate limiter
+- IPv6-mapped IPv4 addresses (`:ffff:192.0.2.1`) are normalized to IPv4 by `CloudflareOrigin` before reaching the rate limiter
 
 **IP Address Resolution:**
 
-Client IP is extracted in priority order:
-
-1. `CF-Connecting-IP` (Cloudflare's authoritative header)
-2. First entry from `X-Forwarded-For`
-3. Express `req.ip`
+The key is `req.clientIp`, which `CloudflareOrigin` decides (FC-044): `CF-Connecting-IP` on a
+request proved to come through Cloudflare, otherwise the connection's own peer. A request that
+did not come through Cloudflare is refused before it reaches a limiter, so no header a caller
+writes can move them to a fresh bucket. See [Client IP Middleware](#client-ip-middleware).
 
 ### Rate Limit Headers
 
@@ -313,6 +323,20 @@ If legitimate traffic is being throttled:
 2. Consider increasing `max` and/or `windowMins`
 3. Balance security (DDoS protection) with usability
 4. Monitor 429 error rates in production logs
+
+## Email
+
+`MailService` (`src/mail/mail.service.ts`) sends every email through Amazon SES, the only email
+sender. A failed send is logged rather than thrown. Sign-up, verification, password changes,
+account closure, the contact form and **every successful sign-in** send one, in every
+environment; only the subject says which (`[local]`, for instance).
+
+**Reserved domains are never mailed (FC-044).** Before sending, `sendEmail` skips any
+address at `example.com`, `example.net` or `example.org`, or under `.example`, `.invalid`, `.test`
+or `.localhost` (`src/mail/utilities/reserved-mail-domain.utility.ts`), and logs the domain and
+subject it skipped. RFC 2606 and RFC 6761 reserve those names, so no mailbox can exist there.
+Seeded demonstration members and the end-to-end journeys' disposable accounts live at them, and a
+sign-in of theirs would otherwise bounce, at a cost to the sender's standing for real mail.
 
 ## File Upload Endpoints
 
@@ -347,12 +371,23 @@ Only the following image types are accepted:
 1. **MIME Type Check**: Multer checks `mimetype` field
 2. **File Extension Check**: Additional validation against allowed extensions
 3. **File Size Check**: Enforced by Multer limits
-4. **Virus scanning**: Uploads are scanned via Cloudmersive before being stored
+4. **Signature check**: the encoding is read out of the bytes, not taken from the request
+5. **Malware scanning**: the bytes are quarantined and scanned by the file scan worker, and
+   the upload endpoint answers `202 Accepted` with an asset to ask about rather than with the
+   record it has not changed yet — see [File assets](file-assets.md)
 
 ### Upload Endpoints
 
-- **User Profile Image**: `POST /user/update-profile-pic` (authenticated)
-- **Character Image**: `POST /character/:id/profile-image` (authenticated, ownership check)
+- **User Profile Image**: `POST /user/update-profile-pic` (authenticated); removed with
+  `DELETE /user/profile-pic`
+- **Character Image**: `POST /character/:id/profile-image` (authenticated, ownership check);
+  removed with `DELETE /character/:id/profile-image`
+- **Roster export**: `POST /fleet-communities/:communityId/fleets/:fleetId/roster-imports`
+  (authenticated, `roster.import` capability at the Fleet)
+
+The roster endpoint does **not** follow the image rules above: no MIME filter, a 2 MiB ceiling,
+and a bounded parser that discards the three officer columns before anything durable exists. See
+[Roster imports](roster-imports.md).
 
 ## Image Upload Service
 
@@ -405,6 +440,32 @@ The `ImageUploadsService` handles uploading images to Cloudflare Images.
 
 > TODO: Replace placeholders with your real delivery root/hash (and list the variants the frontend should use).
 
+## File scanning
+
+`src/file-scanning` is this application's end of the contract with the file scan worker. It is a
+module of its own rather than part of `FileAssetsModule`, because the registry and the queue have
+different failure modes: the registry is a table this application owns outright, and the queue is
+a conversation with another application over infrastructure that can be down. Keeping them apart
+means the delivery endpoint does not depend on Redis in order to serve a file.
+
+| Piece                            | What it does                                                                      |
+| -------------------------------- | --------------------------------------------------------------------------------- |
+| `contract/file-scan-contract.ts` | The message shapes and their parsers. **Duplicated byte for byte in the worker.** |
+| `ScanRequestProducerService`     | Moves an asset to `SCANNING` and puts a request on `file-scan`.                   |
+| `ScanVerdictProcessor`           | Takes verdicts off `file-scan-verdict` and parses them before touching a field.   |
+| `ScanVerdictService`             | Applies a verdict to the registry, after rechecking it against the row.           |
+
+**Redis is now load-bearing for file safety**, which it was not before — it was a rate-limiting
+dependency. ADR-0006 accepted that and required the queue's connection budget to be sized and
+monitored separately from the limiter's, so the connection configured here is its own, built from
+the same `REDIS_URL` rather than shared with the limiter's client.
+
+The contract carries an asset identifier, an object key, an object version, a hash, a policy
+version and two identifiers, and nothing else — no URL, no bucket, no credentials, no filename and
+no row of anybody's data. See [file-assets.md](file-assets.md) for the path an asset takes through
+it, and the worker's [queues documentation](../../sto-info-file-scan-worker/docs/queues.md) for the
+shapes themselves.
+
 ## Guards
 
 ### Available Guards
@@ -433,7 +494,7 @@ The backend supports user-initiated account closure via `DELETE /user/close-acco
 
 ### Immediate actions (request-time)
 
-When account closure is requested for an authenticated user, the service performs a coordinated transactional soft-delete:
+When account closure is requested for an authenticated user, the service first writes the closure to the account-closure ledger (FC-042), then performs a coordinated transactional soft-delete:
 
 1. Revoke active refresh tokens for the user.
 2. Soft-delete owned STO characters.
@@ -443,6 +504,14 @@ When account closure is requested for an authenticated user, the service perform
 6. Send an account-closure confirmation email to the user with a support link in case the request was not made by them.
 
 This ensures account access is disabled immediately while preserving short-term referential consistency for retention/audit windows.
+
+### The account-closure ledger (FC-042)
+
+A restore from a backup taken before somebody closed their account would open it again. So each closure is also written, before the database, to `<NODE_ENV>/account-closure-ledger/<createdAt>_<userId>_CLOSED.json` in the private quarantine bucket: the account's ID, the event and when, and no name, email or reason. If the ledger cannot be written, nothing is closed; if the closure then fails, the next boot closes the account.
+
+At every boot the restore check (see [Privacy: erasure](privacy-erasure.md#the-restore-check-fc-042)) takes each account's latest marker. An account it says was closed and the database has open is closed again through `UserService.closeAgain()`: its Communities handed on or closed, its sessions revoked, its data soft-deleted, and the user's `deletedAt` set to when it was first closed, so the clean-up below erases it when it would have. No email is sent again. An account the database no longer has counts as gone. Every closed account with no marker gets one.
+
+Nothing in production reopens an account. Outside production the user seeder restores the soft-deleted seed user; it writes a `REOPENED` marker first, and the check leaves an account whose latest marker is `REOPENED` as the database has it. Disabling an account (`disabledAt`, `USER_DISABLED`) is not a closure and has no ledger.
 
 ### Delayed actions (scheduled cleanup)
 
@@ -500,6 +569,8 @@ This keeps primary user records at least as long as the general audit data reten
 - `npm run test:mutation`: Run Stryker mutation tests with progress, clear-text, and HTML reporters. Use to verify test quality.
 - `npm run test:mutation:dry`: Run mutation tests in dry-run mode (no actual mutations). Use to verify Stryker configuration.
 - `npm run test:mutation:incremental`: Run incremental mutation testing against only relevant files changed compared to `BASE_REF` (defaults to `origin/development`).
+- `npm run test:mutation:shard -- list|run <shard> <total>`: List or run one shard of the weekly full mutation run; `merge` combines shard reports. See [Weekly full run](github/QUALITY-AUTOMATION.md#weekly-full-run).
+- `npm run test:scripts`: Run the tests for `scripts/mutation-shards.mjs`.
 
 ### Verification
 
@@ -510,5 +581,35 @@ This keeps primary user records at least as long as the general audit data reten
 - `npm run migration:generate -- -n <NameOfMigration>`: Generate a new migration from entity changes. Use when entity schemas change.
 - `npm run migration:run`: Execute all pending migrations. Use when deploying or setting up the database.
 - `npm run migration:revert`: Revert the last executed migration. Use to roll back a migration.
+  It cannot go below `1797300000000-GuardPublishedImageReferences` (FC-042): that migration's down
+  refuses, because removing the guard would let a rolled-back build publish unscanned pictures. Roll
+  forward with a new migration instead. See
+  [Rolling back the application](image-delivery.md#rolling-back-the-application).
 - `npm run migration:show`: Show which migrations have been run and which are pending. Use to check migration status.
 - `npm run typeorm`: Run TypeORM CLI commands directly with ts-node and path mapping. Use for advanced TypeORM operations.
+
+### Migration Rehearsal Scripts
+
+Each replays a migration into a throwaway `postgres:18-alpine` container and then tries to break
+every rule it claims to enforce. They need Docker and never touch a real database. See
+`scripts/migration-rehearsal/README.md`.
+
+- `npm run rehearse:migration`: Rehearse the FC-004 Fleet Community schema.
+- `npm run rehearse:migration:fleet-authorisation`: FC-005's delegation table, on top of FC-004's.
+- `npm run rehearse:migration:user-preferences`: FC-006's move of two settings out of `user_profile`.
+- `npm run rehearse:migration:calendar-dates`: The entered-days column rewrite (ADR-0013).
+- `npm run rehearse:migration:file-assets`: FC-008's asset registry and its backfill.
+- `npm run rehearse:migration:roster-import-source`: FC-009's import provenance, on top of both.
+- `npm run rehearse:migration:published-image-guard`: FC-042's guard on every picture column, and
+  its refused rollback.
+
+The whole Fleet Community v1 release is rehearsed from production as it is, on the operations
+rehearsal's throwaway stack (FC-045):
+
+- `npm run rehearse:release`: builds `origin/production`, makes its schema with its own migrations
+  and fills it with production-shaped rows, then migrates to this release and checks that every
+  row and column survives, that Fleet Community starts off and can be switched on and off, the
+  ways back, and that each row the preflight looks for really would fail the release. See
+  `scripts/release-rehearsal/README.md`.
+- `scripts/release-preflight/preflight.sql`: read-only checks to run with `psql` against the
+  database a release is about to migrate. See the [release checklist](fleet-community-release.md).

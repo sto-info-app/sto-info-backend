@@ -2,12 +2,18 @@ import { BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
+import { In } from 'typeorm';
+
+import { SiteAdminActionEntity } from '../../audit/site-admin/site-admin-action.entity';
+import { SiteAdminActionKind } from '../../audit/site-admin/site-admin-action.enum';
+import { ReportStatus } from '../../moderation/enums/report-status.enum';
 import { NotificationService } from '../../notification/notification.service';
 import { StorytimeModerationAction } from '../enums/storytime-moderation-action.enum';
 import { StorytimeModerationStatus } from '../enums/storytime-moderation-status.enum';
 import { StorytimeReportReason } from '../enums/storytime-report-reason.enum';
 import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
 import { StorytimeModerationActionEntity } from './entities/storytime-moderation-action.entity';
+import { StorytimeReportEntity } from './entities/storytime-report.entity';
 import {
   ModeratableFields,
   ModeratedTarget,
@@ -17,7 +23,18 @@ import { StorytimeModerationService } from './storytime-moderation.service';
 
 describe('StorytimeModerationService', () => {
   let service: StorytimeModerationService;
-  let actionRepository: { find: jest.Mock; create: jest.Mock; save: jest.Mock };
+  let actionRepository: {
+    find: jest.Mock;
+    create: jest.Mock;
+    save: jest.Mock;
+    manager: { transaction: jest.Mock };
+  };
+  /** Every row the site admin log was given (FC-039). */
+  let logged: jest.Mock;
+  /** The reports still open about the content, as the removal finds them. */
+  let openReports: jest.Mock;
+  /** Every report the removal closed. */
+  let closed: jest.Mock;
   let targetService: {
     find: jest.Mock;
     save: jest.Mock;
@@ -68,7 +85,26 @@ describe('StorytimeModerationService', () => {
         Object.assign(new StorytimeModerationActionEntity(), input),
       ),
       save: jest.fn(input => Promise.resolve(input)),
+      manager: { transaction: jest.fn() },
     };
+    logged = jest.fn().mockResolvedValue(undefined);
+    openReports = jest.fn().mockResolvedValue([]);
+    closed = jest.fn(input => Promise.resolve(input));
+    // The transaction writes the trail's entry through the repository's own
+    // mocks, and the site admin log's through its own.
+    actionRepository.manager.transaction.mockImplementation(
+      (work: (manager: object) => Promise<unknown>) =>
+        work({
+          create: (_entity: unknown, input: unknown) =>
+            actionRepository.create(input),
+          save: (entity: unknown, entry: unknown) =>
+            entity === StorytimeReportEntity
+              ? closed(entry)
+              : actionRepository.save(entry),
+          insert: logged,
+          find: openReports,
+        }),
+    );
     targetService = {
       find: jest.fn().mockResolvedValue(buildTarget()),
       save: jest.fn().mockResolvedValue(undefined),
@@ -150,6 +186,86 @@ describe('StorytimeModerationService', () => {
           body: expect.stringContaining('breaches the harassment policy'),
         }),
       );
+    });
+
+    it('saves the content in the removal’s own transaction', async () => {
+      await service.remove(request, adminId);
+
+      expect(targetService.save).toHaveBeenCalledWith(
+        StorytimeTargetType.STORY,
+        expect.objectContaining({ id: storyId }),
+        expect.objectContaining({ find: openReports }),
+      );
+    });
+
+    // FC-044: closed with the removal, not in a second request that leaving
+    // the page could cancel; and every one, since the content is gone.
+    it('closes every report still open about it as actioned, and logs each', async () => {
+      openReports.mockResolvedValue([
+        Object.assign(new StorytimeReportEntity(), {
+          id: 'report-1',
+          targetType: StorytimeTargetType.STORY,
+          targetId: storyId,
+          reasonCode: StorytimeReportReason.HARASSMENT,
+          status: ReportStatus.OPEN,
+          resolution: null,
+          resolvedAt: null,
+        }),
+        Object.assign(new StorytimeReportEntity(), {
+          id: 'report-2',
+          targetType: StorytimeTargetType.STORY,
+          targetId: storyId,
+          reasonCode: StorytimeReportReason.SPAM,
+          status: ReportStatus.UNDER_REVIEW,
+          resolution: null,
+          resolvedAt: null,
+        }),
+      ]);
+
+      await service.remove(request, adminId);
+
+      expect(openReports).toHaveBeenCalledWith(StorytimeReportEntity, {
+        where: {
+          targetType: StorytimeTargetType.STORY,
+          targetId: storyId,
+          status: In([ReportStatus.OPEN, ReportStatus.UNDER_REVIEW]),
+        },
+      });
+      expect(closed.mock.calls.map(([report]) => report)).toEqual([
+        expect.objectContaining({
+          id: 'report-1',
+          status: ReportStatus.ACTIONED,
+          resolution: request.message,
+          assignedToUserId: adminId,
+          resolvedAt: expect.any(Date),
+        }),
+        expect.objectContaining({
+          id: 'report-2',
+          status: ReportStatus.ACTIONED,
+          resolution: request.message,
+          assignedToUserId: adminId,
+          resolvedAt: expect.any(Date),
+        }),
+      ]);
+      expect(logged.mock.calls.map(([, row]) => row)).toEqual([
+        expect.objectContaining({
+          action: SiteAdminActionKind.STORYTIME_CONTENT_REMOVED,
+        }),
+        expect.objectContaining({
+          action: SiteAdminActionKind.STORYTIME_REPORT_DECIDED,
+          reason: request.message,
+        }),
+        expect.objectContaining({
+          action: SiteAdminActionKind.STORYTIME_REPORT_DECIDED,
+          reason: request.message,
+        }),
+      ]);
+    });
+
+    it('closes nothing when no report is open about it', async () => {
+      await service.remove(request, adminId);
+
+      expect(closed).not.toHaveBeenCalled();
     });
 
     // Removing something twice would write a second audit entry saying it
@@ -262,6 +378,56 @@ describe('StorytimeModerationService', () => {
         where: { targetType: StorytimeTargetType.STORY, targetId: storyId },
         order: { createdAt: 'DESC' },
       });
+    });
+
+    // FC-039: the site admin log keeps each act, as this trail loses its
+    // rows with the actor's account.
+    it('logs each act in the site admin log', async () => {
+      await service.remove(request, adminId);
+      await service.record(
+        StorytimeTargetType.ARC,
+        'arc-1',
+        StorytimeModerationAction.APPEAL_REJECTED,
+        adminId,
+        null,
+        'Still breaches the policy.',
+      );
+      await service.record(
+        StorytimeTargetType.ARC,
+        'arc-2',
+        StorytimeModerationAction.REPORT_RESOLVED,
+        adminId,
+        StorytimeReportReason.SPAM,
+      );
+      await service.record(
+        StorytimeTargetType.ARC,
+        'arc-3',
+        StorytimeModerationAction.APPEAL_UPHELD,
+        adminId,
+      );
+
+      expect(logged.mock.calls.map(([, row]) => row)).toEqual([
+        expect.objectContaining({
+          action: SiteAdminActionKind.STORYTIME_CONTENT_REMOVED,
+          actorUserId: adminId,
+          subjectKind: 'STORYTIME_STORY',
+          subjectId: storyId,
+          reason: request.message,
+        }),
+        expect.objectContaining({
+          action: SiteAdminActionKind.STORYTIME_APPEAL_DECIDED,
+          reason: 'Still breaches the policy.',
+        }),
+        expect.objectContaining({
+          action: SiteAdminActionKind.STORYTIME_REPORT_DECIDED,
+          reason: StorytimeReportReason.SPAM,
+        }),
+        expect.objectContaining({
+          action: SiteAdminActionKind.STORYTIME_APPEAL_DECIDED,
+          reason: StorytimeModerationAction.APPEAL_UPHELD,
+        }),
+      ]);
+      expect(logged.mock.calls[0][0]).toBe(SiteAdminActionEntity);
     });
 
     it('records an act with no reason or message', async () => {

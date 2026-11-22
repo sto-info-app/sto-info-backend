@@ -1,3 +1,5 @@
+import { customTrackingImageUrl } from 'src/custom-tracking/constants/custom-tracking-image.constants';
+
 import { CustomTrackingSectionNode } from '../definitions/custom-tracking-definition-tree.service';
 import { CustomTrackingDefinitionMapper } from '../definitions/custom-tracking-definition.mapper';
 import { CustomTrackingImageValueEntity } from '../entities/custom-tracking-image-value.entity';
@@ -171,6 +173,10 @@ describe('CustomTrackingRecordMapper', () => {
       imageId: 'image-1',
       altText: 'The USS Ares at warp',
       shape: CustomTrackingImageShape.LANDSCAPE,
+      imageUrl: customTrackingImageUrl(
+        'image-1',
+        CustomTrackingImageShape.LANDSCAPE,
+      ),
     });
   });
 

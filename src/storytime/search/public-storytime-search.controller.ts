@@ -46,10 +46,7 @@ export class PublicStorytimeSearchController {
     return {
       // The rank is what ordered the results; it means nothing to a reader and
       // would only invite a client to render it.
-      items: results.items.map(({ rank, ...hit }) => {
-        void rank;
-        return hit;
-      }),
+      items: results.items.map(({ rank, ...hit }) => hit),
       total: results.total,
       page: results.page,
       pageSize: results.pageSize,

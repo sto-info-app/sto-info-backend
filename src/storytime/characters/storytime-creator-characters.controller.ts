@@ -16,6 +16,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
+  ApiAcceptedResponse,
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
@@ -35,6 +36,7 @@ import { PermissionsGuard } from 'src/access-control/permissions.guard';
 import { RequiresPermission } from 'src/access-control/requires-permission.decorator';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserId } from 'src/auth/user-id.decorator';
+import { AssetScanStatusDto } from 'src/file-assets/dto/asset-scan-status.dto';
 import { FileSizeExceptionFilter } from 'src/shared/filters/file-size-exception.filter';
 
 import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constants';
@@ -274,13 +276,14 @@ export class StorytimeCreatorCharactersController {
    * @param userId - The caller.
    * @param file - The cropped image.
    * @param dto - The alternative text sent alongside it.
-   * @returns The Character, carrying its new portrait.
+   * @returns The upload to ask about, and how far along it is.
    */
   @Post('characters/:characterId/portrait-image')
+  @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: 'Set the portrait on one of your Characters' })
   @ApiConsumes('multipart/form-data')
   @ApiBody(STORYTIME_IMAGE_UPLOAD_SCHEMA)
-  @ApiOkResponse({ type: ManagedCharacterDto })
+  @ApiAcceptedResponse({ type: AssetScanStatusDto })
   @ApiBadRequestResponse({
     description:
       'No image was supplied, the file is not a PNG, or the crop is smaller than 400 by 600.',
@@ -295,17 +298,15 @@ export class StorytimeCreatorCharactersController {
     @UserId() userId: string,
     @UploadedFile() file: Express.Multer.File | undefined,
     @Body() dto: StorytimeImageUploadDto,
-  ): Promise<ManagedCharacterDto> {
+  ): Promise<AssetScanStatusDto> {
     await this.assertEnabled();
     assertImageSupplied(file);
 
-    return this._mapper.toManaged(
-      await this._characterService.setPortraitImage(
-        characterId,
-        userId,
-        file,
-        dto.altText,
-      ),
+    return this._characterService.setPortraitImage(
+      characterId,
+      userId,
+      file,
+      dto.altText,
     );
   }
 

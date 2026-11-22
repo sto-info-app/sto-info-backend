@@ -1,16 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  Index,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Column, Entity, Index } from 'typeorm';
 
 import { AppealStatus } from '../../enums/appeal-status.enum';
-import { StorytimeTargetType } from '../../enums/storytime-target-type.enum';
+import { StorytimeTargetedEntity } from '../../shared/entities/storytime-targeted.entity';
 
 /**
  * A creator's appeal against something of theirs being removed.
@@ -22,26 +15,7 @@ import { StorytimeTargetType } from '../../enums/storytime-target-type.enum';
  */
 @Entity({ name: 'storytime_moderation_appeal' })
 @Index(['status', 'createdAt'])
-export class StorytimeModerationAppealEntity {
-  @ApiProperty({ description: 'Unique identifier.' })
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
-  @ApiProperty({
-    enum: StorytimeTargetType,
-    description: 'What kind of content was removed.',
-  })
-  @Column({
-    type: 'enum',
-    enum: StorytimeTargetType,
-    enumName: 'storytime_target_type_enum',
-  })
-  targetType: StorytimeTargetType;
-
-  @ApiProperty({ description: 'The removed content.' })
-  @Column({ type: 'uuid', nullable: false })
-  targetId: string;
-
+export class StorytimeModerationAppealEntity extends StorytimeTargetedEntity {
   @ApiProperty({ description: 'The creator appealing.' })
   @Column({ type: 'uuid', nullable: false })
   appellantUserId: string;
@@ -76,10 +50,4 @@ export class StorytimeModerationAppealEntity {
   })
   @Column({ type: 'varchar', length: 1000, nullable: true, default: null })
   reviewNotes: string | null;
-
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
 }

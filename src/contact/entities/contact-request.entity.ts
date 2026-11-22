@@ -12,6 +12,9 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 
+import { AuditIdentifiersOnly } from 'src/audit/audit-redaction';
+
+@AuditIdentifiersOnly()
 @Entity({ name: 'contact_request' })
 export class ContactRequestEntity {
   @PrimaryGeneratedColumn('uuid')

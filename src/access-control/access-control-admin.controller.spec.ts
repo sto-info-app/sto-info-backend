@@ -86,18 +86,20 @@ describe('AccessControlAdminController', () => {
     await controller.removePermissionOverride(
       userId,
       PERMISSION_CODES.STORYTIME_STORY_CREATE,
+      { reason: 'No longer needed' },
       adminId,
     );
 
     expect(adminService.removePermissionOverride).toHaveBeenCalledWith(
       userId,
       PERMISSION_CODES.STORYTIME_STORY_CREATE,
+      'No longer needed',
       adminId,
     );
   });
 
   it("sets a member's role on behalf of the acting administrator", async () => {
-    const dto = { role: UserRole.STORYTIME_CURATOR };
+    const dto = { role: UserRole.STORYTIME_CURATOR, reason: 'Runs Storytime' };
 
     await controller.setUserRole(userId, dto, adminId);
 
@@ -129,12 +131,14 @@ describe('AccessControlAdminController', () => {
     await controller.removeLimitOverride(
       userId,
       'STORYTIME_MAX_STORIES_PER_USER',
+      { reason: 'Back to normal' },
       adminId,
     );
 
     expect(adminService.removeLimitOverride).toHaveBeenCalledWith(
       userId,
       'STORYTIME_MAX_STORIES_PER_USER',
+      'Back to normal',
       adminId,
     );
   });

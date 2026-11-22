@@ -14,6 +14,7 @@ import { CustomTrackingTabEntity } from '../entities/custom-tracking-tab.entity'
 import { CustomTrackingEmptyMode } from '../enums/custom-tracking-empty-mode.enum';
 import { CustomTrackingFieldType } from '../enums/custom-tracking-field-type.enum';
 import { CustomTrackingTargetScope } from '../enums/custom-tracking-target-scope.enum';
+import { CustomTrackingFieldPicture } from '../images/custom-tracking-field-picture.service';
 import {
   createDataSourceDouble,
   createEntityManagerDouble,
@@ -35,7 +36,15 @@ describe('CustomTrackingFieldService', () => {
   >;
   let findOwnedTab: jest.Mock<() => Promise<CustomTrackingTabEntity>>;
   let sectionOf: jest.Mock<() => Promise<CustomTrackingSectionEntity>>;
-  let deleteFields: jest.Mock<() => Promise<void>>;
+  let deleteFields: jest.Mock<() => Promise<CustomTrackingFieldPicture[]>>;
+  let withdraw: jest.Mock<(...args: unknown[]) => Promise<void>>;
+  const picture: CustomTrackingFieldPicture = {
+    imageValueId: 'image-value-1',
+    valueId: 'value-1',
+    fieldId: 'field-1',
+    targetId: 'account-1',
+    imageId: 'image-1',
+  };
   let describeFieldDeletion: jest.Mock<
     () => Promise<{ tabs: number; fields: number; values: number }>
   >;
@@ -73,7 +82,10 @@ describe('CustomTrackingFieldService', () => {
         userId,
         targetScope: scope,
       } as CustomTrackingSectionEntity);
-    deleteFields = jest.fn<() => Promise<void>>().mockResolvedValue();
+    deleteFields = jest
+      .fn<() => Promise<CustomTrackingFieldPicture[]>>()
+      .mockResolvedValue([]);
+    withdraw = jest.fn(async () => undefined);
     describeFieldDeletion = jest
       .fn<() => Promise<{ tabs: number; fields: number; values: number }>>()
       .mockResolvedValue({ tabs: 0, fields: 0, values: 19 });
@@ -88,6 +100,7 @@ describe('CustomTrackingFieldService', () => {
       createSupportService().support,
       {
         deleteFields,
+        withdraw,
         describeFieldDeletion,
       } as unknown as CustomTrackingCascadeService,
       new CustomTrackingFieldConfigurationService(),
@@ -408,6 +421,19 @@ describe('CustomTrackingFieldService', () => {
         expect.anything(),
         ['field-1'],
         expect.any(Date),
+      );
+    });
+
+    // The deletion commits first; only then are its pictures withdrawn.
+    it('withdraws the pictures the deletion took, once it has committed', async () => {
+      fields.double.findOne.mockResolvedValue(existing());
+      deleteFields.mockResolvedValue([picture]);
+
+      await service.remove(userId, 'field-1');
+
+      expect(withdraw).toHaveBeenCalledWith([picture]);
+      expect(deleteFields.mock.invocationCallOrder[0]).toBeLessThan(
+        withdraw.mock.invocationCallOrder[0],
       );
     });
   });

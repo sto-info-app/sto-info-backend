@@ -42,7 +42,7 @@ describe('String utility fuzz tests', () => {
             if (delimiter !== '' || input !== '') {
               expect(parts.length).toBeGreaterThan(0);
             } else {
-              expect(parts.length).toBe(0);
+              expect(parts).toHaveLength(0);
             }
           }).not.toThrow();
         },

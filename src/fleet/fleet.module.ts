@@ -1,0 +1,151 @@
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+
+import { FileAssetEntity } from '../file-assets/entities/file-asset.entity';
+import { PlatformEntity } from '../sto/platform/entities/platform.entity';
+import { UserEntity } from '../user/entities/user.entity';
+import { FleetAudienceService } from './authorisation/fleet-audience.service';
+import { FleetAuthorisationRevisionService } from './authorisation/fleet-authorisation-revision.service';
+import { FleetAuthorisationService } from './authorisation/fleet-authorisation.service';
+import { ScopeCapabilityGuard } from './authorisation/scope-capability.guard';
+import { CharacterFleetsController } from './character-fleets.controller';
+import { CommunityArmadasController } from './community-armadas.controller';
+import { CommunityFleetsController } from './community-fleets.controller';
+import { ArmadaFleetMembershipEntity } from './entities/armada-fleet-membership.entity';
+import { CharacterFleetMembershipEntity } from './entities/character-fleet-membership.entity';
+import { CharacterFleetProposalEntity } from './entities/character-fleet-proposal.entity';
+import { CommunitySubscriptionEntity } from './entities/community-subscription.entity';
+import { FleetCommunityEntity } from './entities/fleet-community.entity';
+import { FleetNameAliasEntity } from './entities/fleet-name-alias.entity';
+import { FleetSlugHistoryEntity } from './entities/fleet-slug-history.entity';
+import { ScopeCapabilityGrantEntity } from './entities/scope-capability-grant.entity';
+import { ScopeMembershipEntity } from './entities/scope-membership.entity';
+import { ScopeRoleAssignmentEntity } from './entities/scope-role-assignment.entity';
+import { StoArmadaEntity } from './entities/sto-armada.entity';
+import { StoFleetEntity } from './entities/sto-fleet.entity';
+import { FleetCommunitiesController } from './fleet-communities.controller';
+import { FleetConfigurationController } from './fleet-configuration.controller';
+import { FleetDirectoryController } from './fleet-directory.controller';
+import { FleetFeatureService } from './fleet-feature.service';
+import { FleetPolicyService } from './fleet-policy.service';
+import { FleetScopeResolutionController } from './fleet-scope-resolution.controller';
+import { CharacterFleetMapper } from './mappers/character-fleet.mapper';
+import { FleetCommunityMapper } from './mappers/fleet-community.mapper';
+import { StoArmadaMapper } from './mappers/sto-armada.mapper';
+import { StoFleetMapper } from './mappers/sto-fleet.mapper';
+import { FleetInvitationEntity } from './recruitment/entities/fleet-invitation.entity';
+import { CharacterFleetMembershipService } from './services/character-fleet-membership.service';
+import { CharacterFleetProposalService } from './services/character-fleet-proposal.service';
+import { CommunitySubscriptionService } from './services/community-subscription.service';
+import { FleetCommunityService } from './services/fleet-community.service';
+import { FleetPlatformService } from './services/fleet-platform.service';
+import { FleetScopeViewerService } from './services/fleet-scope-viewer.service';
+import { FleetSlugService } from './services/fleet-slug.service';
+import { StoArmadaService } from './services/sto-armada.service';
+import { StoFleetService } from './services/sto-fleet.service';
+import { UnregisteredFleetsController } from './unregistered-fleets.controller';
+
+/**
+ * Fleet Community — Communities, Fleets, Armadas, the records that relate users
+ * and Characters to them, and the authorisation policy over all of it.
+ *
+ * Not to be confused with `CommunityModule`, which is the personal social graph
+ * of friendships and blocks. ADR-0008 fixes the boundary: this module may
+ * depend on that one, never the reverse.
+ *
+ * The three authorisation services are exported because every later Fleet
+ * ticket needs them and none of them should reimplement the decision. They are
+ * *not* registered globally, unlike `AccessControlModule`: a scoped capability
+ * is meaningless outside this feature, and making it reachable everywhere would
+ * invite exactly the site-wide-permission-grants-all-Fleets confusion that
+ * FC-005's first acceptance criterion exists to prevent.
+ *
+ * `UserEntity` is registered here for its own repository rather than borrowed
+ * from the global access-control module, because `forFeature` registrations are
+ * per-module even when the module declaring them is global.
+ *
+ * The module being loaded is not the same thing as the feature being on.
+ * `FleetFeatureService` answers that, from the `FLEET_COMMUNITIES_ENABLED`
+ * row seeded disabled in `app_setting`. Nothing to do with file scanning,
+ * quarantine or retention consults it: those are site-wide and run whether
+ * Fleet is switched on or not.
+ */
+@Module({
+  imports: [
+    TypeOrmModule.forFeature([
+      FleetCommunityEntity,
+      StoFleetEntity,
+      StoArmadaEntity,
+      FleetNameAliasEntity,
+      FleetSlugHistoryEntity,
+      ArmadaFleetMembershipEntity,
+      CommunitySubscriptionEntity,
+      ScopeMembershipEntity,
+      ScopeRoleAssignmentEntity,
+      ScopeCapabilityGrantEntity,
+      CharacterFleetMembershipEntity,
+      CharacterFleetProposalEntity,
+      PlatformEntity,
+      UserEntity,
+      // Read by the audience service alone: an open invitation shows the
+      // invitee the Fleet (FC-021). Written by the recruitment module.
+      FleetInvitationEntity,
+      // Read for one column, never written here. A scope page has to say
+      // whether the viewer may paint over the picture an unregistered Fleet
+      // is showing, and that is a question about who owns the asset.
+      // Registered as a repository rather than by importing
+      // `FileAssetsModule`, which imports this module for the audience
+      // service (ADR-0015) and would close the loop.
+      FileAssetEntity,
+    ]),
+  ],
+  controllers: [
+    FleetConfigurationController,
+    FleetDirectoryController,
+    FleetCommunitiesController,
+    FleetScopeResolutionController,
+    CommunityFleetsController,
+    CommunityArmadasController,
+    UnregisteredFleetsController,
+    CharacterFleetsController,
+  ],
+  providers: [
+    FleetFeatureService,
+    FleetPolicyService,
+    FleetSlugService,
+    FleetPlatformService,
+    FleetCommunityService,
+    FleetScopeViewerService,
+    CommunitySubscriptionService,
+    StoFleetService,
+    StoArmadaService,
+    CharacterFleetMembershipService,
+    CharacterFleetProposalService,
+    FleetCommunityMapper,
+    CharacterFleetMapper,
+    StoFleetMapper,
+    StoArmadaMapper,
+    FleetAuthorisationService,
+    FleetAudienceService,
+    FleetAuthorisationRevisionService,
+    ScopeCapabilityGuard,
+  ],
+  exports: [
+    FleetFeatureService,
+    FleetPolicyService,
+    FleetSlugService,
+    FleetPlatformService,
+    FleetCommunityService,
+    FleetScopeViewerService,
+    CommunitySubscriptionService,
+    StoFleetService,
+    StoArmadaService,
+    CharacterFleetMembershipService,
+    CharacterFleetProposalService,
+    FleetAuthorisationService,
+    FleetAudienceService,
+    FleetAuthorisationRevisionService,
+    ScopeCapabilityGuard,
+  ],
+})
+export class FleetModule {}

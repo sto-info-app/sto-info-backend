@@ -182,6 +182,26 @@ describe('StorytimeModerationTargetService', () => {
     },
   );
 
+  // FC-044: a removal saves the content in the transaction that also closes
+  // its reports.
+  it.each([
+    ['Story', StorytimeTargetType.STORY, StorytimeStoryEntity],
+    ['Chapter', StorytimeTargetType.CHAPTER, StorytimeChapterEntity],
+    ['Character', StorytimeTargetType.CHARACTER, StorytimeCharacterEntity],
+    ['Arc', StorytimeTargetType.ARC, StorytimeArcEntity],
+  ])(
+    'saves a %s to its own table in a transaction it is given',
+    async (_name, targetType, entity) => {
+      const manager = { save: jest.fn().mockResolvedValue(undefined) };
+
+      await service.save(targetType, story, manager as never);
+
+      expect(manager.save).toHaveBeenCalledWith(entity, story);
+      expect(storyRepository.save).not.toHaveBeenCalled();
+      expect(arcRepository.save).not.toHaveBeenCalled();
+    },
+  );
+
   it.each([
     [StorytimeTargetType.STORY, 'Story'],
     [StorytimeTargetType.CHAPTER, 'Chapter'],

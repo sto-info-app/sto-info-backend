@@ -1,0 +1,428 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiConflictResponse,
+  ApiCreatedResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
+
+import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from 'src/auth/optional-jwt-auth.guard';
+import { OptionalUserId, UserId } from 'src/auth/user-id.decorator';
+import { CallerRole } from 'src/auth/user-role.decorator';
+import { UserRole } from 'src/user/enums/user-role.enum';
+
+import { FleetAudienceService } from './authorisation/fleet-audience.service';
+import { FLEET_CAPABILITIES } from './authorisation/fleet-capability.constants';
+import { RequiresScopeCapability } from './authorisation/requires-scope-capability.decorator';
+import { ScopeCapabilityGuard } from './authorisation/scope-capability.guard';
+import { FLEET_FEATURE_FLAGS } from './constants/fleet-feature.constants';
+import {
+  CommunityFollowStateDto,
+  FollowedCommunityDto,
+} from './dto/community-subscription.dto';
+import { CreateFleetCommunityDto } from './dto/create-fleet-community.dto';
+import {
+  FleetCommunityDto,
+  ResolvedFleetCommunityDto,
+} from './dto/fleet-community.dto';
+import { UpdateFleetCommunityDto } from './dto/update-fleet-community.dto';
+import { FleetScopeKind } from './enums/fleet-scope-kind.enum';
+import { FleetFeatureService } from './fleet-feature.service';
+import { FleetCommunityMapper } from './mappers/fleet-community.mapper';
+import { CommunitySubscriptionService } from './services/community-subscription.service';
+import { FleetCommunityService } from './services/fleet-community.service';
+import { FleetScopeViewerService } from './services/fleet-scope-viewer.service';
+
+/**
+ * Registering and running a Fleet Community.
+ *
+ * The Community is the outermost scope, so these routes are the only ones in
+ * the feature that cannot name a parent: there is nothing above a Community
+ * for a path segment to check against. Everything nested beneath it —
+ * `/fleet-communities/:communityId/fleets`, `/armadas`, `/roster-imports` —
+ * states its tenancy in the path and has {@link ScopeCapabilityGuard} check it.
+ *
+ * ## Who may do what
+ *
+ * **Registering** needs nothing but an account. There is no scope to hold a
+ * capability at yet, which is precisely why the owner limit is a database
+ * trigger rather than a guard: the only thing standing between an account and
+ * an unlimited number of directory entries is a count, and a count has to be
+ * taken somewhere it cannot race.
+ *
+ * **Reading** is visibility rather than capability, and the two are different
+ * questions answered by different records (ADR-0002). A signed-out visitor may
+ * read a `PUBLIC` Community and do nothing to it.
+ *
+ * **Changing and closing** are capabilities held at the Community, checked by
+ * the guard before the handler runs.
+ *
+ * ## Why closing is the `DELETE`
+ *
+ * Plan section 4.1 is explicit that a scope closes rather than disappears: its
+ * Armada placements, roster history and URL all outlive it. `DELETE` is the
+ * verb a client reaches for and closure is what the verb means here, so the
+ * route is named for the intent and the response says what actually happened —
+ * a `CLOSED` Community, still readable, accepting nothing new. Erasing one
+ * outright is account erasure's problem (FC-038) and needs decisions this
+ * ticket does not make.
+ *
+ * ## Refusal order
+ *
+ * The feature switch first, answering `404` rather than "disabled", so a
+ * staged rollout does not advertise what is coming. Then the capability. Then
+ * the body.
+ */
+@ApiTags('Fleet')
+@Controller('fleet-communities')
+export class FleetCommunitiesController {
+  /**
+   * Creates an instance of FleetCommunitiesController.
+   *
+   * @param _communityService - Registers, reads and changes Communities.
+   * @param _audienceService - Answers whether a caller may see a Community.
+   * @param _featureService - Reports whether the feature is switched on.
+   * @param _viewerService - Answers what the caller may do to what it found.
+   * @param _subscriptionService - Starts and stops following a Community.
+   * @param _mapper - Turns a Community into its API shape.
+   */
+  constructor(
+    private readonly _communityService: FleetCommunityService,
+    private readonly _audienceService: FleetAudienceService,
+    private readonly _featureService: FleetFeatureService,
+    private readonly _viewerService: FleetScopeViewerService,
+    private readonly _subscriptionService: CommunitySubscriptionService,
+    private readonly _mapper: FleetCommunityMapper,
+  ) {}
+
+  /**
+   * Registers a Community owned by the caller.
+   *
+   * @param userId - The registrant, who becomes its Owner.
+   * @param dto - What to register.
+   * @returns The registered Community.
+   */
+  @Post()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Register a Fleet Community' })
+  @ApiCreatedResponse({ type: FleetCommunityDto })
+  @ApiConflictResponse({
+    description:
+      'The account already owns the maximum number of Fleet Communities ' +
+      '(closed ones included), or another registration took the web address ' +
+      'first.',
+  })
+  async register(
+    @UserId() userId: string,
+    @Body() dto: CreateFleetCommunityDto,
+  ): Promise<FleetCommunityDto> {
+    await this._featureService.assertFlagEnabled(
+      FLEET_FEATURE_FLAGS.REGISTRATION_ENABLED,
+    );
+
+    const community = await this._communityService.register(dto, userId);
+
+    return this._mapper.toDto(community);
+  }
+
+  /**
+   * Resolves the Community a URL segment names, following a rename.
+   *
+   * Declared before the identifier route so the literal segment wins: Nest
+   * matches in declaration order, and `:communityId` would otherwise swallow
+   * `by-slug` and answer `400` for a perfectly good address.
+   *
+   * @param slug - The segment from the URL.
+   * @param userId - The viewer, or null when signed out.
+   * @param role - The viewer's site-wide role, where they have one.
+   * @returns The Community, and the retired segment when one was used.
+   */
+  @Get('by-slug/:slug')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({ summary: 'Resolve a Fleet Community by its URL segment' })
+  @ApiOkResponse({ type: ResolvedFleetCommunityDto })
+  @ApiNotFoundResponse({
+    description:
+      'No Community answers to that segment, now or in the past — or the ' +
+      'caller may not see the one that does.',
+  })
+  async resolveBySlug(
+    @Param('slug') slug: string,
+    @OptionalUserId() userId: string | null,
+    @CallerRole() role: UserRole | null,
+  ): Promise<ResolvedFleetCommunityDto> {
+    await this._featureService.assertEnabled();
+
+    const resolved = await this._communityService.resolveBySlugOrFail(slug);
+
+    await this.assertVisible(resolved.community, userId);
+
+    return {
+      community: this._mapper.toDto(resolved.community),
+      redirectedFrom: resolved.redirectedFrom,
+      viewer: await this._viewerService.forScope(
+        { userId, role },
+        { kind: FleetScopeKind.COMMUNITY, id: resolved.community.id },
+      ),
+    };
+  }
+
+  /**
+   * Lists the Communities the caller follows, most recent first.
+   *
+   * Declared before the identifier route for the reason `by-slug` is: a
+   * literal segment must win, or `:communityId` swallows it and answers
+   * `400` for a perfectly good address.
+   *
+   * Each one is checked against the audience rule before it is listed. A
+   * Community that has closed itself to the public since it was followed
+   * drops out of the list rather than appearing as something the reader
+   * cannot open — the subscription stays, so it returns of its own accord
+   * if the Community opens again.
+   *
+   * @param userId - The caller.
+   * @returns What they follow and may still see, newest first.
+   */
+  @Get('followed')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List the Fleet Communities the caller follows' })
+  @ApiOkResponse({ type: FollowedCommunityDto, isArray: true })
+  async listFollowed(
+    @UserId() userId: string,
+  ): Promise<FollowedCommunityDto[]> {
+    await this._featureService.assertEnabled();
+
+    const followed = await this._subscriptionService.listFollowed(userId);
+
+    const listed = await Promise.all(
+      followed.map(async entry =>
+        (await this._audienceService.canView(
+          entry.community.visibility,
+          { kind: FleetScopeKind.COMMUNITY, id: entry.community.id },
+          userId,
+        ))
+          ? {
+              community: this._mapper.toDto(entry.community),
+              followedAt: entry.followedAt,
+            }
+          : null,
+      ),
+    );
+
+    return listed.filter(
+      (entry): entry is FollowedCommunityDto => entry !== null,
+    );
+  }
+
+  /**
+   * Follows a Community.
+   *
+   * Gated by the same audience check the Community's own read uses, so
+   * following is never a way in: a Community that hides itself from a caller
+   * is not collecting them as a follower either. Following grants nothing in
+   * return — it opens `COMMUNITY` content and no roster, no handles and no
+   * membership anywhere (R07, ADR-0002).
+   *
+   * Answers `200` rather than `201`, and pressing it twice is not an error.
+   * What comes back is a state, not a newly created thing with an address of
+   * its own, and somebody agreeing with themselves should not be told off
+   * for it.
+   *
+   * @param communityId - The Community to follow.
+   * @param userId - The caller.
+   * @returns Whether they now follow it, and how many do.
+   */
+  @Post(':communityId/follow')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Follow a Fleet Community',
+    description:
+      'Following grants no access to anything. It opens Community-audience ' +
+      'content only, and never a Fleet roster, handles or membership.',
+  })
+  @ApiOkResponse({ type: CommunityFollowStateDto })
+  @ApiNotFoundResponse({
+    description:
+      'No such Community, or the caller may not see it. A Community that ' +
+      'cannot be read cannot be followed.',
+  })
+  async follow(
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @UserId() userId: string,
+  ): Promise<CommunityFollowStateDto> {
+    await this._featureService.assertEnabled();
+
+    const community = await this._communityService.findByIdOrFail(communityId);
+
+    await this.assertVisible(community, userId);
+    await this._subscriptionService.follow(communityId, userId);
+
+    return this.followState(communityId, true);
+  }
+
+  /**
+   * Stops following a Community.
+   *
+   * Somebody already following may always stop, even one that has since
+   * closed itself to them — being unable to leave because you can no
+   * longer see what you joined would be a trap. Anybody else is put through
+   * the ordinary visibility check, so the route cannot be used to confirm
+   * that a private Community exists.
+   *
+   * @param communityId - The Community to stop following.
+   * @param userId - The caller.
+   * @returns Whether they now follow it, and how many do.
+   */
+  @Delete(':communityId/follow')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Stop following a Fleet Community' })
+  @ApiOkResponse({ type: CommunityFollowStateDto })
+  @ApiNotFoundResponse({
+    description:
+      'No such Community, or a caller who does not follow it may not see it.',
+  })
+  async unfollow(
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @UserId() userId: string,
+  ): Promise<CommunityFollowStateDto> {
+    await this._featureService.assertEnabled();
+
+    const community = await this._communityService.findByIdOrFail(communityId);
+
+    if (!(await this._subscriptionService.isFollowing(communityId, userId))) {
+      await this.assertVisible(community, userId);
+    }
+
+    await this._subscriptionService.unfollow(communityId, userId);
+
+    return this.followState(communityId, false);
+  }
+
+  /**
+   * Reads a Community.
+   *
+   * @param communityId - The Community.
+   * @param userId - The viewer, or null when signed out.
+   * @returns The Community.
+   */
+  @Get(':communityId')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({ summary: 'Read a Fleet Community' })
+  @ApiOkResponse({ type: FleetCommunityDto })
+  @ApiNotFoundResponse({
+    description:
+      'No such Community, or the caller may not see it. The two are ' +
+      'reported the same way so a probe cannot confirm a private Community ' +
+      'exists.',
+  })
+  async findOne(
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @OptionalUserId() userId: string | null,
+  ): Promise<FleetCommunityDto> {
+    await this._featureService.assertEnabled();
+
+    const community = await this._communityService.findByIdOrFail(communityId);
+
+    await this.assertVisible(community, userId);
+
+    return this._mapper.toDto(community);
+  }
+
+  /**
+   * Changes a Community's own settings.
+   *
+   * @param communityId - The Community.
+   * @param userId - The caller.
+   * @param dto - The changes.
+   * @returns The updated Community.
+   */
+  @Patch(':communityId')
+  @UseGuards(JwtAuthGuard, ScopeCapabilityGuard)
+  @RequiresScopeCapability(FLEET_CAPABILITIES.SCOPE_SETTINGS_MANAGE, {
+    kind: FleetScopeKind.COMMUNITY,
+    param: 'communityId',
+  })
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Change a Fleet Community’s settings' })
+  @ApiOkResponse({ type: FleetCommunityDto })
+  @ApiConflictResponse({
+    description:
+      'The Community changed since the caller loaded it, or another one ' +
+      'took the web address first.',
+  })
+  async update(
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @UserId() userId: string,
+    @Body() dto: UpdateFleetCommunityDto,
+  ): Promise<FleetCommunityDto> {
+    await this._featureService.assertEnabled();
+
+    const community = await this._communityService.update(
+      communityId,
+      dto,
+      userId,
+    );
+
+    return this._mapper.toDto(community);
+  }
+
+  /**
+   * Reports the follow state a route has just brought about.
+   *
+   * The count is re-read rather than adjusted, because it is a fact about
+   * everybody and the caller only changed their own part of it.
+   *
+   * @param communityId - The Community.
+   * @param isFollowing - What the caller's own state now is.
+   * @returns The state to answer with.
+   */
+  private async followState(
+    communityId: string,
+    isFollowing: boolean,
+  ): Promise<CommunityFollowStateDto> {
+    return {
+      isFollowing,
+      followerCount:
+        await this._subscriptionService.countFollowers(communityId),
+    };
+  }
+
+  /**
+   * Requires that the caller may see a Community at all.
+   *
+   * @param community - The Community they asked for.
+   * @param userId - The viewer, or null when signed out.
+   * @throws NotFoundException when they may not see it.
+   */
+  private async assertVisible(
+    community: { id: string; visibility: FleetCommunityDto['visibility'] },
+    userId: string | null,
+  ): Promise<void> {
+    await this._audienceService.assertCanView(
+      community.visibility,
+      { kind: FleetScopeKind.COMMUNITY, id: community.id },
+      userId,
+    );
+  }
+}

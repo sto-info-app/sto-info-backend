@@ -48,6 +48,16 @@ const DEFAULT_PAGE_SIZE = 12;
 const MAX_PAGE_SIZE = 50;
 const MIN_PAGE_SIZE = 1;
 
+/** Where a captain's registry page is: the three segments of its route. */
+export interface RegistryCharacterPath {
+  /** The owning member's profile username. */
+  readonly username: string;
+  /** The owning account's URL slug. */
+  readonly accountSlug: string;
+  /** The captain's URL slug. */
+  readonly characterSlug: string;
+}
+
 /** Select alias for the case-insensitive username used by the default sort. */
 const USERNAME_SORT_ALIAS = 'profile_username_lower';
 
@@ -290,6 +300,107 @@ export class RegistryService {
         character.id,
       ),
     };
+  }
+
+  /**
+   * Finds where each of some captains' registry pages is, for those a viewer
+   * could open.
+   *
+   * For a page elsewhere that names a captain and may link to them — a Fleet's
+   * roster (FC-020) — so the registry stays the one place that decides what
+   * is public. A captain is included only on the terms {@link findCharacter}
+   * answers them: its member, account and captain each public, the member
+   * active, and no block either way between them and the viewer.
+   *
+   * @param characterIds - The captains asked about.
+   * @param viewerId - The viewer, or null when signed out.
+   * @returns Each openable captain's path, by captain ID. One the viewer could
+   *   not open is absent, whatever the reason, so the caller cannot tell why.
+   */
+  async findVisibleCharacterPaths(
+    characterIds: readonly string[],
+    viewerId: string | null,
+  ): Promise<Map<string, RegistryCharacterPath>> {
+    const paths = new Map<string, RegistryCharacterPath>();
+
+    if (characterIds.length === 0) {
+      return paths;
+    }
+
+    const queryBuilder = this._characterRepository
+      .createQueryBuilder('character')
+      .innerJoin('character.account', 'account')
+      .innerJoin(
+        UserProfileEntity,
+        'profile',
+        'profile.userId = account.userId',
+      )
+      .innerJoin('profile.user', 'user')
+      .select('character.id', 'characterId')
+      .addSelect('character.fullHandleSlug', 'characterSlug')
+      .addSelect('account.handleSlug', 'accountSlug')
+      .addSelect('profile.username', 'username')
+      .where('character.id IN (:...characterIds)', {
+        characterIds: [...characterIds],
+      })
+      .andWhere('character.publiclyVisible = true')
+      .andWhere('character.deletedAt IS NULL')
+      .andWhere('account.publiclyVisible = true')
+      .andWhere('account.deletedAt IS NULL')
+      .andWhere('profile.publiclyVisible = true')
+      .andWhere('profile.deletedAt IS NULL')
+      .andWhere('user.deletedAt IS NULL')
+      .andWhere('user.isAccountDisabled = false');
+
+    const blockedUserIds = await this._blockService.getBlockedUserIds(viewerId);
+
+    if (blockedUserIds.length > 0) {
+      queryBuilder.andWhere('account.userId NOT IN (:...blockedUserIds)', {
+        blockedUserIds,
+      });
+    }
+
+    const rows = await queryBuilder.getRawMany<
+      RegistryCharacterPath & { characterId: string }
+    >();
+
+    for (const { characterId, username, accountSlug, characterSlug } of rows) {
+      paths.set(characterId, { username, accountSlug, characterSlug });
+    }
+
+    return paths;
+  }
+
+  /**
+   * Finds which of some members' registry profiles a viewer could open.
+   *
+   * For a page elsewhere that names a member and may link to them — the
+   * author of a Fleet's news post (FC-027) — on exactly the terms
+   * {@link findProfileByUsername} answers: the profile public, the member
+   * active, and no block either way between them and the viewer.
+   *
+   * @param userIds - The members asked about.
+   * @param viewerId - The viewer, or null when signed out.
+   * @returns The users whose profiles the viewer could open. One they could
+   *   not is absent, whatever the reason, so the caller cannot tell why.
+   */
+  async findVisibleProfileUserIds(
+    userIds: readonly string[],
+    viewerId: string | null,
+  ): Promise<Set<string>> {
+    if (userIds.length === 0) {
+      return new Set();
+    }
+
+    const queryBuilder = await this.visibleProfilesQuery(viewerId);
+    const rows = await queryBuilder
+      .andWhere('profile.userId IN (:...userIds)', {
+        userIds: [...new Set(userIds)],
+      })
+      .select('profile.userId', 'userId')
+      .getRawMany<{ userId: string }>();
+
+    return new Set(rows.map(row => row.userId));
   }
 
   /**

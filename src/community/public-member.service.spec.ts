@@ -279,13 +279,34 @@ describe('PublicMemberService', () => {
       });
     });
 
-    it('should take the playing-since date from the oldest visible account', async () => {
+    /**
+     * Formatted in SQL rather than read as a date. The driver parses a `date`
+     * column into a JavaScript `Date` at local midnight, and anything that
+     * then serialises it shifts the day across timezones again — which is the
+     * whole reason the column stopped being a timestamp.
+     */
+    it('should take the playing-since day from the oldest visible account', async () => {
       await service.getPublicMemberStats(['user-1']);
 
       expect(accountQb.addSelect).toHaveBeenCalledWith(
-        'MIN(account.accountCreatedDate)',
+        "to_char(MIN(account.accountCreatedDate), 'YYYY-MM-DD')",
         'playingSince',
       );
+    });
+
+    it('should report the day as text, unconverted', async () => {
+      accountQb.getRawMany.mockResolvedValue([
+        {
+          userId: 'user-1',
+          accountCount: '1',
+          characterCount: '0',
+          playingSince: '2015-03-04',
+        },
+      ]);
+
+      const result = await service.getPublicMemberStats(['user-1']);
+
+      expect(result.get('user-1')?.playingSince).toBe('2015-03-04');
     });
 
     it('should report no playing-since date when no account records one', async () => {

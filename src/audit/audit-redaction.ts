@@ -43,6 +43,36 @@ export function RedactFromAudit(): PropertyDecorator {
   };
 }
 
+/** Entity classes whose trail keeps identifiers only (FC-038). */
+const IDENTIFIERS_ONLY = new Set<object>();
+
+/**
+ * Marks an entity whose every property but its identifiers stays out of the
+ * audit trail (FC-038).
+ *
+ * For chat, roster, news and form content, one property at a time is the
+ * wrong granularity: nearly everything such a row holds is what somebody
+ * wrote or what a roster said about them, and the trail keeps it for 180
+ * days where the row itself may go in 45. The trail keeps `id` and every
+ * `…Id`, so it still says who changed which row when, and nothing else.
+ *
+ * @returns The class decorator.
+ */
+export function AuditIdentifiersOnly(): ClassDecorator {
+  return (target: object): void => {
+    IDENTIFIERS_ONLY.add(target);
+  };
+}
+
+/**
+ * The entity classes marked {@link AuditIdentifiersOnly}, by name.
+ *
+ * @returns Their names.
+ */
+export function auditedByIdentifiersOnly(): string[] {
+  return [...IDENTIFIERS_ONLY].map(target => (target as { name: string }).name);
+}
+
 /**
  * Returns a copy of an entity snapshot with its marked properties withheld.
  *
@@ -60,6 +90,14 @@ export function redactForAudit(
 ): Record<string, unknown> | null {
   if (!snapshot) {
     return null;
+  }
+
+  if (IDENTIFIERS_ONLY.has(entityClass)) {
+    return Object.fromEntries(
+      Object.entries(snapshot).filter(
+        ([property]) => property === 'id' || property.endsWith('Id'),
+      ),
+    );
   }
 
   const redacted = REDACTED_PROPERTIES.get(entityClass);

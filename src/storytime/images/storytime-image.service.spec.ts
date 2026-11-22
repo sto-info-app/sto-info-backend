@@ -2,6 +2,12 @@ import { BadRequestException, Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 
 import { LimitService } from 'src/access-control/limit.service';
+import { FileAssetSlot } from 'src/file-assets/enums/file-asset-slot.enum';
+import { FileAssetSubject } from 'src/file-assets/enums/file-asset-subject.enum';
+import { AssetIngressService } from 'src/file-assets/services/asset-ingress.service';
+import { AssetWithdrawalService } from 'src/file-assets/services/asset-withdrawal.service';
+import { ImageIngressService } from 'src/file-assets/services/image-ingress.service';
+import { ImageReencodeService } from 'src/shared/images/image-reencode.service';
 import { ImageSlotService } from 'src/shared/images/image-slot.service';
 import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
 
@@ -46,9 +52,11 @@ const buildJpeg = (width: number, height: number): Buffer => {
 describe('StorytimeImageService', () => {
   let service: StorytimeImageService;
   let imageUploads: {
-    uploadImageToCloudflareImages: jest.Mock;
+    validateAndSanitiseFile: jest.Mock;
     deleteImageFromCloudflareImages: jest.Mock;
   };
+  let ingress: { accept: jest.Mock };
+  let withdrawal: { withdrawSlot: jest.Mock };
   let limitService: { resolve: jest.Mock };
 
   const userId = '2fb1c7d0-0000-4000-8000-000000000001';
@@ -71,8 +79,23 @@ describe('StorytimeImageService', () => {
 
   beforeEach(async () => {
     imageUploads = {
-      uploadImageToCloudflareImages: jest.fn().mockResolvedValue('image-id'),
+      validateAndSanitiseFile: jest
+        .fn()
+        .mockImplementation((_userId: string, file: Express.Multer.File) => ({
+          fileBuffer: file.buffer,
+          safeFileName: file.originalname,
+        })),
       deleteImageFromCloudflareImages: jest.fn().mockResolvedValue('image-id'),
+    };
+    ingress = {
+      accept: jest
+        .fn()
+        .mockResolvedValue({ assetId: 'asset-1', status: 'SCANNING' }),
+    };
+    withdrawal = {
+      withdrawSlot: jest
+        .fn()
+        .mockResolvedValue({ deleted: true, revoked: true }),
     };
     limitService = {
       resolve: jest
@@ -83,10 +106,21 @@ describe('StorytimeImageService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         StorytimeImageService,
-        // The real shared checker, not a stand-in. What is worth asserting is
-        // that a crop of the wrong shape never reaches Cloudflare, and only
-        // running the actual checks says that.
+        // The real shared checker and the real image front door, not
+        // stand-ins. What is worth asserting is that a crop of the wrong
+        // shape is never registered at all, and only running the actual
+        // checks says that.
+        ImageIngressService,
         ImageSlotService,
+        // The pixels are the re-encoder's concern and its own spec's
+        // (FC-043); these fixtures are headers, which is all a shape check
+        // reads.
+        {
+          provide: ImageReencodeService,
+          useValue: { reencode: (bytes: Buffer) => Promise.resolve(bytes) },
+        },
+        { provide: AssetIngressService, useValue: ingress },
+        { provide: AssetWithdrawalService, useValue: withdrawal },
         { provide: ImageUploadsService, useValue: imageUploads },
         { provide: LimitService, useValue: limitService },
       ],
@@ -106,35 +140,59 @@ describe('StorytimeImageService', () => {
     expect(service).toBeDefined();
   });
 
-  describe('storing an upload', () => {
-    it('hands an acceptable banner to the upload pipeline', async () => {
+  describe('accepting an upload', () => {
+    it('registers an acceptable banner against its slot', async () => {
       const file = buildFile(buildJpeg(2400, 480));
 
-      const imageId = await service.store({
+      const accepted = await service.accept({
         slot: StorytimeImageSlot.STORY_BANNER,
         userId,
         entityId,
         file,
+        altText: 'A ship at warp',
       });
 
-      expect(imageId).toBe('image-id');
-      expect(imageUploads.uploadImageToCloudflareImages).toHaveBeenCalledWith(
+      expect(accepted).toEqual({ assetId: 'asset-1', status: 'SCANNING' });
+      expect(ingress.accept).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subject: FileAssetSubject.STORYTIME_STORY,
+          slot: FileAssetSlot.BANNER,
+          subjectId: entityId,
+          entityTag: 'storytime-story-banner',
+          detectedContentType: 'image/jpeg',
+          feature: { altText: 'A ship at warp' },
+        }),
+      );
+    });
+
+    // The description belongs to the picture. Writing it onto the work now
+    // would describe whatever the work is still showing.
+    it('carries the description through rather than writing it now', async () => {
+      await service.accept({
+        slot: StorytimeImageSlot.CHAPTER_COVER,
         userId,
-        file,
-        'storytime-story-banner',
         entityId,
+        file: buildFile(buildJpeg(1920, 1080)),
+        altText: 'The bridge, in flames',
+      });
+
+      expect(ingress.accept).toHaveBeenCalledWith(
+        expect.objectContaining({
+          feature: { altText: 'The bridge, in flames' },
+        }),
       );
     });
 
     it('accepts a crop larger than the slot needs', async () => {
       await expect(
-        service.store({
+        service.accept({
           slot: StorytimeImageSlot.STORY_PROFILE,
           userId,
           entityId,
+          altText: 'Something the picture shows',
           file: buildFile(buildPng(1200, 1200)),
         }),
-      ).resolves.toBe('image-id');
+      ).resolves.toEqual({ assetId: 'asset-1', status: 'SCANNING' });
     });
 
     // A browser crop lands on whole pixels, so a 5:1 banner arrives one pixel
@@ -142,21 +200,23 @@ describe('StorytimeImageService', () => {
     // from the ones accepted.
     it('allows rounding either side of the exact ratio', async () => {
       await expect(
-        service.store({
+        service.accept({
           slot: StorytimeImageSlot.STORY_BANNER,
           userId,
           entityId,
+          altText: 'Something the picture shows',
           file: buildFile(buildJpeg(2401, 480)),
         }),
-      ).resolves.toBe('image-id');
+      ).resolves.toEqual({ assetId: 'asset-1', status: 'SCANNING' });
     });
 
     it('refuses a file that is not a readable image', async () => {
       await expect(
-        service.store({
+        service.accept({
           slot: StorytimeImageSlot.STORY_BANNER,
           userId,
           entityId,
+          altText: 'Something the picture shows',
           file: buildFile(Buffer.from('not an image')),
         }),
       ).rejects.toThrow('That file is not a readable PNG or JPEG image.');
@@ -164,10 +224,11 @@ describe('StorytimeImageService', () => {
 
     it('refuses an encoding the slot does not use', async () => {
       await expect(
-        service.store({
+        service.accept({
           slot: StorytimeImageSlot.STORY_BANNER,
           userId,
           entityId,
+          altText: 'Something the picture shows',
           file: buildFile(buildPng(2400, 480)),
         }),
       ).rejects.toThrow('must be uploaded as JPEG');
@@ -177,10 +238,11 @@ describe('StorytimeImageService', () => {
     // the compact rendering would reach a reader enlarged.
     it('refuses a crop smaller than the slot can use at all', async () => {
       await expect(
-        service.store({
+        service.accept({
           slot: StorytimeImageSlot.CHAPTER_COVER,
           userId,
           entityId,
+          altText: 'Something the picture shows',
           file: buildFile(buildJpeg(320, 180)),
         }),
       ).rejects.toThrow('at least 640 by 360');
@@ -191,10 +253,11 @@ describe('StorytimeImageService', () => {
     // it, because refusing turned away artwork its creator was content with.
     it('accepts a crop below the recommended size but above the minimum', async () => {
       await expect(
-        service.store({
+        service.accept({
           slot: StorytimeImageSlot.CHAPTER_COVER,
           userId,
           entityId,
+          altText: 'Something the picture shows',
           file: buildFile(buildJpeg(1280, 720)),
         }),
       ).resolves.toBeDefined();
@@ -202,10 +265,11 @@ describe('StorytimeImageService', () => {
 
     it('refuses a crop of the wrong shape', async () => {
       await expect(
-        service.store({
+        service.accept({
           slot: StorytimeImageSlot.CHARACTER_PORTRAIT,
           userId,
           entityId,
+          altText: 'Something the picture shows',
           file: buildFile(buildPng(600, 600)),
         }),
       ).rejects.toThrow('must be cropped to 2:3');
@@ -215,20 +279,22 @@ describe('StorytimeImageService', () => {
       limitService.resolve.mockResolvedValue(1_048_576);
 
       await expect(
-        service.store({
+        service.accept({
           slot: StorytimeImageSlot.STORY_BANNER,
           userId,
           entityId,
+          altText: 'Something the picture shows',
           file: buildFile(buildJpeg(2400, 480), 4_194_304),
         }),
       ).rejects.toThrow('4.0 MB. Storytime images must be 1.0 MB or smaller.');
     });
 
     it('resolves the size ceiling for the uploading user', async () => {
-      await service.store({
+      await service.accept({
         slot: StorytimeImageSlot.STORY_BANNER,
         userId,
         entityId,
+        altText: 'Something the picture shows',
         file: buildFile(buildJpeg(2400, 480)),
       });
 
@@ -239,45 +305,85 @@ describe('StorytimeImageService', () => {
       );
     });
 
-    it('refuses before uploading anything', async () => {
+    it('refuses before registering anything', async () => {
       await expect(
-        service.store({
+        service.accept({
           slot: StorytimeImageSlot.STORY_BANNER,
           userId,
           entityId,
+          altText: 'Something the picture shows',
           file: buildFile(Buffer.from('not an image')),
         }),
       ).rejects.toBeInstanceOf(BadRequestException);
 
-      expect(imageUploads.uploadImageToCloudflareImages).not.toHaveBeenCalled();
+      expect(ingress.accept).not.toHaveBeenCalled();
     });
   });
 
-  describe('releasing a replaced image', () => {
-    it('deletes the image', async () => {
-      await service.release('old-image');
-
-      expect(imageUploads.deleteImageFromCloudflareImages).toHaveBeenCalledWith(
+  describe('withdrawing a removed image', () => {
+    it('withdraws it through the registry rather than deleting it', async () => {
+      await service.withdraw(
+        StorytimeImageSlot.ARC_PROFILE,
+        entityId,
         'old-image',
       );
+
+      expect(withdrawal.withdrawSlot).toHaveBeenCalledWith(
+        FileAssetSubject.STORYTIME_ARC,
+        entityId,
+        FileAssetSlot.PROFILE,
+        'old-image',
+        'Removed by the owner',
+      );
     });
 
-    it('does nothing when there was no image', async () => {
-      await service.release(null);
+    // The slot is emptied whether or not anything was in it, because a
+    // placement can outlive the reference the work held.
+    it('still settles the slot when there was no image', async () => {
+      await service.withdraw(StorytimeImageSlot.ARC_PROFILE, entityId, null);
 
-      expect(
-        imageUploads.deleteImageFromCloudflareImages,
-      ).not.toHaveBeenCalled();
+      expect(withdrawal.withdrawSlot).toHaveBeenCalledWith(
+        FileAssetSubject.STORYTIME_ARC,
+        entityId,
+        FileAssetSlot.PROFILE,
+        null,
+        'Removed by the owner',
+      );
     });
 
-    // The work is already saved by this point, so failing here would report a
-    // change as unsuccessful when it had in fact happened.
-    it('swallows a deletion failure', async () => {
-      imageUploads.deleteImageFromCloudflareImages.mockRejectedValue(
-        new Error('Cloudflare said no'),
+    it('treats an absent image and an undefined one alike', async () => {
+      await service.withdraw(
+        StorytimeImageSlot.SPOTLIGHT_OVERRIDE,
+        entityId,
+        undefined,
       );
 
-      await expect(service.release('old-image')).resolves.toBeUndefined();
+      expect(withdrawal.withdrawSlot).toHaveBeenCalledWith(
+        FileAssetSubject.STORYTIME_SPOTLIGHT,
+        entityId,
+        FileAssetSlot.OVERRIDE,
+        null,
+        'Removed by the owner',
+      );
+    });
+
+    // A picture withdrawn because its work was deleted says so in the
+    // registry, rather than claiming the owner removed it.
+    it('records the reason it is given', async () => {
+      await service.withdraw(
+        StorytimeImageSlot.CHAPTER_COVER,
+        entityId,
+        'cover-1',
+        'Its Story was deleted',
+      );
+
+      expect(withdrawal.withdrawSlot).toHaveBeenCalledWith(
+        FileAssetSubject.STORYTIME_CHAPTER,
+        entityId,
+        FileAssetSlot.COVER,
+        'cover-1',
+        'Its Story was deleted',
+      );
     });
   });
 });

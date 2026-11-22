@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { AssetIngressModule } from '../file-assets/asset-ingress.module';
 import { SettingsModule } from '../settings/settings.module';
 import { SharedModule } from '../shared/shared.module';
 import { AccountEntity } from '../sto/account/entities/account.entity';
@@ -33,8 +34,12 @@ import { CustomTrackingSectionEntity } from './entities/custom-tracking-section.
 import { CustomTrackingTabEntity } from './entities/custom-tracking-tab.entity';
 import { CustomTrackingValueOptionEntity } from './entities/custom-tracking-value-option.entity';
 import { CustomTrackingValueEntity } from './entities/custom-tracking-value.entity';
+import { CustomTrackingFieldPictureService } from './images/custom-tracking-field-picture.service';
+import { CustomTrackingImagePublisher } from './images/custom-tracking-image.publisher';
 import { CustomTrackingImageService } from './images/custom-tracking-image.service';
 import { CustomTrackingImagesController } from './images/custom-tracking-images.controller';
+import { CustomTrackingRecordDeletionService } from './images/custom-tracking-record-deletion.service';
+import { DeletedCustomTrackingPictureSweepService } from './images/deleted-custom-tracking-picture-sweep.service';
 import { CustomTrackingModerationController } from './moderation/custom-tracking-moderation.controller';
 import { CustomTrackingModerationService } from './moderation/custom-tracking-moderation.service';
 import { CustomTrackingObservabilityService } from './observability/custom-tracking-observability.service';
@@ -85,6 +90,9 @@ import { CustomTrackingValuesController } from './values/custom-tracking-values.
     ]),
     SettingsModule,
     SharedModule,
+    // A picture answering a Field is registered, quarantined and scanned
+    // before it is written as an answer at all.
+    AssetIngressModule,
   ],
   controllers: [
     CustomTrackingConfigurationController,
@@ -119,6 +127,11 @@ import { CustomTrackingValuesController } from './values/custom-tracking-values.
     CustomTrackingRecordMapper,
     CustomTrackingValueEditingGuard,
     CustomTrackingImageService,
+    CustomTrackingImagePublisher,
+    // A deleted Field's pictures go at once; the sweep catches earlier ones.
+    CustomTrackingFieldPictureService,
+    DeletedCustomTrackingPictureSweepService,
+    CustomTrackingRecordDeletionService,
     CustomTrackingPublicService,
     CustomTrackingPublicMapper,
     CustomTrackingImageCleanupService,
@@ -141,6 +154,7 @@ import { CustomTrackingValuesController } from './values/custom-tracking-values.
     CustomTrackingObservabilityService,
     CustomTrackingImageCleanupService,
     CustomTrackingPurgeService,
+    CustomTrackingRecordDeletionService,
   ],
 })
 export class CustomTrackingModule {}

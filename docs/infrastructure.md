@@ -9,6 +9,10 @@ Both frontend and backend are hosted on Render.com as separate web services.
 - **Backend**: NestJS application (this repository)
 - **Frontend**: Client application (separate repository)
 - **Database**: Render.com managed PostgreSQL instance
+- **File scan worker**: a background worker, from the `sto-info-file-scan-worker` repository
+
+How to run them — secrets, connection budgets, readiness, alerts, failed jobs, restore, rollback
+and incidents — is in the [operations runbooks](operations/README.md).
 
 ### Backend Web Service Configuration
 
@@ -23,8 +27,13 @@ npm install && npm run build
 **Start Command:**
 
 ```bash
-npm run start:prod
+npm run start:render
 ```
+
+`start:render` runs `npm run migration:run` and then `npm run start:prod`, so every deploy applies
+pending migrations before the API starts. A rollback does the same with the older build's
+migrations, which against a newer database is a no-op; see
+[Rolling back the application](image-delivery.md#rolling-back-the-application).
 
 **Environment:** Node. Render's native runtime reads the version from `.nvmrc` (currently `24.22.3`, the November 2026 security release). A change to `.nvmrc` takes effect on the next build, so redeploy after bumping it.
 
@@ -98,12 +107,16 @@ Optional (seed user):
 - **Extensions:** No additional extensions enabled (e.g., `uuid-ossp`, `pg_trgm`).
 
 > TODO: Verify the managed Postgres version/plan/backup retention/extensions from the Render dashboard (and update this section if they differ).
+> The plan, its connection limit and its backup retention are to confirm on Render in FC-052; see
+> [Render services](operations/render-services.md#to-confirm-on-render-fc-052). The restore
+> procedure is [Restore](operations/restore.md).
 
 ### Redis Service Configuration
 
 - **Service Type:** Redis (Managed)
 - **Version:** Redis 7.x
-- **Plan:** Starter (256MB memory, 10 connections)
+- **Plan:** Starter (256MB memory, 250 connections, per Render's pricing page on 28 September
+  2026; this said 10 before)
 - **Persistence:** AOF (Append-Only File) enabled for data durability
 - **Eviction Policy:** `noeviction` (fails writes when memory limit reached)
 
@@ -113,6 +126,26 @@ Redis is used for:
 
 1. **Rate Limiting State**: All rate limiting categories (Read, Write, Auth, Expensive) store their state in Redis with unique key prefixes (`rl:read:`, `rl:write:`, `rl:auth:`, `rl:expensive:`)
 2. **Refresh Token Revocation**: Revoked refresh token tracking (future implementation)
+3. **Queues**: BullMQ, for the file scan worker's requests and verdicts, asset publication,
+   roster replays, the image estate's runs (FC-040) and rescan campaigns (FC-041). The publication
+   pause (FC-042) is a pause of the `file-asset-publication` queue, which lives in Redis; the
+   database holds the switch and re-applies it at startup and every minute, so a Redis that is
+   lost or replaced is put back in line within a minute. The failed-jobs list and the operations
+   alerts read the queues the application already holds and open no connections of their own
+4. **Chat sockets** (FC-032): the socket.io Redis adapter, which carries chat's rooms and messages
+   between backend instances
+
+**Connections:** each backend instance holds about fourteen:
+
+- one for rate limiting;
+- about ten for BullMQ's queues and workers. The image estate (FC-040) and rescan campaigns
+  (FC-041) each add a worker, and with it one blocking connection, after this was measured;
+- two for the chat adapter, one to publish and one to subscribe;
+- one for chat presence (FC-034): short-lived keys, `chat:presence:<user>`, 60 seconds each.
+
+The file scan worker holds about four. That was measured locally on 28 September 2026, when the
+two-instance chat rehearsal peaked at 42 clients across everything running. The Starter plan's 250
+leaves room for many instances.
 
 **Connection String:**
 
@@ -164,12 +197,21 @@ GET /health/live
 - Health check path: `/health/ready`
 - Expected status: 200 OK
 - Used by Render to determine service health
+- Nothing answers until the boot's restore check has read the ledgers and brought back anything a
+  restored database lacks; while the bucket or database cannot be reached it waits, retrying, and
+  the instance never goes live (FC-042, see
+  [Privacy: erasure](privacy-erasure.md#the-restore-check-fc-042))
 - Unhealthy services may be restarted automatically
 
 ### Scaling Configuration
 
 - **Instances:** One
 - **Auto-Scaling:** Disabled
+
+More instances need nothing further for chat (FC-032). Its socket is WebSocket only, so a
+connection needs no sticky session, and the Redis adapter carries rooms and messages between
+instances. A deploy or a crash closes an instance's sockets. The browser reconnects to whichever
+instance takes it and reads what it missed from the database. See [Fleet chat](fleet-chat.md#the-socket).
 
 ### Render Dashboard
 
@@ -189,7 +231,10 @@ GET /health/live
 **Deployment History:**
 
 - View past deployments
-- Rollback to previous deployment if needed
+- Rollback to previous deployment if needed. **Never to a build from before FC-012**, which
+  published uploads without scanning them; the database and the retired credentials refuse it,
+  but don't rely on that. See
+  [Rolling back the application](image-delivery.md#rolling-back-the-application)
 
 ## Cloudflare
 
@@ -199,13 +244,59 @@ GET /health/live
 
 - `startrekonline.info`: Frontend
 - `api.startrekonline.info`: Backend API
-- `cdn.startrekonline.info`: Cloudflare R2 Images CDN
+- `cdn.startrekonline.info`: Asset delivery — **two products behind one hostname**, see below
 
 **Development Domains:**
 
 - `dev.startrekonline.info`: Development frontend
 - `dev-api.startrekonline.info`: Development backend API
-- `dev-cdn.startrekonline.info`: Development Cloudflare R2 Images CDN
+- `dev-cdn.startrekonline.info`: Development asset delivery
+
+### How the CDN hostname is used — read this before touching images
+
+`cdn.startrekonline.info` is **one Cloudflare custom domain fronting two different products**,
+told apart by the path. This is the single most confusing thing about the image setup and it has
+already caused one wrong conclusion, so it is written down here explicitly.
+
+| Path                                                | Product                                          | What it serves                     |
+| --------------------------------------------------- | ------------------------------------------------ | ---------------------------------- |
+| `/cdn-cgi/imagedelivery/<hash>/<imageId>/<variant>` | **Cloudflare Images**                            | Every image the site uploads today |
+| `/cdn-cgi/image/<options>/<key>`                    | **Cloudflare Image Resizing**, over an R2 object | Legacy Character portraits only    |
+| `/<key>` — anything else                            | **The delivery R2 bucket**                       | Legacy Character portraits only    |
+
+Both are live: the domain is bound to the delivery R2 bucket _and_ fronts Cloudflare Images. The
+quarantine bucket is not bound to it, which is checked by
+`npm run probe:asset-delivery`.
+
+So the presence of `CLOUDFLARE_CDN_ROOT_URL` in the code says nothing about **which** of the two
+a given line of code is using — it is the Images custom domain far more often than it is an R2
+route, and the two are told apart only by the path.
+
+Two further things are easy to miss:
+
+- **Every Cloudflare Images object is also reachable at `https://imagedelivery.net/<hash>/<id>/<variant>`**,
+  a hostname this custom domain's cache purge does not touch. Withdrawing a published image must
+  therefore be a _delete_ of the image, not a cache purge.
+- **The CDN hostname differs per environment** (`cdn.` and `dev-cdn.`), while the R2 buckets behind
+  the estate are single buckets with the environment as a key prefix. Domain is per environment;
+  bucket is not.
+- **Pictures are private since FC-040.** A published picture is a private Cloudflare Images object
+  under a generated ID, and both hostnames refuse it without a signature the API adds with
+  `cloudflareImagesSigningKey`. The site's own artwork stays public. Once no legacy R2 portrait is
+  left, the delivery bucket's custom domain binding comes off (FC-052, on the live account). See
+  [Private image delivery](image-delivery.md).
+
+### What writes where, as of FC-008
+
+| Store                    | Written by                                                                                                                                                             | Read by                                                                              |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **Cloudflare Images**    | `ImageUploadsService.uploadImageToCloudflareImages` — every upload the site accepts                                                                                    | The custom domain and `imagedelivery.net`                                            |
+| **Public R2 bucket**     | **Nothing.** `uploadImageToCloudflareR2` and `deleteImageFromCloudflareR2` have no callers; FC-040's copy reads each legacy portrait out and its retirement deletes it | Legacy Character portraits, via the two `cdn-cgi` paths above, until they are copied |
+| **Quarantine R2 bucket** | `QuarantineStorageService.put`                                                                                                                                         | `FileAssetDeliveryService`, and the scan worker                                      |
+
+The public R2 bucket is kept rather than retired because document uploads are a likely future
+feature and Cloudflare Images cannot serve a PDF. See [File assets](file-assets.md) for how such
+an upload should reach it — through the asset registry, not through the old image method.
 
 ### Proxy Settings
 
@@ -220,6 +311,10 @@ GET /health/live
 - Cloudflare supports IPv6 by default
 - Backend should handle both IPv4 and IPv6 addresses
 - Backend normalises IPv6-mapped IPv4 values like `::ffff:192.0.2.1` to `192.0.2.1`
+
+**WebSockets:** chat's socket (`/chat/socket`, FC-032) goes through the same proxy. Cloudflare's
+Network setting "WebSockets" must stay on. socket.io pings every 25 seconds, well inside the time
+Cloudflare lets an idle WebSocket stay open. Checking both live is FC-052's.
 
 ### SSL/TLS Settings
 
@@ -281,7 +376,22 @@ Example rules might include:
 - `thumbnail`: Smaller size for thumbnails
 - Custom variants can be configured in Cloudflare dashboard
 
-> TODO: Document the exact variant names used by the app (and the Cloudflare Images variant settings for each).
+**Variants configured on the account — twelve:** `public` (1366x768), `square40`, `square100`,
+`square200`, `square300`, `square512`, `banner1200x240`, `banner2400x480`, `cover640x360`,
+`cover1920x1080`, `portrait133x200`, `portrait400x600`.
+
+Each is a separate URL for the same object and each keeps working until the image itself is
+deleted, which is why withdrawing a published image is a delete rather than a cache operation.
+Every object is additionally reachable at `https://imagedelivery.net/<hash>/<id>/<variant>`, a
+hostname no purge of the custom domain touches.
+
+**The dashboard is the authority.** Only nine of the twelve are referenced in the backend and two
+in the frontend; `square200` and `square512` appear in no repository. They are public URLs for
+every image all the same. Adding a variant creates a delivery route that no code change records,
+so `scripts/asset-delivery-probe/probe.mjs` keeps its own list and that list has to be updated by
+hand when the dashboard changes.
+
+> TODO: Document the dimensions and fit settings for each of the twelve (only `public` is recorded above).
 
 **Upload API:**
 
@@ -299,8 +409,15 @@ Authorization: Bearer <Images API key/token (from AWS Secrets Manager)>
 **Purpose:**
 
 - S3-compatible object storage
-- Stores original image files or backups
 - Lower cost than Cloudflare Images for storage alone
+
+**Current use: none for writes, but it IS publicly served.** Every image upload goes to Cloudflare
+Images; the backend's `uploadImageToCloudflareR2` and `deleteImageFromCloudflareR2` have no
+callers. The bucket is nonetheless bound to `cdn.startrekonline.info` and objects in it are
+fetched at `<CDN_ROOT>/<key>` — confirmed on 19 September 2026 by putting a canary object in it
+and getting a `200`. What is left in it is legacy Character portraits; see
+[File assets](file-assets.md) for the query that settles whether any remain, and for why reading
+response headers is not a reliable way to test this.
 
 **Configuration:**
 
@@ -313,6 +430,78 @@ Authorization: Bearer <Images API key/token (from AWS Secrets Manager)>
 - Private by default
 - Public URLs can be enabled per bucket
 - Use presigned URLs for temporary access
+
+### The quarantine bucket
+
+A **second, private R2 bucket**, named by `CLOUDFLARE_R2_QUARANTINE_BUCKET_NAME`, holding uploaded
+bytes from the moment they arrive until they have been scanned and published. It is separate from
+the delivery bucket rather than a prefix inside it: the delivery bucket is already reachable through
+the custom domain, and a prefix would be quarantined only for as long as nobody added a rule, a
+redirect or a Worker that reached it.
+
+**One bucket serves every environment**, with the environment as the first key segment
+(`prod/assets/…`, `dev/assets/…`), matching the delivery bucket's layout — ADR-0017. R2 cannot scope
+a token to a prefix, only to a bucket, so a quarantine credential reaches every environment and must
+be treated as a production credential whichever one issued it.
+
+It reuses `CLOUDFLARE_R2_ENDPOINT`: R2's S3 endpoint is scoped to the account, not to a bucket, so
+the only new configuration value is the bucket name. A bucket created under a jurisdiction is the
+exception — it is reachable only through that jurisdiction's endpoint — which is another reason to
+give quarantine the same jurisdiction as the delivery bucket.
+
+It must have, and be checked to have:
+
+- no public access
+- no custom domain
+- no `r2.dev` subdomain
+- no Cloudflare Images variant
+- no lifecycle expiry rule, no bucket lock rule and no event notifications
+- Data Access Logs enabled
+- its own credentials — Object Read & Write for the backend, Object Read only for the worker, both
+  scoped to this bucket and neither holding an Admin permission
+
+Nothing in the application can verify any of that. Run `npm run probe:asset-delivery` against the
+environment; it attempts every public route to a known quarantined object and reports what answered.
+See [File assets](file-assets.md) for the full inventory of delivery paths and what withdrawing an
+object costs on each one.
+
+### The exports bucket
+
+A **third, private R2 bucket**, named by `CLOUDFLARE_R2_EXPORTS_BUCKET_NAME`, holding chat
+transcripts (FC-035) for the 24 hours their requester may download them. It is a bucket of its own:
+the delivery bucket is served publicly through the CDN, and a prefix in it would be private only for
+as long as nobody pointed a rule at it.
+
+- **Layout.** Keys are `<environment>/chat-transcripts/<transcript ID>.txt`, and nothing a person
+  typed ever reaches a key. Objects are written `Cache-Control: no-store`.
+- **Reach.** They are read only by the backend, after it has asked again whether the requester may
+  export the channel, and are served from the API, never from a bucket URL.
+- **Lifetime.** An hourly sweep deletes each object once its 24 hours are up. A lifecycle rule
+  deleting anything older than two days is a sensible backstop, but the application does not rely
+  on one.
+- **Credentials.** `cloudflareR2ExportsAccessKey` / `cloudflareR2ExportsSecret` in the AWS secret:
+  Object Read & Write, scoped to this bucket alone, with no Admin permission. The delivery and
+  quarantine keys cannot reach it, and it cannot reach them.
+- **Settings.** Like quarantine, it must have no public access, no custom domain, no `r2.dev`
+  subdomain and no Cloudflare Images variant. Nothing in the application can check that; FC-052
+  checks it live.
+- **Locally**, it is the MinIO bucket `stoi-exports`, private, reached with the MinIO credentials.
+
+### Two objects in R2 that must not be deleted
+
+| Bucket            | Key                              |
+| ----------------- | -------------------------------- |
+| `stoi-quarantine` | `334843800-example-file-q.txt`   |
+| `stoi-uploads`    | `334843800-example-file-cdn.txt` |
+
+These are fixtures for `npm run probe:asset-delivery`, at the bucket root. They look like stray
+test files in a bucket listing and their contents say nothing about themselves, which is why they
+are recorded here.
+
+Neither has a database record, so nothing will recreate one if it is removed — and **if either is
+deleted the probe silently starts reporting `PASS`**, because a key that was never written is
+refused by every route exactly as a properly closed one is. See
+[File assets](file-assets.md) for what each of them proves.
 
 ### Firewall Rules
 
@@ -376,16 +565,46 @@ Authorization: Bearer <Images API key/token (from AWS Secrets Manager)>
 - `X-Forwarded-For`: Client IP chain (may include proxies)
 - `X-Forwarded-Proto`: Original protocol (http/https)
 
+**Cloudflare also adds**, by a Transform Rule: `X-Origin-Verify`, carrying the origin secret
+(FC-044). See [Origin proxy trust](#origin-proxy-trust).
+
 **Backend Should Use:**
 
-- `CF-Connecting-IP` for real client IP (most reliable)
+- `CF-Connecting-IP` for real client IP, and only on a request carrying `X-Origin-Verify`
 - `CF-Ray` for correlating logs with Cloudflare
 - `CF-IPCountry` for geo-blocking or analytics (if needed)
 
 ### Origin proxy trust
 
-- Backend sets Express `trust proxy` to `TRUST_PROXY_HOPS` (default 1) when not running in `local` or `e2etest`
-- Client IP used for logging and rate limiting is derived in this order: `CF-Connecting-IP`, then the first `X-Forwarded-For` entry, then Express `req.ip`
+Only what comes through Cloudflare is served (FC-044). `CF-Connecting-IP` and `X-Forwarded-For` are
+only headers: anybody who reaches the origin without Cloudflare, by its `onrender.com` address or by
+connecting to Render with the API's hostname, can write them, and every rate limit keyed on them
+could be dodged with a new value per request.
+
+- **Cloudflare proves it.** A Cloudflare Transform Rule on `api.startrekonline.info` (and on
+  `dev-api.` with the dev secret) sets the request header `X-Origin-Verify` to the secret's
+  `cloudflareOriginVerifySecret` on every request it forwards, WebSocket upgrades included.
+- **The backend checks it** (`src/common/http/cloudflare-origin.ts`), comparing in constant time.
+  A request carrying it has `CF-Connecting-IP` taken as its address; any other request is refused
+  `403`, except `/health/`, which Render's health checks reach directly. Chat's socket opens only
+  with it too. Refusals are logged as a count, at most once a minute.
+- **No other header is believed.** `X-Forwarded-For` is not read for the address at all; a request
+  Cloudflare did not name an address for is keyed on its connection's own peer.
+- **One address per request.** Rate limits, the login and audit logs, and the site admin log all
+  use the address this decided (`req.clientIp`), never `req.ip`.
+- **Outside `local` and `e2etest` the secret is required.** Without it the backend does not
+  start, so a deploy that lacks it never goes healthy and the previous instance keeps serving. On
+  a developer's machine, or an end-to-end scan's runner, there is no secret: nothing is refused, no
+  header is believed, and every request's address is its connection's own. The rehearsals put one in their throwaway secret and send it,
+  as Cloudflare would, so they run the production path.
+- **Rotating it:** change the Transform Rule and the secret together and restart the backend;
+  requests in between are refused.
+- **`onrender.com`** is switched off on the service once the custom domain is in place (Render ›
+  Settings › Custom Domains › Render Subdomain), as one less way round Cloudflare. FC-052.
+
+Express's `trust proxy` is still set to `TRUST_PROXY_HOPS` (default 1) outside `local` and
+`e2etest`, for what Express derives from the proxies in front; it no longer decides the client's
+address.
 
 ## Infrastructure Quirks
 
@@ -431,5 +650,7 @@ Authorization: Bearer <Images API key/token (from AWS Secrets Manager)>
 **Database Connection Limits:**
 
 - Managed PostgreSQL has connection limits based on plan
-- Ensure TypeORM pool size is within limits
+- Neither application sets a TypeORM pool size, so each instance may open node-postgres's default
+  of ten; the budget, deploy overlap included, is in
+  [Render services](operations/render-services.md#connection-budgets)
 - Monitor connection usage in Render dashboard

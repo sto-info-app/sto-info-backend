@@ -22,6 +22,7 @@ import {
 import { AccountEntity } from '../../sto/account/entities/account.entity';
 import { UserRefreshTokenEntity } from '../../user-refresh-token/entities/user-refresh-token.entity';
 import { UserRole } from '../enums/user-role.enum';
+import { UserPreferenceEntity } from './user-preference.entity';
 import { UserProfileEntity } from './user-profile.entity';
 
 @Entity({ name: 'user' })
@@ -56,6 +57,15 @@ export class UserEntity {
 
   @Column({ type: 'timestamp', nullable: true })
   lastLoginAt: Date | null;
+
+  /**
+   * When the user was last seen on the site (FC-053): set at sign-in and
+   * touched at most once an hour on any authenticated request, so a member
+   * who stays signed in through token refresh still reads as seen. Null for a
+   * user not seen since the column arrived.
+   */
+  @Column({ type: 'timestamp', nullable: true })
+  lastSeenAt: Date | null;
 
   @Column({ type: 'timestamp', nullable: true })
   lastPasswordReset: Date | null;
@@ -131,6 +141,11 @@ export class UserEntity {
 
   @OneToOne(() => UserProfileEntity, profile => profile.user, { cascade: true })
   profile: UserProfileEntity;
+
+  @OneToOne(() => UserPreferenceEntity, preference => preference.user, {
+    cascade: true,
+  })
+  preference: UserPreferenceEntity;
 
   /**
    * Compares a password against the stored hash.

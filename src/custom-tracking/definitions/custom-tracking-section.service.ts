@@ -216,9 +216,11 @@ export class CustomTrackingSectionService {
   async remove(userId: string, sectionId: string): Promise<void> {
     const section = await this.findOwned(userId, sectionId);
 
-    await this._dataSource.transaction(manager =>
+    const pictures = await this._dataSource.transaction(manager =>
       this._cascade.deleteSection(manager, section.id, new Date()),
     );
+
+    await this._cascade.withdraw(pictures);
   }
 
   /**

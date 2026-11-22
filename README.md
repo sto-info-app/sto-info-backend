@@ -66,6 +66,8 @@ Documentation is in [docs/](docs/).
 
 - [docs/environment-variables.md](docs/environment-variables.md)
 - [docs/infrastructure.md](docs/infrastructure.md)
+- [docs/operations/](docs/operations/README.md) — the operations runbooks: Render, secrets,
+  readiness, alerts, failed jobs, restore, rollback and incidents
 - [docs/security.md](docs/security.md)
 - [docs/database.md](docs/database.md)
 - [docs/backend.md](docs/backend.md)
@@ -160,6 +162,8 @@ This project uses Stryker for mutation testing.
 ```sh
 npm run test:mutation
 ```
+
+In CI the weekly full run is split into six shards that run in parallel, each keeping its results between weeks, and a final job merges them into one report. See [Weekly full run](docs/github/QUALITY-AUTOMATION.md#weekly-full-run) for how, and for running a single shard locally.
 
 For PR-style incremental mutation testing (only mutates relevant changed `src/**/*.ts` files), you can run:
 

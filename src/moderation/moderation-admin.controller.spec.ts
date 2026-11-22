@@ -19,6 +19,8 @@ describe('ModerationAdminController', () => {
     findForAdmin: jest.Mock<() => Promise<PaginatedReportsDto>>;
     findOneForAdmin: jest.Mock<() => Promise<UserReportDto>>;
     updateForAdmin: jest.Mock<() => Promise<UserReportDto>>;
+    countUnresolved: jest.Mock<() => Promise<number>>;
+    countUnresolvedChat: jest.Mock<() => Promise<number>>;
   };
   let userModerationService: {
     findUsers: jest.Mock;
@@ -43,6 +45,8 @@ describe('ModerationAdminController', () => {
       ),
       findOneForAdmin: jest.fn(() => Promise.resolve(report)),
       updateForAdmin: jest.fn(() => Promise.resolve(report)),
+      countUnresolved: jest.fn(() => Promise.resolve(2)),
+      countUnresolvedChat: jest.fn(() => Promise.resolve(3)),
     };
     userModerationService = {
       findUsers: jest.fn(() =>
@@ -79,6 +83,14 @@ describe('ModerationAdminController', () => {
       expect(reportService.findForAdmin).toHaveBeenCalledWith(query);
     });
 
+    it('should count both queues’ open reports (FC-036)', async () => {
+      await expect(controller.openCounts()).resolves.toEqual({
+        userReports: 2,
+        chatReports: 3,
+        total: 5,
+      });
+    });
+
     it('should fetch a single report by ID', async () => {
       await controller.findReport(REPORT_ID);
 
@@ -86,7 +98,7 @@ describe('ModerationAdminController', () => {
     });
 
     it('should pass the acting administrator with the decision', async () => {
-      const dto = { status: ReportStatus.DISMISSED };
+      const dto = { status: ReportStatus.DISMISSED, reason: 'Nothing found' };
 
       await controller.updateReport(ADMIN_ID, REPORT_ID, dto);
 
@@ -126,11 +138,14 @@ describe('ModerationAdminController', () => {
     });
 
     it('should pass the acting administrator when restoring', async () => {
-      await controller.enableUser(ADMIN_ID, MEMBER_ID);
+      await controller.enableUser(ADMIN_ID, MEMBER_ID, {
+        reason: 'Appeal upheld',
+      });
 
       expect(userModerationService.enableUser).toHaveBeenCalledWith(
         MEMBER_ID,
         ADMIN_ID,
+        'Appeal upheld',
       );
     });
   });

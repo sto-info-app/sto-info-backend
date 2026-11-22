@@ -1,9 +1,10 @@
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import tsPlugin from '@typescript-eslint/eslint-plugin';
 import tsParser from '@typescript-eslint/parser';
 import prettierPlugin from 'eslint-plugin-prettier';
 import globals from 'globals';
-import { dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -89,6 +90,13 @@ export default [
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
+
+      // Destructuring a key out beside a rest element is how a DTO's
+      // read-only fields are dropped before Object.assign.
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { ignoreRestSiblings: true },
+      ],
     },
   },
 ];

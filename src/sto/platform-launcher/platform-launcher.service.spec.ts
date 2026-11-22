@@ -7,7 +7,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { jest } from '@jest/globals';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 
 import { PlatformLauncherEntity } from './entities/platform-launcher.entity';
 import { PlatformLauncherService } from './platform-launcher.service';
@@ -111,6 +111,83 @@ describe('PlatformLauncherService', () => {
       await expect(
         service.addPlatformLauncherRelation('platform-1', ''),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('ensureBackground', () => {
+    const PICTURE =
+      'https://cdn.startrekonline.info/cdn-cgi/imagedelivery/jQ0uSdJ3ty-KasNpXGxyuA/f7f4c0dc-6137-481d-86b9-d96b74737600/public';
+
+    const found = (row: Partial<PlatformLauncherEntity> | null) =>
+      (
+        repository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(row);
+
+    beforeEach(() => {
+      (
+        repository.query as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue([]);
+    });
+
+    it('creates a missing row with the picture', async () => {
+      found(null);
+
+      await expect(
+        service.ensureBackground('platform-1', 'launcher-1', PICTURE),
+      ).resolves.toBe('created');
+
+      expect(repository.query).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'INSERT INTO "sto_info_app"."platform_launcher" ("id", "platformId", "launcherId", "backgroundImageUrl"',
+        ),
+        [expect.any(String), 'platform-1', 'launcher-1', PICTURE],
+      );
+    });
+
+    it('looks a default row up by its empty ids, removed rows included', async () => {
+      found(null);
+
+      await service.ensureBackground('platform-1', null, PICTURE);
+      await service.ensureBackground(null, null, PICTURE);
+
+      expect(repository.findOne).toHaveBeenNthCalledWith(1, {
+        where: { platformId: 'platform-1', launcherId: IsNull() },
+        withDeleted: true,
+      });
+      expect(repository.findOne).toHaveBeenNthCalledWith(2, {
+        where: { platformId: IsNull(), launcherId: IsNull() },
+        withDeleted: true,
+      });
+      expect(repository.query).toHaveBeenLastCalledWith(expect.any(String), [
+        expect.any(String),
+        null,
+        null,
+        PICTURE,
+      ]);
+    });
+
+    it('gives a row with no picture this one, only while it is still empty', async () => {
+      found({ id: 'row-1', backgroundImageUrl: null });
+
+      await expect(
+        service.ensureBackground('platform-1', 'launcher-1', PICTURE),
+      ).resolves.toBe('filled');
+
+      expect(repository.query).toHaveBeenCalledWith(
+        'UPDATE "sto_info_app"."platform_launcher" SET "backgroundImageUrl" = $1, "updatedAt" = now() WHERE "id" = $2 AND "backgroundImageUrl" IS NULL',
+        [PICTURE, 'row-1'],
+      );
+    });
+
+    // A picture somebody changed by hand is not put back on every boot.
+    it('keeps a picture already set', async () => {
+      found({ id: 'row-1', backgroundImageUrl: 'https://example.test/own' });
+
+      await expect(
+        service.ensureBackground('platform-1', 'launcher-1', PICTURE),
+      ).resolves.toBe('kept');
+
+      expect(repository.query).not.toHaveBeenCalled();
     });
   });
 

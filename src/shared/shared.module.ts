@@ -3,6 +3,9 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 
 import { S3Client } from '@aws-sdk/client-s3';
 
+import { ImageSigningService } from 'src/file-assets/delivery/image-signing.service';
+
+import { ImageReencodeService } from './images/image-reencode.service';
 import { ImageSlotService } from './images/image-slot.service';
 import { SecretsService } from './secrets/secrets.service';
 import { ImageUploadsService } from './utilities/image-uploads.service';
@@ -11,7 +14,9 @@ import { ImageUploadsService } from './utilities/image-uploads.service';
   imports: [ConfigModule],
   providers: [
     SecretsService,
+    ImageSigningService,
     ImageUploadsService,
+    ImageReencodeService,
     ImageSlotService,
     {
       provide: S3Client,
@@ -22,18 +27,26 @@ import { ImageUploadsService } from './utilities/image-uploads.service';
         const secretName = configService.get<string>('AWS_SECRET_NAME')!;
         const secretObject = await secretsService.getSecret(secretName);
 
+        // FC-042's names only; ImageUploadsService refuses to start without
+        // them, and an old build reading the old names finds nothing usable.
         return new S3Client({
           region: 'auto',
           endpoint: configService.get<string>('CLOUDFLARE_R2_ENDPOINT')!,
           credentials: {
-            accessKeyId: secretObject.cloudflareR2AccessKey,
-            secretAccessKey: secretObject.cloudflareR2Secret,
+            accessKeyId: secretObject.cloudflareR2GatedAccessKey,
+            secretAccessKey: secretObject.cloudflareR2GatedSecret,
           },
         });
       },
       inject: [ConfigService, SecretsService],
     },
   ],
-  exports: [SecretsService, ImageUploadsService, ImageSlotService],
+  exports: [
+    SecretsService,
+    ImageSigningService,
+    ImageUploadsService,
+    ImageReencodeService,
+    ImageSlotService,
+  ],
 })
 export class SharedModule {}

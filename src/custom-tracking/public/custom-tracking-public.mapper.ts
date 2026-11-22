@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
+import { customTrackingImageUrl } from 'src/custom-tracking/constants/custom-tracking-image.constants';
+
 import {
   CustomTrackingPublicChoiceDto,
   CustomTrackingPublicFieldDto,
@@ -129,6 +131,7 @@ export class CustomTrackingPublicMapper {
       imageId: image.cloudflareImageId,
       altText: image.altText,
       shape: image.shape,
+      imageUrl: customTrackingImageUrl(image.cloudflareImageId, image.shape),
     };
   }
 }

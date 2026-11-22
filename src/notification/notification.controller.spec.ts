@@ -28,6 +28,8 @@ describe('NotificationController', () => {
             markAllRead: jest.fn(),
             markRead: jest.fn(),
             markUnread: jest.fn(),
+            dismiss: jest.fn(),
+            dismissAllRead: jest.fn(),
             findAllBanners: jest.fn(),
             findBannerById: jest.fn(),
             createBanner: jest.fn(),
@@ -140,6 +142,24 @@ describe('NotificationController', () => {
     it('passes different user id', () => {
       controller.markRead('user-xyz', 'n1');
       expect(service.markRead).toHaveBeenCalledWith('user-xyz', 'n1');
+    });
+  });
+
+  describe('dismiss', () => {
+    it('deletes one notification from the caller’s inbox', () => {
+      controller.dismiss('user-1', 'n1');
+      expect(service.dismiss).toHaveBeenCalledWith('user-1', 'n1');
+    });
+  });
+
+  describe('dismissAllRead', () => {
+    it('reports how many read notifications were deleted', async () => {
+      service.dismissAllRead.mockResolvedValue(4);
+
+      await expect(controller.dismissAllRead('user-1')).resolves.toEqual({
+        dismissed: 4,
+      });
+      expect(service.dismissAllRead).toHaveBeenCalledWith('user-1');
     });
   });
 

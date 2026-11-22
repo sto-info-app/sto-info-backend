@@ -6,8 +6,14 @@ import { S3Client } from '@aws-sdk/client-s3';
 import { jest } from '@jest/globals';
 import axios from 'axios';
 
+import { ImageSigningService } from 'src/file-assets/delivery/image-signing.service';
+
 import { SecretsService } from '../secrets/secrets.service';
-import { ImageUploadsService } from './image-uploads.service';
+import {
+  GATED_CLOUDFLARE_SECRET_KEYS,
+  ImageUploadsService,
+  PublishImageInput,
+} from './image-uploads.service';
 
 const mockS3Send = jest.fn<(...args: any[]) => Promise<any>>();
 jest.mock('@aws-sdk/client-s3', () => ({
@@ -16,41 +22,25 @@ jest.mock('@aws-sdk/client-s3', () => ({
   })),
   PutObjectCommand: jest.fn().mockImplementation(args => args),
   DeleteObjectCommand: jest.fn().mockImplementation(args => args),
+  GetObjectCommand: jest.fn().mockImplementation(args => args),
 }));
 jest.mock('axios');
-const mockScanFile = jest.fn<(...args: any[]) => any>();
-jest.mock('cloudmersive-virus-api-client', () => {
-  const ApiClient = {
-    instance: {
-      authentications: {
-        Apikey: { apiKey: '' },
-      },
-    },
-  };
-  return {
-    ScanApi: jest.fn().mockImplementation(() => ({
-      scanFile: mockScanFile,
-    })),
-    ApiClient,
-  };
-});
 
 describe('ImageUploadsService', () => {
   let service: ImageUploadsService;
-  let secretsService: SecretsService;
 
   type UploadR2FileParam = Parameters<
     ImageUploadsService['uploadImageToCloudflareR2']
   >[1];
-  type UploadImagesFileParam = Parameters<
-    ImageUploadsService['uploadImageToCloudflareImages']
-  >[1];
 
   type SecretObject = {
+    cloudflareR2GatedAccessKey?: string;
+    cloudflareR2GatedSecret?: string;
+    cloudflareImagesAccountId?: string;
+    cloudflareImagesGatedApiKey?: string;
+    // FC-042: the names a build from before FC-012 reads.
     cloudflareR2AccessKey?: string;
     cloudflareR2Secret?: string;
-    cloudmersiveApiKey?: string;
-    cloudflareImagesAccountId?: string;
     cloudflareImagesApiKey?: string;
   };
 
@@ -71,17 +61,18 @@ describe('ImageUploadsService', () => {
       secretOverride === null
         ? null
         : {
-            cloudflareR2AccessKey: 'key',
-            cloudflareR2Secret: 'secret',
-            cloudmersiveApiKey: 'cv-key',
+            cloudflareR2GatedAccessKey: 'key',
+            cloudflareR2GatedSecret: 'secret',
             cloudflareImagesAccountId: 'acc-id',
-            cloudflareImagesApiKey: 'cf-key',
+            cloudflareImagesGatedApiKey: 'cf-key',
             ...secretOverride,
           };
 
     return await Test.createTestingModule({
       providers: [
         ImageUploadsService,
+        // FC-040: public unless addresses can be signed.
+        { provide: ImageSigningService, useValue: { enabled: false } },
         {
           provide: SecretsService,
           useValue: {
@@ -120,11 +111,28 @@ describe('ImageUploadsService', () => {
     ...overrides,
   });
 
+  /**
+   * Builds one cleared picture on its way to Cloudflare.
+   *
+   * @param overrides - Whatever the case is actually about.
+   * @returns The publication input.
+   */
+  const publishInput = (
+    overrides?: Partial<PublishImageInput>,
+  ): PublishImageInput => ({
+    userId: 'user-1',
+    buffer: Buffer.from('fake image'),
+    filename: 'test.png',
+    contentType: 'image/png',
+    entityType: null,
+    entityId: null,
+    ...overrides,
+  });
+
   beforeEach(async () => {
     jest.clearAllMocks();
     const module = await createModule();
     service = module.get<ImageUploadsService>(ImageUploadsService);
-    secretsService = module.get<SecretsService>(SecretsService);
     await service.onModuleInit();
     jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
@@ -136,245 +144,403 @@ describe('ImageUploadsService', () => {
   });
 
   describe('init', () => {
-    it('should throw if secret is missing R2 keys', async () => {
+    /**
+     * The message a missing key produces, naming every key that is missing.
+     *
+     * @param keys - The missing keys.
+     * @returns The exception init throws.
+     */
+    const missingKeys = (...keys: string[]): BadRequestException =>
+      new BadRequestException(
+        `Missing Cloudflare secret keys: ${keys.join(', ')}. FC-042 ` +
+          'moved the Cloudflare credentials to new names, and the old ' +
+          'cloudflareR2AccessKey, cloudflareR2Secret and ' +
+          'cloudflareImagesApiKey are no longer read.',
+      );
+
+    it('names every missing key', async () => {
       const module = await createModule({
-        cloudflareR2AccessKey: undefined,
-        cloudflareR2Secret: undefined,
+        cloudflareR2GatedAccessKey: undefined,
+        cloudflareR2GatedSecret: undefined,
       });
       const localService = module.get<ImageUploadsService>(ImageUploadsService);
+
       await expect(localService.onModuleInit()).rejects.toThrow(
-        new BadRequestException('Missing Cloudflare R2 access key or secret'),
+        missingKeys('cloudflareR2GatedAccessKey', 'cloudflareR2GatedSecret'),
       );
     });
 
-    it('should throw if secret object is null', async () => {
+    it('names all three when there is no secret at all', async () => {
       const module = await createModule(null);
       const localService = module.get<ImageUploadsService>(ImageUploadsService);
+
       await expect(localService.onModuleInit()).rejects.toThrow(
-        new BadRequestException('Missing Cloudflare R2 access key or secret'),
+        missingKeys(...GATED_CLOUDFLARE_SECRET_KEYS),
       );
     });
 
-    it('should throw if secret is missing R2 access key', async () => {
-      const module = await createModule({ cloudflareR2AccessKey: undefined });
+    it.each(GATED_CLOUDFLARE_SECRET_KEYS.map(key => [key]))(
+      'refuses to start without %s',
+      async key => {
+        const module = await createModule({ [key]: undefined });
+        const localService =
+          module.get<ImageUploadsService>(ImageUploadsService);
+
+        await expect(localService.onModuleInit()).rejects.toThrow(
+          missingKeys(key),
+        );
+      },
+    );
+
+    /**
+     * FC-042: a secret that still carries only the old names is what a
+     * rolled-back build would find. This build must not read them either,
+     * or retiring them would retire nothing.
+     */
+    it('does not fall back to the names a build from before FC-012 reads', async () => {
+      const module = await createModule({
+        cloudflareR2GatedAccessKey: undefined,
+        cloudflareR2GatedSecret: undefined,
+        cloudflareImagesGatedApiKey: undefined,
+        cloudflareR2AccessKey: 'old-key',
+        cloudflareR2Secret: 'old-secret',
+        cloudflareImagesApiKey: 'old-cf-key',
+      });
       const localService = module.get<ImageUploadsService>(ImageUploadsService);
+
       await expect(localService.onModuleInit()).rejects.toThrow(
-        new BadRequestException('Missing Cloudflare R2 access key or secret'),
+        missingKeys(...GATED_CLOUDFLARE_SECRET_KEYS),
       );
     });
 
-    it('should throw if secret is missing R2 secret', async () => {
-      const module = await createModule({ cloudflareR2Secret: undefined });
+    it('asks for no scanner credentials at all', async () => {
+      // FC-012 removed the synchronous Cloudmersive call. A secret that
+      // carries no scanner key is now a perfectly good secret, and this is
+      // the assertion that says so rather than leaving it to a missing test.
+      const module = await createModule();
       const localService = module.get<ImageUploadsService>(ImageUploadsService);
-      await expect(localService.onModuleInit()).rejects.toThrow(
-        new BadRequestException('Missing Cloudflare R2 access key or secret'),
-      );
-    });
 
-    it('should throw if secret is missing cloudmersiveApiKey', async () => {
-      const module = await createModule({ cloudmersiveApiKey: undefined });
-      const localService = module.get<ImageUploadsService>(ImageUploadsService);
-      await expect(localService.onModuleInit()).rejects.toThrow(
-        new BadRequestException('Missing Cloudmersive API key'),
-      );
+      await expect(localService.onModuleInit()).resolves.toBeUndefined();
     });
 
     it('should read secret name from env', async () => {
-      const getSecretMock = jest.spyOn(secretsService, 'getSecret');
-      await service.onModuleInit();
-      expect(getSecretMock).toHaveBeenCalledWith('test-secret');
+      const module = await createModule();
+      const localService = module.get<ImageUploadsService>(ImageUploadsService);
+
+      process.env.AWS_SECRET_NAME = 'another-secret';
+      await localService.onModuleInit();
+      expect(module.get(SecretsService).getSecret).toHaveBeenCalledWith(
+        'another-secret',
+      );
+    });
+
+    // FC-042: the restore check withdraws pictures before Nest initialises
+    // anything, so it asks for the secrets itself.
+    it('fetches the secrets once, whoever asks first', async () => {
+      const module = await createModule();
+      const localService = module.get<ImageUploadsService>(ImageUploadsService);
+
+      await localService.ready();
+      await localService.onModuleInit();
+
+      expect(module.get(SecretsService).getSecret).toHaveBeenCalledTimes(1);
+    });
+
+    it('tries a failed fetch again for the next caller', async () => {
+      const module = await createModule();
+      const localService = module.get<ImageUploadsService>(ImageUploadsService);
+      const getSecret = module.get(SecretsService).getSecret as jest.Mock<
+        (...args: any[]) => Promise<any>
+      >;
+
+      getSecret.mockRejectedValueOnce(new Error('Secrets Manager is down'));
+
+      await expect(localService.ready()).rejects.toThrow(
+        'Secrets Manager is down',
+      );
+      await expect(localService.ready()).resolves.toBeUndefined();
+      expect(getSecret).toHaveBeenCalledTimes(2);
     });
   });
 
-  describe('uploadImageToCloudflareImages', () => {
-    it('should upload successfully', async () => {
-      mockScanFile.mockImplementation((_buf, cb) =>
-        cb(null, { FoundViruses: [] }),
+  // FC-040: pictures go up private under a Cloudflare-generated ID, and the
+  // estate is read, listed, made private and moved.
+  describe('private delivery (FC-040)', () => {
+    const axiosMock = axios as jest.Mocked<typeof axios>;
+    const api = 'https://api.cloudflare.com/client/v4/accounts/acc-id/images';
+    const auth = { Authorization: 'Bearer cf-key' };
+
+    it('publishes public while it cannot sign, with no custom ID or user ID', async () => {
+      axiosMock.post.mockResolvedValue({
+        status: 200,
+        data: { result: { id: 'generated-1' } },
+      });
+
+      await service.publishImageToCloudflareImages(publishInput());
+
+      const form = axiosMock.post.mock.calls[0][1] as {
+        getBuffer: () => Buffer;
+      };
+      const body = form.getBuffer().toString();
+
+      expect(service.publishesPrivate).toBe(false);
+      expect(service.environment).toBe('test');
+      expect(body).toContain('name="requireSignedURLs"\r\n\r\nfalse');
+      expect(body).not.toContain('name="id"');
+      expect(body).not.toContain('user-1');
+    });
+
+    it('publishes private when asked', async () => {
+      axiosMock.post.mockResolvedValue({
+        status: 200,
+        data: { result: { id: 'generated-1' } },
+      });
+
+      await service.publishImageToCloudflareImages(
+        publishInput({ private: true }),
       );
 
+      const form = axiosMock.post.mock.calls[0][1] as {
+        getBuffer: () => Buffer;
+      };
+
+      expect(form.getBuffer().toString()).toContain(
+        'name="requireSignedURLs"\r\n\r\ntrue',
+      );
+    });
+
+    it('makes an image need a signature, or no longer need one', async () => {
+      axiosMock.patch.mockResolvedValue({ status: 200 });
+
+      await service.setImageRequiresSignature('image/1', true);
+
+      expect(axiosMock.patch).toHaveBeenCalledWith(
+        `${api}/v1/image%2F1`,
+        { requireSignedURLs: true },
+        { headers: auth },
+      );
+    });
+
+    it('reads an image’s original bytes', async () => {
+      axiosMock.get.mockResolvedValue({
+        data: new Uint8Array([1, 2, 3]).buffer,
+      });
+
+      await expect(service.readImage('image-1')).resolves.toEqual(
+        Buffer.from([1, 2, 3]),
+      );
+      expect(axiosMock.get).toHaveBeenCalledWith(`${api}/v1/image-1/blob`, {
+        headers: auth,
+        responseType: 'arraybuffer',
+      });
+    });
+
+    it('lists the account a page at a time', async () => {
+      axiosMock.get
+        .mockResolvedValueOnce({
+          data: {
+            result: {
+              images: [
+                { id: 'a', requireSignedURLs: true, meta: { env: 'test' } },
+                { id: 'b', meta: null },
+              ],
+              continuation_token: 'next',
+            },
+          },
+        })
+        .mockResolvedValueOnce({
+          data: { result: { images: [] } },
+        });
+
+      await expect(service.listImages(null)).resolves.toEqual({
+        images: [
+          { id: 'a', requireSignedURLs: true, meta: { env: 'test' } },
+          { id: 'b', requireSignedURLs: false, meta: {} },
+        ],
+        continuationToken: 'next',
+      });
+      await expect(service.listImages('next', 10)).resolves.toEqual({
+        images: [],
+        continuationToken: null,
+      });
+      expect(axiosMock.get).toHaveBeenNthCalledWith(1, `${api}/v2`, {
+        headers: auth,
+        params: { per_page: 1000 },
+      });
+      expect(axiosMock.get).toHaveBeenNthCalledWith(2, `${api}/v2`, {
+        headers: auth,
+        params: { per_page: 10, continuation_token: 'next' },
+      });
+    });
+
+    it('reads and deletes a legacy R2 object', async () => {
+      mockS3Send.mockResolvedValueOnce({
+        Body: (async function* () {
+          yield new Uint8Array([4, 5]);
+          yield new Uint8Array([6]);
+        })(),
+      });
+
+      await expect(service.readR2Object('user/portrait.png')).resolves.toEqual(
+        Buffer.from([4, 5, 6]),
+      );
+
+      mockS3Send.mockResolvedValueOnce({});
+
+      await service.deleteR2Object('user/portrait.png');
+
+      expect(mockS3Send).toHaveBeenLastCalledWith({
+        Bucket: 'bucket',
+        Key: 'user/portrait.png',
+      });
+    });
+  });
+
+  describe('publishImageToCloudflareImages', () => {
+    it('publishes cleared bytes and returns the new identifier', async () => {
       const axiosMock = axios as jest.Mocked<typeof axios>;
       axiosMock.post.mockResolvedValue({
         status: 200,
         data: { result: { id: 'cf-img-id' } },
       });
 
-      const result = await service.uploadImageToCloudflareImages(
-        'user-1',
-        createImageFile() as unknown as UploadImagesFileParam,
-      );
+      const result =
+        await service.publishImageToCloudflareImages(publishInput());
+
       expect(result).toBe('cf-img-id');
     });
 
-    it('should treat missing FoundViruses as clean', async () => {
-      mockScanFile.mockImplementation((_buf, cb) => cb(null, {}));
-
+    it('records what the picture belongs to', async () => {
       const axiosMock = axios as jest.Mocked<typeof axios>;
       axiosMock.post.mockResolvedValue({
         status: 200,
-        data: { result: { id: 'cf-img-id' } },
+        data: { result: { id: 'custom-id-with-entity' } },
       });
 
-      const result = await service.uploadImageToCloudflareImages(
-        'user-1',
-        createImageFile() as unknown as UploadImagesFileParam,
-      );
-      expect(result).toBe('cf-img-id');
-    });
-
-    it('should throw if virus found', async () => {
-      mockScanFile.mockImplementation((_buf, cb) =>
-        cb(null, { FoundViruses: [{ VirusName: 'EICAR' }] }),
+      const result = await service.publishImageToCloudflareImages(
+        publishInput({ entityType: 'character', entityId: 'char-123' }),
       );
 
-      await expect(
-        service.uploadImageToCloudflareImages(
-          'user-1',
-          createImageFile() as unknown as UploadImagesFileParam,
-        ),
-      ).rejects.toThrow('File is infected');
+      expect(result).toBe('custom-id-with-entity');
+      expect(axiosMock.post).toHaveBeenCalled();
     });
 
-    it('should throw if scan fails', async () => {
-      mockScanFile.mockImplementation((_buf, cb) => cb('Scan error', null));
-
-      await expect(
-        service.uploadImageToCloudflareImages(
-          'user-1',
-          createImageFile() as unknown as UploadImagesFileParam,
-        ),
-      ).rejects.toThrow('Scan error');
-    });
-
-    it('should throw if scan fails with Error object', async () => {
-      mockScanFile.mockImplementation((_buf, cb) =>
-        cb(new Error('Detailed scan error'), null),
-      );
-
-      await expect(
-        service.uploadImageToCloudflareImages(
-          'user-1',
-          createImageFile() as unknown as UploadImagesFileParam,
-        ),
-      ).rejects.toThrow('Detailed scan error');
-    });
-
-    it('should throw if scanner throws synchronously', async () => {
-      mockScanFile.mockImplementation(() => {
-        throw new Error('Sync scan throw');
+    it('publishes a picture that belongs to nothing in particular', async () => {
+      const axiosMock = axios as jest.Mocked<typeof axios>;
+      axiosMock.post.mockResolvedValue({
+        status: 200,
+        data: { result: { id: 'id-without-type' } },
       });
 
-      await expect(
-        service.uploadImageToCloudflareImages(
-          'user-1',
-          createImageFile() as unknown as UploadImagesFileParam,
-        ),
-      ).rejects.toThrow('Sync scan throw');
+      const result = await service.publishImageToCloudflareImages(
+        publishInput({ entityType: '', entityId: '' }),
+      );
+
+      expect(result).toBe('id-without-type');
+    });
+
+    it('falls back to a safe name when the upload had none', async () => {
+      const axiosMock = axios as jest.Mocked<typeof axios>;
+      axiosMock.post.mockResolvedValue({
+        status: 200,
+        data: { result: { id: 'unnamed' } },
+      });
+
+      const result = await service.publishImageToCloudflareImages(
+        publishInput({ filename: null, userId: null, contentType: null }),
+      );
+
+      expect(result).toBe('unnamed');
+    });
+
+    it('falls back to a safe name when the stored one is empty', async () => {
+      const axiosMock = axios as jest.Mocked<typeof axios>;
+      axiosMock.post.mockResolvedValue({
+        status: 200,
+        data: { result: { id: 'unnamed-too' } },
+      });
+
+      // A registry row keeps the name as uploaded, deliberately, so the
+      // sanitised spelling is derived here rather than stored beside it.
+      const result = await service.publishImageToCloudflareImages(
+        publishInput({ filename: '' }),
+      );
+
+      expect(result).toBe('unnamed-too');
+    });
+
+    it('sanitises the stored name on the way out', async () => {
+      const axiosMock = axios as jest.Mocked<typeof axios>;
+      axiosMock.post.mockResolvedValue({
+        status: 200,
+        data: { result: { id: 'renamed' } },
+      });
+
+      await service.publishImageToCloudflareImages(
+        publishInput({ filename: String.raw`<>:"/\|?*.png` }),
+      );
+
+      expect(axiosMock.post).toHaveBeenCalled();
     });
 
     it('should throw if axios returns non-200 status (201)', async () => {
-      mockScanFile.mockImplementation((_buf, cb) =>
-        cb(null, { FoundViruses: [] }),
-      );
       const axiosMock = axios as jest.Mocked<typeof axios>;
-      axiosMock.post.mockResolvedValue({
-        status: 201,
-      });
+      axiosMock.post.mockResolvedValue({ status: 201 });
 
       await expect(
-        service.uploadImageToCloudflareImages(
-          'user-1',
-          createImageFile() as unknown as UploadImagesFileParam,
-        ),
+        service.publishImageToCloudflareImages(publishInput()),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw if axios fails', async () => {
-      mockScanFile.mockImplementation((_buf, cb) =>
-        cb(null, { FoundViruses: [] }),
-      );
       const axiosMock = axios as jest.Mocked<typeof axios>;
-      axiosMock.post.mockResolvedValue({
-        status: 500,
-      });
+      axiosMock.post.mockResolvedValue({ status: 500 });
 
       await expect(
-        service.uploadImageToCloudflareImages(
-          'user-1',
-          createImageFile() as unknown as UploadImagesFileParam,
-        ),
+        service.publishImageToCloudflareImages(publishInput()),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw if axios resolves an undefined response', async () => {
-      mockScanFile.mockImplementation((_buf, cb) =>
-        cb(null, { FoundViruses: [] }),
-      );
-
       const axiosMock = axios as jest.Mocked<typeof axios>;
       axiosMock.post.mockResolvedValue(undefined as never);
 
       await expect(
-        service.uploadImageToCloudflareImages(
-          'user-1',
-          createImageFile() as unknown as UploadImagesFileParam,
-        ),
+        service.publishImageToCloudflareImages(publishInput()),
       ).rejects.toThrow('Failed to upload image to Cloudflare Images');
     });
 
     it('should throw if axios throws', async () => {
-      mockScanFile.mockImplementation((_buf, cb) =>
-        cb(null, { FoundViruses: [] }),
-      );
       const axiosMock = axios as jest.Mocked<typeof axios>;
       axiosMock.isAxiosError.mockReturnValue(true);
-      axiosMock.post.mockRejectedValue({
-        response: { data: 'error' },
-      });
+      axiosMock.post.mockRejectedValue({ response: { data: 'error' } });
 
       await expect(
-        service.uploadImageToCloudflareImages(
-          'user-1',
-          createImageFile() as unknown as UploadImagesFileParam,
-        ),
+        service.publishImageToCloudflareImages(publishInput()),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw if axios throws without response', async () => {
-      mockScanFile.mockImplementation((_buf, cb) =>
-        cb(null, { FoundViruses: [] }),
-      );
       const axiosMock = axios as jest.Mocked<typeof axios>;
+      axiosMock.isAxiosError.mockReturnValue(false);
       axiosMock.post.mockRejectedValue(new Error('boom'));
 
       await expect(
-        service.uploadImageToCloudflareImages(
-          'user-1',
-          createImageFile() as unknown as UploadImagesFileParam,
-        ),
+        service.publishImageToCloudflareImages(publishInput()),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw if axios throws a non-Error value without response', async () => {
-      mockScanFile.mockImplementation((_buf, cb) =>
-        cb(null, { FoundViruses: [] }),
-      );
       const axiosMock = axios as jest.Mocked<typeof axios>;
       axiosMock.isAxiosError.mockReturnValue(false);
       axiosMock.post.mockRejectedValue({});
 
       await expect(
-        service.uploadImageToCloudflareImages(
-          'user-1',
-          createImageFile() as unknown as UploadImagesFileParam,
-        ),
+        service.publishImageToCloudflareImages(publishInput()),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw if axios returns missing id', async () => {
-      mockScanFile.mockImplementation((_buf, cb) =>
-        cb(null, { FoundViruses: [] }),
-      );
-
       const axiosMock = axios as jest.Mocked<typeof axios>;
       axiosMock.post.mockResolvedValue({
         status: 200,
@@ -382,197 +548,36 @@ describe('ImageUploadsService', () => {
       });
 
       await expect(
-        service.uploadImageToCloudflareImages(
-          'user-1',
-          createImageFile() as unknown as UploadImagesFileParam,
-        ),
+        service.publishImageToCloudflareImages(publishInput()),
       ).rejects.toThrow('Failed to upload image to Cloudflare Images');
     });
 
     it('should throw if axios returns missing data', async () => {
-      mockScanFile.mockImplementation((_buf, cb) =>
-        cb(null, { FoundViruses: [] }),
-      );
-
       const axiosMock = axios as jest.Mocked<typeof axios>;
-      axiosMock.post.mockResolvedValue({
-        status: 200,
-      });
+      axiosMock.post.mockResolvedValue({ status: 200 });
 
       await expect(
-        service.uploadImageToCloudflareImages(
-          'user-1',
-          createImageFile() as unknown as UploadImagesFileParam,
-        ),
+        service.publishImageToCloudflareImages(publishInput()),
       ).rejects.toThrow('Failed to upload image to Cloudflare Images');
     });
 
     it('should throw if axios returns missing result', async () => {
-      mockScanFile.mockImplementation((_buf, cb) =>
-        cb(null, { FoundViruses: [] }),
-      );
-
       const axiosMock = axios as jest.Mocked<typeof axios>;
-      axiosMock.post.mockResolvedValue({
-        status: 200,
-        data: {},
-      });
+      axiosMock.post.mockResolvedValue({ status: 200, data: {} });
 
       await expect(
-        service.uploadImageToCloudflareImages(
-          'user-1',
-          createImageFile() as unknown as UploadImagesFileParam,
-        ),
+        service.publishImageToCloudflareImages(publishInput()),
       ).rejects.toThrow('Failed to upload image to Cloudflare Images');
-    });
-
-    it('should upload with entityType parameter', async () => {
-      mockScanFile.mockImplementation((_buf, cb) =>
-        cb(null, { FoundViruses: [] }),
-      );
-
-      const axiosMock = axios as jest.Mocked<typeof axios>;
-      axiosMock.post.mockResolvedValue({
-        status: 200,
-        data: { result: { id: 'custom-id' } },
-      });
-
-      const result = await service.uploadImageToCloudflareImages(
-        'user-1',
-        createImageFile() as unknown as UploadImagesFileParam,
-        'character',
-      );
-
-      expect(result).toBe('custom-id');
-      expect(axiosMock.post).toHaveBeenCalled();
-      const callArgs = axiosMock.post.mock.calls[0];
-      const formData = callArgs[1];
-      expect(formData).toBeDefined();
-    });
-
-    it('should upload with entityType and entityId parameters', async () => {
-      mockScanFile.mockImplementation((_buf, cb) =>
-        cb(null, { FoundViruses: [] }),
-      );
-
-      const axiosMock = axios as jest.Mocked<typeof axios>;
-      axiosMock.post.mockResolvedValue({
-        status: 200,
-        data: { result: { id: 'custom-id-with-entity' } },
-      });
-
-      const result = await service.uploadImageToCloudflareImages(
-        'user-1',
-        createImageFile() as unknown as UploadImagesFileParam,
-        'character',
-        'char-123',
-      );
-
-      expect(result).toBe('custom-id-with-entity');
-      expect(axiosMock.post).toHaveBeenCalled();
-    });
-
-    it('should upload with only entityId parameter (entityType undefined)', async () => {
-      mockScanFile.mockImplementation((_buf, cb) =>
-        cb(null, { FoundViruses: [] }),
-      );
-
-      const axiosMock = axios as jest.Mocked<typeof axios>;
-      axiosMock.post.mockResolvedValue({
-        status: 200,
-        data: { result: { id: 'id-without-type' } },
-      });
-
-      const result = await service.uploadImageToCloudflareImages(
-        'user-1',
-        createImageFile() as unknown as UploadImagesFileParam,
-        undefined,
-        'entity-456',
-      );
-
-      expect(result).toBe('id-without-type');
-    });
-
-    it('should hit logger branches when parameters are missing', async () => {
-      mockScanFile.mockImplementation((_buf, cb) =>
-        cb(null, { FoundViruses: [] }),
-      );
-
-      const axiosMock = axios as jest.Mocked<typeof axios>;
-      axiosMock.post.mockResolvedValue({
-        status: 200,
-        data: { result: { id: 'logger-test' } },
-      });
-
-      // Hit 'none' branches for entityType and entityId
-      // Provide a valid filename to pass validation later
-      const file = createImageFile({
-        originalname: 'test.png',
-      }) as unknown as UploadImagesFileParam;
-
-      await service.uploadImageToCloudflareImages('user-1', file, '', '');
-      expect(axiosMock.post).toHaveBeenCalled();
-    });
-
-    it('should handle missing file in logger', async () => {
-      await expect(
-        service.uploadImageToCloudflareImages(
-          'user-1',
-          undefined as unknown as UploadImagesFileParam,
-        ),
-      ).rejects.toThrow('File is missing');
-    });
-  });
-
-  describe('uploadImageToCloudflareR2', () => {
-    it('should throw if file is undefined', async () => {
-      await expect(
-        service.uploadImageToCloudflareR2(
-          'user-1',
-          undefined as unknown as UploadR2FileParam,
-        ),
-      ).rejects.toThrow('File is missing');
-    });
-
-    it('should prefer file.filename over file.originalname when present', async () => {
-      mockScanFile.mockImplementation((_buf, cb) =>
-        cb(null, { FoundViruses: [] }),
-      );
-      mockS3Send.mockResolvedValue(undefined);
-
-      const fileKey = await service.uploadImageToCloudflareR2(
-        'u',
-        createImageFile({
-          filename: 'preferred.png',
-          originalname: 'ignored.png',
-        }) as unknown as UploadR2FileParam,
-      );
-
-      expect(fileKey).toBe('test/u/preferred.png');
-    });
-
-    it('should log and rethrow non-Error failures from S3 client', async () => {
-      mockScanFile.mockImplementation((_buf, cb) =>
-        cb(null, { FoundViruses: [] }),
-      );
-      mockS3Send.mockRejectedValue('boom');
-
-      await expect(
-        service.uploadImageToCloudflareR2(
-          'u',
-          createImageFile() as unknown as UploadR2FileParam,
-        ),
-      ).rejects.toBe('boom');
     });
   });
 
   describe('deleteImageFromCloudflareImages', () => {
     it('should delete successfully', async () => {
       const axiosMock = axios as jest.Mocked<typeof axios>;
-      axiosMock.delete.mockResolvedValue({
-        status: 200,
-      });
+      axiosMock.delete.mockResolvedValue({ status: 200 });
+
       const result = await service.deleteImageFromCloudflareImages('img-id');
+
       expect(result).toBe('img-id');
     });
 
@@ -584,23 +589,15 @@ describe('ImageUploadsService', () => {
 
     it('should throw if status not 200', async () => {
       const axiosMock = axios as jest.Mocked<typeof axios>;
-      axiosMock.delete.mockResolvedValue({
-        status: 400,
-      });
+      axiosMock.delete.mockResolvedValue({ status: 400 });
+
       await expect(
         service.deleteImageFromCloudflareImages('id'),
       ).rejects.toThrow('Failed to delete');
     });
   });
 
-  describe('file validation (via uploadImageToCloudflareR2)', () => {
-    beforeEach(() => {
-      mockScanFile.mockImplementation((_buf, cb) =>
-        cb(null, { FoundViruses: [] }),
-      );
-      mockS3Send.mockResolvedValue(undefined);
-    });
-
+  describe('validateAndSanitiseFile', () => {
     const validationCases: Array<{
       name: string;
       userId: string;
@@ -652,19 +649,99 @@ describe('ImageUploadsService', () => {
       },
     ];
 
-    it.each(validationCases)(
-      '$name',
-      async ({ userId, file, expectedMessage }) => {
-        await expect(
-          service.uploadImageToCloudflareR2(
-            userId,
-            file as unknown as UploadR2FileParam,
-          ),
-        ).rejects.toThrow(expectedMessage);
-      },
-    );
+    it.each(validationCases)('$name', ({ userId, file, expectedMessage }) => {
+      expect(() =>
+        service.validateAndSanitiseFile(
+          userId,
+          file as unknown as UploadR2FileParam,
+        ),
+      ).toThrow(expectedMessage);
+    });
 
-    it('sanitises unsafe filename characters and uploads using the safe name', async () => {
+    it('throws if the file is missing altogether', () => {
+      expect(() =>
+        service.validateAndSanitiseFile(
+          'u',
+          undefined as unknown as UploadR2FileParam,
+        ),
+      ).toThrow('File is missing');
+    });
+
+    it('sanitises unsafe filename characters', () => {
+      const { safeFileName } = service.validateAndSanitiseFile(
+        'u',
+        createImageFile({
+          originalname: String.raw`<>:"/\|?*.png`,
+        }) as unknown as UploadR2FileParam,
+      );
+
+      expect(safeFileName).toBe('_________.png');
+    });
+
+    it('prefers file.filename over file.originalname when present', () => {
+      const { safeFileName } = service.validateAndSanitiseFile(
+        'u',
+        createImageFile({
+          filename: 'preferred.png',
+          originalname: 'ignored.png',
+        }) as unknown as UploadR2FileParam,
+      );
+
+      expect(safeFileName).toBe('preferred.png');
+    });
+  });
+
+  describe('uploadImageToCloudflareR2', () => {
+    beforeEach(() => {
+      mockS3Send.mockResolvedValue(undefined);
+    });
+
+    it('should upload successfully', async () => {
+      const result = await service.uploadImageToCloudflareR2(
+        'u',
+        createImageFile({
+          buffer: Buffer.from('a'),
+          originalname: 'a.png',
+        }) as unknown as UploadR2FileParam,
+      );
+
+      expect(result).toBe('test/u/a.png');
+    });
+
+    it('should upload successfully with characterId', async () => {
+      const result = await service.uploadImageToCloudflareR2(
+        'u',
+        createImageFile({
+          buffer: Buffer.from('a'),
+          originalname: 'a.png',
+        }) as unknown as UploadR2FileParam,
+        'char-1',
+      );
+
+      expect(result).toBe('test/u/char-1/a.png');
+    });
+
+    it('should throw if file is undefined', async () => {
+      await expect(
+        service.uploadImageToCloudflareR2(
+          'u',
+          undefined as unknown as UploadR2FileParam,
+        ),
+      ).rejects.toThrow('File is missing');
+    });
+
+    it('should log and rethrow non-Error failures from S3 client', async () => {
+      mockS3Send.mockRejectedValue('boom');
+
+      await expect(
+        service.uploadImageToCloudflareR2(
+          'u',
+          createImageFile() as unknown as UploadR2FileParam,
+        ),
+      ).rejects.toBe('boom');
+    });
+
+    it('uploads under the sanitised name', async () => {
       const result = await service.uploadImageToCloudflareR2(
         'u',
         createImageFile({
@@ -683,55 +760,23 @@ describe('ImageUploadsService', () => {
     });
   });
 
-  describe('uploadImageToCloudflareR2', () => {
-    it('should upload successfully', async () => {
-      mockScanFile.mockImplementation((_buf, cb) =>
-        cb(null, { FoundViruses: [] }),
-      );
-      mockS3Send.mockResolvedValue(undefined);
-
-      const result = await service.uploadImageToCloudflareR2(
-        'u',
-        createImageFile({
-          buffer: Buffer.from('a'),
-          originalname: 'a.png',
-        }) as unknown as UploadR2FileParam,
-      );
-      expect(result).toBe('test/u/a.png');
-    });
-
-    it('should upload successfully with characterId', async () => {
-      mockScanFile.mockImplementation((_buf, cb) =>
-        cb(null, { FoundViruses: [] }),
-      );
-      mockS3Send.mockResolvedValue(undefined);
-
-      const result = await service.uploadImageToCloudflareR2(
-        'u',
-        createImageFile({
-          buffer: Buffer.from('a'),
-          originalname: 'a.png',
-        }) as unknown as UploadR2FileParam,
-        'char-1',
-      );
-      expect(result).toBe('test/u/char-1/a.png');
-    });
-  });
-
   describe('deleteImageFromCloudflareR2', () => {
     it('should delete successfully', async () => {
       const result = await service.deleteImageFromCloudflareR2(
         'u',
         'https://cdn.local/key',
       );
+
       expect(result).toBe('key');
       expect(mockS3Send).toHaveBeenCalled();
     });
+
     it('should throw if userId missing', async () => {
       await expect(
         service.deleteImageFromCloudflareR2('', 'url'),
       ).rejects.toThrow('User ID is missing');
     });
+
     it('should throw if imageUrl missing', async () => {
       await expect(
         service.deleteImageFromCloudflareR2('u', ''),

@@ -6,27 +6,62 @@ import { jest } from '@jest/globals';
 import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
 
+import { ImageIngressService } from 'src/file-assets/services/image-ingress.service';
 import { MailService } from 'src/mail/mail.service';
-import { ImageUploadsService } from 'src/shared/utilities/image-uploads.service';
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
 import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
 import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
 
+import {
+  AccountClosureEvent,
+  AccountClosureLedgerService,
+} from './closure/account-closure-ledger.service';
 import { UserProfileEntity } from './entities/user-profile.entity';
 import { UserEntity } from './entities/user.entity';
 import { UserRole } from './enums/user-role.enum';
+import {
+  PERSONAL_PICTURE_REASONS,
+  PersonalPictureWithdrawalService,
+} from './images/personal-picture-withdrawal.service';
+import {
+  DEFAULT_USER_PREFERENCES,
+  UserPreferenceService,
+} from './user-preference.service';
 import { UserService } from './user.service';
 
 jest.mock('bcrypt');
 
 describe('UserService', () => {
   let service: UserService;
+  let closures: { record: jest.Mock<(...args: unknown[]) => Promise<Date>> };
   let userRepository: Repository<UserEntity>;
   let userProfileRepository: Repository<UserProfileEntity>;
   let validatorsService: ValidatorsService;
-  let imageUploadsService: ImageUploadsService;
+  let imageIngress: ImageIngressService;
+  let pictures: {
+    withdraw: jest.Mock<(...args: unknown[]) => Promise<void>>;
+    withdrawEach: jest.Mock<(...args: unknown[]) => Promise<number>>;
+  };
   let mailService: Pick<MailService, 'sendAccountClosureEmail'>;
+  let preferenceService: {
+    get: jest.Mock<(...args: any[]) => Promise<any>>;
+    update: jest.Mock<(...args: any[]) => Promise<any>>;
+  };
+
+  /** A stored preference row, defaults unless overridden. */
+  const preferencesFor = (overrides: Record<string, unknown> = {}) => ({
+    userId: 'uuid',
+    ...DEFAULT_USER_PREFERENCES,
+    ...overrides,
+  });
+
+  /** What the settings endpoint returns for those preferences. */
+  const settingsFor = (overrides: Record<string, unknown> = {}) => ({
+    ...DEFAULT_USER_PREFERENCES,
+    sessionTimeoutMinutes: 240,
+    ...overrides,
+  });
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -73,16 +108,33 @@ describe('UserService', () => {
           },
         },
         {
-          provide: ImageUploadsService,
+          provide: ImageIngressService,
           useValue: {
-            uploadImageToCloudflareImages: jest.fn(),
-            deleteImageFromCloudflareImages: jest.fn(),
+            accept: jest.fn(),
           },
         },
         {
           provide: MailService,
           useValue: {
             sendAccountClosureEmail: jest.fn(),
+          },
+        },
+        {
+          provide: UserPreferenceService,
+          useValue: {
+            get: jest.fn(),
+            update: jest.fn(),
+          },
+        },
+        {
+          provide: AccountClosureLedgerService,
+          useValue: { record: jest.fn(async () => new Date()) },
+        },
+        {
+          provide: PersonalPictureWithdrawalService,
+          useValue: {
+            withdraw: jest.fn(async () => undefined),
+            withdrawEach: jest.fn(async () => 0),
           },
         },
       ],
@@ -96,9 +148,17 @@ describe('UserService', () => {
       getRepositoryToken(UserProfileEntity),
     );
     validatorsService = module.get<ValidatorsService>(ValidatorsService);
-    imageUploadsService = module.get<ImageUploadsService>(ImageUploadsService);
+    imageIngress = module.get<ImageIngressService>(ImageIngressService);
     mailService =
       module.get<Pick<MailService, 'sendAccountClosureEmail'>>(MailService);
+    preferenceService = module.get(UserPreferenceService);
+    closures = module.get(AccountClosureLedgerService);
+    pictures = module.get(PersonalPictureWithdrawalService);
+    preferenceService.get.mockResolvedValue(preferencesFor());
+    preferenceService.update.mockImplementation(
+      async (_userId: string, changes: Record<string, unknown>) =>
+        preferencesFor(changes),
+    );
   });
 
   it('should be defined', () => {
@@ -106,24 +166,60 @@ describe('UserService', () => {
   });
 
   describe('getSettings', () => {
+    // The account exists unless a test says otherwise; the interesting cases
+    // here are about preferences, not about missing users.
+    beforeEach(() => {
+      (
+        userProfileRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({ userId: 'uuid' });
+    });
+
     it('should return the settings for a valid user', async () => {
       (
         userProfileRepository.findOne as jest.Mock<
           (...args: any[]) => Promise<any>
         >
-      ).mockResolvedValue({
-        userId: 'uuid',
-        privacyMode: true,
-        sessionTimeoutMinutes: null,
-      });
+      ).mockResolvedValue({ userId: 'uuid' });
+      preferenceService.get.mockResolvedValue(
+        preferencesFor({ privacyMode: true, sessionTimeoutMinutes: null }),
+      );
 
-      await expect(service.getSettings('uuid')).resolves.toEqual({
-        privacyMode: true,
-        sessionTimeoutMinutes: 240,
-      });
+      await expect(service.getSettings('uuid')).resolves.toEqual(
+        settingsFor({ privacyMode: true, sessionTimeoutMinutes: 240 }),
+      );
+      expect(preferenceService.get).toHaveBeenCalledWith('uuid');
+    });
+
+    /**
+     * The profile lookup stayed after the preferences moved out of it. It is
+     * the only thing that knows whether the account exists at all, and without
+     * it a request naming a user who is not there would answer with a tidy set
+     * of defaults instead of a 404.
+     */
+    it('should still check that the account exists', async () => {
+      await service.getSettings('uuid');
+
       expect(userProfileRepository.findOne).toHaveBeenCalledWith({
         where: { userId: 'uuid' },
       });
+    });
+
+    it('should report the timezone preferences', async () => {
+      preferenceService.get.mockResolvedValue(
+        preferencesFor({
+          displayTimezone: 'Europe/London',
+          stoExportTimezone: 'America/New_York',
+        }),
+      );
+
+      await expect(service.getSettings('uuid')).resolves.toEqual(
+        expect.objectContaining({
+          displayTimezone: 'Europe/London',
+          stoExportTimezone: 'America/New_York',
+        }),
+      );
     });
 
     it('should throw when the user id is missing', async () => {
@@ -150,59 +246,70 @@ describe('UserService', () => {
   });
 
   describe('updateSettings', () => {
-    it('should persist and return the updated settings', async () => {
-      const profile = {
-        userId: 'uuid',
-        privacyMode: false,
-        sessionTimeoutMinutes: null,
-      };
+    // The account exists unless a test says otherwise; the interesting cases
+    // here are about preferences, not about missing users.
+    beforeEach(() => {
       (
         userProfileRepository.findOne as jest.Mock<
           (...args: any[]) => Promise<any>
         >
-      ).mockResolvedValue(profile);
+      ).mockResolvedValue({ userId: 'uuid' });
+    });
+
+    it('should persist and return the updated settings', async () => {
       (
-        userProfileRepository.save as jest.Mock<
+        userProfileRepository.findOne as jest.Mock<
           (...args: any[]) => Promise<any>
         >
-      ).mockImplementation(async (value: any) => value);
+      ).mockResolvedValue({ userId: 'uuid' });
 
       await expect(
         service.updateSettings('uuid', {
           privacyMode: true,
           sessionTimeoutMinutes: 480,
         }),
-      ).resolves.toEqual({ privacyMode: true, sessionTimeoutMinutes: 480 });
-      expect(userProfileRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          privacyMode: true,
-          sessionTimeoutMinutes: 480,
-        }),
+      ).resolves.toEqual(
+        settingsFor({ privacyMode: true, sessionTimeoutMinutes: 480 }),
       );
+      expect(preferenceService.update).toHaveBeenCalledWith('uuid', {
+        privacyMode: true,
+        sessionTimeoutMinutes: 480,
+      });
     });
 
-    it('should keep the stored timeout when the payload omits it', async () => {
-      const profile = {
-        userId: 'uuid',
-        privacyMode: false,
-        sessionTimeoutMinutes: 480,
-      };
-      (
-        userProfileRepository.findOne as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue(profile);
-      (
-        userProfileRepository.save as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockImplementation(async (value: any) => value);
+    /**
+     * The payload is passed through whole rather than field by field. A client
+     * omits what it does not know about, and `UserPreferenceService` changes
+     * only what is present — so an omitted field must arrive as an absent key,
+     * not as an explicit undefined that overwrites a stored choice.
+     */
+    it('should pass only the fields the client sent', async () => {
+      await service.updateSettings('uuid', { privacyMode: true });
 
-      await expect(
-        service.updateSettings('uuid', { privacyMode: true }),
-      ).resolves.toEqual({ privacyMode: true, sessionTimeoutMinutes: 480 });
-      expect(userProfileRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({ sessionTimeoutMinutes: 480 }),
+      expect(preferenceService.update).toHaveBeenCalledWith('uuid', {
+        privacyMode: true,
+      });
+    });
+
+    it('should forward every new preference', async () => {
+      await service.updateSettings('uuid', {
+        privacyMode: false,
+        displayTimezone: 'Europe/London',
+        stoExportTimezone: null,
+        appearOffline: true,
+        typingIndicatorsEnabled: true,
+        notifyRosterAssociation: false,
+      });
+
+      expect(preferenceService.update).toHaveBeenCalledWith(
+        'uuid',
+        expect.objectContaining({
+          displayTimezone: 'Europe/London',
+          stoExportTimezone: null,
+          appearOffline: true,
+          typingIndicatorsEnabled: true,
+          notifyRosterAssociation: false,
+        }),
       );
     });
 
@@ -219,7 +326,7 @@ describe('UserService', () => {
           sessionTimeoutMinutes: 240,
         }),
       ).rejects.toThrow(HttpException);
-      expect(userProfileRepository.save).not.toHaveBeenCalled();
+      expect(preferenceService.update).not.toHaveBeenCalled();
     });
   });
 
@@ -661,102 +768,80 @@ describe('UserService', () => {
   });
 
   describe('uploadProfilePicture', () => {
-    it('should upload successfully', async () => {
-      const file = { buffer: Buffer.from(''), mimetype: 'image/png' };
-      const user = {
-        id: '1',
-        profile: { userId: '1', profilePictureId: 'old' },
-      };
+    /**
+     * Arranges a user whose profile is there to be found.
+     *
+     * @param profilePictureId - What the profile is showing already.
+     */
+    const arrangeUser = (profilePictureId: string | null = null): void => {
       (
         userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
-      ).mockResolvedValue(user);
-      (
-        imageUploadsService.uploadImageToCloudflareImages as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue('new');
-      (
-        userProfileRepository.save as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
       ).mockResolvedValue({
-        userId: '1',
-        profilePictureId: 'new',
+        id: '1',
+        profile: { userId: '1', profilePictureId },
       });
+    };
 
-      const result = await service.uploadProfilePicture('1', file as any);
-      expect(result.userProfileData.profilePictureId).toBe('new');
-      expect(
-        imageUploadsService.uploadImageToCloudflareImages,
-      ).toHaveBeenCalledWith('1', file, 'user', '1');
-      expect(
-        imageUploadsService.deleteImageFromCloudflareImages,
-      ).toHaveBeenCalledWith('old');
+    beforeEach(() => {
+      (
+        imageIngress.accept as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ assetId: 'asset-1', status: 'SCANNING' });
     });
 
-    it('should upload successfully without deleting old picture if not exists', async () => {
+    it('sends the picture to be scanned and answers with the asset', async () => {
       const file = { buffer: Buffer.from(''), mimetype: 'image/png' };
-      const user = {
-        id: '1',
-        profile: { userId: '1', profilePictureId: null },
-      };
-      (
-        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
-      ).mockResolvedValue(user);
-      (
-        imageUploadsService.uploadImageToCloudflareImages as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue('new');
-      (
-        userProfileRepository.save as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue({
-        userId: '1',
-        profilePictureId: 'new',
-      });
+      arrangeUser('old');
 
       const result = await service.uploadProfilePicture('1', file as any);
-      expect(result.userProfileData.profilePictureId).toBe('new');
-      expect(
-        imageUploadsService.uploadImageToCloudflareImages,
-      ).toHaveBeenCalledWith('1', file, 'user', '1');
-      expect(
-        imageUploadsService.deleteImageFromCloudflareImages,
-      ).not.toHaveBeenCalled();
+
+      expect(result).toEqual({ assetId: 'asset-1', status: 'SCANNING' });
+      expect(imageIngress.accept).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: '1',
+          subjectId: '1',
+          entityTag: 'user',
+          entityId: '1',
+          sizeLimitLabel: 'Profile pictures',
+          file,
+        }),
+      );
     });
 
-    it('should throw if upload fails (returns null)', async () => {
-      const user = { id: '1', profile: { userId: '1' } };
-      (
-        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
-      ).mockResolvedValue(user);
-      (
-        imageUploadsService.uploadImageToCloudflareImages as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue(null);
+    // The third acceptance criterion. The account keeps the picture it has
+    // until a scanner clears the new one, so nothing is saved here and a
+    // refused upload leaves the profile exactly as it was.
+    it('does not touch the profile', async () => {
+      arrangeUser('old');
 
-      await expect(
-        service.uploadProfilePicture('1', {} as any),
-      ).rejects.toThrow(HttpException);
+      await service.uploadProfilePicture('1', {} as any);
+
+      expect(userProfileRepository.save).not.toHaveBeenCalled();
     });
 
     it('should throw if user not found', async () => {
       (
         userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
       ).mockResolvedValue(null);
+
       await expect(
         service.uploadProfilePicture('1', {} as any),
       ).rejects.toThrow(HttpException);
     });
 
     it('should throw if profile relation is missing', async () => {
-      const user = { id: '1', profile: null };
       (
         userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
-      ).mockResolvedValue(user);
+      ).mockResolvedValue({ id: '1', profile: null });
+
+      await expect(
+        service.uploadProfilePicture('1', {} as any),
+      ).rejects.toThrow(HttpException);
+    });
+
+    it('should throw if the profile belongs to somebody else', async () => {
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: '1', profile: { userId: '2' } });
 
       await expect(
         service.uploadProfilePicture('1', {} as any),
@@ -765,30 +850,27 @@ describe('UserService', () => {
 
     it('should throw if id invalid', async () => {
       (validatorsService.validateUuid as jest.Mock).mockReturnValue(false);
+
       await expect(
         service.uploadProfilePicture('invalid', {} as any),
       ).rejects.toThrow(HttpException);
     });
 
-    it('should throw if save returns object without profilePictureId', async () => {
-      const user = { id: '1', profile: { userId: '1' } };
-      (
-        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
-      ).mockResolvedValue(user);
-      (
-        imageUploadsService.uploadImageToCloudflareImages as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue('new');
-      (
-        userProfileRepository.save as jest.Mock<
-          (...args: any[]) => Promise<any>
-        >
-      ).mockResolvedValue({});
+    it('falls back to the default ceiling when none is configured', async () => {
+      const previous = process.env.MAX_IMAGE_SIZE_IN_BYTES;
 
-      await expect(
-        service.uploadProfilePicture('1', {} as any),
-      ).rejects.toThrow(HttpException);
+      delete process.env.MAX_IMAGE_SIZE_IN_BYTES;
+      arrangeUser();
+
+      await service.uploadProfilePicture('1', {} as any);
+
+      expect(imageIngress.accept).toHaveBeenCalledWith(
+        expect.objectContaining({ maximumBytes: 10485760 }),
+      );
+
+      if (previous !== undefined) {
+        process.env.MAX_IMAGE_SIZE_IN_BYTES = previous;
+      }
     });
   });
 
@@ -798,6 +880,7 @@ describe('UserService', () => {
         update: jest.fn(async () => ({ affected: 1 })),
         find: jest.fn(async () => [{ id: 'a1' }]),
         softDelete: jest.fn(async () => ({ affected: 1 })),
+        findOne: jest.fn(async () => null),
       };
 
       (
@@ -813,9 +896,8 @@ describe('UserService', () => {
           (...args: any[]) => Promise<any>
         >
       ).mockImplementation(
-        async (callback: (managerArg: any) => Promise<void>) => {
-          await callback(manager);
-        },
+        async (callback: (managerArg: any) => Promise<unknown>) =>
+          callback(manager),
       );
 
       await service.closeAccount('1');
@@ -845,6 +927,61 @@ describe('UserService', () => {
       );
     });
 
+    // FC-042: in the account-closure ledger before the database, so a
+    // restore from an older backup cannot open it again.
+    it('writes the closure to the ledger first', async () => {
+      const manager = {
+        update: jest.fn(async () => ({ affected: 1 })),
+        find: jest.fn(async () => []),
+        softDelete: jest.fn(async () => ({ affected: 1 })),
+        findOne: jest.fn(async () => null),
+      };
+
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: '1', email: 'captain@example.com' });
+      (
+        (userRepository as any).manager.transaction as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockImplementation(
+        async (callback: (managerArg: any) => Promise<unknown>) =>
+          callback(manager),
+      );
+
+      await service.closeAccount('1');
+
+      expect(closures.record).toHaveBeenCalledWith(
+        '1',
+        AccountClosureEvent.CLOSED,
+      );
+      expect(closures.record.mock.invocationCallOrder[0]).toBeLessThan(
+        ((userRepository as any).manager.transaction as jest.Mock).mock
+          .invocationCallOrder[0],
+      );
+      // Closed now: nothing moves the retention clock.
+      expect(manager.update).not.toHaveBeenCalledWith(
+        UserEntity,
+        '1',
+        expect.anything(),
+      );
+    });
+
+    it('closes nothing when the ledger cannot be written', async () => {
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: '1', email: 'captain@example.com' });
+      closures.record.mockRejectedValueOnce(new Error('Bucket unreachable'));
+
+      await expect(service.closeAccount('1')).rejects.toThrow(
+        'Bucket unreachable',
+      );
+      expect(
+        (userRepository as any).manager.transaction,
+      ).not.toHaveBeenCalled();
+      expect(mailService.sendAccountClosureEmail).not.toHaveBeenCalled();
+    });
+
     it('should throw if user id is invalid', async () => {
       (validatorsService.validateUuid as jest.Mock).mockReturnValue(false);
       await expect(service.closeAccount('invalid')).rejects.toThrow(
@@ -865,6 +1002,7 @@ describe('UserService', () => {
         update: jest.fn(async () => ({ affected: 1 })),
         find: jest.fn(async () => []),
         softDelete: jest.fn(async () => ({ affected: 1 })),
+        findOne: jest.fn(async () => null),
       };
 
       (
@@ -880,9 +1018,8 @@ describe('UserService', () => {
           (...args: any[]) => Promise<any>
         >
       ).mockImplementation(
-        async (callback: (managerArg: any) => Promise<void>) => {
-          await callback(manager);
-        },
+        async (callback: (managerArg: any) => Promise<unknown>) =>
+          callback(manager),
       );
 
       await service.closeAccount('1');
@@ -904,6 +1041,7 @@ describe('UserService', () => {
         update: jest.fn(async () => ({ affected: 1 })),
         find: jest.fn(async () => []),
         softDelete: jest.fn(async () => ({ affected: 1 })),
+        findOne: jest.fn(async () => null),
       };
 
       const user = {
@@ -924,7 +1062,7 @@ describe('UserService', () => {
         async (callback: (managerArg: any) => Promise<void>) => {
           user.email = 'changed@example.com';
           user.profile.firstName = 'Changed';
-          await callback(manager);
+          return callback(manager);
         },
       );
 
@@ -934,6 +1072,212 @@ describe('UserService', () => {
         'captain@example.com',
         'Captain',
       );
+    });
+  });
+
+  describe('closing takes the pictures down', () => {
+    /**
+     * Arranges a closure whose profile and Characters hold the pictures given.
+     *
+     * @param profilePictureId - The profile picture, or null.
+     * @param portraits - Each Character's portrait, or null.
+     * @returns The transaction's manager.
+     */
+    const arrangeClosure = (
+      profilePictureId: string | null,
+      portraits: Array<string | null>,
+    ) => {
+      const manager = {
+        update: jest.fn(async () => ({ affected: 1 })),
+        find: jest.fn(async (entity: unknown) =>
+          entity === CharacterEntity
+            ? portraits.map((portrait, index) => ({
+                id: `c${index + 1}`,
+                profilePictureId: portrait,
+              }))
+            : [{ id: 'a1' }],
+        ),
+        softDelete: jest.fn<(entity: unknown) => Promise<{ affected: number }>>(
+          async () => ({ affected: 1 }),
+        ),
+        findOne: jest.fn(async () => ({ userId: '1', profilePictureId })),
+      };
+
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: '1', email: 'captain@example.com' });
+      (
+        (userRepository as any).manager.transaction as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockImplementation(
+        async (callback: (managerArg: any) => Promise<unknown>) =>
+          callback(manager),
+      );
+
+      return manager;
+    };
+
+    it('withdraws the profile picture and every portrait once the closure has committed', async () => {
+      const manager = arrangeClosure('profile-1', ['portrait-1', null]);
+
+      await service.closeAccount('1');
+
+      expect(manager.find).toHaveBeenCalledWith(CharacterEntity, {
+        where: { accountId: expect.any(Object) },
+        select: { id: true, profilePictureId: true },
+      });
+      expect(pictures.withdrawEach).toHaveBeenCalledWith(
+        [
+          PersonalPictureWithdrawalService.profilePicture('1', 'profile-1'),
+          PersonalPictureWithdrawalService.portrait('c1', 'portrait-1'),
+          null,
+        ],
+        PERSONAL_PICTURE_REASONS.ACCOUNT_CLOSED,
+      );
+      expect(pictures.withdrawEach.mock.invocationCallOrder[0]).toBeGreaterThan(
+        ((userRepository as any).manager.transaction as jest.Mock).mock
+          .invocationCallOrder[0],
+      );
+    });
+
+    it('reads the portraits before the Characters are deleted', async () => {
+      const manager = arrangeClosure(null, ['portrait-1']);
+
+      await service.closeAccount('1');
+
+      const characterFind = manager.find.mock.calls.findIndex(
+        ([entity]) => entity === CharacterEntity,
+      );
+      const characterDelete = manager.softDelete.mock.calls.findIndex(
+        ([entity]) => entity === CharacterEntity,
+      );
+
+      expect(manager.find.mock.invocationCallOrder[characterFind]).toBeLessThan(
+        manager.softDelete.mock.invocationCallOrder[characterDelete],
+      );
+    });
+
+    // Rather than waiting for the account to be erased.
+    it('asks Custom Tracking to take down what it holds about the STO accounts', async () => {
+      const recordDeletion = {
+        charactersDeleted: jest.fn(async () => undefined),
+        accountsDeleted: jest.fn(async () => undefined),
+      };
+
+      Object.assign(service, { _recordDeletion: recordDeletion });
+      arrangeClosure(null, []);
+
+      await service.closeAccount('1');
+
+      expect(recordDeletion.accountsDeleted).toHaveBeenCalledWith(
+        ['a1'],
+        PERSONAL_PICTURE_REASONS.ACCOUNT_CLOSED,
+      );
+    });
+
+    it('withdraws nothing when the closure fails', async () => {
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: '1', email: 'captain@example.com' });
+      (
+        (userRepository as any).manager.transaction as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockRejectedValue(new Error('deadlock'));
+
+      await expect(service.closeAccount('1')).rejects.toThrow('deadlock');
+      expect(pictures.withdrawEach).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('removeProfilePicture', () => {
+    /**
+     * Arranges a user whose profile shows the picture given.
+     *
+     * @param profilePictureId - The picture, or null.
+     */
+    const arrangeProfile = (profilePictureId: string | null): void => {
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({
+        id: '1',
+        profile: { userId: '1', profilePictureId },
+      });
+    };
+
+    it('takes the picture off the profile, then withdraws it', async () => {
+      arrangeProfile('profile-1');
+
+      await service.removeProfilePicture('1');
+
+      expect(userProfileRepository.update).toHaveBeenCalledWith(
+        { userId: '1' },
+        { profilePictureId: null },
+      );
+      expect(pictures.withdraw).toHaveBeenCalledWith(
+        PersonalPictureWithdrawalService.profilePicture('1', 'profile-1'),
+        PERSONAL_PICTURE_REASONS.REMOVED,
+      );
+      expect(
+        (userProfileRepository.update as jest.Mock).mock.invocationCallOrder[0],
+      ).toBeLessThan(pictures.withdraw.mock.invocationCallOrder[0]);
+    });
+
+    it('leaves a profile with no picture as it is', async () => {
+      arrangeProfile(null);
+
+      await service.removeProfilePicture('1');
+
+      expect(userProfileRepository.update).not.toHaveBeenCalled();
+      expect(pictures.withdraw).not.toHaveBeenCalled();
+    });
+
+    it('refuses when the member cannot be found', async () => {
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue(null);
+
+      await expect(service.removeProfilePicture('1')).rejects.toThrow(
+        HttpException,
+      );
+      expect(pictures.withdraw).not.toHaveBeenCalled();
+    });
+  });
+
+  // FC-042: the restore check closes again an account a restore opened.
+  describe('closeAgain', () => {
+    it('closes it as of when it was first closed, writing no marker and sending no email', async () => {
+      const manager = {
+        update: jest.fn(async () => ({ affected: 1 })),
+        find: jest.fn(async () => [{ id: 'a1' }]),
+        softDelete: jest.fn(async () => ({ affected: 1 })),
+        findOne: jest.fn(async () => null),
+      };
+      const closedAt = new Date('2026-09-01T12:00:00.000Z');
+
+      (
+        (userRepository as any).manager.transaction as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockImplementation(
+        async (callback: (managerArg: any) => Promise<unknown>) =>
+          callback(manager),
+      );
+
+      await service.closeAgain('1', closedAt);
+
+      expect(manager.update).toHaveBeenCalledWith(
+        UserRefreshTokenEntity,
+        { userId: '1', isRevoked: false },
+        { isRevoked: true },
+      );
+      expect(manager.softDelete).toHaveBeenCalledWith(UserEntity, '1');
+      expect(manager.update).toHaveBeenLastCalledWith(UserEntity, '1', {
+        deletedAt: closedAt,
+      });
+      expect(closures.record).not.toHaveBeenCalled();
+      expect(mailService.sendAccountClosureEmail).not.toHaveBeenCalled();
     });
   });
 
@@ -1106,6 +1450,57 @@ describe('UserService', () => {
         page: 1,
         pageSize: 5,
       });
+    });
+  });
+
+  // FC-038: an Owner's Communities are handed on, or closed, first.
+  describe('with the Fleet there to ask', () => {
+    const outcome = {
+      communityId: 'c1',
+      name: 'Fixture Community',
+      outcome: 'TRANSFER' as const,
+      toUserId: 'u2',
+      toUsername: 'Deputy',
+    };
+    let departure: {
+      preview: jest.Mock<(userId: string) => Promise<unknown[]>>;
+      depart: jest.Mock<(userId: string) => Promise<unknown[]>>;
+    };
+
+    beforeEach(() => {
+      departure = {
+        preview: jest.fn(async () => [outcome]),
+        depart: jest.fn(async () => [outcome]),
+      };
+    });
+
+    it('says what closing would do to each Community, or nothing without it', async () => {
+      await expect(service.closurePreview('1')).resolves.toEqual([]);
+
+      Object.assign(service, { _departure: departure });
+
+      await expect(service.closurePreview('1')).resolves.toEqual([outcome]);
+      expect(departure.preview).toHaveBeenCalledWith('1');
+    });
+
+    it('hands each Community on before the account closes', async () => {
+      Object.assign(service, { _departure: departure });
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: '1', email: 'captain@example.com' });
+      (
+        (userRepository as any).manager.transaction as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockImplementation(async () => {
+        expect(departure.depart).toHaveBeenCalledWith('1');
+
+        return { pictures: [], accountIds: [] };
+      });
+
+      await service.closeAccount('1');
+
+      expect((userRepository as any).manager.transaction).toHaveBeenCalled();
     });
   });
 });
