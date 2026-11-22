@@ -512,5 +512,99 @@ describe('ScopeEventRsvpService', () => {
         world.rsvps.mine(manager, occurrence.id, STRANGER_ID),
       ).resolves.toBeNull();
     });
+
+    describe('somebody’s answers to many occurrences', () => {
+      /**
+       * Seeds more occurrences, each with a line of earlier answers waiting
+       * ahead of the member, who also waits.
+       *
+       * @param count - How many.
+       * @returns Their IDs.
+       */
+      function waitingAt(count: number): string[] {
+        const ids = Array.from({ length: count }, (_, i) => `waiting-${i}`);
+
+        world.db.seed(
+          ScopeEventRsvpEntity,
+          ids.flatMap((id, i) => [
+            ...Array.from({ length: i }, (_, j) => ({
+              id: `${id}-ahead-${j}`,
+              occurrenceId: id,
+              userId: `ahead-${j}`,
+              response: RsvpResponse.GOING,
+              characterId: null,
+              waitlistedAt: new Date(Date.UTC(2029, 10, 1, j)),
+            })),
+            {
+              id: `${id}-member`,
+              occurrenceId: id,
+              userId: MEMBER_ID,
+              response: RsvpResponse.GOING,
+              characterId: null,
+              waitlistedAt: new Date(Date.UTC(2029, 10, 2)),
+            },
+          ]),
+        );
+
+        return ids;
+      }
+
+      it('reads each answer, numbering each occurrence’s own line', async () => {
+        const ids = waitingAt(3);
+        const answers = await world.rsvps.answersOf(
+          world.db.asManager(),
+          [occurrence.id, ...ids, 'unanswered'],
+          MEMBER_ID,
+        );
+
+        expect(answers).toEqual(
+          new Map<string, unknown>([
+            [
+              occurrence.id,
+              {
+                response: RsvpResponse.GOING,
+                characterId: 'character-1',
+                waitlistPosition: null,
+              },
+            ],
+            ...ids.map((id, i): [string, unknown] => [
+              id,
+              {
+                response: RsvpResponse.GOING,
+                characterId: null,
+                waitlistPosition: i + 1,
+              },
+            ]),
+          ]),
+        );
+      });
+
+      it('reads nothing for nobody, or for no occurrences', async () => {
+        const manager = world.db.asManager();
+        const find = jest.spyOn(world.db, 'find');
+
+        await expect(
+          world.rsvps.answersOf(manager, [occurrence.id], null),
+        ).resolves.toEqual(new Map());
+        await expect(
+          world.rsvps.answersOf(manager, [], MEMBER_ID),
+        ).resolves.toEqual(new Map());
+        expect(find).not.toHaveBeenCalled();
+      });
+
+      it('makes the same two queries for two occurrences or twenty', async () => {
+        const manager = world.db.asManager();
+        const find = jest.spyOn(world.db, 'find');
+
+        await world.rsvps.answersOf(manager, waitingAt(2), MEMBER_ID);
+        const forTwo = find.mock.calls.length;
+
+        find.mockClear();
+        await world.rsvps.answersOf(manager, waitingAt(20).slice(2), MEMBER_ID);
+
+        expect(forTwo).toBe(2);
+        expect(find).toHaveBeenCalledTimes(2);
+      });
+    });
   });
 });

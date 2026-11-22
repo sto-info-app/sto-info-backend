@@ -304,27 +304,53 @@ export class ScopeEventRsvpService {
     occurrenceId: string,
     userId: string | null,
   ): Promise<MyAnswerDto | null> {
-    const rsvp =
-      userId === null
-        ? null
-        : await manager.findOne(ScopeEventRsvpEntity, {
-            where: { occurrenceId, userId },
-          });
+    return (
+      (await this.answersOf(manager, [occurrenceId], userId)).get(
+        occurrenceId,
+      ) ?? null
+    );
+  }
 
-    if (rsvp === null) {
-      return null;
+  /**
+   * Reads somebody's own answers to some occurrences, in two queries however
+   * many there are: their answers, then where they wait in the lines they
+   * are in.
+   *
+   * @param manager - The manager to read through.
+   * @param occurrenceIds - The occurrences.
+   * @param userId - The person, or null when signed out.
+   * @returns Their answer to each occurrence they answered, by occurrence.
+   */
+  async answersOf(
+    manager: EntityManager,
+    occurrenceIds: readonly string[],
+    userId: string | null,
+  ): Promise<Map<string, MyAnswerDto>> {
+    const answers = new Map<string, MyAnswerDto>();
+
+    if (userId === null || occurrenceIds.length === 0) {
+      return answers;
     }
 
-    return {
-      response: rsvp.response,
-      characterId: rsvp.characterId,
-      waitlistPosition:
-        rsvp.waitlistedAt === null
-          ? null
-          : (await this.waitingOf(manager, occurrenceId)).findIndex(
-              waiting => waiting.id === rsvp.id,
-            ) + 1,
-    };
+    const rsvps = await manager.find(ScopeEventRsvpEntity, {
+      where: { occurrenceId: In([...occurrenceIds]), userId },
+    });
+    const positions = await this.waitlistPositions(
+      manager,
+      rsvps
+        .filter(rsvp => rsvp.waitlistedAt !== null)
+        .map(rsvp => rsvp.occurrenceId),
+    );
+
+    for (const rsvp of rsvps) {
+      answers.set(rsvp.occurrenceId, {
+        response: rsvp.response,
+        characterId: rsvp.characterId,
+        waitlistPosition: positions.get(rsvp.id) ?? null,
+      });
+    }
+
+    return answers;
   }
 
   /**
@@ -536,21 +562,41 @@ export class ScopeEventRsvpService {
   }
 
   /**
-   * Lists who is waiting, in order.
+   * Numbers everyone waiting at some occurrences, in one query.
    *
    * @param manager - The manager to read through.
-   * @param occurrenceId - The occurrence.
-   * @returns Their answers, earliest first.
+   * @param occurrenceIds - The occurrences.
+   * @returns Each waiting answer's place in its own occurrence's line, from 1,
+   *   by answer.
    */
-  private waitingOf(
+  private async waitlistPositions(
     manager: EntityManager,
-    occurrenceId: string,
-  ): Promise<ScopeEventRsvpEntity[]> {
-    return manager.find(ScopeEventRsvpEntity, {
-      where: { occurrenceId, waitlistedAt: Not(IsNull()) },
+    occurrenceIds: readonly string[],
+  ): Promise<Map<string, number>> {
+    const positions = new Map<string, number>();
+
+    if (occurrenceIds.length === 0) {
+      return positions;
+    }
+
+    const waiting = await manager.find(ScopeEventRsvpEntity, {
+      where: {
+        occurrenceId: In([...new Set(occurrenceIds)]),
+        waitlistedAt: Not(IsNull()),
+      },
       order: { waitlistedAt: 'ASC', id: 'ASC' },
-      select: { id: true },
+      select: { id: true, occurrenceId: true },
     });
+    const lengths = new Map<string, number>();
+
+    for (const answer of waiting) {
+      const place = (lengths.get(answer.occurrenceId) ?? 0) + 1;
+
+      lengths.set(answer.occurrenceId, place);
+      positions.set(answer.id, place);
+    }
+
+    return positions;
   }
 
   /**

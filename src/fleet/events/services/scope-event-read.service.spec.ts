@@ -214,6 +214,29 @@ describe('ScopeEventReadService', () => {
 
       expect(calendar.entries).toEqual([]);
     });
+
+    it('reads answers the same few times for a quiet month or a busy one', async () => {
+      const find = jest.spyOn(world.db, 'find');
+      const answerReads = () =>
+        find.mock.calls.filter(([entity]) => entity === ScopeEventRsvpEntity)
+          .length;
+
+      await world.reads.calendar(FLEET, MEMBER_ID, {});
+      const quiet = answerReads();
+
+      for (let day = 2; day <= 30; day += 1) {
+        occurrence(
+          `busy-${day}`,
+          `2029-12-${String(day).padStart(2, '0')}T21:00:00Z`,
+        );
+      }
+      find.mockClear();
+
+      const calendar = await world.reads.calendar(FLEET, MEMBER_ID, {});
+
+      expect(calendar.entries.length).toBeGreaterThan(20);
+      expect(answerReads()).toBe(quiet);
+    });
   });
 
   describe('detail', () => {
@@ -567,6 +590,41 @@ describe('ScopeEventReadService', () => {
         'far',
       ]);
       expect(viewerOf).toHaveBeenCalledTimes(1);
+    });
+
+    it('summarises an event’s occurrences together, however many are listed', async () => {
+      world.db.seed(ScopeEventReminderEntity, [
+        { eventId: event.id, userId: MEMBER_ID, leadMinutes: [60] },
+      ]);
+
+      const find = jest.spyOn(world.db, 'find');
+      const answerReads = () =>
+        find.mock.calls.filter(([entity]) => entity === ScopeEventRsvpEntity)
+          .length;
+
+      await mine(MEMBER_ID);
+      const forOne = answerReads();
+
+      for (let day = 2; day <= 30; day += 1) {
+        occurrence(
+          `daily-${day}`,
+          `2029-12-${String(day).padStart(2, '0')}T21:00:00Z`,
+        );
+      }
+      find.mockClear();
+
+      const { entries } = await mine(MEMBER_ID);
+
+      expect(entries).toHaveLength(30);
+      expect(entries.map(entry => entry.occurrence.startsAt)).toEqual(
+        [...entries.map(entry => entry.occurrence.startsAt)].sort(
+          (a, b) => a.getTime() - b.getTime(),
+        ),
+      );
+      expect(
+        entries.find(entry => entry.occurrence.id === 'next')?.occurrence.mine,
+      ).toEqual(expect.objectContaining({ response: RsvpResponse.GOING }));
+      expect(answerReads()).toBe(forOne);
     });
   });
 });

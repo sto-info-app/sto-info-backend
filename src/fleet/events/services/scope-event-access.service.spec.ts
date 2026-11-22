@@ -1,6 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 
-import { beforeEach, describe, expect, it } from '@jest/globals';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import {
   ARMADA_ID,
@@ -206,6 +206,136 @@ describe('ScopeEventAccessService', () => {
 
         await expect(sees(MEMBER_ID)).resolves.toBe(false);
       });
+    });
+  });
+
+  describe('visibleAmong', () => {
+    /** The audience policy's check, which the world answers per person. */
+    const canView = () =>
+      (world.access as unknown as { _audience: { canView: jest.Mock } })
+        ._audience.canView;
+
+    /**
+     * Seeds `count` events of each audience but Officers', with every chosen
+     * one open to members of the other Fleet.
+     *
+     * @param count - How many of each.
+     * @returns The events, and the IDs of each kind.
+     */
+    function scopeOf(count: number) {
+      const kinds = [
+        ScopeEventAudience.PUBLIC,
+        ScopeEventAudience.COMMUNITY,
+        ScopeEventAudience.MEMBERS,
+        ScopeEventAudience.SELECTED,
+      ];
+      const events = kinds.flatMap(audience =>
+        Array.from({ length: count }, (_, i) =>
+          seedEvent(world.db, { id: `${audience}-${i}`, audience }),
+        ),
+      );
+
+      world.db.seed(
+        ScopeEventAudienceMemberEntity,
+        events
+          .filter(each => each.audience === ScopeEventAudience.SELECTED)
+          .map(each => ({
+            eventId: each.id,
+            fleetId: OTHER_FLEET_ID,
+            role: null,
+          })),
+      );
+
+      return events;
+    }
+
+    const idsOf = (events: readonly ScopeEventEntity[], audience: string) =>
+      events.filter(each => each.audience === audience).map(each => each.id);
+
+    it('keeps what each audience may see, chosen Fleets included', async () => {
+      const events = scopeOf(2);
+
+      world.db.seed(ScopeMembershipEntity, [
+        {
+          userId: MEMBER_ID,
+          fleetId: OTHER_FLEET_ID,
+          status: ScopeMembershipStatus.APPROVED,
+          deletedAt: null,
+        },
+      ]);
+
+      const forMember = await world.access.visibleAmong(
+        events,
+        await world.access.viewerAt(FLEET, MEMBER_ID),
+      );
+      const forStranger = await world.access.visibleAmong(
+        events,
+        await world.access.viewerAt(FLEET, STRANGER_ID),
+      );
+
+      expect([...forMember].sort()).toEqual(events.map(each => each.id).sort());
+      expect([...forStranger]).toEqual(
+        idsOf(events, ScopeEventAudience.PUBLIC),
+      );
+    });
+
+    it('asks the same few questions of three events or thirty', async () => {
+      const viewer = await world.access.viewerAt(FLEET, MEMBER_ID);
+      const find = jest.spyOn(world.db, 'find');
+      const asked = () => [find.mock.calls.length, canView().mock.calls.length];
+
+      const fewEvents = scopeOf(3);
+      canView().mockClear();
+      await world.access.visibleAmong(fewEvents, viewer);
+      const forFew = asked();
+
+      find.mockClear();
+      canView().mockClear();
+      world.db.rows(ScopeEventEntity).splice(0);
+      await world.access.visibleAmong(scopeOf(30), viewer);
+
+      expect(forFew).toEqual([2, 2]);
+      expect(asked()).toEqual(forFew);
+    });
+
+    it('reads no memberships when a chosen role already opens every event', async () => {
+      const events = [
+        seedEvent(world.db, {
+          id: 'chosen-role',
+          audience: ScopeEventAudience.SELECTED,
+        }),
+      ];
+
+      world.db.seed(ScopeEventAudienceMemberEntity, [
+        { eventId: 'chosen-role', fleetId: OTHER_FLEET_ID, role: null },
+        { eventId: 'chosen-role', fleetId: null, role: FleetScopeRole.MEMBER },
+      ]);
+
+      const find = jest.spyOn(world.db, 'find');
+      const viewer = await world.access.viewerAt(FLEET, MEMBER_ID);
+
+      find.mockClear();
+
+      await expect(world.access.visibleAmong(events, viewer)).resolves.toEqual(
+        new Set(['chosen-role']),
+      );
+      expect(
+        find.mock.calls.some(([entity]) => entity === ScopeMembershipEntity),
+      ).toBe(false);
+    });
+
+    it('shows a manager everything without asking', async () => {
+      const events = scopeOf(2);
+      const viewer = await world.access.viewerAt(FLEET, MANAGER_ID);
+      const find = jest.spyOn(world.db, 'find');
+
+      canView().mockClear();
+
+      await expect(world.access.visibleAmong(events, viewer)).resolves.toEqual(
+        new Set(events.map(each => each.id)),
+      );
+      expect(find).not.toHaveBeenCalled();
+      expect(canView().mock.calls).toHaveLength(0);
     });
   });
 

@@ -15,6 +15,11 @@ import {
   MoreThan,
 } from 'typeorm';
 
+import {
+  eachLimited,
+  POOLED_READ_CONCURRENCY,
+} from 'src/shared/ledger/ledger.utility';
+
 import { GovernanceScope } from '../../governance/utilities/governance-scope.utility';
 import { usernamesFor } from '../../recruitment/utilities/recruitment-names.utility';
 import { ScopePlace, scopePlaceOf } from '../../utilities/scope-place.utility';
@@ -378,44 +383,64 @@ export class ScopeEventReadService {
         })
       ).map(event => [event.id, event]),
     );
-    const shown = new Map<string, Promise<ShownEvent | null>>();
-    const entries: UpcomingEntryDto[] = [];
+    // Who they are, and whether they may see it, is settled once an event,
+    // then each event's occurrences are summarised together: the queries
+    // grow with the events listed, not with their occurrences.
+    const shown = new Map<string, ShownEvent>();
 
-    for (const occurrence of occurrences) {
-      const event = events.get(occurrence.eventId);
+    await eachLimited(
+      [...events.values()],
+      POOLED_READ_CONCURRENCY,
+      async event => {
+        const found = await this.shownTo(manager, event, userId);
 
-      if (event === undefined) {
-        continue;
-      }
+        if (found !== null) {
+          shown.set(event.id, found);
+        }
+      },
+    );
 
-      if (!shown.has(event.id)) {
-        shown.set(event.id, this.shownTo(manager, event, userId));
-      }
+    const listed = occurrences.filter(occurrence =>
+      shown.has(occurrence.eventId),
+    );
+    const summaries = new Map<string, OccurrenceSummaryDto>();
 
-      const found = await shown.get(event.id);
+    await eachLimited(
+      [...shown],
+      POOLED_READ_CONCURRENCY,
+      async ([eventId, found]) => {
+        const ofEvent = listed.filter(
+          occurrence => occurrence.eventId === eventId,
+        );
+        const summarised = await this.summariesOf(
+          manager,
+          ofEvent,
+          found.viewer,
+        );
 
-      if (!found) {
-        continue;
-      }
+        ofEvent.forEach((occurrence, index) =>
+          summaries.set(occurrence.id, summarised[index]),
+        );
+      },
+    );
 
-      const [summary] = await this.summariesOf(
-        manager,
-        [occurrence],
-        found.viewer,
-      );
+    return {
+      entries: listed.map((occurrence): UpcomingEntryDto => {
+        const found = shown.get(occurrence.eventId) as ShownEvent;
 
-      entries.push({
-        event: this.summaryOf(event),
-        occurrence: summary,
-        scope: {
-          kind: found.place.kind,
-          name: found.place.name,
-          path: found.place.path,
-        },
-      });
-    }
-
-    return { entries };
+        return {
+          event: this.summaryOf(
+            events.get(occurrence.eventId) as ScopeEventEntity,
+          ),
+          occurrence: summaries.get(occurrence.id) as OccurrenceSummaryDto,
+          scope: {
+            kind: found.place.kind,
+            name: found.place.name,
+            path: found.place.path,
+          },
+        };
+      }),
+    };
   }
 
   /**
@@ -528,15 +553,13 @@ export class ScopeEventReadService {
     viewer: EventViewer,
     events: readonly ScopeEventEntity[],
   ): Promise<Map<string, ScopeEventEntity>> {
-    const visible = new Map<string, ScopeEventEntity>();
+    const visible = await this._access.visibleAmong(events, viewer);
 
-    for (const event of events) {
-      if (await this._access.canSee(event, viewer)) {
-        visible.set(event.id, event);
-      }
-    }
-
-    return visible;
+    return new Map(
+      events
+        .filter(event => visible.has(event.id))
+        .map(event => [event.id, event]),
+    );
   }
 
   /**
@@ -553,29 +576,24 @@ export class ScopeEventReadService {
     occurrences: readonly ScopeEventOccurrenceEntity[],
     viewer: EventViewer,
   ): Promise<OccurrenceSummaryDto[]> {
-    const counts = await this._rsvps.countsFor(
-      manager,
-      occurrences.map(occurrence => occurrence.id),
-      viewer.mayManage,
-    );
-    const summaries: OccurrenceSummaryDto[] = [];
+    const ids = occurrences.map(occurrence => occurrence.id);
+    const [counts, answers] = await Promise.all([
+      this._rsvps.countsFor(manager, ids, viewer.mayManage),
+      this._rsvps.answersOf(manager, ids, viewer.userId),
+    ]);
 
-    for (const occurrence of occurrences) {
-      summaries.push({
-        id: occurrence.id,
-        key: occurrence.occurrenceKey,
-        localStart: occurrence.localStart,
-        startsAt: occurrence.startsAt,
-        endsAt: occurrence.endsAt,
-        adjustment: occurrence.adjustment,
-        status: occurrence.status,
-        movedFromStartsAt: occurrence.movedFromStartsAt,
-        counts: counts.get(occurrence.id) as OccurrenceSummaryDto['counts'],
-        mine: await this._rsvps.mine(manager, occurrence.id, viewer.userId),
-      });
-    }
-
-    return summaries;
+    return occurrences.map(occurrence => ({
+      id: occurrence.id,
+      key: occurrence.occurrenceKey,
+      localStart: occurrence.localStart,
+      startsAt: occurrence.startsAt,
+      endsAt: occurrence.endsAt,
+      adjustment: occurrence.adjustment,
+      status: occurrence.status,
+      movedFromStartsAt: occurrence.movedFromStartsAt,
+      counts: counts.get(occurrence.id) as OccurrenceSummaryDto['counts'],
+      mine: answers.get(occurrence.id) ?? null,
+    }));
   }
 
   /**

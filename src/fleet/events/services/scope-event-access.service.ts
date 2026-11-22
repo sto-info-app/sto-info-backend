@@ -174,30 +174,67 @@ export class ScopeEventAccessService {
    * @returns True when they may.
    */
   async canSee(event: ScopeEventEntity, viewer: EventViewer): Promise<boolean> {
+    return (await this.visibleAmong([event], viewer)).has(event.id);
+  }
+
+  /**
+   * Picks out the events somebody may see from a scope's.
+   *
+   * Every event of one audience gets the same answer at one scope, so each
+   * audience is asked about once, and the chosen Fleets and roles of all the
+   * scope's chosen-audience events are read together. However many events
+   * there are, that is at most two audience checks and two reads.
+   *
+   * @param events - Events of the viewer's scope.
+   * @param viewer - Who is looking.
+   * @returns The IDs of those they may see.
+   */
+  async visibleAmong(
+    events: readonly ScopeEventEntity[],
+    viewer: EventViewer,
+  ): Promise<Set<string>> {
     if (viewer.mayManage) {
-      return true;
+      return new Set(events.map(event => event.id));
     }
 
-    switch (event.audience) {
-      case ScopeEventAudience.PUBLIC:
-        return true;
-      case ScopeEventAudience.COMMUNITY:
-        return this._audience.canView(
+    const audiences = new Set(events.map(event => event.audience));
+    const [community, members, selected] = await Promise.all([
+      audiences.has(ScopeEventAudience.COMMUNITY) &&
+        this._audience.canView(
           FleetAudience.COMMUNITY,
           viewer.ref,
           viewer.userId,
-        );
-      case ScopeEventAudience.MEMBERS:
-        return this._audience.canView(
+        ),
+      audiences.has(ScopeEventAudience.MEMBERS) &&
+        this._audience.canView(
           FleetAudience.FLEET_MEMBERS,
           viewer.ref,
           viewer.userId,
-        );
-      case ScopeEventAudience.OFFICERS:
-        return OFFICER_ROLES.some(role => viewer.authorisation.roles.has(role));
-      case ScopeEventAudience.SELECTED:
-        return this.isSelected(event, viewer);
-    }
+        ),
+      this.selectedAmong(
+        events.filter(event => event.audience === ScopeEventAudience.SELECTED),
+        viewer,
+      ),
+    ]);
+    const officer = OFFICER_ROLES.some(role =>
+      viewer.authorisation.roles.has(role),
+    );
+    const sees = (event: ScopeEventEntity): boolean => {
+      switch (event.audience) {
+        case ScopeEventAudience.PUBLIC:
+          return true;
+        case ScopeEventAudience.COMMUNITY:
+          return community;
+        case ScopeEventAudience.MEMBERS:
+          return members;
+        case ScopeEventAudience.OFFICERS:
+          return officer;
+        case ScopeEventAudience.SELECTED:
+          return selected.has(event.id);
+      }
+    };
+
+    return new Set(events.filter(sees).map(event => event.id));
   }
 
   /**
@@ -222,55 +259,71 @@ export class ScopeEventAccessService {
   }
 
   /**
-   * Reports whether somebody is among an event's chosen Fleets and roles.
+   * Picks out the chosen-audience events somebody is among.
    *
-   * @param event - The event.
+   * Reads every event's chosen Fleets and roles at once. Then, only for the
+   * events no role of theirs already opens, which of the chosen Fleets they
+   * are an approved member of, also at once.
+   *
+   * @param events - Events with a chosen audience.
    * @param viewer - Who is looking.
-   * @returns True when they hold a chosen role at the scope, or are an
-   *   approved member of a chosen Fleet.
+   * @returns The IDs of those where they hold a chosen role at the scope, or
+   *   are an approved member of a chosen Fleet.
    */
-  private async isSelected(
-    event: ScopeEventEntity,
+  private async selectedAmong(
+    events: readonly ScopeEventEntity[],
     viewer: EventViewer,
-  ): Promise<boolean> {
-    if (viewer.userId === null) {
-      return false;
+  ): Promise<Set<string>> {
+    const selected = new Set<string>();
+
+    if (viewer.userId === null || events.length === 0) {
+      return selected;
     }
 
     const chosen = await this._dataSource.manager.find(
       ScopeEventAudienceMemberEntity,
-      { where: { eventId: event.id } },
+      { where: { eventId: In(events.map(event => event.id)) } },
     );
 
-    if (
-      chosen.some(
-        member =>
-          member.role !== null && viewer.authorisation.roles.has(member.role),
-      )
-    ) {
-      return true;
+    for (const member of chosen) {
+      if (member.role !== null && viewer.authorisation.roles.has(member.role)) {
+        selected.add(member.eventId);
+      }
     }
 
-    const fleetIds = chosen
-      .map(member => member.fleetId)
-      .filter((fleetId): fleetId is string => fleetId !== null);
+    const fleetIds = [
+      ...new Set(
+        chosen
+          .filter(member => !selected.has(member.eventId))
+          .map(member => member.fleetId)
+          .filter((fleetId): fleetId is string => fleetId !== null),
+      ),
+    ];
 
     if (fleetIds.length === 0) {
-      return false;
+      return selected;
     }
 
-    const memberships = await this._dataSource.manager.count(
-      ScopeMembershipEntity,
-      {
-        where: {
-          userId: viewer.userId,
-          fleetId: In(fleetIds),
-          status: ScopeMembershipStatus.APPROVED,
-          deletedAt: IsNull(),
-        },
-      },
+    const memberOf = new Set(
+      (
+        await this._dataSource.manager.find(ScopeMembershipEntity, {
+          where: {
+            userId: viewer.userId,
+            fleetId: In(fleetIds),
+            status: ScopeMembershipStatus.APPROVED,
+            deletedAt: IsNull(),
+          },
+          select: { fleetId: true },
+        })
+      ).map(membership => membership.fleetId),
     );
 
-    return memberships > 0;
+    for (const member of chosen) {
+      if (member.fleetId !== null && memberOf.has(member.fleetId)) {
+        selected.add(member.eventId);
+      }
+    }
+
+    return selected;
   }
 }
