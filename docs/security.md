@@ -28,7 +28,7 @@ Current overrides in `package.json`:
 }
 ```
 
-Re-checked on **2026-11-13** during the dependency refresh. Each entry was confirmed by removing it, resolving the tree again and re-auditing: without it an advisory returns. `npm audit --omit=dev` reports nothing at any severity; the full `npm audit` reports only `deepmerge` (GHSA-gcqx-w48m-w2h4, low, development tree, no patched release), see [SECURITY.md](../SECURITY.md#known-dependency-advisory-follow-up).
+Re-checked on **2026-11-22** during the dependency refresh. Each entry was confirmed by removing it, resolving the tree again and re-auditing: without it an advisory returns. `npm audit --omit=dev` reports nothing at any severity; the full `npm audit` reports only `deepmerge` (GHSA-gcqx-w48m-w2h4, low, development tree, no patched release), see [SECURITY.md](../SECURITY.md#known-dependency-advisory-follow-up).
 
 The `glob` and `minimatch` keys carry a version range, so each applies only to copies inside its advisory and leaves patched copies alone. Once every consumer asks for a fixed release the key matches nothing and can be deleted. Both move a dependency across a major version from what its parent declared, so `npm run lint`, `npm run build`, the full test suite with coverage and `npm run test:fuzz` were run against them on 2026-11-13.
 
@@ -67,7 +67,7 @@ npm view @stryker-mutator/core@latest dependencies.minimatch
 - **Override**: `"typed-rest-client": { "qs": "^6.17.1" }` — scoped to the one consumer that pins a vulnerable version. Every other `qs` in the tree (Express, `body-parser`, `supertest`) resolves to a patched `6.16.1` or later from its own range. The scoped form replaced the global `"qs"` entry on 2026-10-27 and was raised from `^6.17.0` on 2026-11-13 to track the current release; `npm ls qs` shows `typed-rest-client` on `6.17.1`.
 - **Raised from `^6.15.2` on 2026-09-03**: the later advisories extended the vulnerable range past `6.15.3`, which the old caret range still permitted.
 
-**When it can be removed**: When Stryker moves to `typed-rest-client@3`. Re-checked 2026-11-13: `typed-rest-client@3` already depends on `qs@^6.16.0`, but `@stryker-mutator/core@10.1.1`, still the newest Stryker, pins `typed-rest-client@~2.3.0`, whose newest release (`2.3.1`) keeps the exact `qs@6.15.1` pin. Check with:
+**When it can be removed**: When Stryker moves to `typed-rest-client@3`. Re-checked 2026-11-22: `typed-rest-client@3` already depends on `qs@^6.16.0`, but `@stryker-mutator/core@10.1.1`, still the newest Stryker, pins `typed-rest-client@~2.3.0`, whose newest release (`2.3.1`) keeps the exact `qs@6.15.1` pin. Check with:
 
 ```sh
 npm view @stryker-mutator/core@latest dependencies.typed-rest-client
