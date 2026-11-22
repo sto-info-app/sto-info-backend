@@ -569,6 +569,8 @@ This keeps primary user records at least as long as the general audit data reten
 - `npm run test:mutation`: Run Stryker mutation tests with progress, clear-text, and HTML reporters. Use to verify test quality.
 - `npm run test:mutation:dry`: Run mutation tests in dry-run mode (no actual mutations). Use to verify Stryker configuration.
 - `npm run test:mutation:incremental`: Run incremental mutation testing against only relevant files changed compared to `BASE_REF` (defaults to `origin/development`).
+- `npm run test:mutation:shard -- list|run <shard> <total>`: List or run one shard of the weekly full mutation run; `merge` combines shard reports. See [Weekly full run](github/QUALITY-AUTOMATION.md#weekly-full-run).
+- `npm run test:scripts`: Run the tests for `scripts/mutation-shards.mjs`.
 
 ### Verification
 
