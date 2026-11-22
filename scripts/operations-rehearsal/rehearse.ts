@@ -197,7 +197,10 @@ export class Results {
    * @param preamble - What ran, against what.
    */
   write(path: string, preamble: string[]): void {
-    const cell = (text: string) => text.replace(/\|/g, '\\|');
+    // Backslashes first: a note ending in one would otherwise escape the pipe
+    // that closes its cell.
+    const cell = (text: string) =>
+      text.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
     const lines = [
       `# ${this._title}`,
       '',
