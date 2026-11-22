@@ -19,10 +19,20 @@ const LONDON = 'Europe/London';
 const FLEET_NAME = 'Fixture Basic Fleet';
 const FILENAME = `${FLEET_NAME}_20240101-120000.Csv`;
 
-const HEADER =
-  'Character Name,Account Handle,Level,Class,Guild Rank,' +
-  'Contribution Total,Join Date,Rank Change Date,Last Active Date,' +
-  'Status,Public Comment,Public Comment Last Edit Date';
+const HEADER = [
+  'Character Name',
+  'Account Handle',
+  'Level',
+  'Class',
+  'Guild Rank',
+  'Contribution Total',
+  'Join Date',
+  'Rank Change Date',
+  'Last Active Date',
+  'Status',
+  'Public Comment',
+  'Public Comment Last Edit Date',
+].join(',');
 
 /** What one member's row says, before anything asks what it means. */
 interface RowInput {

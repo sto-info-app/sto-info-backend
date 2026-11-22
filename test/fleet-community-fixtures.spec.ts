@@ -21,10 +21,20 @@ import { describe, expect, it } from '@jest/globals';
 
 const FIXTURE_DIR = join(__dirname, 'fixtures', 'fleet-community');
 
-const NORMAL_HEADER =
-  'Character Name,Account Handle,Level,Class,Guild Rank,' +
-  'Contribution Total,Join Date,Rank Change Date,Last Active Date,' +
-  'Status,Public Comment,Public Comment Last Edit Date';
+const NORMAL_HEADER = [
+  'Character Name',
+  'Account Handle',
+  'Level',
+  'Class',
+  'Guild Rank',
+  'Contribution Total',
+  'Join Date',
+  'Rank Change Date',
+  'Last Active Date',
+  'Status',
+  'Public Comment',
+  'Public Comment Last Edit Date',
+].join(',');
 
 const OFFICER_HEADER =
   NORMAL_HEADER +

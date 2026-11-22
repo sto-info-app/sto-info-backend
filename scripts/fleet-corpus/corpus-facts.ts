@@ -13,10 +13,20 @@ import { join } from 'node:path';
  * encodes, and the implementation notes for the evidence it reproduces.
  */
 
-export const NORMAL_HEADER =
-  'Character Name,Account Handle,Level,Class,Guild Rank,' +
-  'Contribution Total,Join Date,Rank Change Date,Last Active Date,' +
-  'Status,Public Comment,Public Comment Last Edit Date';
+export const NORMAL_HEADER = [
+  'Character Name',
+  'Account Handle',
+  'Level',
+  'Class',
+  'Guild Rank',
+  'Contribution Total',
+  'Join Date',
+  'Rank Change Date',
+  'Last Active Date',
+  'Status',
+  'Public Comment',
+  'Public Comment Last Edit Date',
+].join(',');
 
 export const OFFICER_HEADER_SUFFIX =
   ',Officer Comment,Officer Comment Author,Officer Comment Last Edit Date';

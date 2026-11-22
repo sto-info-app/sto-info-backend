@@ -19,10 +19,20 @@
 /** Any occurrence of this outside a fixture file is a privacy failure. */
 export const OFFICER_CANARY_PREFIX = 'OFFICER-CANARY';
 
-const NORMAL_HEADER =
-  'Character Name,Account Handle,Level,Class,Guild Rank,' +
-  'Contribution Total,Join Date,Rank Change Date,Last Active Date,' +
-  'Status,Public Comment,Public Comment Last Edit Date';
+const NORMAL_HEADER = [
+  'Character Name',
+  'Account Handle',
+  'Level',
+  'Class',
+  'Guild Rank',
+  'Contribution Total',
+  'Join Date',
+  'Rank Change Date',
+  'Last Active Date',
+  'Status',
+  'Public Comment',
+  'Public Comment Last Edit Date',
+].join(',');
 
 const OFFICER_HEADER =
   NORMAL_HEADER +

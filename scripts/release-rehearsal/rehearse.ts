@@ -702,7 +702,7 @@ async function preserved(r: Rehearsal): Promise<void> {
     });
 
     await r.db.inRolledBackTransaction(async runner => {
-      let refused: string | null = 'none';
+      let refused: string | null;
 
       try {
         await runner.query(
