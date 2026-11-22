@@ -16,7 +16,7 @@ on:
 permissions: {}
 
 env:
-  NODE_VERSION: 24.22.1
+  NODE_VERSION: 24.22.3
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -45,7 +45,7 @@ jobs:
 
   dependabot_note:
     needs: check_changes
-    if: github.actor == 'dependabot[bot]'
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -105,7 +105,7 @@ jobs:
     # Skip version bump PRs
     # ONLY RUN if src_changed is true OR if it's a push (to keep badges updated)
     if: |
-      github.actor != 'dependabot[bot]' &&
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
       (needs.check_changes.outputs.src_changed == 'true' || github.event_name == 'push') &&
       (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     runs-on: ubuntu-latest
@@ -176,8 +176,8 @@ jobs:
 
       - name: SonarQube Cloud Scan
         # Skip for Dependabot PRs (no code changes, avoids errors)
-        if: github.actor != 'dependabot[bot]'
-        uses: SonarSource/sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65 # v8.4.1
+        if: github.event.pull_request.user.login != 'dependabot[bot]'
+        uses: SonarSource/sonarqube-scan-action@59202af334b4ba7b5db01b701b8e79f8b3bef0f4 # v8.5.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
