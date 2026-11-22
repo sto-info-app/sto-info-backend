@@ -3,11 +3,10 @@ import { spawnSync } from 'node:child_process';
 /**
  * Optional upper bound on how many mutatable source files a run will accept.
  *
- * Off by default: the workflow's 240 minute budget is sized to let even a
- * wide-touching PR finish, so a PR is gated on a real result rather than on a
- * skipped job. Set MUTATION_MAX_FILES to a positive integer to make the run
- * bail out above that many files and defer to the scheduled full run instead,
- * should a diff ever turn out to be too wide even for that budget.
+ * Off by default here; the workflow sets it. The 240 minute budget lets a
+ * wide-touching PR finish, so most PRs are gated on a real result, but a diff
+ * wider than MUTATION_MAX_FILES bails out and defers to the scheduled full run,
+ * because it cannot finish inside that budget.
  *
  * For scale: the repository has ~184 files in the mutate set, and PR #975
  * changed 610 files of which 164 were mutatable, producing ~8,800 mutants.

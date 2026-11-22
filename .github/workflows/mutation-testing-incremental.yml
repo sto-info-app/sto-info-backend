@@ -53,7 +53,9 @@ jobs:
     # ~8,800 mutants that were tracking at roughly 3h45m. That run was
     # cancelled by a 90 minute budget. The budget here is deliberately large
     # enough to let such a PR finish rather than be gated on nothing, and is
-    # still a backstop against a genuinely hung run.
+    # still a backstop against a genuinely hung run. A diff wider than
+    # MUTATION_MAX_FILES (set on the run step, just under PR #975's 164) goes
+    # to the full run instead: the Fleet PR's 365 files would not finish here.
     timeout-minutes: 240
     permissions:
       contents: read
@@ -101,7 +103,7 @@ jobs:
 
           # Compute and run incremental mutation testing (exits 0 when nothing
           # to mutate, and when the diff is too wide to be incremental)
-          BASE_REF="origin/$PR_BASE_REF" npm run test:mutation:incremental
+          BASE_REF="origin/$PR_BASE_REF" MUTATION_MAX_FILES=150 npm run test:mutation:incremental
 
       - name: Upload Mutation Report
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
