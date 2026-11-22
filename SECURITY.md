@@ -130,7 +130,7 @@ Both fast-check and ZAP are updated regularly via Dependabot to ensure the lates
 
 ## Known Dependency Advisory Follow-up
 
-The production audit gate (`npm audit --audit-level=high --omit=dev`) passes, and `npm audit --omit=dev` reports **zero advisories at any severity** (last verified 2026-11-13). The full audit (`npm audit`) reports one development-only advisory with no patched release: `deepmerge` [GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4) (low, prototype poisoning in `mergeObject()`, every version from `4.2.0` to `4.3.1`), reached through `jest` → `jest-config`. The production path through `@sendgrid/mail` went when SendGrid was removed.
+Both the production audit gate (`npm audit --audit-level=high --omit=dev`) and the full audit (`npm audit`) report **zero advisories at any severity** (last verified 2026-11-22). The `deepmerge` advisory [GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4), which Jest still brings in through `jest-config`, was withdrawn on 2026-11-16; `deepmerge@4.3.1` is unchanged.
 
 The current overrides remediate these upstream dependency advisories:
 
@@ -138,7 +138,7 @@ The current overrides remediate these upstream dependency advisories:
 - `minimatch` [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249) — ESLint, `typescript-eslint`, `test-exclude` and Stryker ask for `minimatch@^10` (development tree). An override scoped to the vulnerable range (`7.0.0` to `11.0.0`) lifts those copies to `^11.0.8`. Added 2026-11-13.
 - `qs` [GHSA-q8mj-m7cp-5q26](https://github.com/advisories/GHSA-q8mj-m7cp-5q26), [GHSA-x5fp-wj9c-mxmx](https://github.com/advisories/GHSA-x5fp-wj9c-mxmx), [GHSA-4mjr-xmp4-gh2g](https://github.com/advisories/GHSA-4mjr-xmp4-gh2g), [GHSA-6pq8-jhm2-2vcw](https://github.com/advisories/GHSA-6pq8-jhm2-2vcw) — `typed-rest-client@2.3.1` (via `@stryker-mutator/core`) exact-pins `qs@6.15.1`; an override scoped to `typed-rest-client` (`^6.17.1` since 2026-11-13) keeps it on a release patched against all four.
 
-As of **2026-11-13**, these are the only three overrides this repository needs. The nested `multer` entry under `@nestjs/platform-express` went on 2026-11-13, when `@nestjs/platform-express@12.5.0` began pinning the patched `multer@2.5.0` itself. The `argparse` entry went on 2026-10-27; the `sprintf-js` advisory behind it (GHSA-hp3w-g68c-fv3c) was withdrawn on 2026-10-22. See `docs/security.md` for the evidence and for the removal criteria on the remaining entries.
+As of **2026-11-22**, these are the only three overrides this repository needs. The nested `multer` entry under `@nestjs/platform-express` went on 2026-11-13, when `@nestjs/platform-express@12.5.0` began pinning the patched `multer@2.5.0` itself. The `argparse` entry went on 2026-10-27; the `sprintf-js` advisory behind it (GHSA-hp3w-g68c-fv3c) was withdrawn on 2026-10-22. See `docs/security.md` for the evidence and for the removal criteria on the remaining entries.
 
 The backend has been on **NestJS 12** since 2026-09-11. TypeScript stays on `^6.0.3`: `@nestjs/cli` cannot drive `typescript@7.0` (it needs the programmatic compiler API, which TypeScript 7.0 does not ship), `ts-jest` still declares `typescript <7`, and `typescript-eslint` declares `<6.1.0`. Dependabot ignores TypeScript majors until that changes, and the code already type-checks under TypeScript 7. See `docs/security.md`.
 
@@ -156,6 +156,10 @@ To confirm a running service no longer trusts the affected chains, both of these
 node -e "fetch('https://dv-g3b-emudhra.we-have-a-problem.com/').then(() => console.log('TRUSTED'), e => console.log('rejected:', e.cause?.code))"
 node -e "fetch('https://dv-g3b-aaa-emudhra.we-have-a-problem.com/').then(() => console.log('TRUSTED'), e => console.log('rejected:', e.cause?.code))"
 ```
+
+### Node.js 24.22.3 (2026-11-22)
+
+Node.js 24.22.3, released on 2026-11-10, is a security release fixing nine high-severity TLS and HTTP/2 flaws, among them a remotely reachable TLS server crash (CVE-2026-126051) and TLS resumption or renegotiation changing the SNI (CVE-2026-123872). The backend serves HTTPS and makes outbound TLS calls (AWS, Cloudflare), so it moved to **Node.js `24.22.3`** in `.nvmrc`, the engine range (`>=24.22.3 <25`) and every workflow. Render picks the version up from `.nvmrc` on the next deploy.
 
 ### Non-breaking remediation strategy
 
