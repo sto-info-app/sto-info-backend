@@ -151,6 +151,18 @@ The structural limits are fixed rather than configurable. They decide how large 
 
 > `CUSTOM_TRACKING_ENABLED` is **not** an environment variable. It is a runtime switch in the `app_setting` table, seeded off by the feature's first migration, so the feature can be taken offline without a redeployment — which matters here because it stores content users write themselves. It is thrown from the Admin page's Features panel, with a reason, as are `STORYTIME_ENABLED` and `FLEET_COMMUNITIES_ENABLED`.
 
+## Optional (Fleet Community)
+
+All default to enabled, so once Fleet Community itself is switched on its parts work unless an environment deliberately disables one. Set to `false` to disable; any other value that is not `true` stops the API at startup.
+
+- `FLEET_REGISTRATION_ENABLED`: Whether a user may register a Community, Fleet or Armada
+- `FLEET_IMPORTS_ENABLED`: Whether roster CSV imports may be submitted
+- `FLEET_CHAT_ENABLED`: Whether scoped chat channels and direct messages are served
+- `CHAT_RETENTION_DAYS`: How long chat messages are kept (integer, at least the seven-day transcript window). A value above the published privacy-policy figure logs a warning at startup
+- `IMPORT_SOURCE_RETENTION_DAYS`: How long uploaded roster sources are kept (integer, at least `1`). A value above the published figure logs a warning at startup
+
+> `FLEET_COMMUNITIES_ENABLED` is **not** an environment variable. It is the runtime switch in the `app_setting` table, thrown from the Admin page's Features panel.
+
 ## Optional
 
 - `TRUST_PROXY_HOPS`: Express trust proxy hops (default is `1` when not provided). It no longer

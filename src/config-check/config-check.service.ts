@@ -286,6 +286,15 @@ class EnvironmentVariables {
   })
   REDIS_URL: string;
 
+  // The BullMQ key prefix. Optional because QueueModule falls back to
+  // `bull:sto-info:`, but refused when blank: `??` keeps an empty string, and
+  // a backend whose prefix differs from the file scan worker's is talking to
+  // queues nobody consumes.
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  QUEUE_PREFIX?: string;
+
   //NOTE: Storytime capability flags. Optional because each defaults to enabled,
   //NOTE: but validated when present so a typo fails at startup rather than
   //NOTE: silently leaving a capability in the state nobody intended.
@@ -326,6 +335,21 @@ class EnvironmentVariables {
   @IsOptional()
   @IsNumber()
   STORYTIME_UPLOAD_MAX_BYTES?: number;
+
+  //NOTE: Fleet capability flags (FLEET_FEATURE_FLAGS). Optional and validated
+  //NOTE: when present for the same reason as Storytime's. FLEET_COMMUNITIES_ENABLED
+  //NOTE: is deliberately absent - it is a runtime switch in app_setting.
+  @IsOptional()
+  @IsBooleanString()
+  FLEET_REGISTRATION_ENABLED?: string;
+
+  @IsOptional()
+  @IsBooleanString()
+  FLEET_IMPORTS_ENABLED?: string;
+
+  @IsOptional()
+  @IsBooleanString()
+  FLEET_CHAT_ENABLED?: string;
 
   // The only two Fleet policy figures that read from the environment. R22 calls
   // chat retention "environment configurable" and R27 says import-source

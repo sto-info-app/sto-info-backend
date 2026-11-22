@@ -256,6 +256,23 @@ describe('ConfigCheckService', () => {
       );
     });
 
+    it('should accept a QUEUE_PREFIX', () => {
+      const result = service.validateInput({
+        ...validConfig,
+        QUEUE_PREFIX: 'bull:sto-info:',
+      });
+
+      expect(result.QUEUE_PREFIX).toBe('bull:sto-info:');
+    });
+
+    // QueueModule keeps an empty string rather than falling back to the
+    // default, which would put the backend's jobs where the worker never looks.
+    it('should throw error for a blank QUEUE_PREFIX', () => {
+      expect(() =>
+        service.validateInput({ ...validConfig, QUEUE_PREFIX: '' }),
+      ).toThrow('Validation error');
+    });
+
     it('should throw error for missing CLOSED_ACCOUNT_RETENTION_DAYS', () => {
       const invalidConfig = { ...validConfig };
       delete (invalidConfig as any).CLOSED_ACCOUNT_RETENTION_DAYS;
@@ -490,6 +507,29 @@ describe('ConfigCheckService', () => {
           CHAT_TRANSCRIPT_HISTORY_DAYS,
           FLEET_CUSTOM_CHANNEL_LIMIT,
         }).toEqual(before);
+      });
+
+      it('should accept the Fleet capability flags', () => {
+        expect(() =>
+          service.validateInput({
+            ...validConfig,
+            FLEET_REGISTRATION_ENABLED: 'true',
+            FLEET_IMPORTS_ENABLED: 'false',
+            FLEET_CHAT_ENABLED: 'true',
+          }),
+        ).not.toThrow();
+      });
+
+      // A typo would otherwise leave a capability on that an environment meant
+      // to stage off, because the flags read anything but "false" as enabled.
+      it.each([
+        'FLEET_REGISTRATION_ENABLED',
+        'FLEET_IMPORTS_ENABLED',
+        'FLEET_CHAT_ENABLED',
+      ])('should reject a %s that is not a boolean', key => {
+        expect(() =>
+          service.validateInput({ ...validConfig, [key]: 'off' }),
+        ).toThrow('Validation error');
       });
 
       // The master switch is a runtime setting in app_setting, not an
