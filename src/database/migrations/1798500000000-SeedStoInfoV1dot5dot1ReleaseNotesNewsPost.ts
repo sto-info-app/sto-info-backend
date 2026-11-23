@@ -100,6 +100,7 @@ Contact us offers a Fleet Communities topic for anything about the Fleet section
 - STO Resources lists the STO Keybind Tool under Build Tools & DPS Resources.
 - Chat, its log and every message's actions can be used from the keyboard, and the site honours reduced motion throughout.
 - Storytime closes a removed item's open reports, and deleting a Story deletes its Chapters, cast and pictures with it.
+- Storytime now describes itself as a home for Star Trek and Star Trek Online fan fiction, written and shared by the Star Trek Online community.
 - Custom Tracking takes a deleted account's or Character's answers with it.
 - The site keeps serving, rate limiting and accepting uploads while its background services are briefly unavailable, and is served only through Cloudflare.
 - Underlying code has been reorganised to clear every outstanding static-analysis finding, and dependencies are at their latest supported maintenance releases.
