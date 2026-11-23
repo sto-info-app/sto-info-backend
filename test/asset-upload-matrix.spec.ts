@@ -41,6 +41,8 @@ import {
 import { SCOPE_NEWS_COVER_SPEC } from 'src/fleet/news/constants/scope-news.constants';
 import { ScopeNewsCoverPublisher } from 'src/fleet/news/services/scope-news-cover.publisher';
 import { NewsPostEntity } from 'src/news/entities/news-post.entity';
+import { NEWS_COVER_SPEC } from 'src/news/news-cover.constants';
+import { NewsCoverPublisher } from 'src/news/news-cover.publisher';
 import { ImageReencodeService } from 'src/shared/images/image-reencode.service';
 import {
   ImageSlotService,
@@ -65,7 +67,7 @@ import { UserProfileImagePublisher } from 'src/user/images/user-profile-image.pu
  * picture.
  *
  * The integration matrix FC-012's validation line asks for. Each of the
- * seventeen callers is driven through the one path they now share — check, register,
+ * eighteen callers is driven through the one path they now share — check, register,
  * quarantine, scan, publish, withdraw what was there — against in-memory
  * repositories and a scanner faked at the queue boundary, which is the only
  * boundary a fake belongs at: everything on this side of it is the real
@@ -149,6 +151,16 @@ class InMemoryRepository<T extends Row> {
     const [first] = this.matching(options.where);
 
     return Promise.resolve(first ?? null);
+  }
+
+  /**
+   * Finds the first row matching the criteria, given without `where`.
+   *
+   * @param where - The criteria.
+   * @returns The row, or null.
+   */
+  async findOneBy(where: unknown): Promise<T | null> {
+    return this.findOne({ where });
   }
 
   /**
@@ -476,6 +488,10 @@ describe('every upload caller, end to end', () => {
         registry,
       ),
       new ScopeNewsCoverPublisher(
+        owners.newsPost as unknown as Repository<NewsPostEntity>,
+        registry,
+      ),
+      new NewsCoverPublisher(
         owners.newsPost as unknown as Repository<NewsPostEntity>,
         registry,
       ),
@@ -836,6 +852,26 @@ describe('every upload caller, end to end', () => {
       description: () => readOwner('newsPost', 'coverImageAlt'),
     },
     {
+      // sc-1447: the site's own posts, through NewsService.setCover, under a
+      // subject of their own.
+      name: 'a site news cover',
+      kind: FileAssetKind.NEWS_IMAGE,
+      subject: FileAssetSubject.SITE_NEWS_POST,
+      slot: FileAssetSlot.COVER,
+      spec: NEWS_COVER_SPEC,
+      entityTag: NEWS_COVER_SPEC.entityTag,
+      feature: { altText: 'The new shipyard at dawn' },
+      seed: () =>
+        seedOwner('newsPost', {
+          id: recordId,
+          communityId: null,
+          coverImageId: 'old-picture',
+          coverImageAlt: 'The old one',
+        }),
+      reference: () => readOwner('newsPost', 'coverImageId'),
+      description: () => readOwner('newsPost', 'coverImageAlt'),
+    },
+    {
       name: 'a Custom Tracking picture',
       kind: FileAssetKind.CUSTOM_TRACKING_IMAGE,
       subject: FileAssetSubject.CUSTOM_TRACKING_VALUE,
@@ -1157,6 +1193,7 @@ describe('the matrix covers every publisher', () => {
     StoFleetImagePublisher,
     StoArmadaImagePublisher,
     ScopeNewsCoverPublisher,
+    NewsCoverPublisher,
     CustomTrackingImagePublisher,
   ].map(publisher => publisher.name);
 
