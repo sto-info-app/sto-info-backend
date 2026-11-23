@@ -31,6 +31,7 @@ export const RESCANNABLE_KINDS = [
   FileAssetKind.STORYTIME_IMAGE,
   FileAssetKind.CUSTOM_TRACKING_IMAGE,
   FileAssetKind.FLEET_IMAGE,
+  FileAssetKind.NEWS_IMAGE,
 ] as const;
 
 /** Which pictures a campaign rescans. Every field narrows it. */

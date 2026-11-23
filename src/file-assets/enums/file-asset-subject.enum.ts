@@ -66,7 +66,13 @@ export enum FileAssetSubject {
   ROSTER_IMPORT = 'ROSTER_IMPORT',
   /**
    * A Community's, a Fleet's or an Armada's news post, for its cover image
-   * (FC-027). The site's own posts carry no picture.
+   * (FC-027). The site's own posts are {@link SITE_NEWS_POST}.
    */
   NEWS_POST = 'NEWS_POST',
+  /**
+   * One of the site's own news posts, for its cover image (sc-1447). A
+   * subject of its own, so the scoped posts' publisher never has to tell the
+   * two apart.
+   */
+  SITE_NEWS_POST = 'SITE_NEWS_POST',
 }

@@ -175,7 +175,10 @@ export const IMAGE_REFERENCE_COLUMNS: readonly ImageReferenceColumn[] = [
     kind: FileAssetKind.FLEET_IMAGE,
     subject: FileAssetSubject.NEWS_POST,
     slot: FileAssetSlot.COVER,
-    subjectIdSql: 'row."id"::text',
+    // The site's own posts place their covers as SITE_NEWS_POST (sc-1447),
+    // and never had a picture from before the registry to place here.
+    subjectIdSql:
+      'CASE WHEN row."communityId" IS NOT NULL THEN row."id"::text END',
     ownerSql: 'row."authorId"',
   },
 ];

@@ -34,4 +34,6 @@ export enum FileAssetKind {
 
   /** An image belonging to a Community, Fleet or Armada. */
   FLEET_IMAGE = 'FLEET_IMAGE',
+  /** A cover on one of the site's own news posts (sc-1447). */
+  NEWS_IMAGE = 'NEWS_IMAGE',
 }

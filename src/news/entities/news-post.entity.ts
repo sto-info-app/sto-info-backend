@@ -22,9 +22,10 @@ import { NewsStatus } from '../enums/news-status.enum';
  *
  * The site's posts name no scope, have a category and no audience, and are
  * public once published. A scoped post names its Community and, for a Fleet or
- * an Armada, that too; it has an audience and no category, and may carry a
- * cover image. `CHK_news_post_scope` holds both shapes, and every query for
- * the site's news asks for `communityId IS NULL` explicitly.
+ * an Armada, that too; it has an audience and no category. Either may carry a
+ * cover image (sc-1447 for the site's). `CHK_news_post_scope` holds both
+ * shapes, and every query for the site's news asks for `communityId IS NULL`
+ * explicitly.
  */
 @AuditIdentifiersOnly()
 @Entity({ name: 'news_post' })
@@ -131,7 +132,7 @@ export class NewsPostEntity {
   audience: FleetAudience | null;
 
   @ApiProperty({
-    description: 'Delivery reference of a scoped post’s cover image.',
+    description: 'Delivery reference of the post’s cover image.',
     nullable: true,
   })
   @Column({ type: 'varchar', length: 255, nullable: true, default: null })
