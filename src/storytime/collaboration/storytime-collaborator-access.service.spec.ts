@@ -151,6 +151,25 @@ describe('StorytimeCollaboratorAccessService', () => {
       await expect(service.findAccepted(storyId, userId)).resolves.toBeNull();
     });
 
+    // The Stories a collaborator may copy a Character from (sc-1483).
+    it('names only the Stories whose collaboration grants the capability', async () => {
+      collaboratorRepository.find.mockResolvedValue([
+        buildCollaborator({ storyId: 'story-1', canManageCharacters: true }),
+        buildCollaborator({ storyId: 'story-2', canManageChapters: true }),
+        buildCollaborator({ storyId: 'story-3', canManageCharacters: true }),
+      ]);
+
+      await expect(
+        service.findStoryIdsGranting(userId, StoryCapability.MANAGE_CHARACTERS),
+      ).resolves.toEqual(['story-1', 'story-3']);
+      expect(collaboratorRepository.find).toHaveBeenCalledWith({
+        where: {
+          userId,
+          invitationStatus: CollaborationInvitationStatus.ACCEPTED,
+        },
+      });
+    });
+
     it('lists the Stories somebody has accepted', async () => {
       await service.findAcceptedForUser(userId);
 

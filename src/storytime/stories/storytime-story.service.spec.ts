@@ -69,6 +69,7 @@ describe('StorytimeStoryService', () => {
   let collaboratorAccessService: {
     hasCapability: jest.Mock;
     findAccepted: jest.Mock;
+    findStoryIdsGranting: jest.Mock;
   };
   let queryBuilder: QueryBuilderStub;
   let imageService: {
@@ -178,6 +179,7 @@ describe('StorytimeStoryService', () => {
     collaboratorAccessService = {
       hasCapability: jest.fn().mockResolvedValue(false),
       findAccepted: jest.fn().mockResolvedValue(null),
+      findStoryIdsGranting: jest.fn().mockResolvedValue([]),
     };
     feedService = { recordQuietly: jest.fn().mockResolvedValue(undefined) };
 
@@ -1374,6 +1376,56 @@ describe('StorytimeStoryService', () => {
       await expect(
         service.reorder([storyId, storyId], ownerId),
       ).rejects.toThrow(/duplicates/);
+    });
+  });
+
+  // The Stories a Character can be copied from (sc-1483).
+  describe('findWithCapabilityForUser', () => {
+    const sharedId = 'e6d3a1b2-0000-4000-8000-0000000000bb';
+
+    it('lists only the owned Stories when no collaboration grants the capability', async () => {
+      const owned = [buildStory()];
+      storyRepository.find.mockResolvedValueOnce(owned);
+
+      await expect(
+        service.findWithCapabilityForUser(
+          ownerId,
+          StoryCapability.MANAGE_CHARACTERS,
+        ),
+      ).resolves.toEqual(owned);
+
+      expect(
+        collaboratorAccessService.findStoryIdsGranting,
+      ).toHaveBeenCalledWith(ownerId, StoryCapability.MANAGE_CHARACTERS);
+      expect(storyRepository.find).toHaveBeenCalledTimes(1);
+      expect(storyRepository.find).toHaveBeenCalledWith({
+        where: { ownerUserId: ownerId },
+        order: { ownerOrderIndex: 'ASC' },
+      });
+    });
+
+    it('adds the shared Stories after the owned ones, by title, without repeating an owned one', async () => {
+      const owned = buildStory();
+      const shared = buildStory({ id: sharedId, ownerUserId: otherUserId });
+      storyRepository.find
+        .mockResolvedValueOnce([owned])
+        .mockResolvedValueOnce([shared]);
+      collaboratorAccessService.findStoryIdsGranting.mockResolvedValue([
+        storyId,
+        sharedId,
+      ]);
+
+      await expect(
+        service.findWithCapabilityForUser(
+          ownerId,
+          StoryCapability.MANAGE_CHARACTERS,
+        ),
+      ).resolves.toEqual([owned, shared]);
+
+      expect(storyRepository.find).toHaveBeenLastCalledWith({
+        where: { id: In([sharedId]) },
+        order: { title: 'ASC' },
+      });
     });
   });
 

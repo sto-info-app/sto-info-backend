@@ -6,6 +6,7 @@ import { RosterErasureEntity } from 'src/fleet/erasure/roster-erasure.entity';
 import { FleetInvestigationGrantEntity } from 'src/fleet/governance/entities/fleet-investigation-grant.entity';
 import { ScopeGovernanceActionEntity } from 'src/fleet/governance/entities/scope-governance-action.entity';
 import { RetentionRunEntity } from 'src/fleet/retention/retention-run.entity';
+import { StorytimeCharacterCopyEntity } from 'src/storytime/characters/entities/storytime-character-copy.entity';
 import { UserProfileEntity } from 'src/user/entities/user-profile.entity';
 
 import { SiteAdminActionEntity } from '../site-admin/site-admin-action.entity';
@@ -23,6 +24,7 @@ const TABLES = new Map<unknown, string>([
   [FleetInvestigationGrantEntity, 'sto_info_app.fleet_investigation_grant'],
   [RosterErasureEntity, 'sto_info_app.roster_erasure'],
   [RetentionRunEntity, 'sto_info_app.retention_run'],
+  [StorytimeCharacterCopyEntity, 'sto_info_app.storytime_character_copy'],
 ]);
 
 describe('SecurityLogService (FC-039)', () => {
@@ -81,6 +83,24 @@ describe('SecurityLogService (FC-039)', () => {
     expect(find).not.toHaveBeenCalled();
   });
 
+  // A creator's copy names the copy as its subject and the Characters and
+  // Stories by identifier alone: no names, which are content (sc-1483).
+  it('reads a Character copy as its subject, with the original and both Stories', async () => {
+    await service.list(SecurityLogSource.STORYTIME);
+
+    const [[count]] = query.mock.calls;
+
+    expect(count).toContain(`'CHARACTER_COPIED' AS "action"`);
+    expect(count).toContain('"actorUserId" AS "actorUserId"');
+    expect(count).toContain('NULL::uuid AS "targetUserId"');
+    expect(count).toContain(`'STORYTIME_CHARACTER' AS "subjectKind"`);
+    expect(count).toContain('"copyCharacterId"::text AS "subjectId"');
+    expect(count).toContain('NULL::text AS "reason"');
+    expect(count).toContain(
+      `jsonb_build_object('sourceCharacterId', "sourceCharacterId", 'sourceStoryId', "sourceStoryId", 'targetStoryId', "targetStoryId") AS "detail"`,
+    );
+  });
+
   it('reads a site admin’s Fleet actions only, not an Owner’s', async () => {
     await service.list(SecurityLogSource.FLEET);
 
@@ -97,6 +117,7 @@ describe('SecurityLogService (FC-039)', () => {
     [SecurityLogSource.INVESTIGATION, 'fleet_investigation_grant'],
     [SecurityLogSource.ERASURE, 'roster_erasure'],
     [SecurityLogSource.RETENTION, 'retention_run'],
+    [SecurityLogSource.STORYTIME, 'storytime_character_copy'],
   ])('reads %s from %s alone', async (source, name) => {
     await service.list(source);
 

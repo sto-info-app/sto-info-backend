@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 
 import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
+import { StorytimeCharacterCopyEntity } from 'src/storytime/characters/entities/storytime-character-copy.entity';
 import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
 
 import { AUDIT_REDACTED, RedactFromAudit } from '../audit-redaction';
@@ -161,6 +162,22 @@ describe('AuditSubscriber', () => {
         metadata: {
           target: AuditLoginAttemptEntity,
           name: 'AuditLoginAttemptEntity',
+        } as any,
+        manager: mockManager as EntityManager,
+      };
+
+      await subscriber.afterInsert(event as InsertEvent<any>);
+
+      expect(mockRepository.save).not.toHaveBeenCalled();
+    });
+
+    // An audit record in its own right: the Security Log's Storytime source.
+    it('should not audit StorytimeCharacterCopyEntity', async () => {
+      const event: Partial<InsertEvent<any>> = {
+        entity: { id: '1' },
+        metadata: {
+          target: StorytimeCharacterCopyEntity,
+          name: 'StorytimeCharacterCopyEntity',
         } as any,
         manager: mockManager as EntityManager,
       };

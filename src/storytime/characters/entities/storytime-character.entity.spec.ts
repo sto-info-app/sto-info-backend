@@ -52,6 +52,16 @@ describe('StorytimeCharacterEntity', () => {
       expect(character.portraitImageThumbnailUrl).toContain('portrait133x200');
     });
 
+    // A copied Character's creator downloads the portrait as it was uploaded,
+    // not a resized variant, to upload it again (sc-1483).
+    it('builds the portrait URL as it was uploaded', () => {
+      const character = createCharacter('portrait-image-id');
+
+      expect(character.portraitImageOriginalUrl).toBe(
+        'https://cdn.example.test/cdn-cgi/imagedelivery/test-hash/portrait-image-id/public',
+      );
+    });
+
     // Storytime artwork is optional throughout. A missing portrait must
     // produce nothing at all, so the layout can collapse rather than render an
     // empty frame.
@@ -60,6 +70,7 @@ describe('StorytimeCharacterEntity', () => {
 
       expect(character.portraitImageUrl).toBeNull();
       expect(character.portraitImageThumbnailUrl).toBeNull();
+      expect(character.portraitImageOriginalUrl).toBeNull();
     });
   });
 });

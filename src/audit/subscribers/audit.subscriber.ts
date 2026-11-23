@@ -16,6 +16,7 @@ import { RosterEpisodeEntity } from 'src/fleet/projection/entities/roster-episod
 import { RosterIntervalSummaryEntity } from 'src/fleet/projection/entities/roster-interval-summary.entity';
 import { RosterProjectionInputEntity } from 'src/fleet/projection/entities/roster-projection-input.entity';
 import { CurrentContextHelper } from 'src/shared/context/current-context.helper';
+import { StorytimeCharacterCopyEntity } from 'src/storytime/characters/entities/storytime-character-copy.entity';
 import { UserRefreshTokenEntity } from 'src/user-refresh-token/entities/user-refresh-token.entity';
 
 import { redactForAudit } from '../audit-redaction';
@@ -106,6 +107,8 @@ export class AuditSubscriber implements EntitySubscriberInterface {
       UserRefreshTokenEntity,
       // An audit record itself (FC-039).
       SiteAdminActionEntity,
+      // Another, the Security Log's Storytime source (sc-1483).
+      StorytimeCharacterCopyEntity,
       ...DERIVED_ROSTER_ENTITIES,
     ];
     if (

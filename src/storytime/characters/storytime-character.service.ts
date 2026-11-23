@@ -24,10 +24,29 @@ import { assertImageDescribable } from '../images/storytime-image-alt.utility';
 import { StorytimeImageService } from '../images/storytime-image.service';
 import { StorytimeOrderingService } from '../shared/storytime-ordering.service';
 import { StorytimeSlugService } from '../shared/storytime-slug.service';
+import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
+import { StorytimeTaggingService } from '../tags/storytime-tagging.service';
 import { CreateStorytimeCharacterDto } from './dto/create-storytime-character.dto';
 import { UpdateStorytimeCharacterDto } from './dto/update-storytime-character.dto';
+import { StorytimeCharacterCopyEntity } from './entities/storytime-character-copy.entity';
 import { StorytimeCharacterEntity } from './entities/storytime-character.entity';
+
+/**
+ * One of the caller's other Stories, with the Characters it offers to copy.
+ */
+export interface CopyableCast {
+  readonly story: StorytimeStoryEntity;
+  readonly characters: StorytimeCharacterEntity[];
+}
+
+/**
+ * A Character copied into a Story, and the original it was copied from.
+ */
+export interface CharacterCopy {
+  readonly copy: StorytimeCharacterEntity;
+  readonly original: StorytimeCharacterEntity;
+}
 
 /**
  * Creating, editing and ordering the cast of a Story.
@@ -55,6 +74,7 @@ export class StorytimeCharacterService {
    * @param _markdownService - Renders Character biographies.
    * @param _limitService - Resolves how many Characters a Story may hold.
    * @param _imageService - Checks, stores and releases Character portraits.
+   * @param _taggingService - Reads and sets the tags on a Character.
    */
   constructor(
     @InjectRepository(StorytimeCharacterEntity)
@@ -65,6 +85,7 @@ export class StorytimeCharacterService {
     private readonly _markdownService: StorytimeMarkdownService,
     private readonly _limitService: LimitService,
     private readonly _imageService: StorytimeImageService,
+    private readonly _taggingService: StorytimeTaggingService,
   ) {}
 
   /**
@@ -117,6 +138,134 @@ export class StorytimeCharacterService {
     );
 
     return saved;
+  }
+
+  /**
+   * Lists the Characters the caller could copy into a Story (sc-1483).
+   *
+   * They come from the caller's other Stories whose cast they may manage:
+   * the ones they own and the ones an accepted collaboration lets them. A
+   * Story or Character an administrator has removed offers nothing, and a
+   * Story with nothing to offer is left out.
+   *
+   * @param targetStoryId - The Story the copy would join.
+   * @param actingUserId - The caller.
+   * @returns Each Story with its Characters, in display order.
+   * @throws ForbiddenException when the caller may not manage this cast.
+   */
+  async findCopyable(
+    targetStoryId: string,
+    actingUserId: string,
+  ): Promise<CopyableCast[]> {
+    await this._storyService.findEditableOrFail(
+      targetStoryId,
+      actingUserId,
+      StoryCapability.MANAGE_CHARACTERS,
+    );
+
+    const stories = (
+      await this._storyService.findWithCapabilityForUser(
+        actingUserId,
+        StoryCapability.MANAGE_CHARACTERS,
+      )
+    ).filter(
+      story =>
+        story.id !== targetStoryId &&
+        story.moderationStatus !== StorytimeModerationStatus.REMOVED,
+    );
+
+    if (stories.length === 0) {
+      return [];
+    }
+
+    const characters = await this._characterRepository.find({
+      where: {
+        storyId: In(stories.map(story => story.id)),
+        moderationStatus: StorytimeModerationStatus.ACTIVE,
+      },
+      order: { displayOrder: 'ASC', name: 'ASC' },
+    });
+
+    return stories
+      .map(story => ({
+        story,
+        characters: characters.filter(
+          character => character.storyId === story.id,
+        ),
+      }))
+      .filter(cast => cast.characters.length > 0);
+  }
+
+  /**
+   * Copies a Character from another Story into this one (sc-1483).
+   *
+   * The copy is a Character in its own right: it takes every descriptive
+   * field and the tags, a slug of its own within this Story, and the end of
+   * the cast list. It takes no Chapter appearances, crew credits or portrait,
+   * so editing or deleting either one never touches the other. The original's
+   * portrait is offered for downloading instead, to come back through the
+   * usual upload and scan. The copy and its Security Log record are saved
+   * together.
+   *
+   * @param targetStoryId - The Story to copy into.
+   * @param sourceCharacterId - The Character to copy.
+   * @param actingUserId - The caller.
+   * @returns The copy, and the original it came from.
+   * @throws ForbiddenException when the caller may not manage either cast.
+   * @throws NotFoundException when the original does not exist.
+   * @throws BadRequestException when it is already in this Story, or it or
+   * its Story has been removed by an administrator.
+   */
+  async copyFrom(
+    targetStoryId: string,
+    sourceCharacterId: string,
+    actingUserId: string,
+  ): Promise<CharacterCopy> {
+    await this._storyService.findEditableOrFail(
+      targetStoryId,
+      actingUserId,
+      StoryCapability.MANAGE_CHARACTERS,
+    );
+
+    const original = await this._characterRepository.findOne({
+      where: { id: sourceCharacterId },
+    });
+
+    if (!original) {
+      throw new NotFoundException('Character not found');
+    }
+
+    if (original.storyId === targetStoryId) {
+      throw new BadRequestException(
+        'This Character is already in this Story. Copy one from another of your Stories.',
+      );
+    }
+
+    const sourceStory = await this._storyService.findEditableOrFail(
+      original.storyId,
+      actingUserId,
+      StoryCapability.MANAGE_CHARACTERS,
+    );
+
+    if (
+      original.moderationStatus === StorytimeModerationStatus.REMOVED ||
+      sourceStory.moderationStatus === StorytimeModerationStatus.REMOVED
+    ) {
+      throw new BadRequestException(
+        'A Character an administrator has removed cannot be copied.',
+      );
+    }
+
+    await this.assertWithinCharacterLimit(targetStoryId, actingUserId);
+
+    const copy = await this.saveCopy(original, targetStoryId, actingUserId);
+    await this.copyTags(original.id, copy.id);
+
+    this._logger.log(
+      `Character '${original.slug}' copied from Story ${original.storyId} into Story ${targetStoryId} as '${copy.slug}' by ${actingUserId}`,
+    );
+
+    return { copy, original };
   }
 
   /**
@@ -410,6 +559,92 @@ export class StorytimeCharacterService {
     );
 
     return saved;
+  }
+
+  /**
+   * Saves a copy of a Character in another Story, with its Security Log
+   * record, in one transaction.
+   *
+   * @param original - The Character being copied.
+   * @param targetStoryId - The Story it is copied into.
+   * @param actingUserId - The caller.
+   * @returns The saved copy.
+   */
+  private async saveCopy(
+    original: StorytimeCharacterEntity,
+    targetStoryId: string,
+    actingUserId: string,
+  ): Promise<StorytimeCharacterEntity> {
+    const slug = await this._slugService.generateUniqueSlug({
+      desiredSlug: original.slug,
+      title: original.name,
+      targetType: StorytimeTargetType.CHARACTER,
+      storyId: targetStoryId,
+      isTakenByLiveEntity: candidate =>
+        this.isSlugTaken(targetStoryId, candidate),
+    });
+
+    // Rendered afresh, so the copy carries what the renderer makes of the
+    // biography now, not whatever HTML the original was last saved with.
+    const rendered = this._markdownService.render(original.biographySource);
+
+    const character = this._characterRepository.create({
+      storyId: targetStoryId,
+      name: original.name,
+      slug,
+      shortBio: original.shortBio,
+      biographySource: original.biographySource,
+      biographyHtml: rendered.html,
+      biographySchemaVersion: rendered.schemaVersion,
+      species: original.species,
+      faction: original.faction,
+      rank: original.rank,
+      occupation: original.occupation,
+      affiliation: original.affiliation,
+      shipAssignment: original.shipAssignment,
+      traits: original.traits ? [...original.traits] : null,
+      isPrimary: original.isPrimary,
+      displayOrder: await this.nextDisplayOrder(targetStoryId),
+      createdByUserId: actingUserId,
+      updatedByUserId: actingUserId,
+    });
+
+    return this._characterRepository.manager.transaction(async manager => {
+      const saved = await manager.save(character);
+
+      await manager.insert(StorytimeCharacterCopyEntity, {
+        actorUserId: actingUserId,
+        sourceCharacterId: original.id,
+        sourceStoryId: original.storyId,
+        copyCharacterId: saved.id,
+        targetStoryId,
+      });
+
+      return saved;
+    });
+  }
+
+  /**
+   * Gives a copy the tags its original carries.
+   *
+   * @param originalId - The Character copied.
+   * @param copyId - The copy.
+   */
+  private async copyTags(originalId: string, copyId: string): Promise<void> {
+    const tags = await this._taggingService.findFor(
+      StorytimeTargetType.CHARACTER,
+      originalId,
+    );
+
+    if (tags.length === 0) {
+      return;
+    }
+
+    await this._taggingService.setTags(
+      StorytimeTargetType.CHARACTER,
+      copyId,
+      tags.map(tag => tag.id),
+    );
   }
 
   /**
