@@ -12,6 +12,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
 import { LimitService } from '../../access-control/limit.service';
+import { StoryCapability } from '../collaboration/storytime-story-capability.enum';
 import { STORYTIME_DELETION_REASONS } from '../constants/storytime-deletion.constants';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
 import { ChapterStatus } from '../enums/chapter-status.enum';
@@ -764,6 +765,16 @@ describe('StorytimeChapterService', () => {
       expect(neighbours.next).toBeNull();
     });
 
+    // Previous and Next are worked out from the stored order each time, so a
+    // reorder changes them at once rather than leaving stale links behind.
+    it('follows the order the Chapters are stored in', async () => {
+      await service.findNeighbours(middle);
+
+      expect(chapterRepository.find).toHaveBeenCalledWith(
+        expect.objectContaining({ order: { orderIndex: 'ASC' } }),
+      );
+    });
+
     // Navigation is built from readable Chapters only, so a draft between two
     // published ones is stepped over rather than leading to a dead end.
     it('reports nothing for a Chapter that is not readable', async () => {
@@ -867,6 +878,25 @@ describe('StorytimeChapterService', () => {
       await expect(
         service.reorder(storyId, ['a', 'a'], ownerId),
       ).rejects.toThrow(/duplicates/);
+    });
+
+    // Reordering is part of managing Chapters, so a Crew member granted other
+    // capabilities but not that one is turned away before anything moves.
+    it('asks for Manage Chapters, and saves nothing without it', async () => {
+      storyService.findEditableOrFail.mockRejectedValue(
+        new ForbiddenException(),
+      );
+
+      await expect(
+        service.reorder(storyId, ['b', 'a'], ownerId),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(storyService.findEditableOrFail).toHaveBeenCalledWith(
+        storyId,
+        ownerId,
+        StoryCapability.MANAGE_CHAPTERS,
+      );
+      expect(chapterRepository.save).not.toHaveBeenCalled();
     });
   });
 

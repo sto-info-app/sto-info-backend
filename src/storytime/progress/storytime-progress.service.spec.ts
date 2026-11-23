@@ -487,6 +487,29 @@ describe('StorytimeProgressService', () => {
       expect(result.continueChapterId).toBe('chapter-2');
     });
 
+    // Progress is kept per Chapter rather than per position, and the readable
+    // Chapters are read in their stored order each time, so moving an unread
+    // Chapter ahead of a read one changes where Continue Reading points
+    // without the reader losing anything they have finished.
+    it('follows the stored order after the Chapters are reordered', async () => {
+      arrange(
+        [
+          buildChapter('chapter-3', 1000),
+          buildChapter('chapter-1', 2000),
+          buildChapter('chapter-2', 3000),
+        ],
+        ['chapter-1'],
+      );
+
+      const result = await service.getStoryProgress(userId, storyId);
+
+      expect(chapterRepository.find).toHaveBeenCalledWith(
+        expect.objectContaining({ order: { orderIndex: 'ASC' } }),
+      );
+      expect(result.continueChapterId).toBe('chapter-3');
+      expect(result.readChapters).toBe(1);
+    });
+
     it('points at the first Chapter when nothing has been read', async () => {
       arrange([buildChapter('chapter-1', 1000)]);
 
