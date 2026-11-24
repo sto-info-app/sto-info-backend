@@ -5,13 +5,7 @@
   being able to use the facility.
 </p>
 
-<p>
-  <a
-    href="<%= verifyUrl %>"
-    target="_blank"
-    >Please verify your email by clicking on me!</a
-  >
-</p>
+<%- include('pill', { url: verifyUrl, label: 'Verify my email' }) %>
 
 <p>
   If clicking on the link is not working, you can copy and paste the link

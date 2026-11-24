@@ -3,7 +3,7 @@
   <%= labels.join(', ') %> in your email notification settings.
 </p>
 <% for (const link of unsubscribeLinks) { %>
-<p style="margin: 0 0 4px"><a href="<%= link.url %>" target="_blank">Stop emails about <%= link.label %></a></p>
+<%- include('pill', { url: link.url, label: 'Stop emails about ' + link.label, colour: '#ffaa90', size: 'small' }) %>
 <% } %>
-<p style="margin: 0 0 8px"><a href="<%= settingsUrl %>" target="_blank">Manage email notifications</a></p>
-<p style="margin: 0"><em>This is an automated email, and replies will not get received.</em></p>
+<%- include('pill', { url: settingsUrl, label: 'Manage email notifications', colour: '#cc88ff', size: 'small' }) %>
+<p style="margin: 8px 0 0"><em>This is an automated email, and replies will not get received.</em></p>

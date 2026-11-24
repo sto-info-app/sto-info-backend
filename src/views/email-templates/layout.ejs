@@ -1,111 +1,222 @@
 <!doctype html>
-<html lang="en">
+<html
+  lang="en"
+  xmlns="http://www.w3.org/1999/xhtml"
+  xmlns:v="urn:schemas-microsoft-com:vml"
+  xmlns:o="urn:schemas-microsoft-com:office:office">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="dark" />
-    <meta name="supported-color-schemes" content="dark" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <!--
+      "light dark" says the email looks after both itself, so a client in
+      either mode keeps the black frame rather than converting it.
+    -->
+    <meta name="color-scheme" content="light dark" />
+    <meta name="supported-color-schemes" content="light dark" />
     <title><%= subject %></title>
+    <!--[if mso]>
+      <noscript>
+        <xml>
+          <o:OfficeDocumentSettings>
+            <o:PixelsPerInch>96</o:PixelsPerInch>
+          </o:OfficeDocumentSettings>
+        </xml>
+      </noscript>
+      <style>
+        td, p, a, h2, span { font-family: 'Arial Narrow', Arial, sans-serif !important; }
+      </style>
+    <![endif]-->
+    <!--[if !mso]><!-->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&display=swap"
+      rel="stylesheet" />
+    <!--<![endif]-->
     <style>
+      :root { color-scheme: light dark; supported-color-schemes: light dark; }
+      body, .lcars-page, .lcars-cell { background-color: #0d0d0d !important; }
       a { color: #99ccff; }
+      @media (max-width: 620px) {
+        .lcars-frame { width: 100% !important; }
+        .lcars-side { width: 60px !important; }
+        .lcars-arm, .lcars-elbow { width: 90px !important; }
+        .lcars-notch { margin-left: 60px !important; }
+        .lcars-content { padding-right: 4px !important; }
+        .lcars-pill {
+          height: auto !important;
+          line-height: 1.3 !important;
+          padding-top: 8px !important;
+          padding-bottom: 8px !important;
+          white-space: normal !important;
+        }
+      }
+      /*
+        Outlook recolours a message for dark mode, and for its light
+        background view, marking what it changed with data-ogsc (text) and
+        data-ogsb (backgrounds). These put every colour back.
+      */
+      .lcars-frame [data-ogsb] { background-color: transparent !important; }
+      [data-ogsb] .lcars-page, .lcars-page[data-ogsb],
+      [data-ogsb] .lcars-frame, .lcars-frame[data-ogsb] { background-color: #0d0d0d !important; }
+      [data-ogsc] .lcars-text, .lcars-text[data-ogsc] { color: #ffffff !important; }
+      [data-ogsc] .lcars-muted, .lcars-muted[data-ogsc] { color: #cccccc !important; }
+      [data-ogsc] .lcars-heading, .lcars-heading[data-ogsc] { color: #ffcc66 !important; }
+      [data-ogsc] .lcars-title, .lcars-title[data-ogsc],
+      [data-ogsc] .lcars-pill, .lcars-pill[data-ogsc] { color: #000000 !important; }
+      [data-ogsc] .lcars-link, .lcars-link[data-ogsc],
+      [data-ogsc] .lcars-text a, [data-ogsc] .lcars-muted a { color: #99ccff !important; }
     </style>
   </head>
-  <body style="margin: 0; padding: 0; background-color: #000000">
+  <body
+    class="lcars-page"
+    bgcolor="#0d0d0d"
+    style="margin: 0; padding: 0; background-color: #0d0d0d; background-image: linear-gradient(#0d0d0d, #0d0d0d)">
     <table
       role="presentation"
+      class="lcars-page"
       width="100%"
       cellpadding="0"
       cellspacing="0"
       border="0"
-      bgcolor="#000000"
-      style="background-color: #000000">
+      bgcolor="#0d0d0d"
+      style="background-color: #0d0d0d; background-image: linear-gradient(#0d0d0d, #0d0d0d)">
       <tr>
-        <td align="center" style="padding: 16px">
+        <td align="center" class="lcars-page" bgcolor="#0d0d0d" style="padding: 16px 8px; background-color: #0d0d0d; background-image: linear-gradient(#0d0d0d, #0d0d0d)">
           <table
             role="presentation"
+            class="lcars-frame"
             width="600"
             cellpadding="0"
             cellspacing="0"
             border="0"
-            style="width: 100%; max-width: 600px">
+            bgcolor="#0d0d0d"
+            style="width: 600px; max-width: 600px; border-collapse: collapse; background-color: #0d0d0d; background-image: linear-gradient(#0d0d0d, #0d0d0d)">
+            <!--
+              The top elbow: the side bar sweeping into the top bar. One shape
+              in one cell, outer sweep and inner curve together, so no seam
+              shows where two gold cells would meet.
+            -->
             <tr>
-              <td
-                class="lcars-bar"
-                width="96"
-                height="32"
-                bgcolor="#ff9900"
-                style="width: 96px; height: 32px; background-color: #ff9900; border-radius: 32px 0 0 0">
-                &nbsp;
+              <td bgcolor="#0d0d0d"
+                class="lcars-bar lcars-arm lcars-cell"
+                colspan="2"
+                rowspan="2"
+                width="150"
+                height="84"
+               
+                valign="top"
+                style="background-color: #0d0d0d; background-image: linear-gradient(#0d0d0d, #0d0d0d); width: 150px; height: 84px; padding: 0; line-height: 0; font-size: 0">
+                <!--[if mso]>
+                  <v:shape style="width:150px;height:84px;" coordsize="150,84" path="m 0,84 l 0,56 qy 56,0 l 150,0 l 150,56 qx 120,84 x e" fillcolor="#ffaa00" stroked="f"></v:shape>
+                <![endif]-->
+                <!--[if !mso]><!-->
+                <div class="lcars-elbow" style="width: 150px; height: 84px; background-color: #ffaa00; background-image: linear-gradient(#ffaa00, #ffaa00); border-radius: 56px 0 0 0">
+                  <div style="height: 56px"></div>
+                  <div class="lcars-notch" style="width: 30px; height: 28px; margin-left: 120px; background-color: #0d0d0d; background-image: linear-gradient(#0d0d0d, #0d0d0d); border-radius: 30px 0 0 0"></div>
+                </div>
+                <!--<![endif]-->
               </td>
-              <td class="lcars-bar" width="8" style="width: 8px">&nbsp;</td>
-              <td
-                class="lcars-bar"
-                height="32"
-                bgcolor="#cc99cc"
-                style="height: 32px; background-color: #cc99cc; border-radius: 0 16px 16px 0">
-                &nbsp;
+              <td bgcolor="#0d0d0d" class="lcars-bar lcars-cell" width="6" height="56" style="background-color: #0d0d0d; background-image: linear-gradient(#0d0d0d, #0d0d0d); width: 6px; height: 56px; padding: 0; font-size: 0">&nbsp;</td>
+              <td bgcolor="#0d0d0d"
+                class="lcars-cell"
+               
+                valign="top"
+                style="background-color: #0d0d0d; background-image: linear-gradient(#0d0d0d, #0d0d0d); ">
+                <!--[if mso]>
+                  <v:shape style="width:444px;height:56px;v-text-anchor:middle;" coordsize="444,56" path="m 0,0 l 444,0 l 444,28 qy 416,56 l 0,56 x e" fillcolor="#ffcc66" stroked="f">
+                    <v:textbox inset="0,0,24px,0">
+                      <p style="margin:0;text-align:right;color:#000000;font-size:26px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;"><%= appTitle %></p>
+                    </v:textbox>
+                  </v:shape>
+                <![endif]-->
+                <!--[if !mso]><!-->
+                <div
+                  class="lcars-title"
+                  style="height: 56px; line-height: 56px; padding: 0 28px 0 20px; border-radius: 0 0 28px 0; background-color: #ffcc66; background-image: linear-gradient(#ffcc66, #ffcc66); color: #000000; text-align: right; font-family: Antonio, 'Arial Narrow', Arial, sans-serif; font-size: 28px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; white-space: nowrap; overflow: hidden">
+                  <%= appTitle %>
+                </div>
+                <!--<![endif]-->
               </td>
             </tr>
             <tr>
-              <td
-                class="lcars-bar"
-                width="96"
-                bgcolor="#ff9900"
-                style="width: 96px; background-color: #ff9900">
-                &nbsp;
-              </td>
-              <td class="lcars-bar" width="8" style="width: 8px">&nbsp;</td>
-              <td
-                style="padding: 16px 8px 8px 16px; font-family: Antonio, 'Arial Narrow', Arial, sans-serif; font-size: 28px; line-height: 1.2; letter-spacing: 2px; text-transform: uppercase; color: #ff9900">
-                <%= appTitle %>
-              </td>
+              <td bgcolor="#0d0d0d" class="lcars-bar lcars-cell" colspan="2" height="28" style="background-color: #0d0d0d; background-image: linear-gradient(#0d0d0d, #0d0d0d); height: 28px; padding: 0; font-size: 0">&nbsp;</td>
             </tr>
             <tr>
+              <td bgcolor="#0d0d0d" class="lcars-bar lcars-cell" colspan="4" height="6" style="background-color: #0d0d0d; background-image: linear-gradient(#0d0d0d, #0d0d0d); height: 6px; font-size: 0; line-height: 0">&nbsp;</td>
+            </tr>
+            <!-- The content, beside the first of the side bar's segments. -->
+            <tr>
               <td
-                class="lcars-bar"
-                width="96"
-                bgcolor="#9999ff"
-                style="width: 96px; background-color: #9999ff">
+                class="lcars-side lcars-bar"
+                width="120"
+                bgcolor="#7788ff"
+                valign="bottom"
+                style="width: 120px; background-color: #7788ff; background-image: linear-gradient(#7788ff, #7788ff)">
                 &nbsp;
               </td>
-              <td class="lcars-bar" width="8" style="width: 8px">&nbsp;</td>
-              <td
-                style="padding: 8px 8px 16px 16px; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.5; color: #ffffff">
+              <td bgcolor="#0d0d0d" class="lcars-cell lcars-bar" colspan="2" style="background-color: #0d0d0d; background-image: linear-gradient(#0d0d0d, #0d0d0d); ">&nbsp;</td>
+              <td bgcolor="#0d0d0d"
+                class="lcars-cell lcars-text lcars-content"
+               
+                style="background-color: #0d0d0d; background-image: linear-gradient(#0d0d0d, #0d0d0d); padding: 12px 8px 20px 4px; color: #ffffff; font-family: Antonio, 'Arial Narrow', Arial, sans-serif; font-size: 18px; line-height: 1.5">
                 <%- content %>
               </td>
             </tr>
             <% if (footer) { %>
             <tr>
+              <td bgcolor="#0d0d0d" class="lcars-bar lcars-cell" colspan="4" height="6" style="background-color: #0d0d0d; background-image: linear-gradient(#0d0d0d, #0d0d0d); height: 6px; font-size: 0; line-height: 0">&nbsp;</td>
+            </tr>
+            <tr>
               <td
-                class="lcars-bar"
-                width="96"
-                bgcolor="#cc6666"
-                style="width: 96px; background-color: #cc6666">
+                class="lcars-side lcars-bar"
+                width="120"
+                bgcolor="#cc88ff"
+                style="width: 120px; background-color: #cc88ff; background-image: linear-gradient(#cc88ff, #cc88ff)">
                 &nbsp;
               </td>
-              <td class="lcars-bar" width="8" style="width: 8px">&nbsp;</td>
-              <td
-                style="padding: 8px 8px 16px 16px; font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.5; color: #cccccc">
+              <td bgcolor="#0d0d0d" class="lcars-cell lcars-bar" colspan="2" style="background-color: #0d0d0d; background-image: linear-gradient(#0d0d0d, #0d0d0d); ">&nbsp;</td>
+              <td bgcolor="#0d0d0d"
+                class="lcars-cell lcars-muted lcars-content"
+               
+                style="background-color: #0d0d0d; background-image: linear-gradient(#0d0d0d, #0d0d0d); padding: 12px 8px 16px 4px; color: #cccccc; font-family: Antonio, 'Arial Narrow', Arial, sans-serif; font-size: 15px; line-height: 1.5">
                 <%- footer %>
               </td>
             </tr>
             <% } %>
             <tr>
-              <td
-                class="lcars-bar"
-                width="96"
-                height="24"
-                bgcolor="#ff9900"
-                style="width: 96px; height: 24px; background-color: #ff9900; border-radius: 0 0 0 32px">
-                &nbsp;
+              <td bgcolor="#0d0d0d" class="lcars-bar lcars-cell" colspan="4" height="6" style="background-color: #0d0d0d; background-image: linear-gradient(#0d0d0d, #0d0d0d); height: 6px; font-size: 0; line-height: 0">&nbsp;</td>
+            </tr>
+            <!-- The bottom elbow, mirroring the top, again as one shape. -->
+            <tr>
+              <td bgcolor="#0d0d0d"
+                class="lcars-bar lcars-arm lcars-cell"
+                colspan="2"
+                rowspan="2"
+                width="150"
+                height="68"
+               
+                valign="bottom"
+                style="background-color: #0d0d0d; background-image: linear-gradient(#0d0d0d, #0d0d0d); width: 150px; height: 68px; padding: 0; line-height: 0; font-size: 0">
+                <!--[if mso]>
+                  <v:shape style="width:150px;height:68px;" coordsize="150,68" path="m 0,0 l 120,0 qy 150,28 l 150,68 l 40,68 qx 0,28 x e" fillcolor="#ffaa00" stroked="f"></v:shape>
+                <![endif]-->
+                <!--[if !mso]><!-->
+                <div class="lcars-elbow" style="width: 150px; height: 68px; background-color: #ffaa00; background-image: linear-gradient(#ffaa00, #ffaa00); border-radius: 0 0 0 40px">
+                  <div class="lcars-notch" style="width: 30px; height: 28px; margin-left: 120px; background-color: #0d0d0d; background-image: linear-gradient(#0d0d0d, #0d0d0d); border-radius: 0 0 0 30px"></div>
+                </div>
+                <!--<![endif]-->
               </td>
-              <td class="lcars-bar" width="8" style="width: 8px">&nbsp;</td>
-              <td
-                class="lcars-bar"
-                height="24"
-                bgcolor="#cc99cc"
-                style="height: 24px; background-color: #cc99cc; border-radius: 0 12px 12px 0">
-                &nbsp;
+              <td bgcolor="#0d0d0d" class="lcars-bar lcars-cell" colspan="2" height="28" style="background-color: #0d0d0d; background-image: linear-gradient(#0d0d0d, #0d0d0d); height: 28px; padding: 0; font-size: 0">&nbsp;</td>
+            </tr>
+            <tr>
+              <td bgcolor="#0d0d0d" class="lcars-bar lcars-cell" width="6" height="40" style="background-color: #0d0d0d; background-image: linear-gradient(#0d0d0d, #0d0d0d); width: 6px; height: 40px; padding: 0; font-size: 0">&nbsp;</td>
+              <td bgcolor="#0d0d0d" class="lcars-bar lcars-cell" valign="bottom" style="background-color: #0d0d0d; background-image: linear-gradient(#0d0d0d, #0d0d0d); height: 40px; padding: 0; line-height: 0; font-size: 0">
+                <!--[if mso]>
+                  <v:shape style="width:444px;height:40px;" coordsize="444,40" path="m 0,0 l 424,0 qx 444,20 l 444,40 l 0,40 x e" fillcolor="#ffaa90" stroked="f"></v:shape>
+                <![endif]-->
+                <!--[if !mso]><!-->
+                <div style="height: 40px; border-radius: 0 20px 0 0; background-color: #ffaa90; background-image: linear-gradient(#ffaa90, #ffaa90)"></div>
+                <!--<![endif]-->
               </td>
             </tr>
           </table>
