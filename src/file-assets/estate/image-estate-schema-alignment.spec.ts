@@ -10,6 +10,7 @@ import { FC050_ACTIONS } from '../../database/migrations/1797100000000-DecideRes
 import { LEDGER_ACTIONS } from '../../database/migrations/1797200000000-RecordLedgerReconciliation';
 import { OPERATIONS_ACTIONS } from '../../database/migrations/1797500000000-AddOperationsAlerts';
 import { FEATURE_SWITCH_ACTIONS } from '../../database/migrations/1797700000000-RecordFeatureSwitchChanges';
+import { LOG_ENTRY_ACTIONS } from '../../database/migrations/1799100000000-AddCaptainsLog';
 import { FileAssetEntity } from '../entities/file-asset.entity';
 import { ImageEstateRunEntity } from './image-estate-run.entity';
 import { ImageEstateStepEntity } from './image-estate-step.entity';
@@ -150,6 +151,7 @@ describe('Image estate schema alignment (FC-040)', () => {
       ...LEDGER_ACTIONS,
       ...OPERATIONS_ACTIONS,
       ...FEATURE_SWITCH_ACTIONS,
+      ...LOG_ENTRY_ACTIONS,
     ];
     const before = Object.values(SiteAdminActionKind).filter(
       value =>

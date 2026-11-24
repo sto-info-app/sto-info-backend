@@ -11,6 +11,7 @@ import { EntityManager, In, IsNull, Repository } from 'typeorm';
 import { SiteAdminActionKind } from 'src/audit/site-admin/site-admin-action.enum';
 import { recordSiteAdminAction } from 'src/audit/site-admin/site-admin-action.utility';
 
+import { CaptainsLogService } from '../captains-log/captains-log.service';
 import { PublicMemberService } from '../community/public-member.service';
 import { ChatMessageReportEntity } from '../fleet/chat/entities/chat-message-report.entity';
 import { UserEntity } from '../user/entities/user.entity';
@@ -65,11 +66,13 @@ export class ReportService {
    *
    * @param _reportRepository - The user-report repository.
    * @param _publicMemberService - Resolves members by username.
+   * @param _captainsLog - Says whether a reported Log entry is on show.
    */
   constructor(
     @InjectRepository(UserReportEntity)
     private readonly _reportRepository: Repository<UserReportEntity>,
     private readonly _publicMemberService: PublicMemberService,
+    private readonly _captainsLog: CaptainsLogService,
   ) {}
 
   // ----- Member -----
@@ -85,6 +88,8 @@ export class ReportService {
    * @param dto - The member to report, the category and the details.
    * @throws {BadRequestException} When a member tries to report themselves.
    * @throws {NotFoundException} When no active member matches the username.
+   *   Also when the report names a Log entry that is not one of the member's
+   *   Captain's entries on show.
    * @throws {ConflictException} When the reporter already has an unresolved
    *   report against the same member.
    */
@@ -98,6 +103,13 @@ export class ReportService {
 
     if (target.userId === reporterId) {
       throw new BadRequestException('You cannot report yourself');
+    }
+
+    if (
+      dto.logEntryId !== undefined &&
+      !(await this._captainsLog.isReportable(target.userId, dto.logEntryId))
+    ) {
+      throw new NotFoundException('Log entry not found');
     }
 
     const existing = await this._reportRepository.findOne({
@@ -121,6 +133,7 @@ export class ReportService {
         reportedId: target.userId,
         reason: dto.reason,
         details: dto.details ?? null,
+        logEntryId: dto.logEntryId ?? null,
         status: ReportStatus.OPEN,
       }),
     );
@@ -469,6 +482,7 @@ export class ReportService {
       reported: this.toParty(report.reportedId, report.reported),
       reason: report.reason,
       details: report.details,
+      logEntryId: report.logEntryId,
       status: report.status,
       moderatorNotes: report.moderatorNotes,
       reviewedBy:

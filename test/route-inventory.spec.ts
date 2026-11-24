@@ -112,6 +112,9 @@ const SIGNED_IN_ROUTES: Readonly<Record<string, string>> = {
     'image ingress, checked and re-encoded (FC-043).',
   AccessControlController: 'The caller’s own permissions.',
   StatsController: `${OWN_DATA} An account filter must be the caller’s own.`,
+  CaptainsLogController:
+    `${OWN_DATA} A picture goes through image ingress, checked and ` +
+    're-encoded, as an owner-only asset for a Personal entry (sc-1450).',
   EndeavourController: `${OWN_DATA} The account must be the caller’s own.`,
   CharacterAdmiraltyController: OWN_CHARACTER_PROGRESS,
   CharacterCommendationController: OWN_CHARACTER_PROGRESS,
@@ -220,6 +223,9 @@ const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
     'until a day after it expired, for a page left open.',
   RegistryController:
     'Public profiles, as each owner’s privacy settings allow.',
+  PublicCaptainsLogController:
+    'Only Captain’s entries moderators have not removed, of a profile the ' +
+    'registry itself would show the caller (sc-1450).',
   PublicStorytimeArcsController: STORYTIME_PUBLIC,
   PublicStorytimeStoriesController: STORYTIME_PUBLIC,
   PublicStorytimeChaptersController: STORYTIME_PUBLIC,

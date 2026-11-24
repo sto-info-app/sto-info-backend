@@ -19,6 +19,7 @@ import { AppService } from './app.service';
 import { SecurityLogModule } from './audit/security-log/security-log.module';
 import { AuthModule } from './auth/auth.module';
 import { UserIdMiddleware } from './auth/user-id.middleware';
+import { CaptainsLogModule } from './captains-log/captains-log.module';
 import { RequestIdMiddleware } from './common/http/request-id.middleware';
 import { CommunityModule } from './community/community.module';
 import { ConfigCheckService } from './config-check/config-check.service';
@@ -151,6 +152,7 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     HealthModule,
     SesWebhookModule,
     NewsModule,
+    CaptainsLogModule,
     NotificationModule,
     // Notification emails and their unsubscribe links (sc-1067).
     NotificationEmailModule,

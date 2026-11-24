@@ -10,6 +10,7 @@ import {
   PUBLISHED_IMAGE_GUARD_DOWN_REFUSAL,
   PUBLISHED_IMAGE_GUARD_SQLSTATE,
 } from '../1797300000000-GuardPublishedImageReferences';
+import { LOG_GUARDED_IMAGE_COLUMNS } from '../1799100000000-AddCaptainsLog';
 
 /**
  * Migrations are excluded from coverage and run against a real database only
@@ -52,9 +53,10 @@ describe('GuardPublishedImageReferences1797300000000', () => {
       const known = IMAGE_REFERENCE_COLUMNS.map(
         each => `${each.table}.${each.column}`,
       ).sort();
-      const guarded = GUARDED_IMAGE_COLUMNS.map(
-        ([table, column]) => `${table}.${column}`,
-      ).sort();
+      // Columns added since are guarded by the migration that adds them.
+      const guarded = [...GUARDED_IMAGE_COLUMNS, ...LOG_GUARDED_IMAGE_COLUMNS]
+        .map(([table, column]) => `${table}.${column}`)
+        .sort();
 
       expect(guarded).toEqual(known);
     });

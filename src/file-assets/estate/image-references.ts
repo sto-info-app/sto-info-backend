@@ -181,6 +181,17 @@ export const IMAGE_REFERENCE_COLUMNS: readonly ImageReferenceColumn[] = [
       'CASE WHEN row."communityId" IS NOT NULL THEN row."id"::text END',
     ownerSql: 'row."authorId"',
   },
+  {
+    // sc-1450: a Captain's Log entry's picture, whatever the entry's type.
+    table: 'log_entry',
+    column: 'pictureId',
+    rowId: 'id',
+    kind: FileAssetKind.LOG_IMAGE,
+    subject: FileAssetSubject.LOG_ENTRY,
+    slot: FileAssetSlot.PICTURE,
+    subjectIdSql: 'row."id"::text',
+    ownerSql: 'row."userId"',
+  },
 ];
 
 /**

@@ -55,4 +55,5 @@ export enum SiteAdminActionKind {
   FEATURE_SWITCHED_ON = 'FEATURE_SWITCHED_ON',
   /** A site feature switched off from the Admin page (FC-045). */
   FEATURE_SWITCHED_OFF = 'FEATURE_SWITCHED_OFF',
+  LOG_ENTRY_REMOVED = 'LOG_ENTRY_REMOVED',
 }

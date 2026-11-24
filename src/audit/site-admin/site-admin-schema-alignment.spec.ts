@@ -23,6 +23,11 @@ import {
   FEATURE_SWITCH_ACTIONS_DOWN_REFUSAL,
   RecordFeatureSwitchChanges1797700000000,
 } from '../../database/migrations/1797700000000-RecordFeatureSwitchChanges';
+import {
+  AddCaptainsLog1799100000000,
+  LOG_ENTRY_ACTIONS,
+  SITE_ADMIN_ACTIONS_BEFORE_LOG,
+} from '../../database/migrations/1799100000000-AddCaptainsLog';
 import { ChatActionEntity } from '../../fleet/chat/entities/chat-action.entity';
 import { ChatActionKind } from '../../fleet/chat/enums/chat.enums';
 import { ModerationHoldActionEntity } from '../../fleet/chat/holds/moderation-hold-action.entity';
@@ -130,6 +135,7 @@ describe('Site admin log schema alignment (FC-039)', () => {
       ...LEDGER_ACTIONS,
       ...OPERATIONS_ACTIONS,
       ...FEATURE_SWITCH_ACTIONS,
+      ...LOG_ENTRY_ACTIONS,
     ]).toEqual(Object.values(SiteAdminActionKind));
     expect(up[0]).toBe(
       `CREATE TYPE "sto_info_app"."site_admin_action_enum" AS ENUM (${SITE_ADMIN_ACTIONS.map(
@@ -266,6 +272,7 @@ describe('Ledger reconciliation schema alignment (FC-042)', () => {
       ...LEDGER_ACTIONS,
       ...OPERATIONS_ACTIONS,
       ...FEATURE_SWITCH_ACTIONS,
+      ...LOG_ENTRY_ACTIONS,
     ];
     const before = Object.values(SiteAdminActionKind).filter(
       value => !later.includes(value),
@@ -305,7 +312,7 @@ describe('Operations actions schema alignment (FC-042)', () => {
     ]);
     // FC-045's feature switches come after them.
     expect(
-      Object.values(SiteAdminActionKind).slice(
+      SITE_ADMIN_ACTIONS_BEFORE_LOG.slice(
         -OPERATIONS_ACTIONS.length - FEATURE_SWITCH_ACTIONS.length,
         -FEATURE_SWITCH_ACTIONS.length,
       ),
@@ -321,6 +328,7 @@ describe('Operations actions schema alignment (FC-042)', () => {
     const later: readonly string[] = [
       ...OPERATIONS_ACTIONS,
       ...FEATURE_SWITCH_ACTIONS,
+      ...LOG_ENTRY_ACTIONS,
     ];
     const before = Object.values(SiteAdminActionKind).filter(
       value => !later.includes(value),
@@ -349,13 +357,13 @@ describe('Feature switch actions schema alignment (FC-045)', () => {
     down = await capture(queryRunner => migration.down(queryRunner));
   });
 
-  it('adds switching a feature on and off, last', () => {
+  it('adds switching a feature on and off, after everything before it', () => {
     expect([...FEATURE_SWITCH_ACTIONS]).toEqual([
       SiteAdminActionKind.FEATURE_SWITCHED_ON,
       SiteAdminActionKind.FEATURE_SWITCHED_OFF,
     ]);
     expect(
-      Object.values(SiteAdminActionKind).slice(-FEATURE_SWITCH_ACTIONS.length),
+      SITE_ADMIN_ACTIONS_BEFORE_LOG.slice(-FEATURE_SWITCH_ACTIONS.length),
     ).toEqual([...FEATURE_SWITCH_ACTIONS]);
     expect(up).toEqual(
       FEATURE_SWITCH_ACTIONS.map(
@@ -377,7 +385,7 @@ describe('Feature switch actions schema alignment (FC-045)', () => {
   });
 
   it('makes the type again without them, keeping every earlier action', () => {
-    const before = Object.values(SiteAdminActionKind).filter(
+    const before = SITE_ADMIN_ACTIONS_BEFORE_LOG.filter(
       value => !(FEATURE_SWITCH_ACTIONS as readonly string[]).includes(value),
     );
 
@@ -387,5 +395,40 @@ describe('Feature switch actions schema alignment (FC-045)', () => {
       'ALTER TABLE "sto_info_app"."site_admin_action" ALTER COLUMN "action" TYPE "sto_info_app"."site_admin_action_enum" USING "action"::text::"sto_info_app"."site_admin_action_enum"',
       'DROP TYPE "sto_info_app"."site_admin_action_enum_old"',
     ]);
+  });
+});
+
+/**
+ * Holds the Captain's Log's removal (sc-1450) to the code: added last, after
+ * every earlier action, and taken out again only by a down that refuses
+ * first while the log holds one.
+ */
+describe('Captain’s Log actions schema alignment (sc-1450)', () => {
+  const migration = new AddCaptainsLog1799100000000();
+  let up: string[];
+  let down: string[];
+
+  beforeAll(async () => {
+    up = await capture(queryRunner => migration.up(queryRunner));
+    down = await capture(queryRunner => migration.down(queryRunner));
+  });
+
+  it('adds a site admin removing a Log entry, last', () => {
+    expect([...LOG_ENTRY_ACTIONS]).toEqual([
+      SiteAdminActionKind.LOG_ENTRY_REMOVED,
+    ]);
+    expect(Object.values(SiteAdminActionKind)).toEqual([
+      ...SITE_ADMIN_ACTIONS_BEFORE_LOG,
+      ...LOG_ENTRY_ACTIONS,
+    ]);
+    expect(up).toContain(
+      `ALTER TYPE "sto_info_app"."site_admin_action_enum" ADD VALUE IF NOT EXISTS 'LOG_ENTRY_REMOVED'`,
+    );
+  });
+
+  it('makes the type again with every earlier action on the way down', () => {
+    expect(down).toContain(
+      `CREATE TYPE "sto_info_app"."site_admin_action_enum" AS ENUM (${SITE_ADMIN_ACTIONS_BEFORE_LOG.map(value => `'${value}'`).join(', ')})`,
+    );
   });
 });

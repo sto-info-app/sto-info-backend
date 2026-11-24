@@ -58,6 +58,13 @@ export class UserReportDto {
   })
   details: string | null;
 
+  @ApiPropertyOptional({
+    description:
+      'The Captain’s Log entry the report is about, or null (sc-1450).',
+    nullable: true,
+  })
+  logEntryId: string | null;
+
   @ApiProperty({ description: 'Where the report sits in the queue.' })
   status: ReportStatus;
 

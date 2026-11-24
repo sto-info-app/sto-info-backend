@@ -25,6 +25,7 @@ const PERSONAL_IMAGES: readonly FileAssetKind[] = [
   FileAssetKind.PROFILE_IMAGE,
   FileAssetKind.CHARACTER_IMAGE,
   FileAssetKind.STORYTIME_IMAGE,
+  FileAssetKind.LOG_IMAGE,
 ];
 
 /** The asset states with nothing left to withdraw. */

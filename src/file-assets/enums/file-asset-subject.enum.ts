@@ -75,4 +75,6 @@ export enum FileAssetSubject {
    * two apart.
    */
   SITE_NEWS_POST = 'SITE_NEWS_POST',
+  /** A Captain's Log entry, for its picture (sc-1450). */
+  LOG_ENTRY = 'LOG_ENTRY',
 }

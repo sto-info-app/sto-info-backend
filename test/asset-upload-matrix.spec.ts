@@ -7,6 +7,9 @@ import { beforeAll, jest } from '@jest/globals';
 import sharp from 'sharp';
 import { FindOperator, Repository } from 'typeorm';
 
+import { LOG_PICTURE_SPEC } from 'src/captains-log/captains-log.constants';
+import { LogEntryEntity } from 'src/captains-log/entities/log-entry.entity';
+import { LogPicturePublisher } from 'src/captains-log/log-picture.publisher';
 import { CUSTOM_TRACKING_IMAGE_SPECS } from 'src/custom-tracking/constants/custom-tracking-image.constants';
 import { CustomTrackingImagePublisher } from 'src/custom-tracking/images/custom-tracking-image.publisher';
 import { CustomTrackingImageService } from 'src/custom-tracking/images/custom-tracking-image.service';
@@ -356,6 +359,7 @@ describe('every upload caller, end to end', () => {
       stoFleet: new InMemoryRepository<Row>(),
       stoArmada: new InMemoryRepository<Row>(),
       newsPost: new InMemoryRepository<Row>(),
+      logEntry: new InMemoryRepository<Row>(),
     };
 
     fileAssets = new FileAssetService(
@@ -493,6 +497,10 @@ describe('every upload caller, end to end', () => {
       ),
       new NewsCoverPublisher(
         owners.newsPost as unknown as Repository<NewsPostEntity>,
+        registry,
+      ),
+      new LogPicturePublisher(
+        owners.logEntry as unknown as Repository<LogEntryEntity>,
         registry,
       ),
     ]) {
@@ -872,6 +880,24 @@ describe('every upload caller, end to end', () => {
       description: () => readOwner('newsPost', 'coverImageAlt'),
     },
     {
+      // sc-1450: a Captain's Log entry, through CaptainsLogService.setPicture.
+      name: 'a Captain’s Log picture',
+      kind: FileAssetKind.LOG_IMAGE,
+      subject: FileAssetSubject.LOG_ENTRY,
+      slot: FileAssetSlot.PICTURE,
+      spec: LOG_PICTURE_SPEC,
+      entityTag: LOG_PICTURE_SPEC.entityTag,
+      feature: { altText: 'The bridge at red alert' },
+      seed: () =>
+        seedOwner('logEntry', {
+          id: recordId,
+          pictureId: 'old-picture',
+          pictureAlt: 'The old one',
+        }),
+      reference: () => readOwner('logEntry', 'pictureId'),
+      description: () => readOwner('logEntry', 'pictureAlt'),
+    },
+    {
       name: 'a Custom Tracking picture',
       kind: FileAssetKind.CUSTOM_TRACKING_IMAGE,
       subject: FileAssetSubject.CUSTOM_TRACKING_VALUE,
@@ -1194,6 +1220,7 @@ describe('the matrix covers every publisher', () => {
     StoArmadaImagePublisher,
     ScopeNewsCoverPublisher,
     NewsCoverPublisher,
+    LogPicturePublisher,
     CustomTrackingImagePublisher,
   ].map(publisher => publisher.name);
 

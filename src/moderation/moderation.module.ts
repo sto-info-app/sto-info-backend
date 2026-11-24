@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { CaptainsLogModule } from '../captains-log/captains-log.module';
 import { CommunityModule } from '../community/community.module';
 import { UserRefreshTokenModule } from '../user-refresh-token/user-refresh-token.module';
 import { UserEntity } from '../user/entities/user.entity';
@@ -21,6 +22,7 @@ import { UserModerationService } from './user-moderation.service';
 @Module({
   imports: [
     TypeOrmModule.forFeature([UserReportEntity, UserEntity]),
+    CaptainsLogModule,
     CommunityModule,
     UserRefreshTokenModule,
   ],
