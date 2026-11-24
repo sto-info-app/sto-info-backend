@@ -9,6 +9,7 @@ import { StorytimeReaction } from '../enums/storytime-reaction.enum';
 import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeReactionEntity } from './entities/storytime-reaction.entity';
+import { StorytimeSocialNotifier } from './storytime-social-notifier.service';
 
 /** The things a reader may react to. */
 export const REACTABLE_TARGET_TYPES = [
@@ -45,11 +46,13 @@ export class StorytimeReactionService {
    *
    * @param _reactionRepository - Repository of reactions.
    * @param _dataSource - Runs the reaction and its counts as one change.
+   * @param _notifier - Tells people what was done with their work (sc-1067).
    */
   constructor(
     @InjectRepository(StorytimeReactionEntity)
     private readonly _reactionRepository: Repository<StorytimeReactionEntity>,
     private readonly _dataSource: DataSource,
+    private readonly _notifier: StorytimeSocialNotifier,
   ) {}
 
   /**
@@ -98,6 +101,11 @@ export class StorytimeReactionService {
 
       await this.recount(manager, targetType, targetId);
     });
+
+    // A first reaction is news to the author; changing one is not (sc-1067).
+    if (!existing) {
+      await this._notifier.reacted(targetType, targetId, userId);
+    }
 
     return this.summarise(targetType, targetId, userId);
   }

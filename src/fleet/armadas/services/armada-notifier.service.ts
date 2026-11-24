@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 
 import { DataSource, IsNull } from 'typeorm';
 
+import { NotificationEmailType } from 'src/notification/email/notification-email-type.enum';
 import { NotificationSeverity } from 'src/notification/enums/notification-severity.enum';
 import { NotificationTarget } from 'src/notification/enums/notification-target.enum';
 import { NotificationService } from 'src/notification/notification.service';
@@ -269,12 +270,15 @@ export class ArmadaNotifierService {
     const { linkUrl, ...rest } = notification;
 
     try {
-      await this._notificationService.createNotification({
-        target: NotificationTarget.USER,
-        userId,
-        ...rest,
-        ...(linkUrl === null ? {} : { linkUrl }),
-      });
+      await this._notificationService.createNotification(
+        {
+          target: NotificationTarget.USER,
+          userId,
+          ...rest,
+          ...(linkUrl === null ? {} : { linkUrl }),
+        },
+        { email: NotificationEmailType.FLEET_ARMADA },
+      );
     } catch (error) {
       this._logger.warn(
         `[send] An Armada notification was not sent - UserId: ${userId}, ` +

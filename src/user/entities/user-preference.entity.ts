@@ -10,6 +10,12 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+import {
+  DEFAULT_EMAIL_NOTIFICATION_TYPES,
+  NotificationEmailType,
+} from 'src/notification/email/notification-email-type.enum';
+
+import { EmailFrequency } from '../enums/email-frequency.enum';
 import { NotificationCategory } from '../enums/notification-category.enum';
 import { PresenceVisibility } from '../enums/presence-visibility.enum';
 import { UserEntity } from './user.entity';
@@ -136,6 +142,41 @@ export class UserPreferenceEntity {
   @ApiProperty({ description: 'Notify for subscribed event reminders.' })
   @Column({ type: 'boolean', nullable: false, default: true })
   notifyEventReminder: boolean;
+
+  /**
+   * The emails this user has opted in to (sc-1067).
+   *
+   * Opt-in, so a type is sent only while listed here. The login alert is
+   * listed from the start and can be taken off. Independent of the in-app
+   * switches above: an email can be wanted for a notice the inbox is not.
+   */
+  @ApiProperty({
+    enum: NotificationEmailType,
+    isArray: true,
+    description: 'The notification emails this user has opted in to.',
+  })
+  @Column({
+    type: 'enum',
+    enum: NotificationEmailType,
+    enumName: 'notification_email_type_enum',
+    array: true,
+    nullable: false,
+    default: () => `'{${DEFAULT_EMAIL_NOTIFICATION_TYPES.join(',')}}'`,
+  })
+  emailNotificationTypes: NotificationEmailType[];
+
+  @ApiProperty({
+    enum: EmailFrequency,
+    description: 'How often notification emails go out.',
+  })
+  @Column({
+    type: 'enum',
+    enum: EmailFrequency,
+    enumName: 'email_frequency_enum',
+    nullable: false,
+    default: EmailFrequency.INSTANT,
+  })
+  emailFrequency: EmailFrequency;
 
   @CreateDateColumn()
   createdAt: Date;

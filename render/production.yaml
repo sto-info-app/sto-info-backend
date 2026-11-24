@@ -32,6 +32,8 @@ services:
         value: '10000'
       - key: APP_FRONTEND_URL
         value: https://startrekonline.info
+      - key: APP_API_URL
+        value: https://api.startrekonline.info
       - key: APP_TITLE
         sync: false
       - key: AUTH_SALT_ROUNDS

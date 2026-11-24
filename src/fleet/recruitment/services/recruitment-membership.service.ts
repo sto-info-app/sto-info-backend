@@ -10,6 +10,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 
 import { DataSource, EntityManager, In, IsNull } from 'typeorm';
 
+import { NotificationEmailType } from 'src/notification/email/notification-email-type.enum';
 import { NotificationSeverity } from 'src/notification/enums/notification-severity.enum';
 import { NotificationTarget } from 'src/notification/enums/notification-target.enum';
 import { NotificationService } from 'src/notification/notification.service';
@@ -609,11 +610,14 @@ export class RecruitmentMembershipService {
         { where: { id: membershipId } },
       );
 
-      await this._notifications.createNotification({
-        target: NotificationTarget.USER,
-        userId,
-        ...notice,
-      });
+      await this._notifications.createNotification(
+        {
+          target: NotificationTarget.USER,
+          userId,
+          ...notice,
+        },
+        { email: NotificationEmailType.FLEET_MEMBERSHIP },
+      );
     } catch (error) {
       this._logger.warn(
         `[tell] A membership notice was not sent - MembershipId: ` +

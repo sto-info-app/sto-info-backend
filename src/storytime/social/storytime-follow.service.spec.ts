@@ -10,6 +10,19 @@ import {
   FollowTargetKind,
   StorytimeFollowService,
 } from './storytime-follow.service';
+import { StorytimeSocialNotifier } from './storytime-social-notifier.service';
+
+/** A stand-in notifier; its own spec covers what each notice says (sc-1067). */
+function buildNotifier() {
+  return {
+    followed: jest.fn(() => Promise.resolve()),
+    commented: jest.fn(() => Promise.resolve()),
+    reacted: jest.fn(() => Promise.resolve()),
+    published: jest.fn(() => Promise.resolve()),
+  };
+}
+
+let notifier: ReturnType<typeof buildNotifier>;
 
 describe('StorytimeFollowService', () => {
   let service: StorytimeFollowService;
@@ -58,6 +71,10 @@ describe('StorytimeFollowService', () => {
           provide: getRepositoryToken(StorytimeArcFollowEntity),
           useValue: arcRepository,
         },
+        {
+          provide: StorytimeSocialNotifier,
+          useValue: (notifier = buildNotifier()),
+        },
       ],
     }).compile();
 
@@ -92,6 +109,21 @@ describe('StorytimeFollowService', () => {
     });
   });
 
+  // The creator hears of a new follower (sc-1067).
+  it.each([
+    [FollowTargetKind.CREATOR, 'CREATOR'],
+    [FollowTargetKind.STORY, StorytimeTargetType.STORY],
+    [FollowTargetKind.ARC, StorytimeTargetType.ARC],
+  ])('tells the creator of a new %s follow', async (kind, noticeTarget) => {
+    await service.follow(kind, 'target-1', readerId);
+
+    expect(notifier.followed).toHaveBeenCalledWith(
+      noticeTarget,
+      'target-1',
+      readerId,
+    );
+  });
+
   // Pressing the button twice is not two follows.
   it('changes nothing when already following', async () => {
     storyRepository.findOne.mockResolvedValue({ id: 'follow-1' });
@@ -100,6 +132,7 @@ describe('StorytimeFollowService', () => {
       service.follow(FollowTargetKind.STORY, 'story-1', readerId),
     ).resolves.toBe(true);
     expect(storyRepository.insert).not.toHaveBeenCalled();
+    expect(notifier.followed).not.toHaveBeenCalled();
   });
 
   // Following yourself would fill your own feed with the one thing you

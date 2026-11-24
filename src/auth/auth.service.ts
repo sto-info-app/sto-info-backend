@@ -1,5 +1,4 @@
 import * as crypto from 'node:crypto';
-import * as path from 'node:path';
 
 import {
   BadRequestException,
@@ -18,8 +17,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { instanceToPlain } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
-import * as ejs from 'ejs';
-import { convert as htmlToText } from 'html-to-text';
 import { QueryFailedError, Repository } from 'typeorm';
 
 import { AuditLoginAttemptEntity } from 'src/audit/entities/audit-login-attempt.entity';
@@ -184,30 +181,21 @@ export class AuthService {
 
     // Send welcome email
     const emailSubject = `Welcome to the ${process.env.APP_TITLE}`;
-    const emailHtmlContent = await ejs.renderFile(
-      path.join(
-        __dirname,
-        '..',
-        'views',
-        'email-templates',
-        'registration-welcome-email.ejs',
-      ),
+    const { html, text } = await this._mailService.renderEmail(
+      'registration-welcome-email.ejs',
       {
         user,
-        appTitle: process.env.APP_TITLE,
         loginUrl: process.env.APP_FRONTEND_URL + '/login',
         termsOfUseUrl: process.env.APP_FRONTEND_URL + '/terms-of-use',
       },
+      emailSubject,
     );
-    const emailTextContent = htmlToText(emailHtmlContent, {
-      wordwrap: 130,
-    });
 
     await this._mailService.sendEmailToUser(
       user.email,
       emailSubject,
-      emailTextContent,
-      emailHtmlContent,
+      text,
+      html,
     );
 
     return updatedUser;
@@ -397,11 +385,13 @@ export class AuthService {
     user.lastSeenAt = user.lastLoginAt;
     await this._userRepository.save(user);
 
-    // Send user logged in notification
-    await this._mailService.sendUserLoggedInNotification(
-      user.email,
-      user.profile?.firstName || 'Captain!',
-    );
+    // The login alert is on unless they switched it off (sc-1067).
+    if (await this._userService.wantsLoginAlert(user.id)) {
+      await this._mailService.sendUserLoggedInNotification(
+        user.email,
+        user.profile?.firstName || 'Captain!',
+      );
+    }
 
     return {
       access_token: this._jwtService.sign(payload),

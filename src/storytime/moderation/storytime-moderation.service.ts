@@ -10,6 +10,7 @@ import { EntityManager, In, Repository } from 'typeorm';
 
 import { SiteAdminActionKind } from 'src/audit/site-admin/site-admin-action.enum';
 import { recordSiteAdminAction } from 'src/audit/site-admin/site-admin-action.utility';
+import { NotificationEmailType } from 'src/notification/email/notification-email-type.enum';
 
 import { ReportStatus } from '../../moderation/enums/report-status.enum';
 import { NotificationSeverity } from '../../notification/enums/notification-severity.enum';
@@ -368,13 +369,16 @@ export class StorytimeModerationService {
       : `Your ${kind} "${target.label}" has been actioned by an administrator.`;
 
     try {
-      await this._notificationService.createNotification({
-        target: NotificationTarget.USER,
-        userId: target.ownerUserId,
-        severity: NotificationSeverity.WARNING,
-        title,
-        body,
-      });
+      await this._notificationService.createNotification(
+        {
+          target: NotificationTarget.USER,
+          userId: target.ownerUserId,
+          severity: NotificationSeverity.WARNING,
+          title,
+          body,
+        },
+        { email: NotificationEmailType.STORYTIME_MODERATION },
+      );
     } catch (error) {
       this._logger.error(
         `Failed to notify ${target.ownerUserId} of a moderation action`,

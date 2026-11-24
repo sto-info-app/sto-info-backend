@@ -246,6 +246,10 @@ const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
     'Answers the same whether or not the address exists.',
   'AuthController.verifyEmail': 'Needs the single-use token emailed.',
   ContactController: 'The contact form; rate limited.',
+  'EmailUnsubscribeController.preview':
+    'Says what a signed unsubscribe link stops; changes nothing (sc-1067).',
+  'EmailUnsubscribeController.unsubscribe':
+    'Turns off only the emails a signed link names, one-click from an email client (sc-1067).',
   SesWebhookController:
     'Amazon SNS notifications; each message’s signature is verified.',
 };

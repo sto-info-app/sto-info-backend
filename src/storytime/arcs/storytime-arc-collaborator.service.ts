@@ -9,6 +9,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { Repository } from 'typeorm';
 
+import { NotificationEmailType } from 'src/notification/email/notification-email-type.enum';
+
 import { NotificationSeverity } from '../../notification/enums/notification-severity.enum';
 import { NotificationTarget } from '../../notification/enums/notification-target.enum';
 import { NotificationService } from '../../notification/notification.service';
@@ -316,13 +318,18 @@ export class StorytimeArcCollaboratorService {
     arcTitle: string,
   ): Promise<void> {
     try {
-      await this._notificationService.createNotification({
-        target: NotificationTarget.USER,
-        userId: collaborator.userId,
-        severity: NotificationSeverity.INFO,
-        title: 'You have been invited to help with an Arc',
-        body: `You have been invited to help assemble "${arcTitle}".`,
-      });
+      await this._notificationService.createNotification(
+        {
+          target: NotificationTarget.USER,
+          userId: collaborator.userId,
+          severity: NotificationSeverity.INFO,
+          title: 'You have been invited to help with an Arc',
+          body: `You have been invited to help assemble "${arcTitle}".`,
+          // Where invitations are answered, so its email can lead there (sc-1067).
+          linkUrl: '/storytime/manage/invitations',
+        },
+        { email: NotificationEmailType.STORYTIME_ARC_INVITE },
+      );
     } catch (error) {
       this._logger.error(
         `Failed to notify member ${collaborator.userId} of their Arc invitation`,

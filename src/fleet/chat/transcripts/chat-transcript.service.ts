@@ -23,6 +23,7 @@ import {
   MoreThanOrEqual,
 } from 'typeorm';
 
+import { NotificationEmailType } from 'src/notification/email/notification-email-type.enum';
 import { NotificationSeverity } from 'src/notification/enums/notification-severity.enum';
 import { NotificationTarget } from 'src/notification/enums/notification-target.enum';
 import { NotificationService } from 'src/notification/notification.service';
@@ -278,16 +279,19 @@ export class ChatTranscriptService {
     );
 
     try {
-      await this._notifications.createNotification({
-        target: NotificationTarget.USER,
-        userId: transcript.requestedByUserId as string,
-        severity: NotificationSeverity.SUCCESS,
-        title: 'Transcript ready',
-        body:
-          `Your transcript of ${place.channel.name} is ready. ` +
-          'It can be downloaded from Chat for 24 hours.',
-        linkUrl: '/chat/transcripts',
-      });
+      await this._notifications.createNotification(
+        {
+          target: NotificationTarget.USER,
+          userId: transcript.requestedByUserId as string,
+          severity: NotificationSeverity.SUCCESS,
+          title: 'Transcript ready',
+          body:
+            `Your transcript of ${place.channel.name} is ready. ` +
+            'It can be downloaded from Chat for 24 hours.',
+          linkUrl: '/chat/transcripts',
+        },
+        { email: NotificationEmailType.FLEET_TRANSCRIPT },
+      );
     } catch (error) {
       this._logger.warn(
         `[process] Transcript notice not sent - TranscriptId: ` +

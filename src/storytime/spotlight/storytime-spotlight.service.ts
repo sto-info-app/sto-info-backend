@@ -9,6 +9,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, LessThanOrEqual, MoreThan, Repository } from 'typeorm';
 
 import { AcceptedAsset } from 'src/file-assets/services/asset-ingress.service';
+import { NotificationEmailType } from 'src/notification/email/notification-email-type.enum';
 
 import { NotificationSeverity } from '../../notification/enums/notification-severity.enum';
 import { NotificationTarget } from '../../notification/enums/notification-target.enum';
@@ -750,13 +751,16 @@ export class StorytimeSpotlightService {
    */
   private async notifySelected(work: FeaturedWork): Promise<void> {
     try {
-      await this._notificationService.createNotification({
-        target: NotificationTarget.USER,
-        userId: work.ownerUserId,
-        severity: NotificationSeverity.INFO,
-        title: 'Your work is in the Storytime Spotlight',
-        body: `"${work.title}" has been chosen for the Storytime Spotlight.`,
-      });
+      await this._notificationService.createNotification(
+        {
+          target: NotificationTarget.USER,
+          userId: work.ownerUserId,
+          severity: NotificationSeverity.INFO,
+          title: 'Your work is in the Storytime Spotlight',
+          body: `"${work.title}" has been chosen for the Storytime Spotlight.`,
+        },
+        { email: NotificationEmailType.STORYTIME_SPOTLIGHT },
+      );
     } catch (error) {
       this._logger.error(
         `Failed to notify ${work.ownerUserId} of their Spotlight selection`,

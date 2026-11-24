@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { Repository } from 'typeorm';
@@ -7,6 +7,8 @@ import { CreateBannerDto } from './dto/create-banner.dto';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { InboxQueryDto } from './dto/inbox-query.dto';
 import { UpdateBannerDto } from './dto/update-banner.dto';
+import { queueEmails } from './email/notification-email-outbox.utility';
+import { NotificationEmailType } from './email/notification-email-type.enum';
 import { BannerEntity } from './entities/banner.entity';
 import { NotificationDismissalEntity } from './entities/notification-dismissal.entity';
 import { NotificationReadEntity } from './entities/notification-read.entity';
@@ -36,6 +38,8 @@ export interface AppState {
 
 @Injectable()
 export class NotificationService {
+  private readonly _logger = new Logger(NotificationService.name);
+
   /**
    * Creates an instance of NotificationService.
    *
@@ -328,10 +332,20 @@ export class NotificationService {
   /**
    * Creates a notification, either broadcast or targeted at a single user.
    *
+   * A notice to one person may also queue the email that mirrors it, when
+   * the caller names its type and the person opted in (sc-1067). Admin sends
+   * name none, so a broadcast never emails anybody. The email is best
+   * effort: the in-app notice is what was asked for.
+   *
    * @param dto - The notification data.
+   * @param options - What else it does.
+   * @param options.email - The kind of email that mirrors it, if any.
    * @returns The created notification.
    */
-  createNotification(dto: CreateNotificationDto): Promise<NotificationEntity> {
+  async createNotification(
+    dto: CreateNotificationDto,
+    options: { email?: NotificationEmailType } = {},
+  ): Promise<NotificationEntity> {
     const target = dto.target ?? NotificationTarget.BROADCAST;
     const notification = this._notificationRepository.create({
       target,
@@ -341,7 +355,40 @@ export class NotificationService {
       body: dto.body,
       linkUrl: dto.linkUrl ?? null,
     });
-    return this._notificationRepository.save(notification);
+    const saved = await this._notificationRepository.save(notification);
+
+    if (options.email !== undefined && saved.userId !== null) {
+      await this.queueEmailQuietly(saved, options.email);
+    }
+
+    return saved;
+  }
+
+  /**
+   * Queues the email mirroring a notice, logging rather than throwing.
+   *
+   * @param notice - The notice, as saved.
+   * @param type - The kind of email.
+   */
+  private async queueEmailQuietly(
+    notice: NotificationEntity,
+    type: NotificationEmailType,
+  ): Promise<void> {
+    try {
+      await queueEmails(this._notificationRepository.manager, [
+        {
+          userId: notice.userId as string,
+          type,
+          title: notice.title,
+          body: notice.body,
+          linkUrl: notice.linkUrl,
+        },
+      ]);
+    } catch (error) {
+      this._logger.warn(
+        `[createNotification] Email not queued - Type: ${type}, Reason: ${(error as Error).name}`,
+      );
+    }
   }
 
   /**

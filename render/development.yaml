@@ -30,6 +30,8 @@ services:
         sync: false
       - key: APP_FRONTEND_URL
         value: https://dev.startrekonline.info
+      - key: APP_API_URL
+        value: https://dev-api.startrekonline.info
       - key: APP_TITLE
         sync: false
       - key: AUTH_SALT_ROUNDS

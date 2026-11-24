@@ -1,10 +1,13 @@
-import { NotFoundException } from '@nestjs/common';
+import { Logger, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { jest } from '@jest/globals';
 import { Repository } from 'typeorm';
 
+import { EmailFrequency } from 'src/user/enums/email-frequency.enum';
+
+import { NotificationEmailType } from './email/notification-email-type.enum';
 import { BannerEntity } from './entities/banner.entity';
 import { NotificationDismissalEntity } from './entities/notification-dismissal.entity';
 import { NotificationReadEntity } from './entities/notification-read.entity';
@@ -449,6 +452,102 @@ describe('NotificationService', () => {
   });
 
   describe('createNotification', () => {
+    // A notice may also queue its email (sc-1067); queueEmails' own spec
+    // covers who gets one.
+    describe('with its email', () => {
+      let manager: {
+        findOne: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
+        createQueryBuilder: jest.Mock<(...args: unknown[]) => unknown>;
+      };
+      let execute: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
+
+      beforeEach(() => {
+        jest
+          .spyOn(Logger.prototype, 'warn')
+          .mockImplementation(() => undefined);
+        execute = jest.fn(async () => undefined);
+        const builder = {
+          insert: () => builder,
+          into: () => builder,
+          values: () => builder,
+          execute,
+        };
+
+        manager = {
+          findOne: jest.fn(async () => ({
+            userId: 'user-9',
+            emailNotificationTypes: [NotificationEmailType.FRIEND_REQUEST],
+            emailFrequency: EmailFrequency.INSTANT,
+            displayTimezone: null,
+          })),
+          createQueryBuilder: jest.fn(() => builder),
+        };
+        Object.assign(notificationRepo, { manager });
+        (notificationRepo.create as jest.Mock).mockImplementation(
+          (v: unknown) => v as NotificationEntity,
+        );
+        (notificationRepo.save as jest.Mock).mockImplementation(
+          async (v: unknown) => v as NotificationEntity,
+        );
+      });
+
+      afterEach(() => jest.restoreAllMocks());
+
+      it('queues it for a notice to one person', async () => {
+        await service.createNotification(
+          {
+            target: NotificationTarget.USER,
+            userId: 'user-9',
+            title: 'New friend request',
+            body: 'B',
+          },
+          { email: NotificationEmailType.FRIEND_REQUEST },
+        );
+
+        expect(execute).toHaveBeenCalledTimes(1);
+      });
+
+      it('queues none for a broadcast', async () => {
+        await service.createNotification(
+          { title: 'T', body: 'B' },
+          { email: NotificationEmailType.FRIEND_REQUEST },
+        );
+
+        expect(manager.findOne).not.toHaveBeenCalled();
+      });
+
+      it('queues none without a type', async () => {
+        await service.createNotification({
+          target: NotificationTarget.USER,
+          userId: 'user-9',
+          title: 'T',
+          body: 'B',
+        });
+
+        expect(manager.findOne).not.toHaveBeenCalled();
+      });
+
+      // The in-app notice is what was asked for.
+      it('keeps the notice when its email cannot be queued', async () => {
+        execute.mockRejectedValue(new RangeError('No database'));
+
+        await expect(
+          service.createNotification(
+            {
+              target: NotificationTarget.USER,
+              userId: 'user-9',
+              title: 'T',
+              body: 'B',
+            },
+            { email: NotificationEmailType.FRIEND_REQUEST },
+          ),
+        ).resolves.toEqual(expect.objectContaining({ userId: 'user-9' }));
+        expect(Logger.prototype.warn).toHaveBeenCalledWith(
+          '[createNotification] Email not queued - Type: FRIEND_REQUEST, Reason: RangeError',
+        );
+      });
+    });
+
     it('nulls userId for broadcasts', async () => {
       (notificationRepo.create as jest.Mock).mockImplementation(
         (v: unknown) => v as NotificationEntity,

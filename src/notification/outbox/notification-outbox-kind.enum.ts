@@ -1,3 +1,4 @@
+import { NotificationEmailType } from 'src/notification/email/notification-email-type.enum';
 import { NotificationCategory } from 'src/user/enums/notification-category.enum';
 
 /**
@@ -38,4 +39,28 @@ export const NOTIFICATION_OUTBOX_CATEGORIES: Readonly<
   [NotificationOutboxKind.CHAT_REPLY]: NotificationCategory.REPLY,
   [NotificationOutboxKind.CHAT_DIRECT_MESSAGE]:
     NotificationCategory.DIRECT_MESSAGE,
+};
+
+/**
+ * The email each kind of notice can send (sc-1067).
+ *
+ * An email is its own opt-in: R16 kept these notices in-app only until
+ * sc-1067 offered email, and the in-app category does not decide it.
+ */
+export const NOTIFICATION_OUTBOX_EMAIL_TYPES: Readonly<
+  Record<NotificationOutboxKind, NotificationEmailType>
+> = {
+  [NotificationOutboxKind.EVENT_REMINDER]:
+    NotificationEmailType.FLEET_EVENT_REMINDER,
+  [NotificationOutboxKind.EVENT_CANCELLED]:
+    NotificationEmailType.FLEET_EVENT_CANCELLED,
+  [NotificationOutboxKind.EVENT_MOVED]: NotificationEmailType.FLEET_EVENT_MOVED,
+  [NotificationOutboxKind.EVENT_PROMOTED]:
+    NotificationEmailType.FLEET_EVENT_PROMOTED,
+  [NotificationOutboxKind.ROSTER_ASSOCIATION_PROPOSED]:
+    NotificationEmailType.FLEET_ROSTER_PROPOSAL,
+  [NotificationOutboxKind.CHAT_MENTION]: NotificationEmailType.FLEET_MENTION,
+  [NotificationOutboxKind.CHAT_REPLY]: NotificationEmailType.FLEET_REPLY,
+  [NotificationOutboxKind.CHAT_DIRECT_MESSAGE]:
+    NotificationEmailType.FLEET_DIRECT_MESSAGE,
 };

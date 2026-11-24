@@ -1,0 +1,13 @@
+<p>Hi <%= firstName %>,</p>
+
+<% if (digest) { %>
+<p>Here is what happened on the <%= appTitle %> since your last <%= digest %> email.</p>
+<% } %>
+
+<% for (const item of items) { %>
+<h2 style="margin: 24px 0 4px; font-size: 18px; color: #ffcc99"><%= item.title %></h2>
+<p style="margin: 0 0 8px"><%= item.body %></p>
+<% if (item.linkUrl) { %>
+<p style="margin: 0 0 8px"><a href="<%= item.linkUrl %>" target="_blank">Open in the <%= appTitle %></a></p>
+<% } %>
+<% } %>

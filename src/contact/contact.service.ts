@@ -44,7 +44,12 @@ export class ContactService {
 
     const supportSubject = `Contact request: ${payload.topic}`;
     const supportTextContent = this.buildSupportTextContent(payload);
-    const supportHtmlContent = this.buildSupportHtmlContent(payload);
+    // Every email wears the same branded layout (sc-1067); the hand-written
+    // text parts read better than one generated from it, so they are kept.
+    const { html: supportHtmlContent } = await this._mailService.brand(
+      this.buildSupportHtmlContent(payload),
+      supportSubject,
+    );
 
     const supportMessage = this._mailService.generateEmailMessageObject(
       SUPPORT_EMAIL,
@@ -63,7 +68,10 @@ export class ContactService {
 
     const userSubject = `We received your message`;
     const userTextContent = this.buildUserTextContent(payload);
-    const userHtmlContent = this.buildUserHtmlContent(payload);
+    const { html: userHtmlContent } = await this._mailService.brand(
+      this.buildUserHtmlContent(payload),
+      userSubject,
+    );
     const userMessage = this._mailService.generateEmailMessageObject(
       payload.email,
       userSubject,

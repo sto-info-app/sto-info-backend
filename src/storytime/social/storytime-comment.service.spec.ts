@@ -14,6 +14,19 @@ import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeCommentEntity } from './entities/storytime-comment.entity';
 import { StorytimeCommentService } from './storytime-comment.service';
+import { StorytimeSocialNotifier } from './storytime-social-notifier.service';
+
+/** A stand-in notifier; its own spec covers what each notice says (sc-1067). */
+function buildNotifier() {
+  return {
+    followed: jest.fn(() => Promise.resolve()),
+    commented: jest.fn(() => Promise.resolve()),
+    reacted: jest.fn(() => Promise.resolve()),
+    published: jest.fn(() => Promise.resolve()),
+  };
+}
+
+let notifier: ReturnType<typeof buildNotifier>;
 
 describe('StorytimeCommentService', () => {
   let service: StorytimeCommentService;
@@ -120,6 +133,10 @@ describe('StorytimeCommentService', () => {
           provide: getRepositoryToken(StorytimeArcEntity),
           useValue: arcRepository,
         },
+        {
+          provide: StorytimeSocialNotifier,
+          useValue: (notifier = buildNotifier()),
+        },
       ],
     }).compile();
 
@@ -143,6 +160,8 @@ describe('StorytimeCommentService', () => {
       expect(comment.body).toBe('A fine chapter.');
       expect(comment.authorUserId).toBe(authorId);
       expect(comment.status).toBe(StorytimeCommentStatus.VISIBLE);
+      // The work's author hears of it (sc-1067).
+      expect(notifier.commented).toHaveBeenCalledWith(comment, null);
     });
 
     it('posts a reply to a comment', async () => {
@@ -154,6 +173,11 @@ describe('StorytimeCommentService', () => {
       );
 
       expect(reply.parentCommentId).toBe(commentId);
+      // The comment's author hears of the reply (sc-1067).
+      expect(notifier.commented).toHaveBeenCalledWith(
+        reply,
+        buildComment().authorUserId,
+      );
     });
 
     // A thread that nests indefinitely becomes unreadable on a phone and

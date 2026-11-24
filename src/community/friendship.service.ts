@@ -9,6 +9,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { IsNull, Repository, SelectQueryBuilder } from 'typeorm';
 
+import { NotificationEmailType } from 'src/notification/email/notification-email-type.enum';
+
 import { NotificationSeverity } from '../notification/enums/notification-severity.enum';
 import { NotificationTarget } from '../notification/enums/notification-target.enum';
 import { NotificationService } from '../notification/notification.service';
@@ -808,6 +810,7 @@ export class FriendshipService {
 
     await this.notify(
       addresseeId,
+      NotificationEmailType.FRIEND_REQUEST,
       'New friend request',
       `${username} would like to add you as a friend.`,
     );
@@ -827,6 +830,7 @@ export class FriendshipService {
 
     await this.notify(
       requesterId,
+      NotificationEmailType.FRIEND_ACCEPTED,
       'Friend request accepted',
       `${username} accepted your friend request.`,
     );
@@ -839,25 +843,30 @@ export class FriendshipService {
    * written — the relationship is the durable part, the inbox entry is not.
    *
    * @param userId - The recipient's user ID.
+   * @param email - The kind of email that mirrors it (sc-1067).
    * @param title - The notification title.
    * @param body - The notification body.
    */
   private async notify(
     userId: string,
+    email: NotificationEmailType,
     title: string,
     body: string,
   ): Promise<void> {
     const linkUrl = friendsPageUrl();
 
     try {
-      await this._notificationService.createNotification({
-        target: NotificationTarget.USER,
-        userId,
-        severity: NotificationSeverity.INFO,
-        title,
-        body,
-        ...(linkUrl ? { linkUrl } : {}),
-      });
+      await this._notificationService.createNotification(
+        {
+          target: NotificationTarget.USER,
+          userId,
+          severity: NotificationSeverity.INFO,
+          title,
+          body,
+          ...(linkUrl ? { linkUrl } : {}),
+        },
+        { email: email },
+      );
     } catch {
       // Intentionally ignored — see the method comment.
     }

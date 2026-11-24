@@ -8,6 +8,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 
 import { DataSource, EntityManager, IsNull } from 'typeorm';
 
+import { NotificationEmailType } from 'src/notification/email/notification-email-type.enum';
 import { NotificationSeverity } from 'src/notification/enums/notification-severity.enum';
 import { NotificationTarget } from 'src/notification/enums/notification-target.enum';
 import { NotificationService } from 'src/notification/notification.service';
@@ -238,12 +239,17 @@ export class ScopeSuspensionService {
 
     for (const userId of audience.userIds) {
       try {
-        await this._notificationService.createNotification({
-          target: NotificationTarget.USER,
-          userId,
-          ...notice,
-          ...(frontendUrl ? { linkUrl: `${frontendUrl}${audience.path}` } : {}),
-        });
+        await this._notificationService.createNotification(
+          {
+            target: NotificationTarget.USER,
+            userId,
+            ...notice,
+            ...(frontendUrl
+              ? { linkUrl: `${frontendUrl}${audience.path}` }
+              : {}),
+          },
+          { email: NotificationEmailType.FLEET_SUSPENSION },
+        );
       } catch (error) {
         this._logger.warn(
           `[tell] A suspension notice was not sent - UserId: ${userId}, ` +

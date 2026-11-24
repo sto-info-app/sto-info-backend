@@ -14,6 +14,7 @@ import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity
 import { StorytimeActivityFeedItemEntity } from './entities/storytime-activity-feed-item.entity';
 import { StorytimeFeedStateEntity } from './entities/storytime-feed-state.entity';
 import { StorytimeFollowService } from './storytime-follow.service';
+import { StorytimeSocialNotifier } from './storytime-social-notifier.service';
 
 /** How many items a feed page holds. */
 const DEFAULT_PAGE_SIZE = 30;
@@ -51,6 +52,7 @@ export class StorytimeActivityFeedService {
    * @param _chapterRepository - Resolves the Chapters items name.
    * @param _arcRepository - Resolves the Arcs items name.
    * @param _followService - Who and what a reader follows.
+   * @param _notifier - Tells people what was done with their work (sc-1067).
    */
   constructor(
     @InjectRepository(StorytimeActivityFeedItemEntity)
@@ -64,6 +66,7 @@ export class StorytimeActivityFeedService {
     @InjectRepository(StorytimeArcEntity)
     private readonly _arcRepository: Repository<StorytimeArcEntity>,
     private readonly _followService: StorytimeFollowService,
+    private readonly _notifier: StorytimeSocialNotifier,
   ) {}
 
   /**
@@ -124,6 +127,20 @@ export class StorytimeActivityFeedService {
       this._logger.error(
         `Failed to record ${activityType} by ${actorUserId}`,
         error instanceof Error ? error.stack : String(error),
+      );
+    }
+
+    // Followers of the Story and its creator hear of what is new (sc-1067).
+    // The notifier is best effort itself, so this cannot fail the caller.
+    if (
+      targets.storyId &&
+      (activityType === StorytimeActivityType.STORY_PUBLISHED ||
+        activityType === StorytimeActivityType.CHAPTER_PUBLISHED)
+    ) {
+      await this._notifier.published(
+        targets.storyId,
+        targets.chapterId ?? null,
+        actorUserId,
       );
     }
   }

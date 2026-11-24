@@ -118,11 +118,15 @@ describe('AuthService', () => {
             doesEmailExist: jest.fn(),
             doesUsernameExist: jest.fn(),
             findByEmail: jest.fn(),
+            wantsLoginAlert: jest.fn(() => Promise.resolve(true)),
           },
         },
         {
           provide: MailService,
           useValue: {
+            renderEmail: jest.fn(() =>
+              Promise.resolve({ html: '<p>Welcome</p>', text: 'Welcome' }),
+            ),
             sendVerificationEmail: jest.fn(),
             sendEmailToUser: jest.fn(),
             sendUserLoggedInNotification: jest.fn(),
@@ -645,6 +649,30 @@ describe('AuthService', () => {
         'test@example.com',
         'Test',
       );
+    });
+
+    // Login alerts are on unless switched off (sc-1067).
+    it('sends no login alert to somebody who switched it off', async () => {
+      const user = {
+        id: '1',
+        email: 'test@example.com',
+        emailVerified: true,
+        isAccountDisabled: false,
+        deletedAt: null,
+        profile: { firstName: 'Test' },
+      };
+      jest.spyOn(service, 'validateUser').mockResolvedValue(user);
+      (jwtService.sign as jest.Mock).mockReturnValue('token');
+      (
+        userService.wantsLoginAlert as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue(false);
+
+      await service.login({ email: 'e', password: 'p' });
+
+      expect(userService.wantsLoginAlert).toHaveBeenCalledWith('1');
+      expect(mailService.sendUserLoggedInNotification).not.toHaveBeenCalled();
     });
 
     // FC-053: signing in is the first sighting of the visit.

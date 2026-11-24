@@ -16,6 +16,7 @@ import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { CreateCommentDto } from './dto/comment.dto';
 import { StorytimeCommentEntity } from './entities/storytime-comment.entity';
+import { StorytimeSocialNotifier } from './storytime-social-notifier.service';
 
 /** The things a reader may comment on. */
 export const COMMENTABLE_TARGET_TYPES = [
@@ -43,6 +44,7 @@ export class StorytimeCommentService {
    * @param _storyRepository - Resolves who owns a Story or Chapter.
    * @param _chapterRepository - Resolves the Story a Chapter belongs to.
    * @param _arcRepository - Resolves who curates an Arc.
+   * @param _notifier - Tells people what was done with their work (sc-1067).
    */
   constructor(
     @InjectRepository(StorytimeCommentEntity)
@@ -53,6 +55,7 @@ export class StorytimeCommentService {
     private readonly _chapterRepository: Repository<StorytimeChapterEntity>,
     @InjectRepository(StorytimeArcEntity)
     private readonly _arcRepository: Repository<StorytimeArcEntity>,
+    private readonly _notifier: StorytimeSocialNotifier,
   ) {}
 
   /**
@@ -89,9 +92,7 @@ export class StorytimeCommentService {
   ): Promise<StorytimeCommentEntity> {
     this.assertCommentable(dto.targetType);
 
-    if (dto.parentCommentId) {
-      await this.assertRepliable(dto);
-    }
+    const parent = dto.parentCommentId ? await this.assertRepliable(dto) : null;
 
     const comment = await this._commentRepository.save(
       this._commentRepository.create({
@@ -107,6 +108,8 @@ export class StorytimeCommentService {
     this._logger.log(
       `Comment ${comment.id} posted on ${dto.targetType} ${dto.targetId}`,
     );
+
+    await this._notifier.commented(comment, parent?.authorUserId ?? null);
 
     return comment;
   }
@@ -331,9 +334,12 @@ export class StorytimeCommentService {
    * Refuses a reply that would nest too deep, or answer something elsewhere.
    *
    * @param dto - The comment being posted.
+   * @returns The comment it answers.
    * @throws BadRequestException when the parent cannot be replied to.
    */
-  private async assertRepliable(dto: CreateCommentDto): Promise<void> {
+  private async assertRepliable(
+    dto: CreateCommentDto,
+  ): Promise<StorytimeCommentEntity> {
     const parent = await this.findOneOrFail(dto.parentCommentId as string);
 
     if (parent.parentCommentId) {
@@ -348,6 +354,8 @@ export class StorytimeCommentService {
     ) {
       throw new BadRequestException('That comment belongs to something else.');
     }
+
+    return parent;
   }
 
   /**

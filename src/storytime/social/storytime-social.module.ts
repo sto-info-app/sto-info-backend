@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { NotificationModule } from 'src/notification/notification.module';
+
 import { StorytimeArcEntity } from '../arcs/entities/storytime-arc.entity';
 import { StorytimeChapterEntity } from '../chapters/entities/storytime-chapter.entity';
 import { StorytimeAuthorModule } from '../shared/storytime-author.module';
@@ -20,6 +22,7 @@ import { StorytimeFollowService } from './storytime-follow.service';
 import { StorytimeFollowsController } from './storytime-follows.controller';
 import { StorytimeReactionService } from './storytime-reaction.service';
 import { StorytimeReactionsController } from './storytime-reactions.controller';
+import { StorytimeSocialNotifier } from './storytime-social-notifier.service';
 import { StorytimeSocialMapper } from './storytime-social.mapper';
 
 /**
@@ -35,6 +38,8 @@ import { StorytimeSocialMapper } from './storytime-social.mapper';
 @Module({
   imports: [
     StorytimeAuthorModule,
+    // Authors and readers hear what people did with the work (sc-1067).
+    NotificationModule,
     TypeOrmModule.forFeature([
       StorytimeReactionEntity,
       StorytimeCommentEntity,
@@ -60,6 +65,7 @@ import { StorytimeSocialMapper } from './storytime-social.mapper';
     StorytimeFollowService,
     StorytimeActivityFeedService,
     StorytimeSocialMapper,
+    StorytimeSocialNotifier,
   ],
   exports: [
     StorytimeReactionService,

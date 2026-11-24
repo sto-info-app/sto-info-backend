@@ -7,6 +7,7 @@ import {
 
 import { DataSource, EntityManager, IsNull, QueryFailedError } from 'typeorm';
 
+import { NotificationEmailType } from 'src/notification/email/notification-email-type.enum';
 import { NotificationSeverity } from 'src/notification/enums/notification-severity.enum';
 import { NotificationTarget } from 'src/notification/enums/notification-target.enum';
 import { NotificationService } from 'src/notification/notification.service';
@@ -279,16 +280,19 @@ describe('OwnershipTransferService', () => {
           transferId: TRANSFER_ID,
         },
       ]);
-      expect(createNotification).toHaveBeenCalledWith({
-        target: NotificationTarget.USER,
-        userId: ADMIN_ID,
-        severity: NotificationSeverity.INFO,
-        title: 'Ownership of Fixture Community offered to you',
-        body:
-          'MidNiteShadow has offered you ownership of Fixture Community. ' +
-          'Accept or decline it on the Community’s page within 7 days.',
-        linkUrl: 'https://sto.example/fleets/communities/fixture-community',
-      });
+      expect(createNotification).toHaveBeenCalledWith(
+        {
+          target: NotificationTarget.USER,
+          userId: ADMIN_ID,
+          severity: NotificationSeverity.INFO,
+          title: 'Ownership of Fixture Community offered to you',
+          body:
+            'MidNiteShadow has offered you ownership of Fixture Community. ' +
+            'Accept or decline it on the Community’s page within 7 days.',
+          linkUrl: 'https://sto.example/fleets/communities/fixture-community',
+        },
+        { email: NotificationEmailType.FLEET_OWNERSHIP },
+      );
     });
 
     it('sends no link when the site’s address is not configured', async () => {
@@ -701,16 +705,19 @@ describe('OwnershipTransferService', () => {
       );
 
       expect(createNotification).toHaveBeenCalledTimes(1);
-      expect(createNotification).toHaveBeenCalledWith({
-        target: NotificationTarget.USER,
-        userId: ADMIN_ID,
-        severity: NotificationSeverity.INFO,
-        title: 'You are now the Owner of Fixture Community',
-        body:
-          'A site administrator moved ownership of Fixture Community to ' +
-          'you. Its former Owner keeps no role there.',
-        linkUrl: 'https://sto.example/fleets/communities/fixture-community',
-      });
+      expect(createNotification).toHaveBeenCalledWith(
+        {
+          target: NotificationTarget.USER,
+          userId: ADMIN_ID,
+          severity: NotificationSeverity.INFO,
+          title: 'You are now the Owner of Fixture Community',
+          body:
+            'A site administrator moved ownership of Fixture Community to ' +
+            'you. Its former Owner keeps no role there.',
+          linkUrl: 'https://sto.example/fleets/communities/fixture-community',
+        },
+        { email: NotificationEmailType.FLEET_OWNERSHIP },
+      );
       expect(JSON.stringify(createNotification.mock.calls)).not.toContain(
         'Owner vanished',
       );
@@ -818,6 +825,7 @@ describe('OwnershipTransferService', () => {
           title: 'You are now the Owner of Fixture Community',
           linkUrl: 'https://sto.example/fleets/communities/fixture-community',
         }),
+        { email: NotificationEmailType.FLEET_OWNERSHIP },
       );
     });
 
@@ -847,6 +855,7 @@ describe('OwnershipTransferService', () => {
       ).resolves.toBe(ADMIN_ID);
       expect(createNotification).toHaveBeenCalledWith(
         expect.not.objectContaining({ linkUrl: expect.anything() }),
+        { email: NotificationEmailType.FLEET_OWNERSHIP },
       );
     });
 

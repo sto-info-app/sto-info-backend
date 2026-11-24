@@ -11,6 +11,19 @@ import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeReactionEntity } from './entities/storytime-reaction.entity';
 import { StorytimeReactionService } from './storytime-reaction.service';
+import { StorytimeSocialNotifier } from './storytime-social-notifier.service';
+
+/** A stand-in notifier; its own spec covers what each notice says (sc-1067). */
+function buildNotifier() {
+  return {
+    followed: jest.fn(() => Promise.resolve()),
+    commented: jest.fn(() => Promise.resolve()),
+    reacted: jest.fn(() => Promise.resolve()),
+    published: jest.fn(() => Promise.resolve()),
+  };
+}
+
+let notifier: ReturnType<typeof buildNotifier>;
 
 describe('StorytimeReactionService', () => {
   let service: StorytimeReactionService;
@@ -74,6 +87,10 @@ describe('StorytimeReactionService', () => {
             ),
           },
         },
+        {
+          provide: StorytimeSocialNotifier,
+          useValue: (notifier = buildNotifier()),
+        },
       ],
     }).compile();
 
@@ -104,6 +121,12 @@ describe('StorytimeReactionService', () => {
           reaction: StorytimeReaction.THUMBS_UP,
         }),
       );
+      // A first reaction is news to the author (sc-1067).
+      expect(notifier.reacted).toHaveBeenCalledWith(
+        StorytimeTargetType.STORY,
+        storyId,
+        readerId,
+      );
     });
 
     // At most one reaction per person per item: changing your mind is an
@@ -125,6 +148,8 @@ describe('StorytimeReactionService', () => {
           reaction: StorytimeReaction.THUMBS_DOWN,
         }),
       );
+      // Changing one is not.
+      expect(notifier.reacted).not.toHaveBeenCalled();
     });
 
     // A pressed button pressed again means "undo".
