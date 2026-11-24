@@ -554,6 +554,27 @@ describe('RegistryService', () => {
     });
   });
 
+  describe('findVisibleMemberId', () => {
+    it('names the member whose profile may be seen', async () => {
+      profileQb.getOne.mockResolvedValue(buildProfile());
+
+      await expect(
+        service.findVisibleMemberId('captain.picard', null),
+      ).resolves.toBe('user-1');
+      expect(profileQb.where).toHaveBeenCalledWith(
+        'profile.publiclyVisible = true',
+      );
+    });
+
+    it('finds nobody when the profile may not be seen', async () => {
+      profileQb.getOne.mockResolvedValue(null);
+
+      await expect(
+        service.findVisibleMemberId('ghost', 'viewer-1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe('findProfileByUsername', () => {
     it('should throw when no publicly visible member matches', async () => {
       profileQb.getOne.mockResolvedValue(null);

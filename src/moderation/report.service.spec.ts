@@ -11,6 +11,7 @@ import { jest } from '@jest/globals';
 import { SiteAdminActionEntity } from 'src/audit/site-admin/site-admin-action.entity';
 import { SiteAdminActionKind } from 'src/audit/site-admin/site-admin-action.enum';
 
+import { CaptainsLogService } from '../captains-log/captains-log.service';
 import { PublicMemberService } from '../community/public-member.service';
 import { ChatMessageReportEntity } from '../fleet/chat/entities/chat-message-report.entity';
 import { UserReportEntity } from './entities/user-report.entity';
@@ -88,6 +89,7 @@ function buildReport(
     reportedId: REPORTED_ID,
     reason: ReportReason.HARASSMENT,
     details: 'Repeated abusive messages.',
+    logEntryId: null,
     status: ReportStatus.OPEN,
     moderatorNotes: null,
     reviewedById: null,
@@ -132,6 +134,9 @@ describe('ReportService', () => {
   let publicMemberService: {
     requireActiveMember: jest.Mock<() => Promise<{ userId: string }>>;
   };
+  let captainsLog: {
+    isReportable: jest.Mock<() => Promise<boolean>>;
+  };
 
   beforeEach(async () => {
     queryBuilder = createQueryBuilderMock();
@@ -162,6 +167,9 @@ describe('ReportService', () => {
           reportRepository.save(report),
         insert: logged,
       })) as never);
+    captainsLog = {
+      isReportable: jest.fn(() => Promise.resolve(true)),
+    };
     publicMemberService = {
       requireActiveMember: jest.fn(() =>
         Promise.resolve({ userId: REPORTED_ID }),
@@ -176,6 +184,7 @@ describe('ReportService', () => {
           useValue: reportRepository,
         },
         { provide: PublicMemberService, useValue: publicMemberService },
+        { provide: CaptainsLogService, useValue: captainsLog },
       ],
     }).compile();
 
@@ -212,8 +221,39 @@ describe('ReportService', () => {
         reportedId: REPORTED_ID,
         reason: ReportReason.HARASSMENT,
         details: 'Repeated abusive messages.',
+        logEntryId: null,
         status: ReportStatus.OPEN,
       });
+      expect(captainsLog.isReportable).not.toHaveBeenCalled();
+    });
+
+    it('names the Captain’s Log entry the report is about (sc-1450)', async () => {
+      await service.reportMember(REPORTER_ID, {
+        username: 'reported',
+        reason: ReportReason.INAPPROPRIATE_CONTENT,
+        logEntryId: 'entry-1',
+      });
+
+      expect(captainsLog.isReportable).toHaveBeenCalledWith(
+        REPORTED_ID,
+        'entry-1',
+      );
+      expect(reportRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ logEntryId: 'entry-1' }),
+      );
+    });
+
+    it('refuses an entry that is not one of the member’s Captain’s entries on show', async () => {
+      captainsLog.isReportable.mockResolvedValue(false);
+
+      await expect(
+        service.reportMember(REPORTER_ID, {
+          username: 'reported',
+          reason: ReportReason.SPAM,
+          logEntryId: 'entry-1',
+        }),
+      ).rejects.toThrow('Log entry not found');
+      expect(reportRepository.save).not.toHaveBeenCalled();
     });
 
     it('should default the details to null when none are given', async () => {

@@ -5,12 +5,15 @@ import { MailerModule } from '@nestjs-modules/mailer';
 
 import { SharedModule } from 'src/shared/shared.module';
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
+import { SesWebhookModule } from 'src/webhooks/ses/ses-webhook.module';
 
 import { MailService } from './mail.service';
 
 @Module({
   imports: [
     SharedModule,
+    // Notification and login emails skip addresses SES suppressed (sc-1067).
+    SesWebhookModule,
     MailerModule.forRoot({
       transport: {
         SES: {

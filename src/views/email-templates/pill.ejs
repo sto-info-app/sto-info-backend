@@ -1,0 +1,28 @@
+<%
+  // An LCARS pill button that Outlook draws too (sc-1067): VML there, a
+  // rounded link everywhere else. Expects url and label; colour and size are
+  // optional.
+  const fill = typeof colour === 'undefined' ? '#99ccff' : colour;
+  const small = typeof size !== 'undefined' && size === 'small';
+  const height = small ? 30 : 40;
+  const fontSize = small ? 13 : 16;
+  const width = Math.min(520, label.length * (small ? 8 : 10) + 64);
+%><table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin: <%= small ? '4px' : '8px' %> 0">
+  <tr>
+    <td>
+      <!--[if mso]>
+        <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="<%= url %>" style="width:<%= width %>px;height:<%= height %>px;v-text-anchor:middle;" arcsize="50%" stroked="f" fillcolor="<%= fill %>">
+          <w:anchorlock/>
+          <center style="color:#000000;font-size:<%= fontSize %>px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;"><%= label %></center>
+        </v:roundrect>
+      <![endif]-->
+      <!--[if !mso]><!-->
+      <a
+        class="lcars-pill"
+        href="<%= url %>"
+        target="_blank"
+        style="display: inline-block; height: <%= height %>px; line-height: <%= height %>px; padding: 0 <%= small ? 18 : 24 %>px 0 <%= small ? 32 : 44 %>px; border-radius: <%= height / 2 %>px; background-color: <%= fill %>; background-image: linear-gradient(<%= fill %>, <%= fill %>); color: #000000; font-family: Antonio, 'Arial Narrow', Arial, sans-serif; font-size: <%= fontSize %>px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; text-decoration: none; white-space: nowrap"><%= label %></a>
+      <!--<![endif]-->
+    </td>
+  </tr>
+</table>

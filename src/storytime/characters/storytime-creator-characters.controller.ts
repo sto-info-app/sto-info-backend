@@ -50,6 +50,11 @@ import {
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { ChapterAppearanceDto } from './dto/appearance.dto';
 import { ManagedCharacterDto } from './dto/character.dto';
+import {
+  CopiedCharacterDto,
+  CopyableCharacterStoryDto,
+  CopyStorytimeCharacterDto,
+} from './dto/copy-character.dto';
 import { CreateStorytimeCharacterDto } from './dto/create-storytime-character.dto';
 import { ReorderCharactersDto } from './dto/reorder-characters.dto';
 import { SetAppearancesDto } from './dto/set-appearances.dto';
@@ -151,6 +156,67 @@ export class StorytimeCreatorCharactersController {
 
     return this._mapper.toManaged(
       await this._characterService.create(storyId, dto, userId),
+    );
+  }
+
+  /**
+   * Lists the Characters the caller could copy into a Story (sc-1483).
+   *
+   * @param storyId - The Story the copy would join.
+   * @param userId - The caller.
+   * @returns The caller's other Stories, each with its Characters.
+   */
+  @Get('stories/:storyId/characters/copyable')
+  @ApiOperation({
+    summary: 'List the Characters you could copy into one of your Stories',
+  })
+  @ApiOkResponse({ type: [CopyableCharacterStoryDto] })
+  @ApiForbiddenResponse({ description: 'You may not manage this cast.' })
+  async findCopyable(
+    @Param('storyId', ParseUUIDPipe) storyId: string,
+    @UserId() userId: string,
+  ): Promise<CopyableCharacterStoryDto[]> {
+    await this.assertEnabled();
+
+    return this._mapper.toCopyableList(
+      await this._characterService.findCopyable(storyId, userId),
+    );
+  }
+
+  /**
+   * Copies a Character from another Story into this one (sc-1483).
+   *
+   * @param storyId - The Story to copy into.
+   * @param dto - The Character to copy.
+   * @param userId - The caller.
+   * @returns The copy, and the original's portrait to upload again.
+   */
+  @Post('stories/:storyId/characters/copy')
+  @ApiOperation({
+    summary: 'Copy a Character from another of your Stories into this one',
+  })
+  @ApiOkResponse({ type: CopiedCharacterDto })
+  @ApiBadRequestResponse({
+    description:
+      'The Character is already in this Story, or an administrator removed it or its Story.',
+  })
+  @ApiForbiddenResponse({
+    description: 'You may not manage the cast of one of the Stories.',
+  })
+  @ApiNotFoundResponse({ description: 'Character not found.' })
+  async copy(
+    @Param('storyId', ParseUUIDPipe) storyId: string,
+    @Body() dto: CopyStorytimeCharacterDto,
+    @UserId() userId: string,
+  ): Promise<CopiedCharacterDto> {
+    await this.assertEnabled();
+
+    return this._mapper.toCopied(
+      await this._characterService.copyFrom(
+        storyId,
+        dto.sourceCharacterId,
+        userId,
+      ),
     );
   }
 

@@ -7,6 +7,7 @@ import {
 
 import { DataSource, EntityManager } from 'typeorm';
 
+import { NotificationEmailType } from 'src/notification/email/notification-email-type.enum';
 import { NotificationSeverity } from 'src/notification/enums/notification-severity.enum';
 import { NotificationTarget } from 'src/notification/enums/notification-target.enum';
 import { NotificationService } from 'src/notification/notification.service';
@@ -570,13 +571,16 @@ describe('RecruitmentMembershipService', () => {
       );
       // Nothing it holds changes: no role or grant is ended.
       expect(manager.update).not.toHaveBeenCalled();
-      expect(createNotification).toHaveBeenCalledWith({
-        target: NotificationTarget.USER,
-        userId: 'member-1',
-        title: 'Fleet membership suspended',
-        body: expect.not.stringContaining('spam'),
-        severity: NotificationSeverity.WARNING,
-      });
+      expect(createNotification).toHaveBeenCalledWith(
+        {
+          target: NotificationTarget.USER,
+          userId: 'member-1',
+          title: 'Fleet membership suspended',
+          body: expect.not.stringContaining('spam'),
+          severity: NotificationSeverity.WARNING,
+        },
+        { email: NotificationEmailType.FLEET_MEMBERSHIP },
+      );
     });
 
     it('reinstates a suspended member, and tells them', async () => {
@@ -602,6 +606,7 @@ describe('RecruitmentMembershipService', () => {
           body: 'Your membership of Kell Fleet has been reinstated.',
           severity: NotificationSeverity.SUCCESS,
         }),
+        { email: NotificationEmailType.FLEET_MEMBERSHIP },
       );
     });
 

@@ -9,6 +9,7 @@ import {
   AUDIT_DATA_NUKE_THRESHOLD_DAYS,
   AUDIT_IP_NUKE_THRESHOLD_DAYS,
 } from 'src/cron/constants/cron.constants';
+import { StorytimeCharacterCopyEntity } from 'src/storytime/characters/entities/storytime-character-copy.entity';
 
 @Injectable()
 export class AuditCleanupService {
@@ -70,6 +71,16 @@ export class AuditCleanupService {
 
     this._logger.log(
       `Site admin log: deleted ${adminDeleted.affected} record(s), and forgot the IP address of ${adminForgotten.affected}.`,
+    );
+
+    // So does the record of Characters copied between Stories (sc-1483),
+    // which keeps no IP address to forget.
+    const copiesDeleted = await manager.delete(StorytimeCharacterCopyEntity, {
+      createdAt: LessThan(thresholdDate),
+    });
+
+    this._logger.log(
+      `Character copy log: deleted ${copiesDeleted.affected} record(s).`,
     );
   }
 }

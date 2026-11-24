@@ -11,10 +11,14 @@ import {
 import { getMetadataArgsStorage, QueryRunner } from 'typeorm';
 
 import { CreateNotificationOutbox1795650000000 } from 'src/database/migrations/1795650000000-CreateNotificationOutbox';
+import { UserPreferenceEntity } from 'src/user/entities/user-preference.entity';
+import { EmailFrequency } from 'src/user/enums/email-frequency.enum';
 import { NotificationCategory } from 'src/user/enums/notification-category.enum';
 import { UserPreferenceService } from 'src/user/user-preference.service';
 
 import { InMemoryManager } from '../../../test/in-memory-manager';
+import { NotificationEmailOutboxEntity } from '../email/notification-email-outbox.entity';
+import { NotificationEmailType } from '../email/notification-email-type.enum';
 import { NotificationSeverity } from '../enums/notification-severity.enum';
 import { NotificationTarget } from '../enums/notification-target.enum';
 import { NotificationService } from '../notification.service';
@@ -59,6 +63,7 @@ describe('the notification outbox', () => {
   };
   let preferences: {
     isCategoryEnabled: jest.Mock<(...args: unknown[]) => Promise<boolean>>;
+    isEmailEnabled: jest.Mock<(...args: unknown[]) => Promise<boolean>>;
   };
   let notifications: {
     createNotification: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
@@ -116,7 +121,10 @@ describe('the notification outbox', () => {
       queueDue: jest.fn(async () => undefined),
     };
     registry.register(handler);
-    preferences = { isCategoryEnabled: jest.fn(async () => true) };
+    preferences = {
+      isCategoryEnabled: jest.fn(async () => true),
+      isEmailEnabled: jest.fn(async () => false),
+    };
     notifications = { createNotification: jest.fn(async () => ({})) };
     service = new NotificationOutboxService(
       db.asDataSource(),
@@ -176,6 +184,51 @@ describe('the notification outbox', () => {
       );
       expect(handler.compose).not.toHaveBeenCalled();
       expect(notice.skippedAt).toEqual(NOW);
+    });
+
+    // An email is its own opt-in (sc-1067).
+    it('queues the email for somebody who opted in, in-app on or off', async () => {
+      waiting();
+      db.seed(UserPreferenceEntity, [
+        {
+          userId: 'user-1',
+          emailNotificationTypes: [NotificationEmailType.FLEET_EVENT_MOVED],
+          emailFrequency: EmailFrequency.INSTANT,
+          displayTimezone: null,
+        },
+      ]);
+      preferences.isCategoryEnabled.mockResolvedValue(false);
+      preferences.isEmailEnabled.mockResolvedValue(true);
+
+      await expect(service.deliver()).resolves.toBe(1);
+
+      expect(preferences.isEmailEnabled).toHaveBeenCalledWith(
+        'user-1',
+        NotificationEmailType.FLEET_EVENT_MOVED,
+      );
+      expect(notifications.createNotification).not.toHaveBeenCalled();
+      expect(
+        db.rows<NotificationEmailOutboxEntity & Record<string, unknown>>(
+          NotificationEmailOutboxEntity,
+        ),
+      ).toEqual([
+        expect.objectContaining({
+          userId: 'user-1',
+          type: NotificationEmailType.FLEET_EVENT_MOVED,
+          title: MESSAGE.title,
+          body: MESSAGE.body,
+          dueAt: NOW,
+        }),
+      ]);
+    });
+
+    it('sends in-app and queues the email when both are on', async () => {
+      waiting();
+      preferences.isEmailEnabled.mockResolvedValue(true);
+
+      await expect(service.deliver()).resolves.toBe(1);
+
+      expect(notifications.createNotification).toHaveBeenCalled();
     });
 
     it('sets aside what its handler says is no longer wanted', async () => {

@@ -12,7 +12,7 @@ import { ContactRequestEntity } from './entities/contact-request.entity';
 describe('ContactService', () => {
   let service: ContactService;
   type MailServiceMock = jest.Mocked<
-    Pick<MailService, 'generateEmailMessageObject' | 'sendEmail'>
+    Pick<MailService, 'generateEmailMessageObject' | 'sendEmail' | 'brand'>
   >;
   type EmailMessage = Parameters<MailService['sendEmail']>[0];
   let mailService: MailServiceMock;
@@ -22,6 +22,10 @@ describe('ContactService', () => {
     mailService = {
       generateEmailMessageObject: jest.fn(),
       sendEmail: jest.fn(),
+      // The layout is the mail service's; here it hands the content back.
+      brand: jest.fn((content: string) =>
+        Promise.resolve({ html: content, text: '' }),
+      ),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -103,6 +107,15 @@ describe('ContactService', () => {
     });
 
     expect(mailService.sendEmail).toHaveBeenCalledWith(userMessageStub);
+    // Both emails wear the branded layout (sc-1067).
+    expect(mailService.brand).toHaveBeenCalledWith(
+      expect.stringContaining('<strong>Topic:</strong>'),
+      expect.stringContaining('Contact request: '),
+    );
+    expect(mailService.brand).toHaveBeenCalledWith(
+      expect.stringContaining('We will review it'),
+      'We received your message',
+    );
   });
 
   it('should mask short email local parts', async () => {

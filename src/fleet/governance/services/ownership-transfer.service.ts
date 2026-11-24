@@ -10,6 +10,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 
 import { DataSource, EntityManager, IsNull, QueryFailedError } from 'typeorm';
 
+import { NotificationEmailType } from 'src/notification/email/notification-email-type.enum';
 import { NotificationSeverity } from 'src/notification/enums/notification-severity.enum';
 import { NotificationTarget } from 'src/notification/enums/notification-target.enum';
 import { NotificationService } from 'src/notification/notification.service';
@@ -901,16 +902,19 @@ export class OwnershipTransferService {
     const frontendUrl = process.env.APP_FRONTEND_URL;
 
     try {
-      await this._notificationService.createNotification({
-        target: NotificationTarget.USER,
-        userId: toUserId,
-        severity: NotificationSeverity.INFO,
-        title: `You are now the Owner of ${community.name}`,
-        body,
-        ...(frontendUrl
-          ? { linkUrl: `${frontendUrl}/fleets/communities/${community.slug}` }
-          : {}),
-      });
+      await this._notificationService.createNotification(
+        {
+          target: NotificationTarget.USER,
+          userId: toUserId,
+          severity: NotificationSeverity.INFO,
+          title: `You are now the Owner of ${community.name}`,
+          body,
+          ...(frontendUrl
+            ? { linkUrl: `${frontendUrl}/fleets/communities/${community.slug}` }
+            : {}),
+        },
+        { email: NotificationEmailType.FLEET_OWNERSHIP },
+      );
     } catch (error) {
       this._logger.warn(
         `[notifyNewOwner] The notification was not sent - CommunityId: ` +
@@ -939,19 +943,22 @@ export class OwnershipTransferService {
     const from = names.get(ownerUserId) ?? 'Its Owner';
 
     try {
-      await this._notificationService.createNotification({
-        target: NotificationTarget.USER,
-        userId: offer.toUserId as string,
-        severity: NotificationSeverity.INFO,
-        title: `Ownership of ${community.name} offered to you`,
-        body:
-          `${from} has offered you ownership of ${community.name}. Accept ` +
-          `or decline it on the Community’s page within ` +
-          `${OWNERSHIP_OFFER_DAYS} days.`,
-        ...(frontendUrl
-          ? { linkUrl: `${frontendUrl}/fleets/communities/${community.slug}` }
-          : {}),
-      });
+      await this._notificationService.createNotification(
+        {
+          target: NotificationTarget.USER,
+          userId: offer.toUserId as string,
+          severity: NotificationSeverity.INFO,
+          title: `Ownership of ${community.name} offered to you`,
+          body:
+            `${from} has offered you ownership of ${community.name}. Accept ` +
+            `or decline it on the Community’s page within ` +
+            `${OWNERSHIP_OFFER_DAYS} days.`,
+          ...(frontendUrl
+            ? { linkUrl: `${frontendUrl}/fleets/communities/${community.slug}` }
+            : {}),
+        },
+        { email: NotificationEmailType.FLEET_OWNERSHIP },
+      );
     } catch (error) {
       this._logger.warn(
         `[notifyOffered] The notification was not sent - TransferId: ` +

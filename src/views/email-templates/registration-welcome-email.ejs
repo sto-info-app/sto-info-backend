@@ -12,14 +12,7 @@
   Star Trek Online accounts, characters, fleets and more.
 </p>
 
-<p>
-  You can access the <%= appTitle %> via:
-  <a
-    href="<%= loginUrl %>"
-    target="_blank"
-    ><%= loginUrl %></a
-  >.
-</p>
+<%- include('pill', { url: loginUrl, label: 'Sign in to the ' + appTitle }) %>
 
 <p>
   The portal gets provided to users as a free resource to the Star Trek Online

@@ -5,14 +5,24 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { jest } from '@jest/globals';
 import { IsNull, QueryFailedError, Repository } from 'typeorm';
 
+import { FileAssetAudience } from 'src/file-assets/enums/file-asset-audience.enum';
+import { FileAssetKind } from 'src/file-assets/enums/file-asset-kind.enum';
+import { FileAssetSlot } from 'src/file-assets/enums/file-asset-slot.enum';
+import { FileAssetSubject } from 'src/file-assets/enums/file-asset-subject.enum';
+import { AssetWithdrawalService } from 'src/file-assets/services/asset-withdrawal.service';
+import { ImageIngressService } from 'src/file-assets/services/image-ingress.service';
+
 import { NewsPostEntity } from './entities/news-post.entity';
 import { NewsCategory } from './enums/news-category.enum';
 import { NewsStatus } from './enums/news-status.enum';
+import { NEWS_COVER_SPEC } from './news-cover.constants';
 import { NewsService } from './news.service';
 
 describe('NewsService', () => {
   let service: NewsService;
   let repository: jest.Mocked<Repository<NewsPostEntity>>;
+  let accept: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
+  let withdrawSlot: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
   let queryBuilder: {
     select: jest.Mock;
     addSelect: jest.Mock;
@@ -48,9 +58,16 @@ describe('NewsService', () => {
       getOne: jest.fn(() => Promise.resolve(null)),
     };
 
+    accept = jest.fn<(...args: unknown[]) => Promise<unknown>>();
+    withdrawSlot = jest
+      .fn<(...args: unknown[]) => Promise<unknown>>()
+      .mockResolvedValue(undefined);
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         NewsService,
+        { provide: ImageIngressService, useValue: { accept } },
+        { provide: AssetWithdrawalService, useValue: { withdrawSlot } },
         {
           provide: getRepositoryToken(NewsPostEntity),
           useValue: {
@@ -815,6 +832,29 @@ describe('NewsService', () => {
       await service.remove('1');
 
       expect(repository.softRemove).toHaveBeenCalledWith(existing);
+      expect(withdrawSlot).not.toHaveBeenCalled();
+    });
+
+    it('takes the cover down once the post is deleted', async () => {
+      const existing = {
+        id: '1',
+        coverImageId: 'cover-1',
+      } as NewsPostEntity;
+      repository.findOne.mockResolvedValue(existing);
+
+      await service.remove('1');
+
+      expect(repository.softRemove).toHaveBeenCalledWith(existing);
+      expect(withdrawSlot).toHaveBeenCalledWith(
+        FileAssetSubject.SITE_NEWS_POST,
+        '1',
+        FileAssetSlot.COVER,
+        'cover-1',
+        'Its post was deleted',
+      );
+      expect(repository.softRemove.mock.invocationCallOrder[0]).toBeLessThan(
+        withdrawSlot.mock.invocationCallOrder[0],
+      );
     });
 
     it('throws NotFoundException when post not found', async () => {
@@ -823,6 +863,94 @@ describe('NewsService', () => {
       await expect(service.remove('nonexistent')).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe('setCover', () => {
+    const file = { originalname: 'cover.png' } as Express.Multer.File;
+
+    it('sends the cover to be scanned as the site’s own news picture', async () => {
+      repository.findOne.mockResolvedValue({ id: 'post-1' } as NewsPostEntity);
+      accept.mockResolvedValue({ assetId: 'asset-1', status: 'AWAITING_SCAN' });
+
+      await expect(
+        service.setCover('post-1', {
+          userId: 'admin-1',
+          altText: 'The new shipyard',
+          file,
+        }),
+      ).resolves.toEqual({ assetId: 'asset-1', status: 'AWAITING_SCAN' });
+
+      expect(repository.findOne).toHaveBeenCalledWith({
+        where: { id: 'post-1', communityId: IsNull() },
+      });
+      expect(accept).toHaveBeenCalledWith(
+        expect.objectContaining({
+          spec: NEWS_COVER_SPEC,
+          userId: 'admin-1',
+          kind: FileAssetKind.NEWS_IMAGE,
+          audience: FileAssetAudience.PUBLIC,
+          subject: FileAssetSubject.SITE_NEWS_POST,
+          subjectId: 'post-1',
+          slot: FileAssetSlot.COVER,
+          entityTag: 'news-cover',
+          entityId: 'post-1',
+          sizeLimitLabel: 'News covers',
+          file,
+          feature: { altText: 'The new shipyard' },
+        }),
+      );
+      expect(repository.save).not.toHaveBeenCalled();
+    });
+
+    it('sends nothing for a post that is not the site’s', async () => {
+      repository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.setCover('scoped', { userId: 'admin-1', altText: 'A', file }),
+      ).rejects.toThrow(NotFoundException);
+      expect(accept).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('clearCover', () => {
+    it('empties the columns before withdrawing the picture', async () => {
+      const existing = {
+        id: 'post-1',
+        coverImageId: 'cover-1',
+        coverImageAlt: 'The old shipyard',
+      } as NewsPostEntity;
+      repository.findOne.mockResolvedValue(existing);
+      repository.save.mockResolvedValue(existing);
+
+      await service.clearCover('post-1');
+
+      expect(repository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ coverImageId: null, coverImageAlt: null }),
+      );
+      expect(withdrawSlot).toHaveBeenCalledWith(
+        FileAssetSubject.SITE_NEWS_POST,
+        'post-1',
+        FileAssetSlot.COVER,
+        'cover-1',
+        'Removed from its post',
+      );
+      expect(repository.save.mock.invocationCallOrder[0]).toBeLessThan(
+        withdrawSlot.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('refuses a post with no cover', async () => {
+      repository.findOne.mockResolvedValue({
+        id: 'post-1',
+        coverImageId: null,
+      } as NewsPostEntity);
+
+      await expect(service.clearCover('post-1')).rejects.toThrow(
+        'This post has no cover to remove.',
+      );
+      expect(repository.save).not.toHaveBeenCalled();
+      expect(withdrawSlot).not.toHaveBeenCalled();
     });
   });
 

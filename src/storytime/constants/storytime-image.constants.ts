@@ -25,6 +25,12 @@ export const STORYTIME_IMAGE_VARIANTS = {
   PORTRAIT_LARGE: 'portrait400x600',
   /** Character card, 2:3. 133 x 200. */
   PORTRAIT_SMALL: 'portrait133x200',
+  /**
+   * Any image as it was uploaded, at full size: Cloudflare's own variant.
+   * Offered so a copied Character's portrait can be downloaded and uploaded
+   * again (sc-1483).
+   */
+  ORIGINAL: 'public',
   /** Story profile image. 300 x 300. */
   PROFILE_LARGE: 'square300',
   /** Story profile image, compact. 100 x 100. */

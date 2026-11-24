@@ -7,6 +7,7 @@ import { StorytimeTargetType } from '../enums/storytime-target-type.enum';
 import { StorytimeArcFollowEntity } from './entities/storytime-arc-follow.entity';
 import { StorytimeCreatorFollowEntity } from './entities/storytime-creator-follow.entity';
 import { StorytimeStoryFollowEntity } from './entities/storytime-story-follow.entity';
+import { StorytimeSocialNotifier } from './storytime-social-notifier.service';
 
 /** What somebody may follow. */
 export enum FollowTargetKind {
@@ -17,6 +18,15 @@ export enum FollowTargetKind {
   /** One Arc, and what joins or leaves it. */
   ARC = 'ARC',
 }
+
+/** What each kind of follow is a follow of, as its notice names it. */
+const FOLLOW_NOTICE_TARGETS: Readonly<
+  Record<FollowTargetKind, 'CREATOR' | StorytimeTargetType>
+> = {
+  [FollowTargetKind.CREATOR]: 'CREATOR',
+  [FollowTargetKind.STORY]: StorytimeTargetType.STORY,
+  [FollowTargetKind.ARC]: StorytimeTargetType.ARC,
+};
 
 /** What one reader follows. */
 export interface Follows {
@@ -41,6 +51,7 @@ export class StorytimeFollowService {
    * @param _creatorFollowRepository - Follows of people.
    * @param _storyFollowRepository - Follows of Stories.
    * @param _arcFollowRepository - Follows of Arcs.
+   * @param _notifier - Tells people what was done with their work (sc-1067).
    */
   constructor(
     @InjectRepository(StorytimeCreatorFollowEntity)
@@ -49,6 +60,7 @@ export class StorytimeFollowService {
     private readonly _storyFollowRepository: Repository<StorytimeStoryFollowEntity>,
     @InjectRepository(StorytimeArcFollowEntity)
     private readonly _arcFollowRepository: Repository<StorytimeArcFollowEntity>,
+    private readonly _notifier: StorytimeSocialNotifier,
   ) {}
 
   /**
@@ -81,6 +93,12 @@ export class StorytimeFollowService {
       userId,
       [this.columnFor(kind)]: targetId,
     } as never);
+
+    await this._notifier.followed(
+      FOLLOW_NOTICE_TARGETS[kind],
+      targetId,
+      userId,
+    );
 
     return true;
   }

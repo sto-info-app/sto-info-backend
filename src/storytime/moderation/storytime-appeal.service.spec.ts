@@ -7,6 +7,8 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
+import { NotificationEmailType } from 'src/notification/email/notification-email-type.enum';
+
 import { NotificationService } from '../../notification/notification.service';
 import { AppealStatus } from '../enums/appeal-status.enum';
 import { StorytimeModerationAction } from '../enums/storytime-moderation-action.enum';
@@ -299,6 +301,7 @@ describe('StorytimeAppealService', () => {
           userId: writerId,
           title: 'Your appeal was upheld',
         }),
+        { email: NotificationEmailType.STORYTIME_APPEAL },
       );
     });
 
@@ -313,6 +316,7 @@ describe('StorytimeAppealService', () => {
         expect.objectContaining({
           body: expect.stringContaining('The passage is not yours.'),
         }),
+        { email: NotificationEmailType.STORYTIME_APPEAL },
       );
     });
 

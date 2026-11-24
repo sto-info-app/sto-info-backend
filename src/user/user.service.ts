@@ -20,6 +20,7 @@ import { ImageIngressService } from 'src/file-assets/services/image-ingress.serv
 import { MailService } from 'src/mail/mail.service';
 import { UserSearchQueryDto } from 'src/notification/dto/user-search-query.dto';
 import { UserSearchPageDto } from 'src/notification/dto/user-search-result.dto';
+import { NotificationEmailType } from 'src/notification/email/notification-email-type.enum';
 import { DEFAULT_MULTER_LIMITS } from 'src/shared/constants/file-upload.constants';
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
 import { AccountEntity } from 'src/sto/account/entities/account.entity';
@@ -123,7 +124,37 @@ export class UserService {
     return new UserSettingsDto(
       preference,
       this.getSessionTimeoutMinutes(preference),
+      await this.areEmailsPaused(userId),
     );
+  }
+
+  /**
+   * Whether a login should send its alert email (sc-1067).
+   *
+   * @param userId - The user signing in.
+   * @returns True while their login alert is switched on.
+   */
+  wantsLoginAlert(userId: string): Promise<boolean> {
+    return this._userPreferenceService.isEmailEnabled(
+      userId,
+      NotificationEmailType.LOGIN,
+    );
+  }
+
+  /**
+   * Whether SES has paused emails to somebody's address after a hard bounce
+   * or a complaint, so Settings can say so (sc-1067).
+   *
+   * @param userId - The user.
+   * @returns True while their address is suppressed.
+   */
+  private async areEmailsPaused(userId: string): Promise<boolean> {
+    const user = await this._userRepository.findOne({
+      where: { id: userId },
+      select: { id: true, email: true },
+    });
+
+    return user ? this._mailService.isSuppressed(user.email) : false;
   }
 
   /**
@@ -147,7 +178,11 @@ export class UserService {
       ...settings,
     });
 
-    return new UserSettingsDto(updated, this.getSessionTimeoutMinutes(updated));
+    return new UserSettingsDto(
+      updated,
+      this.getSessionTimeoutMinutes(updated),
+      await this.areEmailsPaused(userId),
+    );
   }
 
   /**

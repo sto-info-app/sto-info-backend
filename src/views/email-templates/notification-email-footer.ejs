@@ -1,0 +1,9 @@
+<p style="margin: 0 0 8px">
+  You are getting this email because you switched on
+  <%= labels.join(', ') %> in your email notification settings.
+</p>
+<% for (const link of unsubscribeLinks) { %>
+<%- include('pill', { url: link.url, label: 'Stop emails about ' + link.label, colour: '#ffaa90', size: 'small' }) %>
+<% } %>
+<%- include('pill', { url: settingsUrl, label: 'Manage email notifications', colour: '#cc88ff', size: 'small' }) %>
+<p style="margin: 8px 0 0"><em>This is an automated email, and replies will not get received.</em></p>

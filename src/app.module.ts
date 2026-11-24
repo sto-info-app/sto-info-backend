@@ -19,6 +19,7 @@ import { AppService } from './app.service';
 import { SecurityLogModule } from './audit/security-log/security-log.module';
 import { AuthModule } from './auth/auth.module';
 import { UserIdMiddleware } from './auth/user-id.middleware';
+import { CaptainsLogModule } from './captains-log/captains-log.module';
 import { RequestIdMiddleware } from './common/http/request-id.middleware';
 import { CommunityModule } from './community/community.module';
 import { ConfigCheckService } from './config-check/config-check.service';
@@ -48,9 +49,9 @@ import { FleetRetentionModule } from './fleet/retention/fleet-retention.module';
 import { FleetRosterModule } from './fleet/roster/fleet-roster.module';
 import { HealthModule } from './health/health.module';
 import { MailModule } from './mail/mail.module';
-import { MailService } from './mail/mail.service';
 import { ModerationModule } from './moderation/moderation.module';
 import { NewsModule } from './news/news.module';
+import { NotificationEmailModule } from './notification/email/notification-email.module';
 import { NotificationModule } from './notification/notification.module';
 import { OperationsModule } from './operations/operations.module';
 import { RestoreModule } from './operations/restore/restore.module';
@@ -151,7 +152,10 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
     HealthModule,
     SesWebhookModule,
     NewsModule,
+    CaptainsLogModule,
     NotificationModule,
+    // Notification emails and their unsubscribe links (sc-1067).
+    NotificationEmailModule,
     CommunityModule,
     FleetModule,
     FileAssetsModule,
@@ -179,7 +183,6 @@ import { SesWebhookModule } from './webhooks/ses/ses-webhook.module';
   controllers: [AppController],
   providers: [
     AppService,
-    MailService,
     ConfigCheckService,
     ValidatorsService,
     {

@@ -9,6 +9,7 @@ import { FleetInvestigationGrantEntity } from 'src/fleet/governance/entities/fle
 import { ScopeGovernanceActionEntity } from 'src/fleet/governance/entities/scope-governance-action.entity';
 import { usernamesFor } from 'src/fleet/recruitment/utilities/recruitment-names.utility';
 import { RetentionRunEntity } from 'src/fleet/retention/retention-run.entity';
+import { StorytimeCharacterCopyEntity } from 'src/storytime/characters/entities/storytime-character-copy.entity';
 
 import { SiteAdminActionEntity } from '../site-admin/site-admin-action.entity';
 import {
@@ -61,7 +62,8 @@ interface SecurityLogRow {
  * - hold actions, including each reading and its purpose;
  * - a site admin's looks into a Fleet;
  * - roster erasures;
- * - retention runs.
+ * - retention runs;
+ * - a creator copying a Character from one Story into another (sc-1483).
  *
  * Each source keeps its own retention; the feed adds none. Nothing in it is
  * content: reasons and purposes are the admins' own words, and details are
@@ -234,6 +236,21 @@ export class SecurityLogService {
           `jsonb_build_object('counts', "counts", 'complete', "complete", 'finishedAt', "finishedAt")`,
         ],
         table(RetentionRunEntity),
+      ),
+      [SecurityLogSource.STORYTIME]: select(
+        [
+          `'STORYTIME'`,
+          '"id"',
+          '"createdAt"',
+          `'CHARACTER_COPIED'`,
+          '"actorUserId"',
+          'NULL::uuid',
+          `'STORYTIME_CHARACTER'`,
+          '"copyCharacterId"::text',
+          'NULL::text',
+          `jsonb_build_object('sourceCharacterId', "sourceCharacterId", 'sourceStoryId', "sourceStoryId", 'targetStoryId', "targetStoryId")`,
+        ],
+        table(StorytimeCharacterCopyEntity),
       ),
     };
 

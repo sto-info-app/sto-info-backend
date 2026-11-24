@@ -2,6 +2,8 @@ import { BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
+import { NotificationEmailType } from 'src/notification/email/notification-email-type.enum';
+
 import { NotificationService } from '../../notification/notification.service';
 import { StorytimeArcEntity } from '../arcs/entities/storytime-arc.entity';
 import { StorytimeArcService } from '../arcs/storytime-arc.service';
@@ -860,6 +862,7 @@ describe('StorytimeSpotlightService', () => {
           userId: 'writer-1',
           body: expect.stringContaining('A Fine Story'),
         }),
+        { email: NotificationEmailType.STORYTIME_SPOTLIGHT },
       );
     });
 
@@ -876,6 +879,7 @@ describe('StorytimeSpotlightService', () => {
 
       expect(notificationService.createNotification).toHaveBeenCalledWith(
         expect.objectContaining({ userId: 'curator-1' }),
+        { email: NotificationEmailType.STORYTIME_SPOTLIGHT },
       );
     });
 

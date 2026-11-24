@@ -1,3 +1,4 @@
+import { NotificationEmailType } from 'src/notification/email/notification-email-type.enum';
 import { NotificationSeverity } from 'src/notification/enums/notification-severity.enum';
 import { NotificationTarget } from 'src/notification/enums/notification-target.enum';
 import { NotificationService } from 'src/notification/notification.service';
@@ -94,14 +95,17 @@ describe('ArmadaNotifierService', () => {
   it('tells the requester of an approval, and where the Fleet went', async () => {
     await service.approved(request(), ArmadaPosition.BETA);
 
-    expect(createNotification).toHaveBeenCalledWith({
-      target: NotificationTarget.USER,
-      userId: 'requester-1',
-      severity: NotificationSeverity.SUCCESS,
-      title: 'Ninth Fleet joined Sol Armada',
-      body: 'Your request for Ninth Fleet to join Sol Armada was approved. It is a Beta there.',
-      linkUrl: FLEET_LINK,
-    });
+    expect(createNotification).toHaveBeenCalledWith(
+      {
+        target: NotificationTarget.USER,
+        userId: 'requester-1',
+        severity: NotificationSeverity.SUCCESS,
+        title: 'Ninth Fleet joined Sol Armada',
+        body: 'Your request for Ninth Fleet to join Sol Armada was approved. It is a Beta there.',
+        linkUrl: FLEET_LINK,
+      },
+      { email: NotificationEmailType.FLEET_ARMADA },
+    );
   });
 
   it('tells the requester of a rejection, with the reason', async () => {
@@ -112,6 +116,7 @@ describe('ArmadaNotifierService', () => {
         title: 'Sol Armada did not take Ninth Fleet',
         body: 'Your request for Ninth Fleet to join Sol Armada was rejected. Reason: Full for now',
       }),
+      { email: NotificationEmailType.FLEET_ARMADA },
     );
   });
 
@@ -122,6 +127,7 @@ describe('ArmadaNotifierService', () => {
       expect.objectContaining({
         body: 'Your request for Ninth Fleet to join Sol Armada was rejected. Reason: ',
       }),
+      { email: NotificationEmailType.FLEET_ARMADA },
     );
   });
 
@@ -132,6 +138,7 @@ describe('ArmadaNotifierService', () => {
       expect.objectContaining({
         title: 'Your request to join Sol Armada lapsed',
       }),
+      { email: NotificationEmailType.FLEET_ARMADA },
     );
   });
 
@@ -168,6 +175,7 @@ describe('ArmadaNotifierService', () => {
         title: 'Ninth Fleet was taken out of Sol Armada',
         body: 'Ninth Fleet is no longer in Sol Armada. Reason: Inactive',
       }),
+      { email: NotificationEmailType.FLEET_ARMADA },
     );
   });
 

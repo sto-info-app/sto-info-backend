@@ -6,6 +6,7 @@ import {
 
 import { DataSource, IsNull } from 'typeorm';
 
+import { NotificationEmailType } from 'src/notification/email/notification-email-type.enum';
 import { NotificationSeverity } from 'src/notification/enums/notification-severity.enum';
 import { NotificationTarget } from 'src/notification/enums/notification-target.enum';
 import { NotificationService } from 'src/notification/notification.service';
@@ -250,17 +251,20 @@ describe('ScopeSuspensionService', () => {
         select: { id: true, userId: true },
       });
       expect(recipients()).toEqual([SCOPE_ADMIN_ID, OWNER_ID]);
-      expect(createNotification).toHaveBeenCalledWith({
-        target: NotificationTarget.USER,
-        userId: OWNER_ID,
-        severity: NotificationSeverity.WARNING,
-        title: 'Fixture Community was suspended',
-        body:
-          'A site administrator suspended Fixture Community, and with it ' +
-          'its Fleets and Armadas. Until it is reinstated, nothing there ' +
-          'can be changed and nobody can post in its chat.',
-        linkUrl: COMMUNITY_PAGE,
-      });
+      expect(createNotification).toHaveBeenCalledWith(
+        {
+          target: NotificationTarget.USER,
+          userId: OWNER_ID,
+          severity: NotificationSeverity.WARNING,
+          title: 'Fixture Community was suspended',
+          body:
+            'A site administrator suspended Fixture Community, and with it ' +
+            'its Fleets and Armadas. Until it is reinstated, nothing there ' +
+            'can be changed and nobody can post in its chat.',
+          linkUrl: COMMUNITY_PAGE,
+        },
+        { email: NotificationEmailType.FLEET_SUSPENSION },
+      );
       expect(JSON.stringify(createNotification.mock.calls)).not.toContain(
         'harassment',
       );
@@ -317,16 +321,19 @@ describe('ScopeSuspensionService', () => {
           COMMUNITY_ADMIN_ID,
           OWNER_ID,
         ]);
-        expect(createNotification).toHaveBeenCalledWith({
-          target: NotificationTarget.USER,
-          userId: SCOPE_ADMIN_ID,
-          severity: NotificationSeverity.SUCCESS,
-          title: `${scopeName} was reinstated`,
-          body:
-            `A site administrator lifted ${scopeName}’s suspension. Its ` +
-            'roles, members and events stand as they were.',
-          linkUrl: link,
-        });
+        expect(createNotification).toHaveBeenCalledWith(
+          {
+            target: NotificationTarget.USER,
+            userId: SCOPE_ADMIN_ID,
+            severity: NotificationSeverity.SUCCESS,
+            title: `${scopeName} was reinstated`,
+            body:
+              `A site administrator lifted ${scopeName}’s suspension. Its ` +
+              'roles, members and events stand as they were.',
+            linkUrl: link,
+          },
+          { email: NotificationEmailType.FLEET_SUSPENSION },
+        );
       },
     );
 
@@ -344,6 +351,7 @@ describe('ScopeSuspensionService', () => {
             'reinstated, nothing there can be changed and nobody can post ' +
             'in its chat.',
         }),
+        { email: NotificationEmailType.FLEET_SUSPENSION },
       );
     });
 

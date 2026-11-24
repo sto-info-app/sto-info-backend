@@ -7,7 +7,9 @@ import { StorytimeContentModule } from '../content/storytime-content.module';
 import { StorytimeImagesModule } from '../images/storytime-images.module';
 import { StorytimeStoriesModule } from '../stories/storytime-stories.module';
 import { StorytimeFeatureService } from '../storytime-feature.service';
+import { StorytimeTaggingModule } from '../tags/storytime-tagging.module';
 import { StorytimeChapterCharacterEntity } from './entities/storytime-chapter-character.entity';
+import { StorytimeCharacterCopyEntity } from './entities/storytime-character-copy.entity';
 import { StorytimeCharacterEntity } from './entities/storytime-character.entity';
 import { PublicStorytimeCharactersController } from './public-storytime-characters.controller';
 import { StorytimeAppearanceService } from './storytime-appearance.service';
@@ -33,11 +35,13 @@ import { StorytimeCreatorCharactersController } from './storytime-creator-charac
       StorytimeCharacterEntity,
       StorytimeChapterCharacterEntity,
       StorytimeChapterEntity,
+      StorytimeCharacterCopyEntity,
     ]),
     StorytimeStoriesModule,
     StorytimeChaptersModule,
     StorytimeContentModule,
     StorytimeImagesModule,
+    StorytimeTaggingModule,
   ],
   controllers: [
     PublicStorytimeCharactersController,

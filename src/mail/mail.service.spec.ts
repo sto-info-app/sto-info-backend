@@ -7,6 +7,7 @@ import * as ejs from 'ejs';
 import { convert as htmlToText } from 'html-to-text';
 
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
+import { SesWebhookService } from 'src/webhooks/ses/ses-webhook.service';
 
 import { EmailMessage, MailService } from './mail.service';
 
@@ -18,6 +19,9 @@ describe('MailService', () => {
   let service: MailService;
   let mockValidatorsService: ValidatorsService;
   let mockMailerService: MailerService;
+  let suppression: {
+    isSuppressed: jest.Mock<(email: string) => Promise<boolean>>;
+  };
 
   beforeEach(async () => {
     process.env.APP_TITLE = 'Test App';
@@ -35,6 +39,10 @@ describe('MailService', () => {
           },
         },
         {
+          provide: SesWebhookService,
+          useValue: { isSuppressed: jest.fn(() => Promise.resolve(false)) },
+        },
+        {
           provide: MailerService,
           useValue: {
             sendMail: jest
@@ -46,6 +54,7 @@ describe('MailService', () => {
     }).compile();
 
     service = module.get<MailService>(MailService);
+    suppression = module.get(SesWebhookService);
     mockValidatorsService = module.get<ValidatorsService>(ValidatorsService);
     mockMailerService = module.get<MailerService>(MailerService);
 
@@ -116,6 +125,99 @@ describe('MailService', () => {
       await service.sendUserLoggedInNotification('test@sto-info.app', 'John');
       expect(mockMailerService.sendMail).toHaveBeenCalled();
     });
+
+    // The login alert links to Settings, where it can be switched off.
+    it('carries the footer pointing at the email settings (sc-1067)', async () => {
+      await service.sendUserLoggedInNotification('test@sto-info.app', 'John');
+
+      expect(ejs.renderFile).toHaveBeenCalledWith(
+        expect.stringContaining('login-alert-footer.ejs'),
+        {
+          appTitle: 'Test App',
+          settingsUrl:
+            'https://test.local/dashboard/settings?tab=notifications',
+        },
+      );
+    });
+
+    it('is not sent to an address SES suppressed (sc-1067)', async () => {
+      suppression.isSuppressed.mockResolvedValue(true);
+
+      await service.sendUserLoggedInNotification('test@sto-info.app', 'John');
+
+      expect(suppression.isSuppressed).toHaveBeenCalledWith(
+        'test@sto-info.app',
+      );
+      expect(mockMailerService.sendMail).not.toHaveBeenCalled();
+    });
+  });
+
+  // Every email wears one branded layout (sc-1067).
+  describe('renderEmail', () => {
+    it('renders the content, the footer, then the layout around both', async () => {
+      (
+        ejs.renderFile as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockImplementation(async (file: string) =>
+        file.endsWith('layout.ejs') ? '<html>branded</html>' : `<p>${file}</p>`,
+      );
+
+      await expect(
+        service.renderEmail(
+          'notification-email.ejs',
+          { firstName: 'Kirk' },
+          'Subject line',
+          { template: 'notification-email-footer.ejs', data: { labels: [] } },
+        ),
+      ).resolves.toEqual({ html: '<html>branded</html>', text: 'Test text' });
+
+      const calls = (ejs.renderFile as jest.Mock).mock.calls;
+
+      expect(calls[0]).toEqual([
+        expect.stringContaining('notification-email.ejs'),
+        { appTitle: 'Test App', firstName: 'Kirk' },
+      ]);
+      expect(calls[1]).toEqual([
+        expect.stringContaining('notification-email-footer.ejs'),
+        { appTitle: 'Test App', labels: [] },
+      ]);
+      expect(calls[2]).toEqual([
+        expect.stringContaining('layout.ejs'),
+        {
+          appTitle: 'Test App',
+          subject: 'Subject line',
+          content: expect.stringContaining('notification-email.ejs'),
+          footer: expect.stringContaining('notification-email-footer.ejs'),
+        },
+      ]);
+      expect(htmlToText).toHaveBeenCalledWith(
+        '<html>branded</html>',
+        expect.objectContaining({ wordwrap: 130 }),
+      );
+    });
+
+    it('renders no footer when none is given', async () => {
+      await service.renderEmail('notification-email.ejs', {}, 'Subject');
+
+      expect((ejs.renderFile as jest.Mock).mock.calls[1][1]).toEqual(
+        expect.objectContaining({ footer: null }),
+      );
+    });
+  });
+
+  describe('isSuppressed', () => {
+    it('asks the SES records', async () => {
+      suppression.isSuppressed.mockResolvedValue(true);
+
+      await expect(service.isSuppressed('a@sto-info.app')).resolves.toBe(true);
+    });
+
+    // SES refuses a suppressed address itself; a lookup failing is no error.
+    it('answers false when the lookup fails', async () => {
+      jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      suppression.isSuppressed.mockRejectedValue(new RangeError('down'));
+
+      await expect(service.isSuppressed('a@sto-info.app')).resolves.toBe(false);
+    });
   });
 
   describe('sendEmailToUser', () => {
@@ -137,6 +239,39 @@ describe('MailService', () => {
     it('should send via SES', async () => {
       await service.sendEmail(sampleMessage);
       expect(mockMailerService.sendMail).toHaveBeenCalledTimes(1);
+      // Nobody asked about suppression, so nothing was looked up.
+      expect(suppression.isSuppressed).not.toHaveBeenCalled();
+    });
+
+    it('passes extra headers, such as List-Unsubscribe, to SES (sc-1067)', async () => {
+      await service.sendEmail({
+        ...sampleMessage,
+        headers: { 'List-Unsubscribe': '<https://api.test/x>' },
+      });
+
+      expect(mockMailerService.sendMail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          headers: { 'List-Unsubscribe': '<https://api.test/x>' },
+        }),
+      );
+    });
+
+    it('sends to an address that is not suppressed when asked to check', async () => {
+      await service.sendEmail(sampleMessage, { respectSuppression: true });
+
+      expect(mockMailerService.sendMail).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws a failed send for a sender that retries (sc-1067)', async () => {
+      (
+        mockMailerService.sendMail as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockRejectedValue(new Error('SES down'));
+
+      await expect(
+        service.sendEmail(sampleMessage, { rethrow: true }),
+      ).rejects.toThrow('SES down');
     });
 
     // FC-044: test and demonstration accounts live at reserved domains.
@@ -418,7 +553,11 @@ describe('MailService', () => {
       const original = process.env[envVar];
       delete process.env[envVar];
       expect(() => {
-        const _s = new MailService(mockValidatorsService, mockMailerService);
+        const _s = new MailService(
+          mockValidatorsService,
+          mockMailerService,
+          {} as SesWebhookService,
+        );
         return _s;
       }).toThrow(`Environment variable ${envVar} is not set`);
       process.env[envVar] = original;

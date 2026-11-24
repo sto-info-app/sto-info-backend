@@ -8,6 +8,7 @@ import { Repository } from 'typeorm';
 
 import { ImageIngressService } from 'src/file-assets/services/image-ingress.service';
 import { MailService } from 'src/mail/mail.service';
+import { NotificationEmailType } from 'src/notification/email/notification-email-type.enum';
 import { ValidatorsService } from 'src/shared/utilities/validators.service';
 import { AccountEntity } from 'src/sto/account/entities/account.entity';
 import { CharacterEntity } from 'src/sto/character/entities/character.entity';
@@ -47,6 +48,7 @@ describe('UserService', () => {
   let preferenceService: {
     get: jest.Mock<(...args: any[]) => Promise<any>>;
     update: jest.Mock<(...args: any[]) => Promise<any>>;
+    isEmailEnabled: jest.Mock<(...args: any[]) => Promise<any>>;
   };
 
   /** A stored preference row, defaults unless overridden. */
@@ -60,6 +62,7 @@ describe('UserService', () => {
   const settingsFor = (overrides: Record<string, unknown> = {}) => ({
     ...DEFAULT_USER_PREFERENCES,
     sessionTimeoutMinutes: 240,
+    emailsPaused: false,
     ...overrides,
   });
 
@@ -117,6 +120,7 @@ describe('UserService', () => {
           provide: MailService,
           useValue: {
             sendAccountClosureEmail: jest.fn(),
+            isSuppressed: jest.fn(() => Promise.resolve(false)),
           },
         },
         {
@@ -124,6 +128,7 @@ describe('UserService', () => {
           useValue: {
             get: jest.fn(),
             update: jest.fn(),
+            isEmailEnabled: jest.fn(async () => true),
           },
         },
         {
@@ -242,6 +247,44 @@ describe('UserService', () => {
       ).mockResolvedValue(null);
 
       await expect(service.getSettings('uuid')).rejects.toThrow(HttpException);
+    });
+  });
+
+  // sc-1067.
+  describe('email settings', () => {
+    beforeEach(() => {
+      (
+        userProfileRepository.findOne as jest.Mock<
+          (...args: any[]) => Promise<any>
+        >
+      ).mockResolvedValue({ userId: 'uuid' });
+      preferenceService.get.mockResolvedValue(preferencesFor());
+    });
+
+    it('says when SES has paused emails to the address', async () => {
+      (
+        userRepository.findOne as jest.Mock<(...args: any[]) => Promise<any>>
+      ).mockResolvedValue({ id: 'uuid', email: 'kirk@sto.test' });
+      (
+        mailService as unknown as {
+          isSuppressed: jest.Mock<(...args: any[]) => Promise<any>>;
+        }
+      ).isSuppressed.mockResolvedValue(true);
+
+      await expect(service.getSettings('uuid')).resolves.toEqual(
+        expect.objectContaining({ emailsPaused: true }),
+      );
+      expect(
+        (mailService as unknown as { isSuppressed: jest.Mock }).isSuppressed,
+      ).toHaveBeenCalledWith('kirk@sto.test');
+    });
+
+    it('asks whether the login alert is on', async () => {
+      await expect(service.wantsLoginAlert('uuid')).resolves.toBe(true);
+      expect(preferenceService.isEmailEnabled).toHaveBeenCalledWith(
+        'uuid',
+        NotificationEmailType.LOGIN,
+      );
     });
   });
 

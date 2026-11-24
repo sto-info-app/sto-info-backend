@@ -68,6 +68,14 @@ export class UserReportEntity {
   @Column({ type: 'varchar', length: 1000, nullable: true, default: null })
   details: string | null;
 
+  @ApiPropertyOptional({
+    description:
+      'The Captain’s Log entry the report is about, or null (sc-1450).',
+    nullable: true,
+  })
+  @Column({ type: 'uuid', nullable: true, default: null })
+  logEntryId: string | null;
+
   @ApiProperty({
     description: 'Where the report sits in the moderation queue.',
     enum: ReportStatus,

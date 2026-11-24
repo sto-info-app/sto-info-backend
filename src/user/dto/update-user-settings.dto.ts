@@ -11,13 +11,16 @@ import {
   Validate,
 } from 'class-validator';
 
+import { NotificationEmailType } from '../../notification/email/notification-email-type.enum';
 import { IsIanaTimezoneConstraint } from '../../shared/utilities/is-iana-timezone.constraint';
 import {
   MAX_SESSION_TIMEOUT_MINUTES,
   MIN_SESSION_TIMEOUT_MINUTES,
   SESSION_TIMEOUT_OPTIONS_MINUTES,
 } from '../constants/session-timeout.constants';
+import { EmailFrequency } from '../enums/email-frequency.enum';
 import { PresenceVisibility } from '../enums/presence-visibility.enum';
+import { IsEmailSwitchesConstraint } from './is-email-switches.constraint';
 
 /**
  * A change to the account settings.
@@ -127,4 +130,25 @@ export class UpdateUserSettingsDto {
     description: 'Notify for subscribed event reminders.',
   })
   readonly notifyEventReminder?: boolean;
+
+  // Only the types named change, so two switches flipped in quick succession
+  // cannot undo each other (sc-1067).
+  @IsOptional()
+  @Validate(IsEmailSwitchesConstraint)
+  @ApiPropertyOptional({
+    description:
+      'Email switches to change, by type: true opts in, false opts out.',
+    type: 'object',
+    additionalProperties: { type: 'boolean' },
+    example: { STORYTIME_COMMENT: true },
+  })
+  readonly emailNotifications?: Partial<Record<NotificationEmailType, boolean>>;
+
+  @IsOptional()
+  @IsEnum(EmailFrequency)
+  @ApiPropertyOptional({
+    enum: EmailFrequency,
+    description: 'How often notification emails go out.',
+  })
+  readonly emailFrequency?: EmailFrequency;
 }

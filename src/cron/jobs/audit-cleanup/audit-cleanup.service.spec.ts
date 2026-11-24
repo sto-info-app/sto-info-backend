@@ -7,6 +7,7 @@ import { Repository } from 'typeorm';
 
 import { AuditEntity } from 'src/audit/entities/audit.entity';
 import { SiteAdminActionEntity } from 'src/audit/site-admin/site-admin-action.entity';
+import { StorytimeCharacterCopyEntity } from 'src/storytime/characters/entities/storytime-character-copy.entity';
 
 import { AuditCleanupService } from './audit-cleanup.service';
 
@@ -151,6 +152,37 @@ describe('AuditCleanupService', () => {
     );
     expect(loggerLogSpy).toHaveBeenCalledWith(
       'Site admin log: deleted 2 record(s), and forgot the IP address of 1.',
+    );
+  });
+
+  // sc-1483: the record of Characters copied between Stories keeps a row 180
+  // days too. It holds no IP address, so there is nothing to forget sooner.
+  it('holds the Character copy log to the same policy', async () => {
+    (
+      repository.delete as jest.Mock<(...args: any[]) => Promise<any>>
+    ).mockResolvedValue({ affected: 0 });
+    (
+      repository.update as jest.Mock<(...args: any[]) => Promise<any>>
+    ).mockResolvedValue({ affected: 0 });
+
+    await service.cleanup();
+
+    const manager = (
+      repository as unknown as {
+        manager: { delete: jest.Mock; update: jest.Mock };
+      }
+    ).manager;
+
+    expect(manager.delete).toHaveBeenCalledWith(StorytimeCharacterCopyEntity, {
+      createdAt: expect.anything(),
+    });
+    expect(manager.update).not.toHaveBeenCalledWith(
+      StorytimeCharacterCopyEntity,
+      expect.anything(),
+      expect.anything(),
+    );
+    expect(loggerLogSpy).toHaveBeenCalledWith(
+      'Character copy log: deleted 2 record(s).',
     );
   });
 });

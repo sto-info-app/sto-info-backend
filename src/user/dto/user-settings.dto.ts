@@ -1,6 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+import { NotificationEmailType } from 'src/notification/email/notification-email-type.enum';
+
 import { UserPreferenceEntity } from '../entities/user-preference.entity';
+import { EmailFrequency } from '../enums/email-frequency.enum';
 import { PresenceVisibility } from '../enums/presence-visibility.enum';
 
 /**
@@ -69,6 +72,25 @@ export class UserSettingsDto {
   @ApiProperty({ description: 'Notify for subscribed event reminders.' })
   notifyEventReminder: boolean;
 
+  @ApiProperty({
+    enum: NotificationEmailType,
+    isArray: true,
+    description: 'The notification emails this user has opted in to.',
+  })
+  emailNotificationTypes: NotificationEmailType[];
+
+  @ApiProperty({
+    enum: EmailFrequency,
+    description: 'How often notification emails go out.',
+  })
+  emailFrequency: EmailFrequency;
+
+  @ApiProperty({
+    description:
+      'Whether emails to the address are paused after a bounce or complaint.',
+  })
+  emailsPaused: boolean;
+
   /**
    * Creates the response from stored preferences.
    *
@@ -78,8 +100,13 @@ export class UserSettingsDto {
    *
    * @param preference - The user's stored or default preferences.
    * @param sessionTimeoutMinutes - The inactivity window in force.
+   * @param emailsPaused - Whether SES suppresses the account's address.
    */
-  constructor(preference: UserPreferenceEntity, sessionTimeoutMinutes: number) {
+  constructor(
+    preference: UserPreferenceEntity,
+    sessionTimeoutMinutes: number,
+    emailsPaused = false,
+  ) {
     this.privacyMode = preference.privacyMode;
     this.sessionTimeoutMinutes = sessionTimeoutMinutes;
     this.displayTimezone = preference.displayTimezone;
@@ -92,5 +119,8 @@ export class UserSettingsDto {
     this.notifyDirectMessage = preference.notifyDirectMessage;
     this.notifyRosterAssociation = preference.notifyRosterAssociation;
     this.notifyEventReminder = preference.notifyEventReminder;
+    this.emailNotificationTypes = [...preference.emailNotificationTypes];
+    this.emailFrequency = preference.emailFrequency;
+    this.emailsPaused = emailsPaused;
   }
 }

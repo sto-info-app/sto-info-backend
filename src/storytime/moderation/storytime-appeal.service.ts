@@ -9,6 +9,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { In, Repository } from 'typeorm';
 
+import { NotificationEmailType } from 'src/notification/email/notification-email-type.enum';
+
 import { NotificationSeverity } from '../../notification/enums/notification-severity.enum';
 import { NotificationTarget } from '../../notification/enums/notification-target.enum';
 import { NotificationService } from '../../notification/notification.service';
@@ -273,18 +275,23 @@ export class StorytimeAppealService {
     const kind = this._targetService.describe(appeal.targetType).toLowerCase();
 
     try {
-      await this._notificationService.createNotification({
-        target: NotificationTarget.USER,
-        userId: appeal.appellantUserId,
-        severity: upheld
-          ? NotificationSeverity.INFO
-          : NotificationSeverity.WARNING,
-        title: upheld ? 'Your appeal was upheld' : 'Your appeal was not upheld',
-        body: upheld
-          ? `Your ${kind} has been restored.`
-          : // A decision always says why (FC-039).
-            `The removal of your ${kind} stands. ${appeal.reviewNotes as string}`,
-      });
+      await this._notificationService.createNotification(
+        {
+          target: NotificationTarget.USER,
+          userId: appeal.appellantUserId,
+          severity: upheld
+            ? NotificationSeverity.INFO
+            : NotificationSeverity.WARNING,
+          title: upheld
+            ? 'Your appeal was upheld'
+            : 'Your appeal was not upheld',
+          body: upheld
+            ? `Your ${kind} has been restored.`
+            : // A decision always says why (FC-039).
+              `The removal of your ${kind} stands. ${appeal.reviewNotes as string}`,
+        },
+        { email: NotificationEmailType.STORYTIME_APPEAL },
+      );
     } catch (error) {
       this._logger.error(
         `Failed to notify ${appeal.appellantUserId} of an appeal decision`,

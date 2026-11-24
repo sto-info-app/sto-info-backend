@@ -17,6 +17,8 @@ export enum SecurityLogSource {
   ERASURE = 'ERASURE',
   /** A retention job's run. */
   RETENTION = 'RETENTION',
+  /** A creator copying a Character from one Story into another (sc-1483). */
+  STORYTIME = 'STORYTIME',
 }
 
 /** What the Security Log is asked for. */

@@ -14,6 +14,19 @@ import { StorytimeActivityFeedItemEntity } from './entities/storytime-activity-f
 import { StorytimeFeedStateEntity } from './entities/storytime-feed-state.entity';
 import { StorytimeActivityFeedService } from './storytime-activity-feed.service';
 import { Follows, StorytimeFollowService } from './storytime-follow.service';
+import { StorytimeSocialNotifier } from './storytime-social-notifier.service';
+
+/** A stand-in notifier; its own spec covers what each notice says (sc-1067). */
+function buildNotifier() {
+  return {
+    followed: jest.fn(() => Promise.resolve()),
+    commented: jest.fn(() => Promise.resolve()),
+    reacted: jest.fn(() => Promise.resolve()),
+    published: jest.fn(() => Promise.resolve()),
+  };
+}
+
+let notifier: ReturnType<typeof buildNotifier>;
 
 describe('StorytimeActivityFeedService', () => {
   let service: StorytimeActivityFeedService;
@@ -160,6 +173,10 @@ describe('StorytimeActivityFeedService', () => {
           useValue: arcRepository,
         },
         { provide: StorytimeFollowService, useValue: followService },
+        {
+          provide: StorytimeSocialNotifier,
+          useValue: (notifier = buildNotifier()),
+        },
       ],
     }).compile();
 
@@ -193,6 +210,41 @@ describe('StorytimeActivityFeedService', () => {
         arcId: null,
       });
       expect(itemRepository.save).toHaveBeenCalled();
+    });
+
+    // Followers hear of a new Story or Chapter (sc-1067).
+    it.each([
+      [StorytimeActivityType.STORY_PUBLISHED, { storyId: 'story-1' }, null],
+      [
+        StorytimeActivityType.CHAPTER_PUBLISHED,
+        { storyId: 'story-1', chapterId: 'chapter-1' },
+        'chapter-1',
+      ],
+    ])('tells followers of %s', async (type, targets, chapterId) => {
+      await service.recordQuietly(type, 'writer-1', targets);
+
+      expect(notifier.published).toHaveBeenCalledWith(
+        'story-1',
+        chapterId,
+        'writer-1',
+      );
+    });
+
+    it('tells nobody of anything else', async () => {
+      await service.recordQuietly(
+        StorytimeActivityType.STORY_UPDATED,
+        'writer-1',
+        {
+          storyId: 'story-1',
+        },
+      );
+      await service.recordQuietly(
+        StorytimeActivityType.ARC_UPDATED,
+        'writer-1',
+        { arcId: 'arc-1' },
+      );
+
+      expect(notifier.published).not.toHaveBeenCalled();
     });
 
     it('names nothing when nothing is named', async () => {

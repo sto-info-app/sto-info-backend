@@ -68,6 +68,20 @@ class EnvironmentVariables {
   @IsUrl()
   APP_FRONTEND_URL: string;
 
+  // The API's public address, for the one-click List-Unsubscribe header in
+  // notification emails (sc-1067). Optional: without it the header is left
+  // out, and the link in each email still works.
+  // Blank counts as unset, as template.env leaves it.
+  @ValidateIf(
+    o =>
+      typeof o.APP_API_URL === 'string' &&
+      o.APP_API_URL !== '' &&
+      !o.APP_API_URL.startsWith('http://localhost') &&
+      !o.APP_API_URL.startsWith('https://localhost'),
+  )
+  @IsUrl({ protocols: ['https'], require_protocol: true })
+  APP_API_URL?: string;
+
   @IsNotEmpty()
   @IsString()
   APP_TITLE: string;

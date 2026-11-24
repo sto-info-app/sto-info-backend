@@ -3,7 +3,9 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { jest } from '@jest/globals';
 
+import { NotificationEmailType } from '../notification/email/notification-email-type.enum';
 import { UserPreferenceEntity } from './entities/user-preference.entity';
+import { EmailFrequency } from './enums/email-frequency.enum';
 import { NotificationCategory } from './enums/notification-category.enum';
 import { PresenceVisibility } from './enums/presence-visibility.enum';
 import {
@@ -17,6 +19,7 @@ describe('UserPreferenceService', () => {
     findOne: jest.Mock<(...args: any[]) => Promise<any>>;
     create: jest.Mock<(...args: any[]) => any>;
     save: jest.Mock<(...args: any[]) => Promise<any>>;
+    manager: Record<string, jest.Mock<(...args: any[]) => Promise<any>>>;
   };
 
   const stored = (overrides: Partial<UserPreferenceEntity> = {}) =>
@@ -31,6 +34,12 @@ describe('UserPreferenceService', () => {
       findOne: jest.fn<(...args: any[]) => Promise<any>>(),
       create: jest.fn((value: any) => ({ ...value })),
       save: jest.fn(async (value: any) => value),
+      // Waiting emails are rescheduled through it (sc-1067).
+      manager: {
+        find: jest.fn(async () => []),
+        findOne: jest.fn(async () => null),
+        update: jest.fn(async () => undefined),
+      },
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -110,6 +119,28 @@ describe('UserPreferenceService', () => {
      * confirmation, because a wrong zone shifts every date in the file by
      * hours.
      */
+    // Opt-in, except the login alert, which was always sent (sc-1067).
+    it('starts with only the login alert, sent instantly', () => {
+      expect(DEFAULT_USER_PREFERENCES.emailNotificationTypes).toEqual([
+        NotificationEmailType.LOGIN,
+      ]);
+      expect(DEFAULT_USER_PREFERENCES.emailFrequency).toBe(
+        EmailFrequency.INSTANT,
+      );
+    });
+
+    it('hands each account its own list of email types', async () => {
+      repository.findOne.mockResolvedValue(null);
+
+      const first = await service.get('user-1');
+
+      first.emailNotificationTypes.push(NotificationEmailType.FRIEND_REQUEST);
+
+      expect((await service.get('user-2')).emailNotificationTypes).toEqual([
+        NotificationEmailType.LOGIN,
+      ]);
+    });
+
     it('leaves both timezones unset', () => {
       expect(DEFAULT_USER_PREFERENCES.displayTimezone).toBeNull();
       expect(DEFAULT_USER_PREFERENCES.stoExportTimezone).toBeNull();
@@ -180,6 +211,105 @@ describe('UserPreferenceService', () => {
         service.update('user-1', { [field]: value }),
       ).rejects.toThrow('is not an IANA timezone');
       expect(repository.save).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('email switches (sc-1067)', () => {
+    it('turns on and off only the types named, in a stable order', async () => {
+      repository.findOne.mockResolvedValue(
+        stored({
+          emailNotificationTypes: [
+            NotificationEmailType.FRIEND_REQUEST,
+            NotificationEmailType.LOGIN,
+          ],
+        }),
+      );
+
+      const result = await service.update('user-1', {
+        emailNotifications: {
+          [NotificationEmailType.LOGIN]: false,
+          [NotificationEmailType.STORYTIME_COMMENT]: true,
+        },
+      });
+
+      expect(result.emailNotificationTypes).toEqual([
+        NotificationEmailType.STORYTIME_COMMENT,
+        NotificationEmailType.FRIEND_REQUEST,
+      ]);
+      expect(result).not.toHaveProperty('emailNotifications');
+    });
+
+    it('leaves the switches alone when none are sent', async () => {
+      repository.findOne.mockResolvedValue(
+        stored({
+          emailNotificationTypes: [NotificationEmailType.FLEET_MENTION],
+        }),
+      );
+
+      const result = await service.update('user-1', { privacyMode: true });
+
+      expect(result.emailNotificationTypes).toEqual([
+        NotificationEmailType.FLEET_MENTION,
+      ]);
+    });
+
+    // Waiting emails were due by the old schedule.
+    it('reschedules waiting emails when the frequency changes', async () => {
+      repository.findOne.mockResolvedValue(stored());
+
+      await service.update('user-1', { emailFrequency: EmailFrequency.DAILY });
+
+      expect(repository.manager.find).toHaveBeenCalled();
+    });
+
+    it('reschedules them when the zone changes', async () => {
+      repository.findOne.mockResolvedValue(stored());
+
+      await service.update('user-1', { displayTimezone: 'Europe/London' });
+
+      expect(repository.manager.find).toHaveBeenCalled();
+    });
+
+    it('leaves them be when neither changes', async () => {
+      repository.findOne.mockResolvedValue(stored());
+
+      await service.update('user-1', {
+        emailFrequency: EmailFrequency.INSTANT,
+        notifyMention: false,
+      });
+
+      expect(repository.manager.find).not.toHaveBeenCalled();
+    });
+
+    it('turns one email off for an unsubscribe link', async () => {
+      repository.findOne.mockResolvedValue(
+        stored({
+          emailNotificationTypes: [
+            NotificationEmailType.LOGIN,
+            NotificationEmailType.FRIEND_REQUEST,
+          ],
+        }),
+      );
+
+      const result = await service.optOutOfEmail(
+        'user-1',
+        NotificationEmailType.FRIEND_REQUEST,
+      );
+
+      expect(result.emailNotificationTypes).toEqual([
+        NotificationEmailType.LOGIN,
+      ]);
+    });
+
+    it('says whether a type is on', async () => {
+      repository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.isEmailEnabled('user-1', NotificationEmailType.LOGIN),
+      ).resolves.toBe(true);
+      await expect(
+        service.isEmailEnabled('user-1', NotificationEmailType.FRIEND_REQUEST),
+      ).resolves.toBe(false);
     });
   });
 

@@ -91,6 +91,25 @@ export class StorytimeCollaboratorAccessService {
   }
 
   /**
+   * Lists the Stories on which somebody's accepted collaboration grants a
+   * capability.
+   *
+   * @param userId - The person.
+   * @param capability - What they want to do.
+   * @returns The Stories' identifiers.
+   */
+  async findStoryIdsGranting(
+    userId: string,
+    capability: StoryCapability,
+  ): Promise<string[]> {
+    const collaborations = await this.findAcceptedForUser(userId);
+
+    return collaborations
+      .filter(collaborator => this.grants(collaborator, capability))
+      .map(collaborator => collaborator.storyId);
+  }
+
+  /**
    * Reports whether a collaboration row grants a capability.
    *
    * @param collaborator - The collaboration.

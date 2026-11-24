@@ -1,0 +1,13 @@
+<p style="margin: 0 0 8px">Hi <%= firstName %>,</p>
+
+<% if (digest) { %>
+<p style="margin: 0 0 8px">Here is what happened on the <%= appTitle %> since your last <%= digest %> email.</p>
+<% } %>
+
+<% for (const item of items) { %>
+<h2 class="lcars-heading" style="margin: 24px 0 4px; font-family: Antonio, 'Arial Narrow', Arial, sans-serif; font-size: 22px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #ffcc66"><%= item.title %></h2>
+<p style="margin: 0 0 4px"><%= item.body %></p>
+<% if (item.linkUrl) { %>
+<%- include('pill', { url: item.linkUrl, label: 'Open in the ' + appTitle }) %>
+<% } %>
+<% } %>

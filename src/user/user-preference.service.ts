@@ -3,11 +3,17 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { Repository } from 'typeorm';
 
+import { rescheduleEmails } from '../notification/email/notification-email-outbox.utility';
+import {
+  DEFAULT_EMAIL_NOTIFICATION_TYPES,
+  NotificationEmailType,
+} from '../notification/email/notification-email-type.enum';
 import { canonicaliseTimezone } from '../shared/utilities/timezone.utility';
 import {
   NOTIFICATION_CATEGORY_COLUMNS,
   UserPreferenceEntity,
 } from './entities/user-preference.entity';
+import { EmailFrequency } from './enums/email-frequency.enum';
 import { NotificationCategory } from './enums/notification-category.enum';
 import { PresenceVisibility } from './enums/presence-visibility.enum';
 
@@ -39,12 +45,24 @@ export const DEFAULT_USER_PREFERENCES: Readonly<
   notifyDirectMessage: true,
   notifyRosterAssociation: true,
   notifyEventReminder: true,
+  emailNotificationTypes: [...DEFAULT_EMAIL_NOTIFICATION_TYPES],
+  emailFrequency: EmailFrequency.INSTANT,
 };
 
 /** The fields a caller may change. */
 export type UserPreferenceChanges = Partial<
-  Omit<UserPreferenceEntity, 'userId' | 'user' | 'createdAt' | 'updatedAt'>
->;
+  Omit<
+    UserPreferenceEntity,
+    'userId' | 'user' | 'createdAt' | 'updatedAt' | 'emailNotificationTypes'
+  >
+> & {
+  /**
+   * Email switches to turn on or off, by type (sc-1067). Only the types named
+   * change, so two switches flipped in quick succession cannot undo each
+   * other the way two whole lists could.
+   */
+  emailNotifications?: Partial<Record<NotificationEmailType, boolean>>;
+};
 
 /**
  * Reads and writes one user's preferences.
@@ -101,7 +119,11 @@ export class UserPreferenceService {
       (await this._preferenceRepository.findOne({ where: { userId } })) ??
       this._preferenceRepository.create(this.defaultsFor(userId));
 
-    const applied: UserPreferenceChanges = { ...changes };
+    const { emailNotifications, ...applied } = changes;
+    const previous = {
+      emailFrequency: current.emailFrequency,
+      displayTimezone: current.displayTimezone,
+    };
 
     if (applied.displayTimezone !== undefined) {
       applied.displayTimezone = this.canonicalise(applied.displayTimezone);
@@ -113,7 +135,55 @@ export class UserPreferenceService {
 
     Object.assign(current, applied);
 
-    return this._preferenceRepository.save(current);
+    if (emailNotifications !== undefined) {
+      current.emailNotificationTypes = this.applySwitches(
+        current.emailNotificationTypes,
+        emailNotifications,
+      );
+    }
+
+    const saved = await this._preferenceRepository.save(current);
+
+    // Waiting emails are due by the old schedule; a new frequency or zone
+    // moves them to the new one.
+    if (
+      saved.emailFrequency !== previous.emailFrequency ||
+      saved.displayTimezone !== previous.displayTimezone
+    ) {
+      await rescheduleEmails(this._preferenceRepository.manager, saved);
+    }
+
+    return saved;
+  }
+
+  /**
+   * Turns one email off, as an unsubscribe link does (sc-1067).
+   *
+   * @param userId - The user.
+   * @param type - The email.
+   * @returns The preferences as they now stand.
+   */
+  optOutOfEmail(
+    userId: string,
+    type: NotificationEmailType,
+  ): Promise<UserPreferenceEntity> {
+    return this.update(userId, { emailNotifications: { [type]: false } });
+  }
+
+  /**
+   * Determines whether a user has opted in to a kind of email (sc-1067).
+   *
+   * @param userId - The intended recipient.
+   * @param type - The kind of email.
+   * @returns True while it is switched on.
+   */
+  async isEmailEnabled(
+    userId: string,
+    type: NotificationEmailType,
+  ): Promise<boolean> {
+    const preference = await this.get(userId);
+
+    return preference.emailNotificationTypes.includes(type);
   }
 
   /**
@@ -146,7 +216,36 @@ export class UserPreferenceService {
     return {
       userId,
       ...DEFAULT_USER_PREFERENCES,
+      // A copy, so a caller changing it cannot change the defaults.
+      emailNotificationTypes: [...DEFAULT_EMAIL_NOTIFICATION_TYPES],
     } as UserPreferenceEntity;
+  }
+
+  /**
+   * Applies email switches to the list of types switched on.
+   *
+   * @param current - The types on now.
+   * @param switches - The changes, by type.
+   * @returns The types on afterwards, in a stable order.
+   */
+  private applySwitches(
+    current: readonly NotificationEmailType[],
+    switches: Partial<Record<NotificationEmailType, boolean>>,
+  ): NotificationEmailType[] {
+    const on = new Set(current);
+
+    for (const [type, enabled] of Object.entries(switches) as [
+      NotificationEmailType,
+      boolean,
+    ][]) {
+      if (enabled) {
+        on.add(type);
+      } else {
+        on.delete(type);
+      }
+    }
+
+    return Object.values(NotificationEmailType).filter(type => on.has(type));
   }
 
   /**

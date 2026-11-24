@@ -197,6 +197,30 @@ describe('ConfigCheckService', () => {
       expect(result.APP_FRONTEND_URL).toBe('https://example.com');
     });
 
+    // Optional; for one-click unsubscribe headers (sc-1067).
+    it.each([
+      ['unset', undefined],
+      ['blank', ''],
+      ['a local address', 'http://localhost:3000'],
+      ['an https address', 'https://api.example.com'],
+    ])('should accept APP_API_URL when %s', (_name, value) => {
+      expect(() =>
+        service.validateInput({
+          ...validConfig,
+          ...(value === undefined ? {} : { APP_API_URL: value }),
+        }),
+      ).not.toThrow();
+    });
+
+    it('should refuse an APP_API_URL that is not https', () => {
+      expect(() =>
+        service.validateInput({
+          ...validConfig,
+          APP_API_URL: 'http://api.example.com',
+        }),
+      ).toThrow('Validation error');
+    });
+
     it('should accept https:// prefix for CLOUDFLARE_R2_ENDPOINT without validation', () => {
       const config = { ...validConfig };
       const result = service.validateInput(config);

@@ -9,7 +9,7 @@ import { AuditSubscriber } from 'src/audit/subscribers/audit.subscriber';
 import { isOnMachineEnvironment } from 'src/shared/constants/environment.constants';
 import { SecretsService } from 'src/shared/secrets/secrets.service';
 
-dotenvConfig({ path: './config/environments/.env' });
+dotenvConfig({ path: './config/environments/.env', quiet: true });
 
 const secretsService = new SecretsService();
 

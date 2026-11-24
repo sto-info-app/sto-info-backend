@@ -2,8 +2,13 @@ import { Injectable } from '@nestjs/common';
 
 import { ChapterAppearanceDto } from './dto/appearance.dto';
 import { CharacterDto, ManagedCharacterDto } from './dto/character.dto';
+import {
+  CopiedCharacterDto,
+  CopyableCharacterStoryDto,
+} from './dto/copy-character.dto';
 import { StorytimeChapterCharacterEntity } from './entities/storytime-chapter-character.entity';
 import { StorytimeCharacterEntity } from './entities/storytime-character.entity';
+import { CharacterCopy, CopyableCast } from './storytime-character.service';
 
 /**
  * Turns Character entities into the shapes the API returns.
@@ -79,6 +84,44 @@ export class StorytimeCharacterMapper {
    */
   toManagedList(characters: StorytimeCharacterEntity[]): ManagedCharacterDto[] {
     return characters.map(character => this.toManaged(character));
+  }
+
+  /**
+   * Maps the Characters a creator could copy, Story by Story (sc-1483).
+   *
+   * Only what the picker shows: enough to recognise each Character, nothing
+   * the copy itself is made from.
+   *
+   * @param casts - Each Story with its Characters.
+   * @returns The picker's Stories.
+   */
+  toCopyableList(casts: CopyableCast[]): CopyableCharacterStoryDto[] {
+    return casts.map(({ story, characters }) => ({
+      storyId: story.id,
+      storyTitle: story.title,
+      characters: characters.map(character => ({
+        id: character.id,
+        name: character.name,
+        shortBio: character.shortBio,
+        portraitImageThumbnailUrl: character.portraitImageThumbnailUrl,
+        portraitImageAlt: character.portraitImageAlt,
+      })),
+    }));
+  }
+
+  /**
+   * Maps a copy, with the original portrait it could not take along.
+   *
+   * @param result - The copy and its original.
+   * @returns The copy as its creator manages it.
+   */
+  toCopied({ copy, original }: CharacterCopy): CopiedCharacterDto {
+    const url = original.portraitImageOriginalUrl;
+
+    return {
+      character: this.toManaged(copy),
+      originalPortrait: url ? { url, alt: original.portraitImageAlt } : null,
+    };
   }
 
   /**

@@ -7,6 +7,14 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { IsNull, QueryFailedError, Repository } from 'typeorm';
 
+import { FileAssetAudience } from 'src/file-assets/enums/file-asset-audience.enum';
+import { FileAssetKind } from 'src/file-assets/enums/file-asset-kind.enum';
+import { FileAssetSlot } from 'src/file-assets/enums/file-asset-slot.enum';
+import { FileAssetSubject } from 'src/file-assets/enums/file-asset-subject.enum';
+import { AcceptedAsset } from 'src/file-assets/services/asset-ingress.service';
+import { AssetWithdrawalService } from 'src/file-assets/services/asset-withdrawal.service';
+import { ImageIngressService } from 'src/file-assets/services/image-ingress.service';
+import { DEFAULT_MULTER_LIMITS } from 'src/shared/constants/file-upload.constants';
 import { normaliseToSlug } from 'src/shared/utilities/slug.utility';
 
 import { CreateNewsPostDto } from './dto/create-news-post.dto';
@@ -15,6 +23,7 @@ import { UpdateNewsPostDto } from './dto/update-news-post.dto';
 import { NewsPostEntity } from './entities/news-post.entity';
 import { NewsCategory } from './enums/news-category.enum';
 import { NewsStatus } from './enums/news-status.enum';
+import { NEWS_COVER_SPEC } from './news-cover.constants';
 
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
@@ -40,6 +49,16 @@ export interface PaginatedNews {
 export interface NewsNeighbour {
   slug: string;
   title: string;
+}
+
+/** A cover on its way to be scanned. */
+export interface NewsCoverUpload {
+  /** The administrator uploading it. */
+  readonly userId: string;
+  /** What it shows. */
+  readonly altText: string;
+  /** The cropped image. */
+  readonly file: Express.Multer.File;
 }
 
 /**
@@ -68,10 +87,14 @@ export class NewsService {
    * Creates an instance of NewsService.
    *
    * @param _newsRepository - The news post repository.
+   * @param _ingress - Checks a cover over and sends it to be scanned.
+   * @param _withdrawal - Takes a published cover down.
    */
   constructor(
     @InjectRepository(NewsPostEntity)
     private readonly _newsRepository: Repository<NewsPostEntity>,
+    private readonly _ingress: ImageIngressService,
+    private readonly _withdrawal: AssetWithdrawalService,
   ) {}
 
   /**
@@ -313,7 +336,10 @@ export class NewsService {
   }
 
   /**
-   * Soft-deletes a post.
+   * Soft-deletes a post, then takes its cover down.
+   *
+   * The deleted row keeps naming its cover; what stops the bytes being served
+   * is the withdrawal, and a deleted post is never shown to anybody.
    *
    * @param id - The post ID.
    * @throws NotFoundException when the post does not exist.
@@ -321,6 +347,90 @@ export class NewsService {
   async remove(id: string): Promise<void> {
     const post = await this.findOneById(id);
     await this._newsRepository.softRemove(post);
+
+    if (post.coverImageId) {
+      await this.withdrawCover(
+        post.id,
+        post.coverImageId,
+        'Its post was deleted',
+      );
+    }
+  }
+
+  /**
+   * Sends a post's cover to be scanned (sc-1447). The post keeps showing its
+   * old cover, or none, until the scanner clears the new one; publishing is
+   * never held up by it.
+   *
+   * @param id - The post ID.
+   * @param upload - The uploader, the description and the file.
+   * @returns The upload to ask about, and how far along it is.
+   * @throws NotFoundException when the post does not exist.
+   * @throws BadRequestException when the file is unacceptable as a cover.
+   */
+  async setCover(id: string, upload: NewsCoverUpload): Promise<AcceptedAsset> {
+    const post = await this.findOneById(id);
+
+    return this._ingress.accept({
+      spec: NEWS_COVER_SPEC,
+      userId: upload.userId,
+      kind: FileAssetKind.NEWS_IMAGE,
+      audience: FileAssetAudience.PUBLIC,
+      subject: FileAssetSubject.SITE_NEWS_POST,
+      subjectId: post.id,
+      slot: FileAssetSlot.COVER,
+      entityTag: NEWS_COVER_SPEC.entityTag,
+      entityId: post.id,
+      maximumBytes: DEFAULT_MULTER_LIMITS.fileSize,
+      sizeLimitLabel: 'News covers',
+      file: upload.file,
+      feature: { altText: upload.altText },
+    });
+  }
+
+  /**
+   * Takes a post's cover down.
+   *
+   * The columns are emptied first, so the post never points at bytes that
+   * have stopped being served.
+   *
+   * @param id - The post ID.
+   * @throws NotFoundException when the post does not exist or has no cover.
+   */
+  async clearCover(id: string): Promise<void> {
+    const post = await this.findOneById(id);
+    const reference = post.coverImageId;
+
+    if (!reference) {
+      throw new NotFoundException('This post has no cover to remove.');
+    }
+
+    post.coverImageId = null;
+    post.coverImageAlt = null;
+    await this._newsRepository.save(post);
+
+    await this.withdrawCover(post.id, reference, 'Removed from its post');
+  }
+
+  /**
+   * Withdraws the picture a post's cover slot showed.
+   *
+   * @param postId - The post.
+   * @param reference - The cover's delivery reference.
+   * @param reason - Why, for the withdrawal record.
+   */
+  private async withdrawCover(
+    postId: string,
+    reference: string,
+    reason: string,
+  ): Promise<void> {
+    await this._withdrawal.withdrawSlot(
+      FileAssetSubject.SITE_NEWS_POST,
+      postId,
+      FileAssetSlot.COVER,
+      reference,
+      reason,
+    );
   }
 
   /**

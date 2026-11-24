@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 
 import { AccessControlService } from '../../access-control/access-control.service';
 import { STORYTIME_FEATURE_FLAGS } from '../constants/storytime-feature.constants';
+import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeFeatureService } from '../storytime-feature.service';
 import { StorytimeChapterCharacterEntity } from './entities/storytime-chapter-character.entity';
 import { StorytimeCharacterEntity } from './entities/storytime-character.entity';
@@ -23,6 +24,8 @@ describe('StorytimeCreatorCharactersController', () => {
     findByIds: jest.Mock;
     setPortraitImage: jest.Mock;
     clearPortraitImage: jest.Mock;
+    findCopyable: jest.Mock;
+    copyFrom: jest.Mock;
   };
   let appearanceService: {
     setAppearances: jest.Mock;
@@ -65,6 +68,11 @@ describe('StorytimeCreatorCharactersController', () => {
       findByIds: jest.fn().mockResolvedValue([character]),
       setPortraitImage: jest.fn().mockResolvedValue(character),
       clearPortraitImage: jest.fn().mockResolvedValue(character),
+      findCopyable: jest.fn().mockResolvedValue([]),
+      copyFrom: jest.fn().mockResolvedValue({
+        copy: character,
+        original: character,
+      }),
     };
     appearanceService = {
       setAppearances: jest.fn().mockResolvedValue([appearance]),
@@ -152,6 +160,60 @@ describe('StorytimeCreatorCharactersController', () => {
     await controller.remove(characterId, userId);
 
     expect(characterService.remove).toHaveBeenCalledWith(characterId, userId);
+  });
+
+  // sc-1483: copying a Character from another of the creator's Stories.
+  describe('copying', () => {
+    const sourceCharacterId = 'e6d3a1b2-0000-4000-8000-0000000000dd';
+
+    it('lists what could be copied, Story by Story', async () => {
+      characterService.findCopyable.mockResolvedValue([
+        {
+          story: Object.assign(new StorytimeStoryEntity(), {
+            id: 'story-2',
+            title: 'Another Story',
+          }),
+          characters: [character],
+        },
+      ]);
+
+      await expect(controller.findCopyable(storyId, userId)).resolves.toEqual([
+        {
+          storyId: 'story-2',
+          storyTitle: 'Another Story',
+          characters: [
+            {
+              id: characterId,
+              name: 'Captain Shran',
+              shortBio: undefined,
+              portraitImageThumbnailUrl: null,
+              portraitImageAlt: undefined,
+            },
+          ],
+        },
+      ]);
+      expect(characterService.findCopyable).toHaveBeenCalledWith(
+        storyId,
+        userId,
+      );
+    });
+
+    it('copies the Character and returns it as its creator manages it', async () => {
+      const result = await controller.copy(
+        storyId,
+        { sourceCharacterId },
+        userId,
+      );
+
+      expect(characterService.copyFrom).toHaveBeenCalledWith(
+        storyId,
+        sourceCharacterId,
+        userId,
+      );
+      expect(result.character.id).toBe(characterId);
+      expect(result.character.version).toBe(1);
+      expect(result.originalPortrait).toBeNull();
+    });
   });
 
   describe('appearances', () => {
@@ -246,6 +308,16 @@ describe('StorytimeCreatorCharactersController', () => {
     it.each([
       ['findByStory', () => controller.findByStory(storyId, userId)],
       ['findOne', () => controller.findOne(characterId, userId)],
+      ['findCopyable', () => controller.findCopyable(storyId, userId)],
+      [
+        'copy',
+        () =>
+          controller.copy(
+            storyId,
+            { sourceCharacterId: 'character-2' },
+            userId,
+          ),
+      ],
       ['create', () => controller.create(storyId, { name: 'Shran' }, userId)],
       [
         'update',

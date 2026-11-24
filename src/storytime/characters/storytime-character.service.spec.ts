@@ -9,7 +9,10 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
+import { In } from 'typeorm';
+
 import { LimitService } from '../../access-control/limit.service';
+import { StoryCapability } from '../collaboration/storytime-story-capability.enum';
 import { STORYTIME_DELETION_REASONS } from '../constants/storytime-deletion.constants';
 import { STORYTIME_LIMITS } from '../constants/storytime-limits.constants';
 import { StorytimeMarkdownService } from '../content/storytime-markdown.service';
@@ -24,6 +27,9 @@ import {
 } from '../shared/storytime-slug.service';
 import { StorytimeStoryEntity } from '../stories/entities/storytime-story.entity';
 import { StorytimeStoryService } from '../stories/storytime-story.service';
+import { StorytimeTagEntity } from '../tags/entities/storytime-tag.entity';
+import { StorytimeTaggingService } from '../tags/storytime-tagging.service';
+import { StorytimeCharacterCopyEntity } from './entities/storytime-character-copy.entity';
 import { StorytimeCharacterEntity } from './entities/storytime-character.entity';
 import { StorytimeCharacterService } from './storytime-character.service';
 
@@ -36,8 +42,14 @@ describe('StorytimeCharacterService', () => {
     save: jest.Mock;
     count: jest.Mock;
     softDelete: jest.Mock;
+    manager: { transaction: jest.Mock };
   };
-  let storyService: { findEditableOrFail: jest.Mock };
+  let transactionManager: { save: jest.Mock; insert: jest.Mock };
+  let storyService: {
+    findEditableOrFail: jest.Mock;
+    findWithCapabilityForUser: jest.Mock;
+  };
+  let taggingService: { findFor: jest.Mock; setTags: jest.Mock };
   let slugService: {
     generateUniqueSlug: jest.Mock;
     recordRetiredSlug: jest.Mock;
@@ -96,7 +108,20 @@ describe('StorytimeCharacterService', () => {
       withdraw: jest.fn().mockResolvedValue(undefined),
     };
 
+    // The copy and its Security Log record are saved in one transaction; the
+    // stub runs the work against a manager the tests can inspect.
+    transactionManager = {
+      save: jest.fn(input => Promise.resolve(input)),
+      insert: jest.fn().mockResolvedValue(undefined),
+    };
+
     characterRepository = {
+      manager: {
+        transaction: jest.fn(
+          (work: (manager: typeof transactionManager) => Promise<unknown>) =>
+            work(transactionManager),
+        ),
+      },
       find: jest.fn().mockResolvedValue([]),
       findOne: jest.fn().mockResolvedValue(null),
       create: jest.fn(input =>
@@ -114,6 +139,12 @@ describe('StorytimeCharacterService', () => {
           ownerUserId: ownerId,
         }),
       ),
+      findWithCapabilityForUser: jest.fn().mockResolvedValue([]),
+    };
+
+    taggingService = {
+      findFor: jest.fn().mockResolvedValue([]),
+      setTags: jest.fn().mockResolvedValue([]),
     };
 
     slugService = {
@@ -141,6 +172,7 @@ describe('StorytimeCharacterService', () => {
         StorytimeMarkdownService,
         { provide: LimitService, useValue: limitService },
         { provide: StorytimeImageService, useValue: imageService },
+        { provide: StorytimeTaggingService, useValue: taggingService },
       ],
     }).compile();
 
@@ -155,6 +187,388 @@ describe('StorytimeCharacterService', () => {
 
   it('is defined', () => {
     expect(service).toBeDefined();
+  });
+
+  // sc-1483: copying a Character from another of the creator's Stories.
+  describe('copying from another Story', () => {
+    const sourceStoryId = 'e6d3a1b2-0000-4000-8000-0000000000bb';
+    const sourceCharacterId = 'e6d3a1b2-0000-4000-8000-0000000000dd';
+    const copyId = 'e6d3a1b2-0000-4000-8000-0000000000ee';
+
+    /**
+     * Builds a Story with sensible defaults.
+     *
+     * @param overrides - Fields to change.
+     * @returns The Story entity.
+     */
+    const buildStory = (
+      overrides: Partial<StorytimeStoryEntity> = {},
+    ): StorytimeStoryEntity =>
+      Object.assign(new StorytimeStoryEntity(), {
+        id: storyId,
+        ownerUserId: ownerId,
+        title: 'The Long Way Home',
+        moderationStatus: StorytimeModerationStatus.ACTIVE,
+        ...overrides,
+      });
+
+    /** The Character being copied, with every descriptive field filled. */
+    const buildOriginal = (
+      overrides: Partial<StorytimeCharacterEntity> = {},
+    ): StorytimeCharacterEntity =>
+      buildCharacter({
+        id: sourceCharacterId,
+        storyId: sourceStoryId,
+        name: 'Captain Shran',
+        slug: 'captain-shran',
+        shortBio: 'An Andorian officer.',
+        biographySource: 'An **Andorian** officer.',
+        biographyHtml: '<p>Stale HTML</p>',
+        portraitImageId: 'portrait-image-id',
+        portraitImageAlt: 'Shran on the bridge',
+        species: 'Andorian',
+        faction: 'Imperial Guard',
+        rank: 'Commander',
+        occupation: 'Captain',
+        affiliation: 'Andorian Empire',
+        shipAssignment: 'Kumari',
+        traits: ['Stubborn', 'Loyal'],
+        isPrimary: true,
+        displayOrder: 2000,
+        ...overrides,
+      });
+
+    let original: StorytimeCharacterEntity;
+
+    beforeEach(() => {
+      original = buildOriginal();
+      storyService.findEditableOrFail.mockImplementation((id: string) =>
+        Promise.resolve(buildStory({ id })),
+      );
+      // The original is found by its identifier; the end of the target's cast
+      // by its Story.
+      characterRepository.findOne.mockImplementation(
+        (options: { where: { id?: string } }) =>
+          Promise.resolve(
+            options.where.id === sourceCharacterId
+              ? original
+              : buildCharacter({ displayOrder: 3000 }),
+          ),
+      );
+      transactionManager.save.mockImplementation(
+        (input: StorytimeCharacterEntity) =>
+          Promise.resolve(Object.assign(input, { id: copyId })),
+      );
+    });
+
+    describe('copyFrom', () => {
+      it('copies every descriptive field into the target Story', async () => {
+        const { copy } = await service.copyFrom(
+          storyId,
+          sourceCharacterId,
+          ownerId,
+        );
+
+        expect(copy).toMatchObject({
+          storyId,
+          name: 'Captain Shran',
+          shortBio: 'An Andorian officer.',
+          biographySource: 'An **Andorian** officer.',
+          species: 'Andorian',
+          faction: 'Imperial Guard',
+          rank: 'Commander',
+          occupation: 'Captain',
+          affiliation: 'Andorian Empire',
+          shipAssignment: 'Kumari',
+          traits: ['Stubborn', 'Loyal'],
+          isPrimary: true,
+          createdByUserId: ownerId,
+          updatedByUserId: ownerId,
+        });
+      });
+
+      it('renders the biography afresh rather than copying its HTML', async () => {
+        const { copy } = await service.copyFrom(
+          storyId,
+          sourceCharacterId,
+          ownerId,
+        );
+
+        expect(copy.biographyHtml).toContain('<strong>Andorian</strong>');
+        expect(copy.biographyHtml).not.toContain('Stale HTML');
+      });
+
+      it('takes no portrait, so the two never share an image', async () => {
+        const { copy, original: returned } = await service.copyFrom(
+          storyId,
+          sourceCharacterId,
+          ownerId,
+        );
+
+        expect(copy.portraitImageId ?? null).toBeNull();
+        expect(copy.portraitImageAlt ?? null).toBeNull();
+        expect(returned).toBe(original);
+        expect(imageService.accept).not.toHaveBeenCalled();
+      });
+
+      it('gives the copy its own traits list, so editing one leaves the other', async () => {
+        const { copy } = await service.copyFrom(
+          storyId,
+          sourceCharacterId,
+          ownerId,
+        );
+
+        copy.traits?.push('Changed');
+
+        expect(original.traits).toEqual(['Stubborn', 'Loyal']);
+      });
+
+      it('copies an original with no traits as having none', async () => {
+        original = buildOriginal({ traits: null });
+
+        const { copy } = await service.copyFrom(
+          storyId,
+          sourceCharacterId,
+          ownerId,
+        );
+
+        expect(copy.traits).toBeNull();
+      });
+
+      it('asks for the original slug, unique within the target Story', async () => {
+        await service.copyFrom(storyId, sourceCharacterId, ownerId);
+
+        expect(slugService.generateUniqueSlug).toHaveBeenCalledWith(
+          expect.objectContaining({
+            desiredSlug: 'captain-shran',
+            title: 'Captain Shran',
+            targetType: StorytimeTargetType.CHARACTER,
+            storyId,
+          }),
+        );
+        expect(characterRepository.count).toHaveBeenCalledWith({
+          where: expect.objectContaining({
+            storyId,
+            slug: 'candidate-slug',
+          }),
+        });
+      });
+
+      it('puts the copy at the end of the target cast', async () => {
+        const { copy } = await service.copyFrom(
+          storyId,
+          sourceCharacterId,
+          ownerId,
+        );
+
+        expect(characterRepository.findOne).toHaveBeenCalledWith({
+          where: { storyId },
+          order: { displayOrder: 'DESC' },
+        });
+        expect(copy.displayOrder).toBe(4000);
+      });
+
+      it('saves the copy and its Security Log record together', async () => {
+        await service.copyFrom(storyId, sourceCharacterId, ownerId);
+
+        expect(characterRepository.manager.transaction).toHaveBeenCalledTimes(
+          1,
+        );
+        expect(characterRepository.save).not.toHaveBeenCalled();
+        expect(transactionManager.insert).toHaveBeenCalledWith(
+          StorytimeCharacterCopyEntity,
+          {
+            actorUserId: ownerId,
+            sourceCharacterId,
+            sourceStoryId,
+            copyCharacterId: copyId,
+            targetStoryId: storyId,
+          },
+        );
+      });
+
+      it('gives the copy the tags the original carries', async () => {
+        taggingService.findFor.mockResolvedValue([
+          Object.assign(new StorytimeTagEntity(), { id: 'tag-1' }),
+          Object.assign(new StorytimeTagEntity(), { id: 'tag-2' }),
+        ]);
+
+        await service.copyFrom(storyId, sourceCharacterId, ownerId);
+
+        expect(taggingService.findFor).toHaveBeenCalledWith(
+          StorytimeTargetType.CHARACTER,
+          sourceCharacterId,
+        );
+        expect(taggingService.setTags).toHaveBeenCalledWith(
+          StorytimeTargetType.CHARACTER,
+          copyId,
+          ['tag-1', 'tag-2'],
+        );
+      });
+
+      it('sets no tags when the original has none', async () => {
+        await service.copyFrom(storyId, sourceCharacterId, ownerId);
+
+        expect(taggingService.setTags).not.toHaveBeenCalled();
+      });
+
+      it('needs Manage Characters on both Stories', async () => {
+        await service.copyFrom(storyId, sourceCharacterId, ownerId);
+
+        expect(storyService.findEditableOrFail).toHaveBeenCalledWith(
+          storyId,
+          ownerId,
+          StoryCapability.MANAGE_CHARACTERS,
+        );
+        expect(storyService.findEditableOrFail).toHaveBeenCalledWith(
+          sourceStoryId,
+          ownerId,
+          StoryCapability.MANAGE_CHARACTERS,
+        );
+      });
+
+      it('refuses when the caller may not manage the target cast', async () => {
+        storyService.findEditableOrFail.mockRejectedValue(
+          new ForbiddenException(),
+        );
+
+        await expect(
+          service.copyFrom(storyId, sourceCharacterId, ownerId),
+        ).rejects.toThrow(ForbiddenException);
+        expect(characterRepository.manager.transaction).not.toHaveBeenCalled();
+      });
+
+      it('refuses when the caller may not manage the original cast', async () => {
+        storyService.findEditableOrFail.mockImplementation((id: string) =>
+          id === sourceStoryId
+            ? Promise.reject(new ForbiddenException())
+            : Promise.resolve(buildStory({ id })),
+        );
+
+        await expect(
+          service.copyFrom(storyId, sourceCharacterId, ownerId),
+        ).rejects.toThrow(ForbiddenException);
+        expect(characterRepository.manager.transaction).not.toHaveBeenCalled();
+      });
+
+      it('reports a Character that does not exist', async () => {
+        characterRepository.findOne.mockResolvedValue(null);
+
+        await expect(
+          service.copyFrom(storyId, sourceCharacterId, ownerId),
+        ).rejects.toThrow(NotFoundException);
+      });
+
+      it('refuses a Character already in the target Story', async () => {
+        original = buildOriginal({ storyId });
+
+        await expect(
+          service.copyFrom(storyId, sourceCharacterId, ownerId),
+        ).rejects.toThrow(BadRequestException);
+        expect(characterRepository.manager.transaction).not.toHaveBeenCalled();
+      });
+
+      it('refuses a Character an administrator has removed', async () => {
+        original = buildOriginal({
+          moderationStatus: StorytimeModerationStatus.REMOVED,
+        });
+
+        await expect(
+          service.copyFrom(storyId, sourceCharacterId, ownerId),
+        ).rejects.toThrow(
+          'A Character an administrator has removed cannot be copied.',
+        );
+        expect(characterRepository.manager.transaction).not.toHaveBeenCalled();
+      });
+
+      it('refuses a Character whose Story an administrator has removed', async () => {
+        storyService.findEditableOrFail.mockImplementation((id: string) =>
+          Promise.resolve(
+            buildStory({
+              id,
+              moderationStatus:
+                id === sourceStoryId
+                  ? StorytimeModerationStatus.REMOVED
+                  : StorytimeModerationStatus.ACTIVE,
+            }),
+          ),
+        );
+
+        await expect(
+          service.copyFrom(storyId, sourceCharacterId, ownerId),
+        ).rejects.toThrow(BadRequestException);
+        expect(characterRepository.manager.transaction).not.toHaveBeenCalled();
+      });
+
+      it('refuses once the target Story is at its Character limit', async () => {
+        limitService.assertWithinLimit.mockRejectedValue(
+          new BadRequestException('Too many Characters'),
+        );
+
+        await expect(
+          service.copyFrom(storyId, sourceCharacterId, ownerId),
+        ).rejects.toThrow('Too many Characters');
+        expect(characterRepository.count).toHaveBeenCalledWith({
+          where: { storyId },
+        });
+        expect(characterRepository.manager.transaction).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('findCopyable', () => {
+      it('needs Manage Characters on the target Story', async () => {
+        storyService.findEditableOrFail.mockRejectedValue(
+          new ForbiddenException(),
+        );
+
+        await expect(service.findCopyable(storyId, ownerId)).rejects.toThrow(
+          ForbiddenException,
+        );
+        expect(storyService.findWithCapabilityForUser).not.toHaveBeenCalled();
+      });
+
+      it('offers the Characters of every other Story the caller can manage', async () => {
+        const otherStory = buildStory({ id: sourceStoryId, title: 'Shared' });
+        const thirdStoryId = 'e6d3a1b2-0000-4000-8000-0000000000ff';
+        const emptyStory = buildStory({ id: thirdStoryId, title: 'Empty' });
+        storyService.findWithCapabilityForUser.mockResolvedValue([
+          buildStory(),
+          otherStory,
+          emptyStory,
+        ]);
+        characterRepository.find.mockResolvedValue([original]);
+
+        await expect(service.findCopyable(storyId, ownerId)).resolves.toEqual([
+          { story: otherStory, characters: [original] },
+        ]);
+
+        expect(storyService.findWithCapabilityForUser).toHaveBeenCalledWith(
+          ownerId,
+          StoryCapability.MANAGE_CHARACTERS,
+        );
+        expect(characterRepository.find).toHaveBeenCalledWith({
+          where: {
+            storyId: In([sourceStoryId, thirdStoryId]),
+            moderationStatus: StorytimeModerationStatus.ACTIVE,
+          },
+          order: { displayOrder: 'ASC', name: 'ASC' },
+        });
+      });
+
+      it('offers nothing from a Story an administrator has removed', async () => {
+        storyService.findWithCapabilityForUser.mockResolvedValue([
+          buildStory({
+            id: sourceStoryId,
+            moderationStatus: StorytimeModerationStatus.REMOVED,
+          }),
+        ]);
+
+        await expect(service.findCopyable(storyId, ownerId)).resolves.toEqual(
+          [],
+        );
+        expect(characterRepository.find).not.toHaveBeenCalled();
+      });
+    });
   });
 
   describe('create', () => {

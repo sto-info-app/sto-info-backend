@@ -51,6 +51,8 @@ services:
       # production.
       - key: APP_FRONTEND_URL
         value: https://tribble.startrekonline.info
+      - key: APP_API_URL
+        value: https://tribble-api.startrekonline.info
       - key: APP_TITLE
         value: Star Trek Online Info Portal
 

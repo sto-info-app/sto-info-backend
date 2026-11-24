@@ -142,6 +142,18 @@ export class StorytimeCharacterEntity extends StorytimeWorkEntity {
   }
 
   /**
+   * Gets the portrait as it was uploaded, for downloading rather than showing.
+   *
+   * @returns The image URL, or null when the Character has no portrait.
+   */
+  get portraitImageOriginalUrl(): string | null {
+    return this.buildImageUrl(
+      this.portraitImageId,
+      STORYTIME_IMAGE_VARIANTS.ORIGINAL,
+    );
+  }
+
+  /**
    * Gets the portrait URL at cast-list size.
    *
    * @returns The image URL, or null when the Character has no portrait.

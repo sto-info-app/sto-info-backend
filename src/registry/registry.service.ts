@@ -163,6 +163,25 @@ export class RegistryService {
   }
 
   /**
+   * Says whose profile a username names, when the caller may see it: the
+   * same test the profile page itself passes, so anything shown on a profile
+   * is never shown when the profile is not (sc-1450).
+   *
+   * @param username - The member's profile username.
+   * @param viewerId - The authenticated caller's user ID, or null when
+   *   anonymous.
+   * @returns The member's user ID.
+   * @throws {NotFoundException} When no publicly visible member matches, or
+   *   the caller is blocked from seeing them.
+   */
+  async findVisibleMemberId(
+    username: string,
+    viewerId: string | null,
+  ): Promise<string> {
+    return (await this.requireProfile(username, viewerId)).userId;
+  }
+
+  /**
    * Retrieves a single publicly visible member and their visible accounts.
    *
    * @param username - The member's profile username.

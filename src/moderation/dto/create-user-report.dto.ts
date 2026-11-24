@@ -6,6 +6,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
 } from 'class-validator';
 
@@ -50,4 +51,12 @@ export class CreateUserReportDto {
   @IsString()
   @MaxLength(1000)
   readonly details?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'The Captain’s entry on their profile the report is about (sc-1450).',
+  })
+  @IsOptional()
+  @IsUUID('4')
+  readonly logEntryId?: string;
 }

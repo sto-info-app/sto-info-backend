@@ -7,9 +7,13 @@ import { DataSource, IsNull, LessThan } from 'typeorm';
 import { CRON_TIMEZONE } from 'src/cron/constants/cron.constants';
 import { UserPreferenceService } from 'src/user/user-preference.service';
 
+import { queueEmails } from '../email/notification-email-outbox.utility';
 import { NotificationTarget } from '../enums/notification-target.enum';
 import { NotificationService } from '../notification.service';
-import { NOTIFICATION_OUTBOX_CATEGORIES } from './notification-outbox-kind.enum';
+import {
+  NOTIFICATION_OUTBOX_CATEGORIES,
+  NOTIFICATION_OUTBOX_EMAIL_TYPES,
+} from './notification-outbox-kind.enum';
 import { NotificationOutboxEntity } from './notification-outbox.entity';
 import { NotificationOutboxRegistry } from './notification-outbox.registry';
 
@@ -27,7 +31,8 @@ const BATCH = 100;
  * off, or its handler says it is no longer true or no longer theirs. Each is
  * held for its own transaction and skipped by any other run holding it, so
  * two runs never send it twice. One that fails is tried again, up to five
- * times. In-app only: R16 allows no email, push or Discord.
+ * times. Each notice may also queue its email, which is its own opt-in
+ * (sc-1067): R16's in-app-only rule was relaxed for email then.
  */
 @Injectable()
 export class NotificationOutboxService {
@@ -109,14 +114,20 @@ export class NotificationOutboxService {
       }
 
       try {
-        const message = (await this._preferences.isCategoryEnabled(
-          notice.userId,
-          NOTIFICATION_OUTBOX_CATEGORIES[notice.kind],
-        ))
-          ? await this._registry
-              .require(notice.kind)
-              .compose(notice, manager, now)
-          : null;
+        const emailType = NOTIFICATION_OUTBOX_EMAIL_TYPES[notice.kind];
+        const [inApp, email] = await Promise.all([
+          this._preferences.isCategoryEnabled(
+            notice.userId,
+            NOTIFICATION_OUTBOX_CATEGORIES[notice.kind],
+          ),
+          this._preferences.isEmailEnabled(notice.userId, emailType),
+        ]);
+        const message =
+          inApp || email
+            ? await this._registry
+                .require(notice.kind)
+                .compose(notice, manager, now)
+            : null;
 
         if (message === null) {
           notice.skippedAt = now;
@@ -127,12 +138,25 @@ export class NotificationOutboxService {
 
         const { linkUrl, ...rest } = message;
 
-        await this._notifications.createNotification({
-          target: NotificationTarget.USER,
-          userId: notice.userId,
-          ...rest,
-          ...(linkUrl === null ? {} : { linkUrl }),
-        });
+        if (inApp) {
+          await this._notifications.createNotification({
+            target: NotificationTarget.USER,
+            userId: notice.userId,
+            ...rest,
+            ...(linkUrl === null ? {} : { linkUrl }),
+          });
+        }
+
+        // Queued in the delivery's transaction, so a retry cannot queue it
+        // twice (sc-1067).
+        if (email) {
+          await queueEmails(
+            manager,
+            [{ userId: notice.userId, type: emailType, ...rest, linkUrl }],
+            now,
+          );
+        }
+
         notice.deliveredAt = now;
         await manager.save(NotificationOutboxEntity, notice);
 

@@ -10,6 +10,8 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { jest } from '@jest/globals';
 import { IsNull } from 'typeorm';
 
+import { NotificationEmailType } from 'src/notification/email/notification-email-type.enum';
+
 import { NotificationSeverity } from '../notification/enums/notification-severity.enum';
 import { NotificationTarget } from '../notification/enums/notification-target.enum';
 import { NotificationService } from '../notification/notification.service';
@@ -277,14 +279,17 @@ describe('FriendshipService', () => {
         addresseeId: TARGET_ID,
         status: FriendshipStatus.PENDING,
       });
-      expect(notificationService.createNotification).toHaveBeenCalledWith({
-        target: NotificationTarget.USER,
-        userId: TARGET_ID,
-        severity: NotificationSeverity.INFO,
-        title: 'New friend request',
-        body: 'captain.sisko would like to add you as a friend.',
-        linkUrl: 'https://sto.example/community/friends',
-      });
+      expect(notificationService.createNotification).toHaveBeenCalledWith(
+        {
+          target: NotificationTarget.USER,
+          userId: TARGET_ID,
+          severity: NotificationSeverity.INFO,
+          title: 'New friend request',
+          body: 'captain.sisko would like to add you as a friend.',
+          linkUrl: 'https://sto.example/community/friends',
+        },
+        { email: NotificationEmailType.FRIEND_REQUEST },
+      );
       expect(result).toEqual(
         expect.objectContaining({
           direction: FriendRequestDirection.OUTGOING,
@@ -299,6 +304,7 @@ describe('FriendshipService', () => {
 
       expect(notificationService.createNotification).toHaveBeenCalledWith(
         expect.not.objectContaining({ linkUrl: expect.anything() }),
+        { email: NotificationEmailType.FRIEND_REQUEST },
       );
     });
 
@@ -330,6 +336,7 @@ describe('FriendshipService', () => {
         expect.objectContaining({
           body: 'A member would like to add you as a friend.',
         }),
+        { email: NotificationEmailType.FRIEND_REQUEST },
       );
     });
 
@@ -371,6 +378,7 @@ describe('FriendshipService', () => {
           userId: TARGET_ID,
           title: 'Friend request accepted',
         }),
+        { email: NotificationEmailType.FRIEND_ACCEPTED },
       );
       expect(result).toEqual(expect.objectContaining({ id: 'friendship-1' }));
     });
@@ -470,6 +478,7 @@ describe('FriendshipService', () => {
           title: 'Friend request accepted',
           body: 'captain.sisko accepted your friend request.',
         }),
+        { email: NotificationEmailType.FRIEND_ACCEPTED },
       );
       expect(result.id).toBe('friendship-1');
     });

@@ -369,6 +369,42 @@ export class StorytimeStoryService {
   }
 
   /**
+   * Lists the Stories a user may act on in a particular way.
+   *
+   * The ones they own come first, in their chosen order, then the ones an
+   * accepted collaboration lets them, by title. Removed Stories are included;
+   * whether they matter is the caller's question.
+   *
+   * @param userId - The user.
+   * @param capability - What they want to do.
+   * @returns The Stories.
+   */
+  async findWithCapabilityForUser(
+    userId: string,
+    capability: StoryCapability,
+  ): Promise<StorytimeStoryEntity[]> {
+    const owned = await this.findOwnedByUser(userId);
+    const ownedIds = new Set(owned.map(story => story.id));
+    const sharedIds = (
+      await this._collaboratorAccessService.findStoryIdsGranting(
+        userId,
+        capability,
+      )
+    ).filter(storyId => !ownedIds.has(storyId));
+
+    if (sharedIds.length === 0) {
+      return owned;
+    }
+
+    const shared = await this._storyRepository.find({
+      where: { id: In(sharedIds) },
+      order: { title: 'ASC' },
+    });
+
+    return [...owned, ...shared];
+  }
+
+  /**
    * Finds a Story by slug for public reading.
    *
    * Removed and unpublished Stories are not returned, so a direct URL cannot

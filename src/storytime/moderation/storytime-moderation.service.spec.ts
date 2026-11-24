@@ -4,6 +4,8 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { In } from 'typeorm';
 
+import { NotificationEmailType } from 'src/notification/email/notification-email-type.enum';
+
 import { SiteAdminActionEntity } from '../../audit/site-admin/site-admin-action.entity';
 import { SiteAdminActionKind } from '../../audit/site-admin/site-admin-action.enum';
 import { ReportStatus } from '../../moderation/enums/report-status.enum';
@@ -185,6 +187,7 @@ describe('StorytimeModerationService', () => {
           userId: 'writer-1',
           body: expect.stringContaining('breaches the harassment policy'),
         }),
+        { email: NotificationEmailType.STORYTIME_MODERATION },
       );
     });
 
@@ -350,6 +353,7 @@ describe('StorytimeModerationService', () => {
 
       expect(notificationService.createNotification).toHaveBeenCalledWith(
         expect.objectContaining({ userId: 'writer-1' }),
+        { email: NotificationEmailType.STORYTIME_MODERATION },
       );
     });
 
@@ -456,6 +460,7 @@ describe('StorytimeModerationService', () => {
       expect.objectContaining({
         body: expect.stringContaining('actioned by an administrator'),
       }),
+      { email: NotificationEmailType.STORYTIME_MODERATION },
     );
   });
 });

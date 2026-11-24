@@ -11,6 +11,7 @@ import {
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { Queue } from 'bullmq';
 
+import { NotificationEmailType } from 'src/notification/email/notification-email-type.enum';
 import { NotificationSeverity } from 'src/notification/enums/notification-severity.enum';
 import { NotificationTarget } from 'src/notification/enums/notification-target.enum';
 import { NotificationService } from 'src/notification/notification.service';
@@ -458,16 +459,19 @@ describe('ChatTranscriptService', () => {
         }),
       );
       expect(row().expiresAt!.getTime() - row().readyAt!.getTime()).toBe(DAY);
-      expect(notifications.createNotification).toHaveBeenCalledWith({
-        target: NotificationTarget.USER,
-        userId: MODERATOR_ID,
-        severity: NotificationSeverity.SUCCESS,
-        title: 'Transcript ready',
-        body:
-          'Your transcript of General is ready. It can be downloaded from ' +
-          'Chat for 24 hours.',
-        linkUrl: '/chat/transcripts',
-      });
+      expect(notifications.createNotification).toHaveBeenCalledWith(
+        {
+          target: NotificationTarget.USER,
+          userId: MODERATOR_ID,
+          severity: NotificationSeverity.SUCCESS,
+          title: 'Transcript ready',
+          body:
+            'Your transcript of General is ready. It can be downloaded from ' +
+            'Chat for 24 hours.',
+          linkUrl: '/chat/transcripts',
+        },
+        { email: NotificationEmailType.FLEET_TRANSCRIPT },
+      );
     });
 
     it('reads a long range in batches, in order', async () => {
@@ -527,6 +531,14 @@ describe('ChatTranscriptService', () => {
 
     it('refuses one whose link has expired', async () => {
       ready({ expiresAt: ago(MINUTE) });
+
+      await expect(
+        service.download(TRANSCRIPT_ID, MODERATOR_ID),
+      ).rejects.toThrow(GoneException);
+    });
+
+    it('treats a ready one with no expiry as expired', async () => {
+      ready({ expiresAt: null });
 
       await expect(
         service.download(TRANSCRIPT_ID, MODERATOR_ID),
