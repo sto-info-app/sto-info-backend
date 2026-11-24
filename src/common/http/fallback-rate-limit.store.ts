@@ -50,6 +50,21 @@ export class FallbackRateLimitStore implements Store {
   private _counting = false;
 
   /**
+   * What sets this limiter's keys apart from every other limiter's: the
+   * Redis store's own prefix, or the label when it has none.
+   *
+   * express-rate-limit tells stores apart by this when it checks that one
+   * request is never counted twice. Without it, a request that two layered
+   * limiters both count, such as a sign-in under the auth and the write
+   * limits, would read as one store counting it twice.
+   *
+   * @returns The prefix.
+   */
+  get prefix(): string {
+    return this._redis.prefix ?? `rl:${this._label}:`;
+  }
+
+  /**
    * Creates an instance of FallbackRateLimitStore.
    *
    * @param _redis - The shared store.

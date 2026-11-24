@@ -20,6 +20,7 @@ type MockStore = {
   resetAll: jest.Mock<Required<Store>['resetAll']>;
   shutdown: jest.Mock<Required<Store>['shutdown']>;
   localKeys: boolean;
+  prefix?: string;
 };
 
 /** A count, as either store answers one. */
@@ -64,6 +65,21 @@ describe('FallbackRateLimitStore', () => {
     jest.useRealTimers();
     warn.mockRestore();
     log.mockRestore();
+  });
+
+  describe('its prefix', () => {
+    it('is the Redis store’s own, so each limiter’s keys stay apart', () => {
+      redis.prefix = 'rl:auth:';
+
+      expect(store.prefix).toBe('rl:auth:');
+    });
+
+    it('falls back to its label when the Redis store has none', () => {
+      expect(store.prefix).toBe('rl:auth:');
+      expect(
+        new FallbackRateLimitStore(redis, memory, 'write', () => now).prefix,
+      ).toBe('rl:write:');
+    });
   });
 
   describe('while Redis answers', () => {
