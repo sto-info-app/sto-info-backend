@@ -537,6 +537,14 @@ describe('ChatTranscriptService', () => {
       ).rejects.toThrow(GoneException);
     });
 
+    it('treats a ready one with no expiry as expired', async () => {
+      ready({ expiresAt: null });
+
+      await expect(
+        service.download(TRANSCRIPT_ID, MODERATOR_ID),
+      ).rejects.toThrow(GoneException);
+    });
+
     it('refuses one the sweep has expired', async () => {
       ready({ status: ChatTranscriptStatus.EXPIRED, objectKey: null });
 

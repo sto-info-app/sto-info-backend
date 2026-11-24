@@ -327,7 +327,7 @@ export class ChatTranscriptService {
     if (
       transcript.status === ChatTranscriptStatus.EXPIRED ||
       (transcript.status === ChatTranscriptStatus.READY &&
-        (transcript.expiresAt as Date) <= new Date())
+        (transcript.expiresAt?.getTime() ?? 0) <= Date.now())
     ) {
       throw new GoneException('This transcript has expired.');
     }
