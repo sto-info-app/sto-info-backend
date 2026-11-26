@@ -101,6 +101,7 @@ Contact us offers a Fleet Communities topic for anything about the Fleet section
 - Chat, its log and every message's actions can be used from the keyboard, and the site honours reduced motion throughout.
 - Storytime closes a removed item's open reports, and deleting a Story deletes its Chapters, cast and pictures with it.
 - Storytime now describes itself as a home for Star Trek and Star Trek Online fan fiction, written and shared by the Star Trek Online community.
+- Storytime's standard tags, such as Federation or Drama, can now be saved on a Story or an Arc; saving one used to fail with "each value in tagIds must be a UUID". Site administrators can edit and remove those tags too.
 - Custom Tracking takes a deleted account's or Character's answers with it.
 - The site keeps serving, rate limiting and accepting uploads while its background services are briefly unavailable, and is served only through Cloudflare.
 - Underlying code has been reorganised to clear every outstanding static-analysis finding, and dependencies are at their latest supported maintenance releases.
