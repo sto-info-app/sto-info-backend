@@ -646,9 +646,13 @@ describe('ChatMessageService', () => {
   });
 
   describe('mentions, replies and notices (FC-033)', () => {
+    // Each post needs its own client ID: posting one again returns the first
+    // message (alreadyPosted) without queuing a notice. A random pick from
+    // 1,000 IDs collided often enough to fail a test that posts three times.
+    let nextClientId = 700;
     const post = (body: string, extra: object = {}) => ({
       body,
-      clientMessageId: idOf(700 + Math.floor(Math.random() * 1_000)),
+      clientMessageId: idOf(nextClientId++),
       ...extra,
     });
 
