@@ -29,7 +29,7 @@ export class HealthController {
   @Get('live')
   @HealthCheck()
   live() {
-    return this._health.check([async () => ({ app: { status: 'up' } })]);
+    return this._health.check([() => ({ app: { status: 'up' } })]);
   }
 
   /**

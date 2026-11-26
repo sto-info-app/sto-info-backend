@@ -7,6 +7,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { Repository } from 'typeorm';
 
+import {
+  eachLimited,
+  POOLED_READ_CONCURRENCY,
+} from '../../shared/ledger/ledger.utility';
 import { SecretsService } from '../../shared/secrets/secrets.service';
 import {
   SesBounce,
@@ -254,6 +258,8 @@ export class SesWebhookService {
    * to the affected address. Soft bounces (`Transient`, `Undetermined`) are
    * recorded for audit purposes only, without suppression.
    *
+   * Each recipient's row stands alone, so they are written four at a time.
+   *
    * @param snsMessageId - Idempotency key from the parent SNS envelope.
    * @param notification - The full SES notification containing bounce details.
    */
@@ -264,31 +270,35 @@ export class SesWebhookService {
     const bounce = notification.bounce as SesBounce;
     const isPermanent = bounce.bounceType === 'Permanent';
 
-    for (const recipient of bounce.bouncedRecipients) {
-      const emailHashed = await this.hashEmail(recipient.emailAddress);
-      const event = this._sesEventRepository.create({
-        eventType: 'Bounce',
-        emailHashed,
-        bounceType: bounce.bounceType as SesBounceType,
-        bounceSubType: bounce.bounceSubType as SesBounceSubType,
-        complaintFeedbackType: null,
-        sesMessageId: notification.mail.messageId,
-        snsMessageId,
-        suppress: isPermanent,
-      });
+    await eachLimited(
+      bounce.bouncedRecipients,
+      POOLED_READ_CONCURRENCY,
+      async recipient => {
+        const emailHashed = await this.hashEmail(recipient.emailAddress);
+        const event = this._sesEventRepository.create({
+          eventType: 'Bounce',
+          emailHashed,
+          bounceType: bounce.bounceType as SesBounceType,
+          bounceSubType: bounce.bounceSubType as SesBounceSubType,
+          complaintFeedbackType: null,
+          sesMessageId: notification.mail.messageId,
+          snsMessageId,
+          suppress: isPermanent,
+        });
 
-      await this._sesEventRepository.save(event);
+        await this._sesEventRepository.save(event);
 
-      if (isPermanent) {
-        this._logger.warn(
-          `Hard bounce (${bounce.bounceSubType}) recorded — address suppressed`,
-        );
-      } else {
-        this._logger.log(
-          `Soft bounce (${bounce.bounceType}/${bounce.bounceSubType}) recorded — address not suppressed`,
-        );
-      }
-    }
+        if (isPermanent) {
+          this._logger.warn(
+            `Hard bounce (${bounce.bounceSubType}) recorded — address suppressed`,
+          );
+        } else {
+          this._logger.log(
+            `Soft bounce (${bounce.bounceType}/${bounce.bounceSubType}) recorded — address not suppressed`,
+          );
+        }
+      },
+    );
   }
 
   /**
@@ -297,6 +307,8 @@ export class SesWebhookService {
    * All complaints unconditionally set `suppress = true` regardless of
    * `complaintFeedbackType`, as per AWS's recommendation to immediately
    * remove complainers from mailing lists.
+   *
+   * Each recipient's row stands alone, so they are written four at a time.
    *
    * @param snsMessageId - Idempotency key from the parent SNS envelope.
    * @param notification - The full SES notification containing complaint details.
@@ -307,25 +319,29 @@ export class SesWebhookService {
   ): Promise<void> {
     const complaint = notification.complaint as SesComplaint;
 
-    for (const recipient of complaint.complainedRecipients) {
-      const emailHashed = await this.hashEmail(recipient.emailAddress);
-      const event = this._sesEventRepository.create({
-        eventType: 'Complaint',
-        emailHashed,
-        bounceType: null,
-        bounceSubType: null,
-        complaintFeedbackType: complaint.complaintFeedbackType ?? null,
-        sesMessageId: notification.mail.messageId,
-        snsMessageId,
-        suppress: true,
-      });
+    await eachLimited(
+      complaint.complainedRecipients,
+      POOLED_READ_CONCURRENCY,
+      async recipient => {
+        const emailHashed = await this.hashEmail(recipient.emailAddress);
+        const event = this._sesEventRepository.create({
+          eventType: 'Complaint',
+          emailHashed,
+          bounceType: null,
+          bounceSubType: null,
+          complaintFeedbackType: complaint.complaintFeedbackType ?? null,
+          sesMessageId: notification.mail.messageId,
+          snsMessageId,
+          suppress: true,
+        });
 
-      await this._sesEventRepository.save(event);
+        await this._sesEventRepository.save(event);
 
-      this._logger.warn(
-        `Complaint (${complaint.complaintFeedbackType ?? 'unknown feedback type'}) recorded — address suppressed`,
-      );
-    }
+        this._logger.warn(
+          `Complaint (${complaint.complaintFeedbackType ?? 'unknown feedback type'}) recorded — address suppressed`,
+        );
+      },
+    );
   }
 
   /**
@@ -334,6 +350,8 @@ export class SesWebhookService {
    * Delivery events are recorded for audit/visibility purposes only;
    * they never set `suppress = true`. These records are eligible for
    * cleanup after the shorter `SES_AUDIT_RETENTION_DAYS` window.
+   *
+   * Each recipient's row stands alone, so they are written four at a time.
    *
    * @param snsMessageId - Idempotency key from the parent SNS envelope.
    * @param notification - The full SES notification containing delivery details.
@@ -344,21 +362,25 @@ export class SesWebhookService {
   ): Promise<void> {
     const delivery = notification.delivery as SesDelivery;
 
-    for (const recipient of delivery.recipients) {
-      const emailHashed = await this.hashEmail(recipient);
-      const event = this._sesEventRepository.create({
-        eventType: 'Delivery',
-        emailHashed,
-        bounceType: null,
-        bounceSubType: null,
-        complaintFeedbackType: null,
-        sesMessageId: notification.mail.messageId,
-        snsMessageId,
-        suppress: false,
-      });
+    await eachLimited(
+      delivery.recipients,
+      POOLED_READ_CONCURRENCY,
+      async recipient => {
+        const emailHashed = await this.hashEmail(recipient);
+        const event = this._sesEventRepository.create({
+          eventType: 'Delivery',
+          emailHashed,
+          bounceType: null,
+          bounceSubType: null,
+          complaintFeedbackType: null,
+          sesMessageId: notification.mail.messageId,
+          snsMessageId,
+          suppress: false,
+        });
 
-      await this._sesEventRepository.save(event);
-    }
+        await this._sesEventRepository.save(event);
+      },
+    );
 
     this._logger.log(
       `Delivery confirmed for ${delivery.recipients.length} recipient(s) in ${delivery.processingTimeMillis}ms`,

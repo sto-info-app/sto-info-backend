@@ -84,7 +84,9 @@ describe('HealthController', () => {
     if (typeof liveIndicator !== 'function') {
       throw new Error('Expected the liveness indicator to be callable');
     }
-    const indicatorResult = await liveIndicator();
+    // The liveness indicator answers at once rather than through a promise.
+    const indicatorResult = liveIndicator();
+    expect(indicatorResult).not.toBeInstanceOf(Promise);
     expect(indicatorResult).toEqual(expectedResult);
     expect(result).toEqual(expectedResult);
   });
