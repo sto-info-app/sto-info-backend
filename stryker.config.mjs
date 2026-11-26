@@ -78,6 +78,11 @@ export default {
   // the same file returns 7 killed, 3 timed out and 1 survived: a real gap the
   // spurious timeouts had been hiding.
   timeoutMS: 30000,
+  // The dry run runs the whole suite once with perTest coverage on a single
+  // test runner. It took ~2 minutes on 22 November 2026 at 308 spec files;
+  // the Fleet Community merge took that past 600 and past the 5 minute
+  // default, failing the full-run shards before any mutant was tested.
+  dryRunTimeoutMinutes: 30,
   thresholds: {
     high: 80,
     low: 60,
