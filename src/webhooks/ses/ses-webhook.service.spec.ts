@@ -353,6 +353,47 @@ describe('SesWebhookService', () => {
           }),
         );
       });
+
+      it('saves one row per recipient, at most four at a time', async () => {
+        const recipients = Array.from(
+          { length: 6 },
+          (_, index) => `user${index}@example.com`,
+        );
+        let inFlight = 0;
+        let peak = 0;
+
+        repo.save.mockImplementation(async () => {
+          inFlight += 1;
+          peak = Math.max(peak, inFlight);
+          await new Promise(resolve => setImmediate(resolve));
+          inFlight -= 1;
+
+          return savedEntity;
+        });
+
+        await service.processNotification('msg-delivery-002', {
+          ...deliveryNotification,
+          delivery: { ...deliveryNotification.delivery!, recipients },
+        });
+
+        expect(repo.save).toHaveBeenCalledTimes(6);
+        expect(peak).toBe(4);
+        expect(
+          repo.create.mock.calls
+            .map(([data]) => (data as SesEventEntity).emailHashed)
+            .sort(),
+        ).toEqual(
+          recipients.map(recipient => hmac(recipient, testHmacSecret)).sort(),
+        );
+      });
+
+      it('rejects when a recipient row cannot be saved', async () => {
+        repo.save.mockRejectedValueOnce(new Error('database down'));
+
+        await expect(
+          service.processNotification('msg-delivery-003', deliveryNotification),
+        ).rejects.toThrow('database down');
+      });
     });
   });
 
