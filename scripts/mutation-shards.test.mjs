@@ -5,9 +5,16 @@ import { join } from 'node:path';
 import { describe, it } from 'node:test';
 
 import {
+  chunkOf,
+  chunkReportName,
   expandMutate,
+  expectedChunkReports,
+  filesForChunk,
   filesForShard,
+  incrementalFileName,
+  keepFiles,
   mergeReports,
+  parseChunks,
   parseShard,
   renderHtml,
   scoreReport,
@@ -77,6 +84,112 @@ describe('sharding', () => {
       assert.ok(size > 30 && size < 70, `shard ${shard} has ${size}`);
     }
   });
+});
+
+describe('chunking', () => {
+  const files = Array.from({ length: 400 }, (_, i) => `src/file-${i}.ts`);
+  const shard = filesForShard(files, 2, 4);
+
+  it('puts every file of a shard in exactly one chunk', () => {
+    const chunks = [1, 2, 3, 4].map(chunk => filesForChunk(shard, chunk, 4));
+
+    assert.deepEqual(chunks.flat().sort(), [...shard].sort());
+  });
+
+  it('keeps a file in its chunk when other files come and go', () => {
+    const changed = [...shard.slice(10), 'src/new-1.ts', 'src/new-2.ts'];
+
+    for (const file of shard.slice(10)) {
+      assert.equal(
+        filesForChunk(changed, chunkOf(file, 4), 4).includes(file),
+        true,
+      );
+    }
+  });
+
+  it('splits a shard rather than following the shard split', () => {
+    const sizes = [1, 2, 3, 4].map(
+      chunk => filesForChunk(shard, chunk, 4).length,
+    );
+
+    for (const size of sizes) {
+      assert.ok(size > 10, `a chunk has only ${size} of ${shard.length}`);
+    }
+  });
+
+  it('is a single chunk holding the whole shard by default', () => {
+    assert.deepEqual(filesForChunk(shard, 1, 1), shard);
+  });
+});
+
+describe('incrementalFileName', () => {
+  it('keeps the unchunked name for a single chunk, so saved results apply', () => {
+    assert.equal(incrementalFileName(3, 16, 1, 1), 'shard-3-of-16.json');
+  });
+
+  it('names each chunk and the chunk count', () => {
+    assert.equal(
+      incrementalFileName(3, 16, 2, 4),
+      'shard-3-of-16-chunk-2-of-4.json',
+    );
+  });
+});
+
+describe('expectedChunkReports', () => {
+  it('lists each shard and chunk that has files, once', () => {
+    const files = Array.from({ length: 200 }, (_, i) => `src/file-${i}.ts`);
+    const expected = expectedChunkReports(files, 4, 3);
+
+    assert.equal(expected.length, 12);
+    assert.ok(expected.includes(chunkReportName(4, 3)));
+  });
+
+  it('leaves out a chunk with no files', () => {
+    assert.deepEqual(expectedChunkReports(['src/a.ts'], 4, 3), [
+      chunkReportName(shardOf('src/a.ts', 4), chunkOf('src/a.ts', 3)),
+    ]);
+  });
+});
+
+describe('keepFiles', () => {
+  it('keeps only the given files, matching absolute or relative names', () => {
+    const root = tree([]);
+    const report = {
+      schemaVersion: '2',
+      files: {
+        'src/a.ts': { mutants: [] },
+        [join(root, 'src', 'b.ts')]: { mutants: [] },
+        'src/c.ts': { mutants: [] },
+      },
+      testFiles: { 'src/a.spec.ts': { tests: [] } },
+    };
+
+    const kept = keepFiles(report, ['src/a.ts', 'src/b.ts'], root);
+
+    assert.equal(Object.keys(kept.files).length, 2);
+    assert.ok('src/a.ts' in kept.files);
+    assert.equal('src/c.ts' in kept.files, false);
+    assert.deepEqual(kept.testFiles, report.testFiles);
+    assert.equal(kept.schemaVersion, '2');
+  });
+});
+
+describe('parseChunks', () => {
+  it('is 1 when not given', () => {
+    assert.equal(parseChunks(['--force']), 1);
+  });
+
+  it('reads --chunks', () => {
+    assert.equal(parseChunks(['--chunks', '4', '--force']), 4);
+  });
+
+  for (const value of ['0', '1.5', 'x', undefined]) {
+    it(`rejects --chunks ${value}`, () => {
+      assert.throws(() =>
+        parseChunks(value === undefined ? ['--chunks'] : ['--chunks', value]),
+      );
+    });
+  }
 });
 
 describe('parseShard', () => {
