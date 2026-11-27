@@ -243,7 +243,7 @@ This project uses Stryker for mutation testing.
 npm run test:mutation
 ```
 
-In CI the weekly full run is split into 16 shards that run in parallel, each keeping its results between weeks, and a final job merges them into one report. See [Weekly full run](docs/github/QUALITY-AUTOMATION.md#weekly-full-run) for how, and for running a single shard locally.
+In CI the weekly full run is split into 16 shards that run in parallel, each run in chunks that keep their results between weeks, and a final job merges them into one report. See [Weekly full run](docs/github/QUALITY-AUTOMATION.md#weekly-full-run) for how, and for running a single shard locally.
 
 For PR-style incremental mutation testing (only mutates relevant changed `src/**/*.ts` files), you can run:
 

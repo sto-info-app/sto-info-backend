@@ -19,6 +19,13 @@ env:
   # the next run is a slow one. See "Weekly full run" in
   # docs/github/QUALITY-AUTOMATION.md before changing it.
   SHARD_TOTAL: 16
+  # How many chunks each shard runs Stryker in, one after another, each with
+  # its own incremental results. A shard that overruns keeps the chunks it
+  # finished, so the next run gets further instead of starting again: on 27
+  # November 2026 shard 11 overran by ~3 minutes and saved nothing. Changing
+  # it moves files between chunks and starts their results afresh, as
+  # SHARD_TOTAL does.
+  CHUNK_TOTAL: 4
 
 jobs:
   stryker_shard:
@@ -28,10 +35,11 @@ jobs:
     # job holding the whole mutate set outgrew that: from October 2026 every
     # weekly run was cancelled at 6 hours (12,364 mutants, 76% done at best),
     # and the Fleet Community merge doubles the set to ~540 files and ~33,000
-    # mutants. Six shards of ~5,000 mutants overran on 26 November 2026: a
-    # cold shard tests ~1,800 mutants in its first hour and ~450 an hour
-    # after, so ~3,500 in the Stryker step's 330 minutes. Files go to shards
-    # by hash, so shard sizes vary; at 16 the largest is ~2,750.
+    # mutants. Six shards of ~5,000 mutants overran on 26 November 2026. At
+    # 16, on 27 November, shards still ran from ~340 to ~880 mutants an hour
+    # depending on how slow their covering tests are, so a shard's size does
+    # not predict its time; CHUNK_TOTAL lets a slow shard finish over more
+    # than one run.
     timeout-minutes: 350
     permissions:
       contents: read
@@ -58,10 +66,12 @@ jobs:
           use-cache: true
           node-version: ${{ env.NODE_VERSION }}
 
-      # Last run's results for this shard. Stryker re-tests only the mutants
-      # whose source or covering tests changed since, so a quiet week is
-      # quick. The key changes with SHARD_TOTAL, because the files in each
-      # shard do.
+      # Last run's results for this shard, one file a chunk. Stryker re-tests
+      # only the mutants whose source or covering tests changed since, so a
+      # quiet week is quick. The key changes with SHARD_TOTAL, because the
+      # files in each shard do. A chunk with no file of its own yet is seeded
+      # from the shard's file from before chunks, so CHUNK_TOTAL is not in
+      # the key.
       - name: Restore incremental results
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -79,16 +89,24 @@ jobs:
         # processes on a 16GB runner. Stryker's child processes inherit
         # NODE_OPTIONS, so this caps both the parent and the checker; the
         # test runner's own --max-old-space-size in stryker.config.mjs
-        # (testRunnerNodeArgs) takes precedence and keeps it at 8GB. At 8GB
-        # here as well, the three could ask for 24GB of a 16GB runner, and on
-        # 26 November 2026 three shards lost their runner.
+        # (testRunnerNodeArgs) takes precedence and keeps it at 6GB. With all
+        # three at 8GB three shards lost their runner on 26 November 2026, and
+        # with 3 + 3 + 8GB four more did on 27 November: a process uses more
+        # than its heap, so 14GB of heap was still too much for 16GB.
         env:
           NODE_OPTIONS: --max-old-space-size=3072
           FORCE: ${{ inputs.force && '--force' || '' }}
-        run: node scripts/mutation-shards.mjs run ${{ matrix.shard }} "$SHARD_TOTAL" $FORCE
+        run: node scripts/mutation-shards.mjs run ${{ matrix.shard }} "$SHARD_TOTAL" --chunks "$CHUNK_TOTAL" $FORCE
 
+      # Also when the step fails or times out: the chunks that finished have
+      # written their results, and keeping them is what lets a slow shard
+      # finish over more than one run. Not after a cancel, when the step may
+      # not have run at all.
       - name: Save incremental results
-        if: steps.stryker.outcome == 'success'
+        if: >-
+          always() && !cancelled() &&
+          (steps.stryker.outcome == 'success' || steps.stryker.outcome == 'failure') &&
+          hashFiles('reports/stryker-incremental/*.json') != ''
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: reports/stryker-incremental
@@ -138,7 +156,7 @@ jobs:
           path: reports/shards
 
       - name: Merge shard reports
-        run: node scripts/mutation-shards.mjs merge reports/shards reports/mutation "$SHARD_TOTAL"
+        run: node scripts/mutation-shards.mjs merge reports/shards reports/mutation "$SHARD_TOTAL" "$CHUNK_TOTAL"
 
       - name: Upload Mutation Report
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
