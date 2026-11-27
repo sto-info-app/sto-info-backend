@@ -18,7 +18,7 @@ env:
   # between shards and starts every shard's incremental results afresh, so
   # the next run is a slow one. See "Weekly full run" in
   # docs/github/QUALITY-AUTOMATION.md before changing it.
-  SHARD_TOTAL: 6
+  SHARD_TOTAL: 16
 
 jobs:
   stryker_shard:
@@ -27,9 +27,11 @@ jobs:
     # A GitHub-hosted job is stopped at 6 hours whatever this says, and one
     # job holding the whole mutate set outgrew that: from October 2026 every
     # weekly run was cancelled at 6 hours (12,364 mutants, 76% done at best),
-    # and the Fleet Community merge doubles the set to ~520 files. Each shard
-    # takes a fixed sixth of it, about 2.5 hours from cold, far less once its
-    # incremental results are cached.
+    # and the Fleet Community merge doubles the set to ~540 files and ~33,000
+    # mutants. Six shards of ~5,000 mutants overran on 26 November 2026: a
+    # cold shard tests ~1,800 mutants in its first hour and ~450 an hour
+    # after, so ~3,500 in the Stryker step's 330 minutes. Files go to shards
+    # by hash, so shard sizes vary; at 16 the largest is ~2,750.
     timeout-minutes: 350
     permissions:
       contents: read
@@ -37,7 +39,7 @@ jobs:
       fail-fast: false
       matrix:
         # 1 to SHARD_TOTAL. A matrix cannot read env, so keep the two in step.
-        shard: [1, 2, 3, 4, 5, 6]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
 
     steps:
       - name: Checkout Repo
@@ -74,11 +76,14 @@ jobs:
         timeout-minutes: 330
         # The script passes --concurrency 2 (1 TypeScript checker + 1 test
         # runner), so the dry run does not start two instrumented Jest
-        # processes on a 16GB runner. NODE_OPTIONS raises the parent Stryker
-        # process; testRunnerNodeArgs in stryker.config.mjs raises the child
-        # workers to the same 8GB ceiling.
+        # processes on a 16GB runner. Stryker's child processes inherit
+        # NODE_OPTIONS, so this caps both the parent and the checker; the
+        # test runner's own --max-old-space-size in stryker.config.mjs
+        # (testRunnerNodeArgs) takes precedence and keeps it at 8GB. At 8GB
+        # here as well, the three could ask for 24GB of a 16GB runner, and on
+        # 26 November 2026 three shards lost their runner.
         env:
-          NODE_OPTIONS: --max-old-space-size=8192
+          NODE_OPTIONS: --max-old-space-size=3072
           FORCE: ${{ inputs.force && '--force' || '' }}
         run: node scripts/mutation-shards.mjs run ${{ matrix.shard }} "$SHARD_TOTAL" $FORCE
 

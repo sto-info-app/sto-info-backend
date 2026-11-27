@@ -45,24 +45,25 @@ Mutation testing is used to validate the effectiveness of tests (i.e., tests sho
 
 `.github/workflows/mutation-testing.yml` runs every Sunday at midnight UTC, and can be started by hand from the Actions tab.
 
-**Why it is split.** A GitHub-hosted job is stopped at 6 hours, whatever its `timeout-minutes` says. As a single job the run was cancelled at 6 hours every week from October 2026 (12,364 mutants, 76% done at best), and on 22 November 2026 the runner ran out of memory at 52%. The Fleet Community merge takes the mutate set from ~240 to ~520 files (about 27,000 mutants, roughly 15 hours in one job).
+**Why it is split.** A GitHub-hosted job is stopped at 6 hours, whatever its `timeout-minutes` says. As a single job the run was cancelled at 6 hours every week from October 2026 (12,364 mutants, 76% done at best), and on 22 November 2026 the runner ran out of memory at 52%. The Fleet Community merge takes the mutate set from ~240 to ~540 files (about 33,000 mutants).
 
 **How it is split.**
 
-- `scripts/mutation-shards.mjs` expands the `mutate` globs in `stryker.config.mjs` and puts each file in one of `SHARD_TOTAL` shards (6) by a hash of its path. A file stays in the same shard as other files are added or removed, so its saved results stay with it.
-- Each shard is a matrix job (`Full Mutation Analysis (shard N)`), with its own 6-hour limit and 16 GB runner. It runs Stryker on its files with `stryker.shard.config.mjs`, which is the base config without the `break` threshold, at `--concurrency 2` for the dry run's memory. From cold a shard takes about 2.5 hours. The Stryker step stops at 330 minutes, so the upload steps still run if it overruns.
+- `scripts/mutation-shards.mjs` expands the `mutate` globs in `stryker.config.mjs` and puts each file in one of `SHARD_TOTAL` shards (16) by a hash of its path. A file stays in the same shard as other files are added or removed, so its saved results stay with it. The hash does not balance sizes: at 16 shards they run from about 750 to 2,750 mutants.
+- Each shard is a matrix job (`Full Mutation Analysis (shard N)`), with its own 6-hour limit and 16 GB runner. It runs Stryker on its files with `stryker.shard.config.mjs`, which is the base config without the `break` threshold, at `--concurrency 2` for the dry run's memory. The Stryker step stops at 330 minutes, so the upload steps still run if it overruns.
+- **Memory.** The step's `NODE_OPTIONS` gives the parent Stryker process a 3 GB heap, and the TypeScript checker inherits it. The Jest test runner gets 8 GB from `testRunnerNodeArgs` in `stryker.config.mjs`, which takes precedence over `NODE_OPTIONS`. Keep the three under the runner's 16 GB: with all three at 8 GB, three of six shards lost their runner on 26 November 2026. A test runner that runs out of heap is restarted by Stryker and costs only time.
 - The `Full Mutation Analysis` job then merges the shard reports into one `mutation.json` and `mutation.html`, writes the score and mutant counts to the run summary, and fails if a shard's report is missing or the combined score is below the `break` threshold (currently 0, so only a missing shard fails it).
 
 **Incremental results.** Each shard runs Stryker with `--incremental` and keeps its results file (`reports/stryker-incremental/shard-N-of-T.json`) in the Actions cache. The next run re-tests only mutants whose source or covering tests changed, so a quiet week is quick. The cache is saved only when the shard's Stryker step succeeds. To test every mutant again, for example after changing mutators or Stryker's version, start the workflow by hand with **force** ticked.
 
-**Changing the shard count.** Change `SHARD_TOTAL` and the matrix's `shard` list together; a matrix cannot read `env`. The cache key includes the total, so every shard starts afresh and the next run is a cold one. Keep each shard comfortably under 330 minutes from cold.
+**Changing the shard count.** Change `SHARD_TOTAL` and the matrix's `shard` list together; a matrix cannot read `env`. The cache key includes the total, so every shard starts afresh and the next run is a cold one. A shard that overruns saves no results, so it fails every week until it is smaller: size by the largest shard, not the average. On 26 November 2026 a cold shard tested about 1,800 mutants in its first hour and about 450 an hour after that, so roughly 3,500 fit in 330 minutes; aim for the largest shard to hold well under that. The Free plan runs 20 jobs at once across the organisation, so the frontend's weekly run is on Monday rather than Sunday.
 
 **Locally.**
 
 ```sh
-npm run test:mutation:shard -- list 2 6   # files in shard 2 of 6
-npm run test:mutation:shard -- run 2 6    # run shard 2 of 6 (add --force to ignore saved results)
-npm run test:mutation:shard -- merge <dir with shard reports> reports/mutation 6
+npm run test:mutation:shard -- list 2 16   # files in shard 2 of 16
+npm run test:mutation:shard -- run 2 16    # run shard 2 of 16 (add --force to ignore saved results)
+npm run test:mutation:shard -- merge <dir with shard reports> reports/mutation 16
 npm run test:scripts                      # tests for the shard script
 ```
 
